@@ -31,7 +31,7 @@ int main()
     c.addi(x2, zero, 64);
     
     Label loop;
-    L(loop);
+    c.L(loop);
     
     // v *= alpha
     c.vmul(13, v1, v1, v0);

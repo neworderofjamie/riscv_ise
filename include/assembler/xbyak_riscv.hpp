@@ -261,7 +261,7 @@ public:
     void write4B(size_t offset, uint32_t v) { code_.at(offset) = v; }
 
     // **TODO**  add code base address
-    const uint32_t getCurr() const{ return static_cast<uint32_t>(code_.size()) * 4; }
+    uint32_t getCurr() const{ return static_cast<uint32_t>(code_.size()) * 4; }
     
     const auto &getCode() const{ return code_; }
 };
@@ -490,18 +490,18 @@ struct Bit {
         : v(r.getIdx())
     {
     }
-    Bit(VM vm)
+    /*Bit(VM vm)
         : v(static_cast<uint32_t>(vm))
     {
-    }
+    }*/
     Bit(CSR csr)
         : v(static_cast<uint32_t>(csr))
     {
     }
-    Bit(RM rm)
+    /*Bit(RM rm)
         : v(static_cast<uint32_t>(rm))
     {
-    }
+    }*/
 };
 
 } // local
