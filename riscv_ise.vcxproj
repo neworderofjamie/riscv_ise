@@ -146,6 +146,9 @@
     <ClInclude Include="isa.h" />
     <ClInclude Include="riscv.h" />
   </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="riscv.cc" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

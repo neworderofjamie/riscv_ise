@@ -1,6 +1,7 @@
 #pragma once
 
 // Standard C++ includes
+#include <memory>
 #include <optional>
 #include <vector>
 
@@ -11,59 +12,59 @@
 // RISC-V includes
 #include "isa.h"
 
+//----------------------------------------------------------------------------
+// InstructionMemory
+//----------------------------------------------------------------------------
 class InstructionMemory
 {
 public:
-    InstructionMemory(const std::vector<uint32_t> &instructions) : m_Instructions(instructions)
-    {}
+    InstructionMemory(const std::vector<uint32_t> &instructions);
 
-    uint32_t getInstruction(uint32_t pc) const{ return m_Instructions.at(pc); }
+    uint32_t getInstruction(uint32_t addr) const;
 
 private:
     std::vector<uint32_t> m_Instructions;
 };
 
+//----------------------------------------------------------------------------
+// ScalarDataMemory
+//----------------------------------------------------------------------------
 class ScalarDataMemory
 {
 public:
-    ScalarDataMemory(const std::vector<uint32_t> &data) : m_Data(data)
-    {}
+    ScalarDataMemory(const std::vector<uint8_t> &data);
 
-    uint32_t read32(uint32_t addr) const
-    { 
-        if(addr % 4 != 0) {
-            // **TODO** misaligned load
-            assert(false);
-        }
-        return m_Data.at(addr / 4);
-    }
+    uint32_t read32(uint32_t addr) const;
+    void write32(uint32_t addr, uint32_t value);
 
-    void write32(uint32_t addr, uint32_t value)
-    { 
-        if(addr % 4 != 0) {
-            // **TODO** misaligned load
-            assert(false);
-        }
-        m_Data.at(addr / 4) = value;
-    }
+    uint16_t read16(uint32_t addr) const;
+    void write16(uint32_t addr, uint16_t value);
 
-    /*uint32_t read16(uint32_t addr) const
-    { 
-        if(addr % 2 != 0) {
-            // **TODO** misaligned load
-            assert(false);
-        }
-        const uint32_t word = m_Data.at(addr / 4);
-        const uint32_t halfWord = addr % 4;
-        return m_Data.at(addr / 4);
-    }*/
+    uint8_t read8(uint32_t addr) const;
+    void write8(uint32_t addr, uint8_t value);
+
 private:
-    std::vector<uint32_t> m_Data;
+    std::vector<uint8_t> m_Data;
 };
 
+//----------------------------------------------------------------------------
+// RISCV
+//----------------------------------------------------------------------------
 class RISCV
 {
 public:
+    //------------------------------------------------------------------------
+    // ICoprocessor
+    //------------------------------------------------------------------------
+    class ICoprocessor
+    {
+    public:
+        virtual void executeInstruction(uint32_t inst, uint32_t (&reg)[32]) = 0;
+    };
+
+    RISCV(const std::vector<uint32_t> &instructions, const std::vector<uint8_t> &data);
+
+    void run();
 
 private:
     // M status CSR
@@ -112,15 +113,21 @@ private:
 
     void setMStatus(uint32_t val);
 
-    bool calcBranchCondition(uint32_t rs2, uint32_t rs1, uint32_t funct3) const;
+    void setNextPC(uint32_t nextPC);
 
-    void executeStandardInstruction(StandardOpCode opcode, uint32_t inst);
+    bool calcBranchCondition(uint32_t inst, uint32_t rs2, uint32_t rs1, uint32_t funct3) const;
+    uint32_t calcOpImmResult(uint32_t inst, int32_t imm, uint32_t rs1, uint32_t funct3) const;
+    uint32_t calcOpResult(uint32_t inst, uint32_t rs2, uint32_t rs1, uint32_t funct3) const;
+    uint32_t loadValue(uint32_t inst, int32_t imm, uint32_t rs1, uint32_t funct3) const;
+    void executeStandardInstruction(uint32_t inst);
 
     void executeInstruction(uint32_t inst);
 
     // -----------------------------------------------------------------------
     // Members
     // -----------------------------------------------------------------------
+    bool m_MachineRunning;
+
     // CPU state
     uint32_t m_PC;
     uint32_t m_NextPC;
@@ -151,4 +158,9 @@ private:
     uint32_t m_STVal;
     uint32_t m_SATP;
     uint32_t m_SCounterEN;
+
+    InstructionMemory m_InstructionMemory;
+    ScalarDataMemory m_ScalarDataMemory;
+
+    std::unique_ptr<ICoprocessor> m_CoProcessors[3];
 };
