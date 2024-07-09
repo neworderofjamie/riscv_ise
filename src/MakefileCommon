@@ -2,7 +2,7 @@
 RISCV_DIR:=$(abspath $(dir $(lastword $(MAKEFILE_LIST)))../)
 
 # Set standard compiler and archiver flags
-CXXFLAGS+=-Wall -Wpedantic -Wextra -MMD -MP -I$(RISCV_DIR)/include
+CXXFLAGS+=-std=c++17 -Wall -Wpedantic -Wextra -MMD -MP -I$(RISCV_DIR)/include
 ARFLAGS:=-rcs
 
 ifdef DEBUG
@@ -22,3 +22,4 @@ endif
 # Add prefix to object directory and library name
 OBJECT_DIRECTORY?=$(RISCV_DIR)/obj$(PREFIX)
 LIBRARY_DIRECTORY?=$(RISCV_DIR)/lib
+BIN_DIRECTORY?=$(RISCV_DIR)/bin
