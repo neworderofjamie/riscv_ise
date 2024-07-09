@@ -4,98 +4,8 @@
 #include <stdexcept>
 
 // PLOG includes
-#include "plog/Log.h"
-#include "plog/Severity.h"
-
-namespace
-{
-// funct7 rs2 rs1 funct3 rd
-std::tuple<uint32_t, uint32_t, uint32_t, uint32_t, uint32_t> decodeRType(uint32_t inst)
-{
-    const uint32_t funct7 = inst >> 25;
-    const uint32_t rs2 = (inst >> 20) & 0x1f;
-    const uint32_t rs1 = (inst >> 15) & 0x1f;
-    const uint32_t funct3 = (inst >> 12) & 7;
-    const uint32_t rd = (inst >> 7) & 0x1f;
-    return std::make_tuple(funct7, rs2, rs1, funct3, rd);
-}
-
-// imm[11:0] rs1 funct3 rd
-std::tuple<int32_t, uint32_t, uint32_t, uint32_t> decodeIType(uint32_t inst)
-{
-    const int32_t imm = (int32_t)(inst >> 20);
-    const uint32_t rs1 = (inst >> 15) & 0x1f;
-    const uint32_t funct3 = (inst >> 12) & 7;
-    const uint32_t rd = (inst >> 7) & 0x1f;
-    return std::make_tuple(imm, rs1, funct3, rd);
-}
-
-std::tuple<int32_t, uint32_t, uint32_t, uint32_t> decodeSType(uint32_t inst)
-{
-    const uint32_t rs2 = (inst >> 20) & 0x1f;
-    const uint32_t rs1 = (inst >> 15) & 0x1f;
-    const uint32_t funct3 = (inst >> 12) & 7;
-    const int32_t imm = ((((inst >> 7) & 0x1f) | ((inst >> (25 - 5)) & 0xfe0)) << 20) >> 20;
-
-    return std::make_tuple(imm, rs2, rs1, funct3);
-}
-
-// imm[12] imm[10:5] rs2 rs1 funct3 imm[4:1] imm[11]
-std::tuple<int32_t, uint32_t, uint32_t, uint32_t> decodeBType(uint32_t inst)
-{
-    int32_t imm = ((inst >> (31 - 12)) & (1 << 12)) |
-                  ((inst >> (25 - 5)) & 0x7e0) |
-                  ((inst >> (8 - 1)) & 0x1e) |
-                  ((inst << (11 - 7)) & (1 << 11));
-    imm = (imm << 19) >> 19;
-
-    const uint32_t rs2 = (inst >> 20) & 0x1f;
-    const uint32_t rs1 = (inst >> 15) & 0x1f;
-    const uint32_t funct3 = (inst >> 12) & 7;
-    return std::make_tuple(imm, rs2, rs1, funct3);
-}
-
-// imm[31:12] rd
-std::tuple<int32_t, uint32_t> decodeUType(uint32_t inst)
-{
-    const int32_t imm =  (int32_t)(inst & 0xfffff000);
-    const uint32_t rd = (inst >> 7) & 0x1f;
-    return std::make_tuple(imm, rd);
-}
-
-class Exception : std::exception
-{
-public:
-    enum class Cause : uint32_t
-    {
-        MISALIGNED_FETCH    = 0x0,
-        //FAULT_FETCH         = 0x1,
-        ILLEGAL_INSTRUCTION = 0x2,
-        //BREAKPOINT          = 0x3,
-        MISALIGNED_LOAD     = 0x4,
-        FAULT_LOAD          = 0x5,
-        MISALIGNED_STORE    = 0x6,
-        FAULT_STORE         = 0x7,
-        //USER_ECALL          = 0x8,
-        //SUPERVISOR_ECALL    = 0x9,
-        //HYPERVISOR_ECALL    = 0xa,
-        //MACHINE_ECALL       = 0xb,
-        //FETCH_PAGE_FAULT    = 0xc,
-        //LOAD_PAGE_FAULT     = 0xd,
-        //STORE_PAGE_FAULT    = 0xf,
-    };
-
-    Exception(Cause cause, uint32_t context) : m_Cause(cause), m_Context(context)
-    {}
-
-    Cause getCause() const{ return m_Cause; }
-    uint32_t getContext() const{ return m_Context; }
-
-private:
-    Cause m_Cause;
-    uint32_t m_Context;
-};
-}   // Anonymous namespace
+#include <plog/Log.h>
+#include <plog/Severity.h>
 
 //----------------------------------------------------------------------------
 // InstructionMemory
@@ -439,7 +349,7 @@ uint32_t RISCV::calcOpImmResult(uint32_t inst, int32_t imm, uint32_t rs1, uint32
     }
 }
 //----------------------------------------------------------------------------
-uint32_t RISCV::calcOpResult(uint32_t inst, uint32_t rs2, uint32_t rs1, uint32_t funct3) const
+uint32_t RISCV::calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs2, uint32_t rs1, uint32_t funct3) const
 {
     const uint32_t val = m_Reg[rs1];
     const uint32_t val2 = m_Reg[rs2];
@@ -510,28 +420,30 @@ uint32_t RISCV::calcOpResult(uint32_t inst, uint32_t rs2, uint32_t rs1, uint32_t
     else
 #endif
     {
-        if (imm & ~0x20) {
+        // If any bits are set in funct7 aside from the one used for distinguishing ops
+        if (funct7 & ~0x20) {
             throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
         }
-        funct3 = ((insn >> 12) & 7) | ((insn >> (30 - 3)) & (1 << 3));
         switch(funct3) {
-        case 0: /* add */
+        case 0: // ADD/SUB
         {
+            if(funct7 == 0) {
 #ifdef DEBUG_EXTRA
-            dprintf(">>> ADD\n");
-            stats[27]++;
+                dprintf(">>> ADD\n");
+                stats[27]++;
 #endif
-            return (int32_t)(val + val2);
-        }
-        case 0 | 8: /* sub */
-        {
+                return (int32_t)(val + val2);
+            }
+            else {
 #ifdef DEBUG_EXTRA
-            dprintf(">>> SUB\n");
-            stats[28]++;
+                dprintf(">>> SUB\n");
+                stats[28]++;
 #endif
-            return (int32_t)(val - val2);
+                return (int32_t)(val - val2);
+            }
         }
-        case 1: /* sll */
+
+        case 1: // SLL
         {
 #ifdef DEBUG_EXTRA
             dprintf(">>> SLL\n");
@@ -539,7 +451,8 @@ uint32_t RISCV::calcOpResult(uint32_t inst, uint32_t rs2, uint32_t rs1, uint32_t
 #endif
             return (int32_t)(val << (val2 & 31));
         }
-        case 2: /* slt */
+
+        case 2: // SLT
         {
 #ifdef DEBUG_EXTRA
             dprintf(">>> SLT\n");
@@ -547,7 +460,7 @@ uint32_t RISCV::calcOpResult(uint32_t inst, uint32_t rs2, uint32_t rs1, uint32_t
 #endif
             return (int32_t)val < (int32_t)val2;
         }
-        case 3: /* sltu */
+        case 3: // SLTU
         {
 #ifdef DEBUG_EXTRA
             dprintf(">>> SLTU\n");
@@ -555,7 +468,8 @@ uint32_t RISCV::calcOpResult(uint32_t inst, uint32_t rs2, uint32_t rs1, uint32_t
 #endif
             return val < val2;
         }
-        case 4: /* xor */
+
+        case 4: // XOR
         {
 #ifdef DEBUG_EXTRA
             dprintf(">>> XOR\n");
@@ -563,24 +477,26 @@ uint32_t RISCV::calcOpResult(uint32_t inst, uint32_t rs2, uint32_t rs1, uint32_t
 #endif
             return val ^ val2;
         }
-        case 5: /* srl */
+
+        case 5: // SRL/SRA
         {
+            if(funct7 == 0) {
 #ifdef DEBUG_EXTRA
-            dprintf(">>> SRL\n");
-            stats[33]++;
+                dprintf(">>> SRL\n");
+                stats[33]++;
 #endif
-            return (int32_t)((uint32_t)val >> (val2 & 31));
-        }
-        case 5 | 8: /* sra */
-        {
+                return (int32_t)((uint32_t)val >> (val2 & 31));
+            }
+            else {
 #ifdef DEBUG_EXTRA
-            dprintf(">>> SRA\n");
-            stats[34]++;
+                dprintf(">>> SRA\n");
+                stats[34]++;
 #endif
-            return (int32_t)val >> (val2 & 31);
+                return (int32_t)val >> (val2 & 31);
+            }
         }
 
-        case 6: /* or */
+        case 6: // OR
         {
 #ifdef DEBUG_EXTRA
             dprintf(">>> OR\n");
@@ -588,7 +504,7 @@ uint32_t RISCV::calcOpResult(uint32_t inst, uint32_t rs2, uint32_t rs1, uint32_t
 #endif
             return val | val2;
         }
-        case 7: /* and */
+        case 7: // AND
         {
 #ifdef DEBUG_EXTRA
             dprintf(">>> AND\n");
@@ -807,7 +723,7 @@ void RISCV::executeStandardInstruction(uint32_t inst)
     case StandardOpCode::OP:
     {
         auto [funct7, rs2, rs1, funct3, rd] = decodeRType(inst);
-        const uint32_t val = calcOpResult(inst, rs2, rs1, funct3);
+        const uint32_t val = calcOpResult(inst, funct7, rs2, rs1, funct3);
         if (rd != 0) {
             m_Reg[rd] = val;
         }
@@ -1024,7 +940,7 @@ void RISCV::executeInstruction(uint32_t inst)
         }
         // Otherwise, if there is a co-processor defined to handle this quadrant
         else if(m_CoProcessors[quadrant]){
-            m_CoProcessors[quadrant]->executeInstruction(inst, m_Reg);
+            m_CoProcessors[quadrant]->executeInstruction(inst, m_Reg, m_ScalarDataMemory);
         }
         // Otherwise, throw
         else {
