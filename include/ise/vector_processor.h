@@ -41,6 +41,7 @@ public:
 
 private:
     Vector calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs2, uint32_t rs1, uint32_t funct3) const;
+    uint32_t calcTestResult(uint32_t inst, uint32_t rs2, uint32_t rs1, uint32_t funct3) const;
 
     VectorDataMemory m_VectorDataMemory;
     Vector m_VReg[32];

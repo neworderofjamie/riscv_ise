@@ -196,55 +196,51 @@ bool RISCV::calcBranchCondition(uint32_t inst, uint32_t rs2, uint32_t rs1, uint3
     switch(funct3) {
     case 0: // BEQ
     {
+        PLOGD << "BEQ " << rs1 << " " << rs2;
 #ifdef DEBUG_EXTRA
-            dprintf(">>> BEQ\n");
-            stats[4]++;
+        stats[4]++;
 #endif
         return (m_Reg[rs1] == m_Reg[rs2]);
     }
 
     case 1: // BNE
     {
+        PLOGD << "BNE " << rs1 << " " << rs2;
 #ifdef DEBUG_EXTRA
-            dprintf(">>> BNE\n");
-            stats[5]++;
+        stats[5]++;
 #endif
         return (m_Reg[rs1] != m_Reg[rs2]);
     }
 
     case 4: // BLT
     {
+        PLOGD << "BLT " << rs1 << " " << rs2;
 #ifdef DEBUG_EXTRA
-        dprintf(">>> BLT\n");
         stats[6]++;
-        } else  {
-            dprintf(">>> BGE\n");
-            stats[7]++;
-        }
 #endif
         return ((int32_t)m_Reg[rs1] < (int32_t)m_Reg[rs2]);
     }
 
     case 5: // BGE
     {
+        PLOGD << "BGE " << rs1 << " " << rs2;
 #ifdef DEBUG_EXTRA
-        dprintf(">>> BGE\n");
         stats[7]++;
 #endif
         return ((int32_t)m_Reg[rs1] >= (int32_t)m_Reg[rs2]);
     }
     case 6: // BLTU
     {
+        PLOGD << "BLTU " << rs1 << " " << rs2;
 #ifdef DEBUG_EXTRA
-        dprintf(">>> BLTU\n");
         stats[8]++;
 #endif
         return (m_Reg[rs1] < m_Reg[rs2]);
     }
     case 7: // BGEU
     {
+        PLOGD << "BGEU " << rs1 << " " << rs2;
 #ifdef DEBUG_EXTRA
-        dprintf(">>> BGEU\n");
         stats[9]++;
 #endif
         return (m_Reg[rs1] >= m_Reg[rs2]);
@@ -262,17 +258,16 @@ uint32_t RISCV::calcOpImmResult(uint32_t inst, int32_t imm, uint32_t rs1, uint32
     switch(funct3) {
     case 0: // ADDI
     {
+        PLOGD << "ADDI " << rs1 << " " << imm;
 #ifdef DEBUG_EXTRA
-        dprintf(">>> ADDI\n");
         stats[18]++;
-        if(rs1==0) stats[47]++; /* li */
 #endif
         return (int32_t)(val + imm);
     }
     case 1: // SLLI
     {
+        PLOGD << "SLLI " << rs1 << " " << imm;
 #ifdef DEBUG_EXTRA
-        dprintf(">>> SLLI\n");
         stats[24]++;
 #endif
         if ((imm & ~31) != 0) {
@@ -283,22 +278,23 @@ uint32_t RISCV::calcOpImmResult(uint32_t inst, int32_t imm, uint32_t rs1, uint32
 
     case 2: // SLTI
     {
+        PLOGD << "SLTI " << rs1 << " " << imm;
 #ifdef DEBUG_EXTRA
-        dprintf(">>> SLTI\n");
         stats[19]++;
 #endif
         return ((int32_t)val < (int32_t)imm);
     }
     case 3: // SLTIU
     {
+        PLOGD << "SLTIU " << rs1 << " " << imm;
 #ifdef DEBUG_EXTRA
-        dprintf(">>> SLTIU\n");
         stats[20]++;
 #endif
         return (val < (uint32_t)imm);
     }
     case 4: // XORI
     {
+        PLOGD << "XORI " << rs1 << " " << imm;
 #ifdef DEBUG_EXTRA
         dprintf(">>> XORI\n");
         stats[21]++;
@@ -311,16 +307,16 @@ uint32_t RISCV::calcOpImmResult(uint32_t inst, int32_t imm, uint32_t rs1, uint32
             throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
         }
         if (imm & 0x400) {
+            PLOGD << "SRAI " << rs1 << " " << imm;
 #ifdef DEBUG_EXTRA
-            dprintf(">>> SRAI\n");
             stats[26]++;
 #endif
             return ((int32_t)val >> (imm & 31));
         }
         else
         {
+            PLOGD << "SRLI " << rs1 << " " << imm;
 #ifdef DEBUG_EXTRA
-            dprintf(">>> SRLI\n");
             stats[25]++;
 #endif
             return (int32_t)((uint32_t)val >> (imm & 31));
@@ -328,16 +324,16 @@ uint32_t RISCV::calcOpImmResult(uint32_t inst, int32_t imm, uint32_t rs1, uint32
     }
     case 6: // ORI
     {
+        PLOGD << "ORI " << rs1 << " " << imm;
 #ifdef DEBUG_EXTRA
-        dprintf(">>> ORI\n");
         stats[22]++;
 #endif
         return (val | imm);
     }
     case 7: // ANDI
     {
+        PLOGD << "ANDI " << rs1 << " " << imm;
 #ifdef DEBUG_EXTRA
-        dprintf(">>> ANDI\n");
         stats[23]++;
 #endif
         return (val & imm);
@@ -428,15 +424,15 @@ uint32_t RISCV::calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs2, uint3
         case 0: // ADD/SUB
         {
             if(funct7 == 0) {
+                PLOGD << "ADD " << rs1 << " " << rs2;
 #ifdef DEBUG_EXTRA
-                dprintf(">>> ADD\n");
                 stats[27]++;
 #endif
                 return (int32_t)(val + val2);
             }
             else {
+                PLOGD << "SUB " << rs1 << " " << rs2;
 #ifdef DEBUG_EXTRA
-                dprintf(">>> SUB\n");
                 stats[28]++;
 #endif
                 return (int32_t)(val - val2);
@@ -445,8 +441,8 @@ uint32_t RISCV::calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs2, uint3
 
         case 1: // SLL
         {
+            PLOGD << "SLL " << rs1 << " " << rs2;
 #ifdef DEBUG_EXTRA
-            dprintf(">>> SLL\n");
             stats[29]++;
 #endif
             return (int32_t)(val << (val2 & 31));
@@ -454,16 +450,16 @@ uint32_t RISCV::calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs2, uint3
 
         case 2: // SLT
         {
+            PLOGD << "SLT " << rs1 << " " << rs2;
 #ifdef DEBUG_EXTRA
-            dprintf(">>> SLT\n");
             stats[30]++;
 #endif
             return (int32_t)val < (int32_t)val2;
         }
         case 3: // SLTU
         {
+            PLOGD << "SLTU " << rs1 << " " << rs2;
 #ifdef DEBUG_EXTRA
-            dprintf(">>> SLTU\n");
             stats[31]++;
 #endif
             return val < val2;
@@ -471,8 +467,8 @@ uint32_t RISCV::calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs2, uint3
 
         case 4: // XOR
         {
+            PLOGD << "XOR " << rs1 << " " << rs2;
 #ifdef DEBUG_EXTRA
-            dprintf(">>> XOR\n");
             stats[32]++;
 #endif
             return val ^ val2;
@@ -481,15 +477,15 @@ uint32_t RISCV::calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs2, uint3
         case 5: // SRL/SRA
         {
             if(funct7 == 0) {
+                PLOGD << "SRL " << rs1 << " " << rs2;
 #ifdef DEBUG_EXTRA
-                dprintf(">>> SRL\n");
                 stats[33]++;
 #endif
                 return (int32_t)((uint32_t)val >> (val2 & 31));
             }
             else {
+                PLOGD << "SRA " << rs1 << " " << rs2;
 #ifdef DEBUG_EXTRA
-                dprintf(">>> SRA\n");
                 stats[34]++;
 #endif
                 return (int32_t)val >> (val2 & 31);
@@ -498,16 +494,16 @@ uint32_t RISCV::calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs2, uint3
 
         case 6: // OR
         {
+            PLOGD << "OR " << rs1 << " " << rs2;
 #ifdef DEBUG_EXTRA
-            dprintf(">>> OR\n");
             stats[35]++;
 #endif
             return val | val2;
         }
         case 7: // AND
         {
+            PLOGD << "AND " << rs1 << " " << rs2;
 #ifdef DEBUG_EXTRA
-            dprintf(">>> AND\n");
             stats[36]++;
 #endif
             return val & val2;
@@ -526,8 +522,8 @@ uint32_t RISCV::loadValue(uint32_t inst, int32_t imm, uint32_t rs1, uint32_t fun
     switch(funct3) {
     case 0: // LB
     {
+        PLOGD << "LB " << rs1 << " " << imm;
 #ifdef DEBUG_EXTRA
-        dprintf(">>> LB\n");
         stats[10]++;
 #endif
         return (int8_t)m_ScalarDataMemory.read8(addr);
@@ -535,8 +531,8 @@ uint32_t RISCV::loadValue(uint32_t inst, int32_t imm, uint32_t rs1, uint32_t fun
 
     case 1: // LH
     {
+        PLOGD << "LH " << rs1 << " " << imm;
 #ifdef DEBUG_EXTRA
-        dprintf(">>> LH\n");
         stats[11]++;
 #endif
         return (int16_t)m_ScalarDataMemory.read16(addr);
@@ -544,8 +540,8 @@ uint32_t RISCV::loadValue(uint32_t inst, int32_t imm, uint32_t rs1, uint32_t fun
 
     case 2: // LW
     {
+        PLOGD << "LW " << rs1 << " " << imm;
 #ifdef DEBUG_EXTRA
-        dprintf(">>> LW\n");
         stats[12]++;
 #endif
         return (int32_t)m_ScalarDataMemory.read32(addr);
@@ -553,8 +549,8 @@ uint32_t RISCV::loadValue(uint32_t inst, int32_t imm, uint32_t rs1, uint32_t fun
     
     case 4: // LBU
     {
+        PLOGD << "LBU " << rs1 << " " << imm;
 #ifdef DEBUG_EXTRA
-        dprintf(">>> LBU\n");
         stats[13]++;
 #endif
         return m_ScalarDataMemory.read8(addr);
@@ -563,8 +559,8 @@ uint32_t RISCV::loadValue(uint32_t inst, int32_t imm, uint32_t rs1, uint32_t fun
 
     case 5: // LHU
     {
+        PLOGD << "LHU " << rs1 << " " << imm;
 #ifdef DEBUG_EXTRA
-        dprintf(">>> LHU\n");
         stats[14]++;
 #endif
         return m_ScalarDataMemory.read16(addr);
@@ -583,11 +579,12 @@ void RISCV::executeStandardInstruction(uint32_t inst)
     switch(opcode) {
     case StandardOpCode::LUI:
     {
+        auto [imm, rd] = decodeUType(inst);
+        PLOGD << "LUI " << imm;
+        PLOGD << "\t"  << rd;
 #ifdef DEBUG_EXTRA
-        dprintf(">>> LUI\n");
         stats[0]++;
 #endif
-        auto [imm, rd] = decodeUType(inst);
         if (rd != 0) {
             m_Reg[rd] = imm;
         }
@@ -596,11 +593,12 @@ void RISCV::executeStandardInstruction(uint32_t inst)
 
     case StandardOpCode::AUIPC:
     {
+        auto [imm, rd] = decodeUType(inst);
+        PLOGD << "AUIPC " << imm;
+        PLOGD << "\t"  << rd;
 #ifdef DEBUG_EXTRA
-        dprintf(">>> AUIPC\n");
         stats[1]++;
 #endif
-        auto [imm, rd] = decodeUType(inst);
         if (rd != 0) {
             m_Reg[rd] = (int32_t)(m_PC + imm);
         }
@@ -609,12 +607,13 @@ void RISCV::executeStandardInstruction(uint32_t inst)
 
     case StandardOpCode::JAL:
     {
+        auto [imm, rs1, funct3, rd] = decodeIType(inst);
+        PLOGD << "JALR " << rs1 << " " << imm;
+        PLOGD << "\t"  << rd;
 #ifdef DEBUG_EXTRA
-        dprintf(">>> JAL\n");
         stats[2]++;
 #endif
-        auto [imm, rs1, funct3, rd] = decodeIType(inst);
-
+        
         /*imm = ((insn >> (31 - 20)) & (1 << 20)) |
               ((insn >> (21 - 1)) & 0x7fe) |
               ((insn >> (20 - 11)) & (1 << 11)) |
@@ -630,11 +629,13 @@ void RISCV::executeStandardInstruction(uint32_t inst)
 
     case StandardOpCode::JALR:
     {
+        auto [imm, rs1, funct3, rd] = decodeIType(inst);
+        PLOGD << "JALR " << rs1 << " " << imm;
+        PLOGD << "\t"  << rd;
 #ifdef DEBUG_EXTRA
-        dprintf(">>> JALR\n");
         stats[3]++;
 #endif
-        auto [imm, rs1, funct3, rd] = decodeIType(inst);
+        
         const uint32_t val  = m_PC + 4;
         setNextPC((int32_t)(m_Reg[rs1] + imm) & ~1);
         if (rd != 0) {
@@ -647,6 +648,7 @@ void RISCV::executeStandardInstruction(uint32_t inst)
     {
         auto [imm, rs2, rs1, funct3] = decodeBType(inst);
         if (calcBranchCondition(inst, rs2, rs1, funct3)) {
+            PLOGD << "\t" << (m_PC + imm);
             setNextPC((int32_t)(m_PC + imm));
         } 
         else {
@@ -660,6 +662,7 @@ void RISCV::executeStandardInstruction(uint32_t inst)
     {
         auto [imm, rs1, funct3, rd] = decodeIType(inst);
         const auto value = loadValue(inst, imm, rs1, funct3);
+        PLOGD << "\t" << rd;
         if (rd != 0) {
             m_Reg[rd] = value;
         }
@@ -674,8 +677,8 @@ void RISCV::executeStandardInstruction(uint32_t inst)
         switch(funct3) {
         case 0: // SB
         {
+            PLOGD << "SB " << rs2 << " " << rs1 << " " << imm;
 #ifdef DEBUG_EXTRA
-            dprintf(">>> SB\n");
             stats[15]++;
 #endif
             m_ScalarDataMemory.write8(addr, val);
@@ -684,6 +687,7 @@ void RISCV::executeStandardInstruction(uint32_t inst)
 
         case 1: // SH
         {
+            PLOGD << "SH " << rs2 << " " << rs1 << " " << imm;
 #ifdef DEBUG_EXTRA
             dprintf(">>> SH\n");
             stats[16]++;
@@ -694,8 +698,8 @@ void RISCV::executeStandardInstruction(uint32_t inst)
 
         case 2: // SW
         {
+            PLOGD << "SW " << rs2 << " " << rs1 << " " << imm;
 #ifdef DEBUG_EXTRA
-            dprintf(">>> SW\n");
             stats[17]++;
 #endif
             m_ScalarDataMemory.write32(addr, val);
@@ -714,6 +718,7 @@ void RISCV::executeStandardInstruction(uint32_t inst)
     {
         auto [imm, rs1, funct3, rd] = decodeIType(inst);
         const uint32_t val = calcOpImmResult(inst, imm, rs1, funct3);
+        PLOGD << "\t" << rd;
         if (rd != 0) {
             m_Reg[rd] = val;
         }
@@ -724,6 +729,7 @@ void RISCV::executeStandardInstruction(uint32_t inst)
     {
         auto [funct7, rs2, rs1, funct3, rd] = decodeRType(inst);
         const uint32_t val = calcOpResult(inst, funct7, rs2, rs1, funct3);
+        PLOGD << "\t" << rd;
         if (rd != 0) {
             m_Reg[rd] = val;
         }

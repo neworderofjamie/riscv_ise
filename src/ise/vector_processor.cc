@@ -3,6 +3,10 @@
 // Standard C++ includes
 #include <algorithm>
 
+// PLOG includes
+#include <plog/Log.h>
+#include <plog/Severity.h>
+
 namespace
 {
 template<typename F>
@@ -11,6 +15,19 @@ Vector binaryOp(const Vector &val, const Vector &val2, F func)
     Vector result;
     std::transform(val.cbegin(), val.cend(), val2.cbegin(), result.begin(), func);
     return result;
+}
+
+template<typename F>
+uint32_t maskOp(const Vector &val, const Vector &val2, F func)
+{
+    uint32_t mask = 0;
+    for(size_t i = 0; i < 32; i++) {
+        if(func(val[i], val2[i])) {
+            mask |= (1 << i);
+        }
+        
+    }
+    return mask;
 }
 }
 //----------------------------------------------------------------------------
@@ -67,10 +84,15 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
 
         // VLOADV
         if(funct3 == 0x0) {
+            PLOGD << "VLOADV " << rs1 << " " << imm;
+            PLOGD << "\t" << rd;
             m_VReg[rd] = m_VectorDataMemory.readVector(addr);
         }
         // VLOADS
         else if(funct3 == 0x4) {
+            PLOGD << "VLOADS " << rs1 << " " << imm;
+            PLOGD << "\t" << rd;
+    
             std::fill(m_VReg[rd].begin(), m_VReg[rd].end(), 
                       scalarDataMemory.read16(addr));
         }
@@ -84,6 +106,8 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
     case VectorOpCode::VLUI:
     {
         auto [imm, rd] = decodeUType(inst);
+        PLOGD << "VLUI " << imm;
+        PLOGD << "\t" << rd;
         std::fill(m_VReg[rd].begin(), m_VReg[rd].end(), imm);
         break;
     }
@@ -92,26 +116,41 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
     {
         auto [funct7, rs2, rs1, funct3, rd] = decodeRType(inst);
         m_VReg[rd] = calcOpResult(inst, funct7, rs2, rs1, funct3);
+        PLOGD << "\t" << rd;
         break;
     }
 
     case VectorOpCode::VSTORE:
     {
         auto [imm, rs2, rs1, funct3] = decodeSType(inst);
+        PLOGD << "VSTORE " << rs2 << " " << rs1 << " " << imm;
         m_VectorDataMemory.writeVector(reg[rs1] + imm, 
                                        m_VReg[rs2]);
         break;
     }
+    
+    case VectorOpCode::VSEL:
+    {
+        auto [funct7, rs2, rs1, funct3, rd] = decodeRType(inst);
+        PLOGD << "VSEL " << rs1 << " " << rs2;
+        PLOGD << "\t" << rd;
+        const uint32_t mask = reg[rs1];
+        auto &val = m_VReg[rd];
+        const auto &val2 = m_VReg[rs2];        
+        for(size_t i = 0; i < 32; i++) {
+            val[i] = (mask & (1 << i)) ? val2[i] : val[i];
+        }
+        break;
     }
-
-    // VTST
-    /*void vseq(const Reg &rd, const VReg &rs1, const VReg &rs2){ Rtype(0x2, 0x0, 0x2, rd, rs1, rs2); }
-    void vsni(const Reg &rd, const VReg &rs1, const VReg &rs2){ Rtype(0x2, 0x2, 0x2, rd, rs1, rs2); }
-    void vslt(const Reg &rd, const VReg &rs1, const VReg &rs2){ Rtype(0x2, 0x4, 0x2, rd, rs1, rs2); }
-    void vsge(const Reg &rd, const VReg &rs1, const VReg &rs2){ Rtype(0x2, 0x6, 0x2, rd, rs1, rs2); }
-
-    // VSEL
-    void vsel(const VReg &rd, const Reg &rs1, const VReg &rs2){ Rtype(0x2, 0x0, 0x4, rd, rs1, rs2); }*/
+    
+    case VectorOpCode::VTST:
+    {
+        auto [funct7, rs2, rs1, funct3, rd] = decodeRType(inst);
+        reg[rd] |= calcTestResult(inst, rs2, rs1, funct3);
+        PLOGD << "\t" << rd;
+        break;
+    }
+    }
 }
 //------------------------------------------------------------------------
 Vector VectorProcessor::calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs2, uint32_t rs1, uint32_t funct3) const
@@ -124,22 +163,64 @@ Vector VectorProcessor::calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs
     // VADD
     case 0x0:
     {
+        PLOGD << "VADD " << rs1 << " " << rs2;
         return binaryOp(val, val2, [](int16_t a, int16_t b){ return a + b; });
     }
 
     // VSUB
     case 0x2:
     {
+        PLOGD << "VSUB " << rs1 << " " << rs2;
         return binaryOp(val, val2, [](int16_t a, int16_t b){ return a - b; });
     }
     // VMUL
     case 0x4:
     {
+        PLOGD << "VMUL " << rs1 << " " << rs2;
         if ((funct7 & ~15) != 0) {
             throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
         }
         return binaryOp(val, val2, 
                         [funct7](int16_t a, int16_t b){ return ((int32_t)a * b) >> funct7; });
+    }
+    default:
+    {
+        throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
+    }
+    }
+}
+//------------------------------------------------------------------------
+uint32_t VectorProcessor::calcTestResult(uint32_t inst, uint32_t rs2, uint32_t rs1, uint32_t funct3) const
+{
+    const auto &val = m_VReg[rs1];
+    const auto &val2 = m_VReg[rs2];
+    
+    switch(funct3)
+    {
+    // VTEQ
+    case 0x0:
+    {
+        PLOGD << "VTEQ " << rs1 << " " << rs2;
+        return maskOp(val, val2, [](int16_t a, int16_t b){ return a == b; });
+    }
+
+    // VTNE
+    case 0x2:
+    {
+        PLOGD << "VTNE " << rs1 << " " << rs2;
+        return maskOp(val, val2, [](int16_t a, int16_t b){ return a != b; });
+    }
+    // VTLT
+    case 0x4:
+    {
+        PLOGD << "VTLT " << rs1 << " " << rs2;
+        return maskOp(val, val2, [](int16_t a, int16_t b){ return a < b; });
+    }
+    // VTGE
+    case 0x6:
+    {
+        PLOGD << "VTGE " << rs1 << " " << rs2;
+        return maskOp(val, val2, [](int16_t a, int16_t b){ return a >= b; });
     }
     default:
     {
