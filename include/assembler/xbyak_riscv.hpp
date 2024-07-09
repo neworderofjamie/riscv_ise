@@ -565,95 +565,6 @@ private:
         uint32_t v = (pre.v<<25) | (funct3.v<<12) | opcode.v | enc3(rd.v, rs1.v, shamt);
         append4B(v);
     }
-    void opAtomic(Bit5 rd, Bit5 rs2, Bit5 addr, Bit5 funct5, Bit3 funct3, uint32_t flag)
-    {
-        assert(flag <= 3);
-        Rtype(0x2f, funct3.v, (funct5.v << 2) | flag, rd, addr, rs2);
-    }
-    void opIVV(Bit32 baseValue, Bit1 vm, Bit5 vs2, Bit5 vs1, Bit5 vd)
-    {
-        /*
-            31 .. 26 | 25 | 24 .. 20 | 19 .. 15 | 14 .. 12 | 11 .. 7 | 6 .. 0
-              func6    vm      vs2       vs1        func3       vd     opcode
-
-            func6, func3, and opcode must be encoded in the baseValue
-        */
-        uint32_t v = (vm.v<<25) | (vs2.v<<20) | (vs1.v<<15) | (vd.v<<7);
-        v |= baseValue.v; // force-encode base value
-        append4B(v);
-    }
-    void opFVV(Bit32 baseValue, Bit1 vm, Bit5 vs2, Bit5 vs1, Bit5 d)
-    {
-        /*
-            31 .. 26 | 25 | 24 .. 20 | 19 .. 15 | 14 .. 12 | 11 .. 7 | 6 .. 0
-              func6    vm      vs2       vs1        func3     vd/rd    opcode
-
-            func6, func3, and opcode must be encoded in the baseValue
-        */
-        uint32_t v = (vm.v<<25) | (vs2.v<<20) | (vs1.v<<15) | (d.v<<7);
-        v |= baseValue.v; // force-encode base value
-        append4B(v);
-    }
-    void opMVV(Bit32 baseValue, Bit1 vm, Bit5 vs2, Bit5 vs1, Bit5 d)
-    {
-        /*
-            31 .. 26 | 25 | 24 .. 20 | 19 .. 15 | 14 .. 12 | 11 .. 7 | 6 .. 0
-              func6    vm      vs2       vs1        func3     vd/rd    opcode
-
-            func6, func3, and opcode must be encoded in the baseValue
-        */
-        uint32_t v = (vm.v<<25) | (vs2.v<<20) | (vs1.v<<15) | (d.v<<7);
-        v |= baseValue.v; // force-encode base value
-        append4B(v);
-    }
-    void opIVI(Bit32 baseValue, Bit1 vm, Bit5 vs2, uint32_t imm, Bit5 vd)
-    {
-        /*
-            31 .. 26 | 25 | 24 .. 20 | 19 .. 15 | 14 .. 12 | 11 .. 7 | 6 .. 0
-              func6    vm      vs2       imm       func3       vd     opcode
-
-            func6, func3, and opcode must be encoded in the baseValue
-        */
-        uint32_t v = (vm.v<<25) | (vs2.v<<20) | ((imm & local::mask(5))<<15) | (vd.v<<7);
-        v |= baseValue.v; // force-encode base value
-        append4B(v);
-    }
-    void opIVX(Bit32 baseValue, Bit1 vm, Bit5 vs2, Bit5 rs1, Bit5 vd)
-    {
-        /*
-            31 .. 26 | 25 | 24 .. 20 | 19 .. 15 | 14 .. 12 | 11 .. 7 | 6 .. 0
-              func6    vm      vs2       rs1        func3       vd     opcode
-
-            func6, func3, and opcode must be encoded in the baseValue
-        */
-        uint32_t v = (vm.v<<25) | (vs2.v<<20) | (rs1.v<<15) | (vd.v<<7);
-        v |= baseValue.v; // force-encode base value
-        append4B(v);
-    }
-    void opFVF(Bit32 baseValue, Bit1 vm, Bit5 vs2, Bit5 rs1, Bit5 vd)
-    {
-        /*
-            31 .. 26 | 25 | 24 .. 20 | 19 .. 15 | 14 .. 12 | 11 .. 7 | 6 .. 0
-              func6    vm      vs2       rs1        func3       vd     opcode
-
-            func6, func3, and opcode must be encoded in the baseValue
-        */
-        uint32_t v = (vm.v<<25) | (vs2.v<<20) | (rs1.v<<15) | (vd.v<<7);
-        v |= baseValue.v; // force-encode base value
-        append4B(v);
-    }
-    void opMVX(Bit32 baseValue, Bit1 vm, Bit5 vs2, Bit5 rs1, Bit5 d)
-    {
-        /*
-            31 .. 26 | 25 | 24 .. 20 | 19 .. 15 | 14 .. 12 | 11 .. 7 | 6 .. 0
-              func6    vm      vs2       rs1        func3     vd/rd    opcode
-
-            func6, func3, and opcode must be encoded in the baseValue
-        */
-        uint32_t v = (vm.v<<25) | (vs2.v<<20) | (rs1.v<<15) | (d.v<<7);
-        v |= baseValue.v; // force-encode base value
-        append4B(v);
-    }
     
     void opCSR(Bit32 baseValue, Bit12 csr, Bit5 rs1_uimm, Bit5 rd)
     {
@@ -667,19 +578,7 @@ private:
         v |= baseValue.v; // force-encode base value
         append4B(v);
     }
-    
-    void opR4(Bit32 baseValue, Bit5 rs3, Bit5 rs2, Bit5 rs1, Bit3 rm, Bit5 rd)
-    {
-        /*
-            31 .. 27 | 26 .. 25 | 24 .. 20 | 19 .. 15 | 14 .. 12 | 11 .. 7 | 6 .. 0
-               rs3        fmt        rs2        rs1        rm         rd      opcode
 
-            fmt and opcode must be encoded in the baseValue
-        */
-        uint32_t v = (rs3.v<<27) | (rs2.v<<20) | (rs1.v<<15) | (rm.v<<12) | (rd.v<<7);
-        v |= baseValue.v; // force-encode base value
-        append4B(v);
-    }
     bool isValiCidx(uint32_t idx) const { return 8 <= idx && idx < 16; }
 
 public:
