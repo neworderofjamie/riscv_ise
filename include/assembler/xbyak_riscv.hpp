@@ -123,8 +123,8 @@ inline uint32_t get12_10to5_z13_4to1_11_z7(uint32_t v) { return ((v & (1<<12)) <
 
 } // local
 
-class CodeArray {
-    std::vector<uint32_t> code_;
+class CodeArray 
+{
 public:
 
     void resetSize()
@@ -140,9 +140,13 @@ public:
     uint32_t getCurr() const{ return static_cast<uint32_t>(code_.size()) * 4; }
     
     const auto &getCode() const{ return code_; }
+
+private:
+    std::vector<uint32_t> code_;
 };
 
-struct Jmp {
+struct Jmp 
+{
     enum Type {
         tJal,
         tBtype,
@@ -201,7 +205,8 @@ struct Jmp {
 
 class LabelManager;
 
-class Label {
+class Label 
+{
     mutable LabelManager *mgr;
     mutable int id;
     friend class LabelManager;
@@ -215,7 +220,52 @@ public:
     uint32_t getAddress() const;
 };
 
-class LabelManager {
+class LabelManager 
+{
+public:
+    LabelManager()
+    {
+        reset();
+    }
+    ~LabelManager()
+    {
+        resetLabelPtrList();
+    }
+    void reset()
+    {
+        base_ = 0;
+        labelId_ = 1;
+        clabelDefList_.clear();
+        clabelUndefList_.clear();
+        resetLabelPtrList();
+    }
+    void set(CodeArray *base) { base_ = base; }
+    void defineClabel(Label& label)
+    {
+        define_inner(clabelDefList_, clabelUndefList_, getId(label), base_->getCurr());
+        label.mgr = this;
+        labelPtrList_.insert(&label);
+    }
+    void assign(Label& dst, const Label& src)
+    {
+        ClabelDefList::const_iterator i = clabelDefList_.find(src.id);
+        if (i == clabelDefList_.end()) XBYAK_RISCV_THROW(ERR_LABEL_IS_NOT_SET_BY_L)
+        define_inner(clabelDefList_, clabelUndefList_, dst.id, i->second.addr);
+        dst.mgr = this;
+        labelPtrList_.insert(&dst);
+    }
+    // return 0 unless label exists
+    uint32_t getAddr(const Label& label) const
+    {
+        ClabelDefList::const_iterator i = clabelDefList_.find(getId(label));
+        if (i == clabelDefList_.end()) return 0;
+        return i->second.addr;
+    }
+    void addUndefinedLabel(const Label& label, const Jmp& jmp)
+    {
+        clabelUndefList_.insert(ClabelUndefList::value_type(label.id, jmp));
+    }
+    bool hasUndefClabel() const { return hasUndefinedLabel_inner(clabelUndefList_); }
     // for Label class
     struct ClabelVal {
         ClabelVal(uint32_t addr = 0) : addr(addr), refCount(1) {}
@@ -282,50 +332,7 @@ class LabelManager {
         }
         labelPtrList_.clear();
     }
-public:
-    LabelManager()
-    {
-        reset();
-    }
-    ~LabelManager()
-    {
-        resetLabelPtrList();
-    }
-    void reset()
-    {
-        base_ = 0;
-        labelId_ = 1;
-        clabelDefList_.clear();
-        clabelUndefList_.clear();
-        resetLabelPtrList();
-    }
-    void set(CodeArray *base) { base_ = base; }
-    void defineClabel(Label& label)
-    {
-        define_inner(clabelDefList_, clabelUndefList_, getId(label), base_->getCurr());
-        label.mgr = this;
-        labelPtrList_.insert(&label);
-    }
-    void assign(Label& dst, const Label& src)
-    {
-        ClabelDefList::const_iterator i = clabelDefList_.find(src.id);
-        if (i == clabelDefList_.end()) XBYAK_RISCV_THROW(ERR_LABEL_IS_NOT_SET_BY_L)
-        define_inner(clabelDefList_, clabelUndefList_, dst.id, i->second.addr);
-        dst.mgr = this;
-        labelPtrList_.insert(&dst);
-    }
-    // return 0 unless label exists
-    uint32_t getAddr(const Label& label) const
-    {
-        ClabelDefList::const_iterator i = clabelDefList_.find(getId(label));
-        if (i == clabelDefList_.end()) return 0;
-        return i->second.addr;
-    }
-    void addUndefinedLabel(const Label& label, const Jmp& jmp)
-    {
-        clabelUndefList_.insert(ClabelUndefList::value_type(label.id, jmp));
-    }
-    bool hasUndefClabel() const { return hasUndefinedLabel_inner(clabelUndefList_); }
+
 };
 
 inline Label::Label(const Label& rhs)
@@ -353,74 +360,8 @@ inline uint32_t Label::getAddress() const
 }
 
 
-class CodeGenerator : public CodeArray {
-public:
-    enum AqRlType {
-        T_aq = 2,
-        T_rl = 1,
-        T_aqrl = 3,
-    };
-    
-private:
-    CodeGenerator operator=(const CodeGenerator&) = delete;
-    LabelManager labelMgr_;
-    
-    void opJmp(const Label& label, const Jmp& jmp)
-    {
-        const uint32_t addr = labelMgr_.getAddr(label);
-        jmp.appendCode(this, addr);
-        if (addr) return;
-        labelMgr_.addUndefinedLabel(label, jmp);
-    }
-    uint32_t enc2(uint32_t a, uint32_t b) const { return (a<<7) | (b<<15); }
-    uint32_t enc3(uint32_t a, uint32_t b, uint32_t c) const { return enc2(a, b) | (c<<20); }
-
-    void Rtype(Bit<7> opcode, Bit<3> funct3, Bit<7> funct7, Bit<5> rd, Bit<5> rs1, Bit<5> rs2)
-    {
-        uint32_t v = (funct7<<25) | (funct3<<12) | opcode | enc3(rd, rs1, rs2);
-        append4B(v);
-    }
-    void Itype(Bit<7> opcode, Bit<3> funct3, Bit<5> rd, Bit<5> rs1, int imm)
-    {
-        if (!inSBit(imm, 12)) XBYAK_RISCV_THROW(ERR_IMM_IS_TOO_BIG)
-        uint32_t v = (imm<<20) | (funct3<<12) | opcode | enc2(rd, rs1);
-        append4B(v);
-    }
-    void Stype(Bit<7> opcode, Bit<3> funct3, Bit<5> rs1, Bit<5> rs2, int imm)
-    {
-        if (!inSBit(imm, 12)) XBYAK_RISCV_THROW(ERR_IMM_IS_TOO_BIG)
-        uint32_t v = ((imm>>5)<<25) | (funct3<<12) | opcode | enc3(imm & mask(5), rs1, rs2);
-        append4B(v);
-    }
-    void Utype(Bit<7> opcode, Bit<5> rd, uint32_t imm)
-    {
-        if (imm >= (1u << 20)) XBYAK_RISCV_THROW(ERR_IMM_IS_TOO_BIG)
-        uint32_t v = (imm<<12) | opcode | (rd<<7);
-        append4B(v);
-    }
-    void opShift(Bit<7> pre, Bit<3> funct3, Bit<7> opcode, Bit<5> rd, Bit<5> rs1, uint32_t shamt, int range = 0)
-    {
-        if (range == 0) range = 5;
-        if (shamt >= (1u << range)) XBYAK_RISCV_THROW(ERR_IMM_IS_TOO_BIG)
-        uint32_t v = (pre<<25) | (funct3<<12) | opcode | enc3(rd, rs1, shamt);
-        append4B(v);
-    }
-    
-    void opCSR(Bit<32> baseValue, Bit<12> csr, Bit<5> rs1_uimm, Bit<5> rd)
-    {
-        /*
-            31 .. 20 | 19 .. 15 | 14 .. 12 | 11 .. 7 | 6 .. 0
-               csr     rs1_uimm     func3       rd     opcode
-
-            func3 and opcode must be encoded in the baseValue
-        */
-        uint32_t v = (csr<<20) | (rs1_uimm<<15) | (rd<<7);
-        v |= baseValue; // force-encode base value
-        append4B(v);
-    }
-
-    bool isValiCidx(uint32_t idx) const { return 8 <= idx && idx < 16; }
-
+class CodeGenerator : public CodeArray 
+{
 public:
     void L(Label& label) { labelMgr_.defineClabel(label); }
     Label L() { Label label; L(label); return label; }
@@ -595,6 +536,66 @@ public:
 
     // VSTORE
     void vstore(const VReg &rs, const Reg &addr, int imm = 0){ Stype(0x16, 0x0, addr, rs, imm); }
+
+private:
+    CodeGenerator operator=(const CodeGenerator&) = delete;
+    LabelManager labelMgr_;
+    
+    void opJmp(const Label& label, const Jmp& jmp)
+    {
+        const uint32_t addr = labelMgr_.getAddr(label);
+        jmp.appendCode(this, addr);
+        if (addr) return;
+        labelMgr_.addUndefinedLabel(label, jmp);
+    }
+    uint32_t enc2(uint32_t a, uint32_t b) const { return (a<<7) | (b<<15); }
+    uint32_t enc3(uint32_t a, uint32_t b, uint32_t c) const { return enc2(a, b) | (c<<20); }
+
+    void Rtype(Bit<7> opcode, Bit<3> funct3, Bit<7> funct7, Bit<5> rd, Bit<5> rs1, Bit<5> rs2)
+    {
+        uint32_t v = (funct7<<25) | (funct3<<12) | opcode | enc3(rd, rs1, rs2);
+        append4B(v);
+    }
+    void Itype(Bit<7> opcode, Bit<3> funct3, Bit<5> rd, Bit<5> rs1, int imm)
+    {
+        if (!inSBit(imm, 12)) XBYAK_RISCV_THROW(ERR_IMM_IS_TOO_BIG)
+        uint32_t v = (imm<<20) | (funct3<<12) | opcode | enc2(rd, rs1);
+        append4B(v);
+    }
+    void Stype(Bit<7> opcode, Bit<3> funct3, Bit<5> rs1, Bit<5> rs2, int imm)
+    {
+        if (!inSBit(imm, 12)) XBYAK_RISCV_THROW(ERR_IMM_IS_TOO_BIG)
+        uint32_t v = ((imm>>5)<<25) | (funct3<<12) | opcode | enc3(imm & mask(5), rs1, rs2);
+        append4B(v);
+    }
+    void Utype(Bit<7> opcode, Bit<5> rd, uint32_t imm)
+    {
+        if (imm >= (1u << 20)) XBYAK_RISCV_THROW(ERR_IMM_IS_TOO_BIG)
+        uint32_t v = (imm<<12) | opcode | (rd<<7);
+        append4B(v);
+    }
+    void opShift(Bit<7> pre, Bit<3> funct3, Bit<7> opcode, Bit<5> rd, Bit<5> rs1, uint32_t shamt, int range = 0)
+    {
+        if (range == 0) range = 5;
+        if (shamt >= (1u << range)) XBYAK_RISCV_THROW(ERR_IMM_IS_TOO_BIG)
+        uint32_t v = (pre<<25) | (funct3<<12) | opcode | enc3(rd, rs1, shamt);
+        append4B(v);
+    }
+    
+    void opCSR(Bit<32> baseValue, Bit<12> csr, Bit<5> rs1_uimm, Bit<5> rd)
+    {
+        /*
+            31 .. 20 | 19 .. 15 | 14 .. 12 | 11 .. 7 | 6 .. 0
+               csr     rs1_uimm     func3       rd     opcode
+
+            func3 and opcode must be encoded in the baseValue
+        */
+        uint32_t v = (csr<<20) | (rs1_uimm<<15) | (rd<<7);
+        v |= baseValue; // force-encode base value
+        append4B(v);
+    }
+
+    bool isValiCidx(uint32_t idx) const { return 8 <= idx && idx < 16; }
 
 };
 
