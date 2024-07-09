@@ -10,7 +10,7 @@
 #include <cstdint>
 
 // RISC-V includes
-#include "isa.h"
+#include "common/isa.h"
 
 //----------------------------------------------------------------------------
 // InstructionMemory
