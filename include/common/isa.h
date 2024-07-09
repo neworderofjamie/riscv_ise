@@ -38,6 +38,9 @@ enum class StandardOpCode : uint32_t
     AUIPC   = 0b00101,
 };
 
+static constexpr uint32_t standardQuadrant = 0b11;
+static constexpr uint32_t vectorQuadrant = 0b00;
+
 enum class VectorOpCode : uint32_t
 {
     VSOP    = 0b01100,
@@ -46,6 +49,95 @@ enum class VectorOpCode : uint32_t
     VLUI    = 0b01101,
     VLOAD   = 0b00000,
     VSTORE  = 0b01000,
+};
+
+
+inline uint32_t addQuadrant(StandardOpCode op)
+{
+    return (static_cast<uint32_t>(op) << 2) | standardQuadrant;
+}
+
+inline uint32_t addQuadrant(VectorOpCode op)
+{
+    return (static_cast<uint32_t>(op) << 2) | vectorQuadrant;
+}
+
+// Standard RISC-V registers
+enum class Reg : uint32_t
+{
+    X0,
+    X1,
+    X2,
+    X3,
+    X4,
+    X5,
+    X6,
+    X7,
+    X8,
+    X9,
+    X10,
+    X11,
+    X12,
+    X13,
+    X14,
+    X15,
+    X16,
+    X17,
+    X18,
+    X19,
+    X20,
+    X21,
+    X22,
+    X23,
+    X24,
+    X25,
+    X26,
+    X27,
+    X28,
+    X29,
+    X30,
+    X31,
+};
+
+enum class VReg : uint32_t
+{
+    V0,
+    V1,
+    V2,
+    V3,
+    V4,
+    V5,
+    V6,
+    V7,
+    V8,
+    V9,
+    V10,
+    V11,
+    V12,
+    V13,
+    V14,
+    V15,
+    V16,
+    V17,
+    V18,
+    V19,
+    V20,
+    V21,
+    V22,
+    V23,
+    V24,
+    V25,
+    V26,
+    V27,
+    V28,
+    V29,
+    V30,
+    V31,
+};
+
+// Control and Status Register
+enum class CSR : uint32_t 
+{
 };
 
 // funct7 rs2 rs1 funct3 rd
@@ -101,32 +193,41 @@ inline std::tuple<int32_t, uint32_t> decodeUType(uint32_t inst)
     const uint32_t rd = (inst >> 7) & 0x1f;
     return std::make_tuple(imm, rd);
 }
-/*template<size_t n>
+
+template<size_t N>
 class Bit {
 public:
-    Bit(uint32_t v)
-        : v(v)
+    Bit(uint32_t v) : v(v)
     {
-        XBYAK_RISCV_ASSERT(inBit(v, n));
+        assert(inBit(v, N));
     }
-    Bit(const IReg& r)
-        : v(r.getIdx())
-    {
-    }
-    Bit(VM vm)
-        : v(static_cast<uint32_t>(vm))
+    
+    template<size_t M>
+    Bit(Bit<M> b) : Bit(b.operator uint32_t())
     {
     }
-    Bit(CSR csr)
-        : v(static_cast<uint32_t>(csr))
+    
+    Bit(StandardOpCode s) : Bit(addQuadrant(s))
     {
     }
-    Bit(RM rm)
-        : v(static_cast<uint32_t>(rm))
+    
+    Bit(VectorOpCode s) : Bit(addQuadrant(s))
+    {
+    }
+    
+    Bit(Reg r) : Bit(static_cast<uint32_t>(r))
+    {
+    }
+    
+    Bit(VReg v) : Bit(static_cast<uint32_t>(v))
+    {
+    }
+    
+    Bit(CSR csr) : Bit(static_cast<uint32_t>(csr))
     {
     }
 
     operator uint32_t() const{ return v; }
 private:
     uint32_t v;
-};*/
+};

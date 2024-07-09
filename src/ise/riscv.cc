@@ -935,7 +935,7 @@ void RISCV::executeInstruction(uint32_t inst)
     try 
     {
         // If instruction is in standard quadrant
-        if(quadrant == 0b11) {
+        if(quadrant == standardQuadrant) {
             executeStandardInstruction(inst); 
         }
         // Otherwise, if there is a co-processor defined to handle this quadrant
