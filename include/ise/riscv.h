@@ -109,52 +109,6 @@ public:
     }
 
 private:
-    // M status CSR
-    static constexpr uint32_t MStatusSPIEShift = 5;
-    static constexpr uint32_t MStatusMPIEShift = 7;
-    static constexpr uint32_t MStatusSPPShift = 8;
-    static constexpr uint32_t MStatusMPPShift = 11;
-    static constexpr uint32_t MStatusFSShift = 13;
-    static constexpr uint32_t MStatusUXLShift = 32;
-    static constexpr uint32_t MStatusSXLShift = 34;
-
-    static constexpr uint32_t MStatusUIE = (1 << 0);
-    static constexpr uint32_t MStatusSIE = (1 << 1);
-    static constexpr uint32_t MStatusHIE = (1 << 2);
-    static constexpr uint32_t MStatusMIE = (1 << 3);
-    static constexpr uint32_t MStatusUPIE = (1 << 4);
-    static constexpr uint32_t MStatusSPIE = (1 << MStatusSPIEShift);
-    static constexpr uint32_t MStatusHPIE = (1 << 6);
-    static constexpr uint32_t MStatusMPIE = (1 << MStatusMPIEShift);
-    static constexpr uint32_t MStatusSPP = (1 << MStatusSPPShift);
-    static constexpr uint32_t MStatusHPP = (3 << 9);
-    static constexpr uint32_t MStatusMPP = (3 << MStatusMPPShift);
-    static constexpr uint32_t MStatusFS = (3 << MStatusFSShift);
-    static constexpr uint32_t MStatusXS = (3 << 15);
-    static constexpr uint32_t MStatusMPRV = (1 << 17);
-    static constexpr uint32_t MStatusSum = (1 << 18);
-    static constexpr uint32_t MStatusMXR = (1 << 19);
-    static constexpr uint64_t MStatusUXLMask = ((uint64_t)3 << MStatusUXLShift);
-    static constexpr uint64_t MStatusSXLMask = ((uint64_t)3 << MStatusSXLShift);
-
-    static constexpr uint32_t SStatusMask0 =  (MStatusUIE | MStatusSIE |
-                                               MStatusUPIE | MStatusSPIE |
-                                               MStatusSPP |
-                                               MStatusFS | MStatusXS |
-                                               MStatusSum | MStatusMXR);
-    static constexpr uint32_t MStatusMask = (MStatusUIE | MStatusSIE | MStatusMIE |
-                                             MStatusUPIE | MStatusSPIE | MStatusMPIE |
-                                             MStatusSPP | MStatusMPP |
-                                             MStatusFS |
-                                             MStatusMPRV | MStatusSum | MStatusMXR);
-
-    // cycle and insn counters
-    static constexpr uint32_t CounterEnMask = (1 << 0) | (1 << 2);
-
-    uint32_t getMStatus(uint32_t mask) const;
-
-    void setMStatus(uint32_t val);
-
     void setNextPC(uint32_t nextPC);
 
     bool calcBranchCondition(uint32_t inst, uint32_t rs2, uint32_t rs1, uint32_t funct3) const;
@@ -173,33 +127,7 @@ private:
     // CPU state
     uint32_t m_PC;
     uint32_t m_NextPC;
-    uint32_t m_Insn;
     uint32_t m_Reg[32];
-
-    uint8_t m_FS;
-
-    // CSRs
-    uint32_t m_MStatus;
-    uint32_t m_MTVec;
-    uint32_t m_MScratch;
-    uint32_t m_EEPC;
-    uint32_t m_MCause;
-    uint32_t m_MTVal;
-    uint32_t m_mhartid; /* ro */
-    uint32_t m_MISA;
-    uint32_t m_MIE;
-    uint32_t m_MIP;
-    uint32_t m_MEDeleg;
-    uint32_t m_MIDeleg;
-    uint32_t m_MCounterEn;
-
-    uint32_t m_STVvec;
-    uint32_t m_SScratch;
-    uint32_t m_SEPC;
-    uint32_t m_SCause;
-    uint32_t m_STVal;
-    uint32_t m_SATP;
-    uint32_t m_SCounterEN;
 
     InstructionMemory m_InstructionMemory;
     ScalarDataMemory m_ScalarDataMemory;

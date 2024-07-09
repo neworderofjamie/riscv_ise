@@ -40,7 +40,7 @@ VectorDataMemory::VectorDataMemory(const std::vector<int16_t> &data)
 //----------------------------------------------------------------------------
 Vector VectorDataMemory::readVector(uint32_t addr) const
 {
-    if (addr & 511) {
+    if (addr & 63) {
         throw Exception(Exception::Cause::MISALIGNED_LOAD, addr);
     }
 
@@ -54,7 +54,7 @@ Vector VectorDataMemory::readVector(uint32_t addr) const
 //----------------------------------------------------------------------------
 void VectorDataMemory::writeVector(uint32_t addr, const Vector &vector)
 {
-    if (addr & 511) {
+    if (addr & 63) {
         throw Exception(Exception::Cause::MISALIGNED_STORE, addr);
     }
     const size_t startAddress = addr / 2;

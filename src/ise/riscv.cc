@@ -1,6 +1,7 @@
 #include "ise/riscv.h"
 
 // Standard C++ includes
+#include <iostream>
 #include <stdexcept>
 
 // PLOG includes
@@ -117,65 +118,93 @@ void ScalarDataMemory::write8(uint32_t addr, uint8_t value)
 // RISCV
 //----------------------------------------------------------------------------
 RISCV::RISCV(const std::vector<uint32_t> &instructions, const std::vector<uint8_t> &data)
-:   m_InstructionMemory(instructions), m_ScalarDataMemory(data), m_MachineRunning(false)
+:   m_MachineRunning(false), m_PC(0), m_NextPC(0), m_Reg{0}, m_InstructionMemory(instructions), m_ScalarDataMemory(data)
 {
 }
 //----------------------------------------------------------------------------
 void RISCV::run()
 {
-    m_MachineRunning = true;
-    while (m_MachineRunning) 
+    try
     {
-        // Default value for next PC is next instruction, can be changed by branches or exceptions
-        m_NextPC = m_PC + 4;
+        m_MachineRunning = true;
+        while (m_MachineRunning) 
+        {
+            // Default value for next PC is next instruction, can be changed by branches or exceptions
+            m_NextPC = m_PC + 4;
 
-        // test for timer interrupt
-        /*if (mtimecmp <= mtime) {
-            mip |= MIP_MTIP;
-        }
-        if ((mip & mie) != 0 && (mstatus & MSTATUS_MIE)) {
-            raise_interrupt();
-        } else {*/
-            // normal instruction execution
-            const uint32_t inst = m_InstructionMemory.getInstruction(m_PC);
-            //insn_counter++;
+            // test for timer interrupt
+            /*if (mtimecmp <= mtime) {
+                mip |= MIP_MTIP;
+            }
+            if ((mip & mie) != 0 && (mstatus & MSTATUS_MIE)) {
+                raise_interrupt();
+            } else {*/
+                // normal instruction execution
+                const uint32_t inst = m_InstructionMemory.getInstruction(m_PC);
+                //insn_counter++;
 
 #ifdef DEBUG_OUTPUT
-            printf("[%08x]=%08x, mtime: %lx, mtimecmp: %lx\n", pc, insn, mtime, mtimecmp);
+                printf("[%08x]=%08x, mtime: %lx, mtimecmp: %lx\n", pc, insn, mtime, mtimecmp);
 #endif
-            executeInstruction(inst);
-        //}
+                executeInstruction(inst);
+            //}
 
-        // test for misaligned fetches
-        if (m_NextPC & 3) {
-            throw Exception(Exception::Cause::MISALIGNED_FETCH, m_NextPC);
+            // test for misaligned fetches
+            if (m_NextPC & 3) {
+                throw Exception(Exception::Cause::MISALIGNED_FETCH, m_NextPC);
+            }
+
+            // update current PC
+            m_PC = m_NextPC;
         }
-
-        // update current PC
-        m_PC = m_NextPC;
+    }
+    catch(const Exception &ex)
+    {
+        switch(ex.getCause()) {
+        case Exception::Cause::MISALIGNED_FETCH:
+        {
+            PLOGE << "Misaligned fetch at " << ex.getContext();
+            break;
+        }
+        
+        case Exception::Cause::ILLEGAL_INSTRUCTION:
+        {
+            PLOGE << "Illegal instruction " << ex.getContext();
+            break;
+        }
+        
+        case Exception::Cause::MISALIGNED_LOAD:
+        {
+            PLOGE << "Misaligned load at " << ex.getContext();
+            break;
+        }
+        
+        case Exception::Cause::FAULT_LOAD:
+        {
+            PLOGE << "Load fault at " << ex.getContext();
+            break;
+        }
+        
+        case Exception::Cause::MISALIGNED_STORE:
+        {
+            PLOGE << "Misaligned store at " << ex.getContext();
+            break;
+        }
+        
+        case Exception::Cause::FAULT_STORE:
+        {
+            PLOGE << "Store fault at " << ex.getContext();
+            break;
+        }
+        
+        default:
+        {
+            PLOGE << "Unhandled exception";
+            break;
+        }
+        }
     }
 
-}
-//----------------------------------------------------------------------------
-uint32_t RISCV::getMStatus(uint32_t mask) const
-{
-    int sd;
-    uint32_t val = m_MStatus | (m_FS << MStatusFSShift);
-    val &= mask;
-    sd = ((val & MStatusFS) == MStatusFS) |
-            ((val & MStatusXS) == MStatusXS);
-    if (sd) {
-        val |= (uint32_t)1 << 31;
-    }
-    return val;
-}
-//----------------------------------------------------------------------------
-void RISCV::setMStatus(uint32_t val)
-{
-    m_FS = (val >> MStatusFSShift) & 3;
-
-    const uint32_t mask = MStatusMask & ~MStatusFS;
-    m_MStatus = (m_MStatus & ~mask) | (val & mask);
 }
 //----------------------------------------------------------------------------
 void RISCV::setNextPC(uint32_t nextPC)
@@ -938,22 +967,16 @@ void RISCV::executeInstruction(uint32_t inst)
     // Extract 2-bit quadrant
     const uint32_t quadrant = inst & 0b11;
     
-    try 
-    {
-        // If instruction is in standard quadrant
-        if(quadrant == standardQuadrant) {
-            executeStandardInstruction(inst); 
-        }
-        // Otherwise, if there is a co-processor defined to handle this quadrant
-        else if(m_CoProcessors[quadrant]){
-            m_CoProcessors[quadrant]->executeInstruction(inst, m_Reg, m_ScalarDataMemory);
-        }
-        // Otherwise, throw
-        else {
-            throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
-        }
+    // If instruction is in standard quadrant
+    if(quadrant == standardQuadrant) {
+        executeStandardInstruction(inst); 
     }
-    catch(const Exception &ex)
-    {
+    // Otherwise, if there is a co-processor defined to handle this quadrant
+    else if(m_CoProcessors[quadrant]){
+        m_CoProcessors[quadrant]->executeInstruction(inst, m_Reg, m_ScalarDataMemory);
+    }
+    // Otherwise, throw
+    else {
+        throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
     }
 }
