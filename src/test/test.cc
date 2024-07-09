@@ -1,11 +1,20 @@
+// PLOG includes
+#include <plog/Log.h>
+#include <plog/Severity.h>
+#include <plog/Appenders/ConsoleAppender.h>
+
+// RISC-V assembler includes
 #include "assembler/xbyak_riscv.hpp"
 
-using namespace Xbyak_riscv;
+// RISC-V ISE includes
+#include "ise/riscv.h"
+#include "ise/vector_processor.h"
 
 
-
-int main()
+Xbyak_riscv::CodeGenerator generateCode()
 {
+    using namespace Xbyak_riscv;
+    
     CodeGenerator c;
     
     // alpha = e^(-1/20)
@@ -54,4 +63,29 @@ int main()
     
     // While x2 (address) < x1 (count), goto loop
     c.blt(Reg::X2, Reg::X1, loop);
+    
+    return c;
+}
+
+
+int main()
+{
+    // Configure logging
+    plog::ConsoleAppender<plog::TxtFormatter> consoleAppender;
+    plog::init(plog::debug, &consoleAppender);
+    
+    // Create memory contents
+    std::vector<uint8_t> scalarData(4096);
+    std::vector<int16_t> vectorData{0, 26, 53, 79, 106, 132, 159, 185, 211, 238, 264, 291, 317, 344, 370, 396, 423, 449,
+                                    476, 502, 529, 555, 581, 608, 634, 661, 687, 713, 740, 766, 793, 819};
+    vectorData.resize(4096);
+    
+    // Create RISC-V core with instruction and scalar data
+    RISCV riscV(generateCode().getCode(), scalarData);
+    
+    // Add vector co-processor
+    riscV.addCoProcessor<VectorProcessor>(vectorQuadrant, vectorData);
+    
+    riscV.run();
+    
 }
