@@ -42,6 +42,9 @@ public:
 
     uint8_t read8(uint32_t addr) const;
     void write8(uint32_t addr, uint8_t value);
+    
+    auto &getData(){ return m_Data; }
+    const auto &getData() const{ return m_Data; }
 
 private:
     std::vector<uint8_t> m_Data;
@@ -56,7 +59,7 @@ public:
     enum class Cause : uint32_t
     {
         MISALIGNED_FETCH    = 0x0,
-        //FAULT_FETCH         = 0x1,
+        FAULT_FETCH         = 0x1,
         ILLEGAL_INSTRUCTION = 0x2,
         //BREAKPOINT          = 0x3,
         MISALIGNED_LOAD     = 0x4,
@@ -102,12 +105,27 @@ public:
 
     void run();
 
-    template<typename T, typename... CoProcessorArgs>
-    void addCoProcessor(uint32_t quadrant, CoProcessorArgs&&... coProcessorArg)
+    template<typename T, typename... CoprocessorArgs>
+    void addCoprocessor(uint32_t quadrant, CoprocessorArgs&&... coprocessorArg)
     {
-        m_CoProcessors[quadrant].reset(new T(std::forward<CoProcessorArgs>(coProcessorArg)...));
+        m_Coprocessors[quadrant].reset(new T(std::forward<CoprocessorArgs>(coprocessorArg)...));
     }
-
+    
+    template<typename T>
+    T *getCoprocessor(uint32_t quadrant)
+    {
+        return dynamic_cast<T*>(m_Coprocessors[quadrant].get());
+    }
+    
+    template<typename T>
+    const T *getCoprocessor(uint32_t quadrant) const
+    {
+        return dynamic_cast<const T*>(m_Coprocessors[quadrant].get());
+    }
+    
+    ScalarDataMemory &getScalarDataMemory(){ return m_ScalarDataMemory; }
+    const ScalarDataMemory &getScalarDataMemory() const{ return m_ScalarDataMemory; }
+    
 private:
     void setNextPC(uint32_t nextPC);
 
@@ -132,5 +150,5 @@ private:
     InstructionMemory m_InstructionMemory;
     ScalarDataMemory m_ScalarDataMemory;
 
-    std::unique_ptr<ICoprocessor> m_CoProcessors[3];
+    std::unique_ptr<ICoprocessor> m_Coprocessors[3];
 };

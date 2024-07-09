@@ -1,3 +1,6 @@
+// Standard C++ includes
+#include <fstream>
+
 // PLOG includes
 #include <plog/Log.h>
 #include <plog/Severity.h>
@@ -75,17 +78,26 @@ int main()
     plog::init(plog::debug, &consoleAppender);
     
     // Create memory contents
-    std::vector<uint8_t> scalarData(4096);
-    std::vector<int16_t> vectorData{0, 26, 53, 79, 106, 132, 159, 185, 211, 238, 264, 291, 317, 344, 370, 396, 423, 449,
-                                    476, 502, 529, 555, 581, 608, 634, 661, 687, 713, 740, 766, 793, 819};
-    vectorData.resize(4096);
+    std::vector<uint8_t> scalarInitData(4096);
+    std::vector<int16_t> vectorInitData{0, 26, 53, 79, 106, 132, 159, 185, 211, 238, 264, 291, 317, 344, 370, 396, 423, 449,
+                                        476, 502, 529, 555, 581, 608, 634, 661, 687, 713, 740, 766, 793, 819};
+    vectorInitData.resize(4096);
     
     // Create RISC-V core with instruction and scalar data
-    RISCV riscV(generateCode().getCode(), scalarData);
+    RISCV riscV(generateCode().getCode(), scalarInitData);
     
     // Add vector co-processor
-    riscV.addCoProcessor<VectorProcessor>(vectorQuadrant, vectorData);
+    riscV.addCoprocessor<VectorProcessor>(vectorQuadrant, vectorInitData);
     
+    // Run!
     riscV.run();
     
+    const auto &vectorData = riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getVectorDataMemory().getData();
+    
+    std::ofstream out("out.txt");
+    for(int16_t v : vectorData) {
+        out << v << std::endl;
+    }
+    
+
 }

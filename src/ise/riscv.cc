@@ -21,7 +21,13 @@ uint32_t InstructionMemory::getInstruction(uint32_t addr) const
     if (addr & 3) {
         throw Exception(Exception::Cause::MISALIGNED_FETCH, addr);
     }
-    return m_Instructions.at(addr / 4); 
+    
+    if (((addr / 4) + 1) > m_Instructions.size())  {
+        throw Exception(Exception::Cause::FAULT_FETCH, addr);
+    } 
+    else {
+        return m_Instructions.at(addr / 4); 
+    }
 }
 
 //----------------------------------------------------------------------------
@@ -164,6 +170,12 @@ void RISCV::run()
         case Exception::Cause::MISALIGNED_FETCH:
         {
             PLOGE << "Misaligned fetch at " << ex.getContext();
+            break;
+        }
+        
+        case Exception::Cause::FAULT_FETCH:
+        {
+            PLOGE << "Fetch fault at " << ex.getContext();
             break;
         }
         
@@ -615,7 +627,7 @@ void RISCV::executeStandardInstruction(uint32_t inst)
         stats[0]++;
 #endif
         if (rd != 0) {
-            m_Reg[rd] = imm;
+            m_Reg[rd] = (imm << 12);
         }
         break;
     }
@@ -629,7 +641,7 @@ void RISCV::executeStandardInstruction(uint32_t inst)
         stats[1]++;
 #endif
         if (rd != 0) {
-            m_Reg[rd] = (int32_t)(m_PC + imm);
+            m_Reg[rd] = (int32_t)(m_PC + (imm << 12));
         }
         break;
     }
@@ -972,8 +984,8 @@ void RISCV::executeInstruction(uint32_t inst)
         executeStandardInstruction(inst); 
     }
     // Otherwise, if there is a co-processor defined to handle this quadrant
-    else if(m_CoProcessors[quadrant]){
-        m_CoProcessors[quadrant]->executeInstruction(inst, m_Reg, m_ScalarDataMemory);
+    else if(m_Coprocessors[quadrant]){
+        m_Coprocessors[quadrant]->executeInstruction(inst, m_Reg, m_ScalarDataMemory);
     }
     // Otherwise, throw
     else {
