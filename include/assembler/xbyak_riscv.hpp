@@ -510,6 +510,13 @@ public:
     void csrsi(CSR csr, uint32_t imm) { csrrsi(Reg::X0, csr, imm); }
     void csrci(CSR csr, uint32_t imm) { csrrci(Reg::X0, csr, imm); }
 
+    // Zbb instructions
+    void clz(Reg rd, Reg rs) { opShift(0x30, 1, StandardOpCode::OP_IMM, rd, rs, 0); }
+    void ctz(Reg rd, Reg rs) { opShift(0x30, 1, StandardOpCode::OP_IMM, rd, rs, 1); }
+    void cpop(Reg rd, Reg rs) { opShift(0x30, 1, StandardOpCode::OP_IMM, rd, rs, 2); }
+    void sextb(Reg rd, Reg rs) { opShift(0x30, 1, StandardOpCode::OP_IMM, rd, rs, 4); }
+    void sexth(Reg rd, Reg rs) { opShift(0x30, 1, StandardOpCode::OP_IMM, rd, rs, 5); }
+
     // FeNN vector processor
 
     // VSOP
