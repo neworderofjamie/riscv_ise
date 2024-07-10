@@ -765,18 +765,19 @@ void RISCV::executeStandardInstruction(uint32_t inst)
 
     case StandardOpCode::JAL:
     {
-        auto [imm, rs1, funct3, rd] = decodeIType(inst);
-        PLOGD << "JALR " << rs1 << " " << imm;
+        auto [imm, rd] = decodeUType(inst);
+        // **TODO** this is gross but I honestly don't understand this instruction format
+        imm = ((inst >> (31 - 20)) & (1 << 20)) |
+              ((inst >> (21 - 1)) & 0x7fe) |
+              ((inst >> (20 - 11)) & (1 << 11)) |
+              (inst & 0xff000);
+        imm = (imm << 11) >> 11;
+
+        PLOGD << "JAL " << rd << " " << imm;
         PLOGD << "\t"  << rd;
 #ifdef DEBUG_EXTRA
         stats[2]++;
 #endif
-        
-        /*imm = ((insn >> (31 - 20)) & (1 << 20)) |
-              ((insn >> (21 - 1)) & 0x7fe) |
-              ((insn >> (20 - 11)) & (1 << 11)) |
-             (insn & 0xff000);
-        imm = (imm << 11) >> 11;*/
         if (rd != 0) {
             m_Reg[rd] = m_PC + 4;
         }

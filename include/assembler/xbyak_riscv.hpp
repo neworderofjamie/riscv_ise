@@ -134,7 +134,11 @@ public:
 
     void append4B(uint32_t code) { code_.push_back(code); }
     
-    void write4B(size_t offset, uint32_t v) { code_.at(offset) = v; }
+    void write4B(size_t offset, uint32_t v) 
+    {
+        assert((offset & 3) == 0);
+        code_.at(offset / 4) = v; 
+    }
 
     // **TODO**  add code base address
     uint32_t getCurr() const{ return static_cast<uint32_t>(code_.size()) * 4; }
