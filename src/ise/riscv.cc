@@ -356,10 +356,10 @@ uint32_t RISCV::calcOpImmResult(uint32_t inst, int32_t imm, uint32_t rs1, uint32
     {
         // Split immediate into shamt (shift) and upper field
         const uint32_t shamt = imm & 0b11111;
-        const uint32_t funct7 = imm >> 5;
+        const uint32_t pre = imm >> 5;
 
         // SLLI
-        if (funct7 == 0) {
+        if (pre == 0) {
             PLOGD << "SLLI " << rs1 << " " << imm;
 #ifdef DEBUG_EXTRA
             stats[24]++;
@@ -367,7 +367,7 @@ uint32_t RISCV::calcOpImmResult(uint32_t inst, int32_t imm, uint32_t rs1, uint32
             return (int32_t)(val << shamt);
         }
         // CLZ/CPOP/CTZ/SEXT
-        else if(funct7 == 0b110000) {
+        else if(pre == 0b110000) {
             switch(shamt) {
             case 0: // CLZ
             {
