@@ -1,6 +1,7 @@
 #include "ise/riscv.h"
 
 // Standard C++ includes
+#include <iomanip>
 #include <iostream>
 #include <stdexcept>
 
@@ -262,8 +263,27 @@ void RISCV::run()
             break;
         }
         }
+
+        dumpRegisters();
     }
 
+}
+//----------------------------------------------------------------------------
+void RISCV::dumpRegisters() const
+{
+    // Dump standard register file
+    std::cout << "Standard RISC-V register file:" << std::endl;
+    for(int i = 0; i < 32; i++) {
+        std::cout << "\tx" << i << " = " << std::hex << std::setw(8) << std::setfill('0') << m_Reg[i] << std::endl;
+    }
+
+    // Loop through co-processor quadrants
+    for(int c = 0; c < 3; c++) {
+        // If co-processor present, dump it's registers
+        if(m_Coprocessors[c]) {
+            m_Coprocessors[c]->dumpRegisters();
+        }
+    }
 }
 //----------------------------------------------------------------------------
 void RISCV::setNextPC(uint32_t nextPC)

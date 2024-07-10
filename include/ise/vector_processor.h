@@ -41,7 +41,8 @@ public:
     //------------------------------------------------------------------------
     virtual void executeInstruction(uint32_t inst, uint32_t (&reg)[32], 
                                     ScalarDataMemory &scalarDataMemory) override final;
-    
+    virtual void dumpRegisters() const override final;
+
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------

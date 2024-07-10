@@ -2,6 +2,8 @@
 
 // Standard C++ includes
 #include <algorithm>
+#include <iostream>
+#include <iomanip>
 
 // PLOG includes
 #include <plog/Log.h>
@@ -153,6 +155,19 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
         }
         break;
     }
+    }
+}
+//------------------------------------------------------------------------
+void VectorProcessor::dumpRegisters() const
+{
+    // Dump standard register file
+    std::cout << "Vector processor register file:" << std::endl;
+    for(int i = 0; i < 32; i++) {
+        std::cout << "\tv" << i << " = ";
+        for(int j = 0; j < 32; j++) {
+            std::cout << std::hex << std::setw(4) << std::setfill('0') << m_VReg[i][j] << ", ";
+        }
+        std::cout << std::endl;
     }
 }
 //------------------------------------------------------------------------

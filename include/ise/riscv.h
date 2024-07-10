@@ -99,11 +99,13 @@ public:
     {
     public:
         virtual void executeInstruction(uint32_t inst, uint32_t (&reg)[32], ScalarDataMemory &scalarDataMemory) = 0;
+        virtual void dumpRegisters() const = 0;
     };
 
     RISCV(const std::vector<uint32_t> &instructions, const std::vector<uint8_t> &data);
 
     void run();
+    void dumpRegisters() const;
 
     template<typename T, typename... CoprocessorArgs>
     void addCoprocessor(uint32_t quadrant, CoprocessorArgs&&... coprocessorArg)
