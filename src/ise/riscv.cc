@@ -8,6 +8,53 @@
 #include <plog/Log.h>
 #include <plog/Severity.h>
 
+// Platform includes
+#ifdef _WIN32
+#include <intrin.h>
+#endif
+
+// Anonymous namespace
+namespace
+{
+int clz(uint32_t value)
+{
+#ifdef _WIN32
+    unsigned long leadingZero = 0;
+    if(_BitScanReverse(&leadingZero, value)) {
+        return 31 - leadingZero;
+    }
+    else {
+        return 32;
+    }
+#else
+    return __builtin_clz(value);
+#endif
+}
+
+int ctz(uint32_t value)
+{
+#ifdef _WIN32
+    unsigned long trailingZero = 0;
+    if(_BitScanForward(&trailingZero, value)) {
+        return trailingZero;
+    }
+    else {
+        return 32;
+    }
+#else
+    return __builtin_ctz(value);
+#endif
+}
+
+int popCount(uint32_t value)
+{
+#ifdef _WIN32
+    return __popcnt(value);
+#else
+    return __builtin_popcount(value);
+#endif
+}
+}
 //----------------------------------------------------------------------------
 // InstructionMemory
 //----------------------------------------------------------------------------
@@ -305,16 +352,62 @@ uint32_t RISCV::calcOpImmResult(uint32_t inst, int32_t imm, uint32_t rs1, uint32
 #endif
         return (int32_t)(val + imm);
     }
-    case 1: // SLLI
+    case 1: // SLLI/CLZ/CPOP/CTZ/SEXT
     {
-        PLOGD << "SLLI " << rs1 << " " << imm;
+        // Split immediate into shamt (shift) and upper field
+        const uint32_t shamt = imm & 0b11111;
+        const uint32_t funct7 = imm >> 5;
+
+        // SLLI
+        if (funct7 == 0) {
+            PLOGD << "SLLI " << rs1 << " " << imm;
 #ifdef DEBUG_EXTRA
-        stats[24]++;
+            stats[24]++;
 #endif
-        if ((imm & ~31) != 0) {
+            return (int32_t)(val << shamt);
+        }
+        // CLZ/CPOP/CTZ/SEXT
+        else if(funct7 == 0b110000) {
+            switch(shamt) {
+            case 0: // CLZ
+            {
+                PLOGD << "CLZ " << rs1;
+                return (val == 0) ? 32 : clz(val);
+            }
+
+            case 1: // CTZ
+            {
+                PLOGD << "CTZ " << rs1;
+                return (val == 0) ? 32 : ctz(val);
+            }
+
+            case 2: // CPOP
+            {
+                PLOGD << "CPOP " << rs1;
+                return popCount(val);
+            }
+
+            case 4: // SEXT.B
+            {
+                PLOGD << "SEXT.B " << rs1;
+                return (int32_t)(val << 24) >> 24;
+            }
+
+            case 5: // SEXT.H
+            {
+                PLOGD << "SEXT.H " << rs1;
+                return (int32_t)(val << 16) >> 16;
+            }
+
+            default:
+            {
+                throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
+            }
+            }
+        }
+        else {
             throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
         }
-        return (int32_t)(val << (imm & 31));
     }
 
     case 2: // SLTI
@@ -344,9 +437,12 @@ uint32_t RISCV::calcOpImmResult(uint32_t inst, int32_t imm, uint32_t rs1, uint32
     }
     case 5: // SRLI / SRAI
     {
-        if ((imm & ~(31 | 0x400)) != 0) {
+        // Error if any bits other than the 11th bit are set in immediate field
+        if ((imm & ~(0b11111 | 0x400)) != 0) {
             throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
         }
+
+        // If 11th bit set, SRAI
         if (imm & 0x400) {
             PLOGD << "SRAI " << rs1 << " " << imm;
 #ifdef DEBUG_EXTRA
@@ -354,6 +450,7 @@ uint32_t RISCV::calcOpImmResult(uint32_t inst, int32_t imm, uint32_t rs1, uint32
 #endif
             return ((int32_t)val >> (imm & 31));
         }
+        // Otherwise SRLI
         else
         {
             PLOGD << "SRLI " << rs1 << " " << imm;
