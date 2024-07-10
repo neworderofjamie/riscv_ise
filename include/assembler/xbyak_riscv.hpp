@@ -397,44 +397,44 @@ public:
 
     bool hasUndefinedLabel() const { return labelMgr_.hasUndefClabel(); }
 
-    void add(const Reg& rd, const Reg& rs1, const Reg& rs2) { Rtype(StandardOpCode::OP, 0, 0x0, rd, rs1, rs2); }
-    void sub(const Reg& rd, const Reg& rs1, const Reg& rs2) { Rtype(StandardOpCode::OP, 0, 0x20, rd, rs1, rs2); }
-    void sll(const Reg& rd, const Reg& rs1, const Reg& rs2) { Rtype(StandardOpCode::OP, 1, 0x0, rd, rs1, rs2); }
-    void slt(const Reg& rd, const Reg& rs1, const Reg& rs2) { Rtype(StandardOpCode::OP, 2, 0x0, rd, rs1, rs2); }
-    void sltu(const Reg& rd, const Reg& rs1, const Reg& rs2) { Rtype(StandardOpCode::OP, 3, 0x0, rd, rs1, rs2); }
-    void xor_(const Reg& rd, const Reg& rs1, const Reg& rs2) { Rtype(StandardOpCode::OP, 4, 0x0, rd, rs1, rs2); }
-    void srl(const Reg& rd, const Reg& rs1, const Reg& rs2) { Rtype(StandardOpCode::OP, 5, 0x0, rd, rs1, rs2); }
-    void sra(const Reg& rd, const Reg& rs1, const Reg& rs2) { Rtype(StandardOpCode::OP, 5, 0x20, rd, rs1, rs2); }
-    void or_(const Reg& rd, const Reg& rs1, const Reg& rs2) { Rtype(StandardOpCode::OP, 6, 0x0, rd, rs1, rs2); }
-    void and_(const Reg& rd, const Reg& rs1, const Reg& rs2) { Rtype(StandardOpCode::OP, 7, 0x0, rd, rs1, rs2); }
-    void mul(const Reg& rd, const Reg& rs1, const Reg& rs2) { Rtype(StandardOpCode::OP, 0, 0x1, rd, rs1, rs2); }
-    void mulh(const Reg& rd, const Reg& rs1, const Reg& rs2) { Rtype(StandardOpCode::OP, 1, 0x1, rd, rs1, rs2); }
-    void mulhsu(const Reg& rd, const Reg& rs1, const Reg& rs2) { Rtype(StandardOpCode::OP, 2, 0x1, rd, rs1, rs2); }
-    void mulhu(const Reg& rd, const Reg& rs1, const Reg& rs2) { Rtype(StandardOpCode::OP, 3, 0x1, rd, rs1, rs2); }
-    void div(const Reg& rd, const Reg& rs1, const Reg& rs2) { Rtype(StandardOpCode::OP, 4, 0x1, rd, rs1, rs2); }
-    void divu(const Reg& rd, const Reg& rs1, const Reg& rs2) { Rtype(StandardOpCode::OP, 5, 0x1, rd, rs1, rs2); }
-    void rem(const Reg& rd, const Reg& rs1, const Reg& rs2) { Rtype(StandardOpCode::OP, 6, 0x1, rd, rs1, rs2); }
-    void remu(const Reg& rd, const Reg& rs1, const Reg& rs2) { Rtype(StandardOpCode::OP, 7, 0x1, rd, rs1, rs2); }
-    void addi(const Reg& rd, const Reg& rs1, int imm) { Itype(StandardOpCode::OP_IMM, 0, rd, rs1, imm); }
-    void slti(const Reg& rd, const Reg& rs1, int imm) { Itype(StandardOpCode::OP_IMM, 2, rd, rs1, imm); }
-    void sltiu(const Reg& rd, const Reg& rs1, int imm) { Itype(StandardOpCode::OP_IMM, 3, rd, rs1, imm); }
-    void xori(const Reg& rd, const Reg& rs1, int imm) { Itype(StandardOpCode::OP_IMM, 4, rd, rs1, imm); }
-    void ori(const Reg& rd, const Reg& rs1, int imm) { Itype(StandardOpCode::OP_IMM, 6, rd, rs1, imm); }
-    void andi(const Reg& rd, const Reg& rs1, int imm) { Itype(StandardOpCode::OP_IMM, 7, rd, rs1, imm); }
+    void add(Reg rd, Reg rs1, Reg rs2) { Rtype(StandardOpCode::OP, 0, 0x0, rd, rs1, rs2); }
+    void sub(Reg rd, Reg rs1, Reg rs2) { Rtype(StandardOpCode::OP, 0, 0x20, rd, rs1, rs2); }
+    void sll(Reg rd, Reg rs1, Reg rs2) { Rtype(StandardOpCode::OP, 1, 0x0, rd, rs1, rs2); }
+    void slt(Reg rd, Reg rs1, Reg rs2) { Rtype(StandardOpCode::OP, 2, 0x0, rd, rs1, rs2); }
+    void sltu(Reg rd, Reg rs1, Reg rs2) { Rtype(StandardOpCode::OP, 3, 0x0, rd, rs1, rs2); }
+    void xor_(Reg rd, Reg rs1, Reg rs2) { Rtype(StandardOpCode::OP, 4, 0x0, rd, rs1, rs2); }
+    void srl(Reg rd, Reg rs1, Reg rs2) { Rtype(StandardOpCode::OP, 5, 0x0, rd, rs1, rs2); }
+    void sra(Reg rd, Reg rs1, Reg rs2) { Rtype(StandardOpCode::OP, 5, 0x20, rd, rs1, rs2); }
+    void or_(Reg rd, Reg rs1, Reg rs2) { Rtype(StandardOpCode::OP, 6, 0x0, rd, rs1, rs2); }
+    void and_(Reg rd, Reg rs1, Reg rs2) { Rtype(StandardOpCode::OP, 7, 0x0, rd, rs1, rs2); }
+    void mul(Reg rd, Reg rs1, Reg rs2) { Rtype(StandardOpCode::OP, 0, 0x1, rd, rs1, rs2); }
+    void mulh(Reg rd, Reg rs1, Reg rs2) { Rtype(StandardOpCode::OP, 1, 0x1, rd, rs1, rs2); }
+    void mulhsu(Reg rd, Reg rs1, Reg rs2) { Rtype(StandardOpCode::OP, 2, 0x1, rd, rs1, rs2); }
+    void mulhu(Reg rd, Reg rs1, Reg rs2) { Rtype(StandardOpCode::OP, 3, 0x1, rd, rs1, rs2); }
+    void div(Reg rd, Reg rs1, Reg rs2) { Rtype(StandardOpCode::OP, 4, 0x1, rd, rs1, rs2); }
+    void divu(Reg rd, Reg rs1, Reg rs2) { Rtype(StandardOpCode::OP, 5, 0x1, rd, rs1, rs2); }
+    void rem(Reg rd, Reg rs1, Reg rs2) { Rtype(StandardOpCode::OP, 6, 0x1, rd, rs1, rs2); }
+    void remu(Reg rd, Reg rs1, Reg rs2) { Rtype(StandardOpCode::OP, 7, 0x1, rd, rs1, rs2); }
+    void addi(Reg rd, Reg rs1, int imm) { Itype(StandardOpCode::OP_IMM, 0, rd, rs1, imm); }
+    void slti(Reg rd, Reg rs1, int imm) { Itype(StandardOpCode::OP_IMM, 2, rd, rs1, imm); }
+    void sltiu(Reg rd, Reg rs1, int imm) { Itype(StandardOpCode::OP_IMM, 3, rd, rs1, imm); }
+    void xori(Reg rd, Reg rs1, int imm) { Itype(StandardOpCode::OP_IMM, 4, rd, rs1, imm); }
+    void ori(Reg rd, Reg rs1, int imm) { Itype(StandardOpCode::OP_IMM, 6, rd, rs1, imm); }
+    void andi(Reg rd, Reg rs1, int imm) { Itype(StandardOpCode::OP_IMM, 7, rd, rs1, imm); }
     // load-op rd, imm(addr); rd = addr[imm];
-    void jalr(const Reg& rd, const Reg& addr, int imm = 0) { Itype(StandardOpCode::JALR, 0, rd, addr, imm); }
-    void lb(const Reg& rd, const Reg& addr, int imm = 0) { Itype(StandardOpCode::LOAD, 0, rd, addr, imm); }
-    void lh(const Reg& rd, const Reg& addr, int imm = 0) { Itype(StandardOpCode::LOAD, 1, rd, addr, imm); }
-    void lw(const Reg& rd, const Reg& addr, int imm = 0) { Itype(StandardOpCode::LOAD, 2, rd, addr, imm); }
-    void lbu(const Reg& rd, const Reg& addr, int imm = 0) { Itype(StandardOpCode::LOAD, 4, rd, addr, imm); }
-    void lhu(const Reg& rd, const Reg& addr, int imm = 0) { Itype(StandardOpCode::LOAD, 5, rd, addr, imm); }
-    void lwu(const Reg& rd, const Reg& addr, int imm = 0) { Itype(StandardOpCode::LOAD, 6, rd, addr, imm); }
-    void ld(const Reg& rd, const Reg& addr, int imm = 0) { Itype(StandardOpCode::LOAD, 3, rd, addr, imm); }
-    void auipc(const Reg& rd, uint32_t imm) { Utype(StandardOpCode::AUIPC, rd, imm); }
-    void lui(const Reg& rd, uint32_t imm) { Utype(StandardOpCode::LUI, rd, imm); }
-    void slli(const Reg& rd, const Reg& rs1, uint32_t shamt) { opShift(0x0, 1, StandardOpCode::OP_IMM, rd, rs1, shamt); }
-    void srli(const Reg& rd, const Reg& rs1, uint32_t shamt) { opShift(0x0, 5, StandardOpCode::OP_IMM, rd, rs1, shamt); }
-    void srai(const Reg& rd, const Reg& rs1, uint32_t shamt) { opShift(0x20, 5, StandardOpCode::OP_IMM, rd, rs1, shamt); }
+    void jalr(Reg rd, Reg addr, int imm = 0) { Itype(StandardOpCode::JALR, 0, rd, addr, imm); }
+    void lb(Reg rd, Reg addr, int imm = 0) { Itype(StandardOpCode::LOAD, 0, rd, addr, imm); }
+    void lh(Reg rd, Reg addr, int imm = 0) { Itype(StandardOpCode::LOAD, 1, rd, addr, imm); }
+    void lw(Reg rd, Reg addr, int imm = 0) { Itype(StandardOpCode::LOAD, 2, rd, addr, imm); }
+    void lbu(Reg rd, Reg addr, int imm = 0) { Itype(StandardOpCode::LOAD, 4, rd, addr, imm); }
+    void lhu(Reg rd, Reg addr, int imm = 0) { Itype(StandardOpCode::LOAD, 5, rd, addr, imm); }
+    void lwu(Reg rd, Reg addr, int imm = 0) { Itype(StandardOpCode::LOAD, 6, rd, addr, imm); }
+    void ld(Reg rd, Reg addr, int imm = 0) { Itype(StandardOpCode::LOAD, 3, rd, addr, imm); }
+    void auipc(Reg rd, uint32_t imm) { Utype(StandardOpCode::AUIPC, rd, imm); }
+    void lui(Reg rd, uint32_t imm) { Utype(StandardOpCode::LUI, rd, imm); }
+    void slli(Reg rd, Reg rs1, uint32_t shamt) { opShift(0x0, 1, StandardOpCode::OP_IMM, rd, rs1, shamt); }
+    void srli(Reg rd, Reg rs1, uint32_t shamt) { opShift(0x0, 5, StandardOpCode::OP_IMM, rd, rs1, shamt); }
+    void srai(Reg rd, Reg rs1, uint32_t shamt) { opShift(0x20, 5, StandardOpCode::OP_IMM, rd, rs1, shamt); }
     void fence_rw_rw() { append4B(0x330000f); }
     void fence_tso() { append4B(0x8330000f); }
     void fence_rw_w() { append4B(0x310000f); }
@@ -445,35 +445,35 @@ public:
     void ecall() { append4B(0x73); }
     void ebreak() { append4B(0x00100073); }
     // store-op rs, imm(addr) ; addr[imm] = rs;
-    void sb(const Reg& rs, const Reg& addr, int imm = 0) { Stype(StandardOpCode::STORE, 0, addr, rs, imm); }
-    void sh(const Reg& rs, const Reg& addr, int imm = 0) { Stype(StandardOpCode::STORE, 1, addr, rs, imm); }
-    void sw(const Reg& rs, const Reg& addr, int imm = 0) { Stype(StandardOpCode::STORE, 2, addr, rs, imm); }
-    void sd(const Reg& rs, const Reg& addr, int imm = 0) { Stype(StandardOpCode::STORE, 3, addr, rs, imm); }
-    void beq(const Reg& rs1, const Reg& rs2, const Label& label) { Jmp jmp(getCurr(), StandardOpCode::BRANCH, 0, rs1, rs2); opJmp(label, jmp); }
-    void bne(const Reg& rs1, const Reg& rs2, const Label& label) { Jmp jmp(getCurr(), StandardOpCode::BRANCH, 1, rs1, rs2); opJmp(label, jmp); }
-    void blt(const Reg& rs1, const Reg& rs2, const Label& label) { Jmp jmp(getCurr(), StandardOpCode::BRANCH, 4, rs1, rs2); opJmp(label, jmp); }
-    void bge(const Reg& rs1, const Reg& rs2, const Label& label) { Jmp jmp(getCurr(), StandardOpCode::BRANCH, 5, rs1, rs2); opJmp(label, jmp); }
-    void bltu(const Reg& rs1, const Reg& rs2, const Label& label) { Jmp jmp(getCurr(), StandardOpCode::BRANCH, 6, rs1, rs2); opJmp(label, jmp); }
-    void bgeu(const Reg& rs1, const Reg& rs2, const Label& label) { Jmp jmp(getCurr(), StandardOpCode::BRANCH, 7, rs1, rs2); opJmp(label, jmp); }
-    void beqz(const Reg& rs, const Label& label) { beq(rs, Reg::X0, label); }
-    void bnez(const Reg& rs, const Label& label) { bne(rs, Reg::X0, label); }
-    void blez(const Reg& rs, const Label& label) { bge(Reg::X0, rs, label); }
-    void bgez(const Reg& rs, const Label& label) { bge(rs, Reg::X0, label); }
-    void bltz(const Reg& rs, const Label& label) { blt(rs, Reg::X0, label); }
-    void bgtz(const Reg& rs, const Label& label) { blt(Reg::X0, rs, label); }
-    void bgt(const Reg& rs, const Reg& rt, const Label& label) { blt(rt, rs, label); }
-    void ble(const Reg& rs, const Reg& rt, const Label& label) { bge(rt, rs, label); }
-    void bgtu(const Reg& rs, const Reg& rt, const Label& label) { bltu(rt, rs, label); }
-    void bleu(const Reg& rs, const Reg& rt, const Label& label) { bgeu(rt, rs, label); }
-    void csrrw(const Reg& rd, CSR csr, const Reg& rs1) { opCSR(0x1073, csr, rs1, rd); }
-    void csrrs(const Reg& rd, CSR csr, const Reg& rs1) { opCSR(0x2073, csr, rs1, rd); }
-    void csrrc(const Reg& rd, CSR csr, const Reg& rs1) { opCSR(0x3073, csr, rs1, rd); }
-    void csrrwi(const Reg& rd, CSR csr, uint32_t imm) { opCSR(0x5073, csr, imm, rd); }
-    void csrrsi(const Reg& rd, CSR csr, uint32_t imm) { opCSR(0x6073, csr, imm, rd); }
-    void csrrci(const Reg& rd, CSR csr, uint32_t imm) { opCSR(0x7073, csr, imm, rd); }
+    void sb(Reg rs, Reg addr, int imm = 0) { Stype(StandardOpCode::STORE, 0, addr, rs, imm); }
+    void sh(Reg rs, Reg addr, int imm = 0) { Stype(StandardOpCode::STORE, 1, addr, rs, imm); }
+    void sw(Reg rs, Reg addr, int imm = 0) { Stype(StandardOpCode::STORE, 2, addr, rs, imm); }
+    void sd(Reg rs, Reg addr, int imm = 0) { Stype(StandardOpCode::STORE, 3, addr, rs, imm); }
+    void beq(Reg rs1, Reg rs2, const Label& label) { Jmp jmp(getCurr(), StandardOpCode::BRANCH, 0, rs1, rs2); opJmp(label, jmp); }
+    void bne(Reg rs1, Reg rs2, const Label& label) { Jmp jmp(getCurr(), StandardOpCode::BRANCH, 1, rs1, rs2); opJmp(label, jmp); }
+    void blt(Reg rs1, Reg rs2, const Label& label) { Jmp jmp(getCurr(), StandardOpCode::BRANCH, 4, rs1, rs2); opJmp(label, jmp); }
+    void bge(Reg rs1, Reg rs2, const Label& label) { Jmp jmp(getCurr(), StandardOpCode::BRANCH, 5, rs1, rs2); opJmp(label, jmp); }
+    void bltu(Reg rs1, Reg rs2, const Label& label) { Jmp jmp(getCurr(), StandardOpCode::BRANCH, 6, rs1, rs2); opJmp(label, jmp); }
+    void bgeu(Reg rs1, Reg rs2, const Label& label) { Jmp jmp(getCurr(), StandardOpCode::BRANCH, 7, rs1, rs2); opJmp(label, jmp); }
+    void beqz(Reg rs, const Label& label) { beq(rs, Reg::X0, label); }
+    void bnez(Reg rs, const Label& label) { bne(rs, Reg::X0, label); }
+    void blez(Reg rs, const Label& label) { bge(Reg::X0, rs, label); }
+    void bgez(Reg rs, const Label& label) { bge(rs, Reg::X0, label); }
+    void bltz(Reg rs, const Label& label) { blt(rs, Reg::X0, label); }
+    void bgtz(Reg rs, const Label& label) { blt(Reg::X0, rs, label); }
+    void bgt(Reg rs, Reg rt, const Label& label) { blt(rt, rs, label); }
+    void ble(Reg rs, Reg rt, const Label& label) { bge(rt, rs, label); }
+    void bgtu(Reg rs, Reg rt, const Label& label) { bltu(rt, rs, label); }
+    void bleu(Reg rs, Reg rt, const Label& label) { bgeu(rt, rs, label); }
+    void csrrw(Reg rd, CSR csr, Reg rs1) { opCSR(0x1073, csr, rs1, rd); }
+    void csrrs(Reg rd, CSR csr, Reg rs1) { opCSR(0x2073, csr, rs1, rd); }
+    void csrrc(Reg rd, CSR csr, Reg rs1) { opCSR(0x3073, csr, rs1, rd); }
+    void csrrwi(Reg rd, CSR csr, uint32_t imm) { opCSR(0x5073, csr, imm, rd); }
+    void csrrsi(Reg rd, CSR csr, uint32_t imm) { opCSR(0x6073, csr, imm, rd); }
+    void csrrci(Reg rd, CSR csr, uint32_t imm) { opCSR(0x7073, csr, imm, rd); }
 
     void nop() { addi(Reg::X0, Reg::X0, 0); }
-    void li(const Reg& rd, int imm)
+    void li(Reg rd, int imm)
     {
         int H, L;
         if (!local::split32bit(&H, &L, imm)) {
@@ -483,29 +483,29 @@ public:
         lui(rd, H);
         addi(rd, rd, L);
     }
-    void mv(const Reg& rd, const Reg& rs) { addi(rd, rs, 0); }
-    void not_(const Reg& rd, const Reg& rs) { xori(rd, rs, -1); }
-    void neg(const Reg& rd, const Reg& rs) { sub(rd, Reg::X0, rs); }
-    void sext_b(const Reg& rd, const Reg& rs) { slli(rd, rs, 24); srai(rd, rd, 24); }
-    void sext_h(const Reg& rd, const Reg& rs) { slli(rd, rs, 16); srai(rd, rd, 16); }
-    void zext_b(const Reg& rd, const Reg& rs) { andi(rd, rs, 255); }
-    void zext_h(const Reg& rd, const Reg& rs) { slli(rd, rs, 16); srli(rd, rd, 16); }
-    void zext_w(const Reg& rd, const Reg& rs) { slli(rd, rs, 0); srli(rd, rd, 0); }
-    void seqz(const Reg& rd, const Reg& rs) { sltiu(rd, rs, 1); }
-    void snez(const Reg& rd, const Reg& rs) { sltu(rd, Reg::X0, rs); }
-    void sltz(const Reg& rd, const Reg& rs) { slt(rd, rs, Reg::X0); }
-    void sgtz(const Reg& rd, const Reg& rs) { slt(rd, Reg::X0, rs); }
+    void mv(Reg rd, Reg rs) { addi(rd, rs, 0); }
+    void not_(Reg rd, Reg rs) { xori(rd, rs, -1); }
+    void neg(Reg rd, Reg rs) { sub(rd, Reg::X0, rs); }
+    void sext_b(Reg rd, Reg rs) { slli(rd, rs, 24); srai(rd, rd, 24); }
+    void sext_h(Reg rd, Reg rs) { slli(rd, rs, 16); srai(rd, rd, 16); }
+    void zext_b(Reg rd, Reg rs) { andi(rd, rs, 255); }
+    void zext_h(Reg rd, Reg rs) { slli(rd, rs, 16); srli(rd, rd, 16); }
+    void zext_w(Reg rd, Reg rs) { slli(rd, rs, 0); srli(rd, rd, 0); }
+    void seqz(Reg rd, Reg rs) { sltiu(rd, rs, 1); }
+    void snez(Reg rd, Reg rs) { sltu(rd, Reg::X0, rs); }
+    void sltz(Reg rd, Reg rs) { slt(rd, rs, Reg::X0); }
+    void sgtz(Reg rd, Reg rs) { slt(rd, Reg::X0, rs); }
     void fence() { append4B(0x0ff0000f); }
     void j_(const Label& label) { jal(Reg::X0, label); }
-    void jal(const Reg& rd, const Label& label) { Jmp jmp(getCurr(), 0x6f, rd); opJmp(label, jmp); }
-    void jr(const Reg& rs) { jalr(Reg::X0, rs, 0); }
-    void jalr(const Reg& rs) { jalr(Reg::X1, rs, 0); }
+    void jal(Reg rd, const Label& label) { Jmp jmp(getCurr(), 0x6f, rd); opJmp(label, jmp); }
+    void jr(Reg rs) { jalr(Reg::X0, rs, 0); }
+    void jalr(Reg rs) { jalr(Reg::X1, rs, 0); }
     void ret() { jalr(Reg::X0, Reg::X1); }
 
-    void csrr(const Reg& rd, CSR csr) { csrrs(rd, csr, Reg::X0); }
-    void csrw(CSR csr, const Reg& rs) { csrrw(Reg::X0, csr, rs); }
-    void csrs(CSR csr, const Reg& rs) { csrrs(Reg::X0, csr, rs); }
-    void csrc(CSR csr, const Reg& rs) { csrrc(Reg::X0, csr, rs); }
+    void csrr(Reg rd, CSR csr) { csrrs(rd, csr, Reg::X0); }
+    void csrw(CSR csr, Reg rs) { csrrw(Reg::X0, csr, rs); }
+    void csrs(CSR csr, Reg rs) { csrrs(Reg::X0, csr, rs); }
+    void csrc(CSR csr, Reg rs) { csrrc(Reg::X0, csr, rs); }
     void csrwi(CSR csr, uint32_t imm) { csrrwi(Reg::X0, csr, imm); }
     void csrsi(CSR csr, uint32_t imm) { csrrsi(Reg::X0, csr, imm); }
     void csrci(CSR csr, uint32_t imm) { csrrci(Reg::X0, csr, imm); }
@@ -514,28 +514,28 @@ public:
 
     // VSOP
     // Rtype(Bit<7> opcode, Bit<3> funct3, Bit<7> funct7, Bit<5> rd, Bit<5> rs1, Bit<5> rs2)
-    void vadd(const VReg &rd, const VReg &rs1, const VReg &rs2){ Rtype(VectorOpCode::VSOP, 0x0, 0x0, rd, rs1, rs2); }
-    void vsub(const VReg &rd, const VReg &rs1, const VReg &rs2){ Rtype(VectorOpCode::VSOP, 0x2, 0x0, rd, rs1, rs2); }
-    void vmul(Bit<4> shift, const VReg &rd, const VReg &rs1, const VReg &rs2){ Rtype(VectorOpCode::VSOP, 0x4, shift, rd, rs1, rs2); }
+    void vadd(VReg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VSOP, 0x0, 0x0, rd, rs1, rs2); }
+    void vsub(VReg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VSOP, 0x2, 0x0, rd, rs1, rs2); }
+    void vmul(Bit<4> shift, VReg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VSOP, 0x4, shift, rd, rs1, rs2); }
 
     // VTST
-    void vseq(const Reg &rd, const VReg &rs1, const VReg &rs2){ Rtype(VectorOpCode::VTST, 0x0, 0x0, rd, rs1, rs2); }
-    void vsne(const Reg &rd, const VReg &rs1, const VReg &rs2){ Rtype(VectorOpCode::VTST, 0x2, 0x0, rd, rs1, rs2); }
-    void vslt(const Reg &rd, const VReg &rs1, const VReg &rs2){ Rtype(VectorOpCode::VTST, 0x4, 0x0, rd, rs1, rs2); }
-    void vsge(const Reg &rd, const VReg &rs1, const VReg &rs2){ Rtype(VectorOpCode::VTST, 0x6, 0x0, rd, rs1, rs2); }
+    void vseq(const Reg &rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VTST, 0x0, 0x0, rd, rs1, rs2); }
+    void vsne(const Reg &rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VTST, 0x2, 0x0, rd, rs1, rs2); }
+    void vslt(const Reg &rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VTST, 0x4, 0x0, rd, rs1, rs2); }
+    void vsge(const Reg &rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VTST, 0x6, 0x0, rd, rs1, rs2); }
 
     // VSEL
-    void vsel(const VReg &rd, const Reg &rs1, const VReg &rs2){ Rtype(VectorOpCode::VSEL, 0x0, 0x0, rd, rs1, rs2); }
+    void vsel(VReg rd, const Reg &rs1, VReg rs2){ Rtype(VectorOpCode::VSEL, 0x0, 0x0, rd, rs1, rs2); }
 
     // VLUI
-    void vlui(const VReg& rd, uint32_t imm){ Utype(VectorOpCode::VLUI, rd, imm); }
+    void vlui(VReg rd, uint32_t imm){ Utype(VectorOpCode::VLUI, rd, imm); }
 
     // VLOAD
-    void vloadv(const VReg &rd, const Reg &addr, int imm = 0){ Itype(VectorOpCode::VLOAD, 0x0, rd, addr, imm); }
-    void vloads(const VReg &rd, const Reg &addr, int imm = 0){ Itype(VectorOpCode::VLOAD, 0x4, rd, addr, imm); }
+    void vloadv(VReg rd, const Reg &addr, int imm = 0){ Itype(VectorOpCode::VLOAD, 0x0, rd, addr, imm); }
+    void vloads(VReg rd, const Reg &addr, int imm = 0){ Itype(VectorOpCode::VLOAD, 0x4, rd, addr, imm); }
 
     // VSTORE
-    void vstore(const VReg &rs, const Reg &addr, int imm = 0){ Stype(VectorOpCode::VSTORE, 0x0, addr, rs, imm); }
+    void vstore(VReg rs, const Reg &addr, int imm = 0){ Stype(VectorOpCode::VSTORE, 0x0, addr, rs, imm); }
 
 private:
     CodeGenerator operator=(const CodeGenerator&) = delete;
