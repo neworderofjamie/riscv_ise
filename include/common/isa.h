@@ -154,7 +154,7 @@ inline std::tuple<uint32_t, uint32_t, uint32_t, uint32_t, uint32_t> decodeRType(
 // imm[11:0] rs1 funct3 rd
 inline std::tuple<int32_t, uint32_t, uint32_t, uint32_t> decodeIType(uint32_t inst)
 {
-    const int32_t imm = (int32_t)(inst >> 20);
+    const int32_t imm = (int32_t)inst >> 20;
     const uint32_t rs1 = (inst >> 15) & 0x1f;
     const uint32_t funct3 = (inst >> 12) & 7;
     const uint32_t rd = (inst >> 7) & 0x1f;
@@ -189,7 +189,7 @@ inline std::tuple<int32_t, uint32_t, uint32_t, uint32_t> decodeBType(uint32_t in
 // imm[31:12] rd
 inline std::tuple<int32_t, uint32_t> decodeUType(uint32_t inst)
 {
-    const int32_t imm =  (int32_t)(inst >> 12);
+    const int32_t imm =  (int32_t)inst >> 12;
     const uint32_t rd = (inst >> 7) & 0x1f;
     return std::make_tuple(imm, rd);
 }
