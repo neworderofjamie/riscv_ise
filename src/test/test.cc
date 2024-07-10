@@ -52,7 +52,6 @@ Xbyak_riscv::CodeGenerator generateCode()
     c.vadd(VReg::V1, VReg::V1, VReg::V4);
     
     // spk = v > 1.0
-    c.addi(Reg::X3, Reg::X0, 0);
     c.vslt(Reg::X3, VReg::V2, VReg::V1);
     
     // v = spk ? v_reset : v

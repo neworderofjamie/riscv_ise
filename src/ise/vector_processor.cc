@@ -146,8 +146,11 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
     case VectorOpCode::VTST:
     {
         auto [funct7, rs2, rs1, funct3, rd] = decodeRType(inst);
-        reg[rd] |= calcTestResult(inst, rs2, rs1, funct3);
+        const uint32_t val = calcTestResult(inst, rs2, rs1, funct3);
         PLOGD << "\t" << rd;
+        if (rd != 0) {
+            reg[rd] = val;
+        }
         break;
     }
     }
