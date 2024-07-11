@@ -122,6 +122,9 @@ public:
     auto &getScalarDataMemory(){ return m_ScalarDataMemory; }
     const auto &getScalarDataMemory() const{ return m_ScalarDataMemory; }
 
+    void setPC(uint32_t pc){ m_PC = pc; }
+    uint32_t getPC() const{ return m_PC; }
+
 private:
     void setNextPC(uint32_t nextPC);
 

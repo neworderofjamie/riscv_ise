@@ -376,7 +376,7 @@ int main()
                     c.vloadv(VSpikeTime, SSpikeTimeBuffer);
 
                     // spike vector = x4 = spike time == t
-                    c.vseq(SSpikeVec, VTime, VSpikeTime);
+                    c.vteq(SSpikeVec, VTime, VSpikeTime);
                     c.and_(SSpikeVec, SSpikeVec, SMask);
 
                     // inputSpikeBuffer + scalarOffset = spike vector
@@ -394,8 +394,6 @@ int main()
                     // If SSpikeBuffer != SSpikeBufferEnd, goto input loop
                     c.bne(SSpikeBuffer, SSpikeBufferEnd, neuronLoop);
                 }
-
-                c.ecall();
             }
 
             // ---------------------------------------------------------------
@@ -418,7 +416,6 @@ int main()
                 // Load constants
                 // alpha = e^(-1/20)
                 c.vlui(VAlpha, convertFixedPoint(std::exp(-1.0 / 20.0), hiddenFixedPoint));
-                
                 // v = 0
                 c.vlui(VReset, 0);
                 
@@ -449,7 +446,7 @@ int main()
                     c.vloadv(VISyn, SISynBuffer);
 
                     // VV *= VAlpha
-                    c.vmul(13, VV, VV, VAlpha);
+                    c.vmul(hiddenFixedPoint, VV, VV, VAlpha);
 
                     // VV += VISyn
                     c.vadd(VV, VV, VISyn);
@@ -457,8 +454,8 @@ int main()
                     // VISyn = 0
                     c.vlui(VISyn, 0);
 
-                    // SSpikeOut = VV > VThresh
-                    c.vslt(SSpikeOut, VV, VThresh);
+                    // SSpikeOut = VV >= VThresh
+                    c.vtge(SSpikeOut, VV, VThresh);
 
                     // *SSpikeBuffer = SSpikeOut
                     c.sw(SSpikeOut, SSpikeBuffer);
@@ -479,6 +476,9 @@ int main()
                     c.bne(SSpikeBuffer, SSpikeBufferEnd, neuronLoop);
                 }
             }
+
+            // End
+            c.ecall();
         }
 
     }
@@ -503,6 +503,8 @@ int main()
         // Copy timestep into scalar memory
         std::memcpy(scalarData + timestep, &t, 4);
 
+        // Reset PC and run
+        riscV.setPC(0);
         riscV.run();
 
         // Record spike words
@@ -520,6 +522,4 @@ int main()
         writeSpikes(hiddenSpikes, hiddenSpikeRecording.data() + (numHiddenSpikeWords * t),
                     t, numHiddenSpikeWords);
     }
-    
-    std::cout << std::endl;*/
 }
