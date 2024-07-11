@@ -5,3 +5,4 @@
 /bin/
 **/x64/
 *.vcxproj.user
+/obj_debug/
