@@ -266,6 +266,10 @@ void RISCV::run()
 
         dumpRegisters();
     }
+    catch(const std::exception &exc) {
+        PLOGE << "Internal error: " << exc.what();
+        dumpRegisters();
+    }
 
 }
 //----------------------------------------------------------------------------
