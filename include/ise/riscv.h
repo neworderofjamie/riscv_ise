@@ -58,21 +58,15 @@ class Exception : std::exception
 public:
     enum class Cause : uint32_t
     {
-        MISALIGNED_FETCH    = 0x0,
-        FAULT_FETCH         = 0x1,
-        ILLEGAL_INSTRUCTION = 0x2,
-        //BREAKPOINT          = 0x3,
-        MISALIGNED_LOAD     = 0x4,
-        FAULT_LOAD          = 0x5,
-        MISALIGNED_STORE    = 0x6,
-        FAULT_STORE         = 0x7,
-        //USER_ECALL          = 0x8,
-        //SUPERVISOR_ECALL    = 0x9,
-        //HYPERVISOR_ECALL    = 0xa,
-        //MACHINE_ECALL       = 0xb,
-        //FETCH_PAGE_FAULT    = 0xc,
-        //LOAD_PAGE_FAULT     = 0xd,
-        //STORE_PAGE_FAULT    = 0xf,
+        MISALIGNED_FETCH,
+        FAULT_FETCH,
+        ILLEGAL_INSTRUCTION,
+        BREAKPOINT,
+        MISALIGNED_LOAD,
+        FAULT_LOAD,
+        MISALIGNED_STORE,
+        FAULT_STORE,
+        ECALL
     };
 
     Exception(Cause cause, uint32_t context) : m_Cause(cause), m_Context(context)
@@ -125,9 +119,9 @@ public:
         return dynamic_cast<const T*>(m_Coprocessors[quadrant].get());
     }
     
-    ScalarDataMemory &getScalarDataMemory(){ return m_ScalarDataMemory; }
-    const ScalarDataMemory &getScalarDataMemory() const{ return m_ScalarDataMemory; }
-    
+    auto &getScalarDataMemory(){ return m_ScalarDataMemory; }
+    const auto &getScalarDataMemory() const{ return m_ScalarDataMemory; }
+
 private:
     void setNextPC(uint32_t nextPC);
 

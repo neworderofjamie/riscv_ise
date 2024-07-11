@@ -439,13 +439,6 @@ public:
     void slli(Reg rd, Reg rs1, uint32_t shamt) { opShift(0x0, 1, StandardOpCode::OP_IMM, rd, rs1, shamt); }
     void srli(Reg rd, Reg rs1, uint32_t shamt) { opShift(0x0, 5, StandardOpCode::OP_IMM, rd, rs1, shamt); }
     void srai(Reg rd, Reg rs1, uint32_t shamt) { opShift(0x20, 5, StandardOpCode::OP_IMM, rd, rs1, shamt); }
-    void fence_rw_rw() { append4B(0x330000f); }
-    void fence_tso() { append4B(0x8330000f); }
-    void fence_rw_w() { append4B(0x310000f); }
-    void fence_r_rw() { append4B(0x230000f); }
-    void fence_r_r() { append4B(0x220000f); }
-    void fence_w_w() { append4B(0x110000f); }
-    void fence_i() { append4B(0x100f); }
     void ecall() { append4B(0x73); }
     void ebreak() { append4B(0x00100073); }
     // store-op rs, imm(addr) ; addr[imm] = rs;

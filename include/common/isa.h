@@ -36,6 +36,7 @@ enum class StandardOpCode : uint32_t
     OP      = 0b01100,
     LUI     = 0b01101,
     AUIPC   = 0b00101,
+    SYSTEM  = 0b11100,
 };
 
 static constexpr uint32_t standardQuadrant = 0b11;

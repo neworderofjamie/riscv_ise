@@ -55,6 +55,15 @@ int popCount(uint32_t value)
     return __builtin_popcount(value);
 #endif
 }
+
+void breakPoint()
+{
+#ifdef _WIN32
+    return __debugbreak();
+#else
+    return __builtin_trap();
+#endif
+}
 }
 //----------------------------------------------------------------------------
 // InstructionMemory
@@ -255,6 +264,17 @@ void RISCV::run()
         {
             PLOGE << "Store fault at " << ex.getContext();
             break;
+        }
+
+        case Exception::Cause::BREAKPOINT:
+        {
+            breakPoint();
+            break;
+        }
+
+        case Exception::Cause::ECALL:
+        {
+            return;
         }
         
         default:
@@ -899,18 +919,16 @@ void RISCV::executeStandardInstruction(uint32_t inst)
         break;
     }
 
-    /*case 0x73: //SYSTEM
-
-        funct3 = (insn >> 12) & 7;
-        imm = insn >> 20;
-        if (funct3 & 4)
-            val = rs1;
-        else
-            val = reg[rs1];
-        funct3 &= 3;
+    case StandardOpCode::SYSTEM:
+    {
+        const uint32_t funct12 = inst >> 20;
+        //const uint32_t rs1 = (inst >> 15) & 0x1f;
+        const uint32_t funct3 = (inst >> 12) & 3;
+        //const uint32_t rd = (inst >> 7) & 0x1f;
+        
         switch(funct3) {
 
-        case 1: //csrrw & csrrwi
+        /*case 1: //csrrw & csrrwi
 #ifdef DEBUG_EXTRA
             if ((insn >> 12) & 4)
             {
@@ -978,55 +996,39 @@ void RISCV::executeStandardInstruction(uint32_t inst)
             }
             if (rd != 0)
                 reg[rd] = val2;
-            break;
+            break;*/
 
         case 0:
-            switch(imm) {
+        {
+            switch(funct12) {
             case 0x000: // ecall 
+            {
+                PLOGD << "ECALL";
 #ifdef DEBUG_EXTRA
-                dprintf(">>> ECALL\n");
                 stats[39]++;
 #endif
-                if (insn & 0x000fff80) {
-                    raise_exception(CAUSE_ILLEGAL_INSTRUCTION, insn);
-                    return;
+                if (inst & 0x000fff80) {
+                    throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
                 }
-                //  compliance test specific: if bit 0 of gp (x3) is 0, it is a syscall,
-                //  otherwise it is the program end, with the exit code in the bits 31:1
-                if (begin_signature) {
-                    if (reg[3] & 1) {
-#ifdef DEBUG_OUTPUT
-                        printf("program end, result: %04x\n", reg[3] >> 1);
-#endif
-                        machine_running = FALSE;
-                        return;
-
-                    } else {
-#ifdef DEBUG_OUTPUT
-                        printf("syscall: %04x\n", reg[3]);
-#endif
-                        raise_exception(CAUSE_USER_ECALL + priv, 0);
-                    }
-                } else {
-                    //on real hardware, an exception is raised, the I-ECALL-01 compliance test tests this as well 
-                    raise_exception(CAUSE_USER_ECALL + priv, 0);
-                    return;
+                else {
+                    throw Exception(Exception::Cause::ECALL, inst);
                 }
-                break;
-
-            case 0x001: // ebreak
+            }
+            case 0x001: // EBREAK
+            {
+                PLOGD << "EBREAK";
 #ifdef DEBUG_EXTRA
-                dprintf(">>> EBREAK\n");
                 stats[40]++;
 #endif
-                if (insn & 0x000fff80) {
-                    raise_exception(CAUSE_ILLEGAL_INSTRUCTION, insn);
-                    return;
+                if (inst & 0x000fff80) {
+                    throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
                 }
-                raise_exception(CAUSE_BREAKPOINT, 0);
-                return;
+                else {
+                    throw Exception(Exception::Cause::BREAKPOINT, inst);
+                }
+            }
 
-            case 0x102: //sret
+            /*case 0x102: //sret
             {
 #ifdef DEBUG_EXTRA
                 dprintf(">>> SRET\n");
@@ -1062,32 +1064,21 @@ void RISCV::executeStandardInstruction(uint32_t inst)
                 handle_mret();
                 return;
             }
-            break;
+            break;*/
 
             default:
-                if ((imm >> 5) == 0x09) {
-#ifdef DEBUG_EXTRA
-                    dprintf(">>> SFENCE.VMA\n");
-                    stats[62]++;
-#endif
-                    // sfence.vma
-                    if ((insn & 0x00007f80) || (priv == PRV_U)) {
-                        raise_exception(CAUSE_ILLEGAL_INSTRUCTION, insn);
-                        return;
-                    }
-                } else {
-                    raise_exception(CAUSE_ILLEGAL_INSTRUCTION, insn);
-                    return;
-                }
-                break;
+            {
+                throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
             }
-            break;
-
-        default:
-            raise_exception(CAUSE_ILLEGAL_INSTRUCTION, insn);
-            return;
+            }
         }
-        break;*/
+        
+        default:
+        {
+            throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
+        }
+        }
+    }
 
     default:
     {

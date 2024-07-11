@@ -46,8 +46,9 @@ public:
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
-    VectorDataMemory &getVectorDataMemory(){ return m_VectorDataMemory; }
-    const VectorDataMemory &getVectorDataMemory() const{ return m_VectorDataMemory; }
+    //! Access vector data memory
+    auto &getVectorDataMemory(){ return m_VectorDataMemory; }
+    const auto &getVectorDataMemory() const{ return m_VectorDataMemory; }
     
 private:
     Vector calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs2, uint32_t rs1, uint32_t funct3) const;
