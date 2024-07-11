@@ -1,9 +1,11 @@
 // Standard C++ includes
 #include <fstream>
 #include <iterator>
+#include <limits>
 
 // Standard C includes
 #include <cassert>
+#include <cmath>
 
 // Platform includes
 #ifdef _WIN32
@@ -39,14 +41,14 @@ int clz(uint32_t value)
 
 //! Divide two integers, rounding up i.e. effectively taking ceil
 template<typename A, typename B, typename = std::enable_if_t<std::is_integral_v<A> && std::is_integral_v<B>>>
-inline auto ceilDivide(A numerator, B denominator)
+constexpr inline auto ceilDivide(A numerator, B denominator)
 {
     return ((numerator + denominator - 1) / denominator);
 }
 
 //! Pad an integer to a multiple of another
 template<typename A, typename B, typename = std::enable_if_t<std::is_integral_v<A>&& std::is_integral_v<B>>>
-inline auto padSize(A size, B blockSize)
+constexpr inline auto padSize(A size, B blockSize)
 {
     return ceilDivide(size, blockSize) * blockSize;
 }
@@ -112,22 +114,54 @@ uint32_t allocateScalarAndZero(size_t numBytes, std::vector<uint8_t> &memory)
     return static_cast<uint32_t>(startBytes);
 }
 
+int16_t convertFixedPoint(double x, uint32_t fixedPoint)
+{
+    const double rounded = std::round(x * (1 << fixedPoint));
+    assert(rounded >= std::numeric_limits<int16_t>::min());
+    assert(rounded <= std::numeric_limits<int16_t>::max());
+
+    return static_cast<int16_t>(rounded);
+}
+
+void writeSpikes(std::ofstream &os, const uint32_t *data, 
+                 float time, size_t numWords)
+{
+    for(size_t i = 0; i < numWords; i++) {
+        uint32_t w = *data++;;
+
+        unsigned int n = (i * 32) + 31;
+        while(w != 0) {
+            unsigned int numLZ = clz(w);
+            w = (numLZ == 31) ? 0 : (w << (numLZ + 1));
+            n -= numLZ;
+            
+            os << time << ", " << n << std::endl;
+            n--;
+
+        }
+    }
+}
+
 int main()
 {
     using namespace Xbyak_riscv;
 
     // Configure logging
     plog::ConsoleAppender<plog::TxtFormatter> consoleAppender;
-    plog::init(plog::debug, &consoleAppender);
+    plog::init(plog::info, &consoleAppender);
     
     // Allocate memory
     std::vector<uint8_t> scalarInitData;
     std::vector<int16_t> vectorInitData;
 
     // Constants
-    const uint32_t numInput = 28 * 28;
-    const uint32_t numHidden = 128;
-    const uint32_t numOutput = 10;
+    constexpr uint32_t numInput = 28 * 28;
+    constexpr uint32_t numHidden = 128;
+    constexpr uint32_t numOutput = 10;
+    constexpr uint32_t hiddenFixedPoint = 5;
+    constexpr uint32_t outFixedPoint = 6;
+    constexpr uint32_t numInputSpikeWords = ceilDivide(numInput, 32);
+    constexpr uint32_t numHiddenSpikeWords = ceilDivide(numHidden, 32);
 
     // Load vector data **TODO** bias
     const uint32_t spikeTimeStart = loadVectors("mnist_7.bin", vectorInitData);
@@ -143,74 +177,21 @@ int main()
     const uint32_t outputVSum = allocateVectorAndZero(numOutput, vectorInitData);
    
     // Allocate scalar arrays
-    const uint32_t inputSpikeBuffer = allocateScalarAndZero(ceilDivide(numInput, 32) * 4, scalarInitData);
-    const uint32_t hiddenSpikeBuffer = allocateScalarAndZero(ceilDivide(numHidden, 32) * 4, scalarInitData);
+    const uint32_t timestep = allocateScalarAndZero(4, scalarInitData);
+    const uint32_t inputSpikeBuffer = allocateScalarAndZero(numInputSpikeWords * 4, scalarInitData);
+    const uint32_t hiddenSpikeBuffer = allocateScalarAndZero(numHiddenSpikeWords * 4, scalarInitData);
 
     CodeGenerator c;
     {
-        // V0 = t = 0
+        // V0 = *timestep
         const auto VTime = VReg::V0;
-        c.vlui(VTime, 4);
+        c.li(Reg::X1, timestep);
+        c.vloads(VTime, Reg::X1);
 
         // Loop over time
         Label timeLoop;
         c.L(timeLoop);
         {
-            // **TODO** synapses
-            
-            // ---------------------------------------------------------------
-            // Input neurons
-            // ---------------------------------------------------------------
-            {
-                // Register allocation
-                const auto SVecOffset = Reg::X1;
-                const auto SWordOffset = Reg::X2;
-                const auto SMask = Reg::X3;
-
-                // Labels
-                Label neuronLoop;
-
-                // SVecOffset = start of last vector of input
-                const uint32_t paddedNumInput = padSize(numInput, 32);
-                c.li(SVecOffset, (paddedNumInput - 32) * 2);
-
-                // SWordOffset = start of last word of input
-                c.li(SWordOffset, (ceilDivide(numInput, 32) - 1) * 4);
-            
-                // Calculate mask for first iteration
-                c.li(SMask, (1 << (paddedNumInput - numInput)) - 1);
-
-                // Input neuron loop
-                c.L(neuronLoop);
-                {
-                    const auto VSpikeTime = VReg::V1;
-                    const auto SSpikeVec = Reg::X4;
-
-                    // Load spike
-                    //v1 = spikeTimeStart + vector offset
-                    c.vloadv(VSpikeTime, SVecOffset, spikeTimeStart);
-
-                    // spike vector = x4 = spike time == t
-                    c.vseq(SSpikeVec, VTime, VSpikeTime);
-                    c.and_(SSpikeVec, SSpikeVec, SMask);
-
-                    // inputSpikeBuffer + scalarOffset = spike vector
-                    c.sw(SSpikeVec, SWordOffset, inputSpikeBuffer);
-
-                    // vector offset -= 64
-                    c.addi(SVecOffset, SVecOffset, -64);
-
-                    // scalar offset -= 4
-                    c.addi(SWordOffset, SWordOffset, -4);
-
-                    // reset mask
-                    c.li(SMask, 0xFFFFFFFF);
-
-                    // If scalar offset > 0, goto input loop
-                    c.bge(SWordOffset, Reg::X0, neuronLoop);
-                }
-            }
-
             // ---------------------------------------------------------------
             // Input->Hidden synapses
             // ---------------------------------------------------------------
@@ -236,7 +217,7 @@ int main()
                 c.li(SSpikeBuffer, inputSpikeBuffer);
                 
                 // SSpikeBufferEnd = inputSpikeBuffer + numInputBytes
-                c.li(SSpikeBufferEnd, ceilDivide(numInput, 32) * 4);
+                c.li(SSpikeBufferEnd, numInputSpikeWords * 4);
                 c.add(SSpikeBufferEnd, SSpikeBufferEnd, SSpikeBuffer);
 
                 // SNumHiddenBytes = numHidden * 2
@@ -356,6 +337,148 @@ int main()
                 
                 c.L(wordEnd);
             }
+
+            // ---------------------------------------------------------------
+            // Input neurons
+            // ---------------------------------------------------------------
+            {
+                // Register allocation
+                const auto SSpikeBuffer = Reg::X1;
+                const auto SSpikeBufferEnd = Reg::X2;
+                const auto SSpikeTimeBuffer = Reg::X3;
+                const auto SMask = Reg::X4;
+                const auto SNumSpikeBytes = Reg::X5;
+
+                // Labels
+                Label neuronLoop;
+
+                // Get address of spike and spike time buffer
+                c.li(SSpikeBuffer, inputSpikeBuffer);
+                c.li(SSpikeTimeBuffer, spikeTimeStart);
+
+                // SNumHiddenBytes = numHidden * 2
+                c.li(SNumSpikeBytes, numInputSpikeWords * 4);
+
+                // SSpikeBufferEnd = SSpikeBufer + SNumSpikeBytes
+                c.add(SSpikeBufferEnd, SSpikeBuffer, SNumSpikeBytes);
+
+                // Calculate mask for first iteration
+                c.li(SMask, (1 << ((numInputSpikeWords * 32) - numInput)) - 1);
+
+                // Input neuron loop
+                c.L(neuronLoop);
+                {
+                    // Register allocation
+                    const auto VSpikeTime = VReg::V1;
+                    const auto SSpikeVec = Reg::X6;
+
+                    // Load spike
+                    c.vloadv(VSpikeTime, SSpikeTimeBuffer);
+
+                    // spike vector = x4 = spike time == t
+                    c.vseq(SSpikeVec, VTime, VSpikeTime);
+                    c.and_(SSpikeVec, SSpikeVec, SMask);
+
+                    // inputSpikeBuffer + scalarOffset = spike vector
+                    c.sw(SSpikeVec, SSpikeBuffer);
+
+                    // SSpikeTimeBuffer += 64
+                    c.addi(SSpikeTimeBuffer, SSpikeTimeBuffer, 64);
+
+                    // SSpikeBuffe += 4
+                    c.addi(SSpikeBuffer, SSpikeBuffer, 4);
+
+                    // reset mask
+                    c.li(SMask, 0xFFFFFFFF);
+
+                    // If SSpikeBuffer != SSpikeBufferEnd, goto input loop
+                    c.bne(SSpikeBuffer, SSpikeBufferEnd, neuronLoop);
+                }
+
+                c.ecall();
+            }
+
+            // ---------------------------------------------------------------
+            // Hidden neurons
+            // ---------------------------------------------------------------
+            {
+                // Register allocation
+                const auto SVBuffer = Reg::X1;
+                const auto SISynBuffer = Reg::X2;
+                const auto SSpikeBuffer = Reg::X3;
+                const auto SSpikeBufferEnd = Reg::X4;
+                const auto SNumSpikeBytes = Reg::X5;
+                const auto VAlpha = VReg::V0;
+                const auto VThresh = VReg::V1;
+                const auto VReset = VReg::V2;
+                
+                // Labels
+                Label neuronLoop;
+                
+                // Load constants
+                // alpha = e^(-1/20)
+                c.vlui(VAlpha, convertFixedPoint(std::exp(-1.0 / 20.0), hiddenFixedPoint));
+                
+                // v = 0
+                c.vlui(VReset, 0);
+                
+                // v_thresh = 1
+                c.vlui(VThresh, convertFixedPoint(0.61, hiddenFixedPoint));
+
+                // Get address of spike and spike time buffer
+                c.li(SVBuffer, hiddenV);
+                c.li(SISynBuffer, hiddenIsyn);
+                c.li(SSpikeBuffer, hiddenSpikeBuffer);
+
+                // SNumSpikeBytes = numHidden * 4
+                c.li(SNumSpikeBytes, numHiddenSpikeWords * 4);
+
+                // SSpikeBufferEnd = SSpikeBufer + SNumSpikeBytes
+                c.add(SSpikeBufferEnd, SSpikeBuffer, SNumSpikeBytes);
+
+                // Input neuron loop
+                c.L(neuronLoop);
+                {
+                    // Register allocation
+                    const auto VV = VReg::V3;
+                    const auto VISyn = VReg::V4;
+                    const auto SSpikeOut = Reg::X6;
+
+                    // Load voltage and isyn
+                    c.vloadv(VV, SVBuffer);
+                    c.vloadv(VISyn, SISynBuffer);
+
+                    // VV *= VAlpha
+                    c.vmul(13, VV, VV, VAlpha);
+
+                    // VV += VISyn
+                    c.vadd(VV, VV, VISyn);
+
+                    // VISyn = 0
+                    c.vlui(VISyn, 0);
+
+                    // SSpikeOut = VV > VThresh
+                    c.vslt(SSpikeOut, VV, VThresh);
+
+                    // *SSpikeBuffer = SSpikeOut
+                    c.sw(SSpikeOut, SSpikeBuffer);
+
+                    // VV = SSpikeOut ? VReset : VV
+                    c.vsel(VV, SSpikeOut, VReset);
+
+                    // Store VV and ISyn
+                    c.vstore(VV, SVBuffer);
+                    c.vstore(VISyn, SISynBuffer);
+
+                    // SVBuffer += 64
+                    c.addi(SVBuffer, SVBuffer, 64);
+                    c.addi(SISynBuffer, SISynBuffer, 64);
+                    c.addi(SSpikeBuffer, SSpikeBuffer, 4);
+
+                    // If SSpikeBuffer != SSpikeBufferEnd, loop
+                    c.bne(SSpikeBuffer, SSpikeBufferEnd, neuronLoop);
+                }
+            }
         }
 
     }
@@ -366,25 +489,37 @@ int main()
     // Add vector co-processor
     riscV.addCoprocessor<VectorProcessor>(vectorQuadrant, vectorInitData);
     
-    // Run!
-    riscV.run();
-    
-    // Decode spikes
-    const auto &scalarData = riscV.getScalarDataMemory().getData();
-    const uint32_t *inputSpikeWords = reinterpret_cast<const uint32_t*>(scalarData.data() + inputSpikeBuffer);
-    for(size_t i = 0; i < 25; i++) {
-        uint32_t w = inputSpikeWords[i];
+    // Recording data
+    std::vector<uint32_t> inputSpikeRecording;
+    std::vector<uint32_t> hiddenSpikeRecording;
+    inputSpikeRecording.reserve(79 * numInputSpikeWords);
+    hiddenSpikeRecording.reserve(79 * numHiddenSpikeWords);
 
-        unsigned int n = (i * 32) + 31;
-        while(w != 0) {
-            unsigned int numLZ = clz(w);
-            w = (numLZ == 31) ? 0 : (w << (numLZ + 1));
-            n -= numLZ;
-            
-            std::cout << std::dec << n << " spiked!" << std::endl;
-            n--;
+    // Loop through time
+    auto *scalarData = riscV.getScalarDataMemory().getData().data();
+    const uint32_t *inputSpikeWords = reinterpret_cast<const uint32_t*>(scalarData + inputSpikeBuffer);
+    const uint32_t *hiddenSpikeWords = reinterpret_cast<const uint32_t*>(scalarData + hiddenSpikeBuffer);
+    for(uint32_t t = 0; t < 79; t++) {
+        // Copy timestep into scalar memory
+        std::memcpy(scalarData + timestep, &t, 4);
 
-        }
+        riscV.run();
+
+        // Record spike words
+        std::copy(inputSpikeWords, inputSpikeWords + numInputSpikeWords,
+                  std::back_inserter(inputSpikeRecording));
+        std::copy(hiddenSpikeWords, hiddenSpikeWords + numHiddenSpikeWords,
+                  std::back_inserter(hiddenSpikeRecording));
     }
-    std::cout << std::endl;
+
+    std::ofstream inputSpikes("input_spikes.csv");
+    std::ofstream hiddenSpikes("hidden_spikes.csv");
+    for(uint32_t t = 0; t < 79; t++) {
+        writeSpikes(inputSpikes, inputSpikeRecording.data() + (numInputSpikeWords * t),
+                    t, numInputSpikeWords);
+        writeSpikes(hiddenSpikes, hiddenSpikeRecording.data() + (numHiddenSpikeWords * t),
+                    t, numHiddenSpikeWords);
+    }
+    
+    std::cout << std::endl;*/
 }
