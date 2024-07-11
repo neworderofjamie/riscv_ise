@@ -162,30 +162,35 @@ int main()
             // Input neurons
             // ---------------------------------------------------------------
             {
-                // SVecOffset = start of last vector of input
+                // Register allocation
                 const auto SVecOffset = Reg::X1;
+                const auto SWordOffset = Reg::X2;
+                const auto SMask = Reg::X3;
+
+                // Labels
+                Label neuronLoop;
+
+                // SVecOffset = start of last vector of input
                 const uint32_t paddedNumInput = padSize(numInput, 32);
                 c.li(SVecOffset, (paddedNumInput - 32) * 2);
 
                 // SWordOffset = start of last word of input
-                const auto SWordOffset = Reg::X2;
                 c.li(SWordOffset, (ceilDivide(numInput, 32) - 1) * 4);
             
                 // Calculate mask for first iteration
-                const auto SMask = Reg::X3;
                 c.li(SMask, (1 << (paddedNumInput - numInput)) - 1);
 
                 // Input neuron loop
-                Label inputNeuronLoop;
-                c.L(inputNeuronLoop);
+                c.L(neuronLoop);
                 {
+                    const auto VSpikeTime = VReg::V1;
+                    const auto SSpikeVec = Reg::X4;
+
                     // Load spike
                     //v1 = spikeTimeStart + vector offset
-                    const auto VSpikeTime = VReg::V1;
                     c.vloadv(VSpikeTime, SVecOffset, spikeTimeStart);
 
                     // spike vector = x4 = spike time == t
-                    const auto SSpikeVec = Reg::X4;
                     c.vseq(SSpikeVec, VTime, VSpikeTime);
                     c.and_(SSpikeVec, SSpikeVec, SMask);
 
@@ -202,22 +207,154 @@ int main()
                     c.li(SMask, 0xFFFFFFFF);
 
                     // If scalar offset > 0, goto input loop
-                    c.bge(SWordOffset, Reg::X0, inputNeuronLoop);
+                    c.bge(SWordOffset, Reg::X0, neuronLoop);
                 }
             }
 
-            // Hidden neuron loop
-            Label hiddenNeuronLoop;
-            c.L(hiddenNeuronLoop);
+            // ---------------------------------------------------------------
+            // Input->Hidden synapses
+            // ---------------------------------------------------------------
             {
-                // **NOTE** mask not necessary as POT
-            }
+                // Register allocation
+                const auto SSpikeBuffer = Reg::X1;
+                const auto SSpikeBufferEnd = Reg::X2;
+                const auto SWordNStart = Reg::X3;
+                const auto SConst1 = Reg::X4;   // **TODO** useful for all synapse loops
+                const auto SSpikeWord = Reg::X5;
+                const auto SNumHiddenBytes = Reg::X12;
 
-            // Output neuron loop
-            Label inputNeuronLoop;
-            c.L(inputNeuronLoop);
-            {
-                // **TODO** fixed mask
+                // Labels
+                Label wordLoop;
+                Label bitLoopStart;
+                Label bitLoopBody;
+                Label weightLoop;
+                Label bitLoopEnd;
+                Label zeroSpikeWord;
+                Label wordEnd;
+
+                // SSpikeBuffer = inputSpikeBuffer
+                c.li(SSpikeBuffer, inputSpikeBuffer);
+                
+                // SSpikeBufferEnd = inputSpikeBuffer + numInputBytes
+                c.li(SSpikeBufferEnd, ceilDivide(numInput, 32) * 4);
+                c.add(SSpikeBufferEnd, SSpikeBufferEnd, SSpikeBuffer);
+
+                // SNumHiddenBytes = numHidden * 2
+                c.li(SNumHiddenBytes, numHidden);
+                c.add(SNumHiddenBytes, SNumHiddenBytes, SNumHiddenBytes);
+
+                // Load some useful constants
+                c.li(SConst1, 1);
+
+                // SWordNStart = 31
+                c.li(SWordNStart, 31);
+                  
+                // Outer word loop
+                c.L(wordLoop);
+                {
+                    // Register allocation
+                    const auto SN = Reg::X6;
+
+                    // SSpikeWord = *SSpikeBuffer++
+                    c.lw(SSpikeWord, SSpikeBuffer);
+                    c.addi(SSpikeBuffer, SSpikeBuffer, 4);
+
+                    // If SSpikeWord == 0, goto bitloop end
+                    c.beq(SSpikeWord, Reg::X0, bitLoopEnd);
+
+                    // SN = SWordNStart
+                    c.mv(SN, SWordNStart);
+
+                    // Inner bit loop
+                    c.L(bitLoopStart);
+                    {
+                        // Register allocation
+                        const auto SNumLZ = Reg::X7;
+                        const auto SNumLZPlusOne = Reg::X8;
+   
+                        // CNumLZ = clz(SSpikeWord);
+                        c.clz(SNumLZ, SSpikeWord);
+
+                        // If SSpikeWord == 1  i.e. CNumLZ == 31, goto zeroSpikeWord
+                        c.beq(SSpikeWord, SConst1, zeroSpikeWord);
+                        
+                        // CNumLZPlusOne = CNumLZ + 1
+                        c.addi(SNumLZPlusOne, SNumLZ, 1);
+
+                        // SSpikeWord <<= CNumLZPlusOne
+                        c.sll(SSpikeWord, SSpikeWord, SNumLZPlusOne);
+
+                        // SN -= SNumLZ
+                        c.L(bitLoopBody);
+                        c.sub(SN, SN, SNumLZ);
+
+                        // SWeightBuffer = weightInHidStart + (64 * SN);
+                        const auto SWeightBuffer = Reg::X9;
+                        c.li(SWeightBuffer, weightInHidStart);
+                        c.slli(Reg::X10, SN, 6);
+                        c.add(SWeightBuffer, SWeightBuffer, Reg::X10);
+                        
+                        // SISynBuffer = hiddenIsyn;
+                        const auto SISynBuffer = Reg::X10;
+                        const auto SISynBufferEnd = Reg::X11;
+                        c.li(SISynBuffer, hiddenIsyn);
+
+                        // SISynBufferEnd = SISynBuffer + SNumHiddenBytes
+                        c.add(SISynBufferEnd, SISynBuffer, SNumHiddenBytes);
+
+                        // Input neuron loop
+                        c.L(weightLoop);
+                        {
+                            const auto VWeight = VReg::V1;
+                            const auto VISyn = VReg::V2;
+
+                            // Load weight and Isyn
+                            c.vloadv(VWeight, SWeightBuffer);
+                            c.vloadv(VISyn, SISynBuffer);
+
+                            // VISyn += VWeight
+                            c.vadd(VISyn, VISyn, VWeight);
+
+                            // Store VISy
+                            c.vstore(VISyn, SISynBuffer);
+
+                            // SWeightBuffer += 64
+                            c.addi(SWeightBuffer, SWeightBuffer, 64);
+
+                            // SISynBuffer += 64
+                            c.addi(SISynBuffer, SISynBuffer, 64);
+
+                            // If SISynBuffer != SISynBufferEnd, goto weight loop
+                            c.bne(SISynBuffer, SISynBufferEnd, weightLoop);
+                        }
+
+
+                        // SN --
+                        c.addi(SN, SN, -1);
+                        
+                        // If SSpikeWord != 0, goto bitLoopStart
+                        c.bne(SSpikeWord, Reg::X0, bitLoopStart);
+                    }
+
+                    // SWordNStart += 32
+                    c.L(bitLoopEnd);
+                    c.addi(SWordNStart, SWordNStart, 32);
+                    
+                    // If SSpikeBuffer != SSpikeBufferEnd, goto wordloop
+                    c.bne(SSpikeBuffer, SSpikeBufferEnd, wordLoop);
+
+                    // Goto wordEnd
+                    c.j_(wordEnd);
+                }
+
+                // Zero spike word
+                {
+                    c.L(zeroSpikeWord);
+                    c.li(SSpikeWord, 0);
+                    c.j_(bitLoopBody);
+                }
+                
+                c.L(wordEnd);
             }
         }
 
