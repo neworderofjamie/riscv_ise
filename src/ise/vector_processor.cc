@@ -95,14 +95,14 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
 
         // VLOADV
         if(funct3 == 0x0) {
-            PLOGD << "VLOADV " << rs1 << " " << imm;
-            PLOGD << "\t" << rd;
+            PLOGV << "VLOADV " << rs1 << " " << imm;
+            PLOGV << "\t" << rd;
             m_VReg[rd] = m_VectorDataMemory.readVector(addr);
         }
         // VLOADS
         else if(funct3 == 0x4) {
-            PLOGD << "VLOADS " << rs1 << " " << imm;
-            PLOGD << "\t" << rd;
+            PLOGV << "VLOADS " << rs1 << " " << imm;
+            PLOGV << "\t" << rd;
     
             std::fill(m_VReg[rd].begin(), m_VReg[rd].end(), 
                       scalarDataMemory.read16(addr));
@@ -117,8 +117,8 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
     case VectorOpCode::VLUI:
     {
         auto [imm, rd] = decodeUType(inst);
-        PLOGD << "VLUI " << imm;
-        PLOGD << "\t" << rd;
+        PLOGV << "VLUI " << imm;
+        PLOGV << "\t" << rd;
         std::fill(m_VReg[rd].begin(), m_VReg[rd].end(), imm);
         break;
     }
@@ -127,14 +127,14 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
     {
         auto [funct7, rs2, rs1, funct3, rd] = decodeRType(inst);
         m_VReg[rd] = calcOpResult(inst, funct7, rs2, rs1, funct3);
-        PLOGD << "\t" << rd;
+        PLOGV << "\t" << rd;
         break;
     }
 
     case VectorOpCode::VSTORE:
     {
         auto [imm, rs2, rs1, funct3] = decodeSType(inst);
-        PLOGD << "VSTORE " << rs2 << " " << rs1 << " " << imm;
+        PLOGV << "VSTORE " << rs2 << " " << rs1 << " " << imm;
         m_VectorDataMemory.writeVector(reg[rs1] + imm, 
                                        m_VReg[rs2]);
         break;
@@ -143,8 +143,8 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
     case VectorOpCode::VSEL:
     {
         auto [funct7, rs2, rs1, funct3, rd] = decodeRType(inst);
-        PLOGD << "VSEL " << rs1 << " " << rs2;
-        PLOGD << "\t" << rd;
+        PLOGV << "VSEL " << rs1 << " " << rs2;
+        PLOGV << "\t" << rd;
         const uint32_t mask = reg[rs1];
         auto &val = m_VReg[rd];
         const auto &val2 = m_VReg[rs2];        
@@ -158,7 +158,7 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
     {
         auto [funct7, rs2, rs1, funct3, rd] = decodeRType(inst);
         const uint32_t val = calcTestResult(inst, rs2, rs1, funct3);
-        PLOGD << "\t" << rd;
+        PLOGV << "\t" << rd;
         if (rd != 0) {
             reg[rd] = val;
         }
@@ -190,20 +190,20 @@ Vector VectorProcessor::calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs
     // VADD
     case 0x0:
     {
-        PLOGD << "VADD " << rs1 << " " << rs2;
+        PLOGV << "VADD " << rs1 << " " << rs2;
         return binaryOp(val, val2, [](int16_t a, int16_t b){ return a + b; });
     }
 
     // VSUB
     case 0x2:
     {
-        PLOGD << "VSUB " << rs1 << " " << rs2;
+        PLOGV << "VSUB " << rs1 << " " << rs2;
         return binaryOp(val, val2, [](int16_t a, int16_t b){ return a - b; });
     }
     // VMUL
     case 0x4:
     {
-        PLOGD << "VMUL " << rs1 << " " << rs2;
+        PLOGV << "VMUL " << rs1 << " " << rs2;
         if ((funct7 & ~15) != 0) {
             throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
         }
@@ -227,26 +227,26 @@ uint32_t VectorProcessor::calcTestResult(uint32_t inst, uint32_t rs2, uint32_t r
     // VTEQ
     case 0x0:
     {
-        PLOGD << "VTEQ " << rs1 << " " << rs2;
+        PLOGV << "VTEQ " << rs1 << " " << rs2;
         return maskOp(val, val2, [](int16_t a, int16_t b){ return a == b; });
     }
 
     // VTNE
     case 0x2:
     {
-        PLOGD << "VTNE " << rs1 << " " << rs2;
+        PLOGV << "VTNE " << rs1 << " " << rs2;
         return maskOp(val, val2, [](int16_t a, int16_t b){ return a != b; });
     }
     // VTLT
     case 0x4:
     {
-        PLOGD << "VTLT " << rs1 << " " << rs2;
+        PLOGV << "VTLT " << rs1 << " " << rs2;
         return maskOp(val, val2, [](int16_t a, int16_t b){ return a < b; });
     }
     // VTGE
     case 0x6:
     {
-        PLOGD << "VTGE " << rs1 << " " << rs2;
+        PLOGV << "VTGE " << rs1 << " " << rs2;
         return maskOp(val, val2, [](int16_t a, int16_t b){ return a >= b; });
     }
     default:

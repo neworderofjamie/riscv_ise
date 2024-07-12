@@ -59,9 +59,9 @@ int popCount(uint32_t value)
 void breakPoint()
 {
 #ifdef _WIN32
-    return __debugbreak();
+    __debugbreak();
 #else
-    return __builtin_trap();
+    asm("int3");
 #endif
 }
 }
@@ -323,7 +323,7 @@ bool RISCV::calcBranchCondition(uint32_t inst, uint32_t rs2, uint32_t rs1, uint3
     switch(funct3) {
     case 0: // BEQ
     {
-        PLOGD << "BEQ " << rs1 << " " << rs2;
+        PLOGV << "BEQ " << rs1 << " " << rs2;
 #ifdef DEBUG_EXTRA
         stats[4]++;
 #endif
@@ -332,7 +332,7 @@ bool RISCV::calcBranchCondition(uint32_t inst, uint32_t rs2, uint32_t rs1, uint3
 
     case 1: // BNE
     {
-        PLOGD << "BNE " << rs1 << " " << rs2;
+        PLOGV << "BNE " << rs1 << " " << rs2;
 #ifdef DEBUG_EXTRA
         stats[5]++;
 #endif
@@ -341,7 +341,7 @@ bool RISCV::calcBranchCondition(uint32_t inst, uint32_t rs2, uint32_t rs1, uint3
 
     case 4: // BLT
     {
-        PLOGD << "BLT " << rs1 << " " << rs2;
+        PLOGV << "BLT " << rs1 << " " << rs2;
 #ifdef DEBUG_EXTRA
         stats[6]++;
 #endif
@@ -350,7 +350,7 @@ bool RISCV::calcBranchCondition(uint32_t inst, uint32_t rs2, uint32_t rs1, uint3
 
     case 5: // BGE
     {
-        PLOGD << "BGE " << rs1 << " " << rs2;
+        PLOGV << "BGE " << rs1 << " " << rs2;
 #ifdef DEBUG_EXTRA
         stats[7]++;
 #endif
@@ -358,7 +358,7 @@ bool RISCV::calcBranchCondition(uint32_t inst, uint32_t rs2, uint32_t rs1, uint3
     }
     case 6: // BLTU
     {
-        PLOGD << "BLTU " << rs1 << " " << rs2;
+        PLOGV << "BLTU " << rs1 << " " << rs2;
 #ifdef DEBUG_EXTRA
         stats[8]++;
 #endif
@@ -366,7 +366,7 @@ bool RISCV::calcBranchCondition(uint32_t inst, uint32_t rs2, uint32_t rs1, uint3
     }
     case 7: // BGEU
     {
-        PLOGD << "BGEU " << rs1 << " " << rs2;
+        PLOGV << "BGEU " << rs1 << " " << rs2;
 #ifdef DEBUG_EXTRA
         stats[9]++;
 #endif
@@ -385,7 +385,7 @@ uint32_t RISCV::calcOpImmResult(uint32_t inst, int32_t imm, uint32_t rs1, uint32
     switch(funct3) {
     case 0: // ADDI
     {
-        PLOGD << "ADDI " << rs1 << " " << imm;
+        PLOGV << "ADDI " << rs1 << " " << imm;
 #ifdef DEBUG_EXTRA
         stats[18]++;
 #endif
@@ -399,7 +399,7 @@ uint32_t RISCV::calcOpImmResult(uint32_t inst, int32_t imm, uint32_t rs1, uint32
 
         // SLLI
         if (pre == 0) {
-            PLOGD << "SLLI " << rs1 << " " << imm;
+            PLOGV << "SLLI " << rs1 << " " << imm;
 #ifdef DEBUG_EXTRA
             stats[24]++;
 #endif
@@ -410,31 +410,31 @@ uint32_t RISCV::calcOpImmResult(uint32_t inst, int32_t imm, uint32_t rs1, uint32
             switch(shamt) {
             case 0: // CLZ
             {
-                PLOGD << "CLZ " << rs1;
+                PLOGV << "CLZ " << rs1;
                 return (val == 0) ? 32 : clz(val);
             }
 
             case 1: // CTZ
             {
-                PLOGD << "CTZ " << rs1;
+                PLOGV << "CTZ " << rs1;
                 return (val == 0) ? 32 : ctz(val);
             }
 
             case 2: // CPOP
             {
-                PLOGD << "CPOP " << rs1;
+                PLOGV << "CPOP " << rs1;
                 return popCount(val);
             }
 
             case 4: // SEXT.B
             {
-                PLOGD << "SEXT.B " << rs1;
+                PLOGV << "SEXT.B " << rs1;
                 return (int32_t)(val << 24) >> 24;
             }
 
             case 5: // SEXT.H
             {
-                PLOGD << "SEXT.H " << rs1;
+                PLOGV << "SEXT.H " << rs1;
                 return (int32_t)(val << 16) >> 16;
             }
 
@@ -451,7 +451,7 @@ uint32_t RISCV::calcOpImmResult(uint32_t inst, int32_t imm, uint32_t rs1, uint32
 
     case 2: // SLTI
     {
-        PLOGD << "SLTI " << rs1 << " " << imm;
+        PLOGV << "SLTI " << rs1 << " " << imm;
 #ifdef DEBUG_EXTRA
         stats[19]++;
 #endif
@@ -459,7 +459,7 @@ uint32_t RISCV::calcOpImmResult(uint32_t inst, int32_t imm, uint32_t rs1, uint32
     }
     case 3: // SLTIU
     {
-        PLOGD << "SLTIU " << rs1 << " " << imm;
+        PLOGV << "SLTIU " << rs1 << " " << imm;
 #ifdef DEBUG_EXTRA
         stats[20]++;
 #endif
@@ -467,7 +467,7 @@ uint32_t RISCV::calcOpImmResult(uint32_t inst, int32_t imm, uint32_t rs1, uint32
     }
     case 4: // XORI
     {
-        PLOGD << "XORI " << rs1 << " " << imm;
+        PLOGV << "XORI " << rs1 << " " << imm;
 #ifdef DEBUG_EXTRA
         dprintf(">>> XORI\n");
         stats[21]++;
@@ -483,7 +483,7 @@ uint32_t RISCV::calcOpImmResult(uint32_t inst, int32_t imm, uint32_t rs1, uint32
 
         // If 11th bit set, SRAI
         if (imm & 0x400) {
-            PLOGD << "SRAI " << rs1 << " " << imm;
+            PLOGV << "SRAI " << rs1 << " " << imm;
 #ifdef DEBUG_EXTRA
             stats[26]++;
 #endif
@@ -492,7 +492,7 @@ uint32_t RISCV::calcOpImmResult(uint32_t inst, int32_t imm, uint32_t rs1, uint32
         // Otherwise SRLI
         else
         {
-            PLOGD << "SRLI " << rs1 << " " << imm;
+            PLOGV << "SRLI " << rs1 << " " << imm;
 #ifdef DEBUG_EXTRA
             stats[25]++;
 #endif
@@ -501,7 +501,7 @@ uint32_t RISCV::calcOpImmResult(uint32_t inst, int32_t imm, uint32_t rs1, uint32
     }
     case 6: // ORI
     {
-        PLOGD << "ORI " << rs1 << " " << imm;
+        PLOGV << "ORI " << rs1 << " " << imm;
 #ifdef DEBUG_EXTRA
         stats[22]++;
 #endif
@@ -509,7 +509,7 @@ uint32_t RISCV::calcOpImmResult(uint32_t inst, int32_t imm, uint32_t rs1, uint32
     }
     case 7: // ANDI
     {
-        PLOGD << "ANDI " << rs1 << " " << imm;
+        PLOGV << "ANDI " << rs1 << " " << imm;
 #ifdef DEBUG_EXTRA
         stats[23]++;
 #endif
@@ -601,14 +601,14 @@ uint32_t RISCV::calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs2, uint3
         case 0: // ADD/SUB
         {
             if(funct7 == 0) {
-                PLOGD << "ADD " << rs1 << " " << rs2;
+                PLOGV << "ADD " << rs1 << " " << rs2;
 #ifdef DEBUG_EXTRA
                 stats[27]++;
 #endif
                 return (int32_t)(val + val2);
             }
             else {
-                PLOGD << "SUB " << rs1 << " " << rs2;
+                PLOGV << "SUB " << rs1 << " " << rs2;
 #ifdef DEBUG_EXTRA
                 stats[28]++;
 #endif
@@ -618,7 +618,7 @@ uint32_t RISCV::calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs2, uint3
 
         case 1: // SLL
         {
-            PLOGD << "SLL " << rs1 << " " << rs2;
+            PLOGV << "SLL " << rs1 << " " << rs2;
 #ifdef DEBUG_EXTRA
             stats[29]++;
 #endif
@@ -627,7 +627,7 @@ uint32_t RISCV::calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs2, uint3
 
         case 2: // SLT
         {
-            PLOGD << "SLT " << rs1 << " " << rs2;
+            PLOGV << "SLT " << rs1 << " " << rs2;
 #ifdef DEBUG_EXTRA
             stats[30]++;
 #endif
@@ -635,7 +635,7 @@ uint32_t RISCV::calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs2, uint3
         }
         case 3: // SLTU
         {
-            PLOGD << "SLTU " << rs1 << " " << rs2;
+            PLOGV << "SLTU " << rs1 << " " << rs2;
 #ifdef DEBUG_EXTRA
             stats[31]++;
 #endif
@@ -644,7 +644,7 @@ uint32_t RISCV::calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs2, uint3
 
         case 4: // XOR
         {
-            PLOGD << "XOR " << rs1 << " " << rs2;
+            PLOGV << "XOR " << rs1 << " " << rs2;
 #ifdef DEBUG_EXTRA
             stats[32]++;
 #endif
@@ -654,14 +654,14 @@ uint32_t RISCV::calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs2, uint3
         case 5: // SRL/SRA
         {
             if(funct7 == 0) {
-                PLOGD << "SRL " << rs1 << " " << rs2;
+                PLOGV << "SRL " << rs1 << " " << rs2;
 #ifdef DEBUG_EXTRA
                 stats[33]++;
 #endif
                 return (int32_t)((uint32_t)val >> (val2 & 31));
             }
             else {
-                PLOGD << "SRA " << rs1 << " " << rs2;
+                PLOGV << "SRA " << rs1 << " " << rs2;
 #ifdef DEBUG_EXTRA
                 stats[34]++;
 #endif
@@ -671,7 +671,7 @@ uint32_t RISCV::calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs2, uint3
 
         case 6: // OR
         {
-            PLOGD << "OR " << rs1 << " " << rs2;
+            PLOGV << "OR " << rs1 << " " << rs2;
 #ifdef DEBUG_EXTRA
             stats[35]++;
 #endif
@@ -679,7 +679,7 @@ uint32_t RISCV::calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs2, uint3
         }
         case 7: // AND
         {
-            PLOGD << "AND " << rs1 << " " << rs2;
+            PLOGV << "AND " << rs1 << " " << rs2;
 #ifdef DEBUG_EXTRA
             stats[36]++;
 #endif
@@ -699,7 +699,7 @@ uint32_t RISCV::loadValue(uint32_t inst, int32_t imm, uint32_t rs1, uint32_t fun
     switch(funct3) {
     case 0: // LB
     {
-        PLOGD << "LB " << rs1 << " " << imm;
+        PLOGV << "LB " << rs1 << " " << imm;
 #ifdef DEBUG_EXTRA
         stats[10]++;
 #endif
@@ -708,7 +708,7 @@ uint32_t RISCV::loadValue(uint32_t inst, int32_t imm, uint32_t rs1, uint32_t fun
 
     case 1: // LH
     {
-        PLOGD << "LH " << rs1 << " " << imm;
+        PLOGV << "LH " << rs1 << " " << imm;
 #ifdef DEBUG_EXTRA
         stats[11]++;
 #endif
@@ -717,7 +717,7 @@ uint32_t RISCV::loadValue(uint32_t inst, int32_t imm, uint32_t rs1, uint32_t fun
 
     case 2: // LW
     {
-        PLOGD << "LW " << rs1 << " " << imm;
+        PLOGV << "LW " << rs1 << " " << imm;
 #ifdef DEBUG_EXTRA
         stats[12]++;
 #endif
@@ -726,7 +726,7 @@ uint32_t RISCV::loadValue(uint32_t inst, int32_t imm, uint32_t rs1, uint32_t fun
     
     case 4: // LBU
     {
-        PLOGD << "LBU " << rs1 << " " << imm;
+        PLOGV << "LBU " << rs1 << " " << imm;
 #ifdef DEBUG_EXTRA
         stats[13]++;
 #endif
@@ -736,7 +736,7 @@ uint32_t RISCV::loadValue(uint32_t inst, int32_t imm, uint32_t rs1, uint32_t fun
 
     case 5: // LHU
     {
-        PLOGD << "LHU " << rs1 << " " << imm;
+        PLOGV << "LHU " << rs1 << " " << imm;
 #ifdef DEBUG_EXTRA
         stats[14]++;
 #endif
@@ -757,8 +757,8 @@ void RISCV::executeStandardInstruction(uint32_t inst)
     case StandardOpCode::LUI:
     {
         auto [imm, rd] = decodeUType(inst);
-        PLOGD << "LUI " << imm;
-        PLOGD << "\t"  << rd;
+        PLOGV << "LUI " << imm;
+        PLOGV << "\t"  << rd;
 #ifdef DEBUG_EXTRA
         stats[0]++;
 #endif
@@ -771,8 +771,8 @@ void RISCV::executeStandardInstruction(uint32_t inst)
     case StandardOpCode::AUIPC:
     {
         auto [imm, rd] = decodeUType(inst);
-        PLOGD << "AUIPC " << imm;
-        PLOGD << "\t"  << rd;
+        PLOGV << "AUIPC " << imm;
+        PLOGV << "\t"  << rd;
 #ifdef DEBUG_EXTRA
         stats[1]++;
 #endif
@@ -792,8 +792,8 @@ void RISCV::executeStandardInstruction(uint32_t inst)
               (inst & 0xff000);
         imm = (imm << 11) >> 11;
 
-        PLOGD << "JAL " << rd << " " << imm;
-        PLOGD << "\t"  << rd;
+        PLOGV << "JAL " << rd << " " << imm;
+        PLOGV << "\t"  << rd;
 #ifdef DEBUG_EXTRA
         stats[2]++;
 #endif
@@ -808,8 +808,8 @@ void RISCV::executeStandardInstruction(uint32_t inst)
     case StandardOpCode::JALR:
     {
         auto [imm, rs1, funct3, rd] = decodeIType(inst);
-        PLOGD << "JALR " << rs1 << " " << imm;
-        PLOGD << "\t"  << rd;
+        PLOGV << "JALR " << rs1 << " " << imm;
+        PLOGV << "\t"  << rd;
 #ifdef DEBUG_EXTRA
         stats[3]++;
 #endif
@@ -826,7 +826,7 @@ void RISCV::executeStandardInstruction(uint32_t inst)
     {
         auto [imm, rs2, rs1, funct3] = decodeBType(inst);
         if (calcBranchCondition(inst, rs2, rs1, funct3)) {
-            PLOGD << "\t" << (m_PC + imm);
+            PLOGV << "\t" << (m_PC + imm);
             setNextPC((int32_t)(m_PC + imm));
         } 
         else {
@@ -840,7 +840,7 @@ void RISCV::executeStandardInstruction(uint32_t inst)
     {
         auto [imm, rs1, funct3, rd] = decodeIType(inst);
         const auto value = loadValue(inst, imm, rs1, funct3);
-        PLOGD << "\t" << rd;
+        PLOGV << "\t" << rd;
         if (rd != 0) {
             m_Reg[rd] = value;
         }
@@ -855,7 +855,7 @@ void RISCV::executeStandardInstruction(uint32_t inst)
         switch(funct3) {
         case 0: // SB
         {
-            PLOGD << "SB " << rs2 << " " << rs1 << " " << imm;
+            PLOGV << "SB " << rs2 << " " << rs1 << " " << imm;
 #ifdef DEBUG_EXTRA
             stats[15]++;
 #endif
@@ -865,7 +865,7 @@ void RISCV::executeStandardInstruction(uint32_t inst)
 
         case 1: // SH
         {
-            PLOGD << "SH " << rs2 << " " << rs1 << " " << imm;
+            PLOGV << "SH " << rs2 << " " << rs1 << " " << imm;
 #ifdef DEBUG_EXTRA
             dprintf(">>> SH\n");
             stats[16]++;
@@ -876,7 +876,7 @@ void RISCV::executeStandardInstruction(uint32_t inst)
 
         case 2: // SW
         {
-            PLOGD << "SW " << rs2 << " " << rs1 << " " << imm;
+            PLOGV << "SW " << rs2 << " " << rs1 << " " << imm;
 #ifdef DEBUG_EXTRA
             stats[17]++;
 #endif
@@ -896,7 +896,7 @@ void RISCV::executeStandardInstruction(uint32_t inst)
     {
         auto [imm, rs1, funct3, rd] = decodeIType(inst);
         const uint32_t val = calcOpImmResult(inst, imm, rs1, funct3);
-        PLOGD << "\t" << rd;
+        PLOGV << "\t" << rd;
         if (rd != 0) {
             m_Reg[rd] = val;
         }
@@ -907,7 +907,7 @@ void RISCV::executeStandardInstruction(uint32_t inst)
     {
         auto [funct7, rs2, rs1, funct3, rd] = decodeRType(inst);
         const uint32_t val = calcOpResult(inst, funct7, rs2, rs1, funct3);
-        PLOGD << "\t" << rd;
+        PLOGV << "\t" << rd;
         if (rd != 0) {
             m_Reg[rd] = val;
         }
@@ -998,7 +998,7 @@ void RISCV::executeStandardInstruction(uint32_t inst)
             switch(funct12) {
             case 0x000: // ecall 
             {
-                PLOGD << "ECALL";
+                PLOGV << "ECALL";
 #ifdef DEBUG_EXTRA
                 stats[39]++;
 #endif
@@ -1011,7 +1011,7 @@ void RISCV::executeStandardInstruction(uint32_t inst)
             }
             case 0x001: // EBREAK
             {
-                PLOGD << "EBREAK";
+                PLOGV << "EBREAK";
 #ifdef DEBUG_EXTRA
                 stats[40]++;
 #endif
