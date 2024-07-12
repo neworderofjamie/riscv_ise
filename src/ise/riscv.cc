@@ -266,12 +266,6 @@ void RISCV::run()
             break;
         }
 
-        case Exception::Cause::BREAKPOINT:
-        {
-            breakPoint();
-            break;
-        }
-
         case Exception::Cause::ECALL:
         {
             return;
@@ -1024,7 +1018,7 @@ void RISCV::executeStandardInstruction(uint32_t inst)
                     throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
                 }
                 else {
-                    throw Exception(Exception::Cause::BREAKPOINT, inst);
+                    breakPoint();
                 }
             }
 

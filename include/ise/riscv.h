@@ -61,7 +61,6 @@ public:
         MISALIGNED_FETCH,
         FAULT_FETCH,
         ILLEGAL_INSTRUCTION,
-        BREAKPOINT,
         MISALIGNED_LOAD,
         FAULT_LOAD,
         MISALIGNED_STORE,
