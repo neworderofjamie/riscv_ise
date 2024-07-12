@@ -97,7 +97,7 @@ public:
 
     RISCV(const std::vector<uint32_t> &instructions, const std::vector<uint8_t> &data);
 
-    void run();
+    bool run();
     void dumpRegisters() const;
 
     template<typename T, typename... CoprocessorArgs>
@@ -138,8 +138,6 @@ private:
     // -----------------------------------------------------------------------
     // Members
     // -----------------------------------------------------------------------
-    bool m_MachineRunning;
-
     // CPU state
     uint32_t m_PC;
     uint32_t m_NextPC;
