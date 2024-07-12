@@ -1021,6 +1021,7 @@ void RISCV::executeStandardInstruction(uint32_t inst)
                 else {
                     breakPoint();
                 }
+                break;
             }
 
             /*case 0x102: //sret
@@ -1066,6 +1067,7 @@ void RISCV::executeStandardInstruction(uint32_t inst)
                 throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
             }
             }
+            break;
         }
         
         default:
@@ -1073,6 +1075,7 @@ void RISCV::executeStandardInstruction(uint32_t inst)
             throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
         }
         }
+        break;
     }
 
     default:
