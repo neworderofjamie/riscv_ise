@@ -47,7 +47,7 @@ Vector VectorDataMemory::readVector(uint32_t addr) const
     }
 
     const size_t startHalfWord = addr / 2;
-    if ((startHalfWord + 64) > m_Data.size())  {
+    if ((startHalfWord + 32) > m_Data.size())  {
         throw Exception(Exception::Cause::FAULT_LOAD, addr);
     } 
 
@@ -65,7 +65,7 @@ void VectorDataMemory::writeVector(uint32_t addr, const Vector &vector)
     }
     
     const size_t startHalfWord = addr / 2;
-    if ((startHalfWord + 64) > m_Data.size())  {
+    if ((startHalfWord + 32) > m_Data.size())  {
         throw Exception(Exception::Cause::FAULT_STORE, addr);
     }
 
