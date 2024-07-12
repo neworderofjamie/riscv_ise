@@ -181,16 +181,15 @@ void ScalarDataMemory::write8(uint32_t addr, uint8_t value)
 // RISCV
 //----------------------------------------------------------------------------
 RISCV::RISCV(const std::vector<uint32_t> &instructions, const std::vector<uint8_t> &data)
-:   m_MachineRunning(false), m_PC(0), m_NextPC(0), m_Reg{0}, m_InstructionMemory(instructions), m_ScalarDataMemory(data)
+:   m_PC(0), m_NextPC(0), m_Reg{0}, m_InstructionMemory(instructions), m_ScalarDataMemory(data)
 {
 }
 //----------------------------------------------------------------------------
-void RISCV::run()
+bool RISCV::run()
 {
     try
     {
-        m_MachineRunning = true;
-        while (m_MachineRunning) 
+        while (true) 
         {
             // Default value for next PC is next instruction, can be changed by branches or exceptions
             m_NextPC = m_PC + 4;
@@ -266,15 +265,9 @@ void RISCV::run()
             break;
         }
 
-        case Exception::Cause::BREAKPOINT:
-        {
-            breakPoint();
-            break;
-        }
-
         case Exception::Cause::ECALL:
         {
-            return;
+            return true;
         }
         
         default:
@@ -285,10 +278,12 @@ void RISCV::run()
         }
 
         dumpRegisters();
+        return false;
     }
     catch(const std::exception &exc) {
         PLOGE << "Internal error: " << exc.what();
         dumpRegisters();
+        return false;
     }
 
 }
@@ -1024,8 +1019,9 @@ void RISCV::executeStandardInstruction(uint32_t inst)
                     throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
                 }
                 else {
-                    throw Exception(Exception::Cause::BREAKPOINT, inst);
+                    breakPoint();
                 }
+                break;
             }
 
             /*case 0x102: //sret
@@ -1071,6 +1067,7 @@ void RISCV::executeStandardInstruction(uint32_t inst)
                 throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
             }
             }
+            break;
         }
         
         default:
@@ -1078,6 +1075,7 @@ void RISCV::executeStandardInstruction(uint32_t inst)
             throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
         }
         }
+        break;
     }
 
     default:

@@ -46,10 +46,14 @@ Vector VectorDataMemory::readVector(uint32_t addr) const
         throw Exception(Exception::Cause::MISALIGNED_LOAD, addr);
     }
 
+    const size_t startHalfWord = addr / 2;
+    if ((startHalfWord + 32) > m_Data.size())  {
+        throw Exception(Exception::Cause::FAULT_LOAD, addr);
+    } 
+
     Vector vector;
-    const size_t startAddress = addr / 2;
     for(size_t i = 0; i < 32; i++) {
-        vector[i] = m_Data[startAddress + i];
+        vector[i] = m_Data[startHalfWord + i];
     }
     return vector;
 }
@@ -59,9 +63,14 @@ void VectorDataMemory::writeVector(uint32_t addr, const Vector &vector)
     if (addr & 63) {
         throw Exception(Exception::Cause::MISALIGNED_STORE, addr);
     }
-    const size_t startAddress = addr / 2;
+    
+    const size_t startHalfWord = addr / 2;
+    if ((startHalfWord + 32) > m_Data.size())  {
+        throw Exception(Exception::Cause::FAULT_STORE, addr);
+    }
+
     for(size_t i = 0; i < 32; i++) {
-        m_Data[startAddress + i] = vector[i];
+        m_Data[startHalfWord + i] = vector[i];
     }
 }
 
