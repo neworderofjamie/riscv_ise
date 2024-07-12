@@ -137,7 +137,7 @@ uint32_t loadVectors(const std::string &filename, std::vector<int16_t> &memory)
 
     const auto lengthHalfWords = lengthBytes / 2;
     const auto numVectors = ceilDivide(lengthHalfWords, 32);
-    LOGD << "Loading " << lengthBytes << " bytes from " << filename << " into " << numVectors << " vectors of memory starting at " << startHalfWords * 2 << " bytes";
+    LOGI << "Loading " << lengthBytes << " bytes from " << filename << " into " << numVectors << " vectors of memory starting at " << startHalfWords * 2 << " bytes";
     
     // Allocate memory and initially zero
     memory.resize(startHalfWords + (numVectors * 32), 0);
@@ -156,7 +156,7 @@ uint32_t allocateVectorAndZero(size_t numHalfWords, std::vector<int16_t> &memory
     assert((startHalfWords & 31) == 0);
 
     const auto numVectors = ceilDivide(numHalfWords, 32);
-    LOGD << "Allocating " << numHalfWords << " halfwords into " << numVectors << " vectors of memory starting at " << startHalfWords * 2 << " bytes";
+    LOGI << "Allocating " << numHalfWords << " halfwords into " << numVectors << " vectors of memory starting at " << startHalfWords * 2 << " bytes";
     
     // Allocate memory and zero
     memory.resize(startHalfWords + (numVectors * 32), 0);
@@ -171,7 +171,7 @@ uint32_t allocateScalarAndZero(size_t numBytes, std::vector<uint8_t> &memory)
     assert((startBytes & 3) == 0);
 
     // Allocate memory and zero
-    LOGD << "Allocating " << numBytes << " bytes of memory starting at " << startBytes << " bytes";
+    LOGI << "Allocating " << numBytes << " bytes of memory starting at " << startBytes << " bytes";
     memory.resize(startBytes + padSize(numBytes, 4), 0);
 
     // Return start address
@@ -209,7 +209,7 @@ void writeSpikes(std::ofstream &os, const uint32_t *data,
 void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAllocator,
                     RegisterAllocator<Reg> &scalarRegisterAllocator,
                     uint32_t weightBuffer, uint32_t preSpikeBuffer, uint32_t postISynBuffer, 
-                    uint32_t numPreWords, uint32_t numPost)
+                    uint32_t numPreWords, uint32_t numPost, uint32_t scaleShift, bool debug)
 {
     // Register allocation
     const auto SSpikeBuffer = scalarRegisterAllocator.getRegister();
@@ -217,7 +217,8 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
     const auto SWordNStart = scalarRegisterAllocator.getRegister();
     const auto SConst1 = scalarRegisterAllocator.getRegister();   // **TODO** useful for all synapse loops
     const auto SSpikeWord = scalarRegisterAllocator.getRegister();
-    const auto SNumHiddenBytes = scalarRegisterAllocator.getRegister();
+    const auto SISynBuffer = scalarRegisterAllocator.getRegister();
+    const auto SISynBufferEnd = scalarRegisterAllocator.getRegister();
 
     // Labels
     Label wordLoop;
@@ -228,16 +229,25 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
     Label zeroSpikeWord;
     Label wordEnd;
 
-    // SSpikeBuffer = inputSpikeBuffer
+    // Get address of start of presynaptic spike buffer
     c.li(*SSpikeBuffer, preSpikeBuffer);
     
-    // SSpikeBufferEnd = inputSpikeBuffer + numInputBytes
+    // Get address of end of presynaptic spike buffer
     c.li(*SSpikeBufferEnd, numPreWords * 4);
     c.add(*SSpikeBufferEnd, *SSpikeBufferEnd, *SSpikeBuffer);
 
-    // SNumHiddenBytes = numHidden * 2
-    c.li(*SNumHiddenBytes, numPost);
-    c.add(*SNumHiddenBytes, *SNumHiddenBytes, *SNumHiddenBytes);
+    // SISynBuffer = hiddenIsyn;
+    c.li(*SISynBuffer, postISynBuffer);
+
+    {
+        // Get size of postsynaptic vectors in bytes 
+        // (ceildivide to number of vectors and multiply by 64 bytes per vector)
+        const auto STemp = scalarRegisterAllocator.getRegister();
+        c.li(*STemp, ceilDivide(numPost, 32) * 64);
+
+        // SISynBufferEnd = SISynBuffer + SNumHiddenBytes
+        c.add(*SISynBufferEnd, *SISynBuffer, *STemp);
+    }
 
     // Load some useful constants
     c.li(*SConst1, 1);
@@ -284,22 +294,23 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
             c.L(bitLoopBody);
             c.sub(*SN, *SN, *SNumLZ);
 
-            // SWeightBuffer = weightInHidStart + (64 * SN);
+            // SWeightBuffer = weightInHidStart + (numPostVecs * 64 * SN);
+            // **TODO** multiply
             const auto SWeightBuffer = scalarRegisterAllocator.getRegister();
             c.li(*SWeightBuffer, weightBuffer);
             {
                 const auto STemp = scalarRegisterAllocator.getRegister();
-                c.slli(*STemp, *SN, 6);
+                c.slli(*STemp, *SN, scaleShift);
                 c.add(*SWeightBuffer, *SWeightBuffer, *STemp);
             }
-            
-            // SISynBuffer = hiddenIsyn;
-            const auto SISynBuffer = scalarRegisterAllocator.getRegister();
-            const auto SISynBufferEnd = scalarRegisterAllocator.getRegister();
-            c.li(*SISynBuffer, postISynBuffer);
 
-            // SISynBufferEnd = SISynBuffer + SNumHiddenBytes
-            c.add(*SISynBufferEnd, *SISynBuffer, *SNumHiddenBytes);
+            // Reset Isyn pointer
+            c.li(*SISynBuffer, postISynBuffer);
+            
+            // Load weight and Isyn
+            if(debug) {
+                c.ebreak();
+            }
 
             // Input postsynaptic neuron loop
             c.L(weightLoop);
@@ -307,23 +318,21 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
                 const auto VWeight = vectorRegisterAllocator.getRegister();
                 const auto VISyn = vectorRegisterAllocator.getRegister();
 
-                // Load weight and Isyn
+                // Load next vector of weights and ISyns
                 c.vloadv(*VWeight, *SWeightBuffer);
                 c.vloadv(*VISyn, *SISynBuffer);
 
-                // VISyn += VWeight
+                // Add weights to ISyn
                 c.vadd(*VISyn, *VISyn, *VWeight);
 
-                // Store VISy
+                // Write back ISyn
                 c.vstore(*VISyn, *SISynBuffer);
 
-                // SWeightBuffer += 64
+                // Advance weights and Isyn
                 c.addi(*SWeightBuffer, *SWeightBuffer, 64);
-
-                // SISynBuffer += 64
                 c.addi(*SISynBuffer, *SISynBuffer, 64);
 
-                // If SISynBuffer != SISynBufferEnd, goto weight loop
+                // If we haven't reached end of Isyn buffer, loop
                 c.bne(*SISynBuffer, *SISynBufferEnd, weightLoop);
             }
 
@@ -417,13 +426,14 @@ int main()
             // ---------------------------------------------------------------
             genStaticPulse(c, vectorRegisterAllocator, scalarRegisterAllocator,
                            weightInHidStart, inputSpikeBuffer, 
-                           hiddenIsyn, numInputSpikeWords, numHidden);
+                           hiddenIsyn, numInputSpikeWords, numHidden, 9, true);
 
             // ---------------------------------------------------------------
             // Hidden->Output synapses
             // ---------------------------------------------------------------
-            //genStaticPulse(c, weightHidOutStart, hiddenSpikeBuffer, 
-            //               outputIsyn, numHiddenSpikeWords, numOutput);
+            /*genStaticPulse(c, vectorRegisterAllocator, scalarRegisterAllocator, 
+                           weightHidOutStart, hiddenSpikeBuffer, 
+                           outputIsyn, numHiddenSpikeWords, numOutput, false);*/
 
             // ---------------------------------------------------------------
             // Input neurons
@@ -606,7 +616,9 @@ int main()
 
         // Reset PC and run
         riscV.setPC(0);
-        riscV.run();
+        if(!riscV.run()) {
+            return 1;
+        }
 
         // Record spike words
         std::copy(inputSpikeWords, inputSpikeWords + numInputSpikeWords,
@@ -623,4 +635,6 @@ int main()
         writeSpikes(hiddenSpikes, hiddenSpikeRecording.data() + (numHiddenSpikeWords * t),
                     t, numHiddenSpikeWords);
     }
+
+    return 0;
 }
