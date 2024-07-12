@@ -45,6 +45,9 @@ Vector VectorDataMemory::readVector(uint32_t addr) const
     if (addr & 63) {
         throw Exception(Exception::Cause::MISALIGNED_LOAD, addr);
     }
+    if ((addr + 32) > m_Data.size())  {
+        throw Exception(Exception::Cause::FAULT_LOAD, addr);
+    } 
 
     Vector vector;
     const size_t startAddress = addr / 2;
@@ -58,6 +61,9 @@ void VectorDataMemory::writeVector(uint32_t addr, const Vector &vector)
 {
     if (addr & 63) {
         throw Exception(Exception::Cause::MISALIGNED_STORE, addr);
+    }
+    if ((addr + 32) > m_Data.size())  {
+        throw Exception(Exception::Cause::FAULT_STORE, addr);
     }
     const size_t startAddress = addr / 2;
     for(size_t i = 0; i < 32; i++) {
