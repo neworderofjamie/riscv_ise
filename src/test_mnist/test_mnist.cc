@@ -267,18 +267,14 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
                     ALLOCATE_VECTOR(VISyn);
 
                     // Load next vector of weights and ISyns
-                    c.vloadv(*VWeight, *SWeightBuffer);
+                    c.vloadvi(*VWeight, *SWeightBuffer);
                     c.vloadv(*VISyn, *SISynBuffer);
 
                     // Add weights to ISyn
                     c.vadd(*VISyn, *VISyn, *VWeight);
 
-                    // Write back ISyn
-                    c.vstore(*VISyn, *SISynBuffer);
-
-                    // Advance weights and Isyn
-                    c.addi(*SWeightBuffer, *SWeightBuffer, 64);
-                    c.addi(*SISynBuffer, *SISynBuffer, 64);
+                    // Write back ISyn and increment SISynBuffer
+                    c.vstorei(*VISyn, *SISynBuffer);
 
                     // If we haven't reached end of Isyn buffer, loop
                     c.bne(*SISynBuffer, *SISynBufferEnd, weightLoop);
@@ -446,17 +442,14 @@ int main()
                     ALLOCATE_VECTOR(VSpikeTime);
                     ALLOCATE_SCALAR(SSpikeVec);
 
-                    // Load spike
-                    c.vloadv(*VSpikeTime, *SSpikeTimeBuffer);
+                    // Load spike times and increment buffer
+                    c.vloadvi(*VSpikeTime, *SSpikeTimeBuffer);
 
                     // spike vector = x4 = spike time == t
                     c.vteq(*SSpikeVec, *VTime, *VSpikeTime);
 
                     // inputSpikeBuffer + scalarOffset = spike vector
                     c.sw(*SSpikeVec, *SSpikeBuffer);
-
-                    // SSpikeTimeBuffer += 64
-                    c.addi(*SSpikeTimeBuffer, *SSpikeTimeBuffer, 64);
 
                     // SSpikeBuffe += 4
                     c.addi(*SSpikeBuffer, *SSpikeBuffer, 4);
@@ -591,15 +584,12 @@ int main()
                     // VRefracTime = SSpikeOut ? VTauRefrac : VRefracTime
                     c.vsel(*VRefracTime, *SSpikeOut, *VTauRefrac);
 
-                    // Store VV, ISyn and refrac time
-                    c.vstore(*VV, *SVBuffer);
-                    c.vstore(*VISyn, *SISynBuffer);
-                    c.vstore(*VRefracTime, *SRefracTimeBuffer);
+                    // Store VV, ISyn and refrac time and increment buffers
+                    c.vstorei(*VV, *SVBuffer);
+                    c.vstorei(*VISyn, *SISynBuffer);
+                    c.vstorei(*VRefracTime, *SRefracTimeBuffer);
 
                     // SVBuffer += 64
-                    c.addi(*SVBuffer, *SVBuffer, 64);
-                    c.addi(*SISynBuffer, *SISynBuffer, 64);
-                    c.addi(*SRefracTimeBuffer, *SRefracTimeBuffer, 64);
                     c.addi(*SSpikeBuffer, *SSpikeBuffer, 4);
 
                     // If SBBuffer != SVBufferEnd, loop
@@ -721,7 +711,6 @@ int main()
         
             // Reset PC and run
             riscV.setPC(0);
-            riscV.resetStats();
             if(!riscV.run()) {
                 return 1;
             }
@@ -731,8 +720,6 @@ int main()
             //          std::back_inserter(inputSpikeRecording));
             //std::copy(hiddenSpikeWords, hiddenSpikeWords + numHiddenSpikeWords,
             //          std::back_inserter(hiddenSpikeRecording));
-
-            //std::cout << "t = " << t << ": " << riscV.getNumInstructionsExecuted() << " instructions executed, " << riscV.getNumCoprocessorInstructionsExecuted(vectorQuadrant) << " vector instructions executed" << std::endl;
         }
 
         // Determine if output is correct
@@ -746,7 +733,11 @@ int main()
     }
 
     std::cout << numCorrect << " / 10000 correct (" << 100.0 * (numCorrect / 10000.0) << "%)" << std::endl;
-
+    std::cout << "Stats:" << std::endl;
+    std::cout << "\t" << riscV.getNumInstructionsExecuted() << " instructions executed" << std::endl;
+    std::cout << "\t" << riscV.getNumCoprocessorInstructionsExecuted(vectorQuadrant) << " vector instructions executed" << std::endl;
+    std::cout << "\t" << riscV.getNumJumps() << " jumps" << std::endl;
+    
     // Record output spikes
     //std::ofstream inputSpikes("input_spikes.csv");
     //std::ofstream hiddenSpikes("hidden_spikes.csv");

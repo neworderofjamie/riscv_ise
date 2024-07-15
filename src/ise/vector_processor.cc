@@ -93,11 +93,17 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
         auto [imm, rs1, funct3, rd] = decodeIType(inst);
         const uint32_t addr = reg[rs1] + imm;
 
-        // VLOADV
-        if(funct3 == 0x0) {
-            PLOGV << "VLOADV " << rs1 << " " << imm;
+        // VLOADV/VLOADVI
+        if(funct3 == 0x0 || funct3 == 0x2) {
+            if(funct3 == 0x2) {
+                PLOGV << "VLOADVI " << rs1 << " " << imm;
+                reg[rs1] += 64;
+            }
+            else {
+                PLOGV << "VLOADV " << rs1 << " " << imm;
+            }
             PLOGV << "\t" << rd;
-            m_VReg[rd] = m_VectorDataMemory.readVector(addr);
+            m_VReg[rd] = m_VectorDataMemory.readVector(addr); 
         }
         // VLOADS
         else if(funct3 == 0x4) {
@@ -134,9 +140,17 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
     case VectorOpCode::VSTORE:
     {
         auto [imm, rs2, rs1, funct3] = decodeSType(inst);
-        PLOGV << "VSTORE " << rs2 << " " << rs1 << " " << imm;
-        m_VectorDataMemory.writeVector(reg[rs1] + imm, 
-                                       m_VReg[rs2]);
+        const uint32_t addr = reg[rs1] + imm;
+
+        if(funct3 == 0x2) {
+            PLOGV << "VSTOREI " << rs2 << " " << rs1 << " " << imm;
+            reg[rs1] += 64;
+        }
+        else {
+            PLOGV << "VSTORE " << rs2 << " " << rs1 << " " << imm;
+        }
+
+        m_VectorDataMemory.writeVector(addr, m_VReg[rs2]);
         break;
     }
     
