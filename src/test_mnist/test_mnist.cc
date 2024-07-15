@@ -471,9 +471,8 @@ int main()
             {
                 // Register allocation
                 ALLOCATE_SCALAR(SSpikeBuffer);
-                ALLOCATE_SCALAR(SSpikeBufferEnd);
                 ALLOCATE_SCALAR(SSpikeTimeBuffer);
-                ALLOCATE_SCALAR(SNumSpikeBytes);
+                ALLOCATE_SCALAR(SSpikeTimeBufferEnd);
 
                 // Labels
                 Label neuronLoop;
@@ -482,11 +481,16 @@ int main()
                 c.li(*SSpikeBuffer, inputSpikeBuffer);
                 c.li(*SSpikeTimeBuffer, spikeTimeStart);
 
-                // SNumHiddenBytes = number of bytes of full vector
-                c.li(*SNumSpikeBytes, (numInput / 32) * 4);
+                // Get address of end of spike time buffer
+                // **NOTE** arbitrary, first vector
+                {
+                    // STemp = number of bytes of full vector
+                    ALLOCATE_SCALAR(STemp);
+                    c.li(*STemp, numInputSpikeWords * 64);
 
-                // SSpikeBufferEnd = SSpikeBufer + SNumSpikeBytes
-                c.add(*SSpikeBufferEnd, *SSpikeBuffer, *SNumSpikeBytes);
+                    // SSpikeTimeBufferEnd = SSpikeTimeBuffer + STemp
+                    c.add(*SSpikeTimeBufferEnd, *SSpikeTimeBuffer, *STemp);
+                }
 
                 // Input neuron loop
                 c.L(neuronLoop);
@@ -510,8 +514,8 @@ int main()
                     // SSpikeBuffe += 4
                     c.addi(*SSpikeBuffer, *SSpikeBuffer, 4);
 
-                    // If SSpikeBuffer != SSpikeBufferEnd, goto input loop
-                    c.bne(*SSpikeBuffer, *SSpikeBufferEnd, neuronLoop);
+                    // If SSpikeTimeBuffer != SSpikeTimeBufferEnd, goto input loop
+                    c.bne(*SSpikeTimeBuffer, *SSpikeTimeBufferEnd, neuronLoop);
                 }
 
                 // Input neuron tail
@@ -542,10 +546,9 @@ int main()
             {
                 // Register allocation
                 ALLOCATE_SCALAR(SVBuffer);
+                ALLOCATE_SCALAR(SVBufferEnd);
                 ALLOCATE_SCALAR(SISynBuffer);
                 ALLOCATE_SCALAR(SSpikeBuffer);
-                ALLOCATE_SCALAR(SSpikeBufferEnd);
-                ALLOCATE_SCALAR(SNumSpikeBytes);
                 ALLOCATE_VECTOR(VAlpha);
                 ALLOCATE_VECTOR(VThresh);
                 ALLOCATE_VECTOR(VReset);
@@ -568,13 +571,19 @@ int main()
                 c.li(*SISynBuffer, hiddenIsyn);
                 c.li(*SSpikeBuffer, hiddenSpikeBuffer);
 
-                // SNumSpikeBytes = numHidden * 4
-                c.li(*SNumSpikeBytes, numHiddenSpikeWords * 4);
+                // Get address of end of V buffer
+                // **NOTE** arbitrary, first vector
+                {
+                    // STemp = number of bytes of full vector
+                    ALLOCATE_SCALAR(STemp);
+                    c.li(*STemp, numHiddenSpikeWords * 64);
 
-                // SSpikeBufferEnd = SSpikeBufer + SNumSpikeBytes
-                c.add(*SSpikeBufferEnd, *SSpikeBuffer, *SNumSpikeBytes);
+                    // SVBufferEnd = SVBuffer + SNumSpikeBytes
+                    c.add(*SVBufferEnd, *SVBuffer, *STemp);
+                }
 
-                // Input neuron loop
+                // Hidden neuron loop
+                // **NOTE** POT, no tail required
                 c.L(neuronLoop);
                 {
                     // Register allocation
@@ -613,8 +622,70 @@ int main()
                     c.addi(*SISynBuffer, *SISynBuffer, 64);
                     c.addi(*SSpikeBuffer, *SSpikeBuffer, 4);
 
-                    // If SSpikeBuffer != SSpikeBufferEnd, loop
-                    c.bne(*SSpikeBuffer, *SSpikeBufferEnd, neuronLoop);
+                    // If SBBuffer != SVBufferEnd, loop
+                    c.bne(*SVBuffer, *SVBufferEnd, neuronLoop);
+                }
+            }
+
+            // ---------------------------------------------------------------
+            // Output neurons
+            // ---------------------------------------------------------------
+            {
+                // Register allocation
+                ALLOCATE_SCALAR(SVBuffer);
+                ALLOCATE_SCALAR(SVSumBuffer);
+                ALLOCATE_SCALAR(SISynBuffer);
+                ALLOCATE_VECTOR(VAlpha);
+                ALLOCATE_VECTOR(VZero);
+
+                // Load constants
+                // alpha = e^(-1/20)
+                c.vlui(*VAlpha, convertFixedPoint(std::exp(-1.0 / 20.0), outFixedPoint));
+                c.vlui(*VZero, 0);
+
+                // Get address of voltage, voltage sum and Isyn buffers
+                c.li(*SVBuffer, outputV);
+                c.li(*SVSumBuffer, outputVSum);
+                c.li(*SISynBuffer, outputIsyn);
+
+                // Output neuron tail
+                {
+                    // Register allocation
+                    ALLOCATE_SCALAR(SMask);
+                    ALLOCATE_VECTOR(VV);
+                    ALLOCATE_VECTOR(VVNew);
+                    ALLOCATE_VECTOR(VVSum);
+                    ALLOCATE_VECTOR(VVSumNew);
+                    ALLOCATE_VECTOR(VISyn);
+                    
+                    // Calculate mask
+                    c.li(*SMask, (1 << (32 - numOutput)) - 1);
+
+                    // Load V, VSum and ISyn
+                    c.vloadv(*VV, *SVBuffer);
+                    c.vloadv(*VVSum, *SVSumBuffer);
+                    c.vloadv(*VISyn, *SISynBuffer);
+
+                    // VV *= VAlpha
+                    c.vmul(outFixedPoint, *VVNew, *VV, *VAlpha);
+
+                    // VV += VISyn
+                    c.vadd(*VVNew, *VVNew, *VISyn);
+
+                    // VSum += VV
+                    c.vadd(*VVSumNew, *VVSum, *VISyn);
+
+                    // Zero Isyn
+                    c.vlui(*VISyn, 0);
+
+                    // Update original registers with mask
+                    c.vsel(*VV, *SMask, *VVNew);
+                    c.vsel(*VVSum, *SMask, *VVSumNew);
+                    
+                    // Store V, VSum and ISyn
+                    c.vstore(*VV, *SVBuffer);
+                    c.vstore(*VVSum, *SVSumBuffer);
+                    c.vstore(*VISyn, *SISynBuffer);
                 }
             }
 
@@ -657,6 +728,13 @@ int main()
                   std::back_inserter(hiddenSpikeRecording));
     }
 
+    // Print classification output
+    auto *vectorData = riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getVectorDataMemory().getData().data();
+    for(uint32_t i = 0; i < numOutput; i++) {
+        std::cout << static_cast<char>('0' + i) << ": " << vectorData[(outputVSum / 2) + i] << std::endl;
+    }
+
+    // Record output spikes
     std::ofstream inputSpikes("input_spikes.csv");
     std::ofstream hiddenSpikes("hidden_spikes.csv");
     for(uint32_t t = 0; t < 79; t++) {
