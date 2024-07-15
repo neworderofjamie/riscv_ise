@@ -43,6 +43,27 @@ constexpr inline auto padSize(A size, B blockSize)
 }
 
 
+std::vector<int16_t> loadData(const std::string &filename)
+{
+    std::ifstream input(filename, std::ios::binary);
+
+    // Get length
+    input.seekg (0, std::ios::end);
+    const auto lengthBytes = input.tellg();
+    input.seekg (0, std::ios::beg);
+
+    // Check contents is half-word aligned
+    assert((lengthBytes & 1) == 0);
+
+    // Create vector
+    std::vector<int16_t> data(lengthBytes / 2, 0);
+
+    // Read data directly into it
+    input.read(reinterpret_cast<char*>(data.data()), lengthBytes);
+
+    return data;
+}
+
 // Load vector data from int16_t binary file
 uint32_t loadVectors(const std::string &filename, std::vector<int16_t> &memory)
 {
@@ -133,7 +154,7 @@ void writeSpikes(std::ofstream &os, const uint32_t *data,
 
 void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAllocator,
                     RegisterAllocator<Reg> &scalarRegisterAllocator,
-                    uint32_t weightBuffer, uint32_t preSpikeBuffer, uint32_t postISynBuffer, 
+                    uint32_t weightPtr, uint32_t preSpikePtr, uint32_t postISynPtr, 
                     uint32_t numPre, uint32_t numPost, uint32_t scaleShift, bool debug)
 {
     // Register allocation
@@ -155,14 +176,14 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
     Label wordEnd;
 
     // Get address of start of presynaptic spike buffer
-    c.li(*SSpikeBuffer, preSpikeBuffer);
+    c.li(*SSpikeBuffer, preSpikePtr);
     
     // Get address of end of presynaptic spike buffer
     c.li(*SSpikeBufferEnd, ceilDivide(numPre, 32) * 4);
     c.add(*SSpikeBufferEnd, *SSpikeBufferEnd, *SSpikeBuffer);
 
     // SISynBuffer = hiddenIsyn;
-    c.li(*SISynBuffer, postISynBuffer);
+    c.li(*SISynBuffer, postISynPtr);
 
     {
         // Get size of postsynaptic vectors in bytes 
@@ -222,7 +243,7 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
             // SWeightBuffer = weightInHidStart + (numPostVecs * 64 * SN);
             // **TODO** multiply
             ALLOCATE_SCALAR(SWeightBuffer);
-            c.li(*SWeightBuffer, weightBuffer);
+            c.li(*SWeightBuffer, weightPtr);
             {
                 ALLOCATE_SCALAR(STemp);
                 c.slli(*STemp, *SN, scaleShift);
@@ -230,7 +251,7 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
             }
 
             // Reset Isyn pointer
-            c.li(*SISynBuffer, postISynBuffer);
+            c.li(*SISynBuffer, postISynPtr);
             
             // Load weight and Isyn
             if(debug) {
@@ -334,23 +355,29 @@ int main()
     constexpr uint32_t numHiddenSpikeWords = ceilDivide(numHidden, 32);
 
     // Load vector data
-    const uint32_t spikeTimeStart = loadVectors("mnist_7.bin", vectorInitData);
-    const uint32_t weightInHidStart = loadVectors("mnist_in_hid.bin", vectorInitData);
-    const uint32_t weightHidOutStart = loadVectors("mnist_hid_out.bin", vectorInitData);
-    const uint32_t outputBiasStart = loadVectors("mnist_bias.bin", vectorInitData);
+    const uint32_t weightInHidPtr = loadVectors("mnist_in_hid.bin", vectorInitData);
+    const uint32_t weightHidOutPtr = loadVectors("mnist_hid_out.bin", vectorInitData);
+    const uint32_t outputBiasPtr = loadVectors("mnist_bias.bin", vectorInitData);
     
     // Allocate additional vector arrays
-    const uint32_t hiddenIsyn = allocateVectorAndZero(numHidden, vectorInitData);
-    const uint32_t hiddenV = allocateVectorAndZero(numHidden, vectorInitData);
+    const uint32_t inputSpikeTimePtr = allocateVectorAndZero(numInput, vectorInitData);
 
-    const uint32_t outputIsyn = allocateVectorAndZero(numOutput, vectorInitData);
-    const uint32_t outputV = allocateVectorAndZero(numOutput, vectorInitData);
-    const uint32_t outputVSum = allocateVectorAndZero(numOutput, vectorInitData);
+    const uint32_t hiddenIsynPtr = allocateVectorAndZero(numHidden, vectorInitData);
+    const uint32_t hiddenVPtr = allocateVectorAndZero(numHidden, vectorInitData);
+    const uint32_t hiddenRefracTimePtr = allocateVectorAndZero(numHidden, vectorInitData);
+
+    const uint32_t outputIsynPtr = allocateVectorAndZero(numOutput, vectorInitData);
+    const uint32_t outputVPtr = allocateVectorAndZero(numOutput, vectorInitData);
+    const uint32_t outputVSumPtr = allocateVectorAndZero(numOutput, vectorInitData);
    
     // Allocate scalar arrays
-    const uint32_t timestep = allocateScalarAndZero(4, scalarInitData);
-    const uint32_t inputSpikeBuffer = allocateScalarAndZero(numInputSpikeWords * 4, scalarInitData);
-    const uint32_t hiddenSpikeBuffer = allocateScalarAndZero(numHiddenSpikeWords * 4, scalarInitData);
+    const uint32_t timestepPtr = allocateScalarAndZero(4, scalarInitData);
+    const uint32_t inputSpikePtr = allocateScalarAndZero(numInputSpikeWords * 4, scalarInitData);
+    const uint32_t hiddenSpikePtr = allocateScalarAndZero(numHiddenSpikeWords * 4, scalarInitData);
+
+    // Load data
+    const auto mnistTimes = loadData("mnist_times.bin");
+    const auto mnistLabels = loadData("mnist_labels.bin");
 
     CodeGenerator c;
     {
@@ -361,7 +388,7 @@ int main()
         ALLOCATE_VECTOR(VTime);
         {
             ALLOCATE_SCALAR(STemp);
-            c.li(*STemp, timestep);
+            c.li(*STemp, timestepPtr);
             c.vloads(*VTime, *STemp);
         }
 
@@ -374,16 +401,16 @@ int main()
             // ---------------------------------------------------------------
             // 2^8 = 2 bytes * 128 hidden neurons
             genStaticPulse(c, vectorRegisterAllocator, scalarRegisterAllocator,
-                           weightInHidStart, inputSpikeBuffer, 
-                           hiddenIsyn, numInput, numHidden, 8, false);
+                           weightInHidPtr, inputSpikePtr, 
+                           hiddenIsynPtr, numInput, numHidden, 8, false);
 
             // ---------------------------------------------------------------
             // Hidden->Output synapses
             // ---------------------------------------------------------------
             // 2^6 = 2 bytes * 32 output neurons (rounded up)
             genStaticPulse(c, vectorRegisterAllocator, scalarRegisterAllocator, 
-                           weightHidOutStart, hiddenSpikeBuffer, 
-                           outputIsyn, numHidden, numOutput, 6, false);
+                           weightHidOutPtr, hiddenSpikePtr, 
+                           outputIsynPtr, numHidden, numOutput, 6, false);
 
             // ---------------------------------------------------------------
             // Input neurons
@@ -398,8 +425,8 @@ int main()
                 Label neuronLoop;
 
                 // Get address of spike and spike time buffer
-                c.li(*SSpikeBuffer, inputSpikeBuffer);
-                c.li(*SSpikeTimeBuffer, spikeTimeStart);
+                c.li(*SSpikeBuffer, inputSpikePtr);
+                c.li(*SSpikeTimeBuffer, inputSpikeTimePtr);
 
                 // Get address of end of spike time buffer
                 // **NOTE** arbitrary, first vector
@@ -468,10 +495,13 @@ int main()
                 ALLOCATE_SCALAR(SVBuffer);
                 ALLOCATE_SCALAR(SVBufferEnd);
                 ALLOCATE_SCALAR(SISynBuffer);
+                ALLOCATE_SCALAR(SRefracTimeBuffer);
                 ALLOCATE_SCALAR(SSpikeBuffer);
                 ALLOCATE_VECTOR(VAlpha);
                 ALLOCATE_VECTOR(VThresh);
-                ALLOCATE_VECTOR(VReset);
+                ALLOCATE_VECTOR(VTauRefrac);
+                ALLOCATE_VECTOR(VDT);
+                ALLOCATE_VECTOR(VZero);
                 
                 // Labels
                 Label neuronLoop;
@@ -479,17 +509,16 @@ int main()
                 // Load constants
                 // alpha = e^(-1/20)
                 c.vlui(*VAlpha, convertFixedPoint(std::exp(-1.0 / 20.0), hiddenFixedPoint));
-                
-                // v = 0
-                c.vlui(*VReset, 0);
-                
-                // v_thresh = 1
                 c.vlui(*VThresh, convertFixedPoint(0.61, hiddenFixedPoint));
+                c.vlui(*VTauRefrac, 5);
+                c.vlui(*VDT, 1);
+                c.vlui(*VZero, 0);
 
-                // Get address of spike and spike time buffer
-                c.li(*SVBuffer, hiddenV);
-                c.li(*SISynBuffer, hiddenIsyn);
-                c.li(*SSpikeBuffer, hiddenSpikeBuffer);
+                // Get address of buffers
+                c.li(*SVBuffer, hiddenVPtr);
+                c.li(*SISynBuffer, hiddenIsynPtr);
+                c.li(*SRefracTimeBuffer, hiddenRefracTimePtr);
+                c.li(*SSpikeBuffer, hiddenSpikePtr);
 
                 // Get address of end of V buffer
                 // **NOTE** arbitrary, first vector
@@ -509,11 +538,14 @@ int main()
                     // Register allocation
                     ALLOCATE_VECTOR(VV);
                     ALLOCATE_VECTOR(VISyn);
+                    ALLOCATE_VECTOR(VRefracTime);
                     ALLOCATE_SCALAR(SSpikeOut);
+                    ALLOCATE_SCALAR(SRefractory);
 
                     // Load voltage and isyn
                     c.vloadv(*VV, *SVBuffer);
                     c.vloadv(*VISyn, *SISynBuffer);
+                    c.vloadv(*VRefracTime, *SRefracTimeBuffer);
 
                     // VV *= VAlpha
                     c.vmul(hiddenFixedPoint, *VV, *VV, *VAlpha);
@@ -524,22 +556,50 @@ int main()
                     // VISyn = 0
                     c.vlui(*VISyn, 0);
 
-                    // SSpikeOut = VV >= VThresh
+                    // SRefractory = VRefracTime > 0.0 (0.0 < VRefracTime)
+                    c.vtlt(*SRefractory, *VZero, *VRefracTime);
+                     {
+                        // VTemp = VRefracTime - VDT
+                        ALLOCATE_VECTOR(VTemp);
+                        c.vsub(*VTemp, *VRefracTime, *VDT);
+                        
+                        // VRefracTime = SRefractory ? VTemp : VRefracTime
+                        c.vsel(*VRefracTime, *SRefractory, *VTemp);
+                    }
+
+                    // SSpikeOut = VV >= VThresh && !SRefractory
                     c.vtge(*SSpikeOut, *VV, *VThresh);
+                    {
+                        // STemp = !SRefractory
+                        ALLOCATE_SCALAR(STemp);
+                        c.not_(*STemp, *SRefractory);
+                        c.and_(*SSpikeOut, *SSpikeOut, *STemp);
+                    }
 
                     // *SSpikeBuffer = SSpikeOut
                     c.sw(*SSpikeOut, *SSpikeBuffer);
 
-                    // VV = SSpikeOut ? VReset : VV
-                    c.vsel(*VV, *SSpikeOut, *VReset);
+                    {
+                        // VTemp = V - VThresh
+                        ALLOCATE_VECTOR(VTemp);
+                        c.vsub(*VTemp, *VV, *VThresh);
+                        
+                        // VV = SSpikeOut ? VReset : VV
+                        c.vsel(*VV, *SSpikeOut, *VTemp);
+                    }
 
-                    // Store VV and ISyn
+                    // VRefracTime = SSpikeOut ? VTauRefrac : VRefracTime
+                    c.vsel(*VRefracTime, *SSpikeOut, *VTauRefrac);
+
+                    // Store VV, ISyn and refrac time
                     c.vstore(*VV, *SVBuffer);
                     c.vstore(*VISyn, *SISynBuffer);
+                    c.vstore(*VRefracTime, *SRefracTimeBuffer);
 
                     // SVBuffer += 64
                     c.addi(*SVBuffer, *SVBuffer, 64);
                     c.addi(*SISynBuffer, *SISynBuffer, 64);
+                    c.addi(*SRefracTimeBuffer, *SRefracTimeBuffer, 64);
                     c.addi(*SSpikeBuffer, *SSpikeBuffer, 4);
 
                     // If SBBuffer != SVBufferEnd, loop
@@ -565,10 +625,10 @@ int main()
                 c.vlui(*VZero, 0);
 
                 // Get address of voltage, voltage sum and Isyn buffers
-                c.li(*SVBuffer, outputV);
-                c.li(*SVSumBuffer, outputVSum);
-                c.li(*SISynBuffer, outputIsyn);
-                c.li(*SBiasBuffer, outputBiasStart);
+                c.li(*SVBuffer, outputVPtr);
+                c.li(*SVSumBuffer, outputVSumPtr);
+                c.li(*SISynBuffer, outputIsynPtr);
+                c.li(*SBiasBuffer, outputBiasPtr);
 
                 // Output neuron tail
                 {
@@ -633,45 +693,69 @@ int main()
     inputSpikeRecording.reserve(79 * numInputSpikeWords);
     hiddenSpikeRecording.reserve(79 * numHiddenSpikeWords);
 
-    // Loop through time
+    // Get pointers to scalar and vector memory
     auto *scalarData = riscV.getScalarDataMemory().getData().data();
-    const uint32_t *inputSpikeWords = reinterpret_cast<const uint32_t*>(scalarData + inputSpikeBuffer);
-    const uint32_t *hiddenSpikeWords = reinterpret_cast<const uint32_t*>(scalarData + hiddenSpikeBuffer);
-    for(uint32_t t = 0; t < 79; t++) {
-        // Copy timestep into scalar memory
-        std::memcpy(scalarData + timestep, &t, 4);
+    auto *vectorData = riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getVectorDataMemory().getData().data();
 
-        // Reset PC and run
-        riscV.setPC(0);
-        riscV.resetStats();
-        if(!riscV.run()) {
-            return 1;
+    // From these, get pointers to data structures
+    const uint32_t *inputSpikeWords = reinterpret_cast<const uint32_t*>(scalarData + inputSpikePtr);
+    const uint32_t *hiddenSpikeWords = reinterpret_cast<const uint32_t*>(scalarData + hiddenSpikePtr);
+    int16_t *outputVSum = vectorData + (outputVSumPtr / 2);
+
+    // Loop through examples
+    int numCorrect = 0;
+    for(int i = 0; i < 10000; i++) {
+        // Show % progress
+        const auto iPerc = std::div(i, 100);
+        if(iPerc.rem == 0) {
+            std:: cout << iPerc.quot << "%" << std::endl;
         }
 
-        // Record spike words
-        std::copy(inputSpikeWords, inputSpikeWords + numInputSpikeWords,
-                  std::back_inserter(inputSpikeRecording));
-        std::copy(hiddenSpikeWords, hiddenSpikeWords + numHiddenSpikeWords,
-                  std::back_inserter(hiddenSpikeRecording));
+        // Copy spike times into vector memory
+        std::copy_n(mnistTimes.data() + (numInput * i), numInput, vectorData + (inputSpikeTimePtr / 2));
 
-        std::cout << "t = " << t << ": " << riscV.getNumInstructionsExecuted() << " instructions executed, " << riscV.getNumCoprocessorInstructionsExecuted(vectorQuadrant) << " vector instructions executed" << std::endl;
+        // Loop through time
+        for(uint32_t t = 0; t < 79; t++) {
+            // Copy timestep into scalar memory
+            std::memcpy(scalarData + timestepPtr, &t, 4);
+        
+            // Reset PC and run
+            riscV.setPC(0);
+            riscV.resetStats();
+            if(!riscV.run()) {
+                return 1;
+            }
+
+            // Record spike words
+            //std::copy(inputSpikeWords, inputSpikeWords + numInputSpikeWords,
+            //          std::back_inserter(inputSpikeRecording));
+            //std::copy(hiddenSpikeWords, hiddenSpikeWords + numHiddenSpikeWords,
+            //          std::back_inserter(hiddenSpikeRecording));
+
+            //std::cout << "t = " << t << ": " << riscV.getNumInstructionsExecuted() << " instructions executed, " << riscV.getNumCoprocessorInstructionsExecuted(vectorQuadrant) << " vector instructions executed" << std::endl;
+        }
+
+        // Determine if output is correct
+        const auto classification = std::distance(outputVSum, std::max_element(outputVSum, outputVSum + 10));
+        if(classification == mnistLabels[i]) {
+            numCorrect++;
+        }
+
+        // Zero output V sum
+        std::fill_n(outputVSum, 10, 0);
     }
 
-    // Print classification output
-    auto *vectorData = riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getVectorDataMemory().getData().data();
-    for(uint32_t i = 0; i < numOutput; i++) {
-        std::cout << static_cast<char>('0' + i) << ": " << vectorData[(outputVSum / 2) + i] << std::endl;
-    }
+    std::cout << numCorrect << " / 10000 correct (" << 100.0 * (numCorrect / 10000.0) << "%)" << std::endl;
 
     // Record output spikes
-    std::ofstream inputSpikes("input_spikes.csv");
-    std::ofstream hiddenSpikes("hidden_spikes.csv");
-    for(uint32_t t = 0; t < 79; t++) {
-        writeSpikes(inputSpikes, inputSpikeRecording.data() + (numInputSpikeWords * t),
-                    t, numInputSpikeWords);
-        writeSpikes(hiddenSpikes, hiddenSpikeRecording.data() + (numHiddenSpikeWords * t),
-                    t, numHiddenSpikeWords);
-    }
+    //std::ofstream inputSpikes("input_spikes.csv");
+    //std::ofstream hiddenSpikes("hidden_spikes.csv");
+    //for(uint32_t t = 0; t < 79; t++) {
+    //    writeSpikes(inputSpikes, inputSpikeRecording.data() + (numInputSpikeWords * t),
+    //                t, numInputSpikeWords);
+    //    writeSpikes(hiddenSpikes, hiddenSpikeRecording.data() + (numHiddenSpikeWords * t),
+    //                t, numHiddenSpikeWords);
+    //}
 
     return 0;
 }
