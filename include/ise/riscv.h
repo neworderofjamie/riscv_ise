@@ -124,6 +124,9 @@ public:
     void setPC(uint32_t pc){ m_PC = pc; }
     uint32_t getPC() const{ return m_PC; }
 
+    void resetStats();
+    size_t getNumInstructionsExecuted() const{ return m_NumInstructionsExecuted; }
+
 private:
     void setNextPC(uint32_t nextPC);
 
@@ -147,4 +150,7 @@ private:
     ScalarDataMemory m_ScalarDataMemory;
 
     std::unique_ptr<ICoprocessor> m_Coprocessors[3];
+
+    // Stats
+    size_t m_NumInstructionsExecuted;
 };

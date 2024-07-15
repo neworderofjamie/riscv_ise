@@ -181,7 +181,8 @@ void ScalarDataMemory::write8(uint32_t addr, uint8_t value)
 // RISCV
 //----------------------------------------------------------------------------
 RISCV::RISCV(const std::vector<uint32_t> &instructions, const std::vector<uint8_t> &data)
-:   m_PC(0), m_NextPC(0), m_Reg{0}, m_InstructionMemory(instructions), m_ScalarDataMemory(data)
+:   m_PC(0), m_NextPC(0), m_Reg{0}, m_InstructionMemory(instructions), m_ScalarDataMemory(data),
+    m_NumInstructionsExecuted(0)
 {
 }
 //----------------------------------------------------------------------------
@@ -203,7 +204,7 @@ bool RISCV::run()
             } else {*/
                 // normal instruction execution
                 const uint32_t inst = m_InstructionMemory.getInstruction(m_PC);
-                //insn_counter++;
+                m_NumInstructionsExecuted++;
 
 #ifdef DEBUG_OUTPUT
                 printf("[%08x]=%08x, mtime: %lx, mtimecmp: %lx\n", pc, insn, mtime, mtimecmp);
@@ -303,6 +304,12 @@ void RISCV::dumpRegisters() const
             m_Coprocessors[c]->dumpRegisters();
         }
     }
+}
+//----------------------------------------------------------------------------
+void RISCV::resetStats()
+{
+    // Reset standard stats
+    m_NumInstructionsExecuted = 0;
 }
 //----------------------------------------------------------------------------
 void RISCV::setNextPC(uint32_t nextPC)

@@ -717,6 +717,7 @@ int main()
 
         // Reset PC and run
         riscV.setPC(0);
+        riscV.resetStats();
         if(!riscV.run()) {
             return 1;
         }
@@ -726,6 +727,8 @@ int main()
                   std::back_inserter(inputSpikeRecording));
         std::copy(hiddenSpikeWords, hiddenSpikeWords + numHiddenSpikeWords,
                   std::back_inserter(hiddenSpikeRecording));
+
+        std::cout << riscV.getNumInstructionsExecuted() << " instructions executed" << std::endl;
     }
 
     // Print classification output
