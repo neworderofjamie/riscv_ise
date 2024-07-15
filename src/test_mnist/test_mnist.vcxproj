@@ -11,7 +11,9 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\include\assembler\register_allocator.h" />
     <ClInclude Include="..\..\include\assembler\xbyak_riscv.hpp" />
+    <ClInclude Include="..\..\include\common\utils.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="test_mnist.cc" />

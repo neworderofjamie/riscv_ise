@@ -126,6 +126,10 @@ public:
 
     void resetStats();
     size_t getNumInstructionsExecuted() const{ return m_NumInstructionsExecuted; }
+    size_t getNumCoprocessorInstructionsExecuted(uint32_t quadrant) const{ return m_NumCoprocessorInstructionsExecuted[quadrant]; }
+    size_t getNumTrueBranches() const{ return m_NumTrueBranches; }
+    size_t getNumFalseBranches() const{ return m_NumFalseBranches; }
+    size_t getNumJumps() const{ return m_NumJumps; }
 
 private:
     void setNextPC(uint32_t nextPC);
@@ -153,4 +157,8 @@ private:
 
     // Stats
     size_t m_NumInstructionsExecuted;
+    size_t m_NumCoprocessorInstructionsExecuted[3];
+    size_t m_NumTrueBranches;
+    size_t m_NumFalseBranches;
+    size_t m_NumJumps;
 };

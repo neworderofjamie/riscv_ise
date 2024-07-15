@@ -9,62 +9,9 @@
 #include <plog/Log.h>
 #include <plog/Severity.h>
 
-// Platform includes
-#ifdef _WIN32
-#include <intrin.h>
-#endif
+// RISC-V utils include
+#include "common/utils.h"
 
-// Anonymous namespace
-namespace
-{
-int clz(uint32_t value)
-{
-#ifdef _WIN32
-    unsigned long leadingZero = 0;
-    if(_BitScanReverse(&leadingZero, value)) {
-        return 31 - leadingZero;
-    }
-    else {
-        return 32;
-    }
-#else
-    return __builtin_clz(value);
-#endif
-}
-
-int ctz(uint32_t value)
-{
-#ifdef _WIN32
-    unsigned long trailingZero = 0;
-    if(_BitScanForward(&trailingZero, value)) {
-        return trailingZero;
-    }
-    else {
-        return 32;
-    }
-#else
-    return __builtin_ctz(value);
-#endif
-}
-
-int popCount(uint32_t value)
-{
-#ifdef _WIN32
-    return __popcnt(value);
-#else
-    return __builtin_popcount(value);
-#endif
-}
-
-void breakPoint()
-{
-#ifdef _WIN32
-    __debugbreak();
-#else
-    asm("int3");
-#endif
-}
-}
 //----------------------------------------------------------------------------
 // InstructionMemory
 //----------------------------------------------------------------------------
@@ -310,6 +257,12 @@ void RISCV::resetStats()
 {
     // Reset standard stats
     m_NumInstructionsExecuted = 0;
+    m_NumCoprocessorInstructionsExecuted[0] = 0;
+    m_NumCoprocessorInstructionsExecuted[1] = 0;
+    m_NumCoprocessorInstructionsExecuted[2] = 0;
+    m_NumTrueBranches = 0;
+    m_NumFalseBranches = 0;
+    m_NumJumps = 0;
 }
 //----------------------------------------------------------------------------
 void RISCV::setNextPC(uint32_t nextPC)
@@ -807,6 +760,8 @@ void RISCV::executeStandardInstruction(uint32_t inst)
         if (rd != 0) {
             m_Reg[rd] = m_PC + 4;
         }
+
+        m_NumJumps++;
         setNextPC((int32_t)(m_PC + imm));
        
         break;
@@ -822,6 +777,7 @@ void RISCV::executeStandardInstruction(uint32_t inst)
 #endif
         
         const uint32_t val  = m_PC + 4;
+        m_NumJumps++;
         setNextPC((int32_t)(m_Reg[rs1] + imm) & ~1);
         if (rd != 0) {
             m_Reg[rd] = val;
@@ -834,11 +790,13 @@ void RISCV::executeStandardInstruction(uint32_t inst)
         auto [imm, rs2, rs1, funct3] = decodeBType(inst);
         if (calcBranchCondition(inst, rs2, rs1, funct3)) {
             PLOGV << "\t" << (m_PC + imm);
+
+            m_NumJumps++;
+            m_NumTrueBranches++;
             setNextPC((int32_t)(m_PC + imm));
         } 
         else {
-            while(false);
-            //false_counter++;
+            m_NumFalseBranches++;
         }
         break;
     }
@@ -1103,6 +1061,7 @@ void RISCV::executeInstruction(uint32_t inst)
     }
     // Otherwise, if there is a co-processor defined to handle this quadrant
     else if(m_Coprocessors[quadrant]){
+        m_NumCoprocessorInstructionsExecuted[quadrant]++;
         m_Coprocessors[quadrant]->executeInstruction(inst, m_Reg, m_ScalarDataMemory);
     }
     // Otherwise, throw

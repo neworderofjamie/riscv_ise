@@ -7,6 +7,7 @@
 #include <plog/Appenders/ConsoleAppender.h>
 
 // RISC-V assembler includes
+#include "assembler/register_allocator.h"
 #include "assembler/xbyak_riscv.hpp"
 
 // RISC-V ISE includes
@@ -19,51 +20,67 @@ Xbyak_riscv::CodeGenerator generateCode()
     using namespace Xbyak_riscv;
     
     CodeGenerator c;
-    
+    VectorRegisterAllocator vectorRegisterAllocator;
+    ScalarRegisterAllocator scalarRegisterAllocator;
+
+    // Register allocation
+    ALLOCATE_SCALAR(SVBuffer);
+    ALLOCATE_SCALAR(SVBufferEnd);
+    ALLOCATE_VECTOR(VAlpha);
+    ALLOCATE_VECTOR(VV);
+    ALLOCATE_VECTOR(VVReset);
+    ALLOCATE_VECTOR(VVThresh);
+    ALLOCATE_VECTOR(VI);
+
     // alpha = e^(-1/20)
-    c.vlui(VReg::V0, 7792);
+    c.vlui(*VAlpha, 7792);
     
     // v = 0
-    c.vlui(VReg::V1, 0);
+    c.vlui(*VV, 0);
     
     // v_thresh = 1
-    c.vlui(VReg::V2, 8192);
+    c.vlui(*VVThresh, 8192);
 
     // v_reset = 0
-    c.vlui(VReg::V3, 0);
+    c.vlui(*VVReset, 0);
     
     // i = vmem[0..32]
-    c.vloadv(VReg::V4, Reg::X0, 0);
+    c.vloadv(*VI, Reg::X0);
+   
+    // Start writing 64 bytes in (after I values)
+    c.li(*SVBuffer, 64);
+
+    // End writing at 100 timesteps * 64 bytes
+    c.li(*SVBufferEnd, 6400);
     
-    // t = 6400
-    c.li(Reg::X1, 6400);
-    
-    // a = 64 (2 bytes * 32 lanes)
-    c.addi(Reg::X2, Reg::X0, 64);
-    
+    // Loop over time
     Label loop;
     c.L(loop);
+    {
+        // Register allocation
+        ALLOCATE_SCALAR(SNoSpike);
+
+        // v *= alpha
+        c.vmul(13, *VV, *VV, *VAlpha);
     
-    // v *= alpha
-    c.vmul(13, VReg::V1, VReg::V1, VReg::V0);
+        // v += i
+        c.vadd(*VV, *VV, *VI);
     
-    // v += i
-    c.vadd(VReg::V1, VReg::V1, VReg::V4);
+        // spk = v > 1.0
+        c.vtlt(*SNoSpike, *VVThresh, *VV);
     
-    // spk = v > 1.0
-    c.vtlt(Reg::X3, VReg::V2, VReg::V1);
+        // v = spk ? v_reset : v
+        c.vsel(*VV, *SNoSpike, *VVReset);
     
-    // v = spk ? v_reset : v
-    c.vsel(VReg::V1, Reg::X3, VReg::V3);
+        //vmem[a...a+32] = v
+        c.vstore(VReg::V1, *SVBuffer);
     
-    //vmem[a...a+32] = v
-    c.vstore(VReg::V1, Reg::X2);
+        // a += 64 (2 bytes * 32 lanes)
+        c.addi(*SVBuffer, *SVBuffer, 64);
     
-    // a += 64 (2 bytes * 32 lanes)
-    c.addi(Reg::X2, Reg::X2, 64);
-    
-    // While x2 (address) < x1 (count), goto loop
-    c.blt(Reg::X2, Reg::X1, loop);
+        // While x2 (address) < x1 (count), goto loop
+        c.bne(*SVBuffer, *SVBufferEnd, loop);
+    }
     
     c.ecall();
     return c;

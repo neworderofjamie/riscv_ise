@@ -14,7 +14,9 @@
     <ClCompile Include="test.cc" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\include\assembler\register_allocator.h" />
     <ClInclude Include="..\..\include\assembler\xbyak_riscv.hpp" />
+    <ClInclude Include="..\..\include\common\utils.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>

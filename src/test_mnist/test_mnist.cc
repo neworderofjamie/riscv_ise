@@ -9,17 +9,16 @@
 #include <cassert>
 #include <cmath>
 
-// Platform includes
-#ifdef _WIN32
-#include <intrin.h>
-#endif
-
 // PLOG includes
 #include <plog/Log.h>
 #include <plog/Severity.h>
 #include <plog/Appenders/ConsoleAppender.h>
 
+// RISC-V utils include
+#include "common/utils.h"
+
 // RISC-V assembler includes
+#include "assembler/register_allocator.h"
 #include "assembler/xbyak_riscv.hpp"
 
 // RISC-V ISE includes
@@ -28,86 +27,6 @@
 
 using namespace Xbyak_riscv;
 
-#define ALLOCATE_SCALAR(NAME) const auto NAME = scalarRegisterAllocator.getRegister(#NAME" = X");
-#define ALLOCATE_VECTOR(NAME) const auto NAME = vectorRegisterAllocator.getRegister(#NAME" = V");
-
-int clz(uint32_t value)
-{
-#ifdef _WIN32
-    unsigned long leadingZero = 0;
-    if(_BitScanReverse(&leadingZero, value)) {
-        return 31 - leadingZero;
-    }
-    else {
-        return 32;
-    }
-#else
-    return __builtin_clz(value);
-#endif
-}
-
-template<typename T>
-class RegisterAllocator
-{
-public:
-    class Handle
-    {
-    public:
-        Handle(T reg, RegisterAllocator<T> &parent, const char *context = nullptr)
-        :   m_Reg(reg), m_Parent(parent)
-        {
-            if(context) {
-                PLOGD << "Allocating " << context << static_cast<uint32_t>(reg);
-            }
-        }
-
-        ~Handle()
-        {
-            m_Parent.releaseRegister(m_Reg);
-        }
-    
-        operator T() const
-        {
-            return m_Reg;
-        }
-
-    private:
-        T m_Reg;
-        RegisterAllocator<T> &m_Parent;
-    };
-
-    RegisterAllocator(uint32_t initialFreeRegisters = 0xFFFFFFFFu)
-    :   m_FreeRegisters(initialFreeRegisters)
-    {
-    }
-
-    std::shared_ptr<Handle> getRegister(const char *context = nullptr)
-    {
-        if(m_FreeRegisters == 0) {
-            throw std::runtime_error("Out of registers");
-        }
-        else {
-            const int n = clz(m_FreeRegisters);
-            m_FreeRegisters &= ~(0x80000000 >> n);
-            return std::make_shared<Handle>(static_cast<T>(n), *this, context);
-        }
-    }
-    
-    void releaseRegister(T reg)
-    {
-        const uint32_t regNum = static_cast<uint32_t>(reg);
-
-        if((m_FreeRegisters & (0x80000000 >> regNum)) != 0) {
-            throw std::runtime_error("Releasing unused register");
-        }
-        else {
-            m_FreeRegisters |= (0x80000000 >> regNum); 
-        }
-    }
-
-private:
-    uint32_t m_FreeRegisters;
-};
 
 //! Divide two integers, rounding up i.e. effectively taking ceil
 template<typename A, typename B, typename = std::enable_if_t<std::is_integral_v<A> && std::is_integral_v<B>>>
@@ -434,8 +353,8 @@ int main()
 
     CodeGenerator c;
     {
-        RegisterAllocator<VReg> vectorRegisterAllocator;
-        RegisterAllocator<Reg> scalarRegisterAllocator(0x7FFFFFFFu);
+        VectorRegisterAllocator vectorRegisterAllocator;
+        ScalarRegisterAllocator scalarRegisterAllocator;
 
         // V0 = *timestep
         ALLOCATE_VECTOR(VTime);
