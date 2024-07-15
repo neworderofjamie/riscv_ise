@@ -647,7 +647,7 @@ int main()
         std::copy(hiddenSpikeWords, hiddenSpikeWords + numHiddenSpikeWords,
                   std::back_inserter(hiddenSpikeRecording));
 
-        std::cout << riscV.getNumInstructionsExecuted() << " instructions executed" << std::endl;
+        std::cout << "t = " << t << ": " << riscV.getNumInstructionsExecuted() << " instructions executed, " << riscV.getNumCoprocessorInstructionsExecuted(vectorQuadrant) << " vector instructions executed" << std::endl;
     }
 
     // Print classification output
