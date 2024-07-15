@@ -58,7 +58,7 @@ Xbyak_riscv::CodeGenerator generateCode()
     c.L(loop);
     {
         // Register allocation
-        ALLOCATE_SCALAR(SNoSpike);
+        ALLOCATE_SCALAR(SSpike);
 
         // v *= alpha
         c.vmul(13, *VV, *VV, *VAlpha);
@@ -66,14 +66,14 @@ Xbyak_riscv::CodeGenerator generateCode()
         // v += i
         c.vadd(*VV, *VV, *VI);
     
-        // spk = v > 1.0
-        c.vtlt(*SNoSpike, *VVThresh, *VV);
+        // spike = VV >= VThres
+        c.vtge(*SSpike, *VV, *VVThresh);
     
         // v = spk ? v_reset : v
-        c.vsel(*VV, *SNoSpike, *VVReset);
+        c.vsel(*VV, *SSpike, *VVReset);
     
         //vmem[a...a+32] = v
-        c.vstore(VReg::V1, *SVBuffer);
+        c.vstore(*VV, *SVBuffer);
     
         // a += 64 (2 bytes * 32 lanes)
         c.addi(*SVBuffer, *SVBuffer, 64);
