@@ -333,10 +333,11 @@ int main()
     constexpr uint32_t numInputSpikeWords = ceilDivide(numInput, 32);
     constexpr uint32_t numHiddenSpikeWords = ceilDivide(numHidden, 32);
 
-    // Load vector data **TODO** bias
+    // Load vector data
     const uint32_t spikeTimeStart = loadVectors("mnist_7.bin", vectorInitData);
     const uint32_t weightInHidStart = loadVectors("mnist_in_hid.bin", vectorInitData);
     const uint32_t weightHidOutStart = loadVectors("mnist_hid_out.bin", vectorInitData);
+    const uint32_t outputBiasStart = loadVectors("mnist_bias.bin", vectorInitData);
     
     // Allocate additional vector arrays
     const uint32_t hiddenIsyn = allocateVectorAndZero(numHidden, vectorInitData);
@@ -554,6 +555,7 @@ int main()
                 ALLOCATE_SCALAR(SVBuffer);
                 ALLOCATE_SCALAR(SVSumBuffer);
                 ALLOCATE_SCALAR(SISynBuffer);
+                ALLOCATE_SCALAR(SBiasBuffer);
                 ALLOCATE_VECTOR(VAlpha);
                 ALLOCATE_VECTOR(VZero);
 
@@ -566,6 +568,7 @@ int main()
                 c.li(*SVBuffer, outputV);
                 c.li(*SVSumBuffer, outputVSum);
                 c.li(*SISynBuffer, outputIsyn);
+                c.li(*SBiasBuffer, outputBiasStart);
 
                 // Output neuron tail
                 {
@@ -576,6 +579,7 @@ int main()
                     ALLOCATE_VECTOR(VVSum);
                     ALLOCATE_VECTOR(VVSumNew);
                     ALLOCATE_VECTOR(VISyn);
+                    ALLOCATE_VECTOR(VBias);
                     
                     // Calculate mask
                     c.li(*SMask, (1 << (32 - numOutput)) - 1);
@@ -584,12 +588,16 @@ int main()
                     c.vloadv(*VV, *SVBuffer);
                     c.vloadv(*VVSum, *SVSumBuffer);
                     c.vloadv(*VISyn, *SISynBuffer);
+                    c.vloadv(*VBias, *SBiasBuffer);
 
                     // VV *= VAlpha
                     c.vmul(outFixedPoint, *VVNew, *VV, *VAlpha);
 
                     // VV += VISyn
                     c.vadd(*VVNew, *VVNew, *VISyn);
+
+                    // VV += VBias
+                    c.vadd(*VVNew, *VVNew, *VBias);
 
                     // VSum += VV
                     c.vadd(*VVSumNew, *VVSum, *VISyn);
@@ -611,7 +619,6 @@ int main()
             // End
             c.ecall();
         }
-
     }
 
     // Create RISC-V core with instruction and scalar data
