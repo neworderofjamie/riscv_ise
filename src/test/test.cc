@@ -36,8 +36,7 @@ Xbyak_riscv::CodeGenerator generateCode()
     c.vloadv(VReg::V4, Reg::X0, 0);
     
     // t = 6400
-    c.addi(Reg::X1, Reg::X0, 25);
-    c.slli(Reg::X1, Reg::X1, 8);
+    c.li(Reg::X1, 6400);
     
     // a = 64 (2 bytes * 32 lanes)
     c.addi(Reg::X2, Reg::X0, 64);
@@ -52,7 +51,7 @@ Xbyak_riscv::CodeGenerator generateCode()
     c.vadd(VReg::V1, VReg::V1, VReg::V4);
     
     // spk = v > 1.0
-    c.vslt(Reg::X3, VReg::V2, VReg::V1);
+    c.vtlt(Reg::X3, VReg::V2, VReg::V1);
     
     // v = spk ? v_reset : v
     c.vsel(VReg::V1, Reg::X3, VReg::V3);
@@ -66,6 +65,7 @@ Xbyak_riscv::CodeGenerator generateCode()
     // While x2 (address) < x1 (count), goto loop
     c.blt(Reg::X2, Reg::X1, loop);
     
+    c.ecall();
     return c;
 }
 
