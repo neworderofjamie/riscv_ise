@@ -186,7 +186,6 @@ struct Jmp
         if (addr == 0) return 0;
         if (type == tRawAddress) return addr;
         const int imm = addr - from;
-        std::cout << "JUMP " << addr << " - " << from << " = " << imm << std::endl;
         if (type == tJal) {
             if (!inSBit(imm, 20)) XBYAK_RISCV_THROW(ERR_INVALID_IMM_OF_JAL)
             return local::get20_10to1_11_19to12_z12(imm) | encoded;
