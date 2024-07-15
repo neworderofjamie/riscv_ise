@@ -215,7 +215,7 @@ void writeSpikes(std::ofstream &os, const uint32_t *data,
 void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAllocator,
                     RegisterAllocator<Reg> &scalarRegisterAllocator,
                     uint32_t weightBuffer, uint32_t preSpikeBuffer, uint32_t postISynBuffer, 
-                    uint32_t numPreWords, uint32_t numPost, uint32_t scaleShift, bool debug)
+                    uint32_t numPre, uint32_t numPost, uint32_t scaleShift, bool debug)
 {
     // Register allocation
     ALLOCATE_SCALAR(SSpikeBuffer);
@@ -239,7 +239,7 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
     c.li(*SSpikeBuffer, preSpikeBuffer);
     
     // Get address of end of presynaptic spike buffer
-    c.li(*SSpikeBufferEnd, numPreWords * 4);
+    c.li(*SSpikeBufferEnd, ceilDivide(numPre, 32) * 4);
     c.add(*SSpikeBufferEnd, *SSpikeBufferEnd, *SSpikeBuffer);
 
     // SISynBuffer = hiddenIsyn;
@@ -318,31 +318,53 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
                 c.ebreak();
             }
 
-            // Input postsynaptic neuron loop
-            c.L(weightLoop);
-            {
+            // Loop over postsynaptic neurons
+            if(numPost > 32) {
+                // Input postsynaptic neuron loop
+                c.L(weightLoop);
+                {
+                    ALLOCATE_VECTOR(VWeight);
+                    ALLOCATE_VECTOR(VISyn);
+
+                    // Load next vector of weights and ISyns
+                    c.vloadv(*VWeight, *SWeightBuffer);
+                    c.vloadv(*VISyn, *SISynBuffer);
+
+                    // Add weights to ISyn
+                    c.vadd(*VISyn, *VISyn, *VWeight);
+
+                    // Write back ISyn
+                    c.vstore(*VISyn, *SISynBuffer);
+
+                    // Advance weights and Isyn
+                    c.addi(*SWeightBuffer, *SWeightBuffer, 64);
+                    c.addi(*SISynBuffer, *SISynBuffer, 64);
+
+                    // If we haven't reached end of Isyn buffer, loop
+                    c.bne(*SISynBuffer, *SISynBufferEnd, weightLoop);
+                }
+            }
+            // Tail if there are non-POT number of postsynaptic neurons
+            if((numPost % 32) != 0) {
+                ALLOCATE_SCALAR(SMask);
                 ALLOCATE_VECTOR(VWeight);
                 ALLOCATE_VECTOR(VISyn);
+                ALLOCATE_VECTOR(VISynNew);
+
+                // Calculate mask for final iteration
+                c.li(*SMask, (1 << (padSize(numPost, 32) - numPost)) - 1);
 
                 // Load next vector of weights and ISyns
                 c.vloadv(*VWeight, *SWeightBuffer);
                 c.vloadv(*VISyn, *SISynBuffer);
 
-                // Add weights to ISyn
-                c.vadd(*VISyn, *VISyn, *VWeight);
+                // Add weights to ISyn with mask
+                c.vadd(*VISynNew, *VISyn, *VWeight);
+                c.vsel(*VISyn, *SMask, *VISynNew);
 
                 // Write back ISyn
                 c.vstore(*VISyn, *SISynBuffer);
-
-                // Advance weights and Isyn
-                c.addi(*SWeightBuffer, *SWeightBuffer, 64);
-                c.addi(*SISynBuffer, *SISynBuffer, 64);
-
-                // If we haven't reached end of Isyn buffer, loop
-                c.bne(*SISynBuffer, *SISynBufferEnd, weightLoop);
             }
-
-            // **TODO** tail if non-POT num post neurons
 
 
             // SN --
@@ -430,16 +452,18 @@ int main()
             // ---------------------------------------------------------------
             // Input->Hidden synapses
             // ---------------------------------------------------------------
+            // 2^8 = 2 bytes * 128 hidden neurons
             genStaticPulse(c, vectorRegisterAllocator, scalarRegisterAllocator,
                            weightInHidStart, inputSpikeBuffer, 
-                           hiddenIsyn, numInputSpikeWords, numHidden, 9, false);
+                           hiddenIsyn, numInput, numHidden, 8, false);
 
             // ---------------------------------------------------------------
             // Hidden->Output synapses
             // ---------------------------------------------------------------
-            /*genStaticPulse(c, vectorRegisterAllocator, scalarRegisterAllocator, 
+            // 2^6 = 2 bytes * 32 output neurons (rounded up)
+            genStaticPulse(c, vectorRegisterAllocator, scalarRegisterAllocator, 
                            weightHidOutStart, hiddenSpikeBuffer, 
-                           outputIsyn, numHiddenSpikeWords, numOutput, false);*/
+                           outputIsyn, numHidden, numOutput, 6, false);
 
             // ---------------------------------------------------------------
             // Input neurons
