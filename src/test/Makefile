@@ -25,4 +25,4 @@ libise:
 %.d: ;
 
 clean:
-	rm -f test.cc $(TEST)
+	rm -f $(TEST)

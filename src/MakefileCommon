@@ -8,6 +8,8 @@ ARFLAGS:=-rcs
 ifdef DEBUG
     PREFIX:=$(PREFIX)_debug
     CXXFLAGS+=-g -O0 -DDEBUG
+else
+    CXXFLAGS+=-Ofast
 endif 
 
 ifdef DYNAMIC

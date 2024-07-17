@@ -25,4 +25,4 @@ libise:
 %.d: ;
 
 clean:
-	rm -f test_mnist.cc $(TEST_MNIST)
+	rm -f $(TEST_MNIST)
