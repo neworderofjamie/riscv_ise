@@ -505,15 +505,15 @@ public:
 
     // VSOP
     // Rtype(Bit<7> opcode, Bit<3> funct3, Bit<7> funct7, Bit<5> rd, Bit<5> rs1, Bit<5> rs2)
-    void vadd(VReg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VSOP, 0x0, 0x0, rd, rs1, rs2); }
-    void vsub(VReg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VSOP, 0x2, 0x0, rd, rs1, rs2); }
-    void vmul(Bit<4> shift, VReg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VSOP, 0x4, shift, rd, rs1, rs2); }
+    void vadd(VReg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VSOP, 0b000, 0x0, rd, rs1, rs2); }
+    void vsub(VReg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VSOP, 0b010, 0x0, rd, rs1, rs2); }
+    void vmul(Bit<4> shift, VReg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VSOP, 0b100, shift, rd, rs1, rs2); }
 
     // VTST
-    void vteq(const Reg &rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VTST, 0x0, 0x0, rd, rs1, rs2); }
-    void vtne(const Reg &rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VTST, 0x2, 0x0, rd, rs1, rs2); }
-    void vtlt(const Reg &rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VTST, 0x4, 0x0, rd, rs1, rs2); }
-    void vtge(const Reg &rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VTST, 0x6, 0x0, rd, rs1, rs2); }
+    void vteq(const Reg &rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VTST, 0b000, 0x0, rd, rs1, rs2); }
+    void vtne(const Reg &rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VTST, 0b010, 0x0, rd, rs1, rs2); }
+    void vtlt(const Reg &rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VTST, 0b100, 0x0, rd, rs1, rs2); }
+    void vtge(const Reg &rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VTST, 0b110, 0x0, rd, rs1, rs2); }
 
     // VSEL
     void vsel(VReg rd, const Reg &rs1, VReg rs2){ Rtype(VectorOpCode::VSEL, 0x0, 0x0, rd, rs1, rs2); }

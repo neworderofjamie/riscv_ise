@@ -202,20 +202,20 @@ Vector VectorProcessor::calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs
     switch(funct3)
     {
     // VADD
-    case 0x0:
+    case 0b000:
     {
         PLOGV << "VADD " << rs1 << " " << rs2;
         return binaryOp(val, val2, [](int16_t a, int16_t b){ return a + b; });
     }
 
     // VSUB
-    case 0x2:
+    case 0b010:
     {
         PLOGV << "VSUB " << rs1 << " " << rs2;
         return binaryOp(val, val2, [](int16_t a, int16_t b){ return a - b; });
     }
     // VMUL
-    case 0x4:
+    case 0b100:
     {
         PLOGV << "VMUL " << rs1 << " " << rs2;
         if ((funct7 & ~15) != 0) {
@@ -239,26 +239,26 @@ uint32_t VectorProcessor::calcTestResult(uint32_t inst, uint32_t rs2, uint32_t r
     switch(funct3)
     {
     // VTEQ
-    case 0x0:
+    case 0b000:
     {
         PLOGV << "VTEQ " << rs1 << " " << rs2;
         return maskOp(val, val2, [](int16_t a, int16_t b){ return a == b; });
     }
 
     // VTNE
-    case 0x2:
+    case 0b010:
     {
         PLOGV << "VTNE " << rs1 << " " << rs2;
         return maskOp(val, val2, [](int16_t a, int16_t b){ return a != b; });
     }
     // VTLT
-    case 0x4:
+    case 0b100:
     {
         PLOGV << "VTLT " << rs1 << " " << rs2;
         return maskOp(val, val2, [](int16_t a, int16_t b){ return a < b; });
     }
     // VTGE
-    case 0x6:
+    case 0b110:
     {
         PLOGV << "VTGE " << rs1 << " " << rs2;
         return maskOp(val, val2, [](int16_t a, int16_t b){ return a >= b; });
