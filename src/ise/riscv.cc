@@ -128,9 +128,9 @@ void ScalarDataMemory::write8(uint32_t addr, uint8_t value)
 // RISCV
 //----------------------------------------------------------------------------
 RISCV::RISCV(const std::vector<uint32_t> &instructions, const std::vector<uint8_t> &data)
-:   m_PC(0), m_NextPC(0), m_Reg{0}, m_InstructionMemory(instructions), m_ScalarDataMemory(data),
-    m_NumInstructionsExecuted(0)
+:   m_PC(0), m_NextPC(0), m_Reg{0}, m_InstructionMemory(instructions), m_ScalarDataMemory(data)
 {
+    resetStats();
 }
 //----------------------------------------------------------------------------
 bool RISCV::run()
