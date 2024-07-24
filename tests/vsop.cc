@@ -25,8 +25,7 @@ TEST(VSOP, VADD)
 {
     // Create memory contents
     std::vector<uint8_t> scalarInitData;
-    
-     std::vector<int16_t> vectorInitData{
+    std::vector<int16_t> vectorInitData{
         // RS1
         0x7FFF,     0x7FFF,     0x7FFF,     0x7FFF,     0x7FFF,     0x7FFF,     0x7FFF,     0x7FFF,
         0x2AAA,     0x2AAA,     0x2AAA,     0x2AAA,     0x2AAA,     0x2AAA,     0x2AAA,     0x2AAA,
@@ -45,6 +44,8 @@ TEST(VSOP, VADD)
         0x0,        0x0,        0x0,        0x0,        0x0,        0x0,        0x0,        0x0,
         0x0,        0x0,        0x0,        0x0,        0x0,        0x0,        0x0,        0x0,
      };
+     
+     assert(vectorInitData.size() == (32 * 3));
 
     Xbyak_riscv::CodeGenerator c;
     {
@@ -60,7 +61,7 @@ TEST(VSOP, VADD)
 
         c.li(*SS1, 0);
         c.li(*SS2, 64);
-        c.li(*SD, 96);
+        c.li(*SD, 128);
 
         c.vloadv(*VS1, *SS1);
         c.vloadv(*VS2, *SS2);
@@ -83,7 +84,7 @@ TEST(VSOP, VADD)
     riscV.run();
 
     auto *vectorData = riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getVectorDataMemory().getData().data();
-    int16_t *outputVSum = vectorData + 96;
+    int16_t *outputVSum = vectorData + 128;
     for(int i = 0; i < 32; i++) {
         std::cout << outputVSum[i] << ", ";
     }
