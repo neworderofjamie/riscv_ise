@@ -5,6 +5,22 @@
 #include <intrin.h>
 #endif
 
+
+//! Divide two integers, rounding up i.e. effectively taking ceil
+template<typename A, typename B, typename = std::enable_if_t<std::is_integral_v<A> && std::is_integral_v<B>>>
+constexpr inline auto ceilDivide(A numerator, B denominator)
+{
+    return ((numerator + denominator - 1) / denominator);
+}
+
+//! Pad an integer to a multiple of another
+template<typename A, typename B, typename = std::enable_if_t<std::is_integral_v<A>&& std::is_integral_v<B>>>
+constexpr inline auto padSize(A size, B blockSize)
+{
+    return ceilDivide(size, blockSize) * blockSize;
+}
+
+
 inline int clz(uint32_t value)
 {
 #ifdef _WIN32
