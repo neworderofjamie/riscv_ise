@@ -51,9 +51,15 @@ public:
     const auto &getVectorDataMemory() const{ return m_VectorDataMemory; }
     
 private:
+    Vector sampleRNG();
+
     Vector calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs2, uint32_t rs1, uint32_t funct3) const;
     uint32_t calcTestResult(uint32_t inst, uint32_t rs2, uint32_t rs1, uint32_t funct3) const;
 
     VectorDataMemory m_VectorDataMemory;
     Vector m_VReg[32];
+
+    // Xoroshiro32++ state
+    uint16_t m_S0[32];
+    uint16_t m_S1[32];
 };

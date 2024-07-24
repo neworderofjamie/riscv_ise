@@ -31,6 +31,12 @@ uint32_t maskOp(const Vector &val, const Vector &val2, F func)
     }
     return mask;
 }
+
+static inline uint16_t rol(uint16_t x, uint16_t k)
+{
+    return (x << k) | (x >> ((sizeof(x) * 8) - k));
+}
+
 }
 //----------------------------------------------------------------------------
 // VectorDataMemory
@@ -129,6 +135,26 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
         break;
     }
 
+    case VectorOpCode::VSPC:
+    {
+        auto [imm, rs1, funct3, rd] = decodeIType(inst);
+
+        // VRNG
+        if(funct3 == 0x0) {
+            if (rs1 != 0) {
+                throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
+            }
+
+            PLOGV << "VRNG";
+            PLOGV << "\t" << rd;
+            m_VReg[rd] = sampleRNG();
+        }
+        else {
+            throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
+        }
+        break;
+    }
+
     case VectorOpCode::VSOP:
     {
         auto [funct7, rs2, rs1, funct3, rd] = decodeRType(inst);
@@ -192,6 +218,31 @@ void VectorProcessor::dumpRegisters() const
         }
         std::cout << std::endl;
     }
+}
+//------------------------------------------------------------------------
+Vector VectorProcessor::sampleRNG()
+{
+    constexpr uint16_t a = 13;
+    constexpr uint16_t b = 5;
+    constexpr uint16_t c = 10;
+    constexpr uint16_t d = 9;
+
+    Vector result;
+    for(size_t i = 0; i < 32; i++) {
+        uint16_t s0 = m_S0[i];
+        uint16_t s1 = m_S1[i];
+
+        result[i] = rol(s0 + s1, d) + s0;
+
+        s1 ^= s0;
+        s0 = rol(s0, a ) ^ s1 ^ (s1 << b);
+        s1 = rol(s1, c);
+
+        m_S0[i] = s0;
+        m_S1[i] = s1;
+    }
+
+    return result;
 }
 //------------------------------------------------------------------------
 Vector VectorProcessor::calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs2, uint32_t rs1, uint32_t funct3) const

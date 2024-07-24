@@ -521,6 +521,9 @@ public:
     // VLUI
     void vlui(VReg rd, uint32_t imm){ Utype(VectorOpCode::VLUI, rd, imm); }
 
+    // VSPC
+    void vrng(VReg rd){ Itype(VectorOpCode::VSPC, 0x0, rd, Reg::X0, 0); }
+
     // VLOAD
     void vloadv(VReg rd, const Reg &addr, int imm = 0){ Itype(VectorOpCode::VLOAD, 0x0, rd, addr, imm); }
     void vloadvi(VReg rd, const Reg &addr, int imm = 0){ Itype(VectorOpCode::VLOAD, 0x2, rd, addr, imm); }
