@@ -1,5 +1,10 @@
 #pragma once
 
+// Standard C includes
+#include <cassert>
+#include <cmath>
+#include <cstdint>
+
 // Platform includes
 #ifdef _WIN32
 #include <intrin.h>
@@ -67,4 +72,13 @@ inline void breakPoint()
 #else
     asm("int3");
 #endif
+}
+
+inline int16_t convertFixedPoint(double x, uint32_t fixedPoint)
+{
+    const double rounded = std::round(x * (1 << fixedPoint));
+    assert(rounded >= std::numeric_limits<int16_t>::min());
+    assert(rounded <= std::numeric_limits<int16_t>::max());
+
+    return static_cast<int16_t>(rounded);
 }

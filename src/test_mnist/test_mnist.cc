@@ -15,6 +15,7 @@
 #include <plog/Appenders/ConsoleAppender.h>
 
 // RISC-V utils include
+#include "common/app_utils.h"
 #include "common/utils.h"
 
 // RISC-V assembler includes
@@ -26,22 +27,6 @@
 #include "ise/vector_processor.h"
 
 using namespace Xbyak_riscv;
-
-
-//! Divide two integers, rounding up i.e. effectively taking ceil
-template<typename A, typename B, typename = std::enable_if_t<std::is_integral_v<A> && std::is_integral_v<B>>>
-constexpr inline auto ceilDivide(A numerator, B denominator)
-{
-    return ((numerator + denominator - 1) / denominator);
-}
-
-//! Pad an integer to a multiple of another
-template<typename A, typename B, typename = std::enable_if_t<std::is_integral_v<A>&& std::is_integral_v<B>>>
-constexpr inline auto padSize(A size, B blockSize)
-{
-    return ceilDivide(size, blockSize) * blockSize;
-}
-
 
 std::vector<int16_t> loadData(const std::string &filename)
 {
@@ -62,94 +47,6 @@ std::vector<int16_t> loadData(const std::string &filename)
     input.read(reinterpret_cast<char*>(data.data()), lengthBytes);
 
     return data;
-}
-
-// Load vector data from int16_t binary file
-uint32_t loadVectors(const std::string &filename, std::vector<int16_t> &memory)
-{
-    // Ensure memory contents is aligned
-    const size_t startHalfWords = memory.size();
-    assert((startHalfWords & 31) == 0);
-
-    std::ifstream input(filename, std::ios::binary);
-    
-    // Get length
-    input.seekg (0, std::ios::end);
-    const auto lengthBytes = input.tellg();
-    input.seekg (0, std::ios::beg);
-
-    // Check contents is half-word aligned
-    assert((lengthBytes & 1) == 0);
-
-    const auto lengthHalfWords = lengthBytes / 2;
-    const auto numVectors = ceilDivide(lengthHalfWords, 32);
-    LOGD << "Loading " << lengthBytes << " bytes from " << filename << " into " << numVectors << " vectors of memory starting at " << startHalfWords * 2 << " bytes";
-    
-    // Allocate memory and initially zero
-    memory.resize(startHalfWords + (numVectors * 32), 0);
-
-    // Read data directly into it
-    input.read(reinterpret_cast<char*>(memory.data() + startHalfWords), lengthBytes);
-
-    // Return start address in bytes
-    return static_cast<uint32_t>(startHalfWords) * 2;
-}
-
-uint32_t allocateVectorAndZero(size_t numHalfWords, std::vector<int16_t> &memory)
-{
-    // Ensure memory contents is aligned
-    const size_t startHalfWords = memory.size();
-    assert((startHalfWords & 31) == 0);
-
-    const auto numVectors = ceilDivide(numHalfWords, 32);
-    LOGD << "Allocating " << numHalfWords << " halfwords into " << numVectors << " vectors of memory starting at " << startHalfWords * 2 << " bytes";
-    
-    // Allocate memory and zero
-    memory.resize(startHalfWords + (numVectors * 32), 0);
-
-    // Return start address in bytes
-    return static_cast<uint32_t>(startHalfWords) * 2;
-}
-
-uint32_t allocateScalarAndZero(size_t numBytes, std::vector<uint8_t> &memory)
-{
-    const size_t startBytes = memory.size();
-    assert((startBytes & 3) == 0);
-
-    // Allocate memory and zero
-    LOGD << "Allocating " << numBytes << " bytes of memory starting at " << startBytes << " bytes";
-    memory.resize(startBytes + padSize(numBytes, 4), 0);
-
-    // Return start address
-    return static_cast<uint32_t>(startBytes);
-}
-
-int16_t convertFixedPoint(double x, uint32_t fixedPoint)
-{
-    const double rounded = std::round(x * (1 << fixedPoint));
-    assert(rounded >= std::numeric_limits<int16_t>::min());
-    assert(rounded <= std::numeric_limits<int16_t>::max());
-
-    return static_cast<int16_t>(rounded);
-}
-
-void writeSpikes(std::ofstream &os, const uint32_t *data, 
-                 float time, size_t numWords)
-{
-    for(size_t i = 0; i < numWords; i++) {
-        uint32_t w = *data++;;
-
-        unsigned int n = (i * 32) + 31;
-        while(w != 0) {
-            unsigned int numLZ = clz(w);
-            w = (numLZ == 31) ? 0 : (w << (numLZ + 1));
-            n -= numLZ;
-            
-            os << time << ", " << n << std::endl;
-            n--;
-
-        }
-    }
 }
 
 void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAllocator,
@@ -351,25 +248,25 @@ int main()
     constexpr uint32_t numHiddenSpikeWords = ceilDivide(numHidden, 32);
 
     // Load vector data
-    const uint32_t weightInHidPtr = loadVectors("mnist_in_hid.bin", vectorInitData);
-    const uint32_t weightHidOutPtr = loadVectors("mnist_hid_out.bin", vectorInitData);
-    const uint32_t outputBiasPtr = loadVectors("mnist_bias.bin", vectorInitData);
+    const uint32_t weightInHidPtr = AppUtils::loadVectors("mnist_in_hid.bin", vectorInitData);
+    const uint32_t weightHidOutPtr = AppUtils::loadVectors("mnist_hid_out.bin", vectorInitData);
+    const uint32_t outputBiasPtr = AppUtils::loadVectors("mnist_bias.bin", vectorInitData);
     
     // Allocate additional vector arrays
-    const uint32_t inputSpikeTimePtr = allocateVectorAndZero(numInput, vectorInitData);
+    const uint32_t inputSpikeTimePtr = AppUtils::allocateVectorAndZero(numInput, vectorInitData);
 
-    const uint32_t hiddenIsynPtr = allocateVectorAndZero(numHidden, vectorInitData);
-    const uint32_t hiddenVPtr = allocateVectorAndZero(numHidden, vectorInitData);
-    const uint32_t hiddenRefracTimePtr = allocateVectorAndZero(numHidden, vectorInitData);
+    const uint32_t hiddenIsynPtr = AppUtils::allocateVectorAndZero(numHidden, vectorInitData);
+    const uint32_t hiddenVPtr = AppUtils::allocateVectorAndZero(numHidden, vectorInitData);
+    const uint32_t hiddenRefracTimePtr = AppUtils::allocateVectorAndZero(numHidden, vectorInitData);
 
-    const uint32_t outputIsynPtr = allocateVectorAndZero(numOutput, vectorInitData);
-    const uint32_t outputVPtr = allocateVectorAndZero(numOutput, vectorInitData);
-    const uint32_t outputVSumPtr = allocateVectorAndZero(numOutput, vectorInitData);
+    const uint32_t outputIsynPtr = AppUtils::allocateVectorAndZero(numOutput, vectorInitData);
+    const uint32_t outputVPtr = AppUtils::allocateVectorAndZero(numOutput, vectorInitData);
+    const uint32_t outputVSumPtr = AppUtils::allocateVectorAndZero(numOutput, vectorInitData);
    
     // Allocate scalar arrays
-    const uint32_t timestepPtr = allocateScalarAndZero(4, scalarInitData);
-    const uint32_t inputSpikePtr = allocateScalarAndZero(numInputSpikeWords * 4, scalarInitData);
-    const uint32_t hiddenSpikePtr = allocateScalarAndZero(numHiddenSpikeWords * 4, scalarInitData);
+    const uint32_t timestepPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
+    const uint32_t inputSpikePtr = AppUtils::allocateScalarAndZero(numInputSpikeWords * 4, scalarInitData);
+    const uint32_t hiddenSpikePtr = AppUtils::allocateScalarAndZero(numHiddenSpikeWords * 4, scalarInitData);
 
     // Load data
     const auto mnistTimes = loadData("mnist_times.bin");
@@ -742,10 +639,10 @@ int main()
     //std::ofstream inputSpikes("input_spikes.csv");
     //std::ofstream hiddenSpikes("hidden_spikes.csv");
     //for(uint32_t t = 0; t < 79; t++) {
-    //    writeSpikes(inputSpikes, inputSpikeRecording.data() + (numInputSpikeWords * t),
-    //                t, numInputSpikeWords);
-    //    writeSpikes(hiddenSpikes, hiddenSpikeRecording.data() + (numHiddenSpikeWords * t),
-    //                t, numHiddenSpikeWords);
+    //    AppUtils::writeSpikes(inputSpikes, inputSpikeRecording.data() + (numInputSpikeWords * t),
+    //                          t, numInputSpikeWords);
+    //    AppUtils::writeSpikes(hiddenSpikes, hiddenSpikeRecording.data() + (numHiddenSpikeWords * t),
+    //                          t, numHiddenSpikeWords);
     //}
 
     return 0;
