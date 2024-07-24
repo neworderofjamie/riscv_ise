@@ -99,9 +99,12 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
         auto [imm, rs1, funct3, rd] = decodeIType(inst);
         const uint32_t addr = reg[rs1] + imm;
 
+        const bool inc = (funct3 & 0x2);
+        const uint32_t dest = (funct3 & 0x1) | ((funct3 & 0x4) >> 1);
+        
         // VLOADV/VLOADVI
-        if(funct3 == 0x0 || funct3 == 0x2) {
-            if(funct3 == 0x2) {
+        if(dest == 0b00) {
+            if(inc) {
                 PLOGV << "VLOADVI " << rs1 << " " << imm;
                 reg[rs1] += 64;
             }
@@ -111,16 +114,43 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
             PLOGV << "\t" << rd;
             m_VReg[rd] = m_VectorDataMemory.readVector(addr); 
         }
-        // VLOADS
-        else if(funct3 == 0x4) {
-            PLOGV << "VLOADS " << rs1 << " " << imm;
+        // VLOADS/VLOADSI
+        else if(dest == 0b10) {
+            if(inc) {
+                PLOGV << "VLOADSI " << rs1 << " " << imm;
+                reg[rs1] += 2;
+            }
+            else {
+                PLOGV << "VLOADS " << rs1 << " " << imm;
+            }
             PLOGV << "\t" << rd;
     
             std::fill(m_VReg[rd].begin(), m_VReg[rd].end(), 
                       scalarDataMemory.read16(addr));
         }
-        else {
-            throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
+        // VLOADR0/VLOADR0I
+        else if(dest == 0b01) {
+            if(inc) {
+                PLOGV << "VLOADR0I " << rs1 << " " << imm;
+                reg[rs1] += 64;
+            }
+            else {
+                PLOGV << "VLOADR0 " << rs1 << " " << imm;
+            }
+            PLOGV << "\t" << rd;
+            m_S0 = m_VectorDataMemory.readVector(addr); 
+        }
+        // VLOADR1/VLOADR1I
+        else if(dest == 0b01) {
+            if(inc) {
+                PLOGV << "VLOADR1I " << rs1 << " " << imm;
+                reg[rs1] += 64;
+            }
+            else {
+                PLOGV << "VLOADR1 " << rs1 << " " << imm;
+            }
+            PLOGV << "\t" << rd;
+            m_S1 = m_VectorDataMemory.readVector(addr); 
         }
         
         break;
@@ -229,8 +259,8 @@ Vector VectorProcessor::sampleRNG()
 
     Vector result;
     for(size_t i = 0; i < 32; i++) {
-        uint16_t s0 = m_S0[i];
-        uint16_t s1 = m_S1[i];
+        uint16_t s0 = (uint16_t)m_S0[i];
+        uint16_t s1 = (uint16_t)m_S1[i];
 
         result[i] = rol(s0 + s1, d) + s0;
 
@@ -238,8 +268,8 @@ Vector VectorProcessor::sampleRNG()
         s0 = rol(s0, a ) ^ s1 ^ (s1 << b);
         s1 = rol(s1, c);
 
-        m_S0[i] = s0;
-        m_S1[i] = s1;
+        m_S0[i] = (int16_t)s0;
+        m_S1[i] = (int16_t)s1;
     }
 
     return result;

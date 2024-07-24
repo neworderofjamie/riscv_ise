@@ -60,6 +60,6 @@ private:
     Vector m_VReg[32];
 
     // Xoroshiro32++ state
-    uint16_t m_S0[32];
-    uint16_t m_S1[32];
+    Vector m_S0;
+    Vector m_S1;
 };
