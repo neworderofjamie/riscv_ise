@@ -55,7 +55,7 @@ public:
     };
 
     RegisterAllocator(uint32_t initialFreeRegisters = 0xFFFFFFFFu)
-    :   m_FreeRegisters(initialFreeRegisters)
+    :   m_FreeRegisters(initialFreeRegisters), m_MaxUsedRegisters(0)
     {
     }
 
@@ -70,6 +70,7 @@ public:
         else {
             const int n = clz(m_FreeRegisters);
             m_FreeRegisters &= ~(0x80000000 >> n);
+            m_MaxUsedRegisters = std::max(m_MaxUsedRegisters, 32 - popCount(m_FreeRegisters));
             return std::make_shared<Handle>(static_cast<T>(n), *this, context);
         }
     }
@@ -86,11 +87,14 @@ public:
         }
     }
 
+    int getMaxUsedRegisters() const{ return m_MaxUsedRegisters; }
+
 private:
     //------------------------------------------------------------------------
     // Private members
     //------------------------------------------------------------------------
     uint32_t m_FreeRegisters;
+    int m_MaxUsedRegisters;
 };
 
 using VectorRegisterAllocator = RegisterAllocator<VReg>;

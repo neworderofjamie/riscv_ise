@@ -566,6 +566,9 @@ int main()
             // End
             c.ecall();
         }
+
+        LOGI << "Max vector registers used: " << vectorRegisterAllocator.getMaxUsedRegisters();
+        LOGI << "Max scalar registers used: " << scalarRegisterAllocator.getMaxUsedRegisters();
     }
 
     // Create RISC-V core with instruction and scalar data
