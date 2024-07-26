@@ -29,8 +29,5 @@
     <ClInclude Include="..\..\include\ise\vector_processor.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\include\common\isa.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
   </ItemGroup>
 </Project>

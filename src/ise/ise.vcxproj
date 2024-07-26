@@ -15,7 +15,6 @@
     <ClCompile Include="vector_processor.cc" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\include\common\isa.h" />
     <ClInclude Include="..\..\include\ise\riscv.h" />
     <ClInclude Include="..\..\include\ise\vector_processor.h" />
   </ItemGroup>
