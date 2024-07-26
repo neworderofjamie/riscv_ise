@@ -22,6 +22,12 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test_mnist", "src\test_mnis
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "common", "src\common\common.vcxproj", "{CD770F05-BCE1-4550-BDB0-87C804610716}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "tests", "tests\tests.vcxproj", "{9C99EB5C-1563-4C24-AA69-F02623B6B7EE}"
+	ProjectSection(ProjectDependencies) = postProject
+		{CD770F05-BCE1-4550-BDB0-87C804610716} = {CD770F05-BCE1-4550-BDB0-87C804610716}
+		{695590D3-FA1D-4CD7-9B12-B03F15FC98E6} = {695590D3-FA1D-4CD7-9B12-B03F15FC98E6}
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -44,6 +50,10 @@ Global
 		{CD770F05-BCE1-4550-BDB0-87C804610716}.Debug|x64.Build.0 = Debug|x64
 		{CD770F05-BCE1-4550-BDB0-87C804610716}.Release|x64.ActiveCfg = Release|x64
 		{CD770F05-BCE1-4550-BDB0-87C804610716}.Release|x64.Build.0 = Release|x64
+		{9C99EB5C-1563-4C24-AA69-F02623B6B7EE}.Debug|x64.ActiveCfg = Debug|x64
+		{9C99EB5C-1563-4C24-AA69-F02623B6B7EE}.Debug|x64.Build.0 = Debug|x64
+		{9C99EB5C-1563-4C24-AA69-F02623B6B7EE}.Release|x64.ActiveCfg = Release|x64
+		{9C99EB5C-1563-4C24-AA69-F02623B6B7EE}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
