@@ -15,7 +15,7 @@
     <ClInclude Include="..\..\include\assembler\xbyak_riscv.hpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="test_mnist.cc" />
+    <ClCompile Include="mnist.cc" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
@@ -23,7 +23,7 @@
     <ProjectGuid>{021E0FA8-5233-4467-8A26-A4DA7D7A29BB}</ProjectGuid>
     <RootNamespace>riscvise</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
-    <ProjectName>test_mnist</ProjectName>
+    <ProjectName>mnist</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">

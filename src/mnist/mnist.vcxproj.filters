@@ -23,7 +23,7 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="test_mnist.cc">
+    <ClCompile Include="mnist.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
