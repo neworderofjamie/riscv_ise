@@ -530,10 +530,10 @@ public:
     void vloads(VReg rd, const Reg &addr, int imm = 0){ Itype(VectorOpCode::VLOAD, 0b100, rd, addr, imm); }
     void vloadsi(VReg rd, const Reg &addr, int imm = 0){ Itype(VectorOpCode::VLOAD, 0x110, rd, addr, imm); }
 
-    void vloadr0(VReg rd, const Reg &addr, int imm = 0){ Itype(VectorOpCode::VLOAD, 0b001, rd, addr, imm); }
-    void vloadr0i(VReg rd, const Reg &addr, int imm = 0){ Itype(VectorOpCode::VLOAD, 0b011, rd, addr, imm); }
-    void vloadr1(VReg rd, const Reg &addr, int imm = 0){ Itype(VectorOpCode::VLOAD, 0b101, rd, addr, imm); }
-    void vloadr1i(VReg rd, const Reg &addr, int imm = 0){ Itype(VectorOpCode::VLOAD, 0b111, rd, addr, imm); }
+    void vloadr0(const Reg &addr, int imm = 0){ Itype(VectorOpCode::VLOAD, 0b001, 0, addr, imm); }
+    void vloadr0i(const Reg &addr, int imm = 0){ Itype(VectorOpCode::VLOAD, 0b011, 0, addr, imm); }
+    void vloadr1(const Reg &addr, int imm = 0){ Itype(VectorOpCode::VLOAD, 0b101, 0, addr, imm); }
+    void vloadr1i(const Reg &addr, int imm = 0){ Itype(VectorOpCode::VLOAD, 0b111, 0, addr, imm); }
 
     // VSTORE
     void vstore(VReg rs, const Reg &addr, int imm = 0){ Stype(VectorOpCode::VSTORE, 0x0, addr, rs, imm); }
