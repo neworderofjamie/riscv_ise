@@ -76,7 +76,7 @@ inline void breakPoint()
 
 inline int16_t convertFixedPoint(double x, uint32_t fixedPoint)
 {
-    const double rounded = std::round(x * (1 << fixedPoint));
+    const double rounded = std::round(x * (1u << fixedPoint));
     assert(rounded >= std::numeric_limits<int16_t>::min());
     assert(rounded <= std::numeric_limits<int16_t>::max());
 
