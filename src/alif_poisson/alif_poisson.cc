@@ -1,5 +1,6 @@
 // Standard C++ includes
 #include <fstream>
+#include <random>
 
 // PLOG includes
 #include <plog/Log.h>
@@ -24,59 +25,72 @@ Xbyak_riscv::CodeGenerator generateCode()
     ScalarRegisterAllocator scalarRegisterAllocator;
 
     // Register allocation
-    ALLOCATE_SCALAR(SVBuffer);
-    ALLOCATE_SCALAR(SVBufferEnd);
-    ALLOCATE_VECTOR(VAlpha);
-    ALLOCATE_VECTOR(VV);
-    ALLOCATE_VECTOR(VVReset);
-    ALLOCATE_VECTOR(VVThresh);
+    ALLOCATE_SCALAR(SIBuffer);
+    ALLOCATE_SCALAR(SIBufferEnd);
+    ALLOCATE_VECTOR(VExpMinusLambda);
     ALLOCATE_VECTOR(VI);
 
-    // alpha = e^(-1/20)
-    c.vlui(*VAlpha, 7792);
-    
-    // v = 0
-    c.vlui(*VV, 0);
-    
-    // v_thresh = 1
-    c.vlui(*VVThresh, 8192);
+    // Labels
+    Label timeLoop;
+    Label poissonLoop;
 
-    // v_reset = 0
-    c.vlui(*VVReset, 0);
-    
-    // i = vmem[0..32]
-    c.vloadv(*VI, Reg::X0);
-   
-    // Start writing 64 bytes in (after I values)
-    c.li(*SVBuffer, 64);
+    // Load RNG seed from first 128 bytes of vector memory
+    c.vloadr0(Reg::X0);
+    c.vloadr1(Reg::X0, 64);
+
+    c.vlui(*VExpMinusLambda, convertFixedPoint(std::exp(-20.0 * 256 / 1000.0), 14));
+
+    // Start writing at start
+    c.li(*SIBuffer, 0);
 
     // End writing at 100 timesteps * 64 bytes
-    c.li(*SVBufferEnd, 6400);
-    
-    // Loop over time
-    Label loop;
-    c.L(loop);
-    {
-        // Register allocation
-        ALLOCATE_SCALAR(SSpike);
+    c.li(*SIBufferEnd, 100 * 32 * 2);
 
-        // v *= alpha
-        c.vmul(13, *VV, *VV, *VAlpha);
-    
-        // v += i
-        c.vadd(*VV, *VV, *VI);
-    
-        // spike = VV >= VThres
-        c.vtge(*SSpike, *VV, *VVThresh);
-    
-        // v = spk ? v_reset : v
-        c.vsel(*VV, *SSpike, *VVReset);
-    
+    // Loop over time
+    c.L(timeLoop);
+    {
+        ALLOCATE_SCALAR(SMask);
+        ALLOCATE_VECTOR(VNumSpikes);
+        ALLOCATE_VECTOR(VP);
+        ALLOCATE_VECTOR(VOne);
+        
+        c.vlui(*VNumSpikes, 0);
+        c.vlui(*VP, convertFixedPoint(1.0, 14));
+        c.vlui(*VOne, 1);
+        c.li(*SMask, 0xFFFFFFFF);
+        c.L(poissonLoop);
+        {
+            ALLOCATE_VECTOR(VNewNumSpikes);
+            ALLOCATE_SCALAR(SNewMask);
+            ALLOCATE_VECTOR(VNewP);
+            ALLOCATE_VECTOR(VRand);
+
+            // Generate uniformly distributed random number
+            c.vrng(*VRand);
+
+            // NumSpikes++
+            c.vadd(*VNewNumSpikes, *VNumSpikes, *VOne);
+
+            // P *= VRand
+            c.vmul(15, *VNewP, *VP, *VRand);
+
+            c.vsel(*VNumSpikes, *SMask, *VNewNumSpikes);
+            c.vsel(*VP, *SMask, *VNewP);
+
+            //SNewMask = ExpMinusLambda < p
+            c.vtlt(*SNewMask, *VExpMinusLambda, *VNewP);
+            c.and_(*SMask, *SMask, *SNewMask);
+
+            c.bne(*SMask, Reg::X0, poissonLoop);
+        }
+        
+        c.vsub(*VI, *VNumSpikes, *VOne);
+
         //vmem[a...a+32] = v
-        c.vstorei(*VV, *SVBuffer);
+        c.vstorei(*VI, *SIBuffer);
     
         // While x2 (address) < x1 (count), goto loop
-        c.bne(*SVBuffer, *SVBufferEnd, loop);
+        c.bne(*SIBuffer, *SIBufferEnd, timeLoop);
     }
     
     c.ecall();
@@ -92,10 +106,16 @@ int main()
     
     // Create memory contents
     std::vector<uint8_t> scalarInitData(4096);
-    std::vector<int16_t> vectorInitData{0, 26, 53, 79, 106, 132, 159, 185, 211, 238, 264, 291, 317, 344, 370, 396, 423, 449,
-                                        476, 502, 529, 555, 581, 608, 634, 661, 687, 713, 740, 766, 793, 819};
-    vectorInitData.resize(4096);
+    std::vector<int16_t> vectorInitData(4096);
     
+    // Fill first 64 half words of vector memory with random seed data
+    std::random_device seedSource;
+    for(size_t i = 0; i < 32; i++) {
+        const uint32_t seed = seedSource();
+        vectorInitData[(i * 2) + 0] =  seed & 0xFFFF;
+        vectorInitData[(i * 2) + 1] = (seed >> 16) & 0xFFFF;
+    }
+        
     // Create RISC-V core with instruction and scalar data
     RISCV riscV(generateCode().getCode(), scalarInitData);
     
@@ -107,7 +127,7 @@ int main()
     
     const auto &vectorData = riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getVectorDataMemory().getData();
     
-    std::ofstream out("out.txt");
+    std::ofstream out("out_alif.txt");
     for(int16_t v : vectorData) {
         out << v << std::endl;
     }
