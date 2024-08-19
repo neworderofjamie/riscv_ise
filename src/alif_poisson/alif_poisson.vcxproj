@@ -11,20 +11,19 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\include\assembler\register_allocator.h" />
-    <ClInclude Include="..\..\include\assembler\xbyak_riscv.hpp" />
-    <ClInclude Include="..\..\include\common\utils.h" />
+    <ClCompile Include="alif_poisson.cc" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="test_mnist.cc" />
+    <ClInclude Include="..\..\include\assembler\register_allocator.h" />
+    <ClInclude Include="..\..\include\assembler\xbyak_riscv.hpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
-    <ProjectGuid>{021E0FA8-5233-4467-8A26-A4DA7D7A29BB}</ProjectGuid>
+    <ProjectGuid>{25F47033-883C-4203-BB30-9425A5E58EE5}</ProjectGuid>
     <RootNamespace>riscvise</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
-    <ProjectName>test_mnist</ProjectName>
+    <ProjectName>alif_poisson</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
@@ -74,7 +73,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>ise_$(Configuration).lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>ise_$(Configuration).lib;common_$(Configuration).lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(SolutionDir)lib</AdditionalLibraryDirectories>
     </Link>
     <Lib>
@@ -100,7 +99,7 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>ise_$(Configuration).lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>ise_$(Configuration).lib;common_$(Configuration).lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(SolutionDir)lib</AdditionalLibraryDirectories>
     </Link>
     <Lib>

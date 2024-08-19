@@ -141,7 +141,7 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
             m_S0 = m_VectorDataMemory.readVector(addr); 
         }
         // VLOADR1/VLOADR1I
-        else if(dest == 0b01) {
+        else if(dest == 0b11) {
             if(inc) {
                 PLOGV << "VLOADR1I " << rs1 << " " << imm;
                 reg[rs1] += 64;
@@ -262,7 +262,8 @@ Vector VectorProcessor::sampleRNG()
         uint16_t s0 = (uint16_t)m_S0[i];
         uint16_t s1 = (uint16_t)m_S1[i];
 
-        result[i] = rol(s0 + s1, d) + s0;
+        // **NOTE** shift down result down to get 0,int16_max range
+        result[i] = (uint16_t)(rol(s0 + s1, d) + s0) >> 1;
 
         s1 ^= s0;
         s0 = rol(s0, a ) ^ s1 ^ (s1 << b);
