@@ -85,4 +85,22 @@ void writeSpikes(std::ofstream &os, const uint32_t *data,
         }
     }
 }
+
+void dumpCOE(const std::string &filename, const std::vector<uint32_t> &code)
+{
+    // Write hexadecimal COE file
+    std::ofstream coe(filename);
+    coe << "memory_initialization_radix = 16;" << std::endl;
+    coe << "memory_initialization_vector = " << std::endl;
+    for(size_t i = 0; i < code.size(); i++) {
+        coe << std::hex << std::setfill('0') << std::setw(8) << code[i];
+        if(i == (code.size() - 1)) {
+            coe << ";";
+        }
+        else {
+            coe << ",";
+        }
+        coe << std::endl;
+    }
+}
 }

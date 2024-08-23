@@ -25,4 +25,6 @@ uint32_t allocateScalarAndZero(size_t numBytes, std::vector<uint8_t> &memory);
 // Write one timestep of spikes from a bitfield in CSV format
 void writeSpikes(std::ofstream &os, const uint32_t *data, 
                  float time, size_t numWords);
+
+void dumpCOE(const std::string &filename, const std::vector<uint32_t> &code);
 }
