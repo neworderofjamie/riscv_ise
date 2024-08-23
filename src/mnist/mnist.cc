@@ -282,7 +282,8 @@ int main()
         {
             ALLOCATE_SCALAR(STemp);
             c.li(*STemp, timestepPtr);
-            c.vloads(*VTime, *STemp);
+            c.lh(*STemp, *STemp);
+            c.vfill(*VTime, *STemp);
         }
 
         // Loop over time
