@@ -40,17 +40,18 @@ enum class StandardOpCode : uint32_t
 };
 
 static constexpr uint32_t standardQuadrant = 0b11;
-static constexpr uint32_t vectorQuadrant = 0b00;
+static constexpr uint32_t vectorQuadrant = 0b10;
 
 enum class VectorOpCode : uint32_t
 {
-    VSOP    = 0b00010,
-    VSPC    = 0b00100,
-    VLUI    = 0b00110,
-    VTST    = 0b01010,
-    VSEL    = 0b01110,
-    VLOAD   = 0b10010,
-    VSTORE  = 0b10110,
+    VSOP    = 0b00000,
+    VLUI    = 0b00001,
+    VTST    = 0b00010,
+    VSEL    = 0b00011,
+    VLOAD   = 0b00100,
+    VSTORE  = 0b00101,
+    VFILL   = 0b00110,
+    VSPC    = 0b01000, 
 };
 
 

@@ -90,7 +90,7 @@ VectorProcessor::VectorProcessor(const std::vector<int16_t> &data)
 }    
 //------------------------------------------------------------------------
 void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32], 
-                                         ScalarDataMemory &scalarDataMemory)
+                                         ScalarDataMemory&)
 {
     const auto opcode = static_cast<VectorOpCode>((inst & 0b1111100) >> 2);
     switch(opcode) {
@@ -113,20 +113,6 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
             }
             PLOGV << "\t" << rd;
             m_VReg[rd] = m_VectorDataMemory.readVector(addr); 
-        }
-        // VLOADS/VLOADSI
-        else if(dest == 0b10) {
-            if(inc) {
-                PLOGV << "VLOADSI " << rs1 << " " << imm;
-                reg[rs1] += 2;
-            }
-            else {
-                PLOGV << "VLOADS " << rs1 << " " << imm;
-            }
-            PLOGV << "\t" << rd;
-    
-            std::fill(m_VReg[rd].begin(), m_VReg[rd].end(), 
-                      scalarDataMemory.read16(addr));
         }
         // VLOADR0/VLOADR0I
         else if(dest == 0b01) {
@@ -162,6 +148,18 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
         PLOGV << "VLUI " << imm;
         PLOGV << "\t" << rd;
         std::fill(m_VReg[rd].begin(), m_VReg[rd].end(), imm);
+        break;
+    }
+
+    case VectorOpCode::VFILL:
+    {
+        auto [imm, rs1, funct3, rd] = decodeIType(inst);
+
+        PLOGV << "VFILL " << rs1;
+        PLOGV << "\t" << rd;
+        const uint32_t val = reg[rs1];
+        std::fill(m_VReg[rd].begin(), m_VReg[rd].end(), 
+                  (int16_t)((val & 0x80000000) >> 16 | (val & 0x7FFF)));
         break;
     }
 
@@ -281,6 +279,9 @@ Vector VectorProcessor::calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs
     const auto &val = m_VReg[rs1];
     const auto &val2 = m_VReg[rs2];
 
+    // Split funct7 into mode and shift
+    const uint32_t mode = (funct7 >> 4);
+    const uint32_t shift = (funct7 & 0b1111);
     switch(funct3)
     {
     // VADD
@@ -304,7 +305,7 @@ Vector VectorProcessor::calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs
             throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
         }
         return binaryOp(val, val2, 
-                        [funct7](int16_t a, int16_t b){ return ((int32_t)a * b) >> funct7; });
+                        [shift](int16_t a, int16_t b){ return ((int32_t)a * b) >> shift; });
     }
     default:
     {

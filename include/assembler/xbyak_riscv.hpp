@@ -521,14 +521,15 @@ public:
     // VLUI
     void vlui(VReg rd, uint32_t imm){ Utype(VectorOpCode::VLUI, rd, imm); }
 
+    // VFILL
+    void vfill(VReg rd, Reg rs){ Itype(VectorOpCode::VFILL, 0, rd, rs, 0); }
+
     // VSPC
     void vrng(VReg rd){ Itype(VectorOpCode::VSPC, 0x0, rd, Reg::X0, 0); }
 
     // VLOAD
     void vloadv(VReg rd, const Reg &addr, int imm = 0){ Itype(VectorOpCode::VLOAD, 0b000, rd, addr, imm); }
     void vloadvi(VReg rd, const Reg &addr, int imm = 0){ Itype(VectorOpCode::VLOAD, 0b010, rd, addr, imm); }
-    void vloads(VReg rd, const Reg &addr, int imm = 0){ Itype(VectorOpCode::VLOAD, 0b100, rd, addr, imm); }
-    void vloadsi(VReg rd, const Reg &addr, int imm = 0){ Itype(VectorOpCode::VLOAD, 0x110, rd, addr, imm); }
 
     void vloadr0(const Reg &addr, int imm = 0){ Itype(VectorOpCode::VLOAD, 0b001, 0, addr, imm); }
     void vloadr0i(const Reg &addr, int imm = 0){ Itype(VectorOpCode::VLOAD, 0b011, 0, addr, imm); }
