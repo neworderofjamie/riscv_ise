@@ -2,22 +2,22 @@
 include ../MakefileCommon
 
 # Add compiler and linker flags to link libGeNN and correct backend; and to configure generator to use backend
-LDFLAGS			+= -L$(LIBRARY_DIRECTORY) -lise$(PREFIX)
+LDFLAGS		+= -L$(LIBRARY_DIRECTORY) -lise$(PREFIX)
 
 # Determine full path to test
-TEST		:=$(BIN_DIRECTORY)/test$(PREFIX)
+LIF		:=$(BIN_DIRECTORY)/lif$(PREFIX)
 
 .PHONY: all clean libise
 
-all: $(TEST)
+all: $(LIF)
 
--include test.d
+-include lif.d
 
-$(TEST): test.cc test.d libise
+$(LIF): lif.cc lif.d libise
 	mkdir -p $(@D)
-	$(CXX) $(CXXFLAGS) test.cc -o $@ $(LDFLAGS)
+	$(CXX) $(CXXFLAGS) lif.cc -o $@ $(LDFLAGS)
 
-test.cc: ;
+lif.cc: ;
 
 libise:
 	if [ -w $(LIBRARY_DIRECTORY) ]; then $(MAKE) -C $(RISCV_DIR)/src/ise; fi;
@@ -25,4 +25,4 @@ libise:
 %.d: ;
 
 clean:
-	rm -f $(TEST)
+	rm -f $(LIF)
