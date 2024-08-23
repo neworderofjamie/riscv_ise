@@ -58,9 +58,6 @@ Xbyak_riscv::CodeGenerator generateCode(uint32_t scalarPtr, uint32_t vectorPtr,
         ALLOCATE_VECTOR(VData);
         ALLOCATE_SCALAR(SLane);
 
-        // VData = 0
-        c.vlui(*VData, 0);
-
         // SLane = 0
         c.li(*SLane, 0);
 
