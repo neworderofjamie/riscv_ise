@@ -5,19 +5,19 @@ include ../MakefileCommon
 LDFLAGS			+= -L$(LIBRARY_DIRECTORY) -lise$(PREFIX) -lcommon$(PREFIX)
 
 # Determine full path to test
-TEST_INIT_VRAM	:=$(BIN_DIRECTORY)/test_init_vram$(PREFIX)
+INIT_VRAM	:=$(BIN_DIRECTORY)/init_vram$(PREFIX)
 
 .PHONY: all clean libise libcommon
 
-all: $(TEST_INIT_VRAM)
+all: $(INIT_VRAM)
 
--include test_init_vram.d
+-include init_vram.d
 
-$(TEST_INIT_VRAM): test_init_vram.cc test_init_vram.d libise libcommon
+$(INIT_VRAM): init_vram.cc init_vram.d libise libcommon
 	mkdir -p $(@D)
-	$(CXX) $(CXXFLAGS) test_init_vram.cc -o $@ $(LDFLAGS)
+	$(CXX) $(CXXFLAGS) init_vram.cc -o $@ $(LDFLAGS)
 
-test_init_vram.cc: ;
+init_vram.cc: ;
 
 libise:
 	if [ -w $(LIBRARY_DIRECTORY) ]; then $(MAKE) -C $(RISCV_DIR)/src/ise; fi;
@@ -28,4 +28,4 @@ libcommon:
 %.d: ;
 
 clean:
-	rm -f $(TEST_INIT_VRAM)
+	rm -f $(INIT_VRAM)
