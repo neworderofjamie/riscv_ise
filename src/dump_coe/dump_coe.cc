@@ -6,6 +6,9 @@
 #include <plog/Severity.h>
 #include <plog/Appenders/ConsoleAppender.h>
 
+// RISC-V utils include
+#include "common/app_utils.h"
+
 // RISC-V assembler includes
 #include "assembler/register_allocator.h"
 #include "assembler/xbyak_riscv.hpp"
@@ -54,17 +57,5 @@ int main()
     
     const auto code = generateCode().getCode();
     
-    std::ofstream coe("output.coe");
-    coe << "memory_initialization_radix = 16;" << std::endl;
-    coe << "memory_initialization_vector = " << std::endl;
-    for(size_t i = 0; i < code.size(); i++) {
-        coe << std::hex << std::setfill('0') << std::setw(8) << code[i];
-        if(i == (code.size() - 1)) {
-            coe << ";";
-        }
-        else {
-            coe << ",";
-        }
-        coe << std::endl;
-    }
+    AppUtils::dumpCOE("output.coe", code);
 }
