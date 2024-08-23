@@ -7,6 +7,9 @@
 #include <plog/Severity.h>
 #include <plog/Appenders/ConsoleAppender.h>
 
+// RISC-V utils include
+#include "common/app_utils.h"
+
 // RISC-V assembler includes
 #include "assembler/register_allocator.h"
 #include "assembler/xbyak_riscv.hpp"
@@ -66,9 +69,13 @@ Xbyak_riscv::CodeGenerator generateCode(uint32_t scalarPtr, uint32_t vectorPtr,
             // Register allocation
             ALLOCATE_VECTOR(VLane);
             ALLOCATE_SCALAR(SMask);
+            ALLOCATE_SCALAR(SVal);
 
-            // Fill all lanes with half-word read from SDataBuffer
-            c.vloads(*VLane, *SDataBuffer, 0);
+            // Load halfword
+            c.lh(*SVal, *SDataBuffer, 0);
+
+            // Fill vector register
+            c.vfill(*VLane, *SVal);
 
             // SDataBuffer += 2
             c.addi(*SDataBuffer, *SDataBuffer, 2);
@@ -119,7 +126,11 @@ int main()
     std::memcpy(scalarInitData.data(), test.data(), 10 * 32 * 2);
 
     // Create RISC-V core with instruction and scalar data
-    RISCV riscV(generateCode(0, 0, 10).getCode(), scalarInitData);
+    const auto code = generateCode(0, 0, 10).getCode();
+
+    AppUtils::dumpCOE("init_vram.coe", code);
+
+    RISCV riscV(code, scalarInitData);
     
     // Add vector co-processor
     riscV.addCoprocessor<VectorProcessor>(vectorQuadrant, vectorInitData);
