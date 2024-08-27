@@ -1,0 +1,31 @@
+{
+    "configurations": [
+    {
+        "name": "Launch project",
+        "type": "cppdbg",
+        "request": "launch",
+        "program": "${workspaceFolder}/bin/${input:example}_debug",
+        "stopAtEntry": false,
+        "cwd": "${workspaceFolder}/bin",
+        "environment": [],
+        "externalConsole": false,
+        "MIMode": "gdb",
+    }
+    ],
+    "inputs": [
+    {
+      "type": "pickString",
+      "id": "example",
+      "description": "What example do you want to debug?",
+      "options": [
+        "decay",
+        "dump_coe",
+        "init_vram",
+        "lif",
+        "mnist",
+        "poisson",
+      ],
+      "default": "lif"
+    }
+  ]
+}
