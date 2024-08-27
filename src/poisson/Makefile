@@ -5,17 +5,17 @@ include ../MakefileCommon
 LDFLAGS			+= -L$(LIBRARY_DIRECTORY) -lise$(PREFIX)
 
 # Determine full path to test_mnist
-TEST_ALIF_POISSON	:=$(BIN_DIRECTORY)/test_alif_poisson$(PREFIX)
+POISSON		:=$(BIN_DIRECTORY)/poisson$(PREFIX)
 
 .PHONY: all clean libise
 
-all: $(TEST_ALIF_POISSON)
+all: $(POISSON)
 
--include test_alif_poisson.d
+-include poisson.d
 
-$(TEST_ALIF_POISSON): test_alif_poisson.cc test_alif_poisson.d libise
+$(POISSON): poisson.cc poisson.d libise
 	mkdir -p $(@D)
-	$(CXX) $(CXXFLAGS) test_alif_poisson.cc -o $@ $(LDFLAGS)
+	$(CXX) $(CXXFLAGS) poisson.cc -o $@ $(LDFLAGS)
 
 
 libise:
@@ -24,4 +24,4 @@ libise:
 %.d: ;
 
 clean:
-	rm -f $(TEST_ALIF_POISSON)
+	rm -f $(POISSON)

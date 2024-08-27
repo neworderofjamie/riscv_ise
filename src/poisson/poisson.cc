@@ -87,7 +87,8 @@ Xbyak_riscv::CodeGenerator generateCode()
         c.vsub(*VI, *VNumSpikes, *VOne);
 
         //vmem[a...a+32] = v
-        c.vstorei(*VI, *SIBuffer);
+        c.vstore(*VI, *SIBuffer);
+        c.addi(*SIBuffer, *SIBuffer, 64);
     
         // While x2 (address) < x1 (count), goto loop
         c.bne(*SIBuffer, *SIBufferEnd, timeLoop);
@@ -105,8 +106,8 @@ int main()
     plog::init(plog::debug, &consoleAppender);
     
     // Create memory contents
-    std::vector<uint8_t> scalarInitData(4096);
-    std::vector<int16_t> vectorInitData(4096);
+    std::vector<uint8_t> scalarInitData;
+    std::vector<int16_t> vectorInitData(3200);
     
     // Fill first 64 half words of vector memory with random seed data
     std::random_device seedSource;
@@ -127,7 +128,7 @@ int main()
     
     const auto &vectorData = riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getVectorDataMemory().getData();
     
-    std::ofstream out("out_alif.txt");
+    std::ofstream out("out_poisson.txt");
     for(int16_t v : vectorData) {
         out << v << std::endl;
     }
