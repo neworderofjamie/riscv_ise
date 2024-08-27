@@ -164,14 +164,16 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
                     ALLOCATE_VECTOR(VISyn);
 
                     // Load next vector of weights and ISyns
-                    c.vloadvi(*VWeight, *SWeightBuffer);
+                    c.vloadv(*VWeight, *SWeightBuffer);
                     c.vloadv(*VISyn, *SISynBuffer);
+                    c.addi(*SWeightBuffer, *SWeightBuffer, 64);
 
                     // Add weights to ISyn
                     c.vadd(*VISyn, *VISyn, *VWeight);
 
                     // Write back ISyn and increment SISynBuffer
-                    c.vstorei(*VISyn, *SISynBuffer);
+                    c.vstore(*VISyn, *SISynBuffer);
+                    c.addi(*SISynBuffer, *SISynBuffer, 64);
 
                     // If we haven't reached end of Isyn buffer, loop
                     c.bne(*SISynBuffer, *SISynBufferEnd, weightLoop);
@@ -341,7 +343,8 @@ int main()
                     ALLOCATE_SCALAR(SSpikeVec);
 
                     // Load spike times and increment buffer
-                    c.vloadvi(*VSpikeTime, *SSpikeTimeBuffer);
+                    c.vloadv(*VSpikeTime, *SSpikeTimeBuffer);
+                    c.addi(*SSpikeTimeBuffer, *SSpikeTimeBuffer, 64);
 
                     // spike vector = x4 = spike time == t
                     c.vteq(*SSpikeVec, *VTime, *VSpikeTime);
@@ -483,9 +486,12 @@ int main()
                     c.vsel(*VRefracTime, *SSpikeOut, *VTauRefrac);
 
                     // Store VV, ISyn and refrac time and increment buffers
-                    c.vstorei(*VV, *SVBuffer);
-                    c.vstorei(*VISyn, *SISynBuffer);
-                    c.vstorei(*VRefracTime, *SRefracTimeBuffer);
+                    c.vstore(*VV, *SVBuffer);
+                    c.addi(*SVBuffer, *SVBuffer, 64);
+                    c.vstore(*VISyn, *SISynBuffer);
+                    c.addi(*SISynBuffer, *SISynBuffer, 64);
+                    c.vstore(*VRefracTime, *SRefracTimeBuffer);
+                    c.addi(*SRefracTimeBuffer, *SRefracTimeBuffer, 64);
 
                     // SVBuffer += 64
                     c.addi(*SSpikeBuffer, *SSpikeBuffer, 4);

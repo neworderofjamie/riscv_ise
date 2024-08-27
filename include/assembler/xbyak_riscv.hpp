@@ -529,16 +529,12 @@ public:
 
     // VLOAD
     void vloadv(VReg rd, const Reg &addr, int imm = 0){ Itype(VectorOpCode::VLOAD, 0b000, rd, addr, imm); }
-    void vloadvi(VReg rd, const Reg &addr, int imm = 0){ Itype(VectorOpCode::VLOAD, 0b010, rd, addr, imm); }
 
     void vloadr0(const Reg &addr, int imm = 0){ Itype(VectorOpCode::VLOAD, 0b001, 0, addr, imm); }
-    void vloadr0i(const Reg &addr, int imm = 0){ Itype(VectorOpCode::VLOAD, 0b011, 0, addr, imm); }
     void vloadr1(const Reg &addr, int imm = 0){ Itype(VectorOpCode::VLOAD, 0b101, 0, addr, imm); }
-    void vloadr1i(const Reg &addr, int imm = 0){ Itype(VectorOpCode::VLOAD, 0b111, 0, addr, imm); }
-
+    
     // VSTORE
     void vstore(VReg rs, const Reg &addr, int imm = 0){ Stype(VectorOpCode::VSTORE, 0x0, addr, rs, imm); }
-    void vstorei(VReg rs, const Reg &addr, int imm = 0){ Stype(VectorOpCode::VSTORE, 0x2, addr, rs, imm); }
 
 private:
     CodeGenerator operator=(const CodeGenerator&) = delete;

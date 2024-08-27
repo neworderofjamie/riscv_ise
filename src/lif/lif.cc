@@ -73,7 +73,8 @@ Xbyak_riscv::CodeGenerator generateCode()
         c.vsel(*VV, *SSpike, *VVReset);
     
         //vmem[a...a+32] = v
-        c.vstorei(*VV, *SVBuffer);
+        c.vstore(*VV, *SVBuffer);
+        c.addi(*SVBuffer, *SVBuffer, 64);
     
         // While x2 (address) < x1 (count), goto loop
         c.bne(*SVBuffer, *SVBufferEnd, loop);

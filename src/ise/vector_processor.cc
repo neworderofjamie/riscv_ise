@@ -99,42 +99,21 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
         auto [imm, rs1, funct3, rd] = decodeIType(inst);
         const uint32_t addr = reg[rs1] + imm;
 
-        const bool inc = (funct3 & 0x2);
-        const uint32_t dest = (funct3 & 0x1) | ((funct3 & 0x4) >> 1);
-        
-        // VLOADV/VLOADVI
-        if(dest == 0b00) {
-            if(inc) {
-                PLOGV << "VLOADVI " << rs1 << " " << imm;
-                reg[rs1] += 64;
-            }
-            else {
-                PLOGV << "VLOADV " << rs1 << " " << imm;
-            }
+        // VLOADV
+        if(funct3 == 0b000) {
+            PLOGV << "VLOADV " << rs1 << " " << imm;
             PLOGV << "\t" << rd;
             m_VReg[rd] = m_VectorDataMemory.readVector(addr); 
         }
-        // VLOADR0/VLOADR0I
-        else if(dest == 0b01) {
-            if(inc) {
-                PLOGV << "VLOADR0I " << rs1 << " " << imm;
-                reg[rs1] += 64;
-            }
-            else {
-                PLOGV << "VLOADR0 " << rs1 << " " << imm;
-            }
+        // VLOADR0
+        else if(funct3 == 0b001) {
+            PLOGV << "VLOADR0 " << rs1 << " " << imm;
             PLOGV << "\t" << rd;
             m_S0 = m_VectorDataMemory.readVector(addr); 
         }
         // VLOADR1/VLOADR1I
-        else if(dest == 0b11) {
-            if(inc) {
-                PLOGV << "VLOADR1I " << rs1 << " " << imm;
-                reg[rs1] += 64;
-            }
-            else {
-                PLOGV << "VLOADR1 " << rs1 << " " << imm;
-            }
+        else if(funct3 == 0b101) {
+            PLOGV << "VLOADR1 " << rs1 << " " << imm;
             PLOGV << "\t" << rd;
             m_S1 = m_VectorDataMemory.readVector(addr); 
         }
