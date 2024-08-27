@@ -272,9 +272,9 @@ Vector VectorProcessor::calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs
     const auto &val = m_VReg[rs1];
     const auto &val2 = m_VReg[rs2];
 
-    // Split funct7 into mode and shift
+    // Split funct7 into mode and fixed point position
     const uint32_t mode = (funct7 >> 4);
-    const uint32_t shift = (funct7 & 0b1111);
+    const uint32_t fixedPoint = (funct7 & 0b1111);
     const bool saturateResult = (mode & 0b100);
     const uint32_t roundMode = (mode & 0b011);
     switch(funct3)
@@ -309,32 +309,35 @@ Vector VectorProcessor::calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs
         // Round-to-zero
         if(roundMode == 0b00) {
             return binaryOp(val, val2, saturateResult,
-                            [shift](int16_t a, int16_t b)
+                            [fixedPoint](int16_t a, int16_t b)
                             {
-                                return (a * b) >> shift; 
+                                return (a * b) >> fixedPoint; 
                             });
         }
         // Round-to-nearest (half up)
         else if(roundMode == 0b01) {
-            const int16_t half = 1 << (shift - 1);
+            const int16_t half = 1 << (fixedPoint - 1);
             return binaryOp(val, val2, saturateResult,
-                            [half,shift](int16_t a, int16_t b)
+                            [half,fixedPoint](int16_t a, int16_t b)
                             {
-                                return ((a * b) + half) >> shift; 
+                                return ((a * b) + half) >> fixedPoint; 
                             });
         }
         // Stochastic round
         else if (roundMode == 0b10) {
-            const auto stoch = sampleRNG(16 - shift);
+            // **NOTE** We want to generate random fractional bits and
+            /// there are (fixedPoint - 1) fractional bit so we
+            // need to shift off difference between 16 and (fixedPoint - 1).
+            const auto stoch = sampleRNG(16 - (fixedPoint - 1));
             Vector result;
             if(saturateResult) {
                 for(size_t i = 0; i < 32; i++) {
-                    result[i] = ((val[i] * val2[i]) + stoch[i]) >> shift;
+                    result[i] = ((val[i] * val2[i]) + stoch[i]) >> fixedPoint;
                 }
             }
             else {
                 for(size_t i = 0; i < 32; i++) {
-                    result[i] = saturate(((val[i] * val2[i]) + stoch[i]) >> shift);
+                    result[i] = saturate(((val[i] * val2[i]) + stoch[i]) >> fixedPoint);
 
                 }
             }
