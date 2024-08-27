@@ -11,11 +11,29 @@
 
 namespace
 {
+inline int16_t saturate(int val) 
+{
+    return std::clamp(val, (int)std::numeric_limits<int16_t>::min(),
+                      (int)std::numeric_limits<int16_t>::max()); 
+}
+
+static inline uint16_t rol(uint16_t x, uint16_t k)
+{
+    return (x << k) | (x >> ((sizeof(x) * 8) - k));
+}
+
 template<typename F>
-Vector binaryOp(const Vector &val, const Vector &val2, F func)
+Vector binaryOp(const Vector &val, const Vector &val2, bool saturateResult, F func)
 {
     Vector result;
-    std::transform(val.cbegin(), val.cend(), val2.cbegin(), result.begin(), func);
+    if(saturateResult) {
+        std::transform(val.cbegin(), val.cend(), val2.cbegin(), result.begin(), 
+                       [func](int16_t a, int16_t b){ return saturate(func(a, b)); });
+    }
+    else {
+        std::transform(val.cbegin(), val.cend(), val2.cbegin(), result.begin(), 
+                       func);
+    }
     return result;
 }
 
@@ -32,12 +50,8 @@ uint32_t maskOp(const Vector &val, const Vector &val2, F func)
     return mask;
 }
 
-static inline uint16_t rol(uint16_t x, uint16_t k)
-{
-    return (x << k) | (x >> ((sizeof(x) * 8) - k));
 }
 
-}
 //----------------------------------------------------------------------------
 // VectorDataMemory
 //----------------------------------------------------------------------------
@@ -154,7 +168,8 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
 
             PLOGV << "VRNG";
             PLOGV << "\t" << rd;
-            m_VReg[rd] = sampleRNG();
+            // **NOTE** shift down result down to get 0,int16_max range
+            m_VReg[rd] = sampleRNG(1);
         }
         else {
             throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
@@ -227,7 +242,7 @@ void VectorProcessor::dumpRegisters() const
     }
 }
 //------------------------------------------------------------------------
-Vector VectorProcessor::sampleRNG()
+Vector VectorProcessor::sampleRNG(int shift)
 {
     constexpr uint16_t a = 13;
     constexpr uint16_t b = 5;
@@ -239,8 +254,7 @@ Vector VectorProcessor::sampleRNG()
         uint16_t s0 = (uint16_t)m_S0[i];
         uint16_t s1 = (uint16_t)m_S1[i];
 
-        // **NOTE** shift down result down to get 0,int16_max range
-        result[i] = (uint16_t)(rol(s0 + s1, d) + s0) >> 1;
+        result[i] = (rol(s0 + s1, d) + s0) >> shift;
 
         s1 ^= s0;
         s0 = rol(s0, a ) ^ s1 ^ (s1 << b);
@@ -253,7 +267,7 @@ Vector VectorProcessor::sampleRNG()
     return result;
 }
 //------------------------------------------------------------------------
-Vector VectorProcessor::calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs2, uint32_t rs1, uint32_t funct3) const
+Vector VectorProcessor::calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs2, uint32_t rs1, uint32_t funct3)
 {
     const auto &val = m_VReg[rs1];
     const auto &val2 = m_VReg[rs2];
@@ -261,30 +275,75 @@ Vector VectorProcessor::calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs
     // Split funct7 into mode and shift
     const uint32_t mode = (funct7 >> 4);
     const uint32_t shift = (funct7 & 0b1111);
+    const bool saturateResult = (mode & 0b100);
+    const uint32_t roundMode = (mode & 0b011);
     switch(funct3)
     {
     // VADD
     case 0b000:
     {
         PLOGV << "VADD " << rs1 << " " << rs2;
-        return binaryOp(val, val2, [](int16_t a, int16_t b){ return a + b; });
+        if(roundMode != 0) {
+            throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
+        }
+        return binaryOp(val, val2, saturateResult,
+                        [](int16_t a, int16_t b){ return a + b; });
     }
 
     // VSUB
     case 0b010:
     {
         PLOGV << "VSUB " << rs1 << " " << rs2;
-        return binaryOp(val, val2, [](int16_t a, int16_t b){ return a - b; });
+        if(roundMode != 0) {
+            throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
+        }
+
+        return binaryOp(val, val2, saturateResult,
+                        [](int16_t a, int16_t b){ return a - b; });
     }
     // VMUL
     case 0b100:
     {
         PLOGV << "VMUL " << rs1 << " " << rs2;
-        if ((funct7 & ~15) != 0) {
+  
+        // Round-to-zero
+        if(roundMode == 0b00) {
+            return binaryOp(val, val2, saturateResult,
+                            [shift](int16_t a, int16_t b)
+                            {
+                                return (a * b) >> shift; 
+                            });
+        }
+        // Round-to-nearest (half up)
+        else if(roundMode == 0b01) {
+            const int16_t half = 1 << (shift - 1);
+            return binaryOp(val, val2, saturateResult,
+                            [half,shift](int16_t a, int16_t b)
+                            {
+                                return ((a * b) + half) >> shift; 
+                            });
+        }
+        // Stochastic round
+        else if (roundMode == 0b10) {
+            const auto stoch = sampleRNG(16 - shift);
+            Vector result;
+            if(saturateResult) {
+                for(size_t i = 0; i < 32; i++) {
+                    result[i] = ((val[i] * val2[i]) + stoch[i]) >> shift;
+                }
+            }
+            else {
+                for(size_t i = 0; i < 32; i++) {
+                    result[i] = saturate(((val[i] * val2[i]) + stoch[i]) >> shift);
+
+                }
+            }
+            return result;
+        }
+        else {
             throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
         }
-        return binaryOp(val, val2, 
-                        [shift](int16_t a, int16_t b){ return ((int32_t)a * b) >> shift; });
+        
     }
     default:
     {

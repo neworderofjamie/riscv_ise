@@ -504,10 +504,17 @@ public:
     // FeNN vector processor
 
     // VSOP
-    // Rtype(Bit<7> opcode, Bit<3> funct3, Bit<7> funct7, Bit<5> rd, Bit<5> rs1, Bit<5> rs2)
-    void vadd(VReg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VSOP, 0b000, 0x0, rd, rs1, rs2); }
-    void vsub(VReg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VSOP, 0b010, 0x0, rd, rs1, rs2); }
+    void vadd(VReg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VSOP, 0b000, 0b0000000, rd, rs1, rs2); }
+    void vadd_s(VReg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VSOP, 0b000, 0b1000000, rd, rs1, rs2); }
+    void vsub(VReg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VSOP, 0b010, 0b0000000, rd, rs1, rs2); }
+    void vsub_s(VReg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VSOP, 0b010, 0b1000000, rd, rs1, rs2); }
     void vmul(Bit<4> shift, VReg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VSOP, 0b100, shift, rd, rs1, rs2); }
+    void vmul_rn(Bit<4> shift, VReg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VSOP, 0b100, shift | 0b0010000, rd, rs1, rs2); }
+    void vmul_rs(Bit<4> shift, VReg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VSOP, 0b100, shift | 0b0100000, rd, rs1, rs2); }
+    void vmul_s(Bit<4> shift, VReg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VSOP, 0b100, shift | 0b1000000, rd, rs1, rs2); }
+    void vmul_s_rn(Bit<4> shift, VReg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VSOP, 0b100, shift | 0b1010000, rd, rs1, rs2); }
+    void vmul_s_rs(Bit<4> shift, VReg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VSOP, 0b100, shift | 0b1100000, rd, rs1, rs2); }
+
 
     // VTST
     void vteq(const Reg &rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VTST, 0b000, 0x0, rd, rs1, rs2); }
@@ -529,7 +536,6 @@ public:
 
     // VLOAD
     void vloadv(VReg rd, const Reg &addr, int imm = 0){ Itype(VectorOpCode::VLOAD, 0b000, rd, addr, imm); }
-
     void vloadr0(const Reg &addr, int imm = 0){ Itype(VectorOpCode::VLOAD, 0b001, 0, addr, imm); }
     void vloadr1(const Reg &addr, int imm = 0){ Itype(VectorOpCode::VLOAD, 0b101, 0, addr, imm); }
     
