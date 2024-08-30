@@ -11,7 +11,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="alif_poisson.cc" />
+    <ClCompile Include="poisson.cc" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\assembler\register_allocator.h" />
@@ -23,7 +23,7 @@
     <ProjectGuid>{25F47033-883C-4203-BB30-9425A5E58EE5}</ProjectGuid>
     <RootNamespace>riscvise</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
-    <ProjectName>alif_poisson</ProjectName>
+    <ProjectName>poisson</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
