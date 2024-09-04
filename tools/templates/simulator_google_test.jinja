@@ -11,9 +11,7 @@
 // RISC-V ISE includes
 #include "ise/riscv.h"
 
-#define XLEN 32
-#define MASK (((1<<(XLEN-1))-1) + (1<<(XLEN-1))) // XLEN bits of 1s
-#define MASK_XLEN(val)  val&MASK // shortens 64b values to XLEN when XLEN==32
+#define MASK_XLEN(val)  val&0xFFFFFFFF // shortens 64b values to 32b
 
 using namespace Xbyak_riscv;
 
