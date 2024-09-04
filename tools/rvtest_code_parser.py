@@ -18,6 +18,14 @@ _match_test_rr_op = re.compile(fr"TEST_RR_OP\({_inst},\s*{_reg},\s*{_reg},\s*{_r
 # Base address setting operation
 _match_sigbase = re.compile(fr"RVTEST_SIGBASE\(\s*{_reg},\s*{_var}\)")
 
+def _get_description(lines, i):
+    # If there is a previous line and it starts with a comment
+    if i > 0 and lines[i - 1].lstrip().startswith("//"):
+        description_start_idx = lines[i - 1].find("//")
+        return get_clean_name(lines[i - 1][description_start_idx + 2:])
+    else:
+        logger.warn(f"No comment with test description preceding test at line {i}")
+        return "fTest{i}"
 
 def parse_code(lines, var_addresses):
     test_code = ""
@@ -61,17 +69,10 @@ def parse_code(lines, var_addresses):
                     f"c.{match.group(1)}(Reg::X{match.group(2)}, Reg::X{match.group(3)}, Reg::X{match.group(4)});\n"
                     f"c.sw(Reg::X{match.group(2)}, Reg::X{match.group(8)}, {match.group(9)});\n\n")
                 
-                # If there is a previous line and it starts with a comment
-                if i > 0 and lines[i - 1].lstrip().startswith("//"):
-                    description_start_idx = lines[i - 1].find("//")
-                    description = get_clean_name(lines[i - 1][description_start_idx + 2:])
-                else:
-                    logger.warn(f"No comment with test description preceding test at line {i}")
-                    description = "fTest{i}"
-    
                 # Calculate destination address and add result to check
                 result_address = base_addresses[match.group(8)] + int(match.group(9), 0)
-                correct_outputs.append((result_address, int(match.group(5), base=0), description))
+                correct_outputs.append((result_address, int(match.group(5), base=0),
+                                        _get_description(lines, i)))
             # If line contains test case definition, skip
             elif l.startswith("RVTEST_CASE"):
                 continue
