@@ -1,1 +1,7 @@
 #define MASK_XLEN(val)  val&0xFFFFFFFF // shortens 64b values to 32b
+
+#define BIT(addr, bit) (((addr)>>(bit))&1)
+#define IMMSZ      12
+#define IMMSGN            (IMMSZ -1)
+#define IMMMSK     ( (1 << IMMSZ)-1)
+#define SEXT_IMM(x)  ((x & IMMMSK) | (-BIT((x), IMMSGN)<< IMMSZ))
