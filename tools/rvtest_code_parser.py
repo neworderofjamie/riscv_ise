@@ -128,6 +128,7 @@ def parse_code(lines, var_addresses):
                     f"c.sw(Reg::X{match.group('destreg')}, Reg::X{match.group('swreg')}, {match.group('offset')});\n\n")
                 
                 # Add correct output to list
+                # **TODO** halfword and byte
                 _add_correct_output(base_addresses, correct_outputs, match, lines, i, correct_value=0xBABECAFE)
             # If line contains plain test case
             elif (match := _match_test_case.search(l)) is not None:
