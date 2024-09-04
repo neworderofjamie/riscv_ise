@@ -6,14 +6,24 @@ from utils import get_clean_name
 logger = logging.getLogger(__name__)
 
 
-def _get_description(lines, i):
+def _get_description(lines, line_idx):
     # If there is a previous line and it starts with a comment
-    if i > 0 and lines[i - 1].lstrip().startswith("//"):
-        description_start_idx = lines[i - 1].find("//")
-        return get_clean_name(lines[i - 1][description_start_idx + 2:])
+    if line_idx > 0 and lines[line_idx - 1].lstrip().startswith("//"):
+        description_start_idx = lines[line_idx - 1].find("//")
+        return get_clean_name(lines[line_idx - 1][description_start_idx + 2:])
     else:
-        logger.warn(f"No comment with test description preceding test at line {i}")
-        return "fTest{i}"
+        logger.warn(f"No comment with test description "
+                    f"preceding test at line {line_idx}")
+        return "fTest{line_idx}"
+
+def _add_correct_output(base_addresses, correct_outputs, match, lines, line_idx,
+                        correct_value=None):
+    correct_value = (correct_value if correct_value is not None
+                     else int(match("correctval"), 0))
+    # Calculate destination address and add result to check
+    result_address = base_addresses[match.group("swreg")] + int(match.group("offset"), 0)
+    correct_outputs.append((result_address, correct_value,
+                            _get_description(lines, line_idx)))
 
 def _get_assembler_func(op_code):
     return (op_code + "_" if op_code in _underscore_op_codes
@@ -37,6 +47,10 @@ _match_test_rr_op = re.compile(fr"TEST_RR_OP\(\s*{_inst},\s*{_reg('destreg')},\s
 # TEST_IMM_OP( inst, destreg, reg, correctval, val, imm, swreg, offset, testreg)	
 _match_test_imm_op = re.compile(fr"TEST_IMM_OP\(\s*{_inst},\s*{_reg('destreg')},\s*{_reg('reg')},\s*{_num('correctval')},\s*{_num('val')},\s*{_num('imm')},\s*{_reg('swreg')},\s*{_num('offset')},\s*{_reg('testreg')}\)")
 
+# Load instruction
+#define TEST_LOAD(swreg,testreg,index,rs1,destreg,imm_val,offset,inst,adj);\
+_match_test_load_op = re.compile(fr"TEST_LOAD\(\s*{_reg('swreg')},\s*{_reg('testreg')},\s*{_num('index')},\s*{_reg('rs1')},\s*{_reg('destreg')},\s*{_num('imm_val')},\s*{_num('offset')},\s*{_inst},\s*{_num('adj')}\)")
+                                               
 # Plain test case for simple instructions
 # TEST_CASE(testreg, destreg, correctval, swreg, offset, code... )
 _match_test_case = re.compile(fr"TEST_CASE\(\s*{_reg('testreg')},\s*{_reg('destreg')},\s*{_num('correctval')},\s*{_reg('swreg')},\s*{_num('offset')},\s*(?P<code>.*)\)")
@@ -93,10 +107,8 @@ def parse_code(lines, var_addresses):
                     f"c.{_get_assembler_func(match.group('inst'))}(Reg::X{match.group('destreg')}, Reg::X{match.group('reg1')}, Reg::X{match.group('reg2')});\n"
                     f"c.sw(Reg::X{match.group('destreg')}, Reg::X{match.group('swreg')}, {match.group('offset')});\n\n")
                 
-                # Calculate destination address and add result to check
-                result_address = base_addresses[match.group("swreg")] + int(match.group("offset"), 0)
-                correct_outputs.append((result_address, int(match.group("correctval"), base=0),
-                                        _get_description(lines, i)))
+                # Add correct output to list
+                _add_correct_output(base_addresses, correct_outputs, match, lines, i)                
             # If line contains register-immediate operation
             elif (match := _match_test_imm_op.search(l)) is not None:
                 # Generate code to load operands from immediates, perform operation and store result
@@ -105,10 +117,18 @@ def parse_code(lines, var_addresses):
                     f"c.{_get_assembler_func(match.group('inst'))}(Reg::X{match.group('destreg')}, Reg::X{match.group('reg')}, SEXT_IMM({match.group('imm')}));\n"
                     f"c.sw(Reg::X{match.group('destreg')}, Reg::X{match.group('swreg')}, {match.group('offset')});\n\n")
                 
-                # Calculate destination address and add result to check
-                result_address = base_addresses[match.group("swreg")] + int(match.group("offset"), 0)
-                correct_outputs.append((result_address, int(match.group("correctval"), base=0),
-                                        _get_description(lines, i)))
+                # Add correct output to list
+                _add_correct_output(base_addresses, correct_outputs, match, lines, i)
+            # If line contains load instruction
+            elif (match := _match_test_load_op.search(l)) is not None:
+                # Generate code to generate address, load value from memory and store result
+                test_code += (
+                    f"c.li(Reg::X{match.group('rs1')}, {var_addresses['rvtest_data']}+({match.group('index')}*4)+({match.group('adj')})-({match.group('imm_val')}));\n"
+                    f"c.{_get_assembler_func(match.group('inst'))}(Reg::X{match.group('destreg')}, Reg::X{match.group('rs1')}, {match.group('imm_val')});\n"
+                    f"c.sw(Reg::X{match.group('destreg')}, Reg::X{match.group('swreg')}, {match.group('offset')});\n\n")
+                
+                # Add correct output to list
+                _add_correct_output(base_addresses, correct_outputs, match, lines, i, correct_value=0xBABECAFE)
             # If line contains plain test case
             elif (match := _match_test_case.search(l)) is not None:
                 # If this test case is a LUI
@@ -121,10 +141,8 @@ def parse_code(lines, var_addresses):
                         f"c.lui(Reg::X{match.group('destreg')}, {lui_match.group('imm')});\n"
                         f"c.sw(Reg::X{match.group('destreg')}, Reg::X{match.group('swreg')}, {match.group('offset')});\n\n")
                     
-                    # Calculate destination address and add result to check
-                    result_address = base_addresses[match.group("swreg")] + int(match.group("offset"), 0)
-                    correct_outputs.append((result_address, int(match.group("correctval"), base=0),
-                                            _get_description(lines, i)))
+                    # Add correct output to list
+                    _add_correct_output(base_addresses, correct_outputs, match, lines, i)
                 else:
                     raise NotImplementedError(f"Test case '{l}' not supported")
             # If line contains test case definition, skip
