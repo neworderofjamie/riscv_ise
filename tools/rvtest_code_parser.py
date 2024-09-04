@@ -18,6 +18,9 @@ _match_test_rr_op = re.compile(fr"TEST_RR_OP\({_inst},\s*{_reg},\s*{_reg},\s*{_r
 # Base address setting operation
 _match_sigbase = re.compile(fr"RVTEST_SIGBASE\(\s*{_reg},\s*{_var}\)")
 
+# Set of op-codes whose names are keywords in C++ and thus have underscores
+_underscore_op_codes = set(["xor", "or", "and"])
+
 def _get_description(lines, i):
     # If there is a previous line and it starts with a comment
     if i > 0 and lines[i - 1].lstrip().startswith("//"):
@@ -26,6 +29,10 @@ def _get_description(lines, i):
     else:
         logger.warn(f"No comment with test description preceding test at line {i}")
         return "fTest{i}"
+
+def _get_assembler_func(op_code):
+    return (op_code + "_" if op_code in _underscore_op_codes
+            else op_code)
 
 def parse_code(lines, var_addresses):
     test_code = ""
@@ -66,7 +73,7 @@ def parse_code(lines, var_addresses):
                 test_code += (
                     f"c.li(Reg::X{match.group(3)}, MASK_XLEN({match.group(6)}));\n"
                     f"c.li(Reg::X{match.group(4)}, MASK_XLEN({match.group(7)}));\n"
-                    f"c.{match.group(1)}(Reg::X{match.group(2)}, Reg::X{match.group(3)}, Reg::X{match.group(4)});\n"
+                    f"c.{_get_assembler_func(match.group(1))}(Reg::X{match.group(2)}, Reg::X{match.group(3)}, Reg::X{match.group(4)});\n"
                     f"c.sw(Reg::X{match.group(2)}, Reg::X{match.group(8)}, {match.group(9)});\n\n")
                 
                 # Calculate destination address and add result to check
