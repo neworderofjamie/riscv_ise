@@ -8,7 +8,7 @@
 // RISC-V ISE includes
 #include "ise/riscv.h"
 
-#define MASK_XLEN(val)  val&0xFFFFFFFF // shortens 64b values to 32b
+{% include "macros.jinja" %}
 
 using namespace Xbyak_riscv;
 

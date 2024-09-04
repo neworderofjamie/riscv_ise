@@ -3,7 +3,7 @@ from os import path
 import re
 
 from argparse import ArgumentParser
-from jinja2 import Template
+from jinja2 import FileSystemLoader, Environment
 from textwrap import dedent, indent
 
 from rvtest_code_parser import parse_code
@@ -19,9 +19,12 @@ parser.add_argument("-o", "--output-dir", type=str,
                     help="Directory to write tests to (stdout if empty)")
 args = parser.parse_args()
 
+# Create Jinja environment where templates are loaded from the filesystem
+template_loader = FileSystemLoader(searchpath="./templates")
+template_env = Environment(loader=template_loader)
+
 # Load template
-with open(args.template, "r") as f:
-    template = Template(f.read())
+template = template_env.get_template(args.template)
 
 # Loop through architecture test files
 for t in args.test_filenames:
