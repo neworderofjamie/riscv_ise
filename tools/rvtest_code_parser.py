@@ -37,6 +37,13 @@ _match_test_rr_op = re.compile(fr"TEST_RR_OP\(\s*{_inst},\s*{_reg('destreg')},\s
 # TEST_IMM_OP( inst, destreg, reg, correctval, val, imm, swreg, offset, testreg)	
 _match_test_imm_op = re.compile(fr"TEST_IMM_OP\(\s*{_inst},\s*{_reg('destreg')},\s*{_reg('reg')},\s*{_num('correctval')},\s*{_num('val')},\s*{_num('imm')},\s*{_reg('swreg')},\s*{_num('offset')},\s*{_reg('testreg')}\)")
 
+# Plain test case for simple instructions
+# TEST_CASE(testreg, destreg, correctval, swreg, offset, code... )
+_match_test_case = re.compile(fr"TEST_CASE\(\s*{_reg('testreg')},\s*{_reg('destreg')},\s*{_num('correctval')},\s*{_reg('swreg')},\s*{_num('offset')},\s*(?P<code>.*)\)")
+
+# **YUCK** dedicated regular expression to match lui instructions used in TEST_CASE
+_match_test_case_lui = re.compile(fr"\s*lui\s+{_reg('reg')},\s*{_num('imm')}")
+
 # Base address setting operation
 _match_sigbase = re.compile(fr"RVTEST_SIGBASE\(\s*{_reg('basereg')},\s*{_var}\)")
 
@@ -102,6 +109,24 @@ def parse_code(lines, var_addresses):
                 result_address = base_addresses[match.group("swreg")] + int(match.group("offset"), 0)
                 correct_outputs.append((result_address, int(match.group("correctval"), base=0),
                                         _get_description(lines, i)))
+            # If line contains plain test case
+            elif (match := _match_test_case.search(l)) is not None:
+                # If this test case is a LUI
+                if (lui_match := _match_test_case_lui.search(match.group("code"))) is not None:
+                    # Check we are loading register we're checking
+                    assert lui_match.group('reg') == match.group('destreg')
+                    
+                    # Generate code to load register and store result
+                    test_code += (
+                        f"c.lui(Reg::X{match.group('destreg')}, {lui_match.group('imm')});\n"
+                        f"c.sw(Reg::X{match.group('destreg')}, Reg::X{match.group('swreg')}, {match.group('offset')});\n\n")
+                    
+                    # Calculate destination address and add result to check
+                    result_address = base_addresses[match.group("swreg")] + int(match.group("offset"), 0)
+                    correct_outputs.append((result_address, int(match.group("correctval"), base=0),
+                                            _get_description(lines, i)))
+                else:
+                    raise NotImplementedError(f"Test case '{l}' not supported")
             # If line contains test case definition, skip
             elif l.startswith("RVTEST_CASE"):
                 continue
