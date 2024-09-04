@@ -1,4 +1,9 @@
+import logging
 import re
+
+from utils import get_clean_name
+
+logger = logging.getLogger(__name__)
 
 # Useful sub-regular expressions
 _inst = r"([a-z]+)"
@@ -21,7 +26,7 @@ def parse_code(lines, var_addresses):
 
     # Loop through lines
     in_code = False
-    for l in lines:
+    for i, l in enumerate(lines):
         # Strip initial whitespace
         l = l.lstrip()
 
@@ -55,13 +60,23 @@ def parse_code(lines, var_addresses):
                     f"c.li(Reg::X{match.group(4)}, MASK_XLEN({match.group(7)}));\n"
                     f"c.{match.group(1)}(Reg::X{match.group(2)}, Reg::X{match.group(3)}, Reg::X{match.group(4)});\n"
                     f"c.sw(Reg::X{match.group(2)}, Reg::X{match.group(8)}, {match.group(9)});\n\n")
-
+                
+                # If there is a previous line and it starts with a comment
+                if i > 0 and lines[i - 1].lstrip().startswith("//"):
+                    description_start_idx = lines[i - 1].find("//")
+                    description = get_clean_name(lines[i - 1][description_start_idx + 2:])
+                else:
+                    logger.warn(f"No comment with test description preceding test at line {i}")
+                    description = "fTest{i}"
+    
                 # Calculate destination address and add result to check
                 result_address = base_addresses[match.group(8)] + int(match.group(9), 0)
-                correct_outputs.append((result_address, int(match.group(5), base=0)))
-        
+                correct_outputs.append((result_address, int(match.group(5), base=0), description))
+            # If line contains test case definition, skip
+            elif l.startswith("RVTEST_CASE"):
+                continue
             # Otherwise, give warning if line appears to contain unsupported macro
             elif l.startswith("TEST_") or l.startswith("RVTEST_"):
-                print(f"WARNING: unsupported directive '{l.rstrip()}' in code")
+                logger.warn(f"Unsupported directive '{l.rstrip()}' in code")
 
     return test_code, correct_outputs

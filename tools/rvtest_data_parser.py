@@ -1,5 +1,8 @@
 import itertools
+import logging
 import re
+
+logger = logging.getLogger(__name__)
 
 
 # Useful sub-regular expressions
@@ -49,6 +52,6 @@ def parse_data(lines):
                 address += (repeat * size)
             # Otherwise, give warning if line appears to contain unsupported directive
             elif l.startswith("."):
-                print(f"WARNING: unsupported directive '{l.lstrip().rstrip()}' in data")
+                logger.warn(f"Unsupported directive '{l.lstrip().rstrip()}' in data")
 
     return mem_contents, var_addresses

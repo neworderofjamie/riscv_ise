@@ -1,0 +1,55 @@
+// Standard C includes
+#include <cassert>
+#include <cstring>
+
+// RISC-V assembler includes
+#include "assembler/xbyak_riscv.hpp"
+
+// RISC-V ISE includes
+#include "ise/riscv.h"
+
+#define XLEN 32
+#define MASK (((1<<(XLEN-1))-1) + (1<<(XLEN-1))) // XLEN bits of 1s
+#define MASK_XLEN(val)  val&MASK // shortens 64b values to XLEN when XLEN==32
+
+using namespace Xbyak_riscv;
+
+CodeGenerator generateCode()
+{
+    CodeGenerator c;
+    {% filter indent(width=4) %}
+{{test_code}}
+    {% endfilter %}
+    // End
+    c.ecall();
+    return c;
+}
+
+int main()
+{
+    // Generate word-aligned vector to initialise memory
+    const std::vector<uint32_t> scalarWordInitData{
+    {% for m in mem_contents %}{{m}},{% endfor %}};
+    
+    std::vector<uint8_t> scalarInitData(scalarWordInitData.size() * 4);
+    std::memcpy(scalarInitData.data(), scalarWordInitData.data(),
+                scalarWordInitData.size() * 4);
+
+    // Create RISC-V core with instruction and scalar data
+    RISCV riscV(generateCode().getCode(), scalarInitData);
+     
+    if(!riscV.run()) {
+        return 1;
+    }
+
+    // Get word-aligned pointer to scalar memory
+    uint32_t *scalarWordData = reinterpret_cast<uint32_t*>(riscV.getScalarDataMemory().getData().data());
+    
+    // Test results
+    {% for c in correct_outputs %}
+    if(scalarWordData[{{c[0] // 4}}] != {{c[1]}}) {
+        std::cerr << "Test failure" << std::endl;
+    }
+    {% endfor %}
+    return 0;
+}
