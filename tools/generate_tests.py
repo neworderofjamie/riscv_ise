@@ -1,10 +1,7 @@
-import numpy as np
 from os import path
-import re
 
 from argparse import ArgumentParser
 from jinja2 import FileSystemLoader, Environment
-from textwrap import dedent, indent
 
 from rvtest_code_parser import parse_code
 from rvtest_data_parser import parse_data
