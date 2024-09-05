@@ -5,19 +5,15 @@
 // Google test includes
 #include "gtest/gtest.h"
 
-// RISC-V assembler includes
-#include "assembler/xbyak_riscv.hpp"
-
 // RISC-V ISE includes
 #include "ise/riscv.h"
 
-{% include 'macros.jinja' %}
-
-using namespace Xbyak_riscv;
+// RISC-V architecture test includes
+#include "riscv_arch_test/{{title}}.h"
 
 namespace
 {
-class {{clean_title}} : public testing::Test 
+class {{clean_title}}Fixture : public testing::Test 
 {
 protected:
     // Per-test-suite set-up.
@@ -25,16 +21,14 @@ protected:
     // Can be omitted if not needed.
     static void SetUpTestSuite() 
     {
-        // Generate word-aligned vector to initialise memory
-        const std::vector<uint32_t> scalarWordInitData{
-        {% for m in mem_contents %}{{m}},{% endfor %}};
+        const auto &scalarWordInitData = {{clean_title}}::getScalarInitData();
         
         std::vector<uint8_t> scalarInitData(scalarWordInitData.size() * 4);
         std::memcpy(scalarInitData.data(), scalarWordInitData.data(),
                     scalarWordInitData.size() * 4);
 
         // Create RISC-V core with instruction and scalar data
-        RISCV riscV(generateCode().getCode(), scalarInitData);
+        RISCV riscV({{clean_title}}::generateCode().getCode(), scalarInitData);
         
         if(!riscV.run()) {
             throw std::runtime_error("Error running test code");
@@ -56,27 +50,16 @@ protected:
     static uint32_t *getScalarWordData(){ return reinterpret_cast<uint32_t*>(s_ScalarData.data()); }
 
 private:
-    static CodeGenerator generateCode()
-    {
-        CodeGenerator c;
-        {% filter indent(width=8) %}
-{{test_code}}
-        {% endfilter %}
-        // End
-        c.ecall();
-        return c;
-    }
-
     static std::vector<uint8_t> s_ScalarData;
 };
 
-std::vector<uint8_t> {{clean_title}}::s_ScalarData;
+std::vector<uint8_t> {{clean_title}}Fixture::s_ScalarData;
 }
 
 
 // Generate google tests
 {% for c in correct_outputs %}
-TEST_F({{clean_title}}, {{c[2]}}) {
+TEST_F({{clean_title}}Fixture, {{c[2]}}) {
   ASSERT_EQ(getScalarWordData()[{{c[0] // 4}}], {{c[1]}});
 }
 

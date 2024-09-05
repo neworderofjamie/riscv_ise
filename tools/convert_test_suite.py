@@ -26,6 +26,14 @@ template_env = Environment(loader=template_loader)
 # Load template
 template = template_env.get_template(args.template)
 
+# Extract output extension from template name
+output_extension = ".cc"
+template_extension = path.splitext(args.template)
+if template_extension[1] == ".jinja":
+    template_extension = path.splitext(template_extension[0])
+    if template_extension[1] != "":
+        output_extension = template_extension[1]
+
 # Loop through architecture test files
 for t in args.test_filenames:
     # Extract title of source test
@@ -42,13 +50,13 @@ for t in args.test_filenames:
     test_code, correct_outputs = parse_code(test_lines, var_addresses)
 
     # Render test
-    generated_code = template.render(test_code=test_code,
+    generated_code = template.render(test_code=test_code, title=title,
                                      mem_contents=mem_contents,
                                      correct_outputs=correct_outputs,
                                      clean_title=get_clean_name(title))
     # If output directory is specified
     if args.output_dir is not None:
-        with open(path.join(args.output_dir, title + ".cc"), "w") as f:
+        with open(path.join(args.output_dir, title + output_extension), "w") as f:
             f.write(generated_code)
     else:
         print(generated_code)

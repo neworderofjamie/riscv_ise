@@ -19,7 +19,7 @@ def _get_description(lines, line_idx):
 def _add_correct_output(base_addresses, correct_outputs, match, lines, line_idx,
                         correct_value=None):
     correct_value = (correct_value if correct_value is not None
-                     else int(match("correctval"), 0))
+                     else int(match.group("correctval"), 0))
     # Calculate destination address and add result to check
     result_address = base_addresses[match.group("swreg")] + int(match.group("offset"), 0)
     correct_outputs.append((result_address, correct_value,
