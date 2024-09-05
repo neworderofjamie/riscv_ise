@@ -15,16 +15,71 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="test.cc">
+    <ClCompile Include="$(GTEST_DIR)\src\gtest-all.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="..\..\include\assembler\xbyak_riscv.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\include\assembler\register_allocator.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
+    <ClCompile Include="add-01.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="addi-01.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="and-01.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="andi-01.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="lui-01.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="lw-align-01.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="or-01.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ori-01.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="sll-01.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="slli-01.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="slt-01.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="slti-01.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="sltiu-01.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="sltu-01.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="sra-01.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="srai-01.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="srli-01.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="sub-01.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="xor-01.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="xori-01.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="$(GTEST_DIR)\src\gtest_main.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

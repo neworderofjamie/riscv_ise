@@ -11,9 +11,28 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="vsop.cc" />
+    <ClCompile Include="add-01.cc" />
+    <ClCompile Include="addi-01.cc" />
+    <ClCompile Include="and-01.cc" />
+    <ClCompile Include="andi-01.cc" />
+    <ClCompile Include="lui-01.cc" />
+    <ClCompile Include="lw-align-01.cc" />
+    <ClCompile Include="or-01.cc" />
+    <ClCompile Include="ori-01.cc" />
+    <ClCompile Include="sll-01.cc" />
+    <ClCompile Include="slli-01.cc" />
+    <ClCompile Include="slt-01.cc" />
+    <ClCompile Include="slti-01.cc" />
+    <ClCompile Include="sltiu-01.cc" />
+    <ClCompile Include="sltu-01.cc" />
+    <ClCompile Include="sra-01.cc" />
+    <ClCompile Include="srai-01.cc" />
+    <ClCompile Include="srli-01.cc" />
+    <ClCompile Include="sub-01.cc" />
     <ClCompile Include="$(GTEST_DIR)\src\gtest-all.cc" />
     <ClCompile Include="$(GTEST_DIR)\src\gtest_main.cc" />
+    <ClCompile Include="xor-01.cc" />
+    <ClCompile Include="xori-01.cc" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
@@ -67,6 +86,8 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalIncludeDirectories>$(GTEST_DIR);$(GTEST_DIR)\include;$(SolutionDir)include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <DisableSpecificWarnings>4146</DisableSpecificWarnings>
+      <AdditionalOptions>/bigobj %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -91,6 +112,8 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalIncludeDirectories>$(GTEST_DIR);$(GTEST_DIR)\include;$(SolutionDir)include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <DisableSpecificWarnings>4146</DisableSpecificWarnings>
+      <AdditionalOptions>/bigobj %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
