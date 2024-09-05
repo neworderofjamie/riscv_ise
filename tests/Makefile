@@ -10,13 +10,13 @@ OBJECTS			:=$(SOURCES:%.cc=$(OBJECT_DIRECTORY)/%.o)
 DEPS			:=$(OBJECTS:.o=.d)
 
 # Add compiler and linker flags to link libGeNN and correct backend; and to configure generator to use backend
-LDFLAGS			+= -L$(LIBRARY_DIRECTORY) -lise$(PREFIX) -lcommon$(PREFIX) -lpthread
+LDFLAGS			+= -L$(LIBRARY_DIRECTORY) -lriscv_arch_test -lise$(PREFIX) -lcommon$(PREFIX) -lpthread
 CXXFLAGS		+= -I "$(GTEST_DIR)" -isystem "$(GTEST_DIR)/include" -Wno-shift-negative-value
 
 # Determine full path to generator and backend
 TEST			:=$(TEST_PATH)/test$(GENN_PREFIX)
 
-.PHONY: all clean libise libcommon
+.PHONY: all clean libise libcommon libriscv_arch_test
 
 all: $(TEST)
 
@@ -36,6 +36,9 @@ libise:
 
 libcommon:
 	if [ -w $(LIBRARY_DIRECTORY) ]; then $(MAKE) -C $(RISCV_DIR)/src/common; fi;
+
+libriscv_arch_test:
+	if [ -w $(LIBRARY_DIRECTORY) ]; then $(MAKE) -C $(RISCV_DIR)/src/libriscv_arch_test; fi;
 
 clean:
 	rm -f $(OBJECT_DIRECTORY)/*.o $(OBJECT_DIRECTORY)/*.d $(TEST)
