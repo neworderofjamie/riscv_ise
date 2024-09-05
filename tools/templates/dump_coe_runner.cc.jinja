@@ -1,0 +1,21 @@
+// RISC-V utils include
+#include "common/app_utils.h"
+
+// RISC-V architecture test includes
+{% for t in titles %}#include "{{t[0]}}.h"
+{% endfor %}
+
+int main()
+{
+    {% for t in titles %}//------------------------------------------------------------------------
+    // {{t[0]}}
+    //------------------------------------------------------------------------
+    {
+        AppUtils::dumpCOE("{{t[0]}}_data.coe",
+                          ArchTest::{{t[1]}}::getScalarInitData());
+        AppUtils::dumpCOE("{{t[0]}}_instructions.coe",
+                          ArchTest::{{t[1]}}::generateCode().getCode());
+    }
+    {% endfor %}
+    return 0;
+}
