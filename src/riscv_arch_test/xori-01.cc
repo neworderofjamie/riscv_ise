@@ -141,14 +141,14 @@ const std::vector<uint32_t> g_ScalarData{
 }
 
 //----------------------------------------------------------------------------
-// xori_01
+// ArchTest::xori_01
 //----------------------------------------------------------------------------
-const std::vector<uint32_t> &xori_01::getScalarInitData()
+const std::vector<uint32_t> &ArchTest::xori_01::getScalarInitData()
 {
     return g_ScalarData;
 }
 //----------------------------------------------------------------------------
-CodeGenerator xori_01::generateCode()
+CodeGenerator ArchTest::xori_01::generateCode()
 {
     CodeGenerator c;
     

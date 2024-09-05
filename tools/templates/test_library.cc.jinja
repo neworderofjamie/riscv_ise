@@ -26,14 +26,14 @@ const std::vector<uint32_t> g_ScalarData{
 }
 
 //----------------------------------------------------------------------------
-// {{clean_title}}
+// ArchTest::{{clean_title}}
 //----------------------------------------------------------------------------
-const std::vector<uint32_t> &{{clean_title}}::getScalarInitData()
+const std::vector<uint32_t> &ArchTest::{{clean_title}}::getScalarInitData()
 {
     return g_ScalarData;
 }
 //----------------------------------------------------------------------------
-CodeGenerator {{clean_title}}::generateCode()
+CodeGenerator ArchTest::{{clean_title}}::generateCode()
 {
     CodeGenerator c;
     {% filter indent(width=4) %}

@@ -145,14 +145,14 @@ const std::vector<uint32_t> g_ScalarData{
 }
 
 //----------------------------------------------------------------------------
-// add_01
+// ArchTest::add_01
 //----------------------------------------------------------------------------
-const std::vector<uint32_t> &add_01::getScalarInitData()
+const std::vector<uint32_t> &ArchTest::add_01::getScalarInitData()
 {
     return g_ScalarData;
 }
 //----------------------------------------------------------------------------
-CodeGenerator add_01::generateCode()
+CodeGenerator ArchTest::add_01::generateCode()
 {
     CodeGenerator c;
     

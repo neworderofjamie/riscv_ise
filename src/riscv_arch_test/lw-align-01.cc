@@ -52,14 +52,14 @@ const std::vector<uint32_t> g_ScalarData{
 }
 
 //----------------------------------------------------------------------------
-// lw_align_01
+// ArchTest::lw_align_01
 //----------------------------------------------------------------------------
-const std::vector<uint32_t> &lw_align_01::getScalarInitData()
+const std::vector<uint32_t> &ArchTest::lw_align_01::getScalarInitData()
 {
     return g_ScalarData;
 }
 //----------------------------------------------------------------------------
-CodeGenerator lw_align_01::generateCode()
+CodeGenerator ArchTest::lw_align_01::generateCode()
 {
     CodeGenerator c;
     

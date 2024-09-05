@@ -62,14 +62,14 @@ const std::vector<uint32_t> g_ScalarData{
 }
 
 //----------------------------------------------------------------------------
-// slli_01
+// ArchTest::slli_01
 //----------------------------------------------------------------------------
-const std::vector<uint32_t> &slli_01::getScalarInitData()
+const std::vector<uint32_t> &ArchTest::slli_01::getScalarInitData()
 {
     return g_ScalarData;
 }
 //----------------------------------------------------------------------------
-CodeGenerator slli_01::generateCode()
+CodeGenerator ArchTest::slli_01::generateCode()
 {
     CodeGenerator c;
     
