@@ -20,7 +20,7 @@ TEST			:=$(TEST_PATH)/test$(GENN_PREFIX)
 
 all: $(TEST)
 
-$(TEST): $(OBJECTS) libise libcommon
+$(TEST): $(OBJECTS) libise libcommon libriscv_arch_test
 	$(CXX) $(CXXFLAGS) $(OBJECTS) -o $@ $(LDFLAGS)
 
 -include $(DEPS)
@@ -38,7 +38,7 @@ libcommon:
 	if [ -w $(LIBRARY_DIRECTORY) ]; then $(MAKE) -C $(RISCV_DIR)/src/common; fi;
 
 libriscv_arch_test:
-	if [ -w $(LIBRARY_DIRECTORY) ]; then $(MAKE) -C $(RISCV_DIR)/src/libriscv_arch_test; fi;
+	if [ -w $(LIBRARY_DIRECTORY) ]; then $(MAKE) -C $(RISCV_DIR)/src/riscv_arch_test; fi;
 
 clean:
 	rm -f $(OBJECT_DIRECTORY)/*.o $(OBJECT_DIRECTORY)/*.d $(TEST)
