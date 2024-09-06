@@ -172,7 +172,7 @@ struct Jmp
         , encoded(0)
     {
     }
-    
+
     uint32_t encode(uint32_t addr) const
     {
         if (addr == 0) {
@@ -183,12 +183,12 @@ struct Jmp
         }
         const int imm = addr - from;
         if (type == tJal) {
-            if (!inSBit(imm, 20)) {
+            if (!isValidImm(imm, 20)) {
                 throw Error(ERR_INVALID_IMM_OF_JAL);
             }
             return local::get20_10to1_11_19to12_z12(imm) | encoded;
         } else {
-            if (!inSBit(imm, 12)) {
+            if (!isValidImm(imm, 12)) {
                 throw Error(ERR_INVALID_IMM_OF_JAL);
             }
             return local::get12_10to5_z13_4to1_11_z7(imm) | encoded;

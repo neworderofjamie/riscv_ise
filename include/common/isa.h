@@ -24,6 +24,12 @@ inline constexpr bool inSBit(int x, int n)
     return -(1 << (n-1)) <= x && x < (1 << (n-1));
 }
 
+inline constexpr bool isValidImm(size_t imm, size_t maskBit)
+{
+    const size_t M = mask(maskBit);
+    return (imm < M || ~M <= imm) && (imm & 1) == 0;
+}
+
 // Opcode in the standard encoding quadrant (11)
 enum class StandardOpCode : uint32_t
 {
