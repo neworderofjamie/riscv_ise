@@ -15,6 +15,7 @@
     <ClCompile Include="addi-01.cc" />
     <ClCompile Include="and-01.cc" />
     <ClCompile Include="andi-01.cc" />
+    <ClCompile Include="bne-01.cc" />
     <ClCompile Include="lui-01.cc" />
     <ClCompile Include="lw-align-01.cc" />
     <ClCompile Include="or-01.cc" />

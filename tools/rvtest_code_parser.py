@@ -142,6 +142,8 @@ def parse_code(lines, var_addresses):
                 adj = int(match.group("adj"), 0)
                 imm = int(match.group("imm"), 0)
                 label = match.group("label")
+                label_num = int(label[:-1])
+                label_dir = label[-1]
                 assert adj == 0
 
                 test_code += (
@@ -173,7 +175,7 @@ def parse_code(lines, var_addresses):
                 if label == "3f":
                     num = 0
 
-                for i in range(num):
+                for _ in range(num):
                     test_code += "c.nop();\n"
 
                 #-------------------------------------------------------------
@@ -181,14 +183,12 @@ def parse_code(lines, var_addresses):
                 #-------------------------------------------------------------
                 test_code += f"c.L(label2_{lab_count[2]});\n"
                 lab_count[2] += 1
-                """
-                inst reg1, reg2, label+adj
-                """
+    
                 # If target label is declared AFTER instruction`
-                target_number = int(label[:-1]) + adj
+                target_number = label_num + adj
                 
                 # If label is forward
-                if label[-1] == "f":
+                if label_dir == "f":
                     label_name = f"label{target_number}_{lab_count[target_number]}"
                 else:
                     label_name = f"label{target_number}_{lab_count[target_number] - 1}"
@@ -206,7 +206,7 @@ def parse_code(lines, var_addresses):
                 if label == "1b":
                     num = 0
                 
-                for i in range(num):
+                for _ in range(num):
                     test_code += "c.nop();\n"
 
                 #-------------------------------------------------------------
@@ -230,6 +230,10 @@ def parse_code(lines, var_addresses):
                 test_code += f"c.L(label4_{lab_count[4]});\n"
                 test_code += f"c.sw(Reg::X{match.group('tempreg')}, Reg::X{match.group('swreg')}, {match.group('offset')});\n\n"
                 lab_count[4] += 1
+                
+                # Add correct output to list
+                _add_correct_output(base_addresses, correct_outputs, match,
+                                    lines, i, correct_value=label_num + adj)
         
             # If line contains plain test case
             elif (match := _match_test_case.search(l)) is not None:
