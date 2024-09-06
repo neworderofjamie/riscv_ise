@@ -1,0 +1,9 @@
+{
+    "testMate.cpp.test.executables": "${workspaceFolder}/tests/test*",
+    "testMate.cpp.debug.configTemplate": {
+        "type": "cppdbg",
+        "MIMode": "gdb",
+        "program": "${workspaceFolder}/tests/test_debug",
+        "cwd": "${workspaceFolder}/tests",
+    },
+}
