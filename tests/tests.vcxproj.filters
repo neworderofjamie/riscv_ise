@@ -81,5 +81,8 @@
     <ClCompile Include="$(GTEST_DIR)\src\gtest_main.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="bne-01.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

@@ -38,19 +38,24 @@ def _num(name):
 
 _inst = r"(?P<inst>[a-z]+)"
 _var = r"([a-zA-Z_][a-zA-Z0-9_]*)"
+_label = r"(?P<label>[0-9][fb])"
 
 # Register-register operation
 # TEST_RR_OP(inst, destreg, reg1, reg2, correctval, val1, val2, swreg, offset, testreg)
 _match_test_rr_op = re.compile(fr"TEST_RR_OP\(\s*{_inst},\s*{_reg('destreg')},\s*{_reg('reg1')},\s*{_reg('reg2')},\s*{_num('correctval')},\s*{_num('val1')},\s*{_num('val2')},\s*{_reg('swreg')},\s*{_num('offset')},\s*{_reg('testreg')}\)")
 
 # Register-immediate instruction
-# TEST_IMM_OP( inst, destreg, reg, correctval, val, imm, swreg, offset, testreg)	
+# TEST_IMM_OP( inst, destreg, reg, correctval, val, imm, swreg, offset, testreg)
 _match_test_imm_op = re.compile(fr"TEST_IMM_OP\(\s*{_inst},\s*{_reg('destreg')},\s*{_reg('reg')},\s*{_num('correctval')},\s*{_num('val')},\s*{_num('imm')},\s*{_reg('swreg')},\s*{_num('offset')},\s*{_reg('testreg')}\)")
 
 # Load instruction
 #define TEST_LOAD(swreg,testreg,index,rs1,destreg,imm_val,offset,inst,adj);\
 _match_test_load_op = re.compile(fr"TEST_LOAD\(\s*{_reg('swreg')},\s*{_reg('testreg')},\s*{_num('index')},\s*{_reg('rs1')},\s*{_reg('destreg')},\s*{_num('imm_val')},\s*{_num('offset')},\s*{_inst},\s*{_num('adj')}\)")
-                                               
+
+# Branch instruction
+# TEST_BRANCH_OP(inst, tempreg, reg1, reg2, val1, val2, imm, label, swreg, offset,adj)
+_match_test_branch_op = re.compile(fr"TEST_BRANCH_OP\(\s*{_inst},\s*{_reg('tempreg')},\s*{_reg('reg1')},\s*{_reg('reg2')},\s*{_num('val1')},\s*{_num('val2')},\s*{_num('imm')},\s*{_label},\s*{_reg('swreg')},\s*{_num('offset')},\s*{_num('adj')}\)")
+
 # Plain test case for simple instructions
 # TEST_CASE(testreg, destreg, correctval, swreg, offset, code... )
 _match_test_case = re.compile(fr"TEST_CASE\(\s*{_reg('testreg')},\s*{_reg('destreg')},\s*{_num('correctval')},\s*{_reg('swreg')},\s*{_num('offset')},\s*(?P<code>.*)\)")
@@ -69,6 +74,7 @@ def parse_code(lines, var_addresses):
     test_code = ""
     correct_outputs = []
     base_addresses = {}
+    lab_count = [0] * 10
 
     # Loop through lines
     in_code = False
@@ -130,6 +136,105 @@ def parse_code(lines, var_addresses):
                 # Add correct output to list
                 # **TODO** halfword and byte
                 _add_correct_output(base_addresses, correct_outputs, match, lines, i, correct_value=0xBABECAFE)
+            # If line contains branch operation
+            elif (match := _match_test_branch_op.search(l)) is not None:
+                # Parse adj and imm
+                adj = int(match.group("adj"), 0)
+                imm = int(match.group("imm"), 0)
+                label = match.group("label")
+                label_num = int(label[:-1])
+                label_dir = label[-1]
+                assert adj == 0
+
+                test_code += (
+                    f"c.li(Reg::X{match.group('reg1')}, MASK_XLEN({match.group('val1')}));\n"
+                    f"c.li(Reg::X{match.group('reg2')}, MASK_XLEN({match.group('val2')}));\n"
+                    f"c.li(Reg::X{match.group('tempreg')}, 0);\n"
+                    f"c.j_(label2_{lab_count[2]});\n")
+
+                #-------------------------------------------------------------
+                # 1
+                #-------------------------------------------------------------
+                test_code += f"c.L(label1_{lab_count[1]});\n"
+                lab_count[1] += 1
+                #if adj & 2 == 2:
+                #    .fill 2,1,0x00
+                
+                test_code += (
+                    f"c.addi(Reg::X{match.group('tempreg')}, Reg::X{match.group('tempreg')}, 0x1);\n"
+                    f"c.j_(label4_{lab_count[4]});\n")
+
+                #if adj & 2 == 2:
+                #    .fill 2,1,0x00
+                
+                if ((imm // 2) - 2) >= 0:
+                    num = (imm // 2) - 2
+                else:
+                    num = 0
+
+                if label == "3f":
+                    num = 0
+
+                for _ in range(num):
+                    test_code += "c.nop();\n"
+
+                #-------------------------------------------------------------
+                # 2
+                #-------------------------------------------------------------
+                test_code += f"c.L(label2_{lab_count[2]});\n"
+                lab_count[2] += 1
+    
+                # If target label is declared AFTER instruction`
+                target_number = label_num + adj
+                
+                # If label is forward
+                if label_dir == "f":
+                    label_name = f"label{target_number}_{lab_count[target_number]}"
+                else:
+                    label_name = f"label{target_number}_{lab_count[target_number] - 1}"
+
+                test_code += (
+                    f"c.{match.group('inst')}(Reg::X{match.group('reg1')}, Reg::X{match.group('reg2')}, {label_name});\n" 
+                    f"c.addi(Reg::X{match.group('tempreg')}, Reg::X{match.group('tempreg')}, 0x2);\n"
+                    f"c.j_(label4_{lab_count[4]});\n")
+
+                if ((imm // 4) - 3) >= 0:
+                    num = (imm // 4) - 3
+                else:
+                    num = 0
+
+                if label == "1b":
+                    num = 0
+                
+                for _ in range(num):
+                    test_code += "c.nop();\n"
+
+                #-------------------------------------------------------------
+                # 3
+                #-------------------------------------------------------------
+                test_code += f"c.L(label3_{lab_count[3]});\n"
+                lab_count[3] += 1
+                #if adj & 2 == 2:
+                #    .fill 2,1,0x00
+
+                test_code += (
+                    f"c.addi(Reg::X{match.group('tempreg')}, Reg::X{match.group('tempreg')}, 0x3);\n"
+                    f"c.j_(label4_{lab_count[4]});\n")
+
+                #if adj & 2 == 2:
+                #   .fill 2,1,0x00
+
+                #-------------------------------------------------------------
+                # 4
+                #-------------------------------------------------------------
+                test_code += f"c.L(label4_{lab_count[4]});\n"
+                test_code += f"c.sw(Reg::X{match.group('tempreg')}, Reg::X{match.group('swreg')}, {match.group('offset')});\n\n"
+                lab_count[4] += 1
+                
+                # Add correct output to list
+                _add_correct_output(base_addresses, correct_outputs, match,
+                                    lines, i, correct_value=label_num + adj)
+        
             # If line contains plain test case
             elif (match := _match_test_case.search(l)) is not None:
                 # If this test case is a LUI
@@ -152,5 +257,11 @@ def parse_code(lines, var_addresses):
             # Otherwise, give warning if line appears to contain unsupported macro
             elif l.startswith("TEST_") or l.startswith("RVTEST_"):
                 logger.warn(f"Unsupported directive '{l.rstrip()}' in code")
-
-    return test_code, correct_outputs
+    
+    # Generate labels
+    labels = ""
+    for i, c in enumerate(lab_count):
+        for j in range(c):
+            labels += f"Label label{i}_{j};\n"
+    
+    return labels + test_code, correct_outputs
