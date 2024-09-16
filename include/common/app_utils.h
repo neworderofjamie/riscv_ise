@@ -8,6 +8,14 @@
 // Standard C includes
 #include <cstdint>
 
+// Forward declations
+namespace Xbyak_riscv
+{
+class CodeGenerator;
+}
+class ScalarRegisterAllocator;
+class VectorRegisterAllocator;
+
 //----------------------------------------------------------------------------
 // AppUtils
 //----------------------------------------------------------------------------
@@ -26,5 +34,12 @@ uint32_t allocateScalarAndZero(size_t numBytes, std::vector<uint8_t> &memory);
 void writeSpikes(std::ofstream &os, const uint32_t *data, 
                  float time, size_t numWords);
 
+// Dump word-based data to a Vivado-format COE file
 void dumpCOE(const std::string &filename, const std::vector<uint32_t> &code);
+
+// Generate
+void generateScalarVectorMemCpy(Xbyak_riscv::CodeGenerator &c, 
+                                VectorRegisterAllocator &vectorRegisterAllocator,
+                                ScalarRegisterAllocator &scalarRegisterAllocator,
+                                uint32_t scalarPtr, uint32_t vectorPtr, uint32_t numVectors);
 }

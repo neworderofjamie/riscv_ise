@@ -9,6 +9,12 @@
 // RISC-V common includes
 #include "common/utils.h"
 
+// RISC-V assembler includes
+#include "assembler/register_allocator.h"
+#include "assembler/xbyak_riscv.hpp"
+
+using namespace Xbyak_riscv;
+
 //----------------------------------------------------------------------------
 // AppUtils
 //----------------------------------------------------------------------------
@@ -101,6 +107,83 @@ void dumpCOE(const std::string &filename, const std::vector<uint32_t> &code)
             coe << ",";
         }
         coe << std::endl;
+    }
+}
+
+void generateScalarVectorMemCpy(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator,
+                                ScalarRegisterAllocator &scalarRegisterAllocator,
+                                uint32_t scalarPtr, uint32_t vectorPtr, uint32_t numVectors)
+{
+    // Register allocation
+    ALLOCATE_SCALAR(SDataBuffer);
+    ALLOCATE_SCALAR(SVectorBuffer)
+    ALLOCATE_SCALAR(SThirtyTwo);
+    ALLOCATE_SCALAR(SOne);
+    ALLOCATE_SCALAR(SVectorBufferEnd);
+
+    // Labels
+    Label vectorLoop;
+    Label laneLoop;
+
+    // SThirtyTwo = 32
+    c.li(*SThirtyTwo, 32);
+
+    // SOne = 1
+    c.li(*SOne, 1);
+
+    c.li(*SVectorBuffer, vectorPtr);
+    c.li(*SVectorBufferEnd, vectorPtr + (numVectors * 64));
+
+    // SDataBuffer = scalarPtr
+    c.li(*SDataBuffer, scalarPtr);
+
+    // Loop over vectors
+    c.L(vectorLoop);
+    {
+        // Register allocation
+        ALLOCATE_VECTOR(VData);
+        ALLOCATE_SCALAR(SLane);
+
+        // SLane = 0
+        c.li(*SLane, 0);
+
+        c.L(laneLoop);
+        {
+            // Register allocation
+            ALLOCATE_VECTOR(VLane);
+            ALLOCATE_SCALAR(SMask);
+            ALLOCATE_SCALAR(SVal);
+
+            // Load halfword
+            c.lh(*SVal, *SDataBuffer, 0);
+
+            // Fill vector register
+            c.vfill(*VLane, *SVal);
+
+            // SDataBuffer += 2
+            c.addi(*SDataBuffer, *SDataBuffer, 2);
+
+            // SMask = 1 << SLane
+            c.sll(*SMask, *SOne, *SLane);
+
+            // VData = SMask ? VLane : VData
+            c.vsel(*VData, *SMask, *VLane);
+
+            // SLane++
+            c.addi(*SLane, *SLane, 1);
+            
+            // If lane != 32, goto lane loop
+            c.bne(*SLane, *SThirtyTwo, laneLoop);
+        }
+        
+        // *SVectorBuffer = VData
+        c.vstore(*VData, *SVectorBuffer);
+
+        // SVector += 64
+        c.addi(*SVectorBuffer, *SVectorBuffer, 64);
+
+        // If SVectorBuffer != SVectorBufferEnd, goto vector loop
+        c.bne(*SVectorBuffer, *SVectorBufferEnd, vectorLoop);
     }
 }
 }

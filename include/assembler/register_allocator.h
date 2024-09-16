@@ -97,7 +97,11 @@ private:
     int m_MaxUsedRegisters;
 };
 
-using VectorRegisterAllocator = RegisterAllocator<VReg>;
+class VectorRegisterAllocator : public RegisterAllocator<VReg>
+{
+public:
+    using RegisterAllocator<VReg>::RegisterAllocator;
+};
 
 class ScalarRegisterAllocator : public RegisterAllocator<Reg>
 {
