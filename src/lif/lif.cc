@@ -1,10 +1,14 @@
 // Standard C++ includes
 #include <fstream>
+#include <numeric>
 
 // PLOG includes
 #include <plog/Log.h>
 #include <plog/Severity.h>
 #include <plog/Appenders/ConsoleAppender.h>
+
+// RISC-V common includes
+#include "common/app_utils.h"
 
 // RISC-V assembler includes
 #include "assembler/register_allocator.h"
@@ -22,6 +26,10 @@ Xbyak_riscv::CodeGenerator generateCode()
     CodeGenerator c;
     VectorRegisterAllocator vectorRegisterAllocator;
     ScalarRegisterAllocator scalarRegisterAllocator;
+
+    // Generate code to copy vector of currents from scalar memory to vector memory
+    AppUtils::generateScalarVectorMemCpy(c, vectorRegisterAllocator, scalarRegisterAllocator,
+                                         0, 0, 1);
 
     // Register allocation
     ALLOCATE_SCALAR(SVBuffer);
@@ -93,12 +101,21 @@ int main()
     
     // Create memory contents
     std::vector<uint8_t> scalarInitData(4096);
-    std::vector<int16_t> vectorInitData{0, 26, 53, 79, 106, 132, 159, 185, 211, 238, 264, 291, 317, 344, 370, 396, 423, 449,
-                                        476, 502, 529, 555, 581, 608, 634, 661, 687, 713, 740, 766, 793, 819};
-    vectorInitData.resize(4096);
+    std::vector<int16_t> vectorInitData(4096);
     
+    // Copy increasing input currents into scalar memory
+    std::vector<int16_t> test{0, 26, 53, 79, 106, 132, 159, 185, 211, 238, 264, 291, 317, 344, 370, 396, 423, 449,
+                              476, 502, 529, 555, 581, 608, 634, 661, 687, 713, 740, 766, 793, 819};
+    std::memcpy(scalarInitData.data(), test.data(), test.size() * 2);
+
+    // Generate code
+    const auto code = generateCode().getCode();
+
+    // Dump to coe file
+    AppUtils::dumpCOE("lif.coe", code);
+
     // Create RISC-V core with instruction and scalar data
-    RISCV riscV(generateCode().getCode(), scalarInitData);
+    RISCV riscV(code, scalarInitData);
     
     // Add vector co-processor
     riscV.addCoprocessor<VectorProcessor>(vectorQuadrant, vectorInitData);

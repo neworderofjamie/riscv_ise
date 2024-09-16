@@ -17,8 +17,6 @@ $(INIT_VRAM): init_vram.cc init_vram.d libise libcommon
 	mkdir -p $(@D)
 	$(CXX) $(CXXFLAGS) init_vram.cc -o $@ $(LDFLAGS)
 
-init_vram.cc: ;
-
 libise:
 	if [ -w $(LIBRARY_DIRECTORY) ]; then $(MAKE) -C $(RISCV_DIR)/src/ise; fi;
 
