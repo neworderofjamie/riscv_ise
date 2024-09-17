@@ -9,10 +9,7 @@
 #include <cstdint>
 
 // Forward declations
-namespace Xbyak_riscv
-{
 class CodeGenerator;
-}
 class ScalarRegisterAllocator;
 class VectorRegisterAllocator;
 
@@ -38,8 +35,7 @@ void writeSpikes(std::ofstream &os, const uint32_t *data,
 void dumpCOE(const std::string &filename, const std::vector<uint32_t> &code);
 
 // Generate
-void generateScalarVectorMemCpy(Xbyak_riscv::CodeGenerator &c, 
-                                VectorRegisterAllocator &vectorRegisterAllocator,
+void generateScalarVectorMemCpy(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator,
                                 ScalarRegisterAllocator &scalarRegisterAllocator,
                                 uint32_t scalarPtr, uint32_t vectorPtr, uint32_t numVectors);
 }

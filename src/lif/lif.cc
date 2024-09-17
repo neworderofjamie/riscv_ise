@@ -11,18 +11,15 @@
 #include "common/app_utils.h"
 
 // RISC-V assembler includes
+#include "assembler/assembler.h"
 #include "assembler/register_allocator.h"
-#include "assembler/xbyak_riscv.hpp"
 
 // RISC-V ISE includes
 #include "ise/riscv.h"
 #include "ise/vector_processor.h"
 
-
-Xbyak_riscv::CodeGenerator generateCode()
+CodeGenerator generateCode()
 {
-    using namespace Xbyak_riscv;
-    
     CodeGenerator c;
     VectorRegisterAllocator vectorRegisterAllocator;
     ScalarRegisterAllocator scalarRegisterAllocator;

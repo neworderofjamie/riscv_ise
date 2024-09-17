@@ -19,14 +19,12 @@
 #include "common/utils.h"
 
 // RISC-V assembler includes
+#include "assembler/assembler.h"
 #include "assembler/register_allocator.h"
-#include "assembler/xbyak_riscv.hpp"
 
 // RISC-V ISE includes
 #include "ise/riscv.h"
 #include "ise/vector_processor.h"
-
-using namespace Xbyak_riscv;
 
 std::vector<int16_t> loadData(const std::string &filename)
 {

@@ -26,7 +26,9 @@
 // RISC-V common includes
 #include "common/isa.h"
 
-namespace Xbyak_riscv {
+// Forward declarations
+class CodeGenerator;
+
 enum {
     ERR_NONE,
     ERR_OFFSET_IS_TOO_BIG,
@@ -47,346 +49,69 @@ enum {
     ERR_MAX,
 };
 
-inline const char *ConvertErrorToString(int err)
-{
-    static const char *errTbl[] = {
-        "none",
-        "offset is too big",
-        "code is too big",
-        "imm is too big",
-        "invalid imm of jal",
-        "invalid imm of Btype",
-        "label is not found",
-        "label is redefined",
-        "label is too far",
-        "label is not set by L",
-        "label is already set by L",
-        "can't protect",
-        "can't alloc",
-        "bad parameter",
-        "munmap",
-        "internal error"
-    };
-    assert(ERR_MAX == (sizeof(errTbl) / sizeof(*errTbl)));
-    return (err < ERR_MAX) ? errTbl[err] : "unknown err";
-}
-
+//----------------------------------------------------------------------------
+// Error
+//----------------------------------------------------------------------------
 class Error : public std::exception {
-    int err_;
 public:
-    explicit Error(int err) : err_(err)
-    {
-        std::cout << "Error:" << err << std::endl;
-        if (err_ < 0 || err_ > ERR_INTERNAL) {
-            err_ = ERR_INTERNAL;
-        }
-    }
+    explicit Error(int err);
     operator int() const { return err_; }
-    const char *what() const noexcept
-    {
-        return ConvertErrorToString(err_);
-    }
-};
-
-// dummy functions
-inline void ClearError() { }
-inline int GetError() { return 0; }
-
-inline const char *ConvertErrorToString(const Error& err)
-{
-    return err.what();
-}
-
-namespace local {
-
-// split x to hi20bits and low12bits
-// return false if x in 12-bit signed integer
-inline bool split32bit(int *pH, int* pL, int x) {
-    if (inSBit(x, 12)) {
-        return false;
-    }
-    int H = (x >> 12) & mask(20);
-    int L = x & mask(12);
-    if (x & (1 << 11)) {
-        H++;
-        L = L | (mask(20) << 12);
-    }
-    *pH = H;
-    *pL = L;
-    return true;
-}
-
-inline uint32_t get20_10to1_11_19to12_z12(uint32_t v) { return ((v & (1<<20)) << 11)| ((v & (1023<<1)) << 20)| ((v & (1<<11)) << 9)| (v & (255<<12)); }
-inline uint32_t get12_10to5_z13_4to1_11_z7(uint32_t v) { return ((v & (1<<12)) << 19)| ((v & (63<<5)) << 20)| ((v & (15<<1)) << 7)| ((v & (1<<11)) >> 4); }
-
-} // local
-
-class CodeArray 
-{
-public:
-    void append4B(uint32_t code) { code_.push_back(code); }
-    
-    void write4B(size_t offset, uint32_t v) 
-    {
-        assert((offset & 3) == 0);
-        code_.at(offset / 4) = v; 
-    }
-
-    // **TODO**  add code base address
-    uint32_t getCurr() const{ return static_cast<uint32_t>(code_.size()) * 4; }
-    
-    const auto &getCode() const{ return code_; }
+    const char *what() const noexcept;
 
 private:
-    std::vector<uint32_t> code_;
+    int err_;
 };
 
-struct Jmp 
-{
-    enum Type {
-        tJal,
-        tBtype,
-        tRawAddress,
-    } type;
-    const uint32_t from; /* address of the jmp mnemonic */
-    uint32_t encoded;
-
-    // jal
-    Jmp(uint32_t from, Bit<7> opcode, Reg rd)
-        : type(tJal)
-        , from(from)
-        , encoded((static_cast<uint32_t>(rd) << 7) | opcode)
-    {
-    }
-    // B-type
-    Jmp(uint32_t from, Bit<7> opcode, uint32_t funct3, Reg src1, Reg src2)
-        : type(tBtype)
-        , from(from)
-        , encoded((static_cast<uint32_t>(src2) << 20) | (static_cast<uint32_t>(src1) << 15) | (funct3 << 12) | opcode)
-    {
-    }
-    // raw address
-    explicit Jmp(uint32_t from)
-        : type(tRawAddress)
-        , from(from)
-        , encoded(0)
-    {
-    }
-
-    uint32_t encode(uint32_t addr) const
-    {
-        if (addr == 0) {
-            return 0;
-        }
-        if (type == tRawAddress) {
-            return addr;
-        }
-        const int imm = addr - from;
-        if (type == tJal) {
-            if (!isValidImm(imm, 20)) {
-                throw Error(ERR_INVALID_IMM_OF_JAL);
-            }
-            return local::get20_10to1_11_19to12_z12(imm) | encoded;
-        } else {
-            if (!isValidImm(imm, 12)) {
-                throw Error(ERR_INVALID_IMM_OF_JAL);
-            }
-            return local::get12_10to5_z13_4to1_11_z7(imm) | encoded;
-        }
-    }
-    // update jmp address by base->getCurr()
-    void update(CodeArray *base) const
-    {
-        base->write4B(from, encode(base->getCurr()));
-    }
-    // append jmp opcode with addr
-    void appendCode(CodeArray *base, uint32_t addr) const
-    {
-        base->append4B(encode(addr));
-    }
-};
-
-class LabelManager;
-
+//----------------------------------------------------------------------------
+// Label
+//----------------------------------------------------------------------------
 class Label 
 {
-    mutable LabelManager *mgr;
-    mutable int id;
-    friend class LabelManager;
 public:
-    Label() : mgr(0), id(0) {}
+    Label() : cg(nullptr), id(0) {}
     Label(const Label& rhs);
     Label& operator=(const Label& rhs);
     ~Label();
-    void clear() { mgr = 0; id = 0; }
+
+private:
+    friend CodeGenerator;
+
+    //------------------------------------------------------------------------
+    // Public API
+    //------------------------------------------------------------------------
+    void clear() { cg = nullptr; id = 0; }
     int getId() const { return id; }
     uint32_t getAddress() const;
+
+private:
+    //------------------------------------------------------------------------
+    // Members
+    //------------------------------------------------------------------------
+    mutable CodeGenerator *cg;
+    mutable int id;
 };
 
-class LabelManager 
+class CodeGenerator
 {
 public:
-    LabelManager()
-    {
-        reset();
-    }
-    ~LabelManager()
-    {
-        resetLabelPtrList();
-    }
-    void reset()
-    {
-        base_ = 0;
-        labelId_ = 1;
-        clabelDefList_.clear();
-        clabelUndefList_.clear();
-        resetLabelPtrList();
-    }
-    void set(CodeArray *base) { base_ = base; }
-    void defineClabel(Label& label)
-    {
-        define_inner(clabelDefList_, clabelUndefList_, getId(label), base_->getCurr());
-        label.mgr = this;
-        labelPtrList_.insert(&label);
-    }
-    void assign(Label& dst, const Label& src)
-    {
-        ClabelDefList::const_iterator i = clabelDefList_.find(src.id);
-        if (i == clabelDefList_.end()) throw Error(ERR_LABEL_IS_NOT_SET_BY_L);
-        define_inner(clabelDefList_, clabelUndefList_, dst.id, i->second.addr);
-        dst.mgr = this;
-        labelPtrList_.insert(&dst);
-    }
-    // return 0 unless label exists
-    uint32_t getAddr(const Label& label) const
-    {
-        ClabelDefList::const_iterator i = clabelDefList_.find(getId(label));
-        if (i == clabelDefList_.end()) return 0;
-        return i->second.addr;
-    }
-    void addUndefinedLabel(const Label& label, const Jmp& jmp)
-    {
-        clabelUndefList_.insert(ClabelUndefList::value_type(label.id, jmp));
-    }
-    bool hasUndefClabel() const { return hasUndefinedLabel_inner(clabelUndefList_); }
-    // for Label class
-    struct ClabelVal {
-        ClabelVal(uint32_t addr = 0) : addr(addr), refCount(1) {}
-        const uint32_t addr;
-        int refCount;
-    };
-    typedef std::unordered_map<int, ClabelVal> ClabelDefList;
-    typedef std::unordered_multimap<int, Jmp> ClabelUndefList;
-    typedef std::unordered_set<Label*> LabelPtrList;
-
-    CodeArray *base_;
-    mutable int labelId_;
-    ClabelDefList clabelDefList_;
-    ClabelUndefList clabelUndefList_;
-    LabelPtrList labelPtrList_;
-
-    int getId(const Label& label) const
-    {
-        if (label.id == 0) label.id = labelId_++;
-        return label.id;
-    }
-    void define_inner(ClabelDefList& defList, ClabelUndefList& undefList, int labelId, uint32_t addr)
-    {
-        // add label
-        ClabelDefList::value_type item(labelId, addr);
-        std::pair<ClabelDefList::iterator, bool> ret = defList.insert(item);
-        if (!ret.second) throw Error(ERR_LABEL_IS_REDEFINED);
-        // search undefined label
-        for (;;) {
-            ClabelUndefList::iterator itr = undefList.find(labelId);
-            if (itr == undefList.end()) break;
-            const Jmp& jmp = itr->second;
-            jmp.update(base_);
-            undefList.erase(itr);
-        }
-    }
-    friend class Label;
-    void incRefCount(int id, Label *label)
-    {
-        clabelDefList_[id].refCount++;
-        labelPtrList_.insert(label);
-    }
-    void decRefCount(int id, Label *label)
-    {
-        labelPtrList_.erase(label);
-        ClabelDefList::iterator i = clabelDefList_.find(id);
-        if (i == clabelDefList_.end()) return;
-        if (i->second.refCount == 1) {
-            clabelDefList_.erase(id);
-        } else {
-            --i->second.refCount;
-        }
-    }
-    template<class T>
-    bool hasUndefinedLabel_inner(const T& list) const
-    {
-        return !list.empty();
-    }
-    // detach all labels linked to LabelManager
-    void resetLabelPtrList()
-    {
-        for (LabelPtrList::iterator i = labelPtrList_.begin(), ie = labelPtrList_.end(); i != ie; ++i) {
-            (*i)->clear();
-        }
-        labelPtrList_.clear();
-    }
-
-};
-
-inline Label::Label(const Label& rhs)
-{
-    id = rhs.id;
-    mgr = rhs.mgr;
-    if (mgr) {
-        mgr->incRefCount(id, this);
-    }
-}
-inline Label& Label::operator=(const Label& rhs)
-{
-    if (id) {
-        throw Error(ERR_LABEL_IS_ALREADY_SET_BY_L);
-    }
-    id = rhs.id;
-    mgr = rhs.mgr;
-    if (mgr) {
-        mgr->incRefCount(id, this);
-    }
-    return *this;
-}
-inline Label::~Label()
-{
-    if (id && mgr) {
-        mgr->decRefCount(id, this);
-    }
-}
-inline uint32_t Label::getAddress() const
-{
-    if (mgr == 0) {
-        return 0;
-    }
-    return mgr->getAddr(*this);
-}
-
-
-class CodeGenerator : public CodeArray 
-{
-public:
-    void L(Label& label) { labelMgr_.defineClabel(label); }
-    Label L() { Label label; L(label); return label; }
-  
-
     // constructor
     CodeGenerator()
     {
-        labelMgr_.set(this);
+        reset();
     }
 
-    bool hasUndefinedLabel() const { return labelMgr_.hasUndefClabel(); }
+     ~CodeGenerator()
+    {
+        resetLabelPtrList();
+    }
+
+    CodeGenerator operator=(const CodeGenerator&) = delete;
+
+    void L(Label& label) { defineClabel(label); }
+    Label L() { Label label; L(label); return label; }
+  
+    bool hasUndefinedLabel() const { return hasUndefClabel(); }
+    const auto &getCode() const{ return code_; }
 
     void add(Reg rd, Reg rs1, Reg rs2) { Rtype(StandardOpCode::OP, 0, 0x0, rd, rs1, rs2); }
     void sub(Reg rd, Reg rs1, Reg rs2) { Rtype(StandardOpCode::OP, 0, 0x20, rd, rs1, rs2); }
@@ -457,16 +182,7 @@ public:
     void csrrci(Reg rd, CSR csr, uint32_t imm) { opCSR(0x7073, csr, imm, rd); }
 
     void nop() { addi(Reg::X0, Reg::X0, 0); }
-    void li(Reg rd, int imm)
-    {
-        int H, L;
-        if (!local::split32bit(&H, &L, imm)) {
-            addi(rd, Reg::X0, imm);
-            return;
-        }
-        lui(rd, H);
-        addi(rd, rd, L);
-    }
+    void li(Reg rd, int imm);
     void mv(Reg rd, Reg rs) { addi(rd, rs, 0); }
     void not_(Reg rd, Reg rs) { xori(rd, rs, -1); }
     void neg(Reg rd, Reg rs) { sub(rd, Reg::X0, rs); }
@@ -543,17 +259,178 @@ public:
     void vstore(VReg rs, const Reg &addr, int imm = 0){ Stype(VectorOpCode::VSTORE, 0x0, addr, rs, imm); }
 
 private:
-    CodeGenerator operator=(const CodeGenerator&) = delete;
-    LabelManager labelMgr_;
+    friend Label;
+
+    //------------------------------------------------------------------------
+    // ClabelVal
+    //------------------------------------------------------------------------
+    // for Label class
+    struct ClabelVal {
+        ClabelVal(uint32_t addr = 0) : addr(addr), refCount(1) {}
+        const uint32_t addr;
+        int refCount;
+    };
+
+    
+    //----------------------------------------------------------------------------
+    // Jmp
+    //----------------------------------------------------------------------------
+    struct Jmp 
+    {
+        enum Type {
+            tJal,
+            tBtype,
+            tRawAddress,
+        } type;
+        const uint32_t from; /* address of the jmp mnemonic */
+        uint32_t encoded;
+
+        // jal
+        Jmp(uint32_t from, Bit<7> opcode, Reg rd)
+            : type(tJal)
+            , from(from)
+            , encoded((static_cast<uint32_t>(rd) << 7) | opcode)
+        {
+        }
+        // B-type
+        Jmp(uint32_t from, Bit<7> opcode, uint32_t funct3, Reg src1, Reg src2)
+            : type(tBtype)
+            , from(from)
+            , encoded((static_cast<uint32_t>(src2) << 20) | (static_cast<uint32_t>(src1) << 15) | (funct3 << 12) | opcode)
+        {
+        }
+        // raw address
+        explicit Jmp(uint32_t from)
+            : type(tRawAddress)
+            , from(from)
+            , encoded(0)
+        {
+        }
+
+        uint32_t encode(uint32_t addr) const;
+
+        // update jmp address by base->getCurr()
+        void update(CodeGenerator *base) const;
+
+        // append jmp opcode with addr
+        void appendCode(CodeGenerator *base, uint32_t addr) const;
+    };
+
+    //------------------------------------------------------------------------
+    // Typedefines
+    //------------------------------------------------------------------------
+    typedef std::unordered_map<int, ClabelVal> ClabelDefList;
+    typedef std::unordered_multimap<int, Jmp> ClabelUndefList;
+    typedef std::unordered_set<Label*> LabelPtrList;
+
+    //------------------------------------------------------------------------
+    // Private methods
+    //------------------------------------------------------------------------
+    void reset()
+    {
+        labelId_ = 1;
+        clabelDefList_.clear();
+        clabelUndefList_.clear();
+        resetLabelPtrList();
+    }
+    void defineClabel(Label& label)
+    {
+        define_inner(clabelDefList_, clabelUndefList_, getId(label), getCurr());
+        label.cg = this;
+        labelPtrList_.insert(&label);
+    }
+    void assign(Label& dst, const Label& src)
+    {
+        ClabelDefList::const_iterator i = clabelDefList_.find(src.id);
+        if (i == clabelDefList_.end()) throw Error(ERR_LABEL_IS_NOT_SET_BY_L);
+        define_inner(clabelDefList_, clabelUndefList_, dst.id, i->second.addr);
+        dst.cg = this;
+        labelPtrList_.insert(&dst);
+    }
+    // return 0 unless label exists
+    uint32_t getAddr(const Label& label) const
+    {
+        ClabelDefList::const_iterator i = clabelDefList_.find(getId(label));
+        if (i == clabelDefList_.end()) return 0;
+        return i->second.addr;
+    }
+    void addUndefinedLabel(const Label& label, const Jmp& jmp)
+    {
+        clabelUndefList_.insert(ClabelUndefList::value_type(label.id, jmp));
+    }
+    bool hasUndefClabel() const { return hasUndefinedLabel_inner(clabelUndefList_); }
+    
+    int getId(const Label& label) const
+    {
+        if (label.id == 0) label.id = labelId_++;
+        return label.id;
+    }
+    void define_inner(ClabelDefList& defList, ClabelUndefList& undefList, int labelId, uint32_t addr)
+    {
+        // add label
+        ClabelDefList::value_type item(labelId, addr);
+        std::pair<ClabelDefList::iterator, bool> ret = defList.insert(item);
+        if (!ret.second) throw Error(ERR_LABEL_IS_REDEFINED);
+        // search undefined label
+        for (;;) {
+            ClabelUndefList::iterator itr = undefList.find(labelId);
+            if (itr == undefList.end()) break;
+            const Jmp& jmp = itr->second;
+            jmp.update(this);
+            undefList.erase(itr);
+        }
+    }
+
+    void incRefCount(int id, Label *label)
+    {
+        clabelDefList_[id].refCount++;
+        labelPtrList_.insert(label);
+    }
+    void decRefCount(int id, Label *label)
+    {
+        labelPtrList_.erase(label);
+        ClabelDefList::iterator i = clabelDefList_.find(id);
+        if (i == clabelDefList_.end()) return;
+        if (i->second.refCount == 1) {
+            clabelDefList_.erase(id);
+        } else {
+            --i->second.refCount;
+        }
+    }
+
+    template<class T>
+    bool hasUndefinedLabel_inner(const T& list) const
+    {
+        return !list.empty();
+    }
+    // detach all labels linked to LabelManager
+    void resetLabelPtrList()
+    {
+        for (LabelPtrList::iterator i = labelPtrList_.begin(), ie = labelPtrList_.end(); i != ie; ++i) {
+            (*i)->clear();
+        }
+        labelPtrList_.clear();
+    }
+
+    void append4B(uint32_t code) { code_.push_back(code); }
+    
+    void write4B(size_t offset, uint32_t v) 
+    {
+        assert((offset & 3) == 0);
+        code_.at(offset / 4) = v; 
+    }
+
+    // **TODO**  add code base address
+    uint32_t getCurr() const{ return static_cast<uint32_t>(code_.size()) * 4; }
     
     void opJmp(const Label& label, const Jmp& jmp)
     {
-        const uint32_t addr = labelMgr_.getAddr(label);
+        const uint32_t addr = getAddr(label);
         jmp.appendCode(this, addr);
         if (addr) {
             return;
         }
-        labelMgr_.addUndefinedLabel(label, jmp);
+        addUndefinedLabel(label, jmp);
     }
     uint32_t enc2(uint32_t a, uint32_t b) const { return (a<<7) | (b<<15); }
     uint32_t enc3(uint32_t a, uint32_t b, uint32_t c) const { return enc2(a, b) | (c<<20); }
@@ -612,7 +489,13 @@ private:
         append4B(v);
     }
 
+    //------------------------------------------------------------------------
+    // Members
+    //------------------------------------------------------------------------
+    std::vector<uint32_t> code_;    
+    mutable int labelId_;
+    ClabelDefList clabelDefList_;
+    ClabelUndefList clabelUndefList_;
+    LabelPtrList labelPtrList_;
 };
-
-} // Xbyak_riscv
 

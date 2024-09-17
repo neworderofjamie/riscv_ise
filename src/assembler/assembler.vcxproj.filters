@@ -2,21 +2,29 @@
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <Filter Include="Source Files">
-      <UniqueIdentifier>{DEF57C76-3DBE-4E91-9B3E-7C05379F88B5}</UniqueIdentifier>
+      <UniqueIdentifier>{8C508196-CF37-4696-8188-0E40214CC467}</UniqueIdentifier>
       <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
     </Filter>
     <Filter Include="Header Files">
-      <UniqueIdentifier>{6BF6D913-E157-4289-816D-740A91099468}</UniqueIdentifier>
+      <UniqueIdentifier>{721848AB-F404-4ADC-A57C-A5593DA8CE92}</UniqueIdentifier>
       <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
     </Filter>
     <Filter Include="Resource Files">
-      <UniqueIdentifier>{01858FB8-445D-46FD-88BB-FDCF86472BB4}</UniqueIdentifier>
+      <UniqueIdentifier>{721848AB-F404-4ADC-A57C-A5593DA8CE92}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="mnist.cc">
+    <ClCompile Include="assembler.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\include\assembler\assembler.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\assembler\register_allocator.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

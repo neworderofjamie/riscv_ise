@@ -10,10 +10,8 @@
 #include "common/utils.h"
 
 // RISC-V assembler includes
+#include "assembler/assembler.h"
 #include "assembler/register_allocator.h"
-#include "assembler/xbyak_riscv.hpp"
-
-using namespace Xbyak_riscv;
 
 //----------------------------------------------------------------------------
 // AppUtils

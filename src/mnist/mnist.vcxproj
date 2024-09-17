@@ -11,10 +11,6 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\include\assembler\register_allocator.h" />
-    <ClInclude Include="..\..\include\assembler\xbyak_riscv.hpp" />
-  </ItemGroup>
-  <ItemGroup>
     <ClCompile Include="mnist.cc" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
@@ -73,7 +69,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>ise_$(Configuration).lib;common_$(Configuration).lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>assembler_$(Configuration).lib;ise_$(Configuration).lib;common_$(Configuration).lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(SolutionDir)lib</AdditionalLibraryDirectories>
     </Link>
     <Lib>
@@ -99,7 +95,7 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>ise_$(Configuration).lib;common_$(Configuration).lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>assembler_$(Configuration).lib;ise_$(Configuration).lib;common_$(Configuration).lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(SolutionDir)lib</AdditionalLibraryDirectories>
     </Link>
     <Lib>
