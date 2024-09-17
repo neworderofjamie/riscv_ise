@@ -4,9 +4,6 @@
 #include <cassert>
 #include <cstring>
 
-// RISC-V assembler includes
-#include "assembler/xbyak_riscv.hpp"
-
 // RISC-V ISE includes
 #include "ise/riscv.h"
 
@@ -17,8 +14,6 @@
 #define IMMSGN            (IMMSZ -1)
 #define IMMMSK     ( (1 << IMMSZ)-1)
 #define SEXT_IMM(x)  ((x & IMMMSK) | (-BIT((x), IMMSGN)<< IMMSZ))
-
-using namespace Xbyak_riscv;
 
 //----------------------------------------------------------------------------
 // Anonymous namespace
