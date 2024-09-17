@@ -8,18 +8,16 @@
 #include <plog/Appenders/ConsoleAppender.h>
 
 // RISC-V assembler includes
+#include "assembler/assembler.h"
 #include "assembler/register_allocator.h"
-#include "assembler/xbyak_riscv.hpp"
 
 // RISC-V ISE includes
 #include "ise/riscv.h"
 #include "ise/vector_processor.h"
 
 
-Xbyak_riscv::CodeGenerator generateCode()
+CodeGenerator generateCode(double tau, unsigned int numTimesteps)
 {
-    using namespace Xbyak_riscv;
-    
     CodeGenerator c;
     VectorRegisterAllocator vectorRegisterAllocator;
     ScalarRegisterAllocator scalarRegisterAllocator;
@@ -39,7 +37,7 @@ Xbyak_riscv::CodeGenerator generateCode()
     c.vloadr0(Reg::X0);
     c.vloadr1(Reg::X0, 64);
 
-    c.vlui(*VDecay, convertFixedPoint(std::exp(-1.0 / 1000.0), 14));
+    c.vlui(*VDecay, convertFixedPoint(std::exp(-1.0 / tau), 14));
 
     c.vlui(*VZ, convertFixedPoint(1.0, 14));
     c.vlui(*VN, convertFixedPoint(1.0, 14));
@@ -48,8 +46,8 @@ Xbyak_riscv::CodeGenerator generateCode()
     // Start writing at start
     c.li(*SVBuffer, 0);
 
-    // End writing at 5000 timesteps * 3 * 64 bytes
-    c.li(*SVBufferEnd, 5000 * 3 * 32 * 2);
+    // End writing at 3 * 64 bytes for each timestep
+    c.li(*SVBufferEnd, numTimesteps * 3 * 32 * 2);
 
     // Loop over time
     c.L(timeLoop);
@@ -75,13 +73,15 @@ Xbyak_riscv::CodeGenerator generateCode()
 
 int main()
 {
+    const unsigned int numTimesteps = 40000;
+
     // Configure logging
     plog::ConsoleAppender<plog::TxtFormatter> consoleAppender;
     plog::init(plog::debug, &consoleAppender);
     
     // Create memory contents
     std::vector<uint8_t> scalarInitData;
-    std::vector<int16_t> vectorInitData(5000 * 3 * 32);
+    std::vector<int16_t> vectorInitData(numTimesteps * 3 * 32);
 
     // Fill first 64 half words of vector memory with random seed data
     std::random_device seedSource;
@@ -92,7 +92,7 @@ int main()
     }
 
     // Create RISC-V core with instruction and scalar data
-    RISCV riscV(generateCode().getCode(), scalarInitData);
+    RISCV riscV(generateCode(5000.0, numTimesteps).getCode(), scalarInitData);
     
     // Add vector co-processor
     riscV.addCoprocessor<VectorProcessor>(vectorQuadrant, vectorInitData);
