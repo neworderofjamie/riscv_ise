@@ -11,49 +11,31 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="add-01.cc" />
-    <ClCompile Include="addi-01.cc" />
-    <ClCompile Include="and-01.cc" />
-    <ClCompile Include="andi-01.cc" />
-    <ClCompile Include="bne-01.cc" />
-    <ClCompile Include="lui-01.cc" />
-    <ClCompile Include="lw-align-01.cc" />
-    <ClCompile Include="or-01.cc" />
-    <ClCompile Include="ori-01.cc" />
-    <ClCompile Include="sll-01.cc" />
-    <ClCompile Include="slli-01.cc" />
-    <ClCompile Include="slt-01.cc" />
-    <ClCompile Include="slti-01.cc" />
-    <ClCompile Include="sltiu-01.cc" />
-    <ClCompile Include="sltu-01.cc" />
-    <ClCompile Include="sra-01.cc" />
-    <ClCompile Include="srai-01.cc" />
-    <ClCompile Include="srli-01.cc" />
-    <ClCompile Include="sub-01.cc" />
-    <ClCompile Include="$(GTEST_DIR)\src\gtest-all.cc" />
-    <ClCompile Include="$(GTEST_DIR)\src\gtest_main.cc" />
-    <ClCompile Include="xor-01.cc" />
-    <ClCompile Include="xori-01.cc" />
+    <ClInclude Include="..\..\include\assembler\register_allocator.h" />
+    <ClInclude Include="..\..\include\assembler\xbyak_riscv.hpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="main.cc" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
-    <ProjectGuid>{9C99EB5C-1563-4C24-AA69-F02623B6B7EE}</ProjectGuid>
+    <ProjectGuid>{D6FB3AE0-976C-408B-BEEF-128AA4F7681F}</ProjectGuid>
     <RootNamespace>riscvise</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
-    <ProjectName>tests</ProjectName>
+    <ProjectName>build_riscv_arch_testbench</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>$(DefaultPlatformToolset)</PlatformToolset>
+    <PlatformToolset>v142</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>$(DefaultPlatformToolset)</PlatformToolset>
+    <PlatformToolset>v142</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
@@ -86,17 +68,20 @@
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp17</LanguageStandard>
-      <AdditionalIncludeDirectories>$(GTEST_DIR);$(GTEST_DIR)\include;$(SolutionDir)include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <DisableSpecificWarnings>
-      </DisableSpecificWarnings>
-      <AdditionalOptions>/bigobj %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalIncludeDirectories>$(SolutionDir)include;$(SolutionDir)include\riscv_arch_test;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>riscv_arch_test_$(Configuration).lib;ise_$(Configuration).lib;common_$(Configuration).lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>riscv_arch_test_$(Configuration).lib;common_$(Configuration).lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(SolutionDir)lib</AdditionalLibraryDirectories>
     </Link>
+    <Lib>
+      <AdditionalDependencies>ise_$(Configuration).lib</AdditionalDependencies>
+    </Lib>
+    <Lib>
+      <AdditionalLibraryDirectories>$(SolutionDir)lib</AdditionalLibraryDirectories>
+    </Lib>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
@@ -107,19 +92,22 @@
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp17</LanguageStandard>
-      <AdditionalIncludeDirectories>$(GTEST_DIR);$(GTEST_DIR)\include;$(SolutionDir)include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <DisableSpecificWarnings>
-      </DisableSpecificWarnings>
-      <AdditionalOptions>/bigobj %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalIncludeDirectories>$(SolutionDir)include;$(SolutionDir)include\riscv_arch_test;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>riscv_arch_test_$(Configuration).lib;ise_$(Configuration).lib;common_$(Configuration).lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>riscv_arch_test_$(Configuration).lib;common_$(Configuration).lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(SolutionDir)lib</AdditionalLibraryDirectories>
     </Link>
+    <Lib>
+      <AdditionalDependencies>ise_$(Configuration).lib</AdditionalDependencies>
+    </Lib>
+    <Lib>
+      <AdditionalLibraryDirectories>$(SolutionDir)lib</AdditionalLibraryDirectories>
+    </Lib>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
