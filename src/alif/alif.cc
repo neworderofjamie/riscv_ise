@@ -157,10 +157,14 @@ int main()
     int16_t *outputVSum = vectorData + (outputPointer / 2);
 
     std::ofstream out("out_alif.txt");
-    for(int t = 0; t < numTimesteps) {
+    for(int t = 0; t < numTimesteps; t++) {
         for(int l = 0; l < 32; l++) {
-            out << v << std::endl;
+            out << *outputVSum++;
+            if(l != 31) {
+                out << ", ";
+            }
         }
+        out << std::endl;
         
     }
     
