@@ -2,24 +2,16 @@
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <Filter Include="Source Files">
-      <UniqueIdentifier>{6CD0838E-E799-4F63-8AB7-EEC166FF4365}</UniqueIdentifier>
+      <UniqueIdentifier>{B4C5EA9F-234F-4080-BD41-C697E87F28F9}</UniqueIdentifier>
       <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
     </Filter>
     <Filter Include="Header Files">
-      <UniqueIdentifier>{2976076E-5103-423A-B820-D6ED9A4118FB}</UniqueIdentifier>
+      <UniqueIdentifier>{4E5A524C-69EA-447F-B7F3-6A6E7E362580}</UniqueIdentifier>
       <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\include\assembler\register_allocator.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\include\assembler\xbyak_riscv.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="main.cc">
+    <ClCompile Include="alif.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

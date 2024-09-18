@@ -52,6 +52,13 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "build_riscv_arch_testbench"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "assembler", "src\assembler\assembler.vcxproj", "{EF52D22C-C128-4A30-ABE2-C00ADDA02440}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "alif", "src\alif\alif.vcxproj", "{3DF4F36C-2A7C-4E10-9704-5F4F378EFCC4}"
+	ProjectSection(ProjectDependencies) = postProject
+		{CD770F05-BCE1-4550-BDB0-87C804610716} = {CD770F05-BCE1-4550-BDB0-87C804610716}
+		{EF52D22C-C128-4A30-ABE2-C00ADDA02440} = {EF52D22C-C128-4A30-ABE2-C00ADDA02440}
+		{695590D3-FA1D-4CD7-9B12-B03F15FC98E6} = {695590D3-FA1D-4CD7-9B12-B03F15FC98E6}
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -94,6 +101,10 @@ Global
 		{EF52D22C-C128-4A30-ABE2-C00ADDA02440}.Debug|x64.Build.0 = Debug|x64
 		{EF52D22C-C128-4A30-ABE2-C00ADDA02440}.Release|x64.ActiveCfg = Release|x64
 		{EF52D22C-C128-4A30-ABE2-C00ADDA02440}.Release|x64.Build.0 = Release|x64
+		{3DF4F36C-2A7C-4E10-9704-5F4F378EFCC4}.Debug|x64.ActiveCfg = Debug|x64
+		{3DF4F36C-2A7C-4E10-9704-5F4F378EFCC4}.Debug|x64.Build.0 = Debug|x64
+		{3DF4F36C-2A7C-4E10-9704-5F4F378EFCC4}.Release|x64.ActiveCfg = Release|x64
+		{3DF4F36C-2A7C-4E10-9704-5F4F378EFCC4}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -9,10 +9,6 @@
       <UniqueIdentifier>{7269285A-C1A5-428C-9416-9E7FFBB4169C}</UniqueIdentifier>
       <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
     </Filter>
-    <Filter Include="Resource Files">
-      <UniqueIdentifier>{3264812D-5F7A-4A81-83E4-FF7793F46476}</UniqueIdentifier>
-      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
-    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="$(GTEST_DIR)\src\gtest-all.cc">
