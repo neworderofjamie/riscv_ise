@@ -5,7 +5,7 @@ include ../MakefileCommon
 LDFLAGS		+= -L$(LIBRARY_DIRECTORY) -lise$(PREFIX) -lcommon$(PREFIX) -lassembler$(PREFIX)
 
 # Determine full path to test
-ALIF		:=$(BIN_DIRECTORY)/lif$(PREFIX)
+ALIF		:=$(BIN_DIRECTORY)/alif$(PREFIX)
 
 .PHONY: all clean libcommon libise libassembler
 
