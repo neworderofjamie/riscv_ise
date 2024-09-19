@@ -82,9 +82,9 @@ CodeGenerator generateCode(double tauM, double tauA, uint32_t poissonPtr, uint32
     // Pick vadd, vsub and vmul operations to use based on saturation
     const auto vaddFn = std::mem_fn(saturate ? &CodeGenerator::vadd_s : &CodeGenerator::vadd);
     const auto vsubFn = std::mem_fn(saturate ? &CodeGenerator::vsub_s : &CodeGenerator::vsub);
-    const auto vmulFn = std::mem_fn((roundMode == RoundMode::NEAREST) ? &CodeGenerator::vmul 
+    const auto vmulFn = std::mem_fn((roundMode == RoundMode::NEAREST) ? &CodeGenerator::vmul_rn 
                                     : (roundMode == RoundMode::STOCHASTIC ? &CodeGenerator::vmul_rs 
-                                       : &CodeGenerator::vmul_rn));
+                                       : &CodeGenerator::vmul));
 
     // Loop over time
     Label loop;
@@ -165,7 +165,7 @@ int main()
     // Generate code
     const size_t vFixedPoint = 10;
     const bool saturate = false;
-    const RoundMode roundMode = RoundMode::STOCHASTIC;
+    const RoundMode roundMode = RoundMode::NEAREST;
     const auto code = generateCode(20.0, 2000.0, poissonPtr, outputPointer, seedPointer,
                                    vFixedPoint, numTimesteps, saturate, roundMode).getCode();
 
