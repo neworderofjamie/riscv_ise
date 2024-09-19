@@ -13,6 +13,9 @@ def plot_fixed_point(axis, timesteps, v_rec, data_average, data_std, num_frac_bi
     axis.plot(timesteps, v_rec, linestyle="--")
     axis.set_ylabel("Membrane voltage")
 
+def calc_rmse(v_rec, data_average, num_frac_bits):
+    return np.sqrt(np.mean(((data_average / (2 ** num_frac_bits)) - v_rec)**2))
+
 TAU_A = 2000.0
 TAU_M = 20.0
 ALPHA = np.exp(-1 / TAU_M)
@@ -54,19 +57,19 @@ timesteps = np.arange(len(poisson))
 fig, axes = plt.subplots(4, sharex=True, squeeze=False)
 
 # Apply fixed point scale and compare
-axes[0,0].set_title("10 fractional bits, RTZ")
+axes[0,0].set_title(f"10 fractional bits, RTZ ({calc_rmse(v_rec, data_10_average, 10)})")
 plot_fixed_point(axes[0,0], timesteps, v_rec, data_10_average, data_10_std, 10)
 
 # Apply fixed point scale and compare
-axes[1,0].set_title("11 fractional bits, RTZ")
-plot_fixed_point(axes[1,0], timesteps, v_rec, data_11_average, data_11_std, 10)
+axes[1,0].set_title(f"11 fractional bits, RTZ  ({calc_rmse(v_rec, data_11_average, 11)})")
+plot_fixed_point(axes[1,0], timesteps, v_rec, data_11_average, data_11_std, 11)
 
 # Apply fixed point scale and compare
-axes[2,0].set_title("10 fractional bits, RTN")
+axes[2,0].set_title(f"10 fractional bits, RTN  ({calc_rmse(v_rec, data_10_rn_average, 10)})")
 plot_fixed_point(axes[2,0], timesteps, v_rec, data_10_rn_average, data_10_rn_std, 10)
 
 # Apply fixed point scale and compare
-axes[3,0].set_title("10 fractional bits, RTS")
+axes[3,0].set_title(f"10 fractional bits, RTS  ({calc_rmse(v_rec, data_10_rs_average, 10)})")
 plot_fixed_point(axes[3,0], timesteps, v_rec, data_10_rs_average, data_10_rs_std, 10)
 axes[3,0].set_xlabel("Time [ms]")
 
