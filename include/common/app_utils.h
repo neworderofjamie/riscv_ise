@@ -21,6 +21,9 @@ namespace AppUtils
 // Allocate vector-aligned memory to store halfwords and return start adddress
 uint32_t allocateVectorAndZero(size_t numHalfWords, std::vector<int16_t> &memory);
 
+// Seed RNG
+uint32_t allocateVectorSeedAndInit(std::vector<int16_t> &memory);
+
 // Load vector data from int16_t binary file into vector-aligned memory
 uint32_t loadVectors(const std::string &filename, std::vector<int16_t> &memory);
 

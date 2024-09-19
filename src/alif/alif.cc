@@ -1,5 +1,6 @@
 // Standard C++ includes
 #include <fstream>
+#include <functional>
 #include <numeric>
 
 // PLOG includes
@@ -18,8 +19,16 @@
 #include "ise/riscv.h"
 #include "ise/vector_processor.h"
 
-CodeGenerator generateCode(double tauM, double tauA, uint32_t poissonPtr, 
-                           uint32_t outputPointer, size_t numTimesteps)
+enum class RoundMode
+{
+    ZERO,
+    NEAREST,
+    STOCHASTIC,
+};
+
+CodeGenerator generateCode(double tauM, double tauA, uint32_t poissonPtr, uint32_t outputPointer, 
+                           uint32_t seedPointer, size_t vFixedPoint, size_t numTimesteps, 
+                           bool saturate, RoundMode roundMode)
 {
     CodeGenerator c;
     VectorRegisterAllocator vectorRegisterAllocator;
@@ -43,15 +52,23 @@ CodeGenerator generateCode(double tauM, double tauA, uint32_t poissonPtr,
     ALLOCATE_VECTOR(VOne);
     ALLOCATE_VECTOR(VI);
 
+    // Load RNG seed
+    {
+        ALLOCATE_SCALAR(STmp);
+        c.li(*STmp, seedPointer);
+        c.vloadr0(*STmp);
+        c.vloadr1(*STmp, 64);
+    }
+
     // Calculate constants
     c.vlui(*VAlpha, convertFixedPoint(std::exp(-1.0 / tauM), 14));
     c.vlui(*VRho, convertFixedPoint(std::exp(-1.0 / tauA), 14));
-    c.vlui(*VWeight, convertFixedPoint(0.01, 10));
-    c.vlui(*VBeta, convertFixedPoint(0.0174, 10));
+    c.vlui(*VWeight, convertFixedPoint(0.01, vFixedPoint));
+    c.vlui(*VBeta, convertFixedPoint(0.0174, vFixedPoint));
     c.vlui(*VV, 0);
     c.vlui(*VA, 0);
-    c.vlui(*VVThresh, convertFixedPoint(0.6, 10));
-    c.vlui(*VOne, convertFixedPoint(1.0, 10));
+    c.vlui(*VVThresh, convertFixedPoint(0.6, vFixedPoint));
+    c.vlui(*VOne, convertFixedPoint(1.0, vFixedPoint));
 
     // Start reading at poisson pointer
     c.li(*SPoissonBuffer, poissonPtr);
@@ -62,6 +79,13 @@ CodeGenerator generateCode(double tauM, double tauA, uint32_t poissonPtr,
     // End writing at 100 timesteps * 64 bytes
     c.li(*SVBufferEnd, outputPointer + (64 * numTimesteps));
     
+    // Pick vadd, vsub and vmul operations to use based on saturation
+    const auto vaddFn = std::mem_fn(saturate ? &CodeGenerator::vadd_s : &CodeGenerator::vadd);
+    const auto vsubFn = std::mem_fn(saturate ? &CodeGenerator::vsub_s : &CodeGenerator::vsub);
+    const auto vmulFn = std::mem_fn((roundMode == RoundMode::NEAREST) ? &CodeGenerator::vmul 
+                                    : (roundMode == RoundMode::STOCHASTIC ? &CodeGenerator::vmul_rs 
+                                       : &CodeGenerator::vmul_rn));
+
     // Loop over time
     Label loop;
     c.L(loop);
@@ -75,27 +99,27 @@ CodeGenerator generateCode(double tauM, double tauA, uint32_t poissonPtr,
         c.vmul(0, *VI, *VI, *VWeight);
    
         // v *= alpha
-        c.vmul(14, *VV, *VV, *VAlpha);
+        vmulFn(&c, 14, *VV, *VV, *VAlpha);
     
         // v += i
-        c.vadd(*VV, *VV, *VI);
+        vaddFn(&c, *VV, *VV, *VI);
 
         // a *= rho
-        c.vmul(14, *VA, *VA, *VRho);
+        vmulFn(&c, 14, *VA, *VA, *VRho);
     
         // spike = VV >= (VThres + (Beta * A))
         {
             ALLOCATE_VECTOR(VTmp);
-            c.vmul(10, *VTmp, *VA, *VBeta);
-            c.vadd(*VTmp, *VTmp, *VVThresh);
+            vmulFn(&c, vFixedPoint, *VTmp, *VA, *VBeta);
+            vaddFn(&c, *VTmp, *VTmp, *VVThresh);
             c.vtge(*SSpike, *VV, *VTmp);
         }
         
         {
             ALLOCATE_VECTOR(VTmp1);
             ALLOCATE_VECTOR(VTmp2);
-            c.vsub(*VTmp1, *VV, *VVThresh);
-            c.vadd(*VTmp2, *VA, *VOne);
+            vsubFn(&c, *VTmp1, *VV, *VVThresh);
+            vaddFn(&c, *VTmp2, *VA, *VOne);
 
             // v = spk ? (v - v_thresh) : v
             c.vsel(*VV, *SSpike, *VTmp1);
@@ -128,6 +152,9 @@ int main()
     std::vector<uint8_t> scalarInitData;
     std::vector<int16_t> vectorInitData;
     
+    // Generate seed
+    const uint32_t seedPointer = AppUtils::allocateVectorSeedAndInit(vectorInitData);
+
     // Load poisson data into vector memory
     const uint32_t poissonPtr = AppUtils::loadVectors("poisson_data.bin", vectorInitData);
     
@@ -136,10 +163,25 @@ int main()
     const uint32_t outputPointer = AppUtils::allocateVectorAndZero(32 * numTimesteps, vectorInitData);
 
     // Generate code
-    const auto code = generateCode(20.0, 2000.0, poissonPtr, outputPointer, numTimesteps).getCode();
+    const size_t vFixedPoint = 10;
+    const bool saturate = false;
+    const RoundMode roundMode = RoundMode::STOCHASTIC;
+    const auto code = generateCode(20.0, 2000.0, poissonPtr, outputPointer, seedPointer,
+                                   vFixedPoint, numTimesteps, saturate, roundMode).getCode();
+
+    std::string filenameSuffix = "_" + std::to_string(vFixedPoint);
+    if(saturate) {
+        filenameSuffix += "_sat";
+    }
+    if(roundMode == RoundMode::NEAREST) {
+        filenameSuffix += "_rn";
+    }
+    else if(roundMode == RoundMode::STOCHASTIC) {
+        filenameSuffix += "_rs";
+    }
 
     // Dump to coe file
-    AppUtils::dumpCOE("alif.coe", code);
+    AppUtils::dumpCOE("alif" + filenameSuffix + ".coe", code);
 
     // Create RISC-V core with instruction and scalar data
     RISCV riscV(code, scalarInitData);
@@ -156,7 +198,7 @@ int main()
     // From these, get pointers to data structures
     int16_t *outputVSum = vectorData + (outputPointer / 2);
 
-    std::ofstream out("out_alif.txt");
+    std::ofstream out("out_alif" + filenameSuffix + ".txt");
     for(int t = 0; t < numTimesteps; t++) {
         for(int l = 0; l < 32; l++) {
             out << *outputVSum++;

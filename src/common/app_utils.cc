@@ -1,5 +1,8 @@
 #include "common/app_utils.h"
 
+// Standard C++ includes
+#include <random>
+
 // Standard C includes
 #include <cassert>
 
@@ -33,8 +36,24 @@ uint32_t allocateVectorAndZero(size_t numHalfWords, std::vector<int16_t> &memory
     // Return start address in bytes
     return static_cast<uint32_t>(startHalfWords) * 2;
 }
+//----------------------------------------------------------------------------
+uint32_t allocateVectorSeedAndInit(std::vector<int16_t> &memory)
+{
+    // Allocate two vectors of seed
+    const uint32_t startBytes = allocateVectorAndZero(64, memory);
 
-// Load vector data from int16_t binary file
+    // Fill first 64 half words of vector memory with random seed data
+    std::random_device seedSource;
+    int16_t *seedPointer = memory.data() + (startBytes / 2);
+    for(size_t i = 0; i < 32; i++) {
+        const uint32_t seed = seedSource();
+        *seedPointer++ =  seed & 0xFFFF;
+        *seedPointer++ = (seed >> 16) & 0xFFFF;
+    }
+    
+    return startBytes;
+}
+//----------------------------------------------------------------------------
 uint32_t loadVectors(const std::string &filename, std::vector<int16_t> &memory)
 {
     std::ifstream input(filename, std::ios::binary);
@@ -56,8 +75,7 @@ uint32_t loadVectors(const std::string &filename, std::vector<int16_t> &memory)
     // Return start address in bytes
     return startBytes;
 }
-
-
+//----------------------------------------------------------------------------
 uint32_t allocateScalarAndZero(size_t numBytes, std::vector<uint8_t> &memory)
 {
     const size_t startBytes = memory.size();
@@ -70,7 +88,7 @@ uint32_t allocateScalarAndZero(size_t numBytes, std::vector<uint8_t> &memory)
     // Return start address
     return static_cast<uint32_t>(startBytes);
 }
-
+//----------------------------------------------------------------------------
 void writeSpikes(std::ofstream &os, const uint32_t *data, 
                  float time, size_t numWords)
 {
@@ -89,7 +107,7 @@ void writeSpikes(std::ofstream &os, const uint32_t *data,
         }
     }
 }
-
+//----------------------------------------------------------------------------
 void dumpCOE(const std::string &filename, const std::vector<uint32_t> &code)
 {
     // Write hexadecimal COE file
@@ -107,7 +125,7 @@ void dumpCOE(const std::string &filename, const std::vector<uint32_t> &code)
         coe << std::endl;
     }
 }
-
+//----------------------------------------------------------------------------
 void generateScalarVectorMemCpy(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator,
                                 ScalarRegisterAllocator &scalarRegisterAllocator,
                                 uint32_t scalarPtr, uint32_t vectorPtr, uint32_t numVectors)
