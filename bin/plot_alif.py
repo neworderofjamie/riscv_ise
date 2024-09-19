@@ -7,6 +7,12 @@ def load_data(filename, desired_shape):
     return (np.average(data, axis=1), 
             np.std(data, axis=1))
 
+def plot_fixed_point(axis, timesteps, v_rec, data_average, data_std, num_frac_bits):
+    scale = 1.0 / (2 ** num_frac_bits)
+    axis.errorbar(timesteps, data_average * scale, yerr=data_std * scale)
+    axis.plot(timesteps, v_rec, linestyle="--")
+    axis.set_ylabel("Membrane voltage")
+
 TAU_A = 2000.0
 TAU_M = 20.0
 ALPHA = np.exp(-1 / TAU_M)
@@ -49,23 +55,19 @@ fig, axes = plt.subplots(4, sharex=True, squeeze=False)
 
 # Apply fixed point scale and compare
 axes[0,0].set_title("10 fractional bits, RTZ")
-axes[0,0].errorbar(timesteps, data_10_average / (2 ** 10), yerr=data_10_std / (2 ** 10))
-axes[0,0].plot(timesteps, v_rec, linestyle="--")
+plot_fixed_point(axes[0,0], timesteps, v_rec, data_10_average, data_10_std, 10)
 
 # Apply fixed point scale and compare
 axes[1,0].set_title("11 fractional bits, RTZ")
-axes[1,0].errorbar(timesteps, data_11_average / (2 ** 11), yerr=data_11_std / (2 ** 11))
-axes[1,0].plot(timesteps, v_rec, linestyle="--")
+plot_fixed_point(axes[1,0], timesteps, v_rec, data_11_average, data_11_std, 10)
 
 # Apply fixed point scale and compare
 axes[2,0].set_title("10 fractional bits, RTN")
-axes[2,0].errorbar(timesteps, data_10_rn_average / (2 ** 10), yerr=data_10_rn_std / (2 ** 10))
-axes[2,0].plot(timesteps, v_rec, linestyle="--")
+plot_fixed_point(axes[2,0], timesteps, v_rec, data_10_rn_average, data_10_rn_std, 10)
 
 # Apply fixed point scale and compare
 axes[3,0].set_title("10 fractional bits, RTS")
-axes[3,0].errorbar(timesteps, data_10_rs_average / (2 ** 10), yerr=data_10_rs_std / (2 ** 10))
-axes[3,0].plot(timesteps, v_rec, linestyle="--")
-
+plot_fixed_point(axes[3,0], timesteps, v_rec, data_10_rs_average, data_10_rs_std, 10)
+axes[3,0].set_xlabel("Time [ms]")
 
 plt.show()
