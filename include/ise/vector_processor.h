@@ -51,7 +51,7 @@ public:
     const auto &getVectorDataMemory() const{ return m_VectorDataMemory; }
     
 private:
-    Vector sampleRNG(int shift);
+    std::array<uint16_t, 32> sampleRNG();
 
     Vector calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs2, uint32_t rs1, uint32_t funct3);
     uint32_t calcTestResult(uint32_t inst, uint32_t rs2, uint32_t rs1, uint32_t funct3) const;

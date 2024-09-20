@@ -168,8 +168,17 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
 
             PLOGV << "VRNG";
             PLOGV << "\t" << rd;
-            // **NOTE** shift down result down to get 0,int16_max range
-            m_VReg[rd] = sampleRNG(1);
+            
+            // Sample RNG
+            const auto r = sampleRNG();
+
+            // Shift down result to get 0,int16_max range
+            // **NOTE** we do this rather than masking because
+            // lowest bits of our generator has low linear complexity
+            // **THINK** could barrel shift here. If there's time to barrel
+            // shift after stochastic multiply, there is time here
+            std::transform(r.cbegin(), r.cend(), m_VReg[rd].begin(), 
+                           [](uint16_t a){ return (int16_t)(a >> 1); });
         }
         else {
             throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
@@ -242,19 +251,19 @@ void VectorProcessor::dumpRegisters() const
     }
 }
 //------------------------------------------------------------------------
-Vector VectorProcessor::sampleRNG(int shift)
+std::array<uint16_t, 32> VectorProcessor::sampleRNG()
 {
     constexpr uint16_t a = 13;
     constexpr uint16_t b = 5;
     constexpr uint16_t c = 10;
     constexpr uint16_t d = 9;
 
-    Vector result;
+    std::array<uint16_t, 32> result;
     for(size_t i = 0; i < 32; i++) {
         uint16_t s0 = (uint16_t)m_S0[i];
         uint16_t s1 = (uint16_t)m_S1[i];
 
-        result[i] = (rol(s0 + s1, d) + s0) >> shift;
+        result[i] = (rol(s0 + s1, d) + s0);
 
         s1 ^= s0;
         s0 = rol(s0, a ) ^ s1 ^ (s1 << b);
@@ -325,19 +334,24 @@ Vector VectorProcessor::calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs
         }
         // Stochastic round
         else if (roundMode == 0b10) {
-            // **NOTE** We want to generate random fractional bits and
-            /// there are (fixedPoint - 1) fractional bit so we
-            // need to shift off difference between 16 and (fixedPoint - 1).
-            const auto stoch = sampleRNG(16 - (fixedPoint - 1));
+            // Sample from RNG
+            const auto r = sampleRNG();
+
+            // Mask out bits corresponding to fractional bits in our format
+            Vector maskedStoch;
+            const uint16_t mask = (1 << fixedPoint) - 1;
+            std::transform(r.cbegin(), r.cend(), maskedStoch.begin(), 
+                           [mask](uint16_t a){ return (int16_t)(a & mask); });
+
             Vector result;
             if(saturateResult) {
                 for(size_t i = 0; i < 32; i++) {
-                    result[i] = ((val[i] * val2[i]) + stoch[i]) >> fixedPoint;
+                    result[i] = saturate(((val[i] * val2[i]) + maskedStoch[i]) >> fixedPoint);
                 }
             }
             else {
                 for(size_t i = 0; i < 32; i++) {
-                    result[i] = saturate(((val[i] * val2[i]) + stoch[i]) >> fixedPoint);
+                    result[i] = ((val[i] * val2[i]) + maskedStoch[i]) >> fixedPoint;
 
                 }
             }
