@@ -29,7 +29,7 @@ enum class RoundMode
 
 CodeGenerator generateCode(double tauM, double tauA, uint32_t poissonPtr, uint32_t vPointer,  
                            uint32_t aPointer, uint32_t seedPointer, size_t vFixedPoint, 
-                           size_t numTimesteps, bool saturate, RoundMode roundMode)
+                           size_t aFixedPoint, size_t numTimesteps, bool saturate, RoundMode roundMode)
 {
     CodeGenerator c;
     VectorRegisterAllocator vectorRegisterAllocator;
@@ -70,7 +70,7 @@ CodeGenerator generateCode(double tauM, double tauA, uint32_t poissonPtr, uint32
     c.vlui(*VV, 0);
     c.vlui(*VA, 0);
     c.vlui(*VVThresh, convertFixedPoint(0.6, vFixedPoint));
-    c.vlui(*VOne, convertFixedPoint(1.0, vFixedPoint));
+    c.vlui(*VOne, convertFixedPoint(1.0, aFixedPoint));
 
     // Start reading at poisson pointer
     c.li(*SPoissonBuffer, poissonPtr);
@@ -115,7 +115,7 @@ CodeGenerator generateCode(double tauM, double tauA, uint32_t poissonPtr, uint32
         // spike = VV >= (VThres + (Beta * A))
         {
             ALLOCATE_VECTOR(VTmp);
-            vmulFn(&c, vFixedPoint, *VTmp, *VA, *VBeta);
+            vmulFn(&c, aFixedPoint, *VTmp, *VA, *VBeta);
             vaddFn(&c, *VTmp, *VTmp, *VVThresh);
             c.vtge(*SSpike, *VV, *VTmp);
         }
@@ -160,14 +160,16 @@ int main(int argc, char** argv)
     
     
     size_t numTimesteps = 1370;
+    size_t aFixedPoint = 10;
     size_t vFixedPoint = 10;
     bool saturate = false;
-    RoundMode roundMode = RoundMode::NEAREST;
+    RoundMode roundMode = RoundMode::ZERO;
     
     CLI::App app{"ALIF neuron simulation"};
     app.add_option("-t,--timesteps", numTimesteps, "Number of timesteps to simulate");
-    app.add_option("-f,--fractional-bits", vFixedPoint, "Number of fractional bits to use for neuron state variables");
-    app.add_option("-s,--saturate", saturate, "Should saturating operations be used");
+    app.add_option("-a,--a-fractional-bits", aFixedPoint, "Number of fractional bits to use for A state variable");
+    app.add_option("-v,--v-fractional-bits", vFixedPoint, "Number of fractional bits to use for V state variable");
+    app.add_flag("-s,--saturate", saturate, "Should saturating operations be used");
     app.add_option("-r,--round-model", roundMode, "What round mode to use");
 
     CLI11_PARSE(app, argc, argv);
@@ -189,9 +191,9 @@ int main(int argc, char** argv)
 
     // Generate code
     const auto code = generateCode(20.0, 2000.0, poissonPtr, vPointer, aPointer, seedPointer,
-                                   vFixedPoint, numTimesteps, saturate, roundMode).getCode();
+                                   vFixedPoint, aFixedPoint, numTimesteps, saturate, roundMode).getCode();
 
-    std::string filenameSuffix = "_" + std::to_string(vFixedPoint);
+    std::string filenameSuffix = "_" + std::to_string(vFixedPoint) + "_" + std::to_string(aFixedPoint);
     if(saturate) {
         filenameSuffix += "_sat";
     }
