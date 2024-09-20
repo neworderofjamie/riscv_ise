@@ -2,8 +2,16 @@
 /Debug/
 /lib/
 /obj/
-/bin/
 **/x64/
 *.vcxproj.user
+*.d
+*.exe
+/bin/alif
+/bin/alif_debug
+/bin/decay
+/bin/decay_debug
+/bin/lif
+/bin/lif_debug
 /obj_debug/
 /**/__pycache__/
+*.coe
