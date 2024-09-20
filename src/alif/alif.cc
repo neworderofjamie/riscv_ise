@@ -224,7 +224,7 @@ int main(int argc, char** argv)
     int16_t *outputA = vectorData + (aPointer / 2);
 
     std::ofstream out("out_alif" + filenameSuffix + ".txt");
-    for(int t = 0; t < numTimesteps; t++) {
+    for(size_t t = 0; t < numTimesteps; t++) {
         for(int l = 0; l < 32; l++) {
             out << *outputV++ << ", " << *outputA++;
             if(l != 31) {
