@@ -9,6 +9,7 @@
 #include <plog/Appenders/ConsoleAppender.h>
 
 // RISC-V common includes
+#include "common/CLI11.hpp"
 #include "common/app_utils.h"
 
 // RISC-V assembler includes
@@ -26,9 +27,9 @@ enum class RoundMode
     STOCHASTIC,
 };
 
-CodeGenerator generateCode(double tauM, double tauA, uint32_t poissonPtr, uint32_t outputPointer, 
-                           uint32_t seedPointer, size_t vFixedPoint, size_t numTimesteps, 
-                           bool saturate, RoundMode roundMode)
+CodeGenerator generateCode(double tauM, double tauA, uint32_t poissonPtr, uint32_t vPointer,  
+                           uint32_t aPointer, uint32_t seedPointer, size_t vFixedPoint, 
+                           size_t numTimesteps, bool saturate, RoundMode roundMode)
 {
     CodeGenerator c;
     VectorRegisterAllocator vectorRegisterAllocator;
@@ -40,6 +41,7 @@ CodeGenerator generateCode(double tauM, double tauA, uint32_t poissonPtr, uint32
 
     // Register allocation
     ALLOCATE_SCALAR(SPoissonBuffer);
+    ALLOCATE_SCALAR(SABuffer);
     ALLOCATE_SCALAR(SVBuffer);
     ALLOCATE_SCALAR(SVBufferEnd);
     ALLOCATE_VECTOR(VAlpha);
@@ -74,10 +76,13 @@ CodeGenerator generateCode(double tauM, double tauA, uint32_t poissonPtr, uint32
     c.li(*SPoissonBuffer, poissonPtr);
 
     // Start writing 64 bytes in (after I values)
-    c.li(*SVBuffer, outputPointer);
+    c.li(*SABuffer, aPointer);
+
+    // Start writing 64 bytes in (after I values)
+    c.li(*SVBuffer, vPointer);
 
     // End writing at 100 timesteps * 64 bytes
-    c.li(*SVBufferEnd, outputPointer + (64 * numTimesteps));
+    c.li(*SVBufferEnd, vPointer + (64 * numTimesteps));
     
     // Pick vadd, vsub and vmul operations to use based on saturation
     const auto vaddFn = std::mem_fn(saturate ? &CodeGenerator::vadd_s : &CodeGenerator::vadd);
@@ -129,9 +134,13 @@ CodeGenerator generateCode(double tauM, double tauA, uint32_t poissonPtr, uint32
         }
         
     
-        //vmem[a...a+32] = v
+        // Write V to memory
         c.vstore(*VV, *SVBuffer);
         c.addi(*SVBuffer, *SVBuffer, 64);
+
+        // Write A to memory
+        c.vstore(*VA, *SABuffer);
+        c.addi(*SABuffer, *SABuffer, 64);
     
         // While x2 (address) < x1 (count), goto loop
         c.bne(*SVBuffer, *SVBufferEnd, loop);
@@ -142,12 +151,28 @@ CodeGenerator generateCode(double tauM, double tauA, uint32_t poissonPtr, uint32
 }
 
 
-int main()
+int main(int argc, char** argv)
 {
     // Configure logging
     plog::ConsoleAppender<plog::TxtFormatter> consoleAppender;
     plog::init(plog::debug, &consoleAppender);
     
+    
+    
+    size_t numTimesteps = 1370;
+    size_t vFixedPoint = 10;
+    bool saturate = false;
+    RoundMode roundMode = RoundMode::NEAREST;
+    
+    CLI::App app{"ALIF neuron simulation"};
+    app.add_option("-t,--timesteps", numTimesteps, "Number of timesteps to simulate");
+    app.add_option("-f,--fractional-bits", vFixedPoint, "Number of fractional bits to use for neuron state variables");
+    app.add_option("-s,--saturate", saturate, "Should saturating operations be used");
+    app.add_option("-r,--round-model", roundMode, "What round mode to use");
+
+    CLI11_PARSE(app, argc, argv);
+
+
     // Create memory contents
     std::vector<uint8_t> scalarInitData;
     std::vector<int16_t> vectorInitData;
@@ -158,15 +183,12 @@ int main()
     // Load poisson data into vector memory
     const uint32_t poissonPtr = AppUtils::loadVectors("poisson_data.bin", vectorInitData);
     
-    // Allocate memory to store neuron voltages
-    const size_t numTimesteps = 1370;
-    const uint32_t outputPointer = AppUtils::allocateVectorAndZero(32 * numTimesteps, vectorInitData);
+    // Allocate memory to store neuron voltages and adaptation variables
+    const uint32_t vPointer = AppUtils::allocateVectorAndZero(32 * numTimesteps, vectorInitData);
+    const uint32_t aPointer = AppUtils::allocateVectorAndZero(32 * numTimesteps, vectorInitData);
 
     // Generate code
-    const size_t vFixedPoint = 10;
-    const bool saturate = false;
-    const RoundMode roundMode = RoundMode::NEAREST;
-    const auto code = generateCode(20.0, 2000.0, poissonPtr, outputPointer, seedPointer,
+    const auto code = generateCode(20.0, 2000.0, poissonPtr, vPointer, aPointer, seedPointer,
                                    vFixedPoint, numTimesteps, saturate, roundMode).getCode();
 
     std::string filenameSuffix = "_" + std::to_string(vFixedPoint);
@@ -196,19 +218,17 @@ int main()
     auto *vectorData = riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getVectorDataMemory().getData().data();
     
     // From these, get pointers to data structures
-    int16_t *outputVSum = vectorData + (outputPointer / 2);
+    int16_t *outputV = vectorData + (vPointer / 2);
+    int16_t *outputA = vectorData + (aPointer / 2);
 
     std::ofstream out("out_alif" + filenameSuffix + ".txt");
     for(int t = 0; t < numTimesteps; t++) {
         for(int l = 0; l < 32; l++) {
-            out << *outputVSum++;
+            out << *outputV++ << ", " << *outputA++;
             if(l != 31) {
                 out << ", ";
             }
         }
         out << std::endl;
-        
     }
-    
-
 }
