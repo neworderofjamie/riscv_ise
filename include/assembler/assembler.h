@@ -233,10 +233,10 @@ public:
 
 
     // VTST
-    void vteq(const Reg &rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VTST, 0b000, 0x0, rd, rs1, rs2); }
-    void vtne(const Reg &rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VTST, 0b010, 0x0, rd, rs1, rs2); }
-    void vtlt(const Reg &rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VTST, 0b100, 0x0, rd, rs1, rs2); }
-    void vtge(const Reg &rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VTST, 0b110, 0x0, rd, rs1, rs2); }
+    void vteq(Reg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VTST, 0b000, 0x0, rd, rs1, rs2); }
+    void vtne(Reg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VTST, 0b010, 0x0, rd, rs1, rs2); }
+    void vtlt(Reg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VTST, 0b100, 0x0, rd, rs1, rs2); }
+    void vtge(Reg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VTST, 0b110, 0x0, rd, rs1, rs2); }
 
     // VSEL
     void vsel(VReg rd, const Reg &rs1, VReg rs2){ Rtype(VectorOpCode::VSEL, 0x0, 0x0, rd, rs1, rs2); }
@@ -244,19 +244,20 @@ public:
     // VLUI
     void vlui(VReg rd, uint32_t imm){ Utype(VectorOpCode::VLUI, rd, imm); }
 
-    // VFILL
-    void vfill(VReg rd, Reg rs){ Itype(VectorOpCode::VFILL, 0, rd, rs, 0); }
+    // VMOV
+    void vfill(VReg rd, Reg rs){ Itype(VectorOpCode::VMOV, 0b000, rd, rs, 0); }
+    void vextract(Reg rd, VReg rs, Bit<5> lane){ Itype(VectorOpCode::VMOV, 0b001, rd, rs, lane); }
 
     // VSPC
     void vrng(VReg rd){ Itype(VectorOpCode::VSPC, 0x0, rd, Reg::X0, 0); }
 
     // VLOAD
-    void vloadv(VReg rd, const Reg &addr, int imm = 0){ Itype(VectorOpCode::VLOAD, 0b000, rd, addr, imm); }
-    void vloadr0(const Reg &addr, int imm = 0){ Itype(VectorOpCode::VLOAD, 0b001, 0, addr, imm); }
-    void vloadr1(const Reg &addr, int imm = 0){ Itype(VectorOpCode::VLOAD, 0b101, 0, addr, imm); }
+    void vloadv(VReg rd, Reg addr, int imm = 0){ Itype(VectorOpCode::VLOAD, 0b000, rd, addr, imm); }
+    void vloadr0(Reg addr, int imm = 0){ Itype(VectorOpCode::VLOAD, 0b001, 0, addr, imm); }
+    void vloadr1(Reg addr, int imm = 0){ Itype(VectorOpCode::VLOAD, 0b101, 0, addr, imm); }
     
     // VSTORE
-    void vstore(VReg rs, const Reg &addr, int imm = 0){ Stype(VectorOpCode::VSTORE, 0x0, addr, rs, imm); }
+    void vstore(VReg rs, Reg addr, int imm = 0){ Stype(VectorOpCode::VSTORE, 0x0, addr, rs, imm); }
 
 private:
     friend Label;
