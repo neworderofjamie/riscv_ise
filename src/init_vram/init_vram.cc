@@ -11,26 +11,31 @@
 #include "common/app_utils.h"
 
 // RISC-V assembler includes
-#include "assembler/register_allocator.h"
-#include "assembler/xbyak_riscv.hpp"
+#include "assembler/assembler.h"
+#include "assembler/register_allocator.h""
 
 // RISC-V ISE includes
 #include "ise/riscv.h"
 #include "ise/vector_processor.h"
 
 
-Xbyak_riscv::CodeGenerator generateCode(uint32_t scalarPtr, uint32_t vectorPtr,
-                                        uint32_t numVectors)
+CodeGenerator generateCode(uint32_t scalarPtr, uint32_t vectorPtr,
+                           uint32_t numVectors)
 {
-    using namespace Xbyak_riscv;
-    
     CodeGenerator c;
     VectorRegisterAllocator vectorRegisterAllocator;
     ScalarRegisterAllocator scalarRegisterAllocator;
 
-    AppUtils::generateScalarVectorMemCpy(c, vectorRegisterAllocator,
+    // Generate memcpy from scalarPtr to vectorPtr
+    AppUtils::generateScalarVectorMemcpy(c, vectorRegisterAllocator,
                                          scalarRegisterAllocator,
                                          scalarPtr, vectorPtr, numVectors);
+
+    // Generate memcpy back from vectorPtr to scalarPtr + (numVectors * 64)
+    AppUtils::generateVectorScalarMemcpy(c, vectorRegisterAllocator,
+                                         scalarRegisterAllocator,
+                                         vectorPtr, scalarPtr + (numVectors * 64), 
+                                         numVectors);
     c.ecall();
     return c;
 }
@@ -45,7 +50,7 @@ int main()
     // Create memory contents
     std::vector<uint8_t> scalarInitData;
     std::vector<int16_t> vectorInitData;
-    scalarInitData.resize(32 * 10 * 2);
+    scalarInitData.resize(32 * 10 * 4);
     vectorInitData.resize(32 * 10);
     
     // Generate 10 vectors of increasing numbers and copy into scalar memory
@@ -66,12 +71,16 @@ int main()
     // Run!
     riscV.run();
     
-    const auto &vectorData = riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getVectorDataMemory().getData();
-    
-    std::ofstream out("out.txt");
-    for(int16_t v : vectorData) {
-        out << v << std::endl;
+    // Verify copy was successful
+    const auto *scalarData = reinterpret_cast<const int16_t*>(riscV.getScalarDataMemory().getData().data());
+    for(size_t i = 0; i < (32 * 10); i++) {
+        const int16_t read = scalarData[i];
+        const int16_t write = scalarData[i + (32 * 10)];
+        std::cout << read << "(" << write << "), ";
+        assert(read == write);
     }
+    std::cout << std::endl;
+    
     
 
 }

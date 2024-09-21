@@ -126,26 +126,17 @@ void dumpCOE(const std::string &filename, const std::vector<uint32_t> &code)
     }
 }
 //----------------------------------------------------------------------------
-void generateScalarVectorMemCpy(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator,
+void generateScalarVectorMemcpy(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator,
                                 ScalarRegisterAllocator &scalarRegisterAllocator,
                                 uint32_t scalarPtr, uint32_t vectorPtr, uint32_t numVectors)
 {
     // Register allocation
     ALLOCATE_SCALAR(SDataBuffer);
     ALLOCATE_SCALAR(SVectorBuffer)
-    ALLOCATE_SCALAR(SThirtyTwo);
-    ALLOCATE_SCALAR(SOne);
     ALLOCATE_SCALAR(SVectorBufferEnd);
 
     // Labels
     Label vectorLoop;
-    Label laneLoop;
-
-    // SThirtyTwo = 32
-    c.li(*SThirtyTwo, 32);
-
-    // SOne = 1
-    c.li(*SOne, 1);
 
     c.li(*SVectorBuffer, vectorPtr);
     c.li(*SVectorBufferEnd, vectorPtr + (numVectors * 64));
@@ -158,46 +149,86 @@ void generateScalarVectorMemCpy(CodeGenerator &c, VectorRegisterAllocator &vecto
     {
         // Register allocation
         ALLOCATE_VECTOR(VData);
-        ALLOCATE_SCALAR(SLane);
 
-        // SLane = 0
-        c.li(*SLane, 0);
-
-        c.L(laneLoop);
-        {
+        // Unroll lane loop
+        for(int l = 0; l < 32; l++) {
             // Register allocation
             ALLOCATE_VECTOR(VLane);
             ALLOCATE_SCALAR(SMask);
             ALLOCATE_SCALAR(SVal);
 
             // Load halfword
-            c.lh(*SVal, *SDataBuffer, 0);
+            c.lh(*SVal, *SDataBuffer, l * 2);
+
+            // SMask = 1 << SLane
+            c.li(*SMask, 1 << l);
 
             // Fill vector register
             c.vfill(*VLane, *SVal);
 
-            // SDataBuffer += 2
-            c.addi(*SDataBuffer, *SDataBuffer, 2);
-
-            // SMask = 1 << SLane
-            c.sll(*SMask, *SOne, *SLane);
-
             // VData = SMask ? VLane : VData
-            c.vsel(*VData, *SMask, *VLane);
-
-            // SLane++
-            c.addi(*SLane, *SLane, 1);
-            
-            // If lane != 32, goto lane loop
-            c.bne(*SLane, *SThirtyTwo, laneLoop);
+            c.vsel(*VData, *SMask, *VLane); 
         }
-        
+
+        // SDataBuffer += 64
+        c.addi(*SDataBuffer, *SDataBuffer, 64);
+      
         // *SVectorBuffer = VData
         c.vstore(*VData, *SVectorBuffer);
 
         // SVector += 64
         c.addi(*SVectorBuffer, *SVectorBuffer, 64);
 
+        // If SVectorBuffer != SVectorBufferEnd, goto vector loop
+        c.bne(*SVectorBuffer, *SVectorBufferEnd, vectorLoop);
+    }
+}
+//----------------------------------------------------------------------------
+void generateVectorScalarMemcpy(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator,
+                                ScalarRegisterAllocator &scalarRegisterAllocator,
+                                uint32_t vectorPtr, uint32_t scalarPtr, uint32_t numVectors)
+{
+    // Register allocation
+    ALLOCATE_SCALAR(SDataBuffer);
+    ALLOCATE_SCALAR(SVectorBuffer)
+    ALLOCATE_SCALAR(SVectorBufferEnd);
+
+    // Labels
+    Label vectorLoop;
+
+    c.li(*SVectorBuffer, vectorPtr);
+    c.li(*SVectorBufferEnd, vectorPtr + (numVectors * 64));
+
+    // SDataBuffer = scalarPtr
+    c.li(*SDataBuffer, scalarPtr);
+
+    // Loop over vectors
+    c.L(vectorLoop);
+    {
+        // Register allocation
+        ALLOCATE_VECTOR(VData);
+
+        // Load vector
+        c.vloadv(*VData, *SVectorBuffer, 0);
+        
+        // Unroll lane loop
+        for(int l = 0; l < 32; l++) {
+            // Register allocation
+            ALLOCATE_SCALAR(SVal);
+            
+            // Extract lane into scalar registers
+            c.vextract(*SVal, *VData, l);
+
+            // Store halfword
+            c.sh(*SVal, *SDataBuffer, l * 2);
+        }
+
+        // SVectorBuffer += 64
+        c.addi(*SVectorBuffer, *SVectorBuffer, 64);
+
+        // SDataBuffer += 64
+        c.addi(*SDataBuffer, *SDataBuffer, 64);
+      
         // If SVectorBuffer != SVectorBufferEnd, goto vector loop
         c.bne(*SVectorBuffer, *SVectorBufferEnd, vectorLoop);
     }

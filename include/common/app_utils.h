@@ -38,7 +38,11 @@ void writeSpikes(std::ofstream &os, const uint32_t *data,
 void dumpCOE(const std::string &filename, const std::vector<uint32_t> &code);
 
 // Generate
-void generateScalarVectorMemCpy(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator,
+void generateScalarVectorMemcpy(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator,
                                 ScalarRegisterAllocator &scalarRegisterAllocator,
                                 uint32_t scalarPtr, uint32_t vectorPtr, uint32_t numVectors);
+
+void generateVectorScalarMemcpy(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator,
+                                ScalarRegisterAllocator &scalarRegisterAllocator,
+                                uint32_t vectorPtr, uint32_t scalarPtr, uint32_t numVectors);
 }

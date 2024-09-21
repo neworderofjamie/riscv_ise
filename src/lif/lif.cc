@@ -25,7 +25,7 @@ CodeGenerator generateCode()
     ScalarRegisterAllocator scalarRegisterAllocator;
 
     // Generate code to copy vector of currents from scalar memory to vector memory
-    AppUtils::generateScalarVectorMemCpy(c, vectorRegisterAllocator, scalarRegisterAllocator,
+    AppUtils::generateScalarVectorMemcpy(c, vectorRegisterAllocator, scalarRegisterAllocator,
                                          0, 0, 1);
 
     // Register allocation
