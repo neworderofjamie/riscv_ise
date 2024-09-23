@@ -239,24 +239,26 @@ int main()
     std::vector<int16_t> vectorInitData;
 
     // Constants
-    constexpr uint32_t numInput = 28 * 28;
-    constexpr uint32_t numHidden = 128;
-    constexpr uint32_t numOutput = 10;
+    constexpr uint32_t numInput = 700;
+    constexpr uint32_t numHidden = 256;
+    constexpr uint32_t numOutput = 20;
     constexpr uint32_t hiddenFixedPoint = 5;
     constexpr uint32_t outFixedPoint = 6;
     constexpr uint32_t numInputSpikeWords = ceilDivide(numInput, 32);
     constexpr uint32_t numHiddenSpikeWords = ceilDivide(numHidden, 32);
 
     // Load vector data
-    const uint32_t weightInHidPtr = AppUtils::loadVectors("mnist_in_hid.bin", vectorInitData);
-    const uint32_t weightHidOutPtr = AppUtils::loadVectors("mnist_hid_out.bin", vectorInitData);
-    const uint32_t outputBiasPtr = AppUtils::loadVectors("mnist_bias.bin", vectorInitData);
+    const uint32_t weightInHidPtr = AppUtils::loadVectors("shd_in_hid.bin", vectorInitData);
+    const uint32_t weightHidOutPtr = AppUtils::loadVectors("shd_hid_out.bin", vectorInitData);
+    const uint32_t weightHidHidPtr = AppUtils::loadVectors("shd_hid_hid.bin", vectorInitData);
+    const uint32_t outputBiasPtr = AppUtils::loadVectors("shd_bias.bin", vectorInitData);
     
     // Allocate additional vector arrays
     const uint32_t inputSpikeTimePtr = AppUtils::allocateVectorAndZero(numInput, vectorInitData);
 
     const uint32_t hiddenIsynPtr = AppUtils::allocateVectorAndZero(numHidden, vectorInitData);
     const uint32_t hiddenVPtr = AppUtils::allocateVectorAndZero(numHidden, vectorInitData);
+    const uint32_t hiddenAPtr = AppUtils::allocateVectorAndZero(numHidden, vectorInitData);
     const uint32_t hiddenRefracTimePtr = AppUtils::allocateVectorAndZero(numHidden, vectorInitData);
 
     const uint32_t outputIsynPtr = AppUtils::allocateVectorAndZero(numOutput, vectorInitData);
@@ -386,14 +388,18 @@ int main()
                 // Register allocation
                 ALLOCATE_SCALAR(SVBuffer);
                 ALLOCATE_SCALAR(SVBufferEnd);
+                ALLOCATE_SCALAR(SABuffer);
                 ALLOCATE_SCALAR(SISynBuffer);
                 ALLOCATE_SCALAR(SRefracTimeBuffer);
                 ALLOCATE_SCALAR(SSpikeBuffer);
                 ALLOCATE_VECTOR(VAlpha);
-                ALLOCATE_VECTOR(VThresh);
+                ALLOCATE_VECTOR(VRho);
+                ALLOCATE_VECTOR(VBeta);
+                ALLOCATE_VECTOR(VVThresh);
                 ALLOCATE_VECTOR(VTauRefrac);
                 ALLOCATE_VECTOR(VDT);
                 ALLOCATE_VECTOR(VZero);
+                ALLOCATE_VECTOR(VOne);
                 
                 // Labels
                 Label neuronLoop;
@@ -401,13 +407,17 @@ int main()
                 // Load constants
                 // alpha = e^(-1/20)
                 c.vlui(*VAlpha, convertFixedPoint(std::exp(-1.0 / 20.0), hiddenFixedPoint));
-                c.vlui(*VThresh, convertFixedPoint(0.61, hiddenFixedPoint));
+                c.vlui(*VRho, convertFixedPoint(std::exp(-1.0 / 2000.0), hiddenFixedPoint));
+                c.vlui(*VBeta, convertFixedPoint(0.0174, hiddenFixedPoint));
+                c.vlui(*VVThresh, convertFixedPoint(0.6, hiddenFixedPoint));
                 c.vlui(*VTauRefrac, 5);
                 c.vlui(*VDT, 1);
                 c.vlui(*VZero, 0);
+                c.vlui(*VOne, convertFixedPoint(1.0, hiddenFixedPoint));
 
                 // Get address of buffers
                 c.li(*SVBuffer, hiddenVPtr);
+                c.li(*SABuffer, hiddenAPtr);
                 c.li(*SISynBuffer, hiddenIsynPtr);
                 c.li(*SRefracTimeBuffer, hiddenRefracTimePtr);
                 c.li(*SSpikeBuffer, hiddenSpikePtr);
@@ -429,6 +439,7 @@ int main()
                 {
                     // Register allocation
                     ALLOCATE_VECTOR(VV);
+                    ALLOCATE_VECTOR(VA);
                     ALLOCATE_VECTOR(VISyn);
                     ALLOCATE_VECTOR(VRefracTime);
                     ALLOCATE_SCALAR(SSpikeOut);
@@ -436,6 +447,7 @@ int main()
 
                     // Load voltage and isyn
                     c.vloadv(*VV, *SVBuffer);
+                    c.vloadv(*VA, *SABuffer);
                     c.vloadv(*VISyn, *SISynBuffer);
                     c.vloadv(*VRefracTime, *SRefracTimeBuffer);
 
@@ -448,6 +460,9 @@ int main()
                     // VISyn = 0
                     c.vlui(*VISyn, 0);
 
+                    // VA *= VRho
+                    c.vmul(hiddenFixedPoint, *VA, *VA, *VRho);
+
                     // SRefractory = VRefracTime > 0.0 (0.0 < VRefracTime)
                     c.vtlt(*SRefractory, *VZero, *VRefracTime);
                      {
@@ -459,8 +474,13 @@ int main()
                         c.vsel(*VRefracTime, *SRefractory, *VTemp);
                     }
 
-                    // SSpikeOut = VV >= VThresh && !SRefractory
-                    c.vtge(*SSpikeOut, *VV, *VThresh);
+                    // SSpikeOut = VV >= (VThres + (Beta * A)) && !SRefractory
+                    {
+                        ALLOCATE_VECTOR(VTmp);
+                        c.vmul(hiddenFixedPoint, *VTmp, *VA, *VBeta);
+                        c.vmul(hiddenFixedPoint, *VTmp, *VTmp, *VVThresh);
+                        c.vtge(*SSpikeOut, *VV, *VTmp);
+                    }
                     {
                         // STemp = !SRefractory
                         ALLOCATE_SCALAR(STemp);
@@ -472,12 +492,16 @@ int main()
                     c.sw(*SSpikeOut, *SSpikeBuffer);
 
                     {
-                        // VTemp = V - VThresh
-                        ALLOCATE_VECTOR(VTemp);
-                        c.vsub(*VTemp, *VV, *VThresh);
-                        
-                        // VV = SSpikeOut ? VReset : VV
-                        c.vsel(*VV, *SSpikeOut, *VTemp);
+                        ALLOCATE_VECTOR(VTmp1);
+                        ALLOCATE_VECTOR(VTmp2);
+                        c.vsub(*VTmp1, *VV, *VVThresh);
+                        c.vadd(*VTmp2, *VA, *VOne);
+
+                        // v = SSpikeOut ? (v - v_thresh) : v
+                        c.vsel(*VV, *SSpikeOut, *VTmp1);
+
+                        // a = SSpikeOut ? (a + 1) : a
+                        c.vsel(*VA, *SSpikeOut, *VTmp2);
                     }
 
                     // VRefracTime = SSpikeOut ? VTauRefrac : VRefracTime
@@ -486,6 +510,8 @@ int main()
                     // Store VV, ISyn and refrac time and increment buffers
                     c.vstore(*VV, *SVBuffer);
                     c.addi(*SVBuffer, *SVBuffer, 64);
+                    c.vstore(*VA, *SABuffer);
+                    c.addi(*SABuffer, *SABuffer, 64);
                     c.vstore(*VISyn, *SISynBuffer);
                     c.addi(*SISynBuffer, *SISynBuffer, 64);
                     c.vstore(*VRefracTime, *SRefracTimeBuffer);
