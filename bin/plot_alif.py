@@ -13,9 +13,18 @@ def load_data(filename, desired_length):
 
 
 def calc_rmse(target, result):
-    return np.sqrt(np.mean((result - target)**2))
+    scale = np.amax(target) - np.amin(target)
+    return np.sqrt(np.mean((result - target)**2)) / scale
 
 def simulate_ref(filename):
+    TAU_A = 2000.0
+    TAU_M = 20.0
+    ALPHA = np.exp(-1 / TAU_M)
+    RHO = np.exp(-1 / TAU_A)
+    WEIGHT = 0.01
+    BETA = 0.0174
+    V_THRESH = 0.6
+    
     # Load poisson input
     poisson = np.fromfile(filename, dtype=np.int16)
 
@@ -74,24 +83,21 @@ def plot_fixed_point(axis, timesteps, v_rec, a_rec, data_average, data_std,
     #axis.set_ylim((0, 1.5))
     #a_axis.set_ylim((0, 40.0))
 
-TAU_A = 2000.0
-TAU_M = 20.0
-ALPHA = np.exp(-1 / TAU_M)
-RHO = np.exp(-1 / TAU_A)
-WEIGHT = 0.01
-BETA = 0.0174
-V_THRESH = 0.6
+
+V_FP = 14
+A_FP = 9
 
 # Load input and generate reference simulation
 v_rec, a_rec = simulate_ref("poisson_data.bin")
 v_bad_rec, a_bad_rec = simulate_ref("poisson_data_bad.bin")
 assert len(v_rec) == len(v_bad_rec)
 
+
 # Load data
-data_12_8_average, data_12_8_std = load_data("out_alif_13_10.txt", len(v_rec))
-data_12_8_rs_average, data_12_8_rs_std = load_data("out_alif_13_10_rs.txt", len(v_rec))
-data_bad_12_8_rs_average, data_bad_12_8_rs_std = load_data("out_alif_bad_13_10_rs.txt", len(v_rec))
-data_bad_12_8_sat_rs_average, data_bad_12_8_sat_rs_std = load_data("out_alif_bad_13_10_sat_rs.txt", len(v_rec))
+data_12_8_average, data_12_8_std = load_data(f"out_alif_{V_FP}_{A_FP}.txt", len(v_rec))
+data_12_8_rs_average, data_12_8_rs_std = load_data(f"out_alif_{V_FP}_{A_FP}_rs.txt", len(v_rec))
+data_bad_12_8_rs_average, data_bad_12_8_rs_std = load_data(f"out_alif_bad_{V_FP}_{A_FP}_rs.txt", len(v_rec))
+data_bad_12_8_sat_rs_average, data_bad_12_8_sat_rs_std = load_data(f"out_alif_bad_{V_FP}_{A_FP}_sat_rs.txt", len(v_rec))
 
 
 fig, axes = plt.subplots(2, 2, sharex="col", sharey="row", squeeze=False)
@@ -100,16 +106,16 @@ pal = sns.color_palette()
 timesteps = np.arange(len(v_rec))
 
 plot_fixed_point(axes[0,0], timesteps, v_rec, a_rec, data_12_8_average, data_12_8_std, 
-                 13, 10, pal, "12, 9 fractional bits, RZ")
+                 V_FP, A_FP, pal, f"{V_FP}, {A_FP} fractional bits, RZ")
 
 plot_fixed_point(axes[1,0], timesteps, v_rec, a_rec, data_12_8_rs_average, data_12_8_rs_std, 
-                 13, 10, pal, "12, 9 fractional bits, RS")
+                 V_FP, A_FP, pal, f"{V_FP}, {A_FP} fractional bits, RS")
 
 plot_fixed_point(axes[0,1], timesteps, v_bad_rec, a_bad_rec, data_bad_12_8_rs_average, data_bad_12_8_rs_std, 
-                 13, 10, pal, "12, 9 fractional bits, RS")
+                 V_FP, A_FP, pal, f"{V_FP}, {A_FP} fractional bits, RS")
 
 plot_fixed_point(axes[1,1], timesteps, v_bad_rec, a_bad_rec, data_bad_12_8_sat_rs_average, data_bad_12_8_sat_rs_std, 
-                 13, 10, pal, "12, 9 fractional bits, RS + Saturation")
+                 V_FP, A_FP, pal, f"{V_FP}, {A_FP} fractional bits, RS + Saturation")
 
 
 axes[1,0].set_xlabel("Time [ms]")
