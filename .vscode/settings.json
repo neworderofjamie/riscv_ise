@@ -6,4 +6,11 @@
         "program": "${workspaceFolder}/tests/test_debug",
         "cwd": "${workspaceFolder}/tests",
     },
+    "files.exclude": {
+        "obj/": true,
+        "obj_debug/": true,
+        "bin/*.coe": true,
+        "bin/*.d": true,
+        "**/__pycache__": true
+    }
 }
