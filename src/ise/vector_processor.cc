@@ -144,15 +144,32 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
         break;
     }
 
-    case VectorOpCode::VFILL:
+    case VectorOpCode::VMOV:
     {
         auto [imm, rs1, funct3, rd] = decodeIType(inst);
 
-        PLOGV << "VFILL " << rs1;
-        PLOGV << "\t" << rd;
-        const uint32_t val = reg[rs1];
-        std::fill(m_VReg[rd].begin(), m_VReg[rd].end(), 
-                  (int16_t)((val & 0x80000000) >> 16 | (val & 0x7FFF)));
+        // VFILL
+        if(funct3 == 0b000) {
+            PLOGV << "VFILL " << rs1;
+            PLOGV << "\t" << rd;
+            const uint32_t val = reg[rs1];
+            std::fill(m_VReg[rd].begin(), m_VReg[rd].end(), 
+                      (int16_t)((val & 0x80000000) >> 16 | (val & 0x7FFF)));
+        }
+        // VEXTRACT
+        else if(funct3 == 0b001) {
+            PLOGV << "VFILL " << rs1;
+            PLOGV << "\t" << rd;
+            if(imm < 0 || imm > 31) {
+                throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
+            }
+            // Sign extend to 32-bit
+            const int32_t val = m_VReg[rs1][imm];
+            reg[rd] = (uint32_t)val;
+        }
+        else {
+            throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
+        }
         break;
     }
 

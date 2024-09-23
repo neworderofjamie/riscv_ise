@@ -6,6 +6,7 @@
 *.vcxproj.user
 *.d
 *.exe
+*.pdb
 /bin/alif
 /bin/alif_debug
 /bin/decay

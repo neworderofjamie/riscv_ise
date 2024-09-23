@@ -24,7 +24,7 @@ inline constexpr bool inSBit(int x, int n)
     return -(1 << (n-1)) <= x && x < (1 << (n-1));
 }
 
-inline constexpr bool isValidImm(size_t imm, size_t maskBit)
+inline constexpr bool isValidImm(size_t imm, uint32_t maskBit)
 {
     const size_t M = mask(maskBit);
     return (imm < M || ~M <= imm) && (imm & 1) == 0;
@@ -56,7 +56,7 @@ enum class VectorOpCode : uint32_t
     VSEL    = 0b00011,
     VLOAD   = 0b00100,
     VSTORE  = 0b00101,
-    VFILL   = 0b00110,
+    VMOV    = 0b00110,
     VSPC    = 0b01000, 
 };
 
