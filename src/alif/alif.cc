@@ -158,7 +158,8 @@ int main(int argc, char** argv)
     plog::init(plog::debug, &consoleAppender);
     
     
-    
+    std::string inputFilename = "poisson_data.bin";
+    std::string outputSuffix = "";
     size_t numTimesteps = 1370;
     size_t aFixedPoint = 10;
     size_t vFixedPoint = 10;
@@ -166,6 +167,8 @@ int main(int argc, char** argv)
     RoundMode roundMode = RoundMode::ZERO;
     
     CLI::App app{"ALIF neuron simulation"};
+    app.add_option("-i,--input-filename", inputFilename, "Filename containing input data");
+    app.add_option("-o,--output-suffix", outputSuffix, "Suffix to output filename");
     app.add_option("-t,--timesteps", numTimesteps, "Number of timesteps to simulate");
     app.add_option("-a,--a-fractional-bits", aFixedPoint, "Number of fractional bits to use for A state variable");
     app.add_option("-v,--v-fractional-bits", vFixedPoint, "Number of fractional bits to use for V state variable");
@@ -183,7 +186,7 @@ int main(int argc, char** argv)
     const uint32_t seedPointer = AppUtils::allocateVectorSeedAndInit(vectorInitData);
 
     // Load poisson data into vector memory
-    const uint32_t poissonPtr = AppUtils::loadVectors("poisson_data.bin", vectorInitData);
+    const uint32_t poissonPtr = AppUtils::loadVectors(inputFilename, vectorInitData);
     
     // Allocate memory to store neuron voltages and adaptation variables
     const uint32_t vPointer = AppUtils::allocateVectorAndZero(32 * numTimesteps, vectorInitData);
@@ -223,7 +226,7 @@ int main(int argc, char** argv)
     int16_t *outputV = vectorData + (vPointer / 2);
     int16_t *outputA = vectorData + (aPointer / 2);
 
-    std::ofstream out("out_alif" + filenameSuffix + ".txt");
+    std::ofstream out("out_alif" + outputSuffix + filenameSuffix + ".txt");
     for(size_t t = 0; t < numTimesteps; t++) {
         for(int l = 0; l < 32; l++) {
             out << *outputV++ << ", " << *outputA++;
