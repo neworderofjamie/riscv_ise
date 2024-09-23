@@ -12,7 +12,7 @@ def load_data(filename, desired_length):
             np.std(data, axis=1))
 
 
-def calc_rmse(target, result):
+def calc_nrmse(target, result):
     scale = np.amax(target) - np.amin(target)
     return np.sqrt(np.mean((result - target)**2)) / scale
 
@@ -24,7 +24,7 @@ def simulate_ref(filename):
     WEIGHT = 0.01
     BETA = 0.0174
     V_THRESH = 0.6
-    
+
     # Load poisson input
     poisson = np.fromfile(filename, dtype=np.int16)
 
@@ -52,38 +52,42 @@ def simulate_ref(filename):
 
 
 def plot_fixed_point(axis, timesteps, v_rec, a_rec, data_average, data_std, 
-                     num_v_frac_bits, num_a_frac_bits, pal, title_prefix):
+                     num_v_frac_bits, num_a_frac_bits, pal, title_prefix, 
+                     twin_share=None, v_ylim=None, a_ylim=None):
     v_scale = 1.0 / (2 ** num_v_frac_bits)
     a_scale = 1.0 / (2 ** num_a_frac_bits)
     a_axis  = axis.twinx()
     
     # Plot voltage and standard deviation from hardware
-    axis.plot(timesteps, data_average[:,0] * v_scale, color=pal[0])
+    axis.plot(timesteps, data_average[:,0] * v_scale, color=pal[0], linewidth=0.5)
     axis.fill_between(timesteps, (data_average[:,0] - data_std[:,0]) * v_scale, 
                       (data_average[:,0] + data_std[:,0]) * v_scale,
                       alpha=0.5, color=pal[0])
 
-    a_axis.plot(timesteps, data_average[:,1] * a_scale, color=pal[1])
+    a_axis.plot(timesteps, data_average[:,1] * a_scale, color=pal[1], linewidth=0.5)
     a_axis.fill_between(timesteps, (data_average[:,1] - data_std[:,1]) * a_scale, 
                        (data_average[:,1] + data_std[:,1]) * a_scale,
                        alpha=0.5, color=pal[1])
     
     # Plot floating point reference
-    axis.plot(timesteps, v_rec, linestyle="--", color=pal[0])
-    a_axis.plot(timesteps, a_rec, linestyle="--", color=pal[1])
+    axis.plot(timesteps, v_rec, linestyle="--", color=pal[0], linewidth=0.5)
+    a_axis.plot(timesteps, a_rec, linestyle="--", color=pal[1], linewidth=0.5)
 
     # Calculate RMSE
-    v_rmse = calc_rmse(v_rec, data_average[:,0] * v_scale)
-    a_rmse = calc_rmse(a_rec, data_average[:,1] * a_scale)
+    v_rmse = calc_nrmse(v_rec, data_average[:,0] * v_scale)
+    a_rmse = calc_nrmse(a_rec, data_average[:,1] * a_scale)
+    print(f"{title_prefix} (V RMSE={v_rmse}, A RMSE={a_rmse})")
     
-    axis.set_title(f"{title_prefix} (V RMSE={v_rmse}, A RMSE={a_rmse})")
-    axis.set_ylabel("V")
-    a_axis.set_ylabel("A")
-    
-    #axis.set_ylim((0, 1.5))
-    #a_axis.set_ylim((0, 40.0))
+    if v_ylim is not None:
+        axis.set_ylim(v_ylim)
 
+    if a_ylim is not None:
+        a_axis.set_ylim(a_ylim)
 
+    if twin_share is not None:
+        a_axis.sharey(twin_share)
+
+    return a_axis
 V_FP = 14
 A_FP = 9
 
@@ -100,24 +104,47 @@ data_bad_12_8_rs_average, data_bad_12_8_rs_std = load_data(f"out_alif_bad_{V_FP}
 data_bad_12_8_sat_rs_average, data_bad_12_8_sat_rs_std = load_data(f"out_alif_bad_{V_FP}_{A_FP}_sat_rs.txt", len(v_rec))
 
 
-fig, axes = plt.subplots(2, 2, sharex="col", sharey="row", squeeze=False)
+fig, axes = plt.subplots(2, 2, sharex="col", sharey="row", squeeze=False, 
+                         figsize=(plot_settings.double_column_width, 2.0))
 pal = sns.color_palette()
 
 timesteps = np.arange(len(v_rec))
 
-plot_fixed_point(axes[0,0], timesteps, v_rec, a_rec, data_12_8_average, data_12_8_std, 
-                 V_FP, A_FP, pal, f"{V_FP}, {A_FP} fractional bits, RZ")
+print("Stochastic rounding:")
+axes[0,0].set_title("A", loc="left")
+a_00 = plot_fixed_point(axes[0,0], timesteps, v_rec, a_rec, data_12_8_average, data_12_8_std, 
+                        V_FP, A_FP, pal, f"{V_FP}, {A_FP} fractional bits, RZ")
 
-plot_fixed_point(axes[1,0], timesteps, v_rec, a_rec, data_12_8_rs_average, data_12_8_rs_std, 
-                 V_FP, A_FP, pal, f"{V_FP}, {A_FP} fractional bits, RS")
+axes[0,1].set_title("B", loc="left")
+a_01 = plot_fixed_point(axes[0,1], timesteps, v_rec, a_rec, data_12_8_rs_average, data_12_8_rs_std, 
+                        V_FP, A_FP, pal, f"{V_FP}, {A_FP} fractional bits, RS",
+                        twin_share=a_00)
 
-plot_fixed_point(axes[0,1], timesteps, v_bad_rec, a_bad_rec, data_bad_12_8_rs_average, data_bad_12_8_rs_std, 
-                 V_FP, A_FP, pal, f"{V_FP}, {A_FP} fractional bits, RS")
+print("Saturation:")
+axes[1,0].set_title("C", loc="left")
+a_10 = plot_fixed_point(axes[1,0], timesteps, v_bad_rec, a_bad_rec, data_bad_12_8_rs_average, data_bad_12_8_rs_std, 
+                        V_FP, A_FP, pal, f"{V_FP}, {A_FP} fractional bits, RS")
 
-plot_fixed_point(axes[1,1], timesteps, v_bad_rec, a_bad_rec, data_bad_12_8_sat_rs_average, data_bad_12_8_sat_rs_std, 
-                 V_FP, A_FP, pal, f"{V_FP}, {A_FP} fractional bits, RS + Saturation")
+axes[1,1].set_title("D", loc="left")
+a_11 = plot_fixed_point(axes[1,1], timesteps, v_bad_rec, a_bad_rec, data_bad_12_8_sat_rs_average, data_bad_12_8_sat_rs_std, 
+                        V_FP, A_FP, pal, f"{V_FP}, {A_FP} fractional bits, RS + Saturation",
+                        twin_share=a_10)
 
+# Hide crud in middle of axes
+a_00.get_yaxis().set_visible(False)
+a_10.get_yaxis().set_visible(False)
 
-axes[1,0].set_xlabel("Time [ms]")
+# Override limits to hide clipped region
+axes[1,0].set_ylim((0, 2.0))
+a_10.set_ylim((0, 75))
 
+# Label axes
+a_01.set_ylabel("A")
+a_11.set_ylabel("A")
+for i in range(2):
+    axes[i, 0].set_ylabel("V")
+    axes[1, i].set_xlabel("Time [ms]")
+
+fig.tight_layout(pad=0)
+fig.savefig("alif_rounding.pdf")
 plt.show()
