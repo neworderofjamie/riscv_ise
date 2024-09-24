@@ -66,6 +66,13 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "init_vram", "src\init_vram\
 		{695590D3-FA1D-4CD7-9B12-B03F15FC98E6} = {695590D3-FA1D-4CD7-9B12-B03F15FC98E6}
 	EndProjectSection
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "shd", "src\shd\shd.vcxproj", "{48CB7D34-74D7-4D8E-8C72-8467595AD70C}"
+	ProjectSection(ProjectDependencies) = postProject
+		{CD770F05-BCE1-4550-BDB0-87C804610716} = {CD770F05-BCE1-4550-BDB0-87C804610716}
+		{EF52D22C-C128-4A30-ABE2-C00ADDA02440} = {EF52D22C-C128-4A30-ABE2-C00ADDA02440}
+		{695590D3-FA1D-4CD7-9B12-B03F15FC98E6} = {695590D3-FA1D-4CD7-9B12-B03F15FC98E6}
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -116,6 +123,10 @@ Global
 		{9B9EFC7C-6290-4B87-9D76-C08EFF81C8D8}.Debug|x64.Build.0 = Debug|x64
 		{9B9EFC7C-6290-4B87-9D76-C08EFF81C8D8}.Release|x64.ActiveCfg = Release|x64
 		{9B9EFC7C-6290-4B87-9D76-C08EFF81C8D8}.Release|x64.Build.0 = Release|x64
+		{48CB7D34-74D7-4D8E-8C72-8467595AD70C}.Debug|x64.ActiveCfg = Debug|x64
+		{48CB7D34-74D7-4D8E-8C72-8467595AD70C}.Debug|x64.Build.0 = Debug|x64
+		{48CB7D34-74D7-4D8E-8C72-8467595AD70C}.Release|x64.ActiveCfg = Release|x64
+		{48CB7D34-74D7-4D8E-8C72-8467595AD70C}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
