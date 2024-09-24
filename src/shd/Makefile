@@ -5,7 +5,7 @@ include ../MakefileCommon
 LDFLAGS			+= -L$(LIBRARY_DIRECTORY) -lise$(PREFIX) -lcommon$(PREFIX) -lassembler$(PREFIX)
 
 # Determine full path to test_mnist
-SHD		:=$(BIN_DIRECTORY)/mnist$(PREFIX)
+SHD		:=$(BIN_DIRECTORY)/shd$(PREFIX)
 
 .PHONY: all clean libise libcommon libassembler
 

@@ -26,7 +26,8 @@
 #include "ise/riscv.h"
 #include "ise/vector_processor.h"
 
-std::vector<int16_t> loadData(const std::string &filename)
+template<typename T>
+std::vector<T> loadData(const std::string &filename)
 {
     std::ifstream input(filename, std::ios::binary);
 
@@ -36,21 +37,32 @@ std::vector<int16_t> loadData(const std::string &filename)
     input.seekg (0, std::ios::beg);
 
     // Check contents is half-word aligned
-    assert((lengthBytes & 1) == 0);
+    assert((lengthBytes % sizeof(T)) == 0);
 
     // Create vector
-    std::vector<int16_t> data(lengthBytes / 2, 0);
+    std::vector<T> data(lengthBytes / sizeof(T), 0);
 
     // Read data directly into it
     input.read(reinterpret_cast<char*>(data.data()), lengthBytes);
 
     return data;
 }
+/*weightPtr
+postISynPtr
+numPost
+scaleShift*/
+struct StaticPulseTarget
+{
+    uint32_t weightPtr;
+    uint32_t postISynPtr;
+    uint32_t numPost;
+    uint32_t scaleShift;
+};
 
 void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAllocator,
                     RegisterAllocator<Reg> &scalarRegisterAllocator,
-                    uint32_t weightPtr, uint32_t preSpikePtr, uint32_t postISynPtr, 
-                    uint32_t numPre, uint32_t numPost, uint32_t scaleShift, bool debug)
+                    uint32_t preSpikePtr, uint32_t numPre, 
+                    const std::vector<StaticPulseTarget> &targets, bool debug)
 {
     // Register allocation
     ALLOCATE_SCALAR(SSpikeBuffer);
@@ -58,8 +70,6 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
     ALLOCATE_SCALAR(SWordNStart);
     ALLOCATE_SCALAR(SConst1);
     ALLOCATE_SCALAR(SSpikeWord);
-    ALLOCATE_SCALAR(SISynBuffer);
-    ALLOCATE_SCALAR(SISynBufferEnd);
 
     // Labels
     Label wordLoop;
@@ -74,22 +84,24 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
     c.li(*SSpikeBuffer, preSpikePtr);
     
     // Get address of end of presynaptic spike buffer
-    c.li(*SSpikeBufferEnd, ceilDivide(numPre, 32) * 4);
-    c.add(*SSpikeBufferEnd, *SSpikeBufferEnd, *SSpikeBuffer);
+    c.li(*SSpikeBufferEnd, preSpikePtr + ceilDivide(numPre, 32) * 4);
 
-    // SISynBuffer = hiddenIsyn;
-    c.li(*SISynBuffer, postISynPtr);
+    // Loop through postsynaptic targets
+    std::vector<std::pair<std::shared_ptr<ScalarRegisterAllocator::Handle>,
+                          std::shared_ptr<ScalarRegisterAllocator::Handle>>> sISynBufferRegs;
+    for(const auto &t : targets) {
+        // Allocate scalar registers
+        auto bufferStartReg = scalarRegisterAllocator.getRegister("SISynBuffer = X");
+        auto bufferEndReg = scalarRegisterAllocator.getRegister("SISynBufferEnd = X");
 
-    {
-        // Get size of postsynaptic vectors in bytes 
-        // (ceildivide to number of vectors and multiply by 64 bytes per vector)
-        ALLOCATE_SCALAR(STemp);
-        c.li(*STemp, ceilDivide(numPost, 32) * 64);
+        // Load addresses as immediates
+        c.li(*bufferStartReg, t.postISynPtr);
+        c.li(*bufferEndReg, t.postISynPtr + ceilDivide(t.numPost, 32) * 64);
 
-        // SISynBufferEnd = SISynBuffer + SNumHiddenBytes
-        c.add(*SISynBufferEnd, *SISynBuffer, *STemp);
+        // Add scalar registers to vector
+        sISynBufferRegs.emplace_back(bufferStartReg, bufferEndReg);
     }
-
+    
     // Load some useful constants
     c.li(*SConst1, 1);
 
@@ -135,70 +147,75 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
             c.L(bitLoopBody);
             c.sub(*SN, *SN, *SNumLZ);
 
-            // SWeightBuffer = weightInHidStart + (numPostVecs * 64 * SN);
-            // **TODO** multiply
-            ALLOCATE_SCALAR(SWeightBuffer);
-            c.li(*SWeightBuffer, weightPtr);
-            {
-                ALLOCATE_SCALAR(STemp);
-                c.slli(*STemp, *SN, scaleShift);
-                c.add(*SWeightBuffer, *SWeightBuffer, *STemp);
-            }
+            // Loop through postsynaptic targets
+            for(size_t i = 0; i < targets.size(); i++) {
+                const auto &t = targets[i];
+                const auto &iReg = sISynBufferRegs[i];
 
-            // Reset Isyn pointer
-            c.li(*SISynBuffer, postISynPtr);
-            
-            // Load weight and Isyn
-            if(debug) {
-                c.ebreak();
-            }
-
-            // Loop over postsynaptic neurons
-            if(numPost > 32) {
-                // Input postsynaptic neuron loop
-                c.L(weightLoop);
+                // SWeightBuffer = weightInHidStart + (numPostVecs * 64 * SN);
+                // **TODO** multiply
+                ALLOCATE_SCALAR(SWeightBuffer);
+                c.li(*SWeightBuffer, t.weightPtr);
                 {
+                    ALLOCATE_SCALAR(STemp);
+                    c.slli(*STemp, *SN, t.scaleShift);
+                    c.add(*SWeightBuffer, *SWeightBuffer, *STemp);
+                }
+
+                // Reset Isyn pointer
+                c.li(*iReg.first, t.postISynPtr);
+                
+                // Load weight and Isyn
+                if(debug) {
+                    c.ebreak();
+                }
+
+                // Loop over postsynaptic neurons
+                if(t.numPost > 32) {
+                    // Input postsynaptic neuron loop
+                    c.L(weightLoop);
+                    {
+                        ALLOCATE_VECTOR(VWeight);
+                        ALLOCATE_VECTOR(VISyn);
+
+                        // Load next vector of weights and ISyns
+                        c.vloadv(*VWeight, *SWeightBuffer);
+                        c.vloadv(*VISyn, *iReg.first);
+                        c.addi(*SWeightBuffer, *SWeightBuffer, 64);
+
+                        // Add weights to ISyn
+                        c.vadd(*VISyn, *VISyn, *VWeight);
+
+                        // Write back ISyn and increment SISynBuffer
+                        c.vstore(*VISyn, *iReg.first);
+                        c.addi(*iReg.first, *iReg.first, 64);
+
+                        // If we haven't reached end of Isyn buffer, loop
+                        c.bne(*iReg.first, *iReg.second, weightLoop);
+                    }
+                }
+                // Tail if there are non-POT number of postsynaptic neurons
+                if((t.numPost % 32) != 0) {
+                    ALLOCATE_SCALAR(SMask);
                     ALLOCATE_VECTOR(VWeight);
                     ALLOCATE_VECTOR(VISyn);
+                    ALLOCATE_VECTOR(VISynNew);
+
+                    // Calculate mask for final iteration
+                    c.li(*SMask, (1 << (padSize(t.numPost, 32) - t.numPost)) - 1);
 
                     // Load next vector of weights and ISyns
                     c.vloadv(*VWeight, *SWeightBuffer);
-                    c.vloadv(*VISyn, *SISynBuffer);
-                    c.addi(*SWeightBuffer, *SWeightBuffer, 64);
+                    c.vloadv(*VISyn, *iReg.first);
 
-                    // Add weights to ISyn
-                    c.vadd(*VISyn, *VISyn, *VWeight);
+                    // Add weights to ISyn with mask
+                    c.vadd(*VISynNew, *VISyn, *VWeight);
+                    c.vsel(*VISyn, *SMask, *VISynNew);
 
-                    // Write back ISyn and increment SISynBuffer
-                    c.vstore(*VISyn, *SISynBuffer);
-                    c.addi(*SISynBuffer, *SISynBuffer, 64);
-
-                    // If we haven't reached end of Isyn buffer, loop
-                    c.bne(*SISynBuffer, *SISynBufferEnd, weightLoop);
+                    // Write back ISyn
+                    c.vstore(*VISyn, *iReg.first);
                 }
             }
-            // Tail if there are non-POT number of postsynaptic neurons
-            if((numPost % 32) != 0) {
-                ALLOCATE_SCALAR(SMask);
-                ALLOCATE_VECTOR(VWeight);
-                ALLOCATE_VECTOR(VISyn);
-                ALLOCATE_VECTOR(VISynNew);
-
-                // Calculate mask for final iteration
-                c.li(*SMask, (1 << (padSize(numPost, 32) - numPost)) - 1);
-
-                // Load next vector of weights and ISyns
-                c.vloadv(*VWeight, *SWeightBuffer);
-                c.vloadv(*VISyn, *SISynBuffer);
-
-                // Add weights to ISyn with mask
-                c.vadd(*VISynNew, *VISyn, *VWeight);
-                c.vsel(*VISyn, *SMask, *VISynNew);
-
-                // Write back ISyn
-                c.vstore(*VISyn, *SISynBuffer);
-            }
-
 
             // SN --
             c.addi(*SN, *SN, -1);
@@ -242,10 +259,12 @@ int main()
     constexpr uint32_t numInput = 700;
     constexpr uint32_t numHidden = 256;
     constexpr uint32_t numOutput = 20;
-    constexpr uint32_t hiddenFixedPoint = 5;
-    constexpr uint32_t outFixedPoint = 6;
+    constexpr uint32_t hiddenFixedPoint = 8;
+    constexpr uint32_t outFixedPoint = 8;
+    constexpr uint32_t numTimesteps = 1170;
     constexpr uint32_t numInputSpikeWords = ceilDivide(numInput, 32);
     constexpr uint32_t numHiddenSpikeWords = ceilDivide(numHidden, 32);
+    constexpr uint32_t numInputSpikeArrayWords = numInputSpikeWords * numTimesteps;
 
     // Load vector data
     const uint32_t weightInHidPtr = AppUtils::loadVectors("shd_in_hid.bin", vectorInitData);
@@ -254,8 +273,6 @@ int main()
     const uint32_t outputBiasPtr = AppUtils::loadVectors("shd_bias.bin", vectorInitData);
     
     // Allocate additional vector arrays
-    const uint32_t inputSpikeTimePtr = AppUtils::allocateVectorAndZero(numInput, vectorInitData);
-
     const uint32_t hiddenIsynPtr = AppUtils::allocateVectorAndZero(numHidden, vectorInitData);
     const uint32_t hiddenVPtr = AppUtils::allocateVectorAndZero(numHidden, vectorInitData);
     const uint32_t hiddenAPtr = AppUtils::allocateVectorAndZero(numHidden, vectorInitData);
@@ -267,25 +284,24 @@ int main()
    
     // Allocate scalar arrays
     const uint32_t timestepPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
+    const uint32_t inputSpikeArrayPtr = AppUtils::allocateScalarAndZero(numInputSpikeArrayWords * 4, scalarInitData);
     const uint32_t inputSpikePtr = AppUtils::allocateScalarAndZero(numInputSpikeWords * 4, scalarInitData);
     const uint32_t hiddenSpikePtr = AppUtils::allocateScalarAndZero(numHiddenSpikeWords * 4, scalarInitData);
 
-    // Load data
-    const auto mnistTimes = loadData("mnist_times.bin");
-    const auto mnistLabels = loadData("mnist_labels.bin");
+    // Load data (this is streamed)
+    const auto shdSpikes = loadData<uint32_t>("shd_spikes.bin");
+    const auto shdLabels = loadData<int16_t>("shd_labels.bin");
 
     CodeGenerator c;
     {
         VectorRegisterAllocator vectorRegisterAllocator;
         ScalarRegisterAllocator scalarRegisterAllocator;
 
-        // V0 = *timestep
-        ALLOCATE_VECTOR(VTime);
+        // Load time into scalar register
+        ALLOCATE_SCALAR(STime);
         {
-            ALLOCATE_SCALAR(STemp);
-            c.li(*STemp, timestepPtr);
-            c.lh(*STemp, *STemp);
-            c.vfill(*VTime, *STemp);
+            c.li(*STime, timestepPtr);
+            c.lw(*STime, *STime);
         }
 
         // Loop over time
@@ -295,18 +311,21 @@ int main()
             // ---------------------------------------------------------------
             // Input->Hidden synapses
             // ---------------------------------------------------------------
-            // 2^8 = 2 bytes * 128 hidden neurons
+            // 2^9 = 2 bytes * 256 hidden neurons
             genStaticPulse(c, vectorRegisterAllocator, scalarRegisterAllocator,
-                           weightInHidPtr, inputSpikePtr, 
-                           hiddenIsynPtr, numInput, numHidden, 8, false);
+                           inputSpikePtr, numInput,
+                           {{weightInHidPtr, hiddenIsynPtr, numHidden, 9}},
+                           false);
 
             // ---------------------------------------------------------------
-            // Hidden->Output synapses
+            // Hidden->Output and Hidden->Hidden synapses
             // ---------------------------------------------------------------
             // 2^6 = 2 bytes * 32 output neurons (rounded up)
             genStaticPulse(c, vectorRegisterAllocator, scalarRegisterAllocator, 
-                           weightHidOutPtr, hiddenSpikePtr, 
-                           outputIsynPtr, numHidden, numOutput, 6, false);
+                           hiddenSpikePtr, numHidden,
+                           {{weightHidOutPtr, outputIsynPtr, numOutput, 6},
+                            {weightHidHidPtr, hiddenIsynPtr, numHidden, 9},},
+                           false);
 
             // ---------------------------------------------------------------
             // Input neurons
@@ -314,7 +333,8 @@ int main()
             {
                 // Register allocation
                 ALLOCATE_SCALAR(SSpikeBuffer);
-                ALLOCATE_SCALAR(SSpikeTimeBuffer);
+                ALLOCATE_SCALAR(SSpikeBufferEnd);
+                ALLOCATE_SCALAR(SSpikeArrayBuffer);
                 ALLOCATE_SCALAR(SSpikeTimeBufferEnd);
 
                 // Labels
@@ -322,62 +342,57 @@ int main()
 
                 // Get address of spike and spike time buffer
                 c.li(*SSpikeBuffer, inputSpikePtr);
-                c.li(*SSpikeTimeBuffer, inputSpikeTimePtr);
-
-                // Get address of end of spike time buffer
-                // **NOTE** arbitrary, first vector
+                c.li(*SSpikeBufferEnd, inputSpikePtr + (numInputSpikeWords * 4));
+            
+                // SSpikeArrayBuffer = inputSpikeArrayPtr + (88 * STime)
+                c.li(*SSpikeArrayBuffer, inputSpikeArrayPtr);
                 {
                     // STemp = number of bytes of full vector
-                    ALLOCATE_SCALAR(STemp);
-                    c.li(*STemp, numInputSpikeWords * 64);
+                    ALLOCATE_SCALAR(STmp1);
+                    ALLOCATE_SCALAR(STmp2);
 
-                    // SSpikeTimeBufferEnd = SSpikeTimeBuffer + STemp
-                    c.add(*SSpikeTimeBufferEnd, *SSpikeTimeBuffer, *STemp);
+                    // **TODO** single cycle DSP multiply!
+
+                    // STime * 64
+                    c.slli(*STmp1, *STime, 6);
+                    
+                    // STime * 16
+                    c.slli(*STmp2, *STime, 4);
+
+                    // STime * 80
+                    c.add(*STmp1, *STmp1, *STmp2);
+
+                    // STime * 8
+                    c.slli(*STmp2, *STime, 3);
+
+                    // STime * 88!
+                    c.add(*STmp1, *STmp1, *STmp2);
+
+                    // SSpikeTimeBufferEnd += STime * 88
+                    c.add(*SSpikeArrayBuffer, *SSpikeArrayBuffer, *STmp1);
                 }
 
                 // Input neuron loop
+                // **OPTIMIZE** this is technically not necessary at all, could just point point static pulse at buffer
                 c.L(neuronLoop);
                 {
                     // Register allocation
-                    ALLOCATE_VECTOR(VSpikeTime);
-                    ALLOCATE_SCALAR(SSpikeVec);
+                    ALLOCATE_SCALAR(SSpikeWord);
 
-                    // Load spike times and increment buffer
-                    c.vloadv(*VSpikeTime, *SSpikeTimeBuffer);
-                    c.addi(*SSpikeTimeBuffer, *SSpikeTimeBuffer, 64);
-
-                    // spike vector = x4 = spike time == t
-                    c.vteq(*SSpikeVec, *VTime, *VSpikeTime);
-
-                    // inputSpikeBuffer + scalarOffset = spike vector
-                    c.sw(*SSpikeVec, *SSpikeBuffer);
-
-                    // SSpikeBuffe += 4
-                    c.addi(*SSpikeBuffer, *SSpikeBuffer, 4);
-
-                    // If SSpikeTimeBuffer != SSpikeTimeBufferEnd, goto input loop
-                    c.bne(*SSpikeTimeBuffer, *SSpikeTimeBufferEnd, neuronLoop);
-                }
-
-                // Input neuron tail
-                {
-                    // Register allocation
-                    ALLOCATE_VECTOR(VSpikeTime);
-                    ALLOCATE_SCALAR(SMask);
-                    ALLOCATE_SCALAR(SSpikeVec);
+                    // Load word from spike array buffer an write to spike buffer
+                    c.lw(*SSpikeWord, *SSpikeArrayBuffer);
                     
-                    // Calculate mask for first iteration
-                    c.li(*SMask, (1 << ((numInputSpikeWords * 32) - numInput)) - 1);
-
-                    // Load spike
-                    c.vloadv(*VSpikeTime, *SSpikeTimeBuffer);
-
-                    // spike vector = x4 = spike time == t
-                    c.vteq(*SSpikeVec, *VTime, *VSpikeTime);
-                    c.and_(*SSpikeVec, *SSpikeVec, *SMask);
+                    // SSpikeArrayBuffer += 4
+                    c.addi(*SSpikeArrayBuffer, *SSpikeArrayBuffer, 4);
 
                     // inputSpikeBuffer + scalarOffset = spike vector
-                    c.sw(*SSpikeVec, *SSpikeBuffer);
+                    c.sw(*SSpikeWord, *SSpikeBuffer);
+
+                    // SSpikeBuffer += 4
+                    c.addi(*SSpikeBuffer, *SSpikeBuffer, 4);
+                
+                    // If SSpikeBuffer != SSpikeBufferEnd, goto input loop
+                    c.bne(*SSpikeBuffer, *SSpikeBufferEnd, neuronLoop);
                 }
             }
 
@@ -417,21 +432,11 @@ int main()
 
                 // Get address of buffers
                 c.li(*SVBuffer, hiddenVPtr);
+                c.li(*SVBufferEnd, hiddenVPtr + (numHiddenSpikeWords * 64));
                 c.li(*SABuffer, hiddenAPtr);
                 c.li(*SISynBuffer, hiddenIsynPtr);
                 c.li(*SRefracTimeBuffer, hiddenRefracTimePtr);
                 c.li(*SSpikeBuffer, hiddenSpikePtr);
-
-                // Get address of end of V buffer
-                // **NOTE** arbitrary, first vector
-                {
-                    // STemp = number of bytes of full vector
-                    ALLOCATE_SCALAR(STemp);
-                    c.li(*STemp, numHiddenSpikeWords * 64);
-
-                    // SVBufferEnd = SVBuffer + SNumSpikeBytes
-                    c.add(*SVBufferEnd, *SVBuffer, *STemp);
-                }
 
                 // Hidden neuron loop
                 // **NOTE** POT, no tail required
@@ -611,8 +616,8 @@ int main()
     // Recording data
     std::vector<uint32_t> inputSpikeRecording;
     std::vector<uint32_t> hiddenSpikeRecording;
-    inputSpikeRecording.reserve(79 * numInputSpikeWords);
-    hiddenSpikeRecording.reserve(79 * numHiddenSpikeWords);
+    inputSpikeRecording.reserve(numTimesteps * numInputSpikeWords);
+    hiddenSpikeRecording.reserve(numTimesteps * numHiddenSpikeWords);
 
     // Get pointers to scalar and vector memory
     auto *scalarData = riscV.getScalarDataMemory().getData().data();
@@ -625,18 +630,19 @@ int main()
 
     // Loop through examples
     int numCorrect = 0;
-    for(int i = 0; i < 10000; i++) {
+    for(int i = 0; i < 1; i++) {
         // Show % progress
         const auto iPerc = std::div(i, 100);
         if(iPerc.rem == 0) {
             std:: cout << iPerc.quot << "%" << std::endl;
         }
 
-        // Copy spike times into vector memory
-        std::copy_n(mnistTimes.data() + (numInput * i), numInput, vectorData + (inputSpikeTimePtr / 2));
+        // Copy input spike bits into scalar memory
+        std::copy_n(shdSpikes.data() + (numInputSpikeArrayWords * i), numInputSpikeArrayWords, 
+                    scalarData + inputSpikeArrayPtr);
 
         // Loop through time
-        for(uint32_t t = 0; t < 79; t++) {
+        for(uint32_t t = 0; t < numTimesteps; t++) {
             // Copy timestep into scalar memory
             std::memcpy(scalarData + timestepPtr, &t, 4);
         
@@ -647,15 +653,15 @@ int main()
             }
 
             // Record spike words
-            //std::copy(inputSpikeWords, inputSpikeWords + numInputSpikeWords,
-            //          std::back_inserter(inputSpikeRecording));
-            //std::copy(hiddenSpikeWords, hiddenSpikeWords + numHiddenSpikeWords,
-            //          std::back_inserter(hiddenSpikeRecording));
+            std::copy(inputSpikeWords, inputSpikeWords + numInputSpikeWords,
+                      std::back_inserter(inputSpikeRecording));
+            std::copy(hiddenSpikeWords, hiddenSpikeWords + numHiddenSpikeWords,
+                      std::back_inserter(hiddenSpikeRecording));
         }
 
         // Determine if output is correct
         const auto classification = std::distance(outputVSum, std::max_element(outputVSum, outputVSum + 10));
-        if(classification == mnistLabels[i]) {
+        if(classification == shdLabels[i]) {
             numCorrect++;
         }
 
@@ -670,14 +676,14 @@ int main()
     std::cout << "\t" << riscV.getNumJumps() << " jumps" << std::endl;
     
     // Record output spikes
-    //std::ofstream inputSpikes("input_spikes.csv");
-    //std::ofstream hiddenSpikes("hidden_spikes.csv");
-    //for(uint32_t t = 0; t < 79; t++) {
-    //    AppUtils::writeSpikes(inputSpikes, inputSpikeRecording.data() + (numInputSpikeWords * t),
-    //                          t, numInputSpikeWords);
-    //    AppUtils::writeSpikes(hiddenSpikes, hiddenSpikeRecording.data() + (numHiddenSpikeWords * t),
-    //                          t, numHiddenSpikeWords);
-    //}
+    std::ofstream inputSpikes("shd_input_spikes.csv");
+    std::ofstream hiddenSpikes("shd_hidden_spikes.csv");
+    for(uint32_t t = 0; t < numTimesteps; t++) {
+        AppUtils::writeSpikes(inputSpikes, inputSpikeRecording.data() + (numInputSpikeWords * t),
+                              t, numInputSpikeWords);
+        AppUtils::writeSpikes(hiddenSpikes, hiddenSpikeRecording.data() + (numHiddenSpikeWords * t),
+                              t, numHiddenSpikeWords);
+    }
 
     return 0;
 }
