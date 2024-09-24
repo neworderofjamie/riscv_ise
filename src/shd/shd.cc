@@ -607,8 +607,14 @@ int main()
         LOGI << "Max scalar registers used: " << scalarRegisterAllocator.getMaxUsedRegisters();
     }
 
+    // Assemble instructions
+    const auto code = c.getCode();
+    LOGI << code.size() << " instructions (" << code.size() * 4 << " bytes)";
+    LOGI << scalarInitData.size() << " bytes of scalar memory required";
+    LOGI << vectorInitData.size() * 2 << " bytes of vector memory required (" << ceilDivide(vectorInitData.size() / 32, 4096) << " URAM cascade)";
+
     // Create RISC-V core with instruction and scalar data
-    RISCV riscV(c.getCode(), scalarInitData);
+    RISCV riscV(code, scalarInitData);
     
     // Add vector co-processor
     riscV.addCoprocessor<VectorProcessor>(vectorQuadrant, vectorInitData);
