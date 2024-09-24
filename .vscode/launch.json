@@ -18,12 +18,14 @@
       "id": "example",
       "description": "What example do you want to debug?",
       "options": [
+        "alif",
         "decay",
         "dump_coe",
         "init_vram",
         "lif",
         "mnist",
         "poisson",
+        "shd"
       ],
       "default": "lif"
     }
