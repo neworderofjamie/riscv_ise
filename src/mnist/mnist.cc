@@ -74,21 +74,11 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
     c.li(*SSpikeBuffer, preSpikePtr);
     
     // Get address of end of presynaptic spike buffer
-    c.li(*SSpikeBufferEnd, ceilDivide(numPre, 32) * 4);
-    c.add(*SSpikeBufferEnd, *SSpikeBufferEnd, *SSpikeBuffer);
+    c.li(*SSpikeBufferEnd, preSpikePtr + (ceilDivide(numPre, 32) * 4));
 
     // SISynBuffer = hiddenIsyn;
     c.li(*SISynBuffer, postISynPtr);
-
-    {
-        // Get size of postsynaptic vectors in bytes 
-        // (ceildivide to number of vectors and multiply by 64 bytes per vector)
-        ALLOCATE_SCALAR(STemp);
-        c.li(*STemp, ceilDivide(numPost, 32) * 64);
-
-        // SISynBufferEnd = SISynBuffer + SNumHiddenBytes
-        c.add(*SISynBufferEnd, *SISynBuffer, *STemp);
-    }
+    c.li(*SISynBufferEnd, postISynPtr + (ceilDivide(numPost, 32) * 64));
 
     // Load some useful constants
     c.li(*SConst1, 1);
@@ -321,17 +311,7 @@ int main()
                 // Get address of spike and spike time buffer
                 c.li(*SSpikeBuffer, inputSpikePtr);
                 c.li(*SSpikeTimeBuffer, inputSpikeTimePtr);
-
-                // Get address of end of spike time buffer
-                // **NOTE** arbitrary, first vector
-                {
-                    // STemp = number of bytes of full vector
-                    ALLOCATE_SCALAR(STemp);
-                    c.li(*STemp, numInputSpikeWords * 64);
-
-                    // SSpikeTimeBufferEnd = SSpikeTimeBuffer + STemp
-                    c.add(*SSpikeTimeBufferEnd, *SSpikeTimeBuffer, *STemp);
-                }
+                c.li(*SSpikeTimeBufferEnd, inputSpikeTimePtr + (numInputSpikeWords * 64));
 
                 // Input neuron loop
                 c.L(neuronLoop);
@@ -408,20 +388,10 @@ int main()
 
                 // Get address of buffers
                 c.li(*SVBuffer, hiddenVPtr);
+                c.li(*SVBufferEnd, hiddenVPtr + (numHiddenSpikeWords * 64));
                 c.li(*SISynBuffer, hiddenIsynPtr);
                 c.li(*SRefracTimeBuffer, hiddenRefracTimePtr);
                 c.li(*SSpikeBuffer, hiddenSpikePtr);
-
-                // Get address of end of V buffer
-                // **NOTE** arbitrary, first vector
-                {
-                    // STemp = number of bytes of full vector
-                    ALLOCATE_SCALAR(STemp);
-                    c.li(*STemp, numHiddenSpikeWords * 64);
-
-                    // SVBufferEnd = SVBuffer + SNumSpikeBytes
-                    c.add(*SVBufferEnd, *SVBuffer, *STemp);
-                }
 
                 // Hidden neuron loop
                 // **NOTE** POT, no tail required
