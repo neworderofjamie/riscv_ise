@@ -47,10 +47,7 @@ std::vector<T> loadData(const std::string &filename)
 
     return data;
 }
-/*weightPtr
-postISynPtr
-numPost
-scaleShift*/
+
 struct StaticPulseTarget
 {
     uint32_t weightPtr;
@@ -184,7 +181,7 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
                         c.addi(*SWeightBuffer, *SWeightBuffer, 64);
 
                         // Add weights to ISyn
-                        c.vadd(*VISyn, *VISyn, *VWeight);
+                        c.vadd_s(*VISyn, *VISyn, *VWeight);
 
                         // Write back ISyn and increment SISynBuffer
                         c.vstore(*VISyn, *iReg.first);
@@ -209,7 +206,7 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
                     c.vloadv(*VISyn, *iReg.first);
 
                     // Add weights to ISyn with mask
-                    c.vadd(*VISynNew, *VISyn, *VWeight);
+                    c.vadd_s(*VISynNew, *VISyn, *VWeight);
                     c.vsel(*VISyn, *SMask, *VISynNew);
 
                     // Write back ISyn
@@ -262,6 +259,7 @@ int main()
     constexpr uint32_t hiddenFixedPoint = 8;
     constexpr uint32_t outFixedPoint = 8;
     constexpr uint32_t numTimesteps = 1170;
+    constexpr uint32_t numExamples = 1;//2264;
     constexpr uint32_t numInputSpikeWords = ceilDivide(numInput, 32);
     constexpr uint32_t numHiddenSpikeWords = ceilDivide(numHidden, 32);
     constexpr uint32_t numInputSpikeArrayWords = numInputSpikeWords * numTimesteps;
@@ -460,7 +458,7 @@ int main()
                     c.vmul(hiddenFixedPoint, *VV, *VV, *VAlpha);
 
                     // VV += VISyn
-                    c.vadd(*VV, *VV, *VISyn);
+                    c.vadd_s(*VV, *VV, *VISyn);
 
                     // VISyn = 0
                     c.vlui(*VISyn, 0);
@@ -470,7 +468,7 @@ int main()
 
                     // SRefractory = VRefracTime > 0.0 (0.0 < VRefracTime)
                     c.vtlt(*SRefractory, *VZero, *VRefracTime);
-                     {
+                    {
                         // VTemp = VRefracTime - VDT
                         ALLOCATE_VECTOR(VTemp);
                         c.vsub(*VTemp, *VRefracTime, *VDT);
@@ -499,8 +497,8 @@ int main()
                     {
                         ALLOCATE_VECTOR(VTmp1);
                         ALLOCATE_VECTOR(VTmp2);
-                        c.vsub(*VTmp1, *VV, *VVThresh);
-                        c.vadd(*VTmp2, *VA, *VOne);
+                        c.vsub_s(*VTmp1, *VV, *VVThresh);
+                        c.vadd_s(*VTmp2, *VA, *VOne);
 
                         // v = SSpikeOut ? (v - v_thresh) : v
                         c.vsel(*VV, *SSpikeOut, *VTmp1);
@@ -577,13 +575,13 @@ int main()
                     c.vmul(outFixedPoint, *VVNew, *VV, *VAlpha);
 
                     // VV += VISyn
-                    c.vadd(*VVNew, *VVNew, *VISyn);
+                    c.vadd_s(*VVNew, *VVNew, *VISyn);
 
                     // VV += VBias
-                    c.vadd(*VVNew, *VVNew, *VBias);
+                    c.vadd_s(*VVNew, *VVNew, *VBias);
 
                     // VSum += VV
-                    c.vadd(*VVSumNew, *VVSum, *VISyn);
+                    c.vadd_s(*VVSumNew, *VVSum, *VISyn);
 
                     // Zero Isyn
                     c.vlui(*VISyn, 0);
@@ -622,8 +620,12 @@ int main()
     // Recording data
     std::vector<uint32_t> inputSpikeRecording;
     std::vector<uint32_t> hiddenSpikeRecording;
+    std::vector<int16_t> hiddenVRecording;
+    std::vector<int16_t> hiddenARecording;
     inputSpikeRecording.reserve(numTimesteps * numInputSpikeWords);
     hiddenSpikeRecording.reserve(numTimesteps * numHiddenSpikeWords);
+    hiddenVRecording.reserve(numTimesteps * numHidden);
+    hiddenARecording.reserve(numTimesteps * numHidden);
 
     // Get pointers to scalar and vector memory
     auto *scalarData = riscV.getScalarDataMemory().getData().data();
@@ -632,20 +634,22 @@ int main()
     // From these, get pointers to data structures
     const uint32_t *inputSpikeWords = reinterpret_cast<const uint32_t*>(scalarData + inputSpikePtr);
     const uint32_t *hiddenSpikeWords = reinterpret_cast<const uint32_t*>(scalarData + hiddenSpikePtr);
+    int16_t *hiddenV = vectorData + (hiddenVPtr / 2);
+    int16_t *hiddenA = vectorData + (hiddenVPtr / 2);
     int16_t *outputVSum = vectorData + (outputVSumPtr / 2);
 
     // Loop through examples
     int numCorrect = 0;
-    for(int i = 0; i < 1; i++) {
+    for(int i = 0; i < numExamples; i++) {
         // Show % progress
-        const auto iPerc = std::div(i, 100);
+        /*const auto iPerc = std::div(i, (numExamples / 100));
         if(iPerc.rem == 0) {
             std:: cout << iPerc.quot << "%" << std::endl;
-        }
+        }*/
 
         // Copy input spike bits into scalar memory
         std::copy_n(shdSpikes.data() + (numInputSpikeArrayWords * i), numInputSpikeArrayWords, 
-                    scalarData + inputSpikeArrayPtr);
+                    reinterpret_cast<uint32_t*>(scalarData + inputSpikeArrayPtr));
 
         // Loop through time
         for(uint32_t t = 0; t < numTimesteps; t++) {
@@ -663,6 +667,10 @@ int main()
                       std::back_inserter(inputSpikeRecording));
             std::copy(hiddenSpikeWords, hiddenSpikeWords + numHiddenSpikeWords,
                       std::back_inserter(hiddenSpikeRecording));
+            
+            // Record state variables
+            std::copy_n(hiddenV, numHidden, std::back_inserter(hiddenVRecording));
+            std::copy_n(hiddenA, numHidden, std::back_inserter(hiddenARecording));
         }
 
         // Determine if output is correct
@@ -675,7 +683,7 @@ int main()
         std::fill_n(outputVSum, 10, 0);
     }
 
-    std::cout << numCorrect << " / 10000 correct (" << 100.0 * (numCorrect / 10000.0) << "%)" << std::endl;
+    std::cout << numCorrect << " / " << numExamples << " correct (" << 100.0 * (numCorrect / (double)numExamples) << "%)" << std::endl;
     std::cout << "Stats:" << std::endl;
     std::cout << "\t" << riscV.getNumInstructionsExecuted() << " instructions executed" << std::endl;
     std::cout << "\t" << riscV.getNumCoprocessorInstructionsExecuted(vectorQuadrant) << " vector instructions executed" << std::endl;
@@ -684,12 +692,26 @@ int main()
     // Record output spikes
     std::ofstream inputSpikes("shd_input_spikes.csv");
     std::ofstream hiddenSpikes("shd_hidden_spikes.csv");
+    std::ofstream hiddenVFile("shd_hidden_v.csv");
+    std::ofstream hiddenAFile("shd_hidden_a.csv");
     for(uint32_t t = 0; t < numTimesteps; t++) {
         AppUtils::writeSpikes(inputSpikes, inputSpikeRecording.data() + (numInputSpikeWords * t),
                               t, numInputSpikeWords);
         AppUtils::writeSpikes(hiddenSpikes, hiddenSpikeRecording.data() + (numHiddenSpikeWords * t),
                               t, numHiddenSpikeWords);
+        
+        for(uint32_t i = 0; i < numHidden; i++) {
+            hiddenVFile << *hiddenV++;
+            hiddenAFile << *hiddenA++;
+            if(i != (numHidden - 1)) {
+                hiddenVFile << ", ";
+                hiddenAFile << ", ";
+            }
+        }
+        hiddenVFile << std::endl;
+        hiddenAFile << std::endl;
     }
 
+    
     return 0;
 }
