@@ -122,6 +122,11 @@ int main()
                               476, 502, 529, 555, 581, 608, 634, 661, 687, 713, 740, 766, 793, 819};
     std::memcpy(scalarInitData.data() + inputCurrentScalarPtr, test.data(), test.size() * 2);
 
+    // Dump initial data to coe file
+    std::vector<uint32_t> wordData(scalarInitData.size() / 4);
+    std::memcpy(wordData.data(), scalarInitData.data(), scalarInitData.size());
+    AppUtils::dumpCOE("lif_data.coe", wordData);
+
     // Generate code
     const auto code = generateCode(numTimesteps, inputCurrentVectorPtr, inputCurrentScalarPtr,
                                    voltageRecordingPtr, spikeRecordingPtr).getCode();
