@@ -256,19 +256,23 @@ int main()
     constexpr uint32_t numInput = 700;
     constexpr uint32_t numHidden = 256;
     constexpr uint32_t numOutput = 20;
-    constexpr uint32_t hiddenFixedPoint = 8;
-    constexpr uint32_t outFixedPoint = 8;
+    constexpr uint32_t hiddenVFixedPoint = 9;
+    constexpr uint32_t hiddenAFixedPoint = 8;
+    constexpr uint32_t outFixedPoint = 10;
     constexpr uint32_t numTimesteps = 1170;
     constexpr uint32_t numExamples = 1;//2264;
     constexpr uint32_t numInputSpikeWords = ceilDivide(numInput, 32);
     constexpr uint32_t numHiddenSpikeWords = ceilDivide(numHidden, 32);
     constexpr uint32_t numInputSpikeArrayWords = numInputSpikeWords * numTimesteps;
 
+    // Generate seed
+    const uint32_t seedPointer = AppUtils::allocateVectorSeedAndInit(vectorInitData);
+
     // Load vector data
-    const uint32_t weightInHidPtr = AppUtils::loadVectors("shd_in_hid.bin", vectorInitData);
-    const uint32_t weightHidOutPtr = AppUtils::loadVectors("shd_hid_out.bin", vectorInitData);
-    const uint32_t weightHidHidPtr = AppUtils::loadVectors("shd_hid_hid.bin", vectorInitData);
-    const uint32_t outputBiasPtr = AppUtils::loadVectors("shd_bias.bin", vectorInitData);
+    const uint32_t weightInHidPtr = AppUtils::loadVectors("99-Conn_Pop0_Pop1-g.bin", vectorInitData);
+    const uint32_t weightHidOutPtr = AppUtils::loadVectors("99-Conn_Pop1_Pop2-g.bin", vectorInitData);
+    const uint32_t weightHidHidPtr = AppUtils::loadVectors("99-Conn_Pop1_Pop1-g.bin", vectorInitData);
+    const uint32_t outputBiasPtr = AppUtils::loadVectors("99-Pop2-Bias.bin", vectorInitData);
     
     // Allocate additional vector arrays
     const uint32_t hiddenIsynPtr = AppUtils::allocateVectorAndZero(numHidden, vectorInitData);
@@ -300,6 +304,15 @@ int main()
         {
             c.li(*STime, timestepPtr);
             c.lw(*STime, *STime);
+        }
+
+        // Load RNG seed
+        // **TODO** don't do all the time
+        {
+            ALLOCATE_SCALAR(STmp);
+            c.li(*STmp, seedPointer);
+            c.vloadr0(*STmp);
+            c.vloadr1(*STmp, 64);
         }
 
         // Loop over time
@@ -419,14 +432,14 @@ int main()
                 
                 // Load constants
                 // alpha = e^(-1/20)
-                c.vlui(*VAlpha, convertFixedPoint(std::exp(-1.0 / 20.0), hiddenFixedPoint));
-                c.vlui(*VRho, convertFixedPoint(std::exp(-1.0 / 2000.0), hiddenFixedPoint));
-                c.vlui(*VBeta, convertFixedPoint(0.0174, hiddenFixedPoint));
-                c.vlui(*VVThresh, convertFixedPoint(0.6, hiddenFixedPoint));
+                c.vlui(*VAlpha, convertFixedPoint(std::exp(-1.0 / 20.0), 14));
+                c.vlui(*VRho, convertFixedPoint(std::exp(-1.0 / 2000.0), 14));
+                c.vlui(*VBeta, convertFixedPoint(0.0174, hiddenVFixedPoint));
+                c.vlui(*VVThresh, convertFixedPoint(0.6, hiddenVFixedPoint));
                 c.vlui(*VTauRefrac, 5);
                 c.vlui(*VDT, 1);
                 c.vlui(*VZero, 0);
-                c.vlui(*VOne, convertFixedPoint(1.0, hiddenFixedPoint));
+                c.vlui(*VOne, convertFixedPoint(1.0, hiddenAFixedPoint));
 
                 // Get address of buffers
                 c.li(*SVBuffer, hiddenVPtr);
@@ -448,25 +461,25 @@ int main()
                     ALLOCATE_SCALAR(SSpikeOut);
                     ALLOCATE_SCALAR(SRefractory);
 
-                    // Load voltage and isyn
+                    // Load state variables
                     c.vloadv(*VV, *SVBuffer);
                     c.vloadv(*VA, *SABuffer);
                     c.vloadv(*VISyn, *SISynBuffer);
                     c.vloadv(*VRefracTime, *SRefracTimeBuffer);
 
-                    // VV *= VAlpha
-                    c.vmul(hiddenFixedPoint, *VV, *VV, *VAlpha);
+                    // V *= Alpha
+                    c.vmul_rs(14, *VV, *VV, *VAlpha);
 
-                    // VV += VISyn
+                    // V += ISyn
                     c.vadd_s(*VV, *VV, *VISyn);
 
-                    // VISyn = 0
+                    // ISyn = 0
                     c.vlui(*VISyn, 0);
 
-                    // VA *= VRho
-                    c.vmul(hiddenFixedPoint, *VA, *VA, *VRho);
+                    // A *= Rho
+                    c.vmul_rs(14, *VA, *VA, *VRho);
 
-                    // SRefractory = VRefracTime > 0.0 (0.0 < VRefracTime)
+                    // Refractory = RefracTime > 0.0 (0.0 < VRefracTime)
                     c.vtlt(*SRefractory, *VZero, *VRefracTime);
                     {
                         // VTemp = VRefracTime - VDT
@@ -477,13 +490,15 @@ int main()
                         c.vsel(*VRefracTime, *SRefractory, *VTemp);
                     }
 
-                    // SSpikeOut = VV >= (VThres + (Beta * A)) && !SRefractory
+                    // SSpikeOut = VV >= (VThres + (Beta * A)) 
                     {
                         ALLOCATE_VECTOR(VTmp);
-                        c.vmul(hiddenFixedPoint, *VTmp, *VA, *VBeta);
-                        c.vmul(hiddenFixedPoint, *VTmp, *VTmp, *VVThresh);
+                        c.vmul_rs(hiddenAFixedPoint, *VTmp, *VA, *VBeta);
+                        c.vadd_s(*VTmp, *VTmp, *VVThresh);
                         c.vtge(*SSpikeOut, *VV, *VTmp);
                     }
+
+                    // SpikeOut = SpikeOut && !Refractory
                     {
                         // STemp = !SRefractory
                         ALLOCATE_SCALAR(STemp);
@@ -500,10 +515,10 @@ int main()
                         c.vsub_s(*VTmp1, *VV, *VVThresh);
                         c.vadd_s(*VTmp2, *VA, *VOne);
 
-                        // v = SSpikeOut ? (v - v_thresh) : v
+                        // V = SpikeOut ? (V - Vthresh) : V
                         c.vsel(*VV, *SSpikeOut, *VTmp1);
 
-                        // a = SSpikeOut ? (a + 1) : a
+                        // A = SpikeOut ? (A + 1) : A
                         c.vsel(*VA, *SSpikeOut, *VTmp2);
                     }
 
@@ -519,8 +534,6 @@ int main()
                     c.addi(*SISynBuffer, *SISynBuffer, 64);
                     c.vstore(*VRefracTime, *SRefracTimeBuffer);
                     c.addi(*SRefracTimeBuffer, *SRefracTimeBuffer, 64);
-
-                    // SVBuffer += 64
                     c.addi(*SSpikeBuffer, *SSpikeBuffer, 4);
 
                     // If SBBuffer != SVBufferEnd, loop
@@ -622,10 +635,14 @@ int main()
     std::vector<uint32_t> hiddenSpikeRecording;
     std::vector<int16_t> hiddenVRecording;
     std::vector<int16_t> hiddenARecording;
+    std::vector<int16_t> outputVRecording;
+    std::vector<int16_t> outputVSumRecording;
     inputSpikeRecording.reserve(numTimesteps * numInputSpikeWords);
     hiddenSpikeRecording.reserve(numTimesteps * numHiddenSpikeWords);
     hiddenVRecording.reserve(numTimesteps * numHidden);
     hiddenARecording.reserve(numTimesteps * numHidden);
+    outputVRecording.reserve(numTimesteps * numOutput);
+    outputVSumRecording.reserve(numTimesteps * numOutput);
 
     // Get pointers to scalar and vector memory
     auto *scalarData = riscV.getScalarDataMemory().getData().data();
@@ -635,7 +652,8 @@ int main()
     const uint32_t *inputSpikeWords = reinterpret_cast<const uint32_t*>(scalarData + inputSpikePtr);
     const uint32_t *hiddenSpikeWords = reinterpret_cast<const uint32_t*>(scalarData + hiddenSpikePtr);
     const int16_t *hiddenV = vectorData + (hiddenVPtr / 2);
-    const int16_t *hiddenA = vectorData + (hiddenVPtr / 2);
+    const int16_t *hiddenA = vectorData + (hiddenAPtr / 2);
+    const int16_t *outputV = vectorData + (outputVPtr / 2);
     int16_t *outputVSum = vectorData + (outputVSumPtr / 2);
 
     // Loop through examples
@@ -671,6 +689,8 @@ int main()
             // Record state variables
             std::copy_n(hiddenV, numHidden, std::back_inserter(hiddenVRecording));
             std::copy_n(hiddenA, numHidden, std::back_inserter(hiddenARecording));
+            std::copy_n(outputV, numOutput, std::back_inserter(outputVRecording));
+            std::copy_n(outputVSum, numOutput, std::back_inserter(outputVSumRecording));
         }
 
         // Determine if output is correct
@@ -680,7 +700,7 @@ int main()
         }
 
         // Zero output V sum
-        std::fill_n(outputVSum, 10, 0);
+        std::fill_n(outputVSum, numOutput, 0);
     }
 
     std::cout << numCorrect << " / " << numExamples << " correct (" << 100.0 * (numCorrect / (double)numExamples) << "%)" << std::endl;
@@ -694,8 +714,12 @@ int main()
     std::ofstream hiddenSpikes("shd_hidden_spikes.csv");
     std::ofstream hiddenVFile("shd_hidden_v.csv");
     std::ofstream hiddenAFile("shd_hidden_a.csv");
-    auto iV = hiddenVRecording.cbegin();
-    auto iA = hiddenARecording.cbegin();
+    std::ofstream outputVFile("shd_output_v.csv");
+    std::ofstream outputVSumFile("shd_output_v_sum.csv");
+    auto iHV = hiddenVRecording.cbegin();
+    auto iHA = hiddenARecording.cbegin();
+    auto iOV = outputVRecording.cbegin();
+    auto iOVS = outputVSumRecording.cbegin();
     for(uint32_t t = 0; t < numTimesteps; t++) {
         AppUtils::writeSpikes(inputSpikes, inputSpikeRecording.data() + (numInputSpikeWords * t),
                               t, numInputSpikeWords);
@@ -703,15 +727,25 @@ int main()
                               t, numHiddenSpikeWords);
         
         for(uint32_t i = 0; i < numHidden; i++) {
-            hiddenVFile << *iV++;
-            hiddenAFile << *iA++;
+            hiddenVFile << *iHV++;
+            hiddenAFile << *iHA++;
             if(i != (numHidden - 1)) {
                 hiddenVFile << ", ";
                 hiddenAFile << ", ";
             }
         }
+        for(uint32_t i = 0; i < numOutput; i++) {
+            outputVFile << *iOV++;
+            outputVSumFile << *iOVS++;
+            if(i != (numOutput - 1)) {
+                outputVFile << ", ";
+                outputVSumFile << ", ";
+            }
+        }
         hiddenVFile << std::endl;
         hiddenAFile << std::endl;
+        outputVFile << std::endl;
+        outputVSumFile << std::endl;
     }
 
     
