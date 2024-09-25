@@ -10,6 +10,10 @@ parser.add_argument("input_filenames", type=str, nargs="+",
                     help="Numpy format binary files to quantise")
 parser.add_argument("-p", "--percentile", type=float, default=99.0,
                     help="What percentile of weights to attempt to quantise")
+parser.add_argument("--num-pre", type=int, default=None,
+                    help="When padding post, need to provide this")
+parser.add_argument("--pad-post", action="store_true",
+                    help="In current FeNN implementation, postsynaptic population size needs to be P.O.T.")
 parser.add_argument("-f", "--fractional-bits", type=int,
                     help="Number of fractional bits")
 parser.add_argument("-v", "--visualise", action="store_true", help="Visualise weight distributions")
@@ -23,7 +27,15 @@ for f in args.input_filenames:
 
     # Load
     data = np.load(f)
-
+    
+    if args.pad_post:
+        assert args.num_pre is not None
+        
+        data = np.reshape(data, (args.num_pre, -1))
+        pot_num_post = 2 ** (math.ceil(math.log(data.shape[1], 2)))
+        print(f"Padding number of postsynaptic neurons from {data.shape[1]} to {pot_num_post}")
+        data = np.pad(data, ((0, 0), (0, pot_num_post - data.shape[1])))    
+    
     # Split data into positive and negative
     positive_mask = (data > 0)
     positive_data = data[positive_mask]
