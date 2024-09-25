@@ -322,7 +322,7 @@ int main()
             genStaticPulse(c, vectorRegisterAllocator, scalarRegisterAllocator, 
                            hiddenSpikePtr, numHidden,
                            {{weightHidOutPtr, outputIsynPtr, numOutput, 6},
-                            {weightHidHidPtr, hiddenIsynPtr, numHidden, 9},},
+                            {weightHidHidPtr, hiddenIsynPtr, numHidden, 9}},
                            false);
 
             // ---------------------------------------------------------------
@@ -430,7 +430,7 @@ int main()
 
                 // Get address of buffers
                 c.li(*SVBuffer, hiddenVPtr);
-                c.li(*SVBufferEnd, hiddenVPtr + (numHiddenSpikeWords * 64));
+                c.li(*SVBufferEnd, hiddenVPtr + (numHidden * 2));
                 c.li(*SABuffer, hiddenAPtr);
                 c.li(*SISynBuffer, hiddenIsynPtr);
                 c.li(*SRefracTimeBuffer, hiddenRefracTimePtr);
@@ -634,8 +634,8 @@ int main()
     // From these, get pointers to data structures
     const uint32_t *inputSpikeWords = reinterpret_cast<const uint32_t*>(scalarData + inputSpikePtr);
     const uint32_t *hiddenSpikeWords = reinterpret_cast<const uint32_t*>(scalarData + hiddenSpikePtr);
-    int16_t *hiddenV = vectorData + (hiddenVPtr / 2);
-    int16_t *hiddenA = vectorData + (hiddenVPtr / 2);
+    const int16_t *hiddenV = vectorData + (hiddenVPtr / 2);
+    const int16_t *hiddenA = vectorData + (hiddenVPtr / 2);
     int16_t *outputVSum = vectorData + (outputVSumPtr / 2);
 
     // Loop through examples
@@ -694,6 +694,8 @@ int main()
     std::ofstream hiddenSpikes("shd_hidden_spikes.csv");
     std::ofstream hiddenVFile("shd_hidden_v.csv");
     std::ofstream hiddenAFile("shd_hidden_a.csv");
+    auto iV = hiddenVRecording.cbegin();
+    auto iA = hiddenARecording.cbegin();
     for(uint32_t t = 0; t < numTimesteps; t++) {
         AppUtils::writeSpikes(inputSpikes, inputSpikeRecording.data() + (numInputSpikeWords * t),
                               t, numInputSpikeWords);
@@ -701,8 +703,8 @@ int main()
                               t, numHiddenSpikeWords);
         
         for(uint32_t i = 0; i < numHidden; i++) {
-            hiddenVFile << *hiddenV++;
-            hiddenAFile << *hiddenA++;
+            hiddenVFile << *iV++;
+            hiddenAFile << *iA++;
             if(i != (numHidden - 1)) {
                 hiddenVFile << ", ";
                 hiddenAFile << ", ";
