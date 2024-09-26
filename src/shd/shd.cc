@@ -54,12 +54,13 @@ struct StaticPulseTarget
     uint32_t postISynPtr;
     uint32_t numPost;
     uint32_t scaleShift;
+    bool debug;
 };
 
 void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAllocator,
                     RegisterAllocator<Reg> &scalarRegisterAllocator,
                     uint32_t preSpikePtr, uint32_t numPre, 
-                    const std::vector<StaticPulseTarget> &targets, bool debug)
+                    const std::vector<StaticPulseTarget> &targets)
 {
     // Register allocation
     ALLOCATE_SCALAR(SSpikeBuffer);
@@ -163,7 +164,7 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
                 c.li(*iReg.first, t.postISynPtr);
                 
                 // Load weight and Isyn
-                if(debug) {
+                if(t.debug) {
                     c.ebreak();
                 }
 
@@ -188,6 +189,7 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
                         c.addi(*iReg.first, *iReg.first, 64);
 
                         // If we haven't reached end of Isyn buffer, loop
+                        assert(t.numPost % 32 == 0);
                         c.bne(*iReg.first, *iReg.second, weightLoop);
                     }
                 }
@@ -199,7 +201,12 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
                     ALLOCATE_VECTOR(VISynNew);
 
                     // Calculate mask for final iteration
-                    c.li(*SMask, (1 << (padSize(t.numPost, 32) - t.numPost)) - 1);
+                    if(t.numPost > 32) {
+                        c.li(*SMask, (1 << (padSize(t.numPost, 32) - t.numPost)) - 1);
+                    }
+                    else {
+                        c.li(*SMask, (1 << t.numPost) - 1);
+                    }
 
                     // Load next vector of weights and ISyns
                     c.vloadv(*VWeight, *SWeightBuffer);
@@ -325,8 +332,7 @@ int main()
             // 2^9 = 2 bytes * 256 hidden neurons
             genStaticPulse(c, vectorRegisterAllocator, scalarRegisterAllocator,
                            inputSpikePtr, numInput,
-                           {{weightInHidPtr, hiddenIsynPtr, numHidden, 9}},
-                           false);
+                           {{weightInHidPtr, hiddenIsynPtr, numHidden, 9, false}});
 
             // ---------------------------------------------------------------
             // Hidden->Output and Hidden->Hidden synapses
@@ -334,9 +340,8 @@ int main()
             // 2^6 = 2 bytes * 32 output neurons (rounded up)
             genStaticPulse(c, vectorRegisterAllocator, scalarRegisterAllocator, 
                            hiddenSpikePtr, numHidden,
-                           {{weightHidOutPtr, outputIsynPtr, numOutput, 6},
-                            {weightHidHidPtr, hiddenIsynPtr, numHidden, 9}},
-                           false);
+                           {{weightHidOutPtr, outputIsynPtr, numOutput, 6, false},
+                            {weightHidHidPtr, hiddenIsynPtr, numHidden, 9, false}});
 
             // ---------------------------------------------------------------
             // Input neurons
@@ -552,11 +557,13 @@ int main()
                 ALLOCATE_SCALAR(SBiasBuffer);
                 ALLOCATE_VECTOR(VAlpha);
                 ALLOCATE_VECTOR(VZero);
+                ALLOCATE_VECTOR(VAvgScale);
 
                 // Load constants
                 // alpha = e^(-1/20)
                 c.vlui(*VAlpha, convertFixedPoint(std::exp(-1.0 / 20.0), outFixedPoint));
                 c.vlui(*VZero, 0);
+                c.vlui(*VAvgScale, convertFixedPoint(1.0 / numTimesteps, outFixedPoint));
 
                 // Get address of voltage, voltage sum and Isyn buffers
                 c.li(*SVBuffer, outputVPtr);
@@ -576,14 +583,14 @@ int main()
                     ALLOCATE_VECTOR(VBias);
                     
                     // Calculate mask
-                    c.li(*SMask, (1 << (32 - numOutput)) - 1);
+                    c.li(*SMask, (1 << numOutput) - 1);
 
                     // Load V, VSum and ISyn
                     c.vloadv(*VV, *SVBuffer);
                     c.vloadv(*VVSum, *SVSumBuffer);
                     c.vloadv(*VISyn, *SISynBuffer);
                     c.vloadv(*VBias, *SBiasBuffer);
-
+ 
                     // VV *= VAlpha
                     c.vmul(outFixedPoint, *VVNew, *VV, *VAlpha);
 
@@ -593,8 +600,13 @@ int main()
                     // VV += VBias
                     c.vadd_s(*VVNew, *VVNew, *VBias);
 
-                    // VSum += VV
-                    c.vadd_s(*VVSumNew, *VVSum, *VISyn);
+                    // VSum += VV * (1 / T)
+                    {
+                        // Register allocation
+                        ALLOCATE_VECTOR(VTmp);
+                        c.vmul_rs(outFixedPoint, *VTmp, *VAvgScale, *VVNew);
+                        c.vadd_s(*VVSumNew, *VVSum, *VTmp);
+                    }
 
                     // Zero Isyn
                     c.vlui(*VISyn, 0);
