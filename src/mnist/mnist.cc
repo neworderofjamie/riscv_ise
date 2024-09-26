@@ -609,8 +609,8 @@ int main()
 
     std::cout << numCorrect << " / 10000 correct (" << 100.0 * (numCorrect / 10000.0) << "%)" << std::endl;
     std::cout << "Stats:" << std::endl;
-    std::cout << "\t" << riscV.getNumInstructionsExecuted() << " instructions executed" << std::endl;
-    std::cout << "\t" << riscV.getNumCoprocessorInstructionsExecuted(vectorQuadrant) << " vector instructions executed" << std::endl;
+    std::cout << "\t" << riscV.getTotalNumInstructionsExecuted() << " instructions executed" << std::endl;
+    std::cout << "\t" << riscV.getTotalNumCoprocessorInstructionsExecuted(vectorQuadrant) << " vector instructions executed" << std::endl;
     std::cout << "\t" << riscV.getNumJumps() << " jumps" << std::endl;
     
     // Record output spikes
