@@ -260,7 +260,7 @@ int main()
     std::vector<int16_t> vectorInitData;
 
     // Constants
-    constexpr bool record = false;
+    constexpr bool record = true;
     constexpr uint32_t numInput = 700;
     constexpr uint32_t numHidden = 256;
     constexpr uint32_t numOutput = 20;
@@ -268,7 +268,7 @@ int main()
     constexpr uint32_t hiddenAFixedPoint = 8;
     constexpr uint32_t outFixedPoint = 11;
     constexpr uint32_t numTimesteps = 1170;
-    constexpr uint32_t numExamples = 2264;
+    constexpr uint32_t numExamples = 1;
     constexpr uint32_t numInputSpikeWords = ceilDivide(numInput, 32);
     constexpr uint32_t numHiddenSpikeWords = ceilDivide(numHidden, 32);
     constexpr uint32_t numInputSpikeArrayWords = numInputSpikeWords * numTimesteps;
@@ -557,13 +557,11 @@ int main()
                 ALLOCATE_SCALAR(SISynBuffer);
                 ALLOCATE_SCALAR(SBiasBuffer);
                 ALLOCATE_VECTOR(VAlpha);
-                ALLOCATE_VECTOR(VZero);
                 ALLOCATE_VECTOR(VAvgScale);
 
                 // Load constants
                 // alpha = e^(-1/20)
-                c.vlui(*VAlpha, convertFixedPoint(std::exp(-1.0 / 20.0), outFixedPoint));
-                c.vlui(*VZero, 0);
+                c.vlui(*VAlpha, convertFixedPoint(std::exp(-1.0 / 20.0), 14));
                 c.vlui(*VAvgScale, convertFixedPoint(1.0 / numTimesteps, outFixedPoint));
 
                 // Get address of voltage, voltage sum and Isyn buffers
@@ -593,7 +591,7 @@ int main()
                     c.vloadv(*VBias, *SBiasBuffer);
  
                     // VV *= VAlpha
-                    c.vmul(outFixedPoint, *VVNew, *VV, *VAlpha);
+                    c.vmul(14, *VVNew, *VV, *VAlpha);
 
                     // VV += VISyn
                     c.vadd_s(*VVNew, *VVNew, *VISyn);
@@ -673,7 +671,7 @@ int main()
     int numCorrect = 0;
     for(int i = 0; i < numExamples; i++) {
         // Show % progress
-        const auto iPerc = std::div(i, (numExamples / 100));
+        const auto iPerc = std::div(i, ceilDivide(numExamples, 100));
         if(iPerc.rem == 0) {
             std:: cout << iPerc.quot << "%" << std::endl;
         }
