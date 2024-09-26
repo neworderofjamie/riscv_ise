@@ -260,14 +260,15 @@ int main()
     std::vector<int16_t> vectorInitData;
 
     // Constants
+    constexpr bool record = false;
     constexpr uint32_t numInput = 700;
     constexpr uint32_t numHidden = 256;
     constexpr uint32_t numOutput = 20;
     constexpr uint32_t hiddenVFixedPoint = 9;
     constexpr uint32_t hiddenAFixedPoint = 8;
-    constexpr uint32_t outFixedPoint = 10;
+    constexpr uint32_t outFixedPoint = 11;
     constexpr uint32_t numTimesteps = 1170;
-    constexpr uint32_t numExamples = 1;//2264;
+    constexpr uint32_t numExamples = 2264;
     constexpr uint32_t numInputSpikeWords = ceilDivide(numInput, 32);
     constexpr uint32_t numHiddenSpikeWords = ceilDivide(numHidden, 32);
     constexpr uint32_t numInputSpikeArrayWords = numInputSpikeWords * numTimesteps;
@@ -672,10 +673,10 @@ int main()
     int numCorrect = 0;
     for(int i = 0; i < numExamples; i++) {
         // Show % progress
-        /*const auto iPerc = std::div(i, (numExamples / 100));
+        const auto iPerc = std::div(i, (numExamples / 100));
         if(iPerc.rem == 0) {
             std:: cout << iPerc.quot << "%" << std::endl;
-        }*/
+        }
 
         // Copy input spike bits into scalar memory
         std::copy_n(shdSpikes.data() + (numInputSpikeArrayWords * i), numInputSpikeArrayWords, 
@@ -693,16 +694,18 @@ int main()
             }
 
             // Record spike words
-            std::copy(inputSpikeWords, inputSpikeWords + numInputSpikeWords,
-                      std::back_inserter(inputSpikeRecording));
-            std::copy(hiddenSpikeWords, hiddenSpikeWords + numHiddenSpikeWords,
-                      std::back_inserter(hiddenSpikeRecording));
+            if(record) {
+                std::copy(inputSpikeWords, inputSpikeWords + numInputSpikeWords,
+                          std::back_inserter(inputSpikeRecording));
+                std::copy(hiddenSpikeWords, hiddenSpikeWords + numHiddenSpikeWords,
+                          std::back_inserter(hiddenSpikeRecording));
             
-            // Record state variables
-            std::copy_n(hiddenV, numHidden, std::back_inserter(hiddenVRecording));
-            std::copy_n(hiddenA, numHidden, std::back_inserter(hiddenARecording));
-            std::copy_n(outputV, numOutput, std::back_inserter(outputVRecording));
-            std::copy_n(outputVSum, numOutput, std::back_inserter(outputVSumRecording));
+                // Record state variables
+                std::copy_n(hiddenV, numHidden, std::back_inserter(hiddenVRecording));
+                std::copy_n(hiddenA, numHidden, std::back_inserter(hiddenARecording));
+                std::copy_n(outputV, numOutput, std::back_inserter(outputVRecording));
+                std::copy_n(outputVSum, numOutput, std::back_inserter(outputVSumRecording));
+            }
         }
 
         // Determine if output is correct
@@ -721,43 +724,45 @@ int main()
     std::cout << "\t" << riscV.getNumCoprocessorInstructionsExecuted(vectorQuadrant) << " vector instructions executed" << std::endl;
     std::cout << "\t" << riscV.getNumJumps() << " jumps" << std::endl;
     
-    // Record output spikes
-    std::ofstream inputSpikes("shd_input_spikes.csv");
-    std::ofstream hiddenSpikes("shd_hidden_spikes.csv");
-    std::ofstream hiddenVFile("shd_hidden_v.csv");
-    std::ofstream hiddenAFile("shd_hidden_a.csv");
-    std::ofstream outputVFile("shd_output_v.csv");
-    std::ofstream outputVSumFile("shd_output_v_sum.csv");
-    auto iHV = hiddenVRecording.cbegin();
-    auto iHA = hiddenARecording.cbegin();
-    auto iOV = outputVRecording.cbegin();
-    auto iOVS = outputVSumRecording.cbegin();
-    for(uint32_t t = 0; t < numTimesteps; t++) {
-        AppUtils::writeSpikes(inputSpikes, inputSpikeRecording.data() + (numInputSpikeWords * t),
-                              t, numInputSpikeWords);
-        AppUtils::writeSpikes(hiddenSpikes, hiddenSpikeRecording.data() + (numHiddenSpikeWords * t),
-                              t, numHiddenSpikeWords);
+    if(record) {
+        // Record output spikes
+        std::ofstream inputSpikes("shd_input_spikes.csv");
+        std::ofstream hiddenSpikes("shd_hidden_spikes.csv");
+        std::ofstream hiddenVFile("shd_hidden_v.csv");
+        std::ofstream hiddenAFile("shd_hidden_a.csv");
+        std::ofstream outputVFile("shd_output_v.csv");
+        std::ofstream outputVSumFile("shd_output_v_sum.csv");
+        auto iHV = hiddenVRecording.cbegin();
+        auto iHA = hiddenARecording.cbegin();
+        auto iOV = outputVRecording.cbegin();
+        auto iOVS = outputVSumRecording.cbegin();
+        for(uint32_t t = 0; t < numTimesteps; t++) {
+            AppUtils::writeSpikes(inputSpikes, inputSpikeRecording.data() + (numInputSpikeWords * t),
+                                  t, numInputSpikeWords);
+            AppUtils::writeSpikes(hiddenSpikes, hiddenSpikeRecording.data() + (numHiddenSpikeWords * t),
+                                  t, numHiddenSpikeWords);
         
-        for(uint32_t i = 0; i < numHidden; i++) {
-            hiddenVFile << *iHV++;
-            hiddenAFile << *iHA++;
-            if(i != (numHidden - 1)) {
-                hiddenVFile << ", ";
-                hiddenAFile << ", ";
+            for(uint32_t i = 0; i < numHidden; i++) {
+                hiddenVFile << *iHV++;
+                hiddenAFile << *iHA++;
+                if(i != (numHidden - 1)) {
+                    hiddenVFile << ", ";
+                    hiddenAFile << ", ";
+                }
             }
-        }
-        for(uint32_t i = 0; i < numOutput; i++) {
-            outputVFile << *iOV++;
-            outputVSumFile << *iOVS++;
-            if(i != (numOutput - 1)) {
-                outputVFile << ", ";
-                outputVSumFile << ", ";
+            for(uint32_t i = 0; i < numOutput; i++) {
+                outputVFile << *iOV++;
+                outputVSumFile << *iOVS++;
+                if(i != (numOutput - 1)) {
+                    outputVFile << ", ";
+                    outputVSumFile << ", ";
+                }
             }
+            hiddenVFile << std::endl;
+            hiddenAFile << std::endl;
+            outputVFile << std::endl;
+            outputVSumFile << std::endl;
         }
-        hiddenVFile << std::endl;
-        hiddenAFile << std::endl;
-        outputVFile << std::endl;
-        outputVSumFile << std::endl;
     }
 
     

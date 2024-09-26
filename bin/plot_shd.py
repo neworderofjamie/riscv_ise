@@ -5,6 +5,7 @@ def plot_var_grid(var, ref_var, fixed_point, title, num_row, num_col):
     fig, axes = plt.subplots(num_row, num_col, sharex="col", sharey="row", squeeze=False)
     fig.suptitle(title)
     for i, a in enumerate(axes.flatten()):
+        a.set_title(str(i), loc="left")
         ref_actor = a.plot(ref_var[:,i], alpha=0.5)[0]
         actor = a.plot(var[:,i] / (2 ** fixed_point), alpha=0.5)[0]
 
@@ -42,7 +43,7 @@ spike_axes[1,1].set_xlabel("Time [ms]")
 
 plot_var_grid(hidden_v, np.load("hidden_v.npy"), 9, "Hidden V", 8, 8)
 plot_var_grid(hidden_a, np.load("hidden_a.npy"), 8, "Hidden A", 8, 8)
-plot_var_grid(output_v_sum, np.load("out_v_sum.npy"), 10, "Output VSum", 5, 4)
-plot_var_grid(output_v, np.load("out_v.npy"), 10, "Output V", 5, 4)
+plot_var_grid(output_v_sum, np.load("out_v_sum.npy") / 1170, 11, "Output VSum", 5, 4)
+plot_var_grid(output_v, np.load("out_v.npy"), 11, "Output V", 5, 4)
 
 plt.show()
