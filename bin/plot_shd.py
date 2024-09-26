@@ -8,7 +8,9 @@ def plot_var_grid(var, ref_var, fixed_point, title, num_row, num_col):
         a.set_title(str(i), loc="left")
         ref_actor = a.plot(ref_var[:,i], alpha=0.5)[0]
         actor = a.plot(var[:,i] / (2 ** fixed_point), alpha=0.5)[0]
-
+        a.axhline(2 ** (15 - fixed_point), color="gray", linestyle="--")
+        a.axhline(-(2 ** (15 - fixed_point)), color="gray", linestyle="--")
+    
     fig.legend([actor, ref_actor], ["FeNN", "GeNN"], ncol=2, loc="lower center")
     fig.tight_layout(pad=0)
 
