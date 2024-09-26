@@ -8,8 +8,6 @@ from os import path
 parser = ArgumentParser()
 parser.add_argument("input_filenames", type=str, nargs="+",
                     help="Numpy format binary files to quantise")
-parser.add_argument("-p", "--percentile", type=float, default=99.0,
-                    help="What percentile of weights to attempt to quantise")
 parser.add_argument("--num-pre", type=int, default=None,
                     help="When padding post, need to provide this")
 parser.add_argument("--pad-post", action="store_true",
@@ -35,34 +33,10 @@ for f in args.input_filenames:
         pot_num_post = 2 ** (math.ceil(math.log(data.shape[1], 2)))
         print(f"Padding number of postsynaptic neurons from {data.shape[1]} to {pot_num_post}")
         data = np.pad(data, ((0, 0), (0, pot_num_post - data.shape[1])))    
-    
-    # Split data into positive and negative
-    positive_mask = (data > 0)
-    positive_data = data[positive_mask]
-    negative_data = data[np.logical_not(positive_mask)]
-
-    # Calculate desired percentile
-    positive_perc = np.percentile(positive_data, args.percentile)
-    negative_perc = np.percentile(-negative_data, args.percentile)
-
-    # Calculate the largest of these
-    max_val = max(positive_perc, negative_perc)
-
-    # Calculate high bit
-    # **NOTE** we floor so max is 2**(high_bit + 1) - 1
-    # **NOTE** one bit is used for sign
-    high_bit =  math.floor(math.log(max_val, 2))
-    
-    # Calculate min and max
-    min_quant = (-2.0 ** (high_bit + 1))
-    max_quant = (2.0 ** (high_bit + 1)) - (2.0 ** -args.fractional_bits)
-    
-    # Clip data
-    data_clip = np.clip(data, min_quant, max_quant)
 
     # Scale, round and convert to int16
     fp_one = 2.0 ** args.fractional_bits
-    data_fp = np.round(data_clip * fp_one).astype(np.int16)
+    data_fp = np.round(data * fp_one).astype(np.int16)
 
     # Write to file
     data_fp.tofile(title + ".bin")
