@@ -268,6 +268,22 @@ void VectorProcessor::dumpRegisters() const
     }
 }
 //------------------------------------------------------------------------
+size_t VectorProcessor::getNumInstructionsExecuted(const std::array<size_t, 32> &counts, VectorOpCode opCode) const
+{
+    return counts[static_cast<uint32_t>(opCode)];
+}
+//------------------------------------------------------------------------
+size_t VectorProcessor::getNumMemory(const std::array<size_t, 32> &counts) const
+{
+    return (getNumInstructionsExecuted(counts, VectorOpCode::VLOAD)
+            + getNumInstructionsExecuted(counts, VectorOpCode::VSTORE));
+}
+//------------------------------------------------------------------------
+size_t VectorProcessor::getNumALU(const std::array<size_t, 32> &counts) const
+{
+    return getNumInstructionsExecuted(counts, VectorOpCode::VSOP);
+}
+//------------------------------------------------------------------------
 std::array<uint16_t, 32> VectorProcessor::sampleRNG()
 {
     constexpr uint16_t a = 13;

@@ -718,9 +718,13 @@ int main()
 
     std::cout << numCorrect << " / " << numExamples << " correct (" << 100.0 * (numCorrect / (double)numExamples) << "%)" << std::endl;
     std::cout << "Stats:" << std::endl;
-    std::cout << "\t" << riscV.getNumInstructionsExecuted() << " instructions executed" << std::endl;
-    std::cout << "\t" << riscV.getNumCoprocessorInstructionsExecuted(vectorQuadrant) << " vector instructions executed" << std::endl;
-    std::cout << "\t" << riscV.getNumJumps() << " jumps" << std::endl;
+    std::cout << "\t" << riscV.getTotalNumInstructionsExecuted() << " instructions executed" << std::endl;
+    std::cout << "\t\t" << riscV.getTotalNumCoprocessorInstructionsExecuted(vectorQuadrant) << " vector instructions executed" << std::endl;
+    std::cout << "\t\t" << riscV.getNumJumps() << " jumps" << std::endl;
+    std::cout << "\t\t" << riscV.getNumMemory() << " scalar memory" << std::endl;
+    std::cout << "\t\t" << riscV.getNumALU() << " scalar ALU" << std::endl;
+    std::cout << "\t\t" << riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getNumMemory(riscV.getNumCoprocessorInstructionsExecuted(vectorQuadrant)) << " vector memory" << std::endl;
+    std::cout << "\t\t" << riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getNumALU(riscV.getNumCoprocessorInstructionsExecuted(vectorQuadrant)) << " vector ALU" << std::endl;
     
     if(record) {
         // Record output spikes

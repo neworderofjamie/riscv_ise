@@ -50,6 +50,10 @@ public:
     auto &getVectorDataMemory(){ return m_VectorDataMemory; }
     const auto &getVectorDataMemory() const{ return m_VectorDataMemory; }
     
+    size_t getNumInstructionsExecuted(const std::array<size_t, 32> &counts, VectorOpCode opCode) const;
+    size_t getNumMemory(const std::array<size_t, 32> &counts) const;
+    size_t getNumALU(const std::array<size_t, 32> &counts) const;
+
 private:
     std::array<uint16_t, 32> sampleRNG();
 

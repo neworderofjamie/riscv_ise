@@ -1,6 +1,7 @@
 #pragma once
 
 // Standard C++ includes
+#include <array>
 #include <memory>
 #include <optional>
 #include <vector>
@@ -125,11 +126,16 @@ public:
     uint32_t getPC() const{ return m_PC; }
 
     void resetStats();
-    size_t getNumInstructionsExecuted() const{ return m_NumInstructionsExecuted; }
-    size_t getNumCoprocessorInstructionsExecuted(uint32_t quadrant) const{ return m_NumCoprocessorInstructionsExecuted[quadrant]; }
+    const auto &getNumInstructionExecuted() const{ return m_NumInstructionsExecuted; }
+    std::array<size_t, 32> getNumCoprocessorInstructionsExecuted(uint32_t quadrant) const;
+    size_t getNumInstructionsExecuted(StandardOpCode opCode) const;
+    size_t getTotalNumInstructionsExecuted() const;
+    size_t getTotalNumCoprocessorInstructionsExecuted(uint32_t quadrant) const;
     size_t getNumTrueBranches() const{ return m_NumTrueBranches; }
     size_t getNumFalseBranches() const{ return m_NumFalseBranches; }
-    size_t getNumJumps() const{ return m_NumJumps; }
+    size_t getNumJumps() const;
+    size_t getNumMemory() const;
+    size_t getNumALU() const;
 
 private:
     void setNextPC(uint32_t nextPC);
@@ -156,9 +162,7 @@ private:
     std::unique_ptr<ICoprocessor> m_Coprocessors[3];
 
     // Stats
-    size_t m_NumInstructionsExecuted;
-    size_t m_NumCoprocessorInstructionsExecuted[3];
+    std::array<size_t, 128> m_NumInstructionsExecuted;
     size_t m_NumTrueBranches;
     size_t m_NumFalseBranches;
-    size_t m_NumJumps;
 };

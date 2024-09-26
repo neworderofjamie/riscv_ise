@@ -3,6 +3,7 @@
 // Standard C++ includes
 #include <iomanip>
 #include <iostream>
+#include <numeric>
 #include <stdexcept>
 
 // PLOG includes
@@ -151,7 +152,7 @@ bool RISCV::run()
             } else {*/
                 // normal instruction execution
                 const uint32_t inst = m_InstructionMemory.getInstruction(m_PC);
-                m_NumInstructionsExecuted++;
+                m_NumInstructionsExecuted[inst & 0b1111111]++;
 
 #ifdef DEBUG_OUTPUT
                 printf("[%08x]=%08x, mtime: %lx, mtimecmp: %lx\n", pc, insn, mtime, mtimecmp);
@@ -256,13 +257,53 @@ void RISCV::dumpRegisters() const
 void RISCV::resetStats()
 {
     // Reset standard stats
-    m_NumInstructionsExecuted = 0;
-    m_NumCoprocessorInstructionsExecuted[0] = 0;
-    m_NumCoprocessorInstructionsExecuted[1] = 0;
-    m_NumCoprocessorInstructionsExecuted[2] = 0;
+    std::fill(m_NumInstructionsExecuted.begin(), m_NumInstructionsExecuted.end(), 0);
     m_NumTrueBranches = 0;
     m_NumFalseBranches = 0;
-    m_NumJumps = 0;
+}
+//----------------------------------------------------------------------------
+size_t RISCV::getTotalNumInstructionsExecuted() const
+{
+    return std::accumulate(m_NumInstructionsExecuted.cbegin(), m_NumInstructionsExecuted.cend(), size_t{0});
+}
+//----------------------------------------------------------------------------
+size_t RISCV::getTotalNumCoprocessorInstructionsExecuted(uint32_t quadrant) const
+{
+    const auto numCoprocessor = getNumCoprocessorInstructionsExecuted(quadrant);
+    return std::accumulate(numCoprocessor.cbegin(), numCoprocessor.cend(), size_t{0});
+}
+//----------------------------------------------------------------------------
+std::array<size_t, 32> RISCV::getNumCoprocessorInstructionsExecuted(uint32_t quadrant) const
+{
+    std::array<size_t, 32> num;
+    for(size_t i = 0; i < 32; i++) {
+        num[i] = m_NumInstructionsExecuted[(i << 2) | quadrant];
+    }
+    return num;
+}
+//----------------------------------------------------------------------------
+size_t RISCV::getNumInstructionsExecuted(StandardOpCode opCode) const
+{
+    return m_NumInstructionsExecuted[(static_cast<uint32_t>(opCode) << 2) | standardQuadrant];
+}
+//----------------------------------------------------------------------------
+size_t RISCV::getNumJumps() const
+{
+    return (getNumInstructionsExecuted(StandardOpCode::JAL) + 
+            getNumInstructionsExecuted(StandardOpCode::JALR) + 
+            getNumInstructionsExecuted(StandardOpCode::BRANCH));
+}
+//----------------------------------------------------------------------------
+size_t RISCV::getNumMemory() const
+{
+    return (getNumInstructionsExecuted(StandardOpCode::LOAD) + 
+            getNumInstructionsExecuted(StandardOpCode::STORE));
+}
+//----------------------------------------------------------------------------
+size_t RISCV::getNumALU() const
+{
+    return (getNumInstructionsExecuted(StandardOpCode::OP) + 
+            getNumInstructionsExecuted(StandardOpCode::OP_IMM));
 }
 //----------------------------------------------------------------------------
 void RISCV::setNextPC(uint32_t nextPC)
@@ -761,7 +802,6 @@ void RISCV::executeStandardInstruction(uint32_t inst)
             m_Reg[rd] = m_PC + 4;
         }
 
-        m_NumJumps++;
         setNextPC((int32_t)(m_PC + imm));
        
         break;
@@ -777,7 +817,6 @@ void RISCV::executeStandardInstruction(uint32_t inst)
 #endif
         
         const uint32_t val  = m_PC + 4;
-        m_NumJumps++;
         setNextPC((int32_t)(m_Reg[rs1] + imm) & ~1);
         if (rd != 0) {
             m_Reg[rd] = val;
@@ -791,7 +830,6 @@ void RISCV::executeStandardInstruction(uint32_t inst)
         if (calcBranchCondition(inst, rs2, rs1, funct3)) {
             PLOGV << "\t" << (m_PC + imm);
 
-            m_NumJumps++;
             m_NumTrueBranches++;
             setNextPC((int32_t)(m_PC + imm));
         } 
@@ -1054,14 +1092,13 @@ void RISCV::executeInstruction(uint32_t inst)
 {
     // Extract 2-bit quadrant
     const uint32_t quadrant = inst & 0b11;
-    
+
     // If instruction is in standard quadrant
     if(quadrant == standardQuadrant) {
         executeStandardInstruction(inst); 
     }
     // Otherwise, if there is a co-processor defined to handle this quadrant
     else if(m_Coprocessors[quadrant]){
-        m_NumCoprocessorInstructionsExecuted[quadrant]++;
         m_Coprocessors[quadrant]->executeInstruction(inst, m_Reg, m_ScalarDataMemory);
     }
     // Otherwise, throw
