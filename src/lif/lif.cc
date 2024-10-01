@@ -9,6 +9,7 @@
 
 // RISC-V common includes
 #include "common/app_utils.h"
+#include "common/device.h"
 
 // RISC-V assembler includes
 #include "assembler/assembler.h"
@@ -19,7 +20,8 @@
 #include "ise/vector_processor.h"
 
 CodeGenerator generateCode(uint32_t numTimesteps, uint32_t inputCurrentVectorPtr, uint32_t inputCurrentScalarPtr,
-                           uint32_t voltageRecordingPtr, uint32_t spikeRecordingPtr)
+                           uint32_t voltageRecordingPtr, uint32_t spikeRecordingPtr, uint32_t readyFlagPtr,
+                           bool simulate)
 {
     CodeGenerator c;
     VectorRegisterAllocator vectorRegisterAllocator;
@@ -34,17 +36,26 @@ CodeGenerator generateCode(uint32_t numTimesteps, uint32_t inputCurrentVectorPtr
     ALLOCATE_SCALAR(SVBuffer);
     ALLOCATE_SCALAR(SVBufferEnd);
     ALLOCATE_SCALAR(SSpikeBuffer);
+    ALLOCATE_SCALAR(SReadyFlagBuffer);
     ALLOCATE_VECTOR(VAlpha);
     ALLOCATE_VECTOR(VV);
     ALLOCATE_VECTOR(VVReset);
     ALLOCATE_VECTOR(VVThresh);
     ALLOCATE_VECTOR(VI);
 
+    // Labels
+    Label loop;
+    Label spin;
+
     // Load pointers
     c.li(*SIBuffer, inputCurrentVectorPtr);
     c.li(*SSpikeBuffer, spikeRecordingPtr);
     c.li(*SVBuffer, voltageRecordingPtr);
     c.li(*SVBufferEnd, voltageRecordingPtr + (numTimesteps * 64));
+    c.li(*SReadyFlagBuffer, readyFlagPtr);
+
+    // Clear ready flag
+    c.sw(Reg::X0, *SReadyFlagBuffer);
 
     // alpha = e^(-1/20)
     c.vlui(*VAlpha, 7792);
@@ -62,7 +73,6 @@ CodeGenerator generateCode(uint32_t numTimesteps, uint32_t inputCurrentVectorPtr
     c.vloadv(*VI, *SIBuffer);
 
     // Loop over time
-    Label loop;
     c.L(loop);
     {
         // Register allocation
@@ -91,15 +101,56 @@ CodeGenerator generateCode(uint32_t numTimesteps, uint32_t inputCurrentVectorPtr
         // While x2 (address) < x1 (count), goto loop
         c.bne(*SVBuffer, *SVBufferEnd, loop);
     }
-    
-    c.ecall();
+
+    // Set ready flag
+    {
+        ALLOCATE_SCALAR(STmp);
+        c.li(*STmp, 1);
+        c.sw(*STmp, *SReadyFlagBuffer);
+    }
+
+    // If we're simulating, make ecall
+    if(simulate) {
+        c.ecall();
+    }
+    // Otherwise, infinite loop
+    else {
+        c.L(spin);
+        {
+            c.j_(spin);
+        }
+    }
     return c;
 }
 
+void recordSpikes(const uint32_t *spikeRecordingData, uint32_t numTimesteps)
+{
+    std::ofstream spikes("lif_spikes.csv");
+    for(uint32_t t = 0; t < numTimesteps; t++) {
+        AppUtils::writeSpikes(spikes, spikeRecordingData + t, t, 1);
+        
+    }
+}
+
+void recordV(const int16_t *vRecordingData, uint32_t numTimesteps)
+{
+    // Record spikes and voltages
+    std::ofstream voltages("lif_voltages.csv");
+    for(uint32_t t = 0; t < numTimesteps; t++) {
+        for(uint32_t n = 0; n < 32; n++) {
+            voltages << *vRecordingData++;
+            if(n != (32 - 1)) {
+                voltages << ", ";
+            }
+        }
+        voltages << std::endl;
+    }
+}
 
 int main()
 {
     constexpr uint32_t numTimesteps = 100;
+    constexpr bool simulate = true;
 
     // Configure logging
     plog::ConsoleAppender<plog::TxtFormatter> consoleAppender;
@@ -116,7 +167,8 @@ int main()
     // Allocate scalar arrays
     const uint32_t inputCurrentScalarPtr = AppUtils::allocateScalarAndZero(2 * 32, scalarInitData);
     const uint32_t spikeRecordingPtr = AppUtils::allocateScalarAndZero(numTimesteps * 4, scalarInitData);
-    
+    const uint32_t readyFlagPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
+
     // Copy increasing input currents into scalar memory
     std::vector<int16_t> test{0, 26, 53, 79, 106, 132, 159, 185, 211, 238, 264, 291, 317, 344, 370, 396, 423, 449,
                               476, 502, 529, 555, 581, 608, 634, 661, 687, 713, 740, 766, 793, 819};
@@ -129,41 +181,50 @@ int main()
 
     // Generate code
     const auto code = generateCode(numTimesteps, inputCurrentVectorPtr, inputCurrentScalarPtr,
-                                   voltageRecordingPtr, spikeRecordingPtr).getCode();
+                                   voltageRecordingPtr, spikeRecordingPtr, readyFlagPtr, simulate).getCode();
 
     // Dump to coe file
     AppUtils::dumpCOE("lif.coe", code);
 
-    // Create RISC-V core with instruction and scalar data
-    RISCV riscV(code, scalarInitData);
-    
-    // Add vector co-processor
-    riscV.addCoprocessor<VectorProcessor>(vectorQuadrant, vectorInitData);
-    
-    // Run!
-    riscV.run();
-    
-    // Get pointers to scalar and vector memories
-    const auto *scalarData = riscV.getScalarDataMemory().getData().data();
-    const auto *vectorData = riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getVectorDataMemory().getData().data();
-    
-    const uint32_t *spikeRecordingData = reinterpret_cast<const uint32_t*>(scalarData + spikeRecordingPtr);
-    const int16_t *vRecordingData = vectorData + (voltageRecordingPtr / 2);
-
-    // Record spikes and voltages
-    std::ofstream spikes("lif_spikes.csv");
-    std::ofstream voltages("lif_voltages.csv");
-    for(uint32_t t = 0; t < numTimesteps; t++) {
-        AppUtils::writeSpikes(spikes, spikeRecordingData + t,
-                              t, 1);
+    if(simulate) {
+        // Create RISC-V core with instruction and scalar data
+        RISCV riscV(code, scalarInitData);
         
-        for(uint32_t n = 0; n < 32; n++) {
-            voltages << *vRecordingData++;
-            if(n != (32 - 1)) {
-                voltages << ", ";
-            }
-        }
-        voltages << std::endl;
+        // Add vector co-processor
+        riscV.addCoprocessor<VectorProcessor>(vectorQuadrant, vectorInitData);
+        
+        // Run!
+        riscV.run();
+        
+        // Get pointers to scalar and vector memories
+        const auto *scalarData = riscV.getScalarDataMemory().getData().data();
+        const auto *vectorData = riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getVectorDataMemory().getData().data();
+        
+        const uint32_t *spikeRecordingData = reinterpret_cast<const uint32_t*>(scalarData + spikeRecordingPtr);
+        const int16_t *vRecordingData = vectorData + (voltageRecordingPtr / 2);
+
+        // Record spikes and voltages
+        recordSpikes(spikeRecordingData, numTimesteps);
+        recordV(vRecordingData, numTimesteps);
+    }
+    else {
+        Device device;
+
+        // Put core into reset state
+        device.setReset(true);
+
+        // Copy over instructions and data
+        std::memcpy(device.getInstructionMemory(), code.data(), code.size() * sizeof(uint32_t));
+        std::memcpy(device.getDataMemory(), scalarInitData.data(), scalarInitData.size());
+
+        // Put core into running state
+        device.setReset(false);
+
+        // Wait until ready flag
+        device.waitOnNonZero(readyFlagPtr);
+
+        // Record spikes
+        recordSpikes(device.getDataMemory() + (spikeRecordingPtr / 4), numTimesteps);
     }
    
     
