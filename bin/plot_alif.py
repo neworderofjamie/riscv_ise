@@ -3,6 +3,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 
+from matplotlib.lines import Line2D
+
 import plot_settings
 
 def load_data(filename, desired_length):
@@ -72,6 +74,8 @@ def plot_trace(axis, timesteps, v_rec, a_rec, pal, linestyle, v_ylim=None, a_yli
     axis.yaxis.grid(False)
     a_axis.yaxis.grid(False)
 
+    axis.tick_params("both", which="major", left=False, right=False, length=0)
+    a_axis.tick_params("both", which="major", left=False, right=False, length=0)
     return a_axis
 
 def plot_fixed_point(axis, timesteps, v_rec, a_rec, data_average, data_std, 
@@ -153,15 +157,19 @@ pal = sns.color_palette()
 timesteps = np.arange(len(v_rec))
 
 # Plot floating point references
-example_1_overview_axis.text(-0.1, 0.9, "A", transform=example_1_overview_axis.transAxes)
-example_2_overview_axis.text(-0.1, 0.9, "D", transform=example_2_overview_axis.transAxes)
+example_1_overview_axis.set_title("A", loc="left")
+example_2_overview_axis.set_title("C", loc="left")
+#example_1_overview_axis.text(-0.1, 0.9, "A", transform=example_1_overview_axis.transAxes)
+#example_2_overview_axis.text(-0.1, 0.9, "D", transform=example_2_overview_axis.transAxes)
 example_1_overview_axis_a = plot_trace(example_1_overview_axis, timesteps, v_rec, a_rec, pal, "-")
 example_2_overview_axis_a = plot_trace(example_2_overview_axis, timesteps, v_bad_rec, a_bad_rec, pal, "-")
 
 # Plot two zoom ins of example 1
 example_1_t0_xlim = (1000, 1250)
-example_1_t0_rz_axis.text(-0.1, 0.9, "B", transform=example_1_t0_rz_axis.transAxes)
-example_1_t0_rs_axis.text(-0.1, 0.9, "C", transform=example_1_t0_rs_axis.transAxes)
+example_1_t0_rz_axis.set_title("B", loc="left")
+#example_1_t0_rs_axis.set_title("C", loc="left")
+#example_1_t0_rz_axis.text(-0.1, 0.9, "B", transform=example_1_t0_rz_axis.transAxes)
+#example_1_t0_rs_axis.text(-0.1, 0.9, "C", transform=example_1_t0_rs_axis.transAxes)
 example_1_t0_rz_a_axis = plot_fixed_point(example_1_t0_rz_axis, timesteps, v_rec, a_rec, data_12_8_average, data_12_8_std, 
                                           V_FP, A_FP, pal, f"{V_FP}, {A_FP} fractional bits, RZ", x_lim=example_1_t0_xlim)
 example_1_t0_rs_a_axis = plot_fixed_point(example_1_t0_rs_axis, timesteps, v_rec, a_rec, data_12_8_rs_average, data_12_8_rs_std, 
@@ -169,8 +177,9 @@ example_1_t0_rs_a_axis = plot_fixed_point(example_1_t0_rs_axis, timesteps, v_rec
 
 # Plot zoom in of example 2
 example_2_t1_xlim = (4250, 4500)
-example_2_t0_axis.text(-0.1, 0.9, "E", transform=example_2_t0_axis.transAxes)
-example_2_t0_sat_axis.text(-0.1, 0.9, "F", transform=example_2_t0_sat_axis.transAxes)
+example_2_t0_axis.set_title("D", loc="left")
+#example_2_t0_axis.text(-0.1, 0.9, "E", transform=example_2_t0_axis.transAxes)
+#example_2_t0_sat_axis.text(-0.1, 0.9, "F", transform=example_2_t0_sat_axis.transAxes)
 example_2_t0_a_axis = plot_fixed_point(example_2_t0_axis, timesteps, v_bad_rec, a_bad_rec, data_bad_12_8_rs_average, data_bad_12_8_rs_std, 
                                        V_FP, A_FP, pal, f"{V_FP}, {A_FP} fractional bits, RZ", x_lim=example_2_t1_xlim)
 example_2_t0_sat_a_axis = plot_fixed_point(example_2_t0_sat_axis, timesteps, v_bad_rec, a_bad_rec, data_bad_12_8_sat_rs_average, data_bad_12_8_sat_rs_std, 
@@ -197,6 +206,8 @@ example_1_overview_axis.axvspan(example_1_t0_xlim[0], example_1_t0_xlim[1], alph
 example_2_overview_axis.axvspan(example_2_t1_xlim[0], example_2_t1_xlim[1], alpha=0.5, color="gray")
 
 fig.align_ylabels()
-fig.tight_layout(pad=0)
+fig.legend([Line2D([], [], color=pal[0]), Line2D([], [], color=pal[1]), Line2D([], [])],
+           ["V", "A"], loc="lower center", ncol=2, frameon=False)
+fig.tight_layout(pad=0, rect=(0.0, 0.075, 1.0, 1.0))
 fig.savefig("alif_rounding.pdf")
 plt.show()
