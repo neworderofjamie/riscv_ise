@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <iostream>
 #include <iomanip>
+#include <limits>
 
 // PLOG includes
 #include <plog/Log.h>

@@ -69,8 +69,10 @@ inline void breakPoint()
 {
 #ifdef _WIN32
     __debugbreak();
-#else
+#elif defined(__x86_64__) || defined(_M_X64)
     asm("int3");
+#else
+    __builtin_trap();
 #endif
 }
 
