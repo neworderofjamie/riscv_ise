@@ -184,7 +184,7 @@ int main()
                                    voltageRecordingPtr, spikeRecordingPtr, readyFlagPtr, simulate).getCode();
 
     // Dump to coe file
-    AppUtils::dumpCOE("lif.coe", code);
+    //AppUtils::dumpCOE("lif.coe", code);
 
     if(simulate) {
         // Create RISC-V core with instruction and scalar data
