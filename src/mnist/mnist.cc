@@ -47,6 +47,38 @@ std::vector<int16_t> loadData(const std::string &filename)
     return data;
 }
 
+template<typename F1, typename F2>
+void unrollLoopBody(CodeGenerator &c, uint32_t numIterations, uint32_t maxUnroll, 
+                    Reg testBufferReg, Reg testBufferEndReg, F1 genBodyFn, F2 genTailFn)
+{
+    // Only loop bodies for now
+    assert((numIterations % 32) == 0);
+
+    const uint32_t numVectorisedIterations = numIterations / 32;
+
+    // **TODO** tail loop after unrolling
+    assert((numVectorisedIterations % maxUnroll) == 0);
+    const uint32_t numUnrolls = std::min(numVectorisedIterations, maxUnroll);
+    const uint32_t numUnrolledIterations = numVectorisedIterations / numUnrolls;
+
+    // Input postsynaptic neuron loop
+    Label loop;
+    c.L(loop);
+    {
+        // Unroll loop
+        for(uint32_t r = 0; r < numUnrolls; r++) {
+            genBodyFn(c, r);
+        }
+
+        genTailFn(c, numUnrolls);
+                    
+        // If we haven't reached end of Isyn buffer, loop
+        if(numUnrolledIterations > 1) {
+            c.bne(testBufferReg, testBufferEndReg, loop);
+        }
+    }
+}
+
 void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAllocator,
                     RegisterAllocator<Reg> &scalarRegisterAllocator,
                     uint32_t weightPtr, uint32_t preSpikePtr, uint32_t postISynPtr, 
@@ -77,8 +109,9 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
     c.li(*SSpikeBufferEnd, preSpikePtr + (ceilDivide(numPre, 32) * 4));
 
     // SISynBuffer = hiddenIsyn;
+    // **NOTE** is only the end of the vectorised region
     c.li(*SISynBuffer, postISynPtr);
-    c.li(*SISynBufferEnd, postISynPtr + (ceilDivide(numPost, 32) * 64));
+    c.li(*SISynBufferEnd, postISynPtr + ((numPost / 32) * 64));
 
     // Load some useful constants
     c.li(*SConst1, 1);
@@ -145,27 +178,30 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
 
             // Loop over postsynaptic neurons
             if(numPost > 32) {
-                // Input postsynaptic neuron loop
-                c.L(weightLoop);
-                {
-                    ALLOCATE_VECTOR(VWeight);
-                    ALLOCATE_VECTOR(VISyn);
+                ALLOCATE_VECTOR(VWeight);
+                ALLOCATE_VECTOR(VISyn);
+                unrollLoopBody(c, numPost, 4, *SISynBuffer, *SISynBufferEnd,
+                               [SWeightBuffer, SISynBuffer, VWeight, VISyn]
+                                (CodeGenerator &c, uint32_t r)
+                                {
+                                    // Load next vector of weights and ISyns
+                                    c.vloadv(*VWeight, *SWeightBuffer, r * 64);
+                                    c.vloadv(*VISyn, *SISynBuffer, r * 64);
+                        
 
-                    // Load next vector of weights and ISyns
-                    c.vloadv(*VWeight, *SWeightBuffer);
-                    c.vloadv(*VISyn, *SISynBuffer);
-                    c.addi(*SWeightBuffer, *SWeightBuffer, 64);
+                                    // Add weights to ISyn
+                                    c.vadd(*VISyn, *VISyn, *VWeight);
 
-                    // Add weights to ISyn
-                    c.vadd(*VISyn, *VISyn, *VWeight);
-
-                    // Write back ISyn and increment SISynBuffer
-                    c.vstore(*VISyn, *SISynBuffer);
-                    c.addi(*SISynBuffer, *SISynBuffer, 64);
-
-                    // If we haven't reached end of Isyn buffer, loop
-                    c.bne(*SISynBuffer, *SISynBufferEnd, weightLoop);
-                }
+                                    // Write back ISyn and increment SISynBuffer
+                                    c.vstore(*VISyn, *SISynBuffer, r * 64);
+                                },
+                               [SWeightBuffer, SISynBuffer, VWeight, VISyn]
+                                (CodeGenerator &c, uint32_t numUnrolls)
+                                {
+                                    // Increment pointers 
+                                    c.addi(*SISynBuffer, *SISynBuffer, 64 * numUnrolls);
+                                    c.addi(*SWeightBuffer, *SWeightBuffer, 64 * numUnrolls);
+                                });
             }
             // Tail if there are non-POT number of postsynaptic neurons
             if((numPost % 32) != 0) {
@@ -311,7 +347,7 @@ int main()
                 // Get address of spike and spike time buffer
                 c.li(*SSpikeBuffer, inputSpikePtr);
                 c.li(*SSpikeTimeBuffer, inputSpikeTimePtr);
-                c.li(*SSpikeTimeBufferEnd, inputSpikeTimePtr + (numInputSpikeWords * 64));
+                c.li(*SSpikeTimeBufferEnd, inputSpikeTimePtr + ((numInput / 32) * 64));
 
                 // Input neuron loop
                 c.L(neuronLoop);
@@ -610,8 +646,13 @@ int main()
     std::cout << numCorrect << " / 10000 correct (" << 100.0 * (numCorrect / 10000.0) << "%)" << std::endl;
     std::cout << "Stats:" << std::endl;
     std::cout << "\t" << riscV.getTotalNumInstructionsExecuted() << " instructions executed" << std::endl;
-    std::cout << "\t" << riscV.getTotalNumCoprocessorInstructionsExecuted(vectorQuadrant) << " vector instructions executed" << std::endl;
-    std::cout << "\t" << riscV.getNumJumps() << " jumps" << std::endl;
+    std::cout << "\t\t" << riscV.getTotalNumCoprocessorInstructionsExecuted(vectorQuadrant) << " vector instructions executed" << std::endl;
+    std::cout << "\t\t" << riscV.getNumJumps() << " jumps" << std::endl;
+    std::cout << "\t\t" << riscV.getNumMemory() << " scalar memory" << std::endl;
+    std::cout << "\t\t" << riscV.getNumALU() << " scalar ALU" << std::endl;
+    std::cout << "\t\t" << riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getNumMemory(riscV.getNumCoprocessorInstructionsExecuted(vectorQuadrant)) << " vector memory" << std::endl;
+    std::cout << "\t\t" << riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getNumALU(riscV.getNumCoprocessorInstructionsExecuted(vectorQuadrant)) << " vector ALU" << std::endl;
+    
     
     // Record output spikes
     //std::ofstream inputSpikes("input_spikes.csv");
