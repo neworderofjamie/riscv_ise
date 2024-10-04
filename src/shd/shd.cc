@@ -93,8 +93,9 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
         auto bufferEndReg = scalarRegisterAllocator.getRegister("SISynBufferEnd = X");
 
         // Load addresses as immediates
+        // **NOTE** end address is only end of loop body not tail
         c.li(*bufferStartReg, t.postISynPtr);
-        c.li(*bufferEndReg, t.postISynPtr + ceilDivide(t.numPost, 32) * 64);
+        c.li(*bufferEndReg, t.postISynPtr + (t.numPost / 32) * 64);
 
         // Add scalar registers to vector
         sISynBufferRegs.emplace_back(bufferStartReg, bufferEndReg);
@@ -170,28 +171,30 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
 
                 // Loop over postsynaptic neurons
                 if(t.numPost > 32) {
-                    // Input postsynaptic neuron loop
-                    c.L(weightLoop);
-                    {
-                        ALLOCATE_VECTOR(VWeight);
-                        ALLOCATE_VECTOR(VISyn);
+                    ALLOCATE_VECTOR(VWeight);
+                    ALLOCATE_VECTOR(VISyn);
+                    AppUtils::unrollLoopBody(
+                        c, t.numPost, 4, *iReg.first, *iReg.second,
+                        [&iReg, SWeightBuffer, VWeight, VISyn]
+                        (CodeGenerator &c, uint32_t r)
+                        {
+                            // Load next vector of weights and ISyns
+                            c.vloadv(*VWeight, *SWeightBuffer, r * 64);
+                            c.vloadv(*VISyn, *iReg.first, r * 64);
 
-                        // Load next vector of weights and ISyns
-                        c.vloadv(*VWeight, *SWeightBuffer);
-                        c.vloadv(*VISyn, *iReg.first);
-                        c.addi(*SWeightBuffer, *SWeightBuffer, 64);
+                            // Add weights to ISyn
+                            c.vadd_s(*VISyn, *VISyn, *VWeight);
 
-                        // Add weights to ISyn
-                        c.vadd_s(*VISyn, *VISyn, *VWeight);
-
-                        // Write back ISyn and increment SISynBuffer
-                        c.vstore(*VISyn, *iReg.first);
-                        c.addi(*iReg.first, *iReg.first, 64);
-
-                        // If we haven't reached end of Isyn buffer, loop
-                        assert(t.numPost % 32 == 0);
-                        c.bne(*iReg.first, *iReg.second, weightLoop);
-                    }
+                            // Write back ISyn and increment SISynBuffer
+                            c.vstore(*VISyn, *iReg.first, r * 64);
+                        },
+                        [&iReg, SWeightBuffer, VWeight, VISyn]
+                        (CodeGenerator &c, uint32_t numUnrolls)
+                        {
+                            // Increment pointers 
+                            c.addi(*iReg.first, *iReg.first, 64 * numUnrolls);
+                            c.addi(*SWeightBuffer, *SWeightBuffer, 64 * numUnrolls);
+                        });
                 }
                 // Tail if there are non-POT number of postsynaptic neurons
                 if((t.numPost % 32) != 0) {
@@ -260,7 +263,7 @@ int main()
     std::vector<int16_t> vectorInitData;
 
     // Constants
-    constexpr bool record = true;
+    constexpr bool record = false;
     constexpr uint32_t numInput = 700;
     constexpr uint32_t numHidden = 256;
     constexpr uint32_t numOutput = 20;
@@ -268,7 +271,7 @@ int main()
     constexpr uint32_t hiddenAFixedPoint = 8;
     constexpr uint32_t outFixedPoint = 11;
     constexpr uint32_t numTimesteps = 1170;
-    constexpr uint32_t numExamples = 1;
+    constexpr uint32_t numExamples = 2264;//1;
     constexpr uint32_t numInputSpikeWords = ceilDivide(numInput, 32);
     constexpr uint32_t numHiddenSpikeWords = ceilDivide(numHidden, 32);
     constexpr uint32_t numInputSpikeArrayWords = numInputSpikeWords * numTimesteps;
@@ -391,26 +394,30 @@ int main()
 
                 // Input neuron loop
                 // **OPTIMIZE** this is technically not necessary at all, could just point point static pulse at buffer
-                c.L(neuronLoop);
-                {
-                    // Register allocation
-                    ALLOCATE_SCALAR(SSpikeWord);
+                AppUtils::unrollLoopBody(
+                    c, numInputSpikeWords, 22, *SSpikeBuffer, *SSpikeBufferEnd,
+                    [&scalarRegisterAllocator, SSpikeBuffer, SSpikeArrayBuffer]
+                    (CodeGenerator &c, uint32_t r)
+                    {
+                        // Register allocation
+                        ALLOCATE_SCALAR(SSpikeWord);
 
-                    // Load word from spike array buffer an write to spike buffer
-                    c.lw(*SSpikeWord, *SSpikeArrayBuffer);
-                    
-                    // SSpikeArrayBuffer += 4
-                    c.addi(*SSpikeArrayBuffer, *SSpikeArrayBuffer, 4);
+                        // Load word from spike array buffer an write to spike buffer
+                        c.lw(*SSpikeWord, *SSpikeArrayBuffer, 4 * r);
 
-                    // inputSpikeBuffer + scalarOffset = spike vector
-                    c.sw(*SSpikeWord, *SSpikeBuffer);
+                        // inputSpikeBuffer + scalarOffset = spike vector
+                        c.sw(*SSpikeWord, *SSpikeBuffer, 4 * r);
+                    },
+                    [SSpikeBuffer, SSpikeArrayBuffer]
+                    (CodeGenerator &c, uint32_t numUnrolls)
+                    {
+                        // SSpikeArrayBuffer += 4
+                        c.addi(*SSpikeArrayBuffer, *SSpikeArrayBuffer, 4 * numUnrolls);
 
-                    // SSpikeBuffer += 4
-                    c.addi(*SSpikeBuffer, *SSpikeBuffer, 4);
-                
-                    // If SSpikeBuffer != SSpikeBufferEnd, goto input loop
-                    c.bne(*SSpikeBuffer, *SSpikeBufferEnd, neuronLoop);
-                }
+                        // SSpikeBuffer += 4
+                        c.addi(*SSpikeBuffer, *SSpikeBuffer, 4 * numUnrolls);
+
+                    });
             }
 
             // ---------------------------------------------------------------
@@ -456,95 +463,100 @@ int main()
                 c.li(*SSpikeBuffer, hiddenSpikePtr);
 
                 // Hidden neuron loop
-                // **NOTE** POT, no tail required
-                c.L(neuronLoop);
-                {
-                    // Register allocation
-                    ALLOCATE_VECTOR(VV);
-                    ALLOCATE_VECTOR(VA);
-                    ALLOCATE_VECTOR(VISyn);
-                    ALLOCATE_VECTOR(VRefracTime);
-                    ALLOCATE_SCALAR(SSpikeOut);
-                    ALLOCATE_SCALAR(SRefractory);
-
-                    // Load state variables
-                    c.vloadv(*VV, *SVBuffer);
-                    c.vloadv(*VA, *SABuffer);
-                    c.vloadv(*VISyn, *SISynBuffer);
-                    c.vloadv(*VRefracTime, *SRefracTimeBuffer);
-
-                    // V *= Alpha
-                    c.vmul_rs(14, *VV, *VV, *VAlpha);
-
-                    // V += ISyn
-                    c.vadd_s(*VV, *VV, *VISyn);
-
-                    // ISyn = 0
-                    c.vlui(*VISyn, 0);
-
-                    // A *= Rho
-                    c.vmul_rs(14, *VA, *VA, *VRho);
-
-                    // Refractory = RefracTime > 0.0 (0.0 < VRefracTime)
-                    c.vtlt(*SRefractory, *VZero, *VRefracTime);
+                AppUtils::unrollVectorLoopBody(
+                    c, numHidden, 4, *SVBuffer, *SVBufferEnd,
+                    [&scalarRegisterAllocator, &vectorRegisterAllocator,
+                     SABuffer, SISynBuffer, SRefracTimeBuffer, SSpikeBuffer, SVBuffer,
+                     VAlpha, VBeta, VDT, VOne, VRho, VTauRefrac, VVThresh, VZero]
+                    (CodeGenerator &c, uint32_t r)
                     {
-                        // VTemp = VRefracTime - VDT
-                        ALLOCATE_VECTOR(VTemp);
-                        c.vsub(*VTemp, *VRefracTime, *VDT);
-                        
-                        // VRefracTime = SRefractory ? VTemp : VRefracTime
-                        c.vsel(*VRefracTime, *SRefractory, *VTemp);
-                    }
+                        // Register allocation
+                        ALLOCATE_VECTOR(VV);
+                        ALLOCATE_VECTOR(VA);
+                        ALLOCATE_VECTOR(VISyn);
+                        ALLOCATE_VECTOR(VRefracTime);
+                        ALLOCATE_SCALAR(SSpikeOut);
+                        ALLOCATE_SCALAR(SRefractory);
 
-                    // SSpikeOut = VV >= (VThres + (Beta * A)) 
+                        // Load state variables
+                        c.vloadv(*VV, *SVBuffer, r * 64);
+                        c.vloadv(*VA, *SABuffer, r * 64);
+                        c.vloadv(*VISyn, *SISynBuffer, r * 64);
+                        c.vloadv(*VRefracTime, *SRefracTimeBuffer, r * 64);
+
+                        // V *= Alpha
+                        c.vmul_rs(14, *VV, *VV, *VAlpha);
+
+                        // V += ISyn
+                        c.vadd_s(*VV, *VV, *VISyn);
+
+                        // ISyn = 0
+                        c.vlui(*VISyn, 0);
+
+                        // A *= Rho
+                        c.vmul_rs(14, *VA, *VA, *VRho);
+
+                        // Refractory = RefracTime > 0.0 (0.0 < VRefracTime)
+                        c.vtlt(*SRefractory, *VZero, *VRefracTime);
+                        {
+                            // VTemp = VRefracTime - VDT
+                            ALLOCATE_VECTOR(VTemp);
+                            c.vsub(*VTemp, *VRefracTime, *VDT);
+                            
+                            // VRefracTime = SRefractory ? VTemp : VRefracTime
+                            c.vsel(*VRefracTime, *SRefractory, *VTemp);
+                        }
+
+                        // SSpikeOut = VV >= (VThres + (Beta * A)) 
+                        {
+                            ALLOCATE_VECTOR(VTmp);
+                            c.vmul_rs(hiddenAFixedPoint, *VTmp, *VA, *VBeta);
+                            c.vadd_s(*VTmp, *VTmp, *VVThresh);
+                            c.vtge(*SSpikeOut, *VV, *VTmp);
+                        }
+
+                        // SpikeOut = SpikeOut && !Refractory
+                        {
+                            // STemp = !SRefractory
+                            ALLOCATE_SCALAR(STemp);
+                            c.not_(*STemp, *SRefractory);
+                            c.and_(*SSpikeOut, *SSpikeOut, *STemp);
+                        }
+
+                        // *SSpikeBuffer = SSpikeOut
+                        c.sw(*SSpikeOut, *SSpikeBuffer, r * 4);
+
+                        {
+                            ALLOCATE_VECTOR(VTmp1);
+                            ALLOCATE_VECTOR(VTmp2);
+                            c.vsub_s(*VTmp1, *VV, *VVThresh);
+                            c.vadd_s(*VTmp2, *VA, *VOne);
+
+                            // V = SpikeOut ? (V - Vthresh) : V
+                            c.vsel(*VV, *SSpikeOut, *VTmp1);
+
+                            // A = SpikeOut ? (A + 1) : A
+                            c.vsel(*VA, *SSpikeOut, *VTmp2);
+                        }
+
+                        // VRefracTime = SSpikeOut ? VTauRefrac : VRefracTime
+                        c.vsel(*VRefracTime, *SSpikeOut, *VTauRefrac);
+
+                        // Store VV, ISyn and refrac time and increment buffers
+                        c.vstore(*VV, *SVBuffer, r * 64);
+                        c.vstore(*VA, *SABuffer, r * 64);
+                        c.vstore(*VISyn, *SISynBuffer, r * 64);
+                        c.vstore(*VRefracTime, *SRefracTimeBuffer, r * 64);
+                    },
+                    [SABuffer, SISynBuffer, SRefracTimeBuffer, SSpikeBuffer, SVBuffer]
+                    (CodeGenerator &c, uint32_t numUnrolls)
                     {
-                        ALLOCATE_VECTOR(VTmp);
-                        c.vmul_rs(hiddenAFixedPoint, *VTmp, *VA, *VBeta);
-                        c.vadd_s(*VTmp, *VTmp, *VVThresh);
-                        c.vtge(*SSpikeOut, *VV, *VTmp);
-                    }
-
-                    // SpikeOut = SpikeOut && !Refractory
-                    {
-                        // STemp = !SRefractory
-                        ALLOCATE_SCALAR(STemp);
-                        c.not_(*STemp, *SRefractory);
-                        c.and_(*SSpikeOut, *SSpikeOut, *STemp);
-                    }
-
-                    // *SSpikeBuffer = SSpikeOut
-                    c.sw(*SSpikeOut, *SSpikeBuffer);
-
-                    {
-                        ALLOCATE_VECTOR(VTmp1);
-                        ALLOCATE_VECTOR(VTmp2);
-                        c.vsub_s(*VTmp1, *VV, *VVThresh);
-                        c.vadd_s(*VTmp2, *VA, *VOne);
-
-                        // V = SpikeOut ? (V - Vthresh) : V
-                        c.vsel(*VV, *SSpikeOut, *VTmp1);
-
-                        // A = SpikeOut ? (A + 1) : A
-                        c.vsel(*VA, *SSpikeOut, *VTmp2);
-                    }
-
-                    // VRefracTime = SSpikeOut ? VTauRefrac : VRefracTime
-                    c.vsel(*VRefracTime, *SSpikeOut, *VTauRefrac);
-
-                    // Store VV, ISyn and refrac time and increment buffers
-                    c.vstore(*VV, *SVBuffer);
-                    c.addi(*SVBuffer, *SVBuffer, 64);
-                    c.vstore(*VA, *SABuffer);
-                    c.addi(*SABuffer, *SABuffer, 64);
-                    c.vstore(*VISyn, *SISynBuffer);
-                    c.addi(*SISynBuffer, *SISynBuffer, 64);
-                    c.vstore(*VRefracTime, *SRefracTimeBuffer);
-                    c.addi(*SRefracTimeBuffer, *SRefracTimeBuffer, 64);
-                    c.addi(*SSpikeBuffer, *SSpikeBuffer, 4);
-
-                    // If SBBuffer != SVBufferEnd, loop
-                    c.bne(*SVBuffer, *SVBufferEnd, neuronLoop);
-                }
+                        c.addi(*SVBuffer, *SVBuffer, 64 * numUnrolls);
+                        c.addi(*SABuffer, *SABuffer, 64 * numUnrolls);
+                        c.addi(*SISynBuffer, *SISynBuffer, 64 * numUnrolls);
+                        c.addi(*SRefracTimeBuffer, *SRefracTimeBuffer, 64 * numUnrolls);
+                        c.addi(*SSpikeBuffer, *SSpikeBuffer, 4 * numUnrolls);
+                    });
             }
 
             // ---------------------------------------------------------------

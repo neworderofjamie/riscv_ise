@@ -233,4 +233,45 @@ void generateVectorScalarMemcpy(CodeGenerator &c, VectorRegisterAllocator &vecto
         c.bne(*SVectorBuffer, *SVectorBufferEnd, vectorLoop);
     }
 }
+//----------------------------------------------------------------------------
+void unrollLoopBody(CodeGenerator &c, uint32_t numIterations, uint32_t maxUnroll, 
+                    Reg testBufferReg, Reg testBufferEndReg, 
+                    std::function<void(CodeGenerator&, uint32_t)> genBodyFn, 
+                    std::function<void(CodeGenerator&, uint32_t)> genTailFn)
+{
+    // **TODO** tail loop after unrolling
+    assert((numIterations % maxUnroll) == 0);
+    const uint32_t numUnrolls = std::min(numIterations, maxUnroll);
+    const uint32_t numUnrolledIterations = numIterations / numUnrolls;
+
+    // Input postsynaptic neuron loop
+    Label loop;
+    c.L(loop);
+    {
+        // Unroll loop
+        for(uint32_t r = 0; r < numUnrolls; r++) {
+            genBodyFn(c, r);
+        }
+
+        genTailFn(c, numUnrolls);
+                    
+        // If we haven't reached end of Isyn buffer, loop
+        if(numUnrolledIterations > 1) {
+            c.bne(testBufferReg, testBufferEndReg, loop);
+        }
+    }
+}
+//----------------------------------------------------------------------------
+void unrollVectorLoopBody(CodeGenerator &c, uint32_t numIterations, uint32_t maxUnroll, 
+                          Reg testBufferReg, Reg testBufferEndReg, 
+                          std::function<void(CodeGenerator&, uint32_t)> genBodyFn, 
+                          std::function<void(CodeGenerator&, uint32_t)> genTailFn)
+{
+    // Only loop bodies for now
+    assert((numIterations % 32) == 0);
+    unrollLoopBody(c, numIterations / 32, maxUnroll, 
+                   testBufferReg, testBufferEndReg,
+                   genBodyFn, genTailFn);
+
+}
 }
