@@ -123,7 +123,7 @@ CodeGenerator generateCode(uint32_t numTimesteps, uint32_t inputCurrentVectorPtr
     return c;
 }
 
-void recordSpikes(const uint32_t *spikeRecordingData, uint32_t numTimesteps)
+void recordSpikes(const volatile uint32_t *spikeRecordingData, uint32_t numTimesteps)
 {
     std::ofstream spikes("lif_spikes.csv");
     for(uint32_t t = 0; t < numTimesteps; t++) {
@@ -150,7 +150,7 @@ void recordV(const int16_t *vRecordingData, uint32_t numTimesteps)
 int main()
 {
     constexpr uint32_t numTimesteps = 100;
-    constexpr bool simulate = true;
+    constexpr bool simulate = false;
 
     // Configure logging
     plog::ConsoleAppender<plog::TxtFormatter> consoleAppender;
@@ -177,7 +177,7 @@ int main()
     // Dump initial data to coe file
     std::vector<uint32_t> wordData(scalarInitData.size() / 4);
     std::memcpy(wordData.data(), scalarInitData.data(), scalarInitData.size());
-    AppUtils::dumpCOE("lif_data.coe", wordData);
+    //AppUtils::dumpCOE("lif_data.coe", wordData);
 
     // Generate code
     const auto code = generateCode(numTimesteps, inputCurrentVectorPtr, inputCurrentScalarPtr,
@@ -208,23 +208,34 @@ int main()
         recordV(vRecordingData, numTimesteps);
     }
     else {
+        LOGI << "Creating device";
         Device device;
-
+        LOGI << "Resetting";
         // Put core into reset state
-        device.setReset(true);
-
-        // Copy over instructions and data
-        std::memcpy(device.getInstructionMemory(), code.data(), code.size() * sizeof(uint32_t));
-        std::memcpy(device.getDataMemory(), scalarInitData.data(), scalarInitData.size());
-
-        // Put core into running state
         device.setReset(false);
+        
+        LOGI << "Copying instructions (" << code.size() * sizeof(uint32_t) << " bytes)";
+        // Copy over instructions and data
+        for(size_t i =0; i < code.size(); i++) {
+            device.getInstructionMemory()[i] = code[i];
+        }
 
+        LOGI << "Copying data (" << scalarInitData.size() << " bytes);";
+        for(size_t i = 0; i < scalarInitData.size(); i++) {
+            device.getDataMemory()[i] = scalarInitData[i];
+        }
+        
+        LOGI << "Enabling";
+        // Put core into running state
+        device.setReset(true);
+        LOGI << "Running";
+        
         // Wait until ready flag
         device.waitOnNonZero(readyFlagPtr);
-
+        LOGI << "Done";
         // Record spikes
-        recordSpikes(device.getDataMemory() + (spikeRecordingPtr / 4), numTimesteps);
+        recordSpikes(reinterpret_cast<const volatile uint32_t*>(device.getDataMemory() + spikeRecordingPtr), 
+                     numTimesteps);
     }
    
     

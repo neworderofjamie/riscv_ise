@@ -89,7 +89,7 @@ uint32_t allocateScalarAndZero(size_t numBytes, std::vector<uint8_t> &memory)
     return static_cast<uint32_t>(startBytes);
 }
 //----------------------------------------------------------------------------
-void writeSpikes(std::ofstream &os, const uint32_t *data, 
+void writeSpikes(std::ofstream &os, const volatile uint32_t *data, 
                  float time, size_t numWords)
 {
     for(size_t i = 0; i < numWords; i++) {

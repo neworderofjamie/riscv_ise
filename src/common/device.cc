@@ -54,8 +54,8 @@ Device::Device()
     }
 
     // Memory map data memory
-    m_DataMemory = reinterpret_cast<uint32_t*>(mmap(nullptr, dataSize, PROT_READ | PROT_WRITE, MAP_SHARED, 
-                                                    m_Memory, dataBase));
+    m_DataMemory = reinterpret_cast<uint8_t*>(mmap(nullptr, dataSize, PROT_READ | PROT_WRITE, MAP_SHARED, 
+                                                   m_Memory, dataBase));
     if(m_DataMemory == MAP_FAILED) {
         throw std::runtime_error("DTCM map failed (" + std::to_string(errno) + " = " + strerror(errno) + ")");
     }
@@ -89,11 +89,11 @@ void Device::setReset(bool reset)
     m_GPIO[0] = reset ? 0xFFFFFFFF : 0x0;
 }
 //----------------------------------------------------------------------------
-void Device::waitOnNonZero(uint32_t address)
+void Device::waitOnNonZero(uint32_t address) const
 {
     // Wait until address is non-zero
     assert((address % 4) == 0);
-    volatile const uint32_t *data = &m_DataMemory[address / 4];
+    volatile const uint32_t *data = reinterpret_cast<const uint32_t*>(m_DataMemory + address);
     while(*data == 0){
         std::this_thread::sleep_for(std::chrono::microseconds{10});
     }

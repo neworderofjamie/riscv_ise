@@ -15,16 +15,16 @@ public:
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
-    const uint32_t *getInstructionMemory() const{ return m_InstructionMemory; }
-    const uint32_t *getDataMemory() const{ return m_DataMemory; };
-    const uint32_t *getGPIO() const{ return m_GPIO; }
-    uint32_t *getInstructionMemory(){ return m_InstructionMemory; }
-    uint32_t *getDataMemory(){ return m_DataMemory; };
-    uint32_t *getGPIO(){ return m_GPIO; }
+    const volatile uint32_t *getInstructionMemory() const{ return m_InstructionMemory; }
+    const volatile uint8_t *getDataMemory() const{ return m_DataMemory; };
+    const volatile uint32_t *getGPIO() const{ return m_GPIO; }
+    volatile uint32_t *getInstructionMemory(){ return m_InstructionMemory; }
+    volatile uint8_t *getDataMemory(){ return m_DataMemory; };
+    volatile uint32_t *getGPIO(){ return m_GPIO; }
 
     void setReset(bool reset);
 
-    void waitOnNonZero(uint32_t address);
+    void waitOnNonZero(uint32_t address) const;
 
 private:
     //------------------------------------------------------------------------
@@ -32,6 +32,6 @@ private:
     //------------------------------------------------------------------------
     int m_Memory;
     uint32_t *m_InstructionMemory;
-    uint32_t *m_DataMemory;
+    uint8_t *m_DataMemory;
     uint32_t *m_GPIO;
 };
