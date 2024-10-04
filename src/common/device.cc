@@ -22,14 +22,14 @@
 //----------------------------------------------------------------------------
 namespace
 {
-constexpr off_t instructionBase = 0xA4000000;
-constexpr size_t instructionSize = 16 * 1024;
+constexpr off_t instructionBase = 0xA5000000;
+constexpr size_t instructionSize = 4 * 1024;
 
-constexpr off_t dataBase = 0xA6002000;
-constexpr size_t dataSize = 8 * 1024;
+constexpr off_t dataBase = 0xA6000000;
+constexpr size_t dataSize = 128 * 1024;
 
 constexpr off_t gpioBase = 0xA7000000;
-constexpr size_t gpioSize = 8 * 1024;
+constexpr size_t gpioSize = 2 * 1024;
 }
 
 //----------------------------------------------------------------------------
