@@ -1,5 +1,8 @@
 #pragma once
 
+// Standard C++ includes
+#include <vector>
+
 // Standard C includes
 #include <cstdint>
 
@@ -26,6 +29,8 @@ public:
 
     void waitOnNonZero(uint32_t address) const;
 
+    void uploadCode(const std::vector<uint32_t> &code);
+    void uploadData(const std::vector<uint8_t> &code);
 private:
     //------------------------------------------------------------------------
     // Members

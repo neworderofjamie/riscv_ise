@@ -98,3 +98,31 @@ void Device::waitOnNonZero(uint32_t address) const
         std::this_thread::sleep_for(std::chrono::microseconds{10});
     }
 }
+//----------------------------------------------------------------------------
+void Device::uploadCode(const std::vector<uint32_t> &code)
+{
+    // Check there is space
+    if(code.size() >= (instructionSize / 4)) {
+        throw std::runtime_error("Insufficient code memory (" + std::to_string(instructionSize) + " bytes)");
+    }
+
+    // Copy via volatile pointer to ensure no dumbness
+    volatile uint32_t *iMem = m_InstructionMemory;
+    for(uint32_t c : code) {
+        *iMem++ = c;
+    }
+}
+//----------------------------------------------------------------------------
+void Device::uploadData(const std::vector<uint8_t> &data)
+{
+    // Check there is space
+    if(data.size() >= dataSize) {
+        throw std::runtime_error("Insufficient data memory (" + std::to_string(dataSize) + " bytes)");
+    }
+
+    // Copy via volatile pointer to ensure no dumbness
+    volatile uint8_t *dMem = m_DataMemory;
+    for(uint32_t d : data) {
+        *dMem++ = d;
+    }
+}

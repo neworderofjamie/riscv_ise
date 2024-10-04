@@ -150,7 +150,7 @@ void recordV(const int16_t *vRecordingData, uint32_t numTimesteps)
 int main()
 {
     constexpr uint32_t numTimesteps = 100;
-    constexpr bool simulate = false;
+    constexpr bool simulate = true;
 
     // Configure logging
     plog::ConsoleAppender<plog::TxtFormatter> consoleAppender;
@@ -215,15 +215,10 @@ int main()
         device.setReset(false);
         
         LOGI << "Copying instructions (" << code.size() * sizeof(uint32_t) << " bytes)";
-        // Copy over instructions and data
-        for(size_t i =0; i < code.size(); i++) {
-            device.getInstructionMemory()[i] = code[i];
-        }
-
+        device.uploadCode(code);
+        
         LOGI << "Copying data (" << scalarInitData.size() << " bytes);";
-        for(size_t i = 0; i < scalarInitData.size(); i++) {
-            device.getDataMemory()[i] = scalarInitData[i];
-        }
+        device.uploadData(scalarInitData);
         
         LOGI << "Enabling";
         // Put core into running state
