@@ -16,6 +16,7 @@
 
 // RISC-V utils include
 #include "common/app_utils.h"
+#include "common/device.h"
 #include "common/utils.h"
 
 // RISC-V assembler includes
@@ -234,9 +235,11 @@ int main()
     std::vector<int16_t> vectorInitData;
 
     // Constants
+    constexpr bool simulate = true;
     constexpr uint32_t numInput = 28 * 28;
     constexpr uint32_t numHidden = 128;
     constexpr uint32_t numOutput = 10;
+    constexpr uint32_t numTimesteps = 79;
     constexpr uint32_t hiddenFixedPoint = 5;
     constexpr uint32_t outFixedPoint = 6;
     constexpr uint32_t numInputSpikeWords = ceilDivide(numInput, 32);
@@ -259,9 +262,9 @@ int main()
     const uint32_t outputVSumPtr = AppUtils::allocateVectorAndZero(numOutput, vectorInitData);
    
     // Allocate scalar arrays
-    const uint32_t timestepPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
     const uint32_t inputSpikePtr = AppUtils::allocateScalarAndZero(numInputSpikeWords * 4, scalarInitData);
     const uint32_t hiddenSpikePtr = AppUtils::allocateScalarAndZero(numHiddenSpikeWords * 4, scalarInitData);
+    const uint32_t readyFlagPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
 
     // Load data
     const auto mnistTimes = loadData("mnist_times.bin");
@@ -272,17 +275,24 @@ int main()
         VectorRegisterAllocator vectorRegisterAllocator;
         ScalarRegisterAllocator scalarRegisterAllocator;
 
-        // V0 = *timestep
-        ALLOCATE_VECTOR(VTime);
-        {
-            ALLOCATE_SCALAR(STemp);
-            c.li(*STemp, timestepPtr);
-            c.lh(*STemp, *STemp);
-            c.vfill(*VTime, *STemp);
-        }
+        // Register allocation
+        ALLOCATE_SCALAR(SReadyFlagBuffer);
+        ALLOCATE_SCALAR(STime);
+        ALLOCATE_SCALAR(STimeEnd);
+
+        // Labels
+        Label timeLoop;
+        Label spinLoop;
+
+        // Set timestep range and load ready flag pointer
+        c.li(*STime, 0);
+        c.li(*STimeEnd, numTimesteps);
+        c.li(*SReadyFlagBuffer, readyFlagPtr);
+
+        // Clear ready flag
+        c.sw(Reg::X0, *SReadyFlagBuffer);
 
         // Loop over time
-        Label timeLoop;
         c.L(timeLoop);
         {
             // ---------------------------------------------------------------
@@ -309,58 +319,53 @@ int main()
                 ALLOCATE_SCALAR(SSpikeBuffer);
                 ALLOCATE_SCALAR(SSpikeTimeBuffer);
                 ALLOCATE_SCALAR(SSpikeTimeBufferEnd);
-
-                // Labels
-                Label neuronLoop;
+                ALLOCATE_SCALAR(SSpikeVec);
+                ALLOCATE_VECTOR(VSpikeTime);
+                ALLOCATE_VECTOR(VTime);
 
                 // Get address of spike and spike time buffer
                 c.li(*SSpikeBuffer, inputSpikePtr);
                 c.li(*SSpikeTimeBuffer, inputSpikeTimePtr);
                 c.li(*SSpikeTimeBufferEnd, inputSpikeTimePtr + ((numInput / 32) * 64));
+                c.vfill(*VTime, *STime);
 
-                {
-                    // Register allocation
-                    ALLOCATE_VECTOR(VSpikeTime);
-                    ALLOCATE_SCALAR(SSpikeVec);
-
-                    AppUtils::unrollVectorLoopBody(
-                        c, (numInput / 32) * 32, 4, *SSpikeTimeBuffer, *SSpikeTimeBufferEnd,
-                        [SSpikeVec, SSpikeBuffer, SSpikeTimeBuffer, VSpikeTime, VTime]
-                        (CodeGenerator &c, uint32_t r)
-                        {
-                            // Load spike times and increment buffer
-                            c.vloadv(*VSpikeTime, *SSpikeTimeBuffer, 64 * r);
-                            
-                            // spike vector = x4 = spike time == t
-                            c.vteq(*SSpikeVec, *VTime, *VSpikeTime);
-
-                            // inputSpikeBuffer + scalarOffset = spike vector
-                            c.sw(*SSpikeVec, *SSpikeBuffer, 4 * r);
-                            },
-                            [SSpikeTimeBuffer, SSpikeBuffer]
-                            (CodeGenerator &c, uint32_t numUnrolls)
-                            {
-                                c.addi(*SSpikeTimeBuffer, *SSpikeTimeBuffer, 64 * numUnrolls);
-                                c.addi(*SSpikeBuffer, *SSpikeBuffer, 4 * numUnrolls);
-                            });
-                    // Input neuron tail
+                AppUtils::unrollVectorLoopBody(
+                    c, (numInput / 32) * 32, 4, *SSpikeTimeBuffer, *SSpikeTimeBufferEnd,
+                    [SSpikeVec, SSpikeBuffer, SSpikeTimeBuffer, VSpikeTime, VTime]
+                    (CodeGenerator &c, uint32_t r)
                     {
-                        // Register allocation
-                        ALLOCATE_SCALAR(SMask);
+                        // Load spike times and increment buffer
+                        c.vloadv(*VSpikeTime, *SSpikeTimeBuffer, 64 * r);
                         
-                        // Calculate mask for first iteration
-                        c.li(*SMask, (1 << ((numInputSpikeWords * 32) - numInput)) - 1);
-
-                        // Load spike
-                        c.vloadv(*VSpikeTime, *SSpikeTimeBuffer);
-
                         // spike vector = x4 = spike time == t
                         c.vteq(*SSpikeVec, *VTime, *VSpikeTime);
-                        c.and_(*SSpikeVec, *SSpikeVec, *SMask);
 
                         // inputSpikeBuffer + scalarOffset = spike vector
-                        c.sw(*SSpikeVec, *SSpikeBuffer);
-                    }
+                        c.sw(*SSpikeVec, *SSpikeBuffer, 4 * r);
+                        },
+                        [SSpikeTimeBuffer, SSpikeBuffer]
+                        (CodeGenerator &c, uint32_t numUnrolls)
+                        {
+                            c.addi(*SSpikeTimeBuffer, *SSpikeTimeBuffer, 64 * numUnrolls);
+                            c.addi(*SSpikeBuffer, *SSpikeBuffer, 4 * numUnrolls);
+                        });
+                // Input neuron tail
+                {
+                    // Register allocation
+                    ALLOCATE_SCALAR(SMask);
+                    
+                    // Calculate mask for first iteration
+                    c.li(*SMask, (1 << ((numInputSpikeWords * 32) - numInput)) - 1);
+
+                    // Load spike
+                    c.vloadv(*VSpikeTime, *SSpikeTimeBuffer);
+
+                    // spike vector = x4 = spike time == t
+                    c.vteq(*SSpikeVec, *VTime, *VSpikeTime);
+                    c.and_(*SSpikeVec, *SSpikeVec, *SMask);
+
+                    // inputSpikeBuffer + scalarOffset = spike vector
+                    c.sw(*SSpikeVec, *SSpikeBuffer);
                 }
             }
 
@@ -542,8 +547,27 @@ int main()
                 }
             }
 
-            // End
+            c.addi(*STime, *STime, 1);
+            c.bne(*STime, *STimeEnd, timeLoop);
+        }
+
+         // Set ready flag
+        {
+            ALLOCATE_SCALAR(STmp);
+            c.li(*STmp, 1);
+            c.sw(*STmp, *SReadyFlagBuffer);
+        }
+        
+        // If we're simulating, make ecall
+        if(simulate) {
             c.ecall();
+        }
+        // Otherwise, infinite loop
+        else {
+            c.L(spinLoop);
+            {
+                c.j_(spinLoop);
+            }
         }
 
         LOGI << "Max vector registers used: " << vectorRegisterAllocator.getMaxUsedRegisters();
@@ -553,86 +577,127 @@ int main()
     // Create RISC-V core with instruction and scalar data
     const auto code = c.getCode();
     LOGI << code.size() << " instructions";
-    RISCV riscV(code, scalarInitData);
     
-    // Add vector co-processor
-    riscV.addCoprocessor<VectorProcessor>(vectorQuadrant, vectorInitData);
-    
-    // Recording data
-    std::vector<uint32_t> inputSpikeRecording;
-    std::vector<uint32_t> hiddenSpikeRecording;
-    inputSpikeRecording.reserve(79 * numInputSpikeWords);
-    hiddenSpikeRecording.reserve(79 * numHiddenSpikeWords);
-
-    // Get pointers to scalar and vector memory
-    auto *scalarData = riscV.getScalarDataMemory().getData().data();
-    auto *vectorData = riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getVectorDataMemory().getData().data();
-
-    // From these, get pointers to data structures
-    const uint32_t *inputSpikeWords = reinterpret_cast<const uint32_t*>(scalarData + inputSpikePtr);
-    const uint32_t *hiddenSpikeWords = reinterpret_cast<const uint32_t*>(scalarData + hiddenSpikePtr);
-    int16_t *outputVSum = vectorData + (outputVSumPtr / 2);
-
-    // Loop through examples
-    int numCorrect = 0;
-    for(int i = 0; i < 10000; i++) {
-        // Show % progress
-        const auto iPerc = std::div(i, 100);
-        if(iPerc.rem == 0) {
-            std:: cout << iPerc.quot << "%" << std::endl;
-        }
-
-        // Copy spike times into vector memory
-        std::copy_n(mnistTimes.data() + (numInput * i), numInput, vectorData + (inputSpikeTimePtr / 2));
-
-        // Loop through time
-        for(uint32_t t = 0; t < 79; t++) {
-            // Copy timestep into scalar memory
-            std::memcpy(scalarData + timestepPtr, &t, 4);
+    if(simulate) {
+        RISCV riscV(code, scalarInitData);
         
+        // Add vector co-processor
+        riscV.addCoprocessor<VectorProcessor>(vectorQuadrant, vectorInitData);
+        
+        // Recording data
+        std::vector<uint32_t> inputSpikeRecording;
+        std::vector<uint32_t> hiddenSpikeRecording;
+        inputSpikeRecording.reserve(79 * numInputSpikeWords);
+        hiddenSpikeRecording.reserve(79 * numHiddenSpikeWords);
+
+        // Get pointers to scalar and vector memory
+        auto *scalarData = riscV.getScalarDataMemory().getData().data();
+        auto *vectorData = riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getVectorDataMemory().getData().data();
+
+        // From these, get pointers to data structures
+        const uint32_t *inputSpikeWords = reinterpret_cast<const uint32_t*>(scalarData + inputSpikePtr);
+        const uint32_t *hiddenSpikeWords = reinterpret_cast<const uint32_t*>(scalarData + hiddenSpikePtr);
+        int16_t *outputVSum = vectorData + (outputVSumPtr / 2);
+
+        // Loop through examples
+        int numCorrect = 0;
+        for(int i = 0; i < 10000; i++) {
+            // Show % progress
+            const auto iPerc = std::div(i, 100);
+            if(iPerc.rem == 0) {
+                std:: cout << iPerc.quot << "%" << std::endl;
+            }
+
+            // Copy spike times into vector memory
+            std::copy_n(mnistTimes.data() + (numInput * i), numInput, vectorData + (inputSpikeTimePtr / 2));
+
             // Reset PC and run
             riscV.setPC(0);
             if(!riscV.run()) {
                 return 1;
             }
 
-            // Record spike words
-            //std::copy(inputSpikeWords, inputSpikeWords + numInputSpikeWords,
-            //          std::back_inserter(inputSpikeRecording));
-            //std::copy(hiddenSpikeWords, hiddenSpikeWords + numHiddenSpikeWords,
-            //          std::back_inserter(hiddenSpikeRecording));
+            // Determine if output is correct
+            const auto classification = std::distance(outputVSum, std::max_element(outputVSum, outputVSum + 10));
+            if(classification == mnistLabels[i]) {
+                numCorrect++;
+            }
+
+            // Zero output V sum
+            std::fill_n(outputVSum, 10, 0);
         }
 
-        // Determine if output is correct
-        const auto classification = std::distance(outputVSum, std::max_element(outputVSum, outputVSum + 10));
-        if(classification == mnistLabels[i]) {
-            numCorrect++;
-        }
-
-        // Zero output V sum
-        std::fill_n(outputVSum, 10, 0);
+        std::cout << numCorrect << " / 10000 correct (" << 100.0 * (numCorrect / 10000.0) << "%)" << std::endl;
+        std::cout << "Stats:" << std::endl;
+        std::cout << "\t" << riscV.getTotalNumInstructionsExecuted() << " instructions executed" << std::endl;
+        std::cout << "\t\t" << riscV.getTotalNumCoprocessorInstructionsExecuted(vectorQuadrant) << " vector instructions executed" << std::endl;
+        std::cout << "\t\t" << riscV.getNumJumps() << " jumps" << std::endl;
+        std::cout << "\t\t" << riscV.getNumMemory() << " scalar memory" << std::endl;
+        std::cout << "\t\t" << riscV.getNumALU() << " scalar ALU" << std::endl;
+        std::cout << "\t\t" << riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getNumMemory(riscV.getNumCoprocessorInstructionsExecuted(vectorQuadrant)) << " vector memory" << std::endl;
+        std::cout << "\t\t" << riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getNumALU(riscV.getNumCoprocessorInstructionsExecuted(vectorQuadrant)) << " vector ALU" << std::endl;
+    
+    
+        // Record output spikes
+        //std::ofstream inputSpikes("input_spikes.csv");
+        //std::ofstream hiddenSpikes("hidden_spikes.csv");
+        //for(uint32_t t = 0; t < 79; t++) {
+        //    AppUtils::writeSpikes(inputSpikes, inputSpikeRecording.data() + (numInputSpikeWords * t),
+        //                          t, numInputSpikeWords);
+        //    AppUtils::writeSpikes(hiddenSpikes, hiddenSpikeRecording.data() + (numHiddenSpikeWords * t),
+        //                          t, numHiddenSpikeWords);
+        //}
     }
+    else {
+        LOGI << "Creating device";
+        Device device;
 
-    std::cout << numCorrect << " / 10000 correct (" << 100.0 * (numCorrect / 10000.0) << "%)" << std::endl;
-    std::cout << "Stats:" << std::endl;
-    std::cout << "\t" << riscV.getTotalNumInstructionsExecuted() << " instructions executed" << std::endl;
-    std::cout << "\t\t" << riscV.getTotalNumCoprocessorInstructionsExecuted(vectorQuadrant) << " vector instructions executed" << std::endl;
-    std::cout << "\t\t" << riscV.getNumJumps() << " jumps" << std::endl;
-    std::cout << "\t\t" << riscV.getNumMemory() << " scalar memory" << std::endl;
-    std::cout << "\t\t" << riscV.getNumALU() << " scalar ALU" << std::endl;
-    std::cout << "\t\t" << riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getNumMemory(riscV.getNumCoprocessorInstructionsExecuted(vectorQuadrant)) << " vector memory" << std::endl;
-    std::cout << "\t\t" << riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getNumALU(riscV.getNumCoprocessorInstructionsExecuted(vectorQuadrant)) << " vector ALU" << std::endl;
-    
-    
-    // Record output spikes
-    //std::ofstream inputSpikes("input_spikes.csv");
-    //std::ofstream hiddenSpikes("hidden_spikes.csv");
-    //for(uint32_t t = 0; t < 79; t++) {
-    //    AppUtils::writeSpikes(inputSpikes, inputSpikeRecording.data() + (numInputSpikeWords * t),
-    //                          t, numInputSpikeWords);
-    //    AppUtils::writeSpikes(hiddenSpikes, hiddenSpikeRecording.data() + (numHiddenSpikeWords * t),
-    //                          t, numHiddenSpikeWords);
-    //}
+        // Put core into reset state
+        LOGI << "Resetting";
+        device.setReset(false);
+        
+        LOGI << "Copying instructions (" << code.size() * sizeof(uint32_t) << " bytes)";
+        device.uploadCode(code);
+        
+        LOGI << "Copying data (" << scalarInitData.size() << " bytes);";
+        device.uploadData(scalarInitData);
+        
+        // Loop through examples
+        int numCorrect = 0;
+        for(int i = 0; i < 10000; i++) {
+            // Show % progress
+            const auto iPerc = std::div(i, 100);
+            if(iPerc.rem == 0) {
+                std:: cout << iPerc.quot << "%" << std::endl;
+            }
 
+            // Put core into running state
+            LOGI << "Enabling";
+            device.setReset(true);
+
+            // Wait until ready flag
+            device.waitOnNonZero(readyFlagPtr);
+
+            // Reset core
+            LOGI << "Disabling";
+            device.setReset(false);
+
+            // Determine if output is correct
+            /*const auto classification = std::distance(outputVSum, std::max_element(outputVSum, outputVSum + 10));
+            if(classification == mnistLabels[i]) {
+                numCorrect++;
+            }
+
+            // Zero output V sum
+            std::fill_n(outputVSum, 10, 0);*/
+        }
+
+        std::cout << numCorrect << " / 10000 correct (" << 100.0 * (numCorrect / 10000.0) << "%)" << std::endl;
+        
+        
+        // Wait until ready flag
+        //device.waitOnNonZero(readyFlagPtr);
+        LOGI << "Done";
+    }
     return 0;
 }
