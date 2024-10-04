@@ -148,7 +148,7 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
             if(numPost > 32) {
                 ALLOCATE_VECTOR(VWeight);
                 ALLOCATE_VECTOR(VISyn);
-                AppUtils::unrollLoopBody(
+                AppUtils::unrollVectorLoopBody(
                     c, numPost, 4, *SISynBuffer, *SISynBufferEnd,
                     [SWeightBuffer, SISynBuffer, VWeight, VISyn]
                     (CodeGenerator &c, uint32_t r)
@@ -323,7 +323,7 @@ int main()
                     ALLOCATE_VECTOR(VSpikeTime);
                     ALLOCATE_SCALAR(SSpikeVec);
 
-                    AppUtils::unrollLoopBody(
+                    AppUtils::unrollVectorLoopBody(
                         c, (numInput / 32) * 32, 4, *SSpikeTimeBuffer, *SSpikeTimeBufferEnd,
                         [SSpikeVec, SSpikeBuffer, SSpikeTimeBuffer, VSpikeTime, VTime]
                         (CodeGenerator &c, uint32_t r)
@@ -395,7 +395,7 @@ int main()
                 c.li(*SRefracTimeBuffer, hiddenRefracTimePtr);
                 c.li(*SSpikeBuffer, hiddenSpikePtr);
                  
-                AppUtils::unrollLoopBody(
+                AppUtils::unrollVectorLoopBody(
                     c, numHidden, 4, *SVBuffer, *SVBufferEnd,
                     [&scalarRegisterAllocator, &vectorRegisterAllocator,
                     SVBuffer, SISynBuffer, SRefracTimeBuffer, SSpikeBuffer,

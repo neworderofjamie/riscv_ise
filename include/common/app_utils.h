@@ -55,4 +55,9 @@ void unrollLoopBody(CodeGenerator &c, uint32_t numIterations, uint32_t maxUnroll
                     Reg testBufferReg, Reg testBufferEndReg, 
                     std::function<void(CodeGenerator&, uint32_t)> genBodyFn, 
                     std::function<void(CodeGenerator&, uint32_t)> genTailFn);
+
+void unrollVectorLoopBody(CodeGenerator &c, uint32_t numIterations, uint32_t maxUnroll, 
+                          Reg testBufferReg, Reg testBufferEndReg, 
+                          std::function<void(CodeGenerator&, uint32_t)> genBodyFn, 
+                          std::function<void(CodeGenerator&, uint32_t)> genTailFn);
 }

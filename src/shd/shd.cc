@@ -93,8 +93,9 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
         auto bufferEndReg = scalarRegisterAllocator.getRegister("SISynBufferEnd = X");
 
         // Load addresses as immediates
+        // **NOTE** end address is only end of loop body not tail
         c.li(*bufferStartReg, t.postISynPtr);
-        c.li(*bufferEndReg, t.postISynPtr + ceilDivide(t.numPost, 32) * 64);
+        c.li(*bufferEndReg, t.postISynPtr + (t.numPost / 32) * 64);
 
         // Add scalar registers to vector
         sISynBufferRegs.emplace_back(bufferStartReg, bufferEndReg);
@@ -170,28 +171,30 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
 
                 // Loop over postsynaptic neurons
                 if(t.numPost > 32) {
-                    // Input postsynaptic neuron loop
-                    c.L(weightLoop);
-                    {
-                        ALLOCATE_VECTOR(VWeight);
-                        ALLOCATE_VECTOR(VISyn);
+                    ALLOCATE_VECTOR(VWeight);
+                    ALLOCATE_VECTOR(VISyn);
+                    AppUtils::unrollLoopBody(
+                        c, t.numPost, 4, *iReg.first, *iReg.second,
+                        [&iReg, SWeightBuffer, VWeight, VISyn]
+                        (CodeGenerator &c, uint32_t r)
+                        {
+                            // Load next vector of weights and ISyns
+                            c.vloadv(*VWeight, *SWeightBuffer, r * 64);
+                            c.vloadv(*VISyn, *iReg.first, r * 64);
 
-                        // Load next vector of weights and ISyns
-                        c.vloadv(*VWeight, *SWeightBuffer);
-                        c.vloadv(*VISyn, *iReg.first);
-                        c.addi(*SWeightBuffer, *SWeightBuffer, 64);
+                            // Add weights to ISyn
+                            c.vadd_s(*VISyn, *VISyn, *VWeight);
 
-                        // Add weights to ISyn
-                        c.vadd_s(*VISyn, *VISyn, *VWeight);
-
-                        // Write back ISyn and increment SISynBuffer
-                        c.vstore(*VISyn, *iReg.first);
-                        c.addi(*iReg.first, *iReg.first, 64);
-
-                        // If we haven't reached end of Isyn buffer, loop
-                        assert(t.numPost % 32 == 0);
-                        c.bne(*iReg.first, *iReg.second, weightLoop);
-                    }
+                            // Write back ISyn and increment SISynBuffer
+                            c.vstore(*VISyn, *iReg.first, r * 64);
+                        },
+                        [&iReg, SWeightBuffer, VWeight, VISyn]
+                        (CodeGenerator &c, uint32_t numUnrolls)
+                        {
+                            // Increment pointers 
+                            c.addi(*iReg.first, *iReg.first, 64 * numUnrolls);
+                            c.addi(*SWeightBuffer, *SWeightBuffer, 64 * numUnrolls);
+                        });
                 }
                 // Tail if there are non-POT number of postsynaptic neurons
                 if((t.numPost % 32) != 0) {
@@ -260,7 +263,7 @@ int main()
     std::vector<int16_t> vectorInitData;
 
     // Constants
-    constexpr bool record = true;
+    constexpr bool record = false;
     constexpr uint32_t numInput = 700;
     constexpr uint32_t numHidden = 256;
     constexpr uint32_t numOutput = 20;
@@ -268,7 +271,7 @@ int main()
     constexpr uint32_t hiddenAFixedPoint = 8;
     constexpr uint32_t outFixedPoint = 11;
     constexpr uint32_t numTimesteps = 1170;
-    constexpr uint32_t numExamples = 1;
+    constexpr uint32_t numExamples = 2264;//1;
     constexpr uint32_t numInputSpikeWords = ceilDivide(numInput, 32);
     constexpr uint32_t numHiddenSpikeWords = ceilDivide(numHidden, 32);
     constexpr uint32_t numInputSpikeArrayWords = numInputSpikeWords * numTimesteps;
@@ -391,26 +394,30 @@ int main()
 
                 // Input neuron loop
                 // **OPTIMIZE** this is technically not necessary at all, could just point point static pulse at buffer
-                c.L(neuronLoop);
-                {
-                    // Register allocation
-                    ALLOCATE_SCALAR(SSpikeWord);
+                AppUtils::unrollLoopBody(
+                    c, numInputSpikeWords, 22, *SSpikeBuffer, *SSpikeBufferEnd,
+                    [&scalarRegisterAllocator, SSpikeBuffer, SSpikeArrayBuffer]
+                    (CodeGenerator &c, uint32_t r)
+                    {
+                        // Register allocation
+                        ALLOCATE_SCALAR(SSpikeWord);
 
-                    // Load word from spike array buffer an write to spike buffer
-                    c.lw(*SSpikeWord, *SSpikeArrayBuffer);
-                    
-                    // SSpikeArrayBuffer += 4
-                    c.addi(*SSpikeArrayBuffer, *SSpikeArrayBuffer, 4);
+                        // Load word from spike array buffer an write to spike buffer
+                        c.lw(*SSpikeWord, *SSpikeArrayBuffer, 4 * r);
 
-                    // inputSpikeBuffer + scalarOffset = spike vector
-                    c.sw(*SSpikeWord, *SSpikeBuffer);
+                        // inputSpikeBuffer + scalarOffset = spike vector
+                        c.sw(*SSpikeWord, *SSpikeBuffer, 4 * r);
+                    },
+                    [SSpikeBuffer, SSpikeArrayBuffer]
+                    (CodeGenerator &c, uint32_t numUnrolls)
+                    {
+                        // SSpikeArrayBuffer += 4
+                        c.addi(*SSpikeArrayBuffer, *SSpikeArrayBuffer, 4 * numUnrolls);
 
-                    // SSpikeBuffer += 4
-                    c.addi(*SSpikeBuffer, *SSpikeBuffer, 4);
-                
-                    // If SSpikeBuffer != SSpikeBufferEnd, goto input loop
-                    c.bne(*SSpikeBuffer, *SSpikeBufferEnd, neuronLoop);
-                }
+                        // SSpikeBuffer += 4
+                        c.addi(*SSpikeBuffer, *SSpikeBuffer, 4 * numUnrolls);
+
+                    });
             }
 
             // ---------------------------------------------------------------

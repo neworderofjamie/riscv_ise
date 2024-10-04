@@ -239,15 +239,10 @@ void unrollLoopBody(CodeGenerator &c, uint32_t numIterations, uint32_t maxUnroll
                     std::function<void(CodeGenerator&, uint32_t)> genBodyFn, 
                     std::function<void(CodeGenerator&, uint32_t)> genTailFn)
 {
-    // Only loop bodies for now
-    assert((numIterations % 32) == 0);
-
-    const uint32_t numVectorisedIterations = numIterations / 32;
-
     // **TODO** tail loop after unrolling
-    assert((numVectorisedIterations % maxUnroll) == 0);
-    const uint32_t numUnrolls = std::min(numVectorisedIterations, maxUnroll);
-    const uint32_t numUnrolledIterations = numVectorisedIterations / numUnrolls;
+    assert((numIterations % maxUnroll) == 0);
+    const uint32_t numUnrolls = std::min(numIterations, maxUnroll);
+    const uint32_t numUnrolledIterations = numIterations / numUnrolls;
 
     // Input postsynaptic neuron loop
     Label loop;
@@ -265,5 +260,18 @@ void unrollLoopBody(CodeGenerator &c, uint32_t numIterations, uint32_t maxUnroll
             c.bne(testBufferReg, testBufferEndReg, loop);
         }
     }
+}
+//----------------------------------------------------------------------------
+void unrollVectorLoopBody(CodeGenerator &c, uint32_t numIterations, uint32_t maxUnroll, 
+                          Reg testBufferReg, Reg testBufferEndReg, 
+                          std::function<void(CodeGenerator&, uint32_t)> genBodyFn, 
+                          std::function<void(CodeGenerator&, uint32_t)> genTailFn)
+{
+    // Only loop bodies for now
+    assert((numIterations % 32) == 0);
+    unrollLoopBody(c, numIterations / 32, maxUnroll, 
+                   testBufferReg, testBufferEndReg,
+                   genBodyFn, genTailFn);
+
 }
 }
