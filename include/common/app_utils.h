@@ -2,11 +2,15 @@
 
 // Standard C++ includes
 #include <fstream>
+#include <functional>
 #include <string>
 #include <vector>
 
 // Standard C includes
 #include <cstdint>
+
+// Common includes
+#include "common/isa.h"
 
 // Forward declations
 class CodeGenerator;
@@ -45,4 +49,10 @@ void generateScalarVectorMemcpy(CodeGenerator &c, VectorRegisterAllocator &vecto
 void generateVectorScalarMemcpy(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator,
                                 ScalarRegisterAllocator &scalarRegisterAllocator,
                                 uint32_t vectorPtr, uint32_t scalarPtr, uint32_t numVectors);
+
+// Generate an unrolled loop body
+void unrollLoopBody(CodeGenerator &c, uint32_t numIterations, uint32_t maxUnroll, 
+                    Reg testBufferReg, Reg testBufferEndReg, 
+                    std::function<void(CodeGenerator&, uint32_t)> genBodyFn, 
+                    std::function<void(CodeGenerator&, uint32_t)> genTailFn);
 }
