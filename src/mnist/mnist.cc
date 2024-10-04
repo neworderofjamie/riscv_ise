@@ -349,36 +349,33 @@ int main()
                 c.li(*SSpikeTimeBuffer, inputSpikeTimePtr);
                 c.li(*SSpikeTimeBufferEnd, inputSpikeTimePtr + ((numInput / 32) * 64));
 
-                // Input neuron loop
-                c.L(neuronLoop);
-                {
-                    // Register allocation
-                    ALLOCATE_VECTOR(VSpikeTime);
-                    ALLOCATE_SCALAR(SSpikeVec);
+                // Register allocation
+                ALLOCATE_VECTOR(VSpikeTime);
+                ALLOCATE_SCALAR(SSpikeVec);
 
-                    // Load spike times and increment buffer
-                    c.vloadv(*VSpikeTime, *SSpikeTimeBuffer);
-                    c.addi(*SSpikeTimeBuffer, *SSpikeTimeBuffer, 64);
+                unrollLoopBody(c, (numInput / 32) * 32, 4, *SSpikeTimeBuffer, *SSpikeTimeBufferEnd,
+                               [SSpikeVec, SSpikeBuffer, SSpikeTimeBuffer, VSpikeTime, VTime]
+                               (CodeGenerator &c, uint32_t r)
+                               {
+                                   // Load spike times and increment buffer
+                                   c.vloadv(*VSpikeTime, *SSpikeTimeBuffer, 64 * r);
+                                   
+                                   // spike vector = x4 = spike time == t
+                                   c.vteq(*SSpikeVec, *VTime, *VSpikeTime);
 
-                    // spike vector = x4 = spike time == t
-                    c.vteq(*SSpikeVec, *VTime, *VSpikeTime);
-
-                    // inputSpikeBuffer + scalarOffset = spike vector
-                    c.sw(*SSpikeVec, *SSpikeBuffer);
-
-                    // SSpikeBuffe += 4
-                    c.addi(*SSpikeBuffer, *SSpikeBuffer, 4);
-
-                    // If SSpikeTimeBuffer != SSpikeTimeBufferEnd, goto input loop
-                    c.bne(*SSpikeTimeBuffer, *SSpikeTimeBufferEnd, neuronLoop);
-                }
-
+                                   // inputSpikeBuffer + scalarOffset = spike vector
+                                   c.sw(*SSpikeVec, *SSpikeBuffer, 4 * r);
+                                },
+                                [SSpikeTimeBuffer, SSpikeBuffer]
+                                (CodeGenerator &c, uint32_t numUnrolls)
+                                {
+                                    c.addi(*SSpikeTimeBuffer, *SSpikeTimeBuffer, 64 * numUnrolls);
+                                    c.addi(*SSpikeBuffer, *SSpikeBuffer, 4 * numUnrolls);
+                                });
                 // Input neuron tail
                 {
                     // Register allocation
-                    ALLOCATE_VECTOR(VSpikeTime);
                     ALLOCATE_SCALAR(SMask);
-                    ALLOCATE_SCALAR(SSpikeVec);
                     
                     // Calculate mask for first iteration
                     c.li(*SMask, (1 << ((numInputSpikeWords * 32) - numInput)) - 1);
@@ -583,7 +580,9 @@ int main()
     }
 
     // Create RISC-V core with instruction and scalar data
-    RISCV riscV(c.getCode(), scalarInitData);
+    const auto code = c.getCode();
+    LOGI << code.size() << " instructions";
+    RISCV riscV(code, scalarInitData);
     
     // Add vector co-processor
     riscV.addCoprocessor<VectorProcessor>(vectorQuadrant, vectorInitData);
