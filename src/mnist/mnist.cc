@@ -27,7 +27,8 @@
 #include "ise/riscv.h"
 #include "ise/vector_processor.h"
 
-std::vector<int16_t> loadData(const std::string &filename)
+template<typename T>
+std::vector<T> loadData(const std::string &filename)
 {
     std::ifstream input(filename, std::ios::binary);
 
@@ -37,10 +38,10 @@ std::vector<int16_t> loadData(const std::string &filename)
     input.seekg (0, std::ios::beg);
 
     // Check contents is half-word aligned
-    assert((lengthBytes & 1) == 0);
+    assert((lengthBytes % sizeof(T)) == 0);
 
     // Create vector
-    std::vector<int16_t> data(lengthBytes / 2, 0);
+    std::vector<T> data(lengthBytes / sizeof(T), 0);
 
     // Read data directly into it
     input.read(reinterpret_cast<char*>(data.data()), lengthBytes);
@@ -247,9 +248,9 @@ CodeGenerator generateInitCode(uint32_t numInput, uint32_t numHidden, uint32_t n
 CodeGenerator generateSimCode(bool simulate, uint32_t numInput, uint32_t numHidden, uint32_t numOutput, uint32_t numTimesteps,
                               uint32_t hiddenFixedPoint, uint32_t outFixedPoint, uint32_t numInputSpikeWords,
                               uint32_t numHiddenSpikeWords,  uint32_t weightInHidPtr, uint32_t weightHidOutPtr, 
-                              uint32_t outputBiasPtr, uint32_t inputSpikeTimePtr, uint32_t hiddenIsynPtr, uint32_t hiddenVPtr,
-                              uint32_t hiddenRefracTimePtr, uint32_t outputIsynPtr , uint32_t outputVPtr, uint32_t outputVSumPtr,
-                              uint32_t inputSpikePtr, uint32_t hiddenSpikePtr, uint32_t outputVSumScalarPtr, uint32_t readyFlagPtr)
+                              uint32_t outputBiasPtr, uint32_t hiddenIsynPtr, uint32_t hiddenVPtr, uint32_t hiddenRefracTimePtr, 
+                              uint32_t outputIsynPtr , uint32_t outputVPtr, uint32_t outputVSumPtr,
+                              uint32_t inputSpikePtr, uint32_t inputSpikeArrayPtr, uint32_t hiddenSpikePtr, uint32_t outputVSumScalarPtr, uint32_t readyFlagPtr)
 {
     CodeGenerator c;
     VectorRegisterAllocator vectorRegisterAllocator;
@@ -297,56 +298,70 @@ CodeGenerator generateSimCode(bool simulate, uint32_t numInput, uint32_t numHidd
         {
             // Register allocation
             ALLOCATE_SCALAR(SSpikeBuffer);
-            ALLOCATE_SCALAR(SSpikeTimeBuffer);
+            ALLOCATE_SCALAR(SSpikeBufferEnd);
+            ALLOCATE_SCALAR(SSpikeArrayBuffer);
             ALLOCATE_SCALAR(SSpikeTimeBufferEnd);
-            ALLOCATE_SCALAR(SSpikeVec);
-            ALLOCATE_VECTOR(VSpikeTime);
-            ALLOCATE_VECTOR(VTime);
+
+            // Labels
+            Label neuronLoop;
 
             // Get address of spike and spike time buffer
             c.li(*SSpikeBuffer, inputSpikePtr);
-            c.li(*SSpikeTimeBuffer, inputSpikeTimePtr);
-            c.li(*SSpikeTimeBufferEnd, inputSpikeTimePtr + ((numInput / 32) * 64));
-            c.vfill(*VTime, *STime);
+            c.li(*SSpikeBufferEnd, inputSpikePtr + (numInputSpikeWords * 4));
+            
+            // SSpikeArrayBuffer = inputSpikeArrayPtr + (100 * STime)
+            c.li(*SSpikeArrayBuffer, inputSpikeArrayPtr);
+            {
+                // STemp = number of bytes of full vector
+                ALLOCATE_SCALAR(STmp1);
+                ALLOCATE_SCALAR(STmp2);
 
-            AppUtils::unrollVectorLoopBody(
-                c, (numInput / 32) * 32, 4, *SSpikeTimeBuffer, *SSpikeTimeBufferEnd,
-                [SSpikeVec, SSpikeBuffer, SSpikeTimeBuffer, VSpikeTime, VTime]
+                // **TODO** single cycle DSP multiply!
+
+                // STime * 64
+                c.slli(*STmp1, *STime, 6);
+                    
+                // STime * 32
+                c.slli(*STmp2, *STime, 5);
+
+                // STime * 96
+                c.add(*STmp1, *STmp1, *STmp2);
+
+                // STime * 4
+                c.slli(*STmp2, *STime, 2);
+
+                // STime * 100!
+                c.add(*STmp1, *STmp1, *STmp2);
+
+                // SSpikeTimeBufferEnd += STime * 100
+                c.add(*SSpikeArrayBuffer, *SSpikeArrayBuffer, *STmp1);
+            }
+
+            // Input neuron loop
+            // **OPTIMIZE** this is technically not necessary at all, could just point point static pulse at buffer
+            AppUtils::unrollLoopBody(
+                c, numInputSpikeWords, 25, *SSpikeBuffer, *SSpikeBufferEnd,
+                [&scalarRegisterAllocator, SSpikeBuffer, SSpikeArrayBuffer]
                 (CodeGenerator &c, uint32_t r)
                 {
-                    // Load spike times and increment buffer
-                    c.vloadv(*VSpikeTime, *SSpikeTimeBuffer, 64 * r);
-                        
-                    // spike vector = x4 = spike time == t
-                    c.vteq(*SSpikeVec, *VTime, *VSpikeTime);
+                    // Register allocation
+                    ALLOCATE_SCALAR(SSpikeWord);
+
+                    // Load word from spike array buffer an write to spike buffer
+                    c.lw(*SSpikeWord, *SSpikeArrayBuffer, 4 * r);
 
                     // inputSpikeBuffer + scalarOffset = spike vector
-                    c.sw(*SSpikeVec, *SSpikeBuffer, 4 * r);
-                    },
-                    [SSpikeTimeBuffer, SSpikeBuffer]
-                    (CodeGenerator &c, uint32_t numUnrolls)
-                    {
-                        c.addi(*SSpikeTimeBuffer, *SSpikeTimeBuffer, 64 * numUnrolls);
-                        c.addi(*SSpikeBuffer, *SSpikeBuffer, 4 * numUnrolls);
-                    });
-            // Input neuron tail
-            {
-                // Register allocation
-                ALLOCATE_SCALAR(SMask);
-                    
-                // Calculate mask for first iteration
-                c.li(*SMask, (1 << ((numInputSpikeWords * 32) - numInput)) - 1);
+                    c.sw(*SSpikeWord, *SSpikeBuffer, 4 * r);
+                },
+                [SSpikeBuffer, SSpikeArrayBuffer]
+                (CodeGenerator &c, uint32_t numUnrolls)
+                {
+                    // SSpikeArrayBuffer += 4
+                    c.addi(*SSpikeArrayBuffer, *SSpikeArrayBuffer, 4 * numUnrolls);
 
-                // Load spike
-                c.vloadv(*VSpikeTime, *SSpikeTimeBuffer);
-
-                // spike vector = x4 = spike time == t
-                c.vteq(*SSpikeVec, *VTime, *VSpikeTime);
-                c.and_(*SSpikeVec, *SSpikeVec, *SMask);
-
-                // inputSpikeBuffer + scalarOffset = spike vector
-                c.sw(*SSpikeVec, *SSpikeBuffer);
-            }
+                    // SSpikeBuffer += 4
+                    c.addi(*SSpikeBuffer, *SSpikeBuffer, 4 * numUnrolls);
+                });
         }
 
         // ---------------------------------------------------------------
@@ -609,6 +624,7 @@ int main()
     constexpr uint32_t numInputSpikeWords = ceilDivide(numInput, 32);
     constexpr uint32_t numHiddenSpikeWords = ceilDivide(numHidden, 32);
     constexpr uint32_t numOutputSpikeWords = ceilDivide(numOutput, 32);
+    constexpr uint32_t numInputSpikeArrayWords = numInputSpikeWords * numTimesteps;
 
     // Load vector data
     const uint32_t weightInHidPtr = AppUtils::loadVectors("mnist_in_hid.bin", vectorInitData);
@@ -616,8 +632,6 @@ int main()
     const uint32_t outputBiasPtr = AppUtils::loadVectors("mnist_bias.bin", vectorInitData);
     
     // Allocate additional vector arrays
-    const uint32_t inputSpikeTimePtr = AppUtils::allocateVectorAndZero(numInput, vectorInitData);
-
     const uint32_t hiddenIsynPtr = AppUtils::allocateVectorAndZero(numHidden, vectorInitData);
     const uint32_t hiddenVPtr = AppUtils::allocateVectorAndZero(numHidden, vectorInitData);
     const uint32_t hiddenRefracTimePtr = AppUtils::allocateVectorAndZero(numHidden, vectorInitData);
@@ -628,13 +642,14 @@ int main()
    
     // Allocate scalar arrays
     const uint32_t inputSpikePtr = AppUtils::allocateScalarAndZero(numInputSpikeWords * 4, scalarInitData);
+    const uint32_t inputSpikeArrayPtr = AppUtils::allocateScalarAndZero(numInputSpikeArrayWords * 4, scalarInitData);
     const uint32_t hiddenSpikePtr = AppUtils::allocateScalarAndZero(numHiddenSpikeWords * 4, scalarInitData);
     const uint32_t outputVSumScalarPtr = AppUtils::allocateScalarAndZero(numOutput * 2, scalarInitData);
     const uint32_t readyFlagPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
 
     // Load data
-    const auto mnistTimes = loadData("mnist_times.bin");
-    const auto mnistLabels = loadData("mnist_labels.bin");
+    const auto mnistSpikes = loadData<uint32_t>("mnist_spikes.bin");
+    const auto mnistLabels = loadData<int16_t>("mnist_labels.bin");
 
     
 
@@ -642,9 +657,9 @@ int main()
     const auto simCode = generateSimCode(simulate, numInput, numHidden, numOutput, numTimesteps,
                                          hiddenFixedPoint, outFixedPoint, numInputSpikeWords,
                                          numHiddenSpikeWords,  weightInHidPtr, weightHidOutPtr, 
-                                         outputBiasPtr, inputSpikeTimePtr, hiddenIsynPtr, hiddenVPtr,
+                                         outputBiasPtr, hiddenIsynPtr, hiddenVPtr,
                                          hiddenRefracTimePtr, outputIsynPtr, outputVPtr, outputVSumPtr,
-                                         inputSpikePtr, hiddenSpikePtr, outputVSumScalarPtr, readyFlagPtr).getCode();
+                                         inputSpikePtr, inputSpikeArrayPtr, hiddenSpikePtr, outputVSumScalarPtr, readyFlagPtr).getCode();
     LOGI << simCode.size() << " simulation instructions";
 
     //const auto initCode = generateInitCode(numInput, numHidden, numOutput,
@@ -664,8 +679,7 @@ int main()
 
         // Get pointers to scalar and vector memory
         auto *scalarData = riscV.getScalarDataMemory().getData().data();
-        auto *vectorData = riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getVectorDataMemory().getData().data();
-
+ 
         // From these, get pointers to data structures
         //const uint32_t *inputSpikeWords = reinterpret_cast<const uint32_t*>(scalarData + inputSpikePtr);
         //const uint32_t *hiddenSpikeWords = reinterpret_cast<const uint32_t*>(scalarData + hiddenSpikePtr);
@@ -680,8 +694,9 @@ int main()
                 std:: cout << iPerc.quot << "%" << std::endl;
             }
 
-            // Copy spike times into vector memory
-            std::copy_n(mnistTimes.data() + (numInput * i), numInput, vectorData + (inputSpikeTimePtr / 2));
+            // Copy input spike bits into scalar memory
+            std::copy_n(mnistSpikes.data() + (numInputSpikeArrayWords * i), numInputSpikeArrayWords, 
+                        reinterpret_cast<uint32_t*>(scalarData + inputSpikeArrayPtr));
 
             // Reset PC and run
             riscV.setPC(0);
