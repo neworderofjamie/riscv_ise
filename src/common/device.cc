@@ -3,6 +3,7 @@
 // Standard C++ includes
 #include <chrono>
 #include <stdexcept>
+#include <string>
 #include <thread>
 
 // Standard C includes
@@ -66,7 +67,7 @@ Device::Device()
     if(m_GPIO == MAP_FAILED) {
         throw std::runtime_error("GPIO map failed (" + std::to_string(errno) + " = " + strerror(errno) + ")");
     }
-#elif
+#else
     throw std::runtime_error("Device interface only supports Linux");
 #endif  // __linux__
 }
@@ -108,7 +109,7 @@ void Device::uploadCode(const std::vector<uint32_t> &code)
 
     // Copy via volatile pointer to ensure no dumbness
     volatile uint32_t *iMem = m_InstructionMemory;
-    for(uint32_t c : code) {
+    for(uint32_t c : code) { 
         *iMem++ = c;
     }
 }

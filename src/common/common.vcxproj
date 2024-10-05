@@ -12,10 +12,12 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="app_utils.cc" />
+    <ClCompile Include="device.cc" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\common\app_utils.h" />
     <ClInclude Include="..\..\include\common\CLI11.hpp" />
+    <ClInclude Include="..\..\include\common\device.h" />
     <ClInclude Include="..\..\include\common\isa.h" />
     <ClInclude Include="..\..\include\common\utils.h" />
   </ItemGroup>
