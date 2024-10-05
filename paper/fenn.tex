@@ -18,11 +18,11 @@
 
 
 % RISC-V stages
-\node [riscv_stage] (scalar_fetch)                                          {Scalar\\Fetch};
-\node [riscv_stage] (scalar_decode)         [right=5mm of scalar_fetch]     {Scalar\\Decode};
+\node [riscv_stage] (scalar_fetch)                                          {RISC-V\\Fetch};
+\node [riscv_stage] (scalar_decode)         [right=5mm of scalar_fetch]     {RISC-V\\Decode};
 \node [invisible]   (scalar_decode_ex)      [right=2mm of scalar_decode]    {};
-\node [riscv_stage] (scalar_ex)             [right=5mm of scalar_decode]    {Scalar\\Execute};
-\node [riscv_stage] (scalar_wb)             [right=5mm of scalar_ex]        {Scalar\\Writeback};
+\node [riscv_stage] (scalar_ex)             [right=5mm of scalar_decode]    {RISC-V\\Execute};
+\node [riscv_stage] (scalar_wb)             [right=5mm of scalar_ex]        {RISC-V\\Writeback};
 
 \path let
     \p1 = (scalar_ex.west),
@@ -30,7 +30,7 @@
     \n1 = {\x2-\x1} in
     node [riscv_stage] (scalar_lsu)  [above=3mm of scalar_ex.north west, 
                                       anchor=south west,
-                                      minimum width=\n1]  {Scalar Load store};
+                                      minimum width=\n1]  {RISC-V Load store};
 
 % RISC-V writeback data
 \draw [<-] (scalar_wb.north) to (scalar_wb.north |- scalar_lsu.south);
@@ -46,12 +46,12 @@
 \draw[inner_white] (scalar_decode_ex) |- (scalar_lsu);
 
 % FeNN stages and XIF interface signals
-\node [fenn_stage] (vector_decode)     [below=5mm of scalar_decode]    {Vector\\Decode}
+\node [fenn_stage] (vector_decode)     [below=5mm of scalar_decode]    {FeNN\\Decode}
     edge [<->] node[auto]{Issue} (scalar_decode.south);
 \node [invisible] (vector_decode_ex)      [right=2mm of vector_decode]    {};
-\node [fenn_stage] (vector_ex)    [below=5mm of scalar_ex]   {Vector\\Execute}
+\node [fenn_stage] (vector_ex)    [below=5mm of scalar_ex]   {FeNN\\Execute}
     edge [<-] node[auto]{Commit} (scalar_ex.south);
-\node [fenn_stage] (vector_wb)  [below=5mm of scalar_wb]  {Vector\\Writeback}
+\node [fenn_stage] (vector_wb)  [below=5mm of scalar_wb]  {FeNN\\Writeback}
     edge [<->] node[auto]{Result} (scalar_wb.south);
 
 \path let
@@ -60,7 +60,7 @@
     \n1 = {\x2-\x1} in
     node [fenn_stage] (vector_lsu)  [below=3mm of vector_ex.south west, 
                                      anchor=north west,
-                                     minimum width=\n1]  {Vector Load store};
+                                     minimum width=\n1]  {FeNN Load store};
 
 % FeNN writeback data
 \draw [<-] (vector_wb.south) to (vector_wb.south |- vector_lsu.north);
