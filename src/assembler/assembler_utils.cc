@@ -232,7 +232,7 @@ std::vector<uint32_t> generateStandardKernel(bool simulate, uint32_t readyFlagPt
     return c.getCode();
 }
 //----------------------------------------------------------------------------
-std::vector<uint32_t> generateInitCode(bool simulate, uint32_t startVectorPtr, uint32_t numVectorsPtr, uint32_t readyFlagPtr, uint32_t scalarStartPtr)
+std::vector<uint32_t> generateInitCode(bool simulate, uint32_t startVectorPtr, uint32_t numVectorsPtr, uint32_t readyFlagPtr, uint32_t scalarScratchPtr)
 {
     return generateStandardKernel(
         simulate, readyFlagPtr,
@@ -258,7 +258,7 @@ std::vector<uint32_t> generateInitCode(bool simulate, uint32_t startVectorPtr, u
 
             // Generate copying code
             generateScalarVectorMemcpy(c, vectorRegisterAllocator, scalarRegisterAllocator,
-                                       scalarStartPtr, SStartVectorPtr, SNumVectorsPtr);
+                                       scalarScratchPtr, SStartVectorPtr, SNumVectorsPtr);
         });
 }
 }

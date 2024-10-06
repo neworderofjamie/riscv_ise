@@ -254,6 +254,38 @@ void RISCV::dumpRegisters() const
     }
 }
 //----------------------------------------------------------------------------
+bool RISCV::runInit(const std::vector<uint8_t> &initData, uint32_t startVectorPtr, uint32_t numVectorsScalarPtr, 
+                    uint32_t scratchScalarPtr, uint32_t startVectorDestPtr)
+{
+    // Get pointers to scalar memory where start pointer and count needs setting
+    auto *scalarData = getScalarDataMemory().getData().data();
+    uint32_t *startVector = reinterpret_cast<uint32_t*>(scalarData + startVectorPtr);
+    uint32_t *numVectors = reinterpret_cast<uint32_t*>(scalarData + numVectorsScalarPtr);
+
+    // Loop through vectors to copy
+    const size_t numInitVectors = ceilDivide(initData.size(), 64);
+    LOGI << "Initialising vector memory with " << initData.size() << " bytes (" << numInitVectors << " vectors) of data";
+    const size_t maxVectorsPerBatch = (getScalarDataMemory().getData().size() - scratchScalarPtr) / 64;
+    for(size_t c = 0; c < numInitVectors; c += maxVectorsPerBatch) {
+        const size_t numBatchVectors = std::min(numInitVectors - c, maxVectorsPerBatch);
+        LOGD << "Copying " << numBatchVectors << " vectors of data from scalar to vector memory starting at " << c * 64;
+
+        // Copy block of init data into scalar memory
+        std::copy_n(initData.data() + (c * 64u), numBatchVectors * 64u, scalarData + scratchScalarPtr);
+
+        // Set start and count
+        *startVector = startVectorDestPtr + (c * 64);
+        *numVectors = numBatchVectors;
+
+        // Reset program counter and run
+        setPC(0);
+        if(!run()) {
+            return false;
+        }
+    }
+    return true;
+}
+//----------------------------------------------------------------------------
 void RISCV::resetStats()
 {
     // Reset standard stats

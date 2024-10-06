@@ -600,8 +600,6 @@ int main()
     std::copy(weightInHid.cbegin(), weightInHid.cend(), std::back_inserter(initData));
     std::copy(weightHidOut.cbegin(), weightHidOut.cend(), std::back_inserter(initData));
     std::copy(outputBias.cbegin(), outputBias.cend(), std::back_inserter(initData));
-    const size_t numInitVectors = ceilDivide(initData.size(), 64);
-    LOGI << initData.size() << " bytes (" << numInitVectors << " vectors) of data to copy";
 
     // Generate sim code
     const auto simCode = generateSimCode(simulate, numInput, numHidden, numOutput, numTimesteps,
@@ -618,9 +616,9 @@ int main()
     const uint32_t initStartVectorPtr = 0;
     const uint32_t initNumVectorsPtr = 4;
     const uint32_t initReadyFlagPtr = 8;
-    const uint32_t initScalarStartPtr = 12;
+    const uint32_t initScalarScratchPtr = 12;
     const auto initCode = AssemblerUtils::generateInitCode(simulate, initStartVectorPtr, initNumVectorsPtr, 
-                                                           initReadyFlagPtr, initScalarStartPtr);
+                                                           initReadyFlagPtr, initScalarScratchPtr);
     
     if(simulate) {
         RISCV riscV(initCode, scalarInitData);
@@ -628,35 +626,12 @@ int main()
         // Add vector co-processor
         riscV.addCoprocessor<VectorProcessor>(vectorQuadrant, vectorInitData);
         
-        // Get pointers to scalar memory
-        auto *scalarData = riscV.getScalarDataMemory().getData().data();
-    
-        {
-            // Get pointers to scalar memory where start pointer and count needs setting
-            uint32_t *startVector = reinterpret_cast<uint32_t*>(scalarData + initStartVectorPtr);
-            uint32_t *numVectors = reinterpret_cast<uint32_t*>(scalarData + initNumVectorsPtr);
-
-            // Loop through vectors to copy
-            const size_t maxVectorsPerBatch = (scalarInitData.size() - initScalarStartPtr) / 64;
-            for(size_t c = 0; c < numInitVectors; c += maxVectorsPerBatch) {
-                const uint32_t numBatchVectors = std::min(numInitVectors - c, maxVectorsPerBatch);
-                LOGI << "Copying " << numBatchVectors << " vectors of data from scalar to vector memory starting at " << c * 64;
-
-                // Copy block of init data into scalar memory
-                std::copy_n(initData.data() + (c * 64u), numBatchVectors * 64u, scalarData + initScalarStartPtr);
-
-                // Set start and count
-                *startVector = weightInHidPtr + (c * 64);
-                *numVectors = numBatchVectors;
-
-                // Reset program counter and run
-                riscV.setPC(0);
-                if(!riscV.run()) {
-                    return 1;
-                }
-            }
+        // Run kernels to copy initData into vector memory
+        if(!riscV.runInit(initData, initStartVectorPtr, initNumVectorsPtr, initScalarScratchPtr, weightInHidPtr)) {
+            return 1;
         }
-
+            
+        // Reset stats for simulations
         riscV.resetStats();
 
         // Load simulation program
@@ -669,8 +644,10 @@ int main()
         ///hiddenSpikeRecording.reserve(79 * numHiddenSpikeWords);
 
         // From these, get pointers to data structures
+        // 
         //const uint32_t *inputSpikeWords = reinterpret_cast<const uint32_t*>(scalarData + inputSpikePtr);
         //const uint32_t *hiddenSpikeWords = reinterpret_cast<const uint32_t*>(scalarData + hiddenSpikePtr);
+        auto *scalarData = riscV.getScalarDataMemory().getData().data();
         const int16_t *outputVSum = reinterpret_cast<const int16_t*>(scalarData + outputVSumScalarPtr);
 
         // Loop through examples
@@ -733,29 +710,8 @@ int main()
             LOGI << "Copying init instructions (" << initCode.size() * sizeof(uint32_t) << " bytes)";
             device.uploadCode(initCode);
 
-            // Get pointers to scalar memory where start pointer and count needs setting
-            volatile uint32_t *startVector = reinterpret_cast<volatile uint32_t*>(device.getDataMemory() + initStartVectorPtr);
-            volatile uint32_t *numVectors = reinterpret_cast<volatile  uint32_t*>(device.getDataMemory() + initNumVectorsPtr);
-            volatile uint32_t *readyFlag = reinterpret_cast<volatile  uint32_t*>(device.getDataMemory() + initReadyFlagPtr);
-
-            // Loop through vectors to copy
-            const size_t maxVectorsPerBatch = (scalarInitData.size() - initScalarStartPtr) / 64;
-            for(size_t c = 0; c < numInitVectors; c += maxVectorsPerBatch) {
-                const size_t numBatchVectors = std::min(numInitVectors - c, maxVectorsPerBatch);
-                LOGI << "Copying " << numBatchVectors << " vectors of data from scalar to vector memory starting at " << c * 64;
-
-                // Copy block of init data into scalar memory
-                device.memcpyDataToDevice(initScalarStartPtr, initData.data() + (c * 64), numBatchVectors * 64);
-
-                // Set start and count
-                *startVector = weightInHidPtr + (c * 64);
-                *numVectors = numBatchVectors;
-
-                // Enable device, wait for flag and disable again
-                device.setReset(true);
-                device.waitOnNonZero(readyFlagPtr);
-                device.setReset(false);
-            }
+            // Run kernels to copy initData into vector memory
+            device.runInit(initData, initStartVectorPtr, initNumVectorsPtr, initScalarScratchPtr, weightInHidPtr, initReadyFlagPtr);
         }
         
         // Simulation

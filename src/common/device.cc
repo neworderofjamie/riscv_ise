@@ -18,6 +18,12 @@
     #include <sys/mman.h>
 #endif
 
+// PLOG includes
+#include <plog/Log.h>
+
+// RISC-V common includes
+#include "common/utils.h"
+
 //----------------------------------------------------------------------------
 // Anonymous namespace
 //----------------------------------------------------------------------------
@@ -97,6 +103,35 @@ void Device::waitOnNonZero(uint32_t address) const
     volatile const uint32_t *data = reinterpret_cast<const uint32_t*>(m_DataMemory + address);
     while(*data == 0){
         std::this_thread::sleep_for(std::chrono::microseconds{10});
+    }
+}
+//----------------------------------------------------------------------------
+void Device::runInit(const std::vector<uint8_t> &initData, uint32_t startVectorPtr, uint32_t numVectorsScalarPtr, 
+                     uint32_t scratchScalarPtr, uint32_t startVectorDestPtr, uint32_t readyFlagPtr)
+{
+    // Get pointers to scalar memory where start pointer and count needs setting
+    volatile uint32_t *startVector = reinterpret_cast<volatile uint32_t*>(m_DataMemory + startVectorPtr);
+    volatile uint32_t *numVectors = reinterpret_cast<volatile uint32_t*>(m_DataMemory + numVectorsScalarPtr);
+
+    // Loop through vectors to copy
+    const size_t numInitVectors = ceilDivide(initData.size(), 64);
+    LOGI << "Initialising vector memory with " << initData.size() << " bytes (" << numInitVectors << " vectors) of data";
+    const size_t maxVectorsPerBatch = (dataSize - scratchScalarPtr) / 64;
+    for(size_t c = 0; c < numInitVectors; c += maxVectorsPerBatch) {
+        const size_t numBatchVectors = std::min(numInitVectors - c, maxVectorsPerBatch);
+        LOGI << "Copying " << numBatchVectors << " vectors of data from scalar to vector memory starting at " << c * 64;
+
+        // Copy block of init data into scalar memory
+        memcpyDataToDevice(scratchScalarPtr, initData.data() + (c * 64), numBatchVectors * 64);
+
+        // Set start and count
+        *startVector = startVectorDestPtr + (c * 64);
+        *numVectors = numBatchVectors;
+
+        // Enable device, wait for flag and disable again
+        setReset(true);
+        waitOnNonZero(readyFlagPtr);
+        setReset(false);
     }
 }
 //----------------------------------------------------------------------------

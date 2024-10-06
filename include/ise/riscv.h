@@ -103,6 +103,12 @@ public:
     bool run();
     void dumpRegisters() const;
 
+    // Copy block of init data to startVectorDestPtr in vector memory using initialistion kernel. 
+    // This works by copying blocks of data, starting at scratchScalarPtr in scalar memory up until it's end.
+    // startVectorPtr and numVectorsScalarPtr point to words in memory used to communicate with kernel
+    bool runInit(const std::vector<uint8_t> &initData, uint32_t startVectorPtr, uint32_t numVectorsScalarPtr, 
+                 uint32_t scratchScalarPtr, uint32_t startVectorDestPtr);
+
     template<typename T, typename... CoprocessorArgs>
     void addCoprocessor(uint32_t quadrant, CoprocessorArgs&&... coprocessorArg)
     {
