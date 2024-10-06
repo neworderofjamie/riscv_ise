@@ -127,3 +127,32 @@ void Device::uploadData(const std::vector<uint8_t> &data)
         *dMem++ = d;
     }
 }
+//----------------------------------------------------------------------------
+void Device::memcpyDataToDevice(size_t destinationOffset, const uint8_t *source, size_t count)
+{
+    // Check destination offset is valid
+    if((destinationOffset + count) >= dataSize) {
+        throw std::runtime_error("Destination address out of range");
+    }
+
+    // Copy data from source to data memory
+    volatile uint8_t *destination = m_DataMemory + destinationOffset;
+    for(size_t i = 0; i < count; i++) {
+        *destination++ = *source++;
+    }
+}
+//----------------------------------------------------------------------------
+void Device::memcpyDataFromDevice(uint8_t *destination, size_t sourceOffset, size_t count) const
+{
+    // Check source offset is valid
+    if((sourceOffset + count) >= dataSize) {
+        throw std::runtime_error("Source address out of range");
+    }
+
+    // Copy data from source to data memory
+    volatile const uint8_t *source = m_DataMemory + sourceOffset;
+    for(size_t i = 0; i < count; i++) {
+        *destination++ = *source++;
+    }
+}
+//----------------------------------------------------------------------------
