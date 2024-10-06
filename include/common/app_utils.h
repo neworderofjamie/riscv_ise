@@ -39,4 +39,27 @@ void writeSpikes(std::ofstream &os, const volatile uint32_t *data,
 // Dump word-based data to a Vivado-format COE file
 void dumpCOE(const std::string &filename, const std::vector<uint32_t> &code);
 
+// Load binary file into vector
+template<typename T>
+std::vector<T> loadBinaryData(const std::string &filename)
+{
+    std::ifstream input(filename, std::ios::binary);
+
+    // Get length
+    input.seekg (0, std::ios::end);
+    const auto lengthBytes = input.tellg();
+    input.seekg (0, std::ios::beg);
+
+    // Check contents is half-word aligned
+    assert((lengthBytes % sizeof(T)) == 0);
+
+    // Create vector
+    std::vector<T> data(lengthBytes / sizeof(T), 0);
+
+    // Read data directly into it
+    input.read(reinterpret_cast<char*>(data.data()), lengthBytes);
+
+    return data;
+}
+
 }
