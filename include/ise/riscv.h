@@ -23,6 +23,8 @@ public:
 
     uint32_t getInstruction(uint32_t addr) const;
 
+    void setInstructions(const std::vector<uint32_t> &instructions){ m_Instructions = instructions; }
+
 private:
     std::vector<uint32_t> m_Instructions;
 };
@@ -119,6 +121,9 @@ public:
         return dynamic_cast<const T*>(m_Coprocessors[quadrant].get());
     }
     
+    auto &getInstructionMemory(){ return m_InstructionMemory; }
+    const auto &getInstructionMemory() const{ return m_InstructionMemory; }
+
     auto &getScalarDataMemory(){ return m_ScalarDataMemory; }
     const auto &getScalarDataMemory() const{ return m_ScalarDataMemory; }
 
