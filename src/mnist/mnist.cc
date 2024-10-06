@@ -21,6 +21,7 @@
 
 // RISC-V assembler includes
 #include "assembler/assembler.h"
+#include "assembler/assembler_utils.h"
 #include "assembler/register_allocator.h"
 
 // RISC-V ISE includes
@@ -150,7 +151,7 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
             if(numPost > 32) {
                 ALLOCATE_VECTOR(VWeight);
                 ALLOCATE_VECTOR(VISyn);
-                AppUtils::unrollVectorLoopBody(
+                AssemblerUtils::unrollVectorLoopBody(
                     c, numPost, 4, *SISynBuffer, *SISynBufferEnd,
                     [SWeightBuffer, SISynBuffer, VWeight, VISyn]
                     (CodeGenerator &c, uint32_t r)
@@ -224,24 +225,28 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
     c.L(wordEnd);
 }
 
-CodeGenerator generateInitCode(uint32_t numInput, uint32_t numHidden, uint32_t numOutput,
-                               uint32_t weightInHidVectorPtr, uint32_t weightHidOutVectorPtr, uint32_t outputBiasVectorPtr,
-                               uint32_t weightInHidScalarPtr, uint32_t weightHidOutScalarPtr, uint32_t outputBiasScalarPtr)
+CodeGenerator generateInitCode(uint32_t startVectorPtr, uint32_t numVectorPtr)
 {
     CodeGenerator c;
     VectorRegisterAllocator vectorRegisterAllocator;
     ScalarRegisterAllocator scalarRegisterAllocator;
     
+    // Register allocation
+    ALLOCATE_SCALAR(SStartVectorPtr);
+    ALLOCATE_SCALAR(SNumVectorPtr);
+    ALLOCATE_SCALAR(SAddr);
+
+    // Load pointer to vector memory start address
+    c.li(*SAddr, startVectorPtr);
+    c.lw(*SStartVectorPtr, *SAddr);
+
+    c.li(*SAddr, numVectorPtr);
+    c.lw(*SNumVectorPtr, *SAddr);
+
+
     // Generate copying code
-    AppUtils::generateScalarVectorMemcpy(c, vectorRegisterAllocator, scalarRegisterAllocator,
-                                         weightInHidScalarPtr, weightInHidVectorPtr, 
-                                         ceilDivide(numHidden, 32) * numInput);
-    AppUtils::generateScalarVectorMemcpy(c, vectorRegisterAllocator, scalarRegisterAllocator,
-                                         weightHidOutScalarPtr, weightHidOutVectorPtr, 
-                                         ceilDivide(numOutput, 32) * numHidden);
-    AppUtils::generateScalarVectorMemcpy(c, vectorRegisterAllocator, scalarRegisterAllocator,
-                                         outputBiasScalarPtr, outputBiasVectorPtr, 
-                                         ceilDivide(numOutput, 32));
+    AssemblerUtils::generateScalarVectorMemcpy(c, vectorRegisterAllocator, scalarRegisterAllocator,
+                                               0, SStartVectorPtr, SNumVectorPtr);
     return c;
 }
 
@@ -339,7 +344,7 @@ CodeGenerator generateSimCode(bool simulate, uint32_t numInput, uint32_t numHidd
 
             // Input neuron loop
             // **OPTIMIZE** this is technically not necessary at all, could just point point static pulse at buffer
-            AppUtils::unrollLoopBody(
+            AssemblerUtils::unrollLoopBody(
                 c, numInputSpikeWords, 25, *SSpikeBuffer, *SSpikeBufferEnd,
                 [&scalarRegisterAllocator, SSpikeBuffer, SSpikeArrayBuffer]
                 (CodeGenerator &c, uint32_t r)
@@ -395,7 +400,7 @@ CodeGenerator generateSimCode(bool simulate, uint32_t numInput, uint32_t numHidd
             c.li(*SRefracTimeBuffer, hiddenRefracTimePtr);
             c.li(*SSpikeBuffer, hiddenSpikePtr);
                  
-            AppUtils::unrollVectorLoopBody(
+            AssemblerUtils::unrollVectorLoopBody(
                 c, numHidden, 4, *SVBuffer, *SVBufferEnd,
                 [&scalarRegisterAllocator, &vectorRegisterAllocator,
                  hiddenFixedPoint, 
@@ -626,12 +631,16 @@ int main()
     constexpr uint32_t numOutputSpikeWords = ceilDivide(numOutput, 32);
     constexpr uint32_t numInputSpikeArrayWords = numInputSpikeWords * numTimesteps;
 
-    // Load vector data
+    // Allocate vector arrays
+    // **NOTE** these are adjacent so data can be block-copied from scalar memory
+    //const uint32_t weightInHidPtr = AppUtils::allocateVectorAndZero(numInput * numHiddenSpikeWords, vectorInitData);
+    //const uint32_t weightHidOutPtr = AppUtils::allocateVectorAndZero(numHidden * numOutputSpikeWords, vectorInitData);
+    //const uint32_t outputBiasPtr = AppUtils::allocateVectorAndZero(numOutputSpikeWords, vectorInitData);
     const uint32_t weightInHidPtr = AppUtils::loadVectors("mnist_in_hid.bin", vectorInitData);
     const uint32_t weightHidOutPtr = AppUtils::loadVectors("mnist_hid_out.bin", vectorInitData);
     const uint32_t outputBiasPtr = AppUtils::loadVectors("mnist_bias.bin", vectorInitData);
     
-    // Allocate additional vector arrays
+    
     const uint32_t hiddenIsynPtr = AppUtils::allocateVectorAndZero(numHidden, vectorInitData);
     const uint32_t hiddenVPtr = AppUtils::allocateVectorAndZero(numHidden, vectorInitData);
     const uint32_t hiddenRefracTimePtr = AppUtils::allocateVectorAndZero(numHidden, vectorInitData);

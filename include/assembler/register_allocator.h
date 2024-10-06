@@ -54,6 +54,8 @@ public:
         RegisterAllocator<T> &m_Parent;
     };
 
+    using RegisterPtr =  std::shared_ptr<Handle>;
+
     RegisterAllocator(uint32_t initialFreeRegisters = 0xFFFFFFFFu)
     :   m_FreeRegisters(initialFreeRegisters), m_MaxUsedRegisters(0)
     {
@@ -62,7 +64,7 @@ public:
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
-    std::shared_ptr<Handle> getRegister(const char *context = nullptr)
+    RegisterPtr getRegister(const char *context = nullptr)
     {
         if(m_FreeRegisters == 0) {
             throw std::runtime_error("Out of registers");

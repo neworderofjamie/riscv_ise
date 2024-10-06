@@ -12,10 +12,12 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="assembler.cc" />
+    <ClCompile Include="assembler_utils.cc" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\assembler\assembler.h" />
     <ClInclude Include="..\..\include\assembler\register_allocator.h" />
+    <ClInclude Include="..\..\include\assembler\assembler_utils.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>

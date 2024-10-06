@@ -18,12 +18,18 @@
     <ClCompile Include="assembler.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="assembler_utils.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\assembler\assembler.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\assembler\register_allocator.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\assembler\assembler_utils.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

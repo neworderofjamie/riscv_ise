@@ -4,13 +4,11 @@
 #include <fstream>
 #include <functional>
 #include <string>
+#include <variant>
 #include <vector>
 
 // Standard C includes
 #include <cstdint>
-
-// Common includes
-#include "common/isa.h"
 
 // Forward declations
 class CodeGenerator;
@@ -41,23 +39,4 @@ void writeSpikes(std::ofstream &os, const volatile uint32_t *data,
 // Dump word-based data to a Vivado-format COE file
 void dumpCOE(const std::string &filename, const std::vector<uint32_t> &code);
 
-// Generate
-void generateScalarVectorMemcpy(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator,
-                                ScalarRegisterAllocator &scalarRegisterAllocator,
-                                uint32_t scalarPtr, uint32_t vectorPtr, uint32_t numVectors);
-
-void generateVectorScalarMemcpy(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator,
-                                ScalarRegisterAllocator &scalarRegisterAllocator,
-                                uint32_t vectorPtr, uint32_t scalarPtr, uint32_t numVectors);
-
-// Generate an unrolled loop body
-void unrollLoopBody(CodeGenerator &c, uint32_t numIterations, uint32_t maxUnroll, 
-                    Reg testBufferReg, Reg testBufferEndReg, 
-                    std::function<void(CodeGenerator&, uint32_t)> genBodyFn, 
-                    std::function<void(CodeGenerator&, uint32_t)> genTailFn);
-
-void unrollVectorLoopBody(CodeGenerator &c, uint32_t numIterations, uint32_t maxUnroll, 
-                          Reg testBufferReg, Reg testBufferEndReg, 
-                          std::function<void(CodeGenerator&, uint32_t)> genBodyFn, 
-                          std::function<void(CodeGenerator&, uint32_t)> genTailFn);
 }
