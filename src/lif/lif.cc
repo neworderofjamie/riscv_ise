@@ -20,108 +20,83 @@
 #include "ise/riscv.h"
 #include "ise/vector_processor.h"
 
-CodeGenerator generateCode(uint32_t numTimesteps, uint32_t inputCurrentVectorPtr, uint32_t inputCurrentScalarPtr,
-                           uint32_t voltageRecordingPtr, uint32_t spikeRecordingPtr, uint32_t readyFlagPtr,
-                           bool simulate)
+std::vector<uint32_t> generateCode(uint32_t numTimesteps, uint32_t inputCurrentVectorPtr, uint32_t inputCurrentScalarPtr,
+                                   uint32_t voltageRecordingPtr, uint32_t spikeRecordingPtr, uint32_t readyFlagPtr,
+                                   bool simulate)
 {
-    CodeGenerator c;
-    VectorRegisterAllocator vectorRegisterAllocator;
-    ScalarRegisterAllocator scalarRegisterAllocator;
-
-    // Generate code to copy vector of currents from scalar memory to vector memory
-    AssemblerUtils::generateScalarVectorMemcpy(c, vectorRegisterAllocator, scalarRegisterAllocator,
-                                               inputCurrentScalarPtr, inputCurrentVectorPtr, 1);
-
-    // Register allocation
-    ALLOCATE_SCALAR(SIBuffer);
-    ALLOCATE_SCALAR(SVBuffer);
-    ALLOCATE_SCALAR(SVBufferEnd);
-    ALLOCATE_SCALAR(SSpikeBuffer);
-    ALLOCATE_SCALAR(SReadyFlagBuffer);
-    ALLOCATE_VECTOR(VAlpha);
-    ALLOCATE_VECTOR(VV);
-    ALLOCATE_VECTOR(VVReset);
-    ALLOCATE_VECTOR(VVThresh);
-    ALLOCATE_VECTOR(VI);
-
-    // Labels
-    Label loop;
-    Label spin;
-
-    // Load pointers
-    c.li(*SIBuffer, inputCurrentVectorPtr);
-    c.li(*SSpikeBuffer, spikeRecordingPtr);
-    c.li(*SVBuffer, voltageRecordingPtr);
-    c.li(*SVBufferEnd, voltageRecordingPtr + (numTimesteps * 64));
-    c.li(*SReadyFlagBuffer, readyFlagPtr);
-
-    // Clear ready flag
-    c.sw(Reg::X0, *SReadyFlagBuffer);
-
-    // alpha = e^(-1/20)
-    c.vlui(*VAlpha, 7792);
-    
-    // v = 0
-    c.vlui(*VV, 0);
-    
-    // v_thresh = 1
-    c.vlui(*VVThresh, 8192);
-
-    // v_reset = 0
-    c.vlui(*VVReset, 0);
-    
-    // i = vmem[0..32]
-    c.vloadv(*VI, *SIBuffer);
-
-    // Loop over time
-    c.L(loop);
-    {
-        // Register allocation
-        ALLOCATE_SCALAR(SSpike);
-
-        // v *= alpha
-        c.vmul(13, *VV, *VV, *VAlpha);
-    
-        // v += i
-        c.vadd(*VV, *VV, *VI);
-    
-        // spike = VV >= VThres
-        c.vtge(*SSpike, *VV, *VVThresh);
-    
-        // v = spk ? v_reset : v
-        c.vsel(*VV, *SSpike, *VVReset);
-
-        // Store spike vector to buffer
-        c.sw(*SSpike, *SSpikeBuffer);
-        c.addi(*SSpikeBuffer, *SSpikeBuffer, 4);
-        
-        //vmem[a...a+32] = v
-        c.vstore(*VV, *SVBuffer);
-        c.addi(*SVBuffer, *SVBuffer, 64);
-    
-        // While x2 (address) < x1 (count), goto loop
-        c.bne(*SVBuffer, *SVBufferEnd, loop);
-    }
-
-    // Set ready flag
-    {
-        ALLOCATE_SCALAR(STmp);
-        c.li(*STmp, 1);
-        c.sw(*STmp, *SReadyFlagBuffer);
-    }
-
-    // If we're simulating, make ecall
-    if(simulate) {
-        c.ecall();
-    }
-    // Otherwise, infinite loop
-    else {
-        c.L(spin);
+    return AssemblerUtils::generateStandardKernel(
+        simulate, readyFlagPtr,
+        [=](CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator, ScalarRegisterAllocator &scalarRegisterAllocator)
         {
-            c.j_(spin);
-        }
-    }
-    return c;
+            // Generate code to copy vector of currents from scalar memory to vector memory
+            AssemblerUtils::generateScalarVectorMemcpy(c, vectorRegisterAllocator, scalarRegisterAllocator,
+                                                       inputCurrentScalarPtr, inputCurrentVectorPtr, 1);
+
+            // Register allocation
+            ALLOCATE_SCALAR(SIBuffer);
+            ALLOCATE_SCALAR(SVBuffer);
+            ALLOCATE_SCALAR(SVBufferEnd);
+            ALLOCATE_SCALAR(SSpikeBuffer);
+            ALLOCATE_VECTOR(VAlpha);
+            ALLOCATE_VECTOR(VV);
+            ALLOCATE_VECTOR(VVReset);
+            ALLOCATE_VECTOR(VVThresh);
+            ALLOCATE_VECTOR(VI);
+
+            // Labels
+            Label loop;
+
+            // Load pointers
+            c.li(*SIBuffer, inputCurrentVectorPtr);
+            c.li(*SSpikeBuffer, spikeRecordingPtr);
+            c.li(*SVBuffer, voltageRecordingPtr);
+            c.li(*SVBufferEnd, voltageRecordingPtr + (numTimesteps * 64));
+
+            // alpha = e^(-1/20)
+            c.vlui(*VAlpha, 7792);
+    
+            // v = 0
+            c.vlui(*VV, 0);
+    
+            // v_thresh = 1
+            c.vlui(*VVThresh, 8192);
+
+            // v_reset = 0
+            c.vlui(*VVReset, 0);
+    
+            // i = vmem[0..32]
+            c.vloadv(*VI, *SIBuffer);
+
+            // Loop over time
+            c.L(loop);
+            {
+                // Register allocation
+                ALLOCATE_SCALAR(SSpike);
+
+                // v *= alpha
+                c.vmul(13, *VV, *VV, *VAlpha);
+    
+                // v += i
+                c.vadd(*VV, *VV, *VI);
+    
+                // spike = VV >= VThres
+                c.vtge(*SSpike, *VV, *VVThresh);
+    
+                // v = spk ? v_reset : v
+                c.vsel(*VV, *SSpike, *VVReset);
+
+                // Store spike vector to buffer
+                c.sw(*SSpike, *SSpikeBuffer);
+                c.addi(*SSpikeBuffer, *SSpikeBuffer, 4);
+        
+                //vmem[a...a+32] = v
+                c.vstore(*VV, *SVBuffer);
+                c.addi(*SVBuffer, *SVBuffer, 64);
+    
+                // While x2 (address) < x1 (count), goto loop
+                c.bne(*SVBuffer, *SVBufferEnd, loop);
+            }
+        });
 }
 
 void recordSpikes(const volatile uint32_t *spikeRecordingData, uint32_t numTimesteps)
@@ -182,7 +157,7 @@ int main()
 
     // Generate code
     const auto code = generateCode(numTimesteps, inputCurrentVectorPtr, inputCurrentScalarPtr,
-                                   voltageRecordingPtr, spikeRecordingPtr, readyFlagPtr, simulate).getCode();
+                                   voltageRecordingPtr, spikeRecordingPtr, readyFlagPtr, simulate);
 
     // Dump to coe file
     //AppUtils::dumpCOE("lif.coe", code);

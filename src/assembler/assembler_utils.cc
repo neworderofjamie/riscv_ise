@@ -182,4 +182,53 @@ void unrollVectorLoopBody(CodeGenerator &c, uint32_t numIterations, uint32_t max
                    genBodyFn, genTailFn);
 
 }
+//----------------------------------------------------------------------------
+std::vector<uint32_t> generateStandardKernel(bool simulate, uint32_t readyFlagPtr, 
+                                             std::function<void(CodeGenerator&, VectorRegisterAllocator&, ScalarRegisterAllocator&)> genBodyFn)
+{
+    CodeGenerator c;
+    VectorRegisterAllocator vectorRegisterAllocator;
+    ScalarRegisterAllocator scalarRegisterAllocator;
+    
+    // If we're simulating, generate body and add ecall instruction
+    if(simulate) {
+        genBodyFn(c, vectorRegisterAllocator, scalarRegisterAllocator);
+        c.ecall();
+    }
+    // Otherwise
+    else {
+        // Register allocation
+        ALLOCATE_SCALAR(SReadyFlagBuffer);
+
+        // Labels
+        Label spinLoop;
+
+        // Load ready flag
+        c.li(*SReadyFlagBuffer, readyFlagPtr);
+        
+        // Clear ready flag
+        c.sw(Reg::X0, *SReadyFlagBuffer);
+
+        // Generate body
+        genBodyFn(c, vectorRegisterAllocator, scalarRegisterAllocator);
+
+        // Set ready flag
+        {
+            ALLOCATE_SCALAR(STmp);
+            c.li(*STmp, 1);
+            c.sw(*STmp, *SReadyFlagBuffer);
+        }
+
+        // Infinite loop
+        c.L(spinLoop);
+        {
+            c.j_(spinLoop);
+        }
+    }
+
+    LOGI << "Max vector registers used: " << vectorRegisterAllocator.getMaxUsedRegisters();
+    LOGI << "Max scalar registers used: " << scalarRegisterAllocator.getMaxUsedRegisters();
+
+    return c.getCode();
+}
 }

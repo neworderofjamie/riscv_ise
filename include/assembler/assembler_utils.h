@@ -41,4 +41,7 @@ void unrollVectorLoopBody(CodeGenerator &c, uint32_t numIterations, uint32_t max
                           Reg testBufferReg, Reg testBufferEndReg, 
                           std::function<void(CodeGenerator&, uint32_t)> genBodyFn, 
                           std::function<void(CodeGenerator&, uint32_t)> genTailFn);
+
+std::vector<uint32_t> generateStandardKernel(bool simulate, uint32_t readyFlagPtr, 
+                                             std::function<void(CodeGenerator&, VectorRegisterAllocator&, ScalarRegisterAllocator&)> genBodyFn);
 }
