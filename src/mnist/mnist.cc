@@ -203,36 +203,6 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
     c.L(wordEnd);
 }
 
-std::vector<uint32_t> generateInitCode(bool simulate, uint32_t startVectorPtr, uint32_t numVectorsPtr, uint32_t readyFlagPtr, uint32_t scalarStartPtr)
-{
-    return AssemblerUtils::generateStandardKernel(
-        simulate, readyFlagPtr,
-        [=](CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator, ScalarRegisterAllocator &scalarRegisterAllocator)
-        {
-            // Register allocation
-            ALLOCATE_SCALAR(SNumVectorsPtr);
-            ALLOCATE_SCALAR(SStartVectorPtr);
-
-            // Load pointer to vector memory start address
-            {
-                ALLOCATE_SCALAR(STmp);
-                c.li(*STmp, startVectorPtr);
-                c.lw(*SStartVectorPtr, *STmp);
-            }
-
-            // Load count of number of vectors
-            {
-                ALLOCATE_SCALAR(STmp);
-                c.li(*STmp, numVectorsPtr);
-                c.lw(*SNumVectorsPtr, *STmp);
-            }
-
-            // Generate copying code
-            AssemblerUtils::generateScalarVectorMemcpy(c, vectorRegisterAllocator, scalarRegisterAllocator,
-                                                       scalarStartPtr, SStartVectorPtr, SNumVectorsPtr);
-        });
-}
-
 std::vector<uint32_t> generateSimCode(bool simulate, uint32_t numInput, uint32_t numHidden, uint32_t numOutput, uint32_t numTimesteps,
                                       uint32_t hiddenFixedPoint, uint32_t outFixedPoint, uint32_t numInputSpikeWords,
                                       uint32_t numHiddenSpikeWords,  uint32_t weightInHidPtr, uint32_t weightHidOutPtr, 
@@ -545,7 +515,7 @@ std::vector<uint32_t> generateSimCode(bool simulate, uint32_t numInput, uint32_t
                 c.vloadv(*VVSum, *SVSumBuffer, 0);
 
                 // Unroll lane loop
-                for(int l = 0; l < numOutput; l++) {
+                for(uint32_t l = 0; l < numOutput; l++) {
                     // Register allocation
                     ALLOCATE_SCALAR(SVal);
             
@@ -630,7 +600,7 @@ int main()
     std::copy(weightInHid.cbegin(), weightInHid.cend(), std::back_inserter(initData));
     std::copy(weightHidOut.cbegin(), weightHidOut.cend(), std::back_inserter(initData));
     std::copy(outputBias.cbegin(), outputBias.cend(), std::back_inserter(initData));
-    const uint32_t numInitVectors = ceilDivide(initData.size(), 64);
+    const size_t numInitVectors = ceilDivide(initData.size(), 64);
     LOGI << initData.size() << " bytes (" << numInitVectors << " vectors) of data to copy";
 
     // Generate sim code
@@ -649,8 +619,8 @@ int main()
     const uint32_t initNumVectorsPtr = 4;
     const uint32_t initReadyFlagPtr = 8;
     const uint32_t initScalarStartPtr = 12;
-    const auto initCode = generateInitCode(simulate, initStartVectorPtr, initNumVectorsPtr, 
-                                           initReadyFlagPtr, initScalarStartPtr);
+    const auto initCode = AssemblerUtils::generateInitCode(simulate, initStartVectorPtr, initNumVectorsPtr, 
+                                                           initReadyFlagPtr, initScalarStartPtr);
     
     if(simulate) {
         RISCV riscV(initCode, scalarInitData);
@@ -667,8 +637,8 @@ int main()
             uint32_t *numVectors = reinterpret_cast<uint32_t*>(scalarData + initNumVectorsPtr);
 
             // Loop through vectors to copy
-            const uint32_t maxVectorsPerBatch = (scalarInitData.size() - initScalarStartPtr) / 64;
-            for(uint32_t c = 0; c < numInitVectors; c += maxVectorsPerBatch) {
+            const size_t maxVectorsPerBatch = (scalarInitData.size() - initScalarStartPtr) / 64;
+            for(size_t c = 0; c < numInitVectors; c += maxVectorsPerBatch) {
                 const uint32_t numBatchVectors = std::min(numInitVectors - c, maxVectorsPerBatch);
                 LOGI << "Copying " << numBatchVectors << " vectors of data from scalar to vector memory starting at " << c * 64;
 
@@ -769,9 +739,9 @@ int main()
             volatile uint32_t *readyFlag = reinterpret_cast<volatile  uint32_t*>(device.getDataMemory() + initReadyFlagPtr);
 
             // Loop through vectors to copy
-            const uint32_t maxVectorsPerBatch = (scalarInitData.size() - initScalarStartPtr) / 64;
-            for(uint32_t c = 0; c < numInitVectors; c += maxVectorsPerBatch) {
-                const uint32_t numBatchVectors = std::min(numInitVectors - c, maxVectorsPerBatch);
+            const size_t maxVectorsPerBatch = (scalarInitData.size() - initScalarStartPtr) / 64;
+            for(size_t c = 0; c < numInitVectors; c += maxVectorsPerBatch) {
+                const size_t numBatchVectors = std::min(numInitVectors - c, maxVectorsPerBatch);
                 LOGI << "Copying " << numBatchVectors << " vectors of data from scalar to vector memory starting at " << c * 64;
 
                 // Copy block of init data into scalar memory
