@@ -20,33 +20,13 @@
 
 // RISC-V assembler includes
 #include "assembler/assembler.h"
+#include "assembler/assembler_utils.h"
 #include "assembler/register_allocator.h"
 
 // RISC-V ISE includes
 #include "ise/riscv.h"
 #include "ise/vector_processor.h"
 
-template<typename T>
-std::vector<T> loadData(const std::string &filename)
-{
-    std::ifstream input(filename, std::ios::binary);
-
-    // Get length
-    input.seekg (0, std::ios::end);
-    const auto lengthBytes = input.tellg();
-    input.seekg (0, std::ios::beg);
-
-    // Check contents is half-word aligned
-    assert((lengthBytes % sizeof(T)) == 0);
-
-    // Create vector
-    std::vector<T> data(lengthBytes / sizeof(T), 0);
-
-    // Read data directly into it
-    input.read(reinterpret_cast<char*>(data.data()), lengthBytes);
-
-    return data;
-}
 
 struct StaticPulseTarget
 {
@@ -173,7 +153,7 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
                 if(t.numPost > 32) {
                     ALLOCATE_VECTOR(VWeight);
                     ALLOCATE_VECTOR(VISyn);
-                    AppUtils::unrollLoopBody(
+                    AssemblerUtils::unrollLoopBody(
                         c, t.numPost, 4, *iReg.first, *iReg.second,
                         [&iReg, SWeightBuffer, VWeight, VISyn]
                         (CodeGenerator &c, uint32_t r)
@@ -302,8 +282,8 @@ int main()
     const uint32_t hiddenSpikePtr = AppUtils::allocateScalarAndZero(numHiddenSpikeWords * 4, scalarInitData);
 
     // Load data (this is streamed)
-    const auto shdSpikes = loadData<uint32_t>("shd_spikes.bin");
-    const auto shdLabels = loadData<int16_t>("shd_labels.bin");
+    const auto shdSpikes = AppUtils::loadBinaryData<uint32_t>("shd_spikes.bin");
+    const auto shdLabels = AppUtils::loadBinaryData<int16_t>("shd_labels.bin");
 
     CodeGenerator c;
     {
@@ -394,7 +374,7 @@ int main()
 
                 // Input neuron loop
                 // **OPTIMIZE** this is technically not necessary at all, could just point point static pulse at buffer
-                AppUtils::unrollLoopBody(
+                AssemblerUtils::unrollLoopBody(
                     c, numInputSpikeWords, 22, *SSpikeBuffer, *SSpikeBufferEnd,
                     [&scalarRegisterAllocator, SSpikeBuffer, SSpikeArrayBuffer]
                     (CodeGenerator &c, uint32_t r)
@@ -463,9 +443,10 @@ int main()
                 c.li(*SSpikeBuffer, hiddenSpikePtr);
 
                 // Hidden neuron loop
-                AppUtils::unrollVectorLoopBody(
+                AssemblerUtils::unrollVectorLoopBody(
                     c, numHidden, 4, *SVBuffer, *SVBufferEnd,
                     [&scalarRegisterAllocator, &vectorRegisterAllocator,
+                    hiddenAFixedPoint,
                      SABuffer, SISynBuffer, SRefracTimeBuffer, SSpikeBuffer, SVBuffer,
                      VAlpha, VBeta, VDT, VOne, VRho, VTauRefrac, VVThresh, VZero]
                     (CodeGenerator &c, uint32_t r)

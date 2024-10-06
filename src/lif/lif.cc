@@ -13,6 +13,7 @@
 
 // RISC-V assembler includes
 #include "assembler/assembler.h"
+#include "assembler/assembler_utils.h"
 #include "assembler/register_allocator.h"
 
 // RISC-V ISE includes
@@ -28,8 +29,8 @@ CodeGenerator generateCode(uint32_t numTimesteps, uint32_t inputCurrentVectorPtr
     ScalarRegisterAllocator scalarRegisterAllocator;
 
     // Generate code to copy vector of currents from scalar memory to vector memory
-    AppUtils::generateScalarVectorMemcpy(c, vectorRegisterAllocator, scalarRegisterAllocator,
-                                         inputCurrentScalarPtr, inputCurrentVectorPtr, 1);
+    AssemblerUtils::generateScalarVectorMemcpy(c, vectorRegisterAllocator, scalarRegisterAllocator,
+                                               inputCurrentScalarPtr, inputCurrentVectorPtr, 1);
 
     // Register allocation
     ALLOCATE_SCALAR(SIBuffer);
