@@ -118,7 +118,7 @@ void Device::runInit(const std::vector<uint8_t> &initData, uint32_t startVectorP
     LOGI << "Initialising vector memory with " << initData.size() << " bytes (" << numInitVectors << " vectors) of data";
     const size_t maxVectorsPerBatch = (dataSize - scratchScalarPtr) / 64;
     for(size_t c = 0; c < numInitVectors; c += maxVectorsPerBatch) {
-        const size_t numBatchVectors = std::min(numInitVectors - c, maxVectorsPerBatch);
+        const uint32_t numBatchVectors = std::min(numInitVectors - c, maxVectorsPerBatch);
         LOGI << "Copying " << numBatchVectors << " vectors of data from scalar to vector memory starting at " << c * 64;
 
         // Copy block of init data into scalar memory
@@ -146,20 +146,6 @@ void Device::uploadCode(const std::vector<uint32_t> &code)
     volatile uint32_t *iMem = m_InstructionMemory;
     for(uint32_t c : code) { 
         *iMem++ = c;
-    }
-}
-//----------------------------------------------------------------------------
-void Device::uploadData(const std::vector<uint8_t> &data)
-{
-    // Check there is space
-    if(data.size() >= dataSize) {
-        throw std::runtime_error("Insufficient data memory (" + std::to_string(dataSize) + " bytes)");
-    }
-
-    // Copy via volatile pointer to ensure no dumbness
-    volatile uint8_t *dMem = m_DataMemory;
-    for(uint32_t d : data) {
-        *dMem++ = d;
     }
 }
 //----------------------------------------------------------------------------

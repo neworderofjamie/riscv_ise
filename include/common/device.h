@@ -37,7 +37,6 @@ public:
                  uint32_t scratchScalarPtr, uint32_t startVectorDestPtr, uint32_t readyFlagPtr);
 
     void uploadCode(const std::vector<uint32_t> &code);
-    void uploadData(const std::vector<uint8_t> &code);
 
     void memcpyDataToDevice(size_t destinationOffset, const uint8_t *source, size_t count);
     void memcpyDataFromDevice(uint8_t *destination, size_t sourceOffset, size_t count) const;

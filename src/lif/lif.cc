@@ -194,7 +194,7 @@ int main()
         device.uploadCode(code);
         
         LOGI << "Copying data (" << scalarInitData.size() << " bytes);";
-        device.uploadData(scalarInitData);
+        device.memcpyDataToDevice(0, scalarInitData.data(), scalarInitData.size());
         
         LOGI << "Enabling";
         // Put core into running state
