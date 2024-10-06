@@ -47,7 +47,9 @@ void generateScalarVectorMemcpy(CodeGenerator &c, VectorRegisterAllocator &vecto
     }
     // Otherwise, add register to address
     else {
-        c.add(*SVectorBufferEnd, *SVectorBuffer, *std::get<ScalarRegisterAllocator::RegisterPtr>(numVectors));
+        ALLOCATE_SCALAR(STmp);
+        c.slli(*STmp, *std::get<ScalarRegisterAllocator::RegisterPtr>(numVectors), 6);
+        c.add(*SVectorBufferEnd, *SVectorBuffer, *STmp);
     }
 
     // Loop over vectors
