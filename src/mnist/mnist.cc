@@ -28,28 +28,6 @@
 #include "ise/riscv.h"
 #include "ise/vector_processor.h"
 
-template<typename T>
-std::vector<T> loadData(const std::string &filename)
-{
-    std::ifstream input(filename, std::ios::binary);
-
-    // Get length
-    input.seekg (0, std::ios::end);
-    const auto lengthBytes = input.tellg();
-    input.seekg (0, std::ios::beg);
-
-    // Check contents is half-word aligned
-    assert((lengthBytes % sizeof(T)) == 0);
-
-    // Create vector
-    std::vector<T> data(lengthBytes / sizeof(T), 0);
-
-    // Read data directly into it
-    input.read(reinterpret_cast<char*>(data.data()), lengthBytes);
-
-    return data;
-}
-
 void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAllocator,
                     RegisterAllocator<Reg> &scalarRegisterAllocator,
                     uint32_t weightPtr, uint32_t preSpikePtr, uint32_t postISynPtr, 
@@ -225,28 +203,52 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
     c.L(wordEnd);
 }
 
-CodeGenerator generateInitCode(uint32_t startVectorPtr, uint32_t numVectorPtr)
+CodeGenerator generateInitCode(bool simulate, uint32_t startVectorPtr, uint32_t numVectorsPtr, uint32_t readyFlagPtr, uint32_t scalarStartPtr)
 {
     CodeGenerator c;
     VectorRegisterAllocator vectorRegisterAllocator;
     ScalarRegisterAllocator scalarRegisterAllocator;
     
     // Register allocation
+    ALLOCATE_SCALAR(SNumVectorsPtr);
+    ALLOCATE_SCALAR(SReadyFlagBuffer);
     ALLOCATE_SCALAR(SStartVectorPtr);
-    ALLOCATE_SCALAR(SNumVectorPtr);
-    ALLOCATE_SCALAR(SAddr);
 
+    // Labels
+    Label spinLoop;
+
+    // Load ready flag pointer
+    c.li(*SReadyFlagBuffer, readyFlagPtr);
+    
     // Load pointer to vector memory start address
-    c.li(*SAddr, startVectorPtr);
-    c.lw(*SStartVectorPtr, *SAddr);
+    {
+        ALLOCATE_SCALAR(STmp);
+        c.li(*STmp, startVectorPtr);
+        c.lw(*SStartVectorPtr, *STmp);
+    }
 
-    c.li(*SAddr, numVectorPtr);
-    c.lw(*SNumVectorPtr, *SAddr);
-
+    // Load count of number of vectors
+    {
+        ALLOCATE_SCALAR(STmp);
+        c.li(*STmp, numVectorsPtr);
+        c.lw(*SNumVectorsPtr, *STmp);
+    }
 
     // Generate copying code
     AssemblerUtils::generateScalarVectorMemcpy(c, vectorRegisterAllocator, scalarRegisterAllocator,
-                                               0, SStartVectorPtr, SNumVectorPtr);
+                                               scalarStartPtr, SStartVectorPtr, SNumVectorsPtr);
+
+    // If we're simulating, make ecall
+    if(simulate) {
+        c.ecall();
+    }
+    // Otherwise, infinite loop
+    else {
+        c.L(spinLoop);
+        {
+            c.j_(spinLoop);
+        }
+    }
     return c;
 }
 
@@ -633,13 +635,9 @@ int main()
 
     // Allocate vector arrays
     // **NOTE** these are adjacent so data can be block-copied from scalar memory
-    //const uint32_t weightInHidPtr = AppUtils::allocateVectorAndZero(numInput * numHiddenSpikeWords, vectorInitData);
-    //const uint32_t weightHidOutPtr = AppUtils::allocateVectorAndZero(numHidden * numOutputSpikeWords, vectorInitData);
-    //const uint32_t outputBiasPtr = AppUtils::allocateVectorAndZero(numOutputSpikeWords, vectorInitData);
-    const uint32_t weightInHidPtr = AppUtils::loadVectors("mnist_in_hid.bin", vectorInitData);
-    const uint32_t weightHidOutPtr = AppUtils::loadVectors("mnist_hid_out.bin", vectorInitData);
-    const uint32_t outputBiasPtr = AppUtils::loadVectors("mnist_bias.bin", vectorInitData);
-    
+    const uint32_t weightInHidPtr = AppUtils::allocateVectorAndZero(numInput * numHiddenSpikeWords * 32, vectorInitData);
+    const uint32_t weightHidOutPtr = AppUtils::allocateVectorAndZero(numHidden * numOutputSpikeWords * 32, vectorInitData);
+    const uint32_t outputBiasPtr = AppUtils::allocateVectorAndZero(numOutputSpikeWords * 32, vectorInitData);
     
     const uint32_t hiddenIsynPtr = AppUtils::allocateVectorAndZero(numHidden, vectorInitData);
     const uint32_t hiddenVPtr = AppUtils::allocateVectorAndZero(numHidden, vectorInitData);
@@ -656,11 +654,30 @@ int main()
     const uint32_t outputVSumScalarPtr = AppUtils::allocateScalarAndZero(numOutput * 2, scalarInitData);
     const uint32_t readyFlagPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
 
-    // Load data
-    const auto mnistSpikes = loadData<uint32_t>("mnist_spikes.bin");
-    const auto mnistLabels = loadData<int16_t>("mnist_labels.bin");
+    // Increase scalar memory size
+    scalarInitData.resize(64 * 1024, 0);
 
+    // Load data
+    const auto mnistSpikes = AppUtils::loadBinaryData<uint32_t>("mnist_spikes.bin");
+    const auto mnistLabels = AppUtils::loadBinaryData<int16_t>("mnist_labels.bin");
+
+    // Load weights
+    const auto weightInHid = AppUtils::loadBinaryData<uint8_t>("mnist_in_hid.bin");
+    const auto weightHidOut = AppUtils::loadBinaryData<uint8_t>("mnist_hid_out.bin");
+    const auto outputBias = AppUtils::loadBinaryData<uint8_t>("mnist_bias.bin");
+
+    // Check first two are correctly padded
+    assert(weightInHid.size() == numInput * numHiddenSpikeWords * 64);
+    assert(weightHidOut.size() == numHidden * numOutputSpikeWords * 64);
     
+    // Concatenate into single vector
+    std::vector<uint8_t> initData;
+    initData.reserve(weightInHid.size() + weightHidOut.size() + outputBias.size());
+    std::copy(weightInHid.cbegin(), weightInHid.cend(), std::back_inserter(initData));
+    std::copy(weightHidOut.cbegin(), weightHidOut.cend(), std::back_inserter(initData));
+    std::copy(outputBias.cbegin(), outputBias.cend(), std::back_inserter(initData));
+    const uint32_t numInitVectors = ceilDivide(initData.size(), 64);
+    LOGI << initData.size() << " bytes (" << numInitVectors << " vectors) of data to copy";
 
     // Generate sim code
     const auto simCode = generateSimCode(simulate, numInput, numHidden, numOutput, numTimesteps,
@@ -670,25 +687,63 @@ int main()
                                          hiddenRefracTimePtr, outputIsynPtr, outputVPtr, outputVSumPtr,
                                          inputSpikePtr, inputSpikeArrayPtr, hiddenSpikePtr, outputVSumScalarPtr, readyFlagPtr).getCode();
     LOGI << simCode.size() << " simulation instructions";
+    LOGI << scalarInitData.size() << " bytes of scalar memory required";
+    LOGI << vectorInitData.size() * 2 << " bytes of vector memory required (" << ceilDivide(vectorInitData.size() / 32, 4096) << " URAM cascade)";
 
-    //const auto initCode = generateInitCode(numInput, numHidden, numOutput,
-    //                                       weightInHidPtr, weight
+    // Generate initialisation code to copy blocks of data from scalar to vector memory
+    const uint32_t initStartVectorPtr = 0;
+    const uint32_t initNumVectorsPtr = 4;
+    const uint32_t initReadyFlagPtr = 8;
+    const uint32_t initScalarStartPtr = 12;
+    const auto initCode = generateInitCode(simulate, initStartVectorPtr, initNumVectorsPtr, 
+                                           initReadyFlagPtr, initScalarStartPtr).getCode();
     
     if(simulate) {
-        RISCV riscV(simCode, scalarInitData);
+        RISCV riscV(initCode, scalarInitData);
         
         // Add vector co-processor
         riscV.addCoprocessor<VectorProcessor>(vectorQuadrant, vectorInitData);
         
+        // Get pointers to scalar memory
+        auto *scalarData = riscV.getScalarDataMemory().getData().data();
+    
+        {
+            // Get pointers to scalar memory where start pointer and count needs setting
+            uint32_t *startVector = reinterpret_cast<uint32_t*>(scalarData + initStartVectorPtr);
+            uint32_t *numVectors = reinterpret_cast<uint32_t*>(scalarData + initNumVectorsPtr);
+
+            // Loop through vectors to copy
+            const uint32_t maxVectorsPerBatch = (scalarInitData.size() - initScalarStartPtr) / 64;
+            for(uint32_t c = 0; c < numInitVectors; c += maxVectorsPerBatch) {
+                const uint32_t numBatchVectors = std::min(numInitVectors - c, maxVectorsPerBatch);
+                LOGI << "Copying " << numBatchVectors << " vectors of data from scalar to vector memory starting at " << c * 64;
+
+                // Copy block of init data into scalar memory
+                std::copy_n(initData.data() + (c * 64u), numBatchVectors * 64u, scalarData + initScalarStartPtr);
+
+                // Set start and count
+                *startVector = weightInHidPtr + (c * 64);
+                *numVectors = numBatchVectors;
+
+                // Reset program counter and run
+                riscV.setPC(0);
+                if(!riscV.run()) {
+                    return 1;
+                }
+            }
+        }
+
+        riscV.resetStats();
+
+        // Load simulation program
+        riscV.getInstructionMemory().setInstructions(simCode);
+
         // Recording data
         //std::vector<uint32_t> inputSpikeRecording;
         //std::vector<uint32_t> hiddenSpikeRecording;
         //inputSpikeRecording.reserve(79 * numInputSpikeWords);
         ///hiddenSpikeRecording.reserve(79 * numHiddenSpikeWords);
 
-        // Get pointers to scalar and vector memory
-        auto *scalarData = riscV.getScalarDataMemory().getData().data();
- 
         // From these, get pointers to data structures
         //const uint32_t *inputSpikeWords = reinterpret_cast<const uint32_t*>(scalarData + inputSpikePtr);
         //const uint32_t *hiddenSpikeWords = reinterpret_cast<const uint32_t*>(scalarData + hiddenSpikePtr);
@@ -696,7 +751,7 @@ int main()
 
         // Loop through examples
         int numCorrect = 0;
-        for(int i = 0; i < 10000; i++) {
+        for(size_t i = 0; i < 10000; i++) {
             // Show % progress
             const auto iPerc = std::div(i, 100);
             if(iPerc.rem == 0) {
@@ -749,48 +804,81 @@ int main()
         LOGI << "Resetting";
         device.setReset(false);
         
-        LOGI << "Copying instructions (" << simCode.size() * sizeof(uint32_t) << " bytes)";
-        device.uploadCode(simCode);
-        
-        LOGI << "Copying data (" << scalarInitData.size() << " bytes);";
-        device.uploadData(scalarInitData);
-        
-        // Loop through examples
-        int numCorrect = 0;
-        for(int i = 0; i < 10000; i++) {
-            // Show % progress
-            const auto iPerc = std::div(i, 100);
-            if(iPerc.rem == 0) {
-                std:: cout << iPerc.quot << "%" << std::endl;
+        // Initialisation
+        {
+            LOGI << "Copying init instructions (" << initCode.size() * sizeof(uint32_t) << " bytes)";
+            device.uploadCode(initCode);
+
+            // Get pointers to scalar memory where start pointer and count needs setting
+            volatile uint32_t *startVector = reinterpret_cast<volatile uint32_t*>(device.getDataMemory() + initStartVectorPtr);
+            volatile uint32_t *numVectors = reinterpret_cast<volatile  uint32_t*>(device.getDataMemory() + initNumVectorsPtr);
+            volatile uint32_t *readyFlag = reinterpret_cast<volatile  uint32_t*>(device.getDataMemory() + initReadyFlagPtr);
+
+            // Loop through vectors to copy
+            const uint32_t maxVectorsPerBatch = (scalarInitData.size() - initScalarStartPtr) / 64;
+            for(uint32_t c = 0; c < numInitVectors; c += maxVectorsPerBatch) {
+                const uint32_t numBatchVectors = std::min(numInitVectors - c, maxVectorsPerBatch);
+                LOGI << "Copying " << numBatchVectors << " vectors of data from scalar to vector memory starting at " << c * 64;
+
+                // Copy block of init data into scalar memory
+                device.memcpyDataToDevice(initScalarStartPtr, initData.data() + (c * 64), numBatchVectors * 64);
+
+                // Set start and count
+                *startVector = weightInHidPtr + (c * 64);
+                *numVectors = numBatchVectors;
+
+                // Enable device, wait for flag and disable again
+                device.setReset(true);
+                device.waitOnNonZero(readyFlagPtr);
+                device.setReset(false);
             }
-
-            // Put core into running state
-            LOGI << "Enabling";
-            device.setReset(true);
-
-            // Wait until ready flag
-            device.waitOnNonZero(readyFlagPtr);
-
-            // Reset core
-            LOGI << "Disabling";
-            device.setReset(false);
-
-            // Determine if output is correct
-            /*const auto classification = std::distance(outputVSum, std::max_element(outputVSum, outputVSum + 10));
-            if(classification == mnistLabels[i]) {
-                numCorrect++;
-            }
-
-            // Zero output V sum
-            std::fill_n(outputVSum, 10, 0);*/
         }
+        
+        // Simulation
+        {
+            LOGI << "Copying simulation instructions (" << simCode.size() * sizeof(uint32_t) << " bytes)";
+            device.uploadCode(simCode);
 
-        std::cout << numCorrect << " / 10000 correct (" << 100.0 * (numCorrect / 10000.0) << "%)" << std::endl;
+            // Loop through examples
+            int numCorrect = 0;
+            const volatile int16_t *outputVSum = reinterpret_cast<const volatile int16_t*>(device.getDataMemory() + outputVSumScalarPtr);
+            for(size_t i = 0; i < 10000; i++) {
+                // Show % progress
+                const auto iPerc = std::div(i, 100);
+                if(iPerc.rem == 0) {
+                    std:: cout << iPerc.quot << "%" << std::endl;
+                }
+
+                // Copy input spike bits into scalar memory
+                device.memcpyDataToDevice(inputSpikeArrayPtr, 
+                                          reinterpret_cast<const uint8_t*>(mnistSpikes.data() + (numInputSpikeArrayWords * i)),
+                                          numInputSpikeArrayWords * 4);
+
+                // Put core into running state
+                LOGI << "Enabling";
+                device.setReset(true);
+
+                // Wait until ready flag
+                device.waitOnNonZero(readyFlagPtr);
+
+                // Reset core
+                LOGI << "Disabling";
+                device.setReset(false);
+
+                // Determine if output is correct
+                const auto classification = std::distance(outputVSum, std::max_element(outputVSum, outputVSum + 10));
+                if(classification == mnistLabels[i]) {
+                    numCorrect++;
+                }
+            }
+
+            std::cout << numCorrect << " / 10000 correct (" << 100.0 * (numCorrect / 10000.0) << "%)" << std::endl;
         
         
-        // Wait until ready flag
-        //device.waitOnNonZero(readyFlagPtr);
-        LOGI << "Done";
+            // Wait until ready flag
+            //device.waitOnNonZero(readyFlagPtr);
+            LOGI << "Done";
+        }
     }
     return 0;
 }
