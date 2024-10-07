@@ -128,26 +128,33 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
             // Loop over postsynaptic neurons
             if(numPost > 32) {
                 ALLOCATE_VECTOR(VWeight);
-                ALLOCATE_VECTOR(VISyn);
+                ALLOCATE_VECTOR(VISyn1);
+                ALLOCATE_VECTOR(VISyn2);
+
+                // Preload first ISyn to avoid stall
+                c.vloadv(*VISyn1, *SISynBuffer, 0);
+
                 AssemblerUtils::unrollVectorLoopBody(
                     c, numPost, 4, *SISynBuffer, *SISynBufferEnd,
-                    [SWeightBuffer, SISynBuffer, VWeight, VISyn]
+                    [SWeightBuffer, SISynBuffer, VWeight, VISyn1, VISyn2]
                     (CodeGenerator &c, uint32_t r)
                     {
-                        // Load next vector of weights and ISyns
+                        // Load vector of weights
                         c.vloadv(*VWeight, *SWeightBuffer, r * 64);
-                        c.vloadv(*VISyn, *SISynBuffer, r * 64);
 
-                        // **STALL**
-                        c.nop();
-
+                        // Unless this is last unroll, load NEXT vector of ISyn to avoid stall
+                        // **YUCK** in last iteration, while this may not be accessed, it may be out of bounds
+                        const bool even = ((r % 2) == 0);
+                        c.vloadv(even ? *VISyn2 : *VISyn1, *SISynBuffer, (r + 1) * 64);
+                        
                         // Add weights to ISyn
+                        auto VISyn = even ? VISyn1 : VISyn2;
                         c.vadd(*VISyn, *VISyn, *VWeight);
 
                         // Write back ISyn and increment SISynBuffer
                         c.vstore(*VISyn, *SISynBuffer, r * 64);
                     },
-                    [SWeightBuffer, SISynBuffer, VWeight, VISyn]
+                    [SWeightBuffer, SISynBuffer]
                     (CodeGenerator &c, uint32_t numUnrolls)
                     {
                         // Increment pointers 
