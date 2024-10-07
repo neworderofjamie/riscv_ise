@@ -17,6 +17,23 @@
 #include "assembler/register_allocator.h"
 
 //----------------------------------------------------------------------------
+// Anonymous namespace
+//----------------------------------------------------------------------------
+namespace
+{
+void seedRNG(int16_t *seedPointer)
+{
+    // Fill first 64 half words of vector memory with random seed data
+    std::random_device seedSource;
+    for(size_t i = 0; i < 32; i++) {
+        const uint32_t seed = seedSource();
+        *seedPointer++ =  seed & 0xFFFF;
+        *seedPointer++ = (seed >> 16) & 0xFFFF;
+    }
+}
+}
+
+//----------------------------------------------------------------------------
 // AppUtils
 //----------------------------------------------------------------------------
 namespace AppUtils
@@ -42,14 +59,8 @@ uint32_t allocateVectorSeedAndInit(std::vector<int16_t> &memory)
     // Allocate two vectors of seed
     const uint32_t startBytes = allocateVectorAndZero(64, memory);
 
-    // Fill first 64 half words of vector memory with random seed data
-    std::random_device seedSource;
-    int16_t *seedPointer = memory.data() + (startBytes / 2);
-    for(size_t i = 0; i < 32; i++) {
-        const uint32_t seed = seedSource();
-        *seedPointer++ =  seed & 0xFFFF;
-        *seedPointer++ = (seed >> 16) & 0xFFFF;
-    }
+    // Generate seed
+    seedRNG(memory.data() + (startBytes / 2));
     
     return startBytes;
 }
@@ -73,6 +84,17 @@ uint32_t loadVectors(const std::string &filename, std::vector<int16_t> &memory)
     input.read(reinterpret_cast<char*>(memory.data() + (startBytes / 2)), lengthBytes);
 
     // Return start address in bytes
+    return startBytes;
+}
+//----------------------------------------------------------------------------
+uint32_t allocateScalarSeedAndInit(std::vector<uint8_t> &memory)
+{
+    // Allocate two vectors of seed
+    const uint32_t startBytes = allocateScalarAndZero(128, memory);
+
+    // Generate seed
+    seedRNG(reinterpret_cast<int16_t*>(memory.data() + startBytes));
+    
     return startBytes;
 }
 //----------------------------------------------------------------------------
