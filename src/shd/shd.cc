@@ -61,7 +61,7 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
     // Get address of start of presynaptic spike buffer
     c.li(*SSpikeBuffer, preSpikePtr);
     
-    // Get address of end of presynaptic spike buffer
+    // Get address of end of presynaptic spike buffer (bit per neuron, word-aligned)
     c.li(*SSpikeBufferEnd, preSpikePtr + ceilDivide(numPre, 32) * 4);
 
     // Loop through postsynaptic targets
@@ -252,7 +252,7 @@ int main()
     constexpr uint32_t hiddenAFixedPoint = 8;
     constexpr uint32_t outFixedPoint = 11;
     constexpr uint32_t numTimesteps = 1170;
-    constexpr uint32_t numExamples = 2264;//1;
+    constexpr uint32_t numExamples = 2264;
     constexpr uint32_t numInputSpikeWords = ceilDivide(numInput, 32);
     constexpr uint32_t numHiddenSpikeWords = ceilDivide(numHidden, 32);
     constexpr uint32_t numInputSpikeArrayWords = numInputSpikeWords * numTimesteps;
@@ -287,6 +287,17 @@ int main()
     const auto shdSpikes = AppUtils::loadBinaryData<uint32_t>("shd_spikes.bin");
     const auto shdLabels = AppUtils::loadBinaryData<int16_t>("shd_labels.bin");
 
+    const auto rngSeedCode = AssemblerUtils::generateStandardKernel(
+        simulate, readyFlagPtr,
+        [=](CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator, ScalarRegisterAllocator &scalarRegisterAllocator)
+        {
+            ALLOCATE_SCALAR(SSeedBuffer);
+
+            c.li(*SSeedBuffer, seedPointer);
+            c.vloadr0(*SSeedBuffer);
+            c.vloadr1(*SSeedBuffer, 64);
+        });
+    
     const auto code = AssemblerUtils::generateStandardKernel(
         simulate, readyFlagPtr,
         [=](CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator, ScalarRegisterAllocator &scalarRegisterAllocator)
@@ -296,15 +307,6 @@ int main()
             {
                 c.li(*STime, timestepPtr);
                 c.lw(*STime, *STime);
-            }
-
-            // Load RNG seed
-            // **TODO** don't do all the time
-            {
-                ALLOCATE_SCALAR(STmp);
-                c.li(*STmp, seedPointer);
-                c.vloadr0(*STmp);
-                c.vloadr1(*STmp, 64);
             }
 
             // Loop over time
@@ -337,9 +339,6 @@ int main()
                     ALLOCATE_SCALAR(SSpikeBufferEnd);
                     ALLOCATE_SCALAR(SSpikeArrayBuffer);
                     ALLOCATE_SCALAR(SSpikeTimeBufferEnd);
-
-                    // Labels
-                    Label neuronLoop;
 
                     // Get address of spike and spike time buffer
                     c.li(*SSpikeBuffer, inputSpikePtr);
@@ -421,16 +420,13 @@ int main()
                     ALLOCATE_VECTOR(VZero);
                     ALLOCATE_VECTOR(VOne);
                 
-                    // Labels
-                    Label neuronLoop;
-                
                     // Load constants
                     // alpha = e^(-1/20)
                     c.vlui(*VAlpha, convertFixedPoint(std::exp(-1.0 / 20.0), 14));
                     c.vlui(*VRho, convertFixedPoint(std::exp(-1.0 / 2000.0), 14));
                     c.vlui(*VBeta, convertFixedPoint(0.0174, hiddenVFixedPoint));
                     c.vlui(*VVThresh, convertFixedPoint(0.6, hiddenVFixedPoint));
-                    c.vlui(*VTauRefrac, 5);
+                    c.vlui(*VTauRefrac, 4);
                     c.vlui(*VDT, 1);
                     c.vlui(*VZero, 0);
                     c.vlui(*VOne, convertFixedPoint(1.0, hiddenAFixedPoint));
@@ -623,11 +619,22 @@ int main()
     LOGI << vectorInitData.size() * 2 << " bytes of vector memory required (" << ceilDivide(vectorInitData.size() / 32, 4096) << " URAM cascade)";
 
     // Create RISC-V core with instruction and scalar data
-    RISCV riscV(code, scalarInitData);
+    RISCV riscV(rngSeedCode, scalarInitData);
     
     // Add vector co-processor
     riscV.addCoprocessor<VectorProcessor>(vectorQuadrant, vectorInitData);
     
+    // Run RISC-V to seed RNG
+    if(!riscV.run()) {
+        return 1;
+    }
+
+    // Reset stats for simulations
+    riscV.resetStats();
+
+    // Load simulation program
+    riscV.getInstructionMemory().setInstructions(code);
+
     // Recording data
     std::vector<uint32_t> inputSpikeRecording;
     std::vector<uint32_t> hiddenSpikeRecording;
