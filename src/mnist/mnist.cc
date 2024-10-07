@@ -513,15 +513,13 @@ std::vector<uint32_t> generateSimCode(bool simulate, uint32_t numInput, uint32_t
                 ALLOCATE_SCALAR(SVSumBuffer);
                 ALLOCATE_SCALAR(SVSumScalarBuffer);
 
-                // Get address of voltage, voltage sum and Isyn buffers
+                // Get address of voltage sum buffer in vector memory and load
+                assert(numOutput < 32);
                 c.li(*SVSumBuffer, outputVSumPtr);
-                c.li(*SVSumScalarBuffer, outputVSumScalarPtr);
-
-                // Load output
                 c.vloadv(*VVSum, *SVSumBuffer, 0);
 
-                // **STALL**
-                c.nop();
+                // Get address of sum bufffer in scalar memory
+                c.li(*SVSumScalarBuffer, outputVSumScalarPtr);
 
                 // Unroll lane loop
                 for(uint32_t l = 0; l < numOutput; l++) {
