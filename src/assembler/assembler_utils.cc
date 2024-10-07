@@ -57,14 +57,12 @@ void generateScalarVectorMemcpy(CodeGenerator &c, VectorRegisterAllocator &vecto
     {
         // Register allocation
         ALLOCATE_VECTOR(VData);
+        ALLOCATE_VECTOR(VLane);
+        ALLOCATE_SCALAR(SMask);
+        ALLOCATE_SCALAR(SVal);
 
         // Unroll lane loop
         for(int l = 0; l < 32; l++) {
-            // Register allocation
-            ALLOCATE_VECTOR(VLane);
-            ALLOCATE_SCALAR(SMask);
-            ALLOCATE_SCALAR(SVal);
-
             // Load halfword
             c.lh(*SVal, *SDataBuffer, l * 2);
 
@@ -115,15 +113,13 @@ void generateVectorScalarMemcpy(CodeGenerator &c, VectorRegisterAllocator &vecto
     {
         // Register allocation
         ALLOCATE_VECTOR(VData);
+        ALLOCATE_SCALAR(SVal);
 
         // Load vector
         c.vloadv(*VData, *SVectorBuffer, 0);
         
         // Unroll lane loop
         for(int l = 0; l < 32; l++) {
-            // Register allocation
-            ALLOCATE_SCALAR(SVal);
-            
             // Extract lane into scalar registers
             c.vextract(*SVal, *VData, l);
 
