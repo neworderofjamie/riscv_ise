@@ -281,6 +281,7 @@ int main()
     const uint32_t inputSpikeArrayPtr = AppUtils::allocateScalarAndZero(numInputSpikeArrayWords * 4, scalarInitData);
     const uint32_t inputSpikePtr = AppUtils::allocateScalarAndZero(numInputSpikeWords * 4, scalarInitData);
     const uint32_t hiddenSpikePtr = AppUtils::allocateScalarAndZero(numHiddenSpikeWords * 4, scalarInitData);
+    const uint32_t outputVSumScalarPtr = AppUtils::allocateScalarAndZero(numOutput * 2, scalarInitData);
     const uint32_t readyFlagPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
 
     // Load data (this is streamed)
@@ -302,15 +303,19 @@ int main()
         simulate, readyFlagPtr,
         [=](CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator, ScalarRegisterAllocator &scalarRegisterAllocator)
         {
-            // Load time into scalar register
+            // Register allocation
             ALLOCATE_SCALAR(STime);
-            {
-                c.li(*STime, timestepPtr);
-                c.lw(*STime, *STime);
-            }
+            ALLOCATE_SCALAR(STimeEnd);
+
+            // Labels
+            Label timeLoop;
+            Label spinLoop;
+
+            // Set timestep range and load ready flag pointer
+            c.li(*STime, 0);
+            c.li(*STimeEnd, numTimesteps);
 
             // Loop over time
-            Label timeLoop;
             c.L(timeLoop);
             {
                 // ---------------------------------------------------------------
@@ -610,6 +615,41 @@ int main()
                         c.vstore(*VISyn, *SISynBuffer);
                     }
                 }
+
+                c.addi(*STime, *STime, 1);
+                c.bne(*STime, *STimeEnd, timeLoop);
+            }
+
+            // Copy output v sum to scalar memory and zero
+            {
+                // Register allocation
+                ALLOCATE_VECTOR(VVSum);
+                ALLOCATE_SCALAR(SVSumBuffer);
+                ALLOCATE_SCALAR(SVSumScalarBuffer);
+
+                // Get address of voltage sum buffer in vector memory and load
+                assert(numOutput < 32);
+                c.li(*SVSumBuffer, outputVSumPtr);
+                c.vloadv(*VVSum, *SVSumBuffer, 0);
+
+                // Get address of sum bufffer in scalar memory
+                c.li(*SVSumScalarBuffer, outputVSumScalarPtr);
+
+                // Unroll lane loop
+                for(uint32_t l = 0; l < numOutput; l++) {
+                    // Register allocation
+                    ALLOCATE_SCALAR(SVal);
+            
+                    // Extract lane into scalar registers
+                    c.vextract(*SVal, *VVSum, l);
+
+                    // Store halfword
+                    c.sh(*SVal, *SVSumScalarBuffer, l * 2);
+                }
+
+                // Zero vector and write back
+                c.vlui(*VVSum, 0);
+                c.vstore(*VVSum, *SVSumBuffer, 0);
             }
         });
 
@@ -636,7 +676,7 @@ int main()
     riscV.getInstructionMemory().setInstructions(code);
 
     // Recording data
-    std::vector<uint32_t> inputSpikeRecording;
+    /*std::vector<uint32_t> inputSpikeRecording;
     std::vector<uint32_t> hiddenSpikeRecording;
     std::vector<int16_t> hiddenVRecording;
     std::vector<int16_t> hiddenARecording;
@@ -647,29 +687,29 @@ int main()
     hiddenVRecording.reserve(numTimesteps * numHidden);
     hiddenARecording.reserve(numTimesteps * numHidden);
     outputVRecording.reserve(numTimesteps * numOutput);
-    outputVSumRecording.reserve(numTimesteps * numOutput);
+    outputVSumRecording.reserve(numTimesteps * numOutput);*/
 
     // Get pointers to scalar and vector memory
     auto *scalarData = riscV.getScalarDataMemory().getData().data();
-    auto *vectorData = riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getVectorDataMemory().getData().data();
+    //auto *vectorData = riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getVectorDataMemory().getData().data();
 
     // From these, get pointers to data structures
-    const uint32_t *inputSpikeWords = reinterpret_cast<const uint32_t*>(scalarData + inputSpikePtr);
+    /*const uint32_t *inputSpikeWords = reinterpret_cast<const uint32_t*>(scalarData + inputSpikePtr);
     const uint32_t *hiddenSpikeWords = reinterpret_cast<const uint32_t*>(scalarData + hiddenSpikePtr);
     const int16_t *hiddenV = vectorData + (hiddenVPtr / 2);
     const int16_t *hiddenA = vectorData + (hiddenAPtr / 2);
-    const int16_t *outputV = vectorData + (outputVPtr / 2);
-    int16_t *outputVSum = vectorData + (outputVSumPtr / 2);
+    const int16_t *outputV = vectorData + (outputVPtr / 2);*/
+    const int16_t *outputVSum = reinterpret_cast<const int16_t*>(scalarData + outputVSumScalarPtr);
 
     // Loop through examples
     int numCorrect = 0;
     for(int i = 0; i < numExamples; i++) {
-        inputSpikeRecording.clear();
+        /*inputSpikeRecording.clear();
         hiddenSpikeRecording.clear();
         hiddenVRecording.clear();
         hiddenARecording.clear();
         outputVRecording.clear();
-        outputVSumRecording.clear();
+        outputVSumRecording.clear();*/
         
         // Show % progress
         const auto iPerc = std::div(i, ceilDivide(numExamples, 100));
@@ -681,8 +721,13 @@ int main()
         std::copy_n(shdSpikes.data() + (numInputSpikeArrayWords * i), numInputSpikeArrayWords, 
                     reinterpret_cast<uint32_t*>(scalarData + inputSpikeArrayPtr));
 
+        // Reset PC and run
+        riscV.setPC(0);
+        if(!riscV.run()) {
+            return 1;
+        }
         // Loop through time
-        for(uint32_t t = 0; t < numTimesteps; t++) {
+        /*for(uint32_t t = 0; t < numTimesteps; t++) {
             // Copy timestep into scalar memory
             std::memcpy(scalarData + timestepPtr, &t, 4);
         
@@ -705,7 +750,7 @@ int main()
                 std::copy_n(outputV, numOutput, std::back_inserter(outputVRecording));
                 std::copy_n(outputVSum, numOutput, std::back_inserter(outputVSumRecording));
             }
-        }
+        }*/
 
         // Determine if output is correct
         const auto classification = std::distance(outputVSum, std::max_element(outputVSum, outputVSum + numOutput));
@@ -713,10 +758,7 @@ int main()
             numCorrect++;
         }
 
-        // Zero output V sum
-        std::fill_n(outputVSum, numOutput, 0);
-
-        if(record) {
+        /*if(record) {
             // Record output spikes
             std::ofstream inputSpikes("shd_input_spikes_" + std::to_string(i) + ".csv");
             std::ofstream hiddenSpikes("shd_hidden_spikes_" + std::to_string(i) + ".csv");
@@ -755,7 +797,7 @@ int main()
                 outputVFile << std::endl;
                 outputVSumFile << std::endl;
             }
-        }
+        }*/
     }
 
     std::cout << numCorrect << " / " << numExamples << " correct (" << 100.0 * (numCorrect / (double)numExamples) << "%)" << std::endl;
