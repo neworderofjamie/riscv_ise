@@ -45,7 +45,6 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
     Label wordLoop;
     Label bitLoopStart;
     Label bitLoopBody;
-    Label weightLoop;
     Label bitLoopEnd;
     Label zeroSpikeWord;
     Label wordEnd;
@@ -62,12 +61,9 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
     }
     
     // Get address of end of presynaptic spike buffer
-    {
-        ALLOCATE_SCALAR(STmp);
-        c.li(*STmp, (ceilDivide(numPre, 32) * 4));
-        c.add(*SSpikeBufferEnd, *SSpikeBuffer, *STmp);
-    }
-
+    c.li(*SSpikeBufferEnd, (ceilDivide(numPre, 32) * 4));
+    c.add(*SSpikeBufferEnd, *SSpikeBufferEnd, *SSpikeBuffer);
+    
     // SISynBuffer = hiddenIsyn;
     // **NOTE** is only the end of the vectorised region
     c.li(*SISynBuffer, postISynPtr);
@@ -232,7 +228,7 @@ std::vector<uint32_t> generateSimCode(bool simulate, uint32_t numInput, uint32_t
                                       uint32_t numHiddenSpikeWords,  uint32_t weightInHidPtr, uint32_t weightHidOutPtr, 
                                       uint32_t outputBiasPtr, uint32_t hiddenIsynPtr, uint32_t hiddenVPtr, uint32_t hiddenRefracTimePtr, 
                                       uint32_t outputIsynPtr , uint32_t outputVPtr, uint32_t outputVSumPtr,
-                                      uint32_t inputSpikePtr, uint32_t inputSpikeArrayPtr, uint32_t hiddenSpikePtr, uint32_t outputVSumScalarPtr, uint32_t readyFlagPtr)
+                                      uint32_t inputSpikeArrayPtr, uint32_t hiddenSpikePtr, uint32_t outputVSumScalarPtr, uint32_t readyFlagPtr)
 {
     return AssemblerUtils::generateStandardKernel(
         simulate, readyFlagPtr,
@@ -559,7 +555,6 @@ int main()
     const uint32_t outputVSumPtr = AppUtils::allocateVectorAndZero(numOutput, vectorInitData);
    
     // Allocate scalar arrays
-    const uint32_t inputSpikePtr = AppUtils::allocateScalarAndZero(numInputSpikeWords * 4, scalarInitData);
     const uint32_t inputSpikeArrayPtr = AppUtils::allocateScalarAndZero(numInputSpikeArrayWords * 4, scalarInitData);
     const uint32_t hiddenSpikePtr = AppUtils::allocateScalarAndZero(numHiddenSpikeWords * 4, scalarInitData);
     const uint32_t outputVSumScalarPtr = AppUtils::allocateScalarAndZero(numOutput * 2, scalarInitData);
@@ -594,7 +589,7 @@ int main()
                                          numHiddenSpikeWords,  weightInHidPtr, weightHidOutPtr, 
                                          outputBiasPtr, hiddenIsynPtr, hiddenVPtr,
                                          hiddenRefracTimePtr, outputIsynPtr, outputVPtr, outputVSumPtr,
-                                         inputSpikePtr, inputSpikeArrayPtr, hiddenSpikePtr, outputVSumScalarPtr, readyFlagPtr);
+                                         inputSpikeArrayPtr, hiddenSpikePtr, outputVSumScalarPtr, readyFlagPtr);
     LOGI << simCode.size() << " simulation instructions";
     LOGI << scalarInitData.size() << " bytes of scalar memory required";
     LOGI << vectorInitData.size() * 2 << " bytes of vector memory required (" << ceilDivide(vectorInitData.size() / 32, 4096) << " URAM cascade)";

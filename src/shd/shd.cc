@@ -39,11 +39,10 @@ struct StaticPulseTarget
 
 void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAllocator,
                     RegisterAllocator<Reg> &scalarRegisterAllocator,
-                    uint32_t preSpikePtr, uint32_t numPre, 
+                    std::variant<uint32_t, ScalarRegisterAllocator::RegisterPtr> preSpikePtr, uint32_t numPre, 
                     const std::vector<StaticPulseTarget> &targets)
 {
     // Register allocation
-    ALLOCATE_SCALAR(SSpikeBuffer);
     ALLOCATE_SCALAR(SSpikeBufferEnd);
     ALLOCATE_SCALAR(SWordNStart);
     ALLOCATE_SCALAR(SConst1);
@@ -53,16 +52,25 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
     Label wordLoop;
     Label bitLoopStart;
     Label bitLoopBody;
-    Label weightLoop;
     Label bitLoopEnd;
     Label zeroSpikeWord;
     Label wordEnd;
 
-    // Get address of start of presynaptic spike buffer
-    c.li(*SSpikeBuffer, preSpikePtr);
+    // If literal is provided for start of presynapric spike buffer, allocate register and load immediate into it
+    ScalarRegisterAllocator::RegisterPtr SSpikeBuffer;
+    if(std::holds_alternative<uint32_t>(preSpikePtr)) {
+        SSpikeBuffer = scalarRegisterAllocator.getRegister("SSpikeBuffer = X");
+        c.li(*SSpikeBuffer, std::get<uint32_t>(preSpikePtr));
+    }
+    // Otherwise, use pointer register directly
+    else {
+        SSpikeBuffer = std::get<ScalarRegisterAllocator::RegisterPtr>(preSpikePtr);
+    }
     
-    // Get address of end of presynaptic spike buffer (bit per neuron, word-aligned)
-    c.li(*SSpikeBufferEnd, preSpikePtr + ceilDivide(numPre, 32) * 4);
+    // Get address of end of presynaptic spike buffer
+    c.li(*SSpikeBufferEnd, (ceilDivide(numPre, 32) * 4));
+    c.add(*SSpikeBufferEnd, *SSpikeBufferEnd, *SSpikeBuffer);
+    
 
     // Loop through postsynaptic targets
     std::vector<std::pair<std::shared_ptr<ScalarRegisterAllocator::Handle>,
@@ -289,7 +297,6 @@ int main()
     // Allocate scalar arrays
     const uint32_t timestepPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
     const uint32_t inputSpikeArrayPtr = AppUtils::allocateScalarAndZero(numInputSpikeArrayWords * 4, scalarInitData);
-    const uint32_t inputSpikePtr = AppUtils::allocateScalarAndZero(numInputSpikeWords * 4, scalarInitData);
     const uint32_t hiddenSpikePtr = AppUtils::allocateScalarAndZero(numHiddenSpikeWords * 4, scalarInitData);
     const uint32_t outputVSumScalarPtr = AppUtils::allocateScalarAndZero(numOutput * 2, scalarInitData);
     const uint32_t readyFlagPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
@@ -331,33 +338,8 @@ int main()
                 // ---------------------------------------------------------------
                 // Input->Hidden synapses
                 // ---------------------------------------------------------------
-                // 2^9 = 2 bytes * 256 hidden neurons
-                genStaticPulse(c, vectorRegisterAllocator, scalarRegisterAllocator,
-                               inputSpikePtr, numInput,
-                               {{weightInHidPtr, hiddenIsynPtr, numHidden, 9, false}});
-
-                // ---------------------------------------------------------------
-                // Hidden->Output and Hidden->Hidden synapses
-                // ---------------------------------------------------------------
-                // 2^6 = 2 bytes * 32 output neurons (rounded up)
-                genStaticPulse(c, vectorRegisterAllocator, scalarRegisterAllocator, 
-                               hiddenSpikePtr, numHidden,
-                               {{weightHidOutPtr, outputIsynPtr, numOutput, 6, false},
-                                {weightHidHidPtr, hiddenIsynPtr, numHidden, 9, false}});
-
-                // ---------------------------------------------------------------
-                // Input neurons
-                // ---------------------------------------------------------------
                 {
-                    // Register allocation
-                    ALLOCATE_SCALAR(SSpikeBuffer);
-                    ALLOCATE_SCALAR(SSpikeBufferEnd);
                     ALLOCATE_SCALAR(SSpikeArrayBuffer);
-                    ALLOCATE_SCALAR(SSpikeTimeBufferEnd);
-
-                    // Get address of spike and spike time buffer
-                    c.li(*SSpikeBuffer, inputSpikePtr);
-                    c.li(*SSpikeBufferEnd, inputSpikePtr + (numInputSpikeWords * 4));
             
                     // SSpikeArrayBuffer = inputSpikeArrayPtr + (88 * STime)
                     c.li(*SSpikeArrayBuffer, inputSpikeArrayPtr);
@@ -387,33 +369,20 @@ int main()
                         c.add(*SSpikeArrayBuffer, *SSpikeArrayBuffer, *STmp1);
                     }
 
-                    // Input neuron loop
-                    // **OPTIMIZE** this is technically not necessary at all, could just point point static pulse at buffer
-                    AssemblerUtils::unrollLoopBody(
-                        c, numInputSpikeWords, 22, *SSpikeBuffer, *SSpikeBufferEnd,
-                        [&scalarRegisterAllocator, SSpikeBuffer, SSpikeArrayBuffer]
-                        (CodeGenerator &c, uint32_t r)
-                        {
-                            // Register allocation
-                            ALLOCATE_SCALAR(SSpikeWord);
-
-                            // Load word from spike array buffer an write to spike buffer
-                            c.lw(*SSpikeWord, *SSpikeArrayBuffer, 4 * r);
-
-                            // inputSpikeBuffer + scalarOffset = spike vector
-                            c.sw(*SSpikeWord, *SSpikeBuffer, 4 * r);
-                        },
-                        [SSpikeBuffer, SSpikeArrayBuffer]
-                        (CodeGenerator &c, uint32_t numUnrolls)
-                        {
-                            // SSpikeArrayBuffer += 4
-                            c.addi(*SSpikeArrayBuffer, *SSpikeArrayBuffer, 4 * numUnrolls);
-
-                            // SSpikeBuffer += 4
-                            c.addi(*SSpikeBuffer, *SSpikeBuffer, 4 * numUnrolls);
-
-                        });
+                    // 2^9 = 2 bytes * 256 hidden neurons
+                    genStaticPulse(c, vectorRegisterAllocator, scalarRegisterAllocator,
+                                   SSpikeArrayBuffer, numInput,
+                                   {{weightInHidPtr, hiddenIsynPtr, numHidden, 9, false}});
                 }
+
+                // ---------------------------------------------------------------
+                // Hidden->Output and Hidden->Hidden synapses
+                // ---------------------------------------------------------------
+                // 2^6 = 2 bytes * 32 output neurons (rounded up)
+                genStaticPulse(c, vectorRegisterAllocator, scalarRegisterAllocator, 
+                               hiddenSpikePtr, numHidden,
+                               {{weightHidOutPtr, outputIsynPtr, numOutput, 6, false},
+                                {weightHidHidPtr, hiddenIsynPtr, numHidden, 9, false}});
 
                 // ---------------------------------------------------------------
                 // Hidden neurons
