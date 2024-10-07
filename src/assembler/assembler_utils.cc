@@ -13,6 +13,7 @@ void generateScalarVectorMemcpy(CodeGenerator &c, VectorRegisterAllocator &vecto
 {
     // Register allocation
     ALLOCATE_SCALAR(SVectorBufferEnd);
+    ALLOCATE_SCALAR(SOne);
 
     // Labels
     Label vectorLoop;
@@ -52,6 +53,9 @@ void generateScalarVectorMemcpy(CodeGenerator &c, VectorRegisterAllocator &vecto
         c.add(*SVectorBufferEnd, *SVectorBuffer, *STmp);
     }
 
+    // Load immedate
+    c.li(*SOne, 1);
+
     // Loop over vectors
     c.L(vectorLoop);
     {
@@ -60,14 +64,14 @@ void generateScalarVectorMemcpy(CodeGenerator &c, VectorRegisterAllocator &vecto
         ALLOCATE_VECTOR(VLane);
         ALLOCATE_SCALAR(SMask);
         ALLOCATE_SCALAR(SVal);
-
+        
         // Unroll lane loop
         for(int l = 0; l < 32; l++) {
             // Load halfword
             c.lh(*SVal, *SDataBuffer, l * 2);
 
             // SMask = 1 << SLane
-            c.li(*SMask, 1 << l);
+            c.slli(*SMask, *SOne, l);
 
             // Fill vector register
             c.vfill(*VLane, *SVal);
