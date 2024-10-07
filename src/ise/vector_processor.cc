@@ -363,7 +363,9 @@ Vector VectorProcessor::calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs
             return binaryOp(val, val2, saturateResult,
                             [half,fixedPoint](int16_t a, int16_t b)
                             {
-                                return ((a * b) + half) >> fixedPoint; 
+                                auto product = a * b;
+                                product += (product < 0) ? -half : half;
+                                return product >> fixedPoint; 
                             });
         }
         // Stochastic round
@@ -380,12 +382,16 @@ Vector VectorProcessor::calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs
             Vector result;
             if(saturateResult) {
                 for(size_t i = 0; i < 32; i++) {
-                    result[i] = saturate(((val[i] * val2[i]) + maskedStoch[i]) >> fixedPoint);
+                    auto product = val[i] * val2[i];
+                    product += ((product < 0) ? -maskedStoch[i] : maskedStoch[i]);
+                    result[i] = saturate(product >> fixedPoint);
                 }
             }
             else {
                 for(size_t i = 0; i < 32; i++) {
-                    result[i] = ((val[i] * val2[i]) + maskedStoch[i]) >> fixedPoint;
+                    auto product = val[i] * val2[i];
+                    product += ((product < 0) ? -maskedStoch[i] : maskedStoch[i]);
+                    result[i] = product >> fixedPoint;
 
                 }
             }
