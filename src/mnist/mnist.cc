@@ -138,6 +138,9 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
                         c.vloadv(*VWeight, *SWeightBuffer, r * 64);
                         c.vloadv(*VISyn, *SISynBuffer, r * 64);
 
+                        // **STALL**
+                        c.nop();
+
                         // Add weights to ISyn
                         c.vadd(*VISyn, *VISyn, *VWeight);
 
@@ -165,6 +168,9 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
                 // Load next vector of weights and ISyns
                 c.vloadv(*VWeight, *SWeightBuffer);
                 c.vloadv(*VISyn, *SISynBuffer);
+
+                // **STALL**
+                c.nop();
 
                 // Add weights to ISyn with mask
                 c.vadd(*VISynNew, *VISyn, *VWeight);
@@ -513,6 +519,9 @@ std::vector<uint32_t> generateSimCode(bool simulate, uint32_t numInput, uint32_t
 
                 // Load output
                 c.vloadv(*VVSum, *SVSumBuffer, 0);
+
+                // **STALL**
+                c.nop();
 
                 // Unroll lane loop
                 for(uint32_t l = 0; l < numOutput; l++) {

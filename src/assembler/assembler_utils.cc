@@ -117,6 +117,9 @@ void generateVectorScalarMemcpy(CodeGenerator &c, VectorRegisterAllocator &vecto
 
         // Load vector
         c.vloadv(*VData, *SVectorBuffer, 0);
+
+        // **STALL**
+        c.nop();
         
         // Unroll lane loop
         for(int l = 0; l < 32; l++) {
