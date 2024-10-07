@@ -3,9 +3,6 @@
 // Standard C++ includes
 #include <random>
 
-// Standard C includes
-#include <cassert>
-
 // Plog includes
 #include <plog/Log.h>
 

@@ -8,6 +8,7 @@
 #include <vector>
 
 // Standard C includes
+#include <cassert>
 #include <cstdint>
 
 // Forward declations
