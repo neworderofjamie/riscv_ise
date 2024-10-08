@@ -850,8 +850,8 @@ int main()
         std::cout << "\t\t" << riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getNumALU(riscV.getNumCoprocessorInstructionsExecuted(vectorQuadrant)) << " vector ALU" << std::endl;
 
         std::ofstream heatmapFile("shd_heatmap.txt");
-        for(size_t i : riscV.getInstructionHeatmap()) {
-            heatmapFile << i << std::endl;
+        for(size_t i = 0; i < riscV.getInstructionHeatmap().size(); i++) {
+            heatmapFile << (code.at(i) & 0b1111111) << ", " << riscV.getInstructionHeatmap()[i] << std::endl;
         }
     }
     else {

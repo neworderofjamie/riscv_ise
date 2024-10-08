@@ -8,19 +8,28 @@ import plot_settings
 NUM_TIMESTEPS = 1170
 NUM_EXAMPLES = 2264
 
-# Instruction counts
-num_total = 3821939177
-num_total_vector = 2139186598
-num_scalar_jump = 349168943
-num_scalar_mem = 100702720
-num_scalar_alu = 1038841722
-num_vector_mem = 1369099718
-num_vector_alu = 561722396
+# Named sets of op codes
+op_code_set_names = ["ALU", "Mem.", "Vec. ALU", "Vec. Mem.", "Other"]
 
-num_other = (num_total - num_scalar_alu - num_scalar_mem - num_scalar_jump
-             - num_vector_alu - num_vector_mem) 
+def standard_op(funct1):
+    return (funct1 << 2) | 3
 
-fenn_seconds = 3821939177 / 120E6   # TODO
+def vector_op(funct1):
+    return (funct1 << 2) | 2
+    
+op_code_map = {standard_op(4):  0,  # OP-IMM
+               standard_op(12): 0,  # OP
+               standard_op(0):  1,  # LOAD
+               standard_op(8):  1,  # STORE
+               vector_op(0):    2,  # VSOP
+               vector_op(4):    3,  # VLOAD
+               vector_op(5):    3}  # VSTORE
+
+sect_addresses = [8, 232, 508, 1028, 1136]
+sect_names = ["Input\nspikes", "Hidden\nspikes", "Hidden\nneurons", "Output\nneurons"]
+assert len(sect_names) == (len(sect_addresses) - 1)
+
+fenn_seconds = 3822376542 / 180E6   # TODO
 jetson_gpu_seconds = 42.4 + 25.7 + 1.5
 jetson_cpu_seconds = 119    # TODO
 
@@ -36,8 +45,8 @@ gs_three_col = gs.GridSpec(1, 3)
 
 # Create axes in 1st and 3rd columns
 bar_axis = plt.Subplot(fig, gs_three_col[1])
-pie_axis = plt.Subplot(fig, gs_three_col[2])
-fig.add_subplot(pie_axis)
+inst_axis = plt.Subplot(fig, gs_three_col[2])
+fig.add_subplot(inst_axis)
 fig.add_subplot(bar_axis)
 
 # Create sub-grid spec in 2nd column
@@ -75,12 +84,41 @@ bar_axis.set_title("B", loc="left")
 bar_axis.xaxis.grid(False)
 sns.despine(ax=bar_axis)
 
-# Pie chart of operations
-pie_axis.pie([num_scalar_alu, num_scalar_mem, num_scalar_jump, num_vector_alu, num_vector_mem, num_other],
-              labels=["Scalar ALU", "Scalar Memory", "Scalar Control", "Vector ALU", "Vector Memory", "Other"])
-pie_axis.set_title("C", loc="left")
+# Stacked bar chart of different types of operation in different sections
+heatmap = np.loadtxt("shd_heatmap.txt", dtype=int, delimiter=",")
 
+sections = []
+for start_addr, end_addr in zip(sect_addresses[0:-1], sect_addresses[1:]):
+    sect_heatmap = heatmap[start_addr // 4:end_addr // 4,:]
+    
+    # Convert OP codes to class indices
+    inst_class = np.asarray([op_code_map.get(o, 4) 
+                             for o in sect_heatmap[:,0]])
+    
+    # Count instructions of each class in section
+    sections.append([np.sum(sect_heatmap[inst_class == i,1]) / 1E9
+                     for i, _ in enumerate(op_code_set_names)])
 
-fig.tight_layout(pad=0)
+# Transpose sections
+sections = list(zip(*sections))
+
+bar_x = np.arange(len(sections[0]))
+bottom = np.zeros(len(sections[0]))
+actors = []
+for s in sections:
+    actors.append(inst_axis.bar(bar_x, s, width=0.8, 
+                                linewidth=0, bottom=bottom))
+    bottom += s
+
+inst_axis.set_ylabel("Number of instructions [billion]")
+inst_axis.set_title("C", loc="left")
+inst_axis.set_xticks(bar_x, labels=sect_names)
+inst_axis.xaxis.grid(False)
+sns.despine(ax=inst_axis)
+
+fig.legend(actors, op_code_set_names, ncol=3, loc="lower center", 
+           bbox_to_anchor=(5/6, 0.0), frameon=False)
+
+fig.tight_layout(pad=0, rect=[0.0, 0.175, 1.0, 1.0])
 fig.savefig("shd_perf.pdf", dpi=400)
 plt.show()
