@@ -127,14 +127,13 @@ public:
         return dynamic_cast<const T*>(m_Coprocessors[quadrant].get());
     }
     
-    auto &getInstructionMemory(){ return m_InstructionMemory; }
-    const auto &getInstructionMemory() const{ return m_InstructionMemory; }
-
     auto &getScalarDataMemory(){ return m_ScalarDataMemory; }
     const auto &getScalarDataMemory() const{ return m_ScalarDataMemory; }
 
     void setPC(uint32_t pc){ m_PC = pc; }
     uint32_t getPC() const{ return m_PC; }
+
+    void setInstructions(const std::vector<uint32_t> &instructions);
 
     void resetStats();
     const auto &getNumInstructionExecuted() const{ return m_NumInstructionsExecuted; }

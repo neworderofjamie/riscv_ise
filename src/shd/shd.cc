@@ -255,7 +255,7 @@ int main()
 {
     // Configure logging
     plog::ConsoleAppender<plog::TxtFormatter> consoleAppender;
-    plog::init(plog::debug, &consoleAppender);
+    plog::init(plog::info, &consoleAppender);
     
     // Allocate memory
     std::vector<uint8_t> scalarInitData;
@@ -685,7 +685,7 @@ int main()
         riscV.resetStats();
 
         // Load init program
-        riscV.getInstructionMemory().setInstructions(initCode);
+        riscV.setInstructions(initCode);
 
         // Run kernels to copy initData into vector memory
         if(!riscV.runInit(initData, initStartVectorPtr, initNumVectorsPtr, initScalarScratchPtr, weightInHidPtr)) {
@@ -696,7 +696,7 @@ int main()
         riscV.resetStats();
 
         // Load simulation program
-        riscV.getInstructionMemory().setInstructions(code);
+        riscV.setInstructions(code);
 
         // Recording data
         /*std::vector<uint32_t> inputSpikeRecording;

@@ -286,6 +286,11 @@ bool RISCV::runInit(const std::vector<uint8_t> &initData, uint32_t startVectorPt
     return true;
 }
 //----------------------------------------------------------------------------
+void RISCV::setInstructions(const std::vector<uint32_t> &instructions)
+{
+    m_InstructionMemory.setInstructions(instructions);
+}
+//----------------------------------------------------------------------------
 void RISCV::resetStats()
 {
     // Reset standard stats

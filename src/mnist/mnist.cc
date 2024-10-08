@@ -617,7 +617,7 @@ int main()
         riscV.resetStats();
 
         // Load simulation program
-        riscV.getInstructionMemory().setInstructions(simCode);
+        riscV.setInstructions(simCode);
 
         // Recording data
         //std::vector<uint32_t> inputSpikeRecording;
