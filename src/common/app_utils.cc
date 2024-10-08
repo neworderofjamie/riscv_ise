@@ -53,6 +53,8 @@ uint32_t allocateVectorAndZero(size_t numHalfWords, std::vector<int16_t> &memory
 //----------------------------------------------------------------------------
 uint32_t allocateVectorSeedAndInit(std::vector<int16_t> &memory)
 {
+    LOGW << "allocateVectorSeedAndInit is not supported on devices without direct vector memory access";
+
     // Allocate two vectors of seed
     const uint32_t startBytes = allocateVectorAndZero(64, memory);
 
@@ -64,6 +66,7 @@ uint32_t allocateVectorSeedAndInit(std::vector<int16_t> &memory)
 //----------------------------------------------------------------------------
 uint32_t loadVectors(const std::string &filename, std::vector<int16_t> &memory)
 {
+    LOGW << "loadVectors is not supported on devices without direct vector memory access";
     std::ifstream input(filename, std::ios::binary);
     
     // Get length
