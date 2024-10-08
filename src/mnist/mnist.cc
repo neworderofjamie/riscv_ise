@@ -735,11 +735,6 @@ int main()
             }
 
             std::cout << numCorrect << " / 10000 correct (" << 100.0 * (numCorrect / 10000.0) << "%)" << std::endl;
-        
-        
-            // Wait until ready flag
-            //device.waitOnNonZero(readyFlagPtr);
-            LOGI << "Done";
         }
     }
     return 0;

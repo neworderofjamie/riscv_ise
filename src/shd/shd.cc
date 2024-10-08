@@ -16,6 +16,7 @@
 
 // RISC-V utils include
 #include "common/app_utils.h"
+#include "common/device.h"
 #include "common/utils.h"
 
 // RISC-V assembler includes
@@ -273,18 +274,19 @@ int main()
     constexpr uint32_t numExamples = 2264;
     constexpr uint32_t numInputSpikeWords = ceilDivide(numInput, 32);
     constexpr uint32_t numHiddenSpikeWords = ceilDivide(numHidden, 32);
+    constexpr uint32_t numOutputSpikeWords = ceilDivide(numOutput, 32);
     constexpr uint32_t numInputSpikeArrayWords = numInputSpikeWords * numTimesteps;
 
     // Generate seed
     const uint32_t seedPointer = AppUtils::allocateVectorSeedAndInit(vectorInitData);
 
-    // Load vector data
-    const uint32_t weightInHidPtr = AppUtils::loadVectors("99-Conn_Pop0_Pop1-g.bin", vectorInitData);
-    const uint32_t weightHidOutPtr = AppUtils::loadVectors("99-Conn_Pop1_Pop2-g.bin", vectorInitData);
-    const uint32_t weightHidHidPtr = AppUtils::loadVectors("99-Conn_Pop1_Pop1-g.bin", vectorInitData);
-    const uint32_t outputBiasPtr = AppUtils::loadVectors("99-Pop2-Bias.bin", vectorInitData);
+    // Allocate vector arrays
+    // **NOTE** these are adjacent so data can be block-copied from scalar memory
+    const uint32_t weightInHidPtr = AppUtils::allocateVectorAndZero(numInput * numHiddenSpikeWords * 32, vectorInitData);
+    const uint32_t weightHidOutPtr = AppUtils::allocateVectorAndZero(numHidden * numOutputSpikeWords * 32, vectorInitData);
+    const uint32_t weightHidHidPtr = AppUtils::allocateVectorAndZero(numHidden * numHiddenSpikeWords * 32, vectorInitData);
+    const uint32_t outputBiasPtr = AppUtils::allocateVectorAndZero(numOutputSpikeWords * 32, vectorInitData);
     
-    // Allocate additional vector arrays
     const uint32_t hiddenIsynPtr = AppUtils::allocateVectorAndZero(numHidden, vectorInitData);
     const uint32_t hiddenVPtr = AppUtils::allocateVectorAndZero(numHidden, vectorInitData);
     const uint32_t hiddenAPtr = AppUtils::allocateVectorAndZero(numHidden, vectorInitData);
@@ -301,9 +303,31 @@ int main()
     const uint32_t outputVSumScalarPtr = AppUtils::allocateScalarAndZero(numOutput * 2, scalarInitData);
     const uint32_t readyFlagPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
 
-    // Load data (this is streamed)
+    // Increase scalar memory for buffering
+    scalarInitData.resize(128 * 1024, 0);
+
+    // Load dataset (this is streamed)
     const auto shdSpikes = AppUtils::loadBinaryData<uint32_t>("shd_spikes.bin");
     const auto shdLabels = AppUtils::loadBinaryData<int16_t>("shd_labels.bin");
+
+    // Load weights
+    const auto weightInHid = AppUtils::loadBinaryData<uint8_t>("99-Conn_Pop0_Pop1-g.bin");
+    const auto weightHidOut = AppUtils::loadBinaryData<uint8_t>("99-Conn_Pop1_Pop2-g.bin");
+    const auto weightHidHid = AppUtils::loadBinaryData<uint8_t>("99-Conn_Pop1_Pop1-g.bin");
+    const auto outputBias = AppUtils::loadBinaryData<uint8_t>("99-Pop2-Bias.bin");
+
+    // Check first three are correctly padded
+    assert(weightInHid.size() == numInput * numHiddenSpikeWords * 64);
+    assert(weightHidOut.size() == numHidden * numOutputSpikeWords * 64);
+    assert(weightHidHid.size() == numHidden * numHiddenSpikeWords * 64);
+    
+    // Concatenate into single vector
+    std::vector<uint8_t> initData;
+    initData.reserve(weightInHid.size() + weightHidOut.size() + weightHidHid.size() + outputBias.size());
+    std::copy(weightInHid.cbegin(), weightInHid.cend(), std::back_inserter(initData));
+    std::copy(weightHidOut.cbegin(), weightHidOut.cend(), std::back_inserter(initData));
+    std::copy(weightHidHid.cbegin(), weightHidHid.cend(), std::back_inserter(initData));
+    std::copy(outputBias.cbegin(), outputBias.cend(), std::back_inserter(initData));
 
     const auto rngSeedCode = AssemblerUtils::generateStandardKernel(
         simulate, readyFlagPtr,
@@ -315,6 +339,14 @@ int main()
             c.vloadr0(*SSeedBuffer);
             c.vloadr1(*SSeedBuffer, 64);
         });
+
+    // Generate initialisation code to copy blocks of data from scalar to vector memory
+    const uint32_t initStartVectorPtr = 0;
+    const uint32_t initNumVectorsPtr = 4;
+    const uint32_t initReadyFlagPtr = 8;
+    const uint32_t initScalarScratchPtr = 12;
+    const auto initCode = AssemblerUtils::generateInitCode(simulate, initStartVectorPtr, initNumVectorsPtr, 
+                                                           initReadyFlagPtr, initScalarScratchPtr);
     
     const auto code = AssemblerUtils::generateStandardKernel(
         simulate, readyFlagPtr,
@@ -637,158 +669,248 @@ int main()
     LOGI << scalarInitData.size() << " bytes of scalar memory required";
     LOGI << vectorInitData.size() * 2 << " bytes of vector memory required (" << ceilDivide(vectorInitData.size() / 32, 4096) << " URAM cascade)";
 
-    // Create RISC-V core with instruction and scalar data
-    RISCV riscV(rngSeedCode, scalarInitData);
+    if(simulate) {
+        // Create RISC-V core with instruction and scalar data
+        RISCV riscV(rngSeedCode, scalarInitData);
     
-    // Add vector co-processor
-    riscV.addCoprocessor<VectorProcessor>(vectorQuadrant, vectorInitData);
+        // Add vector co-processor
+        riscV.addCoprocessor<VectorProcessor>(vectorQuadrant, vectorInitData);
     
-    // Run RISC-V to seed RNG
-    if(!riscV.run()) {
-        return 1;
-    }
-
-    // Reset stats for simulations
-    riscV.resetStats();
-
-    // Load simulation program
-    riscV.getInstructionMemory().setInstructions(code);
-
-    // Recording data
-    /*std::vector<uint32_t> inputSpikeRecording;
-    std::vector<uint32_t> hiddenSpikeRecording;
-    std::vector<int16_t> hiddenVRecording;
-    std::vector<int16_t> hiddenARecording;
-    std::vector<int16_t> outputVRecording;
-    std::vector<int16_t> outputVSumRecording;
-    inputSpikeRecording.reserve(numTimesteps * numInputSpikeWords);
-    hiddenSpikeRecording.reserve(numTimesteps * numHiddenSpikeWords);
-    hiddenVRecording.reserve(numTimesteps * numHidden);
-    hiddenARecording.reserve(numTimesteps * numHidden);
-    outputVRecording.reserve(numTimesteps * numOutput);
-    outputVSumRecording.reserve(numTimesteps * numOutput);*/
-
-    // Get pointers to scalar and vector memory
-    auto *scalarData = riscV.getScalarDataMemory().getData().data();
-    //auto *vectorData = riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getVectorDataMemory().getData().data();
-
-    // From these, get pointers to data structures
-    /*const uint32_t *inputSpikeWords = reinterpret_cast<const uint32_t*>(scalarData + inputSpikePtr);
-    const uint32_t *hiddenSpikeWords = reinterpret_cast<const uint32_t*>(scalarData + hiddenSpikePtr);
-    const int16_t *hiddenV = vectorData + (hiddenVPtr / 2);
-    const int16_t *hiddenA = vectorData + (hiddenAPtr / 2);
-    const int16_t *outputV = vectorData + (outputVPtr / 2);*/
-    const int16_t *outputVSum = reinterpret_cast<const int16_t*>(scalarData + outputVSumScalarPtr);
-
-    // Loop through examples
-    int numCorrect = 0;
-    for(int i = 0; i < numExamples; i++) {
-        /*inputSpikeRecording.clear();
-        hiddenSpikeRecording.clear();
-        hiddenVRecording.clear();
-        hiddenARecording.clear();
-        outputVRecording.clear();
-        outputVSumRecording.clear();*/
-        
-        // Show % progress
-        const auto iPerc = std::div(i, ceilDivide(numExamples, 100));
-        if(iPerc.rem == 0) {
-            std:: cout << iPerc.quot << "%" << std::endl;
-        }
-
-        // Copy input spike bits into scalar memory
-        std::copy_n(shdSpikes.data() + (numInputSpikeArrayWords * i), numInputSpikeArrayWords, 
-                    reinterpret_cast<uint32_t*>(scalarData + inputSpikeArrayPtr));
-
-        // Reset PC and run
-        riscV.setPC(0);
+        // Run RISC-V to seed RNG
         if(!riscV.run()) {
             return 1;
         }
-        // Loop through time
-        /*for(uint32_t t = 0; t < numTimesteps; t++) {
-            // Copy timestep into scalar memory
-            std::memcpy(scalarData + timestepPtr, &t, 4);
+
+        // Reset stats for simulations
+        riscV.resetStats();
+
+        // Load init program
+        riscV.getInstructionMemory().setInstructions(initCode);
+
+        // Run kernels to copy initData into vector memory
+        if(!riscV.runInit(initData, initStartVectorPtr, initNumVectorsPtr, initScalarScratchPtr, weightInHidPtr)) {
+            return 1;
+        }
+            
+        // Reset stats for simulations
+        riscV.resetStats();
+
+        // Load simulation program
+        riscV.getInstructionMemory().setInstructions(code);
+
+        // Recording data
+        /*std::vector<uint32_t> inputSpikeRecording;
+        std::vector<uint32_t> hiddenSpikeRecording;
+        std::vector<int16_t> hiddenVRecording;
+        std::vector<int16_t> hiddenARecording;
+        std::vector<int16_t> outputVRecording;
+        std::vector<int16_t> outputVSumRecording;
+        inputSpikeRecording.reserve(numTimesteps * numInputSpikeWords);
+        hiddenSpikeRecording.reserve(numTimesteps * numHiddenSpikeWords);
+        hiddenVRecording.reserve(numTimesteps * numHidden);
+        hiddenARecording.reserve(numTimesteps * numHidden);
+        outputVRecording.reserve(numTimesteps * numOutput);
+        outputVSumRecording.reserve(numTimesteps * numOutput);*/
+
+        // Get pointers to scalar and vector memory
+        auto *scalarData = riscV.getScalarDataMemory().getData().data();
+        //auto *vectorData = riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getVectorDataMemory().getData().data();
+
+        // From these, get pointers to data structures
+        /*const uint32_t *inputSpikeWords = reinterpret_cast<const uint32_t*>(scalarData + inputSpikePtr);
+        const uint32_t *hiddenSpikeWords = reinterpret_cast<const uint32_t*>(scalarData + hiddenSpikePtr);
+        const int16_t *hiddenV = vectorData + (hiddenVPtr / 2);
+        const int16_t *hiddenA = vectorData + (hiddenAPtr / 2);
+        const int16_t *outputV = vectorData + (outputVPtr / 2);*/
+        const int16_t *outputVSum = reinterpret_cast<const int16_t*>(scalarData + outputVSumScalarPtr);
+
+        // Loop through examples
+        int numCorrect = 0;
+        for(int i = 0; i < numExamples; i++) {
+            /*inputSpikeRecording.clear();
+            hiddenSpikeRecording.clear();
+            hiddenVRecording.clear();
+            hiddenARecording.clear();
+            outputVRecording.clear();
+            outputVSumRecording.clear();*/
         
+            // Show % progress
+            const auto iPerc = std::div(i, ceilDivide(numExamples, 100));
+            if(iPerc.rem == 0) {
+                std:: cout << iPerc.quot << "%" << std::endl;
+            }
+
+            // Copy input spike bits into scalar memory
+            std::copy_n(shdSpikes.data() + (numInputSpikeArrayWords * i), numInputSpikeArrayWords, 
+                        reinterpret_cast<uint32_t*>(scalarData + inputSpikeArrayPtr));
+
             // Reset PC and run
             riscV.setPC(0);
             if(!riscV.run()) {
                 return 1;
             }
+            // Loop through time
+            /*for(uint32_t t = 0; t < numTimesteps; t++) {
+                // Copy timestep into scalar memory
+                std::memcpy(scalarData + timestepPtr, &t, 4);
+        
+                // Reset PC and run
+                riscV.setPC(0);
+                if(!riscV.run()) {
+                    return 1;
+                }
 
-            // Record spike words
-            if(record) {
-                std::copy(inputSpikeWords, inputSpikeWords + numInputSpikeWords,
-                          std::back_inserter(inputSpikeRecording));
-                std::copy(hiddenSpikeWords, hiddenSpikeWords + numHiddenSpikeWords,
-                          std::back_inserter(hiddenSpikeRecording));
+                // Record spike words
+                if(record) {
+                    std::copy(inputSpikeWords, inputSpikeWords + numInputSpikeWords,
+                              std::back_inserter(inputSpikeRecording));
+                    std::copy(hiddenSpikeWords, hiddenSpikeWords + numHiddenSpikeWords,
+                              std::back_inserter(hiddenSpikeRecording));
             
-                // Record state variables
-                std::copy_n(hiddenV, numHidden, std::back_inserter(hiddenVRecording));
-                std::copy_n(hiddenA, numHidden, std::back_inserter(hiddenARecording));
-                std::copy_n(outputV, numOutput, std::back_inserter(outputVRecording));
-                std::copy_n(outputVSum, numOutput, std::back_inserter(outputVSumRecording));
-            }
-        }*/
+                    // Record state variables
+                    std::copy_n(hiddenV, numHidden, std::back_inserter(hiddenVRecording));
+                    std::copy_n(hiddenA, numHidden, std::back_inserter(hiddenARecording));
+                    std::copy_n(outputV, numOutput, std::back_inserter(outputVRecording));
+                    std::copy_n(outputVSum, numOutput, std::back_inserter(outputVSumRecording));
+                }
+            }*/
 
-        // Determine if output is correct
-        const auto classification = std::distance(outputVSum, std::max_element(outputVSum, outputVSum + numOutput));
-        if(classification == shdLabels[i]) {
-            numCorrect++;
+            // Determine if output is correct
+            const auto classification = std::distance(outputVSum, std::max_element(outputVSum, outputVSum + numOutput));
+            if(classification == shdLabels[i]) {
+                numCorrect++;
+            }
+
+            /*if(record) {
+                // Record output spikes
+                std::ofstream inputSpikes("shd_input_spikes_" + std::to_string(i) + ".csv");
+                std::ofstream hiddenSpikes("shd_hidden_spikes_" + std::to_string(i) + ".csv");
+                std::ofstream hiddenVFile("shd_hidden_v_" + std::to_string(i) + ".csv");
+                std::ofstream hiddenAFile("shd_hidden_a_" + std::to_string(i) + ".csv");
+                std::ofstream outputVFile("shd_output_v_" + std::to_string(i) + ".csv");
+                std::ofstream outputVSumFile("shd_output_v_sum_" + std::to_string(i) + ".csv");
+                auto iHV = hiddenVRecording.cbegin();
+                auto iHA = hiddenARecording.cbegin();
+                auto iOV = outputVRecording.cbegin();
+                auto iOVS = outputVSumRecording.cbegin();
+                for(uint32_t t = 0; t < numTimesteps; t++) {
+                    AppUtils::writeSpikes(inputSpikes, inputSpikeRecording.data() + (numInputSpikeWords * t),
+                                        t, numInputSpikeWords);
+                    AppUtils::writeSpikes(hiddenSpikes, hiddenSpikeRecording.data() + (numHiddenSpikeWords * t),
+                                        t, numHiddenSpikeWords);
+            
+                    for(uint32_t i = 0; i < numHidden; i++) {
+                        hiddenVFile << *iHV++;
+                        hiddenAFile << *iHA++;
+                        if(i != (numHidden - 1)) {
+                            hiddenVFile << ", ";
+                            hiddenAFile << ", ";
+                        }
+                    }
+                    for(uint32_t i = 0; i < numOutput; i++) {
+                        outputVFile << *iOV++;
+                        outputVSumFile << *iOVS++;
+                        if(i != (numOutput - 1)) {
+                            outputVFile << ", ";
+                            outputVSumFile << ", ";
+                        }
+                    }
+                    hiddenVFile << std::endl;
+                    hiddenAFile << std::endl;
+                    outputVFile << std::endl;
+                    outputVSumFile << std::endl;
+                }
+            }*/
         }
 
-        /*if(record) {
-            // Record output spikes
-            std::ofstream inputSpikes("shd_input_spikes_" + std::to_string(i) + ".csv");
-            std::ofstream hiddenSpikes("shd_hidden_spikes_" + std::to_string(i) + ".csv");
-            std::ofstream hiddenVFile("shd_hidden_v_" + std::to_string(i) + ".csv");
-            std::ofstream hiddenAFile("shd_hidden_a_" + std::to_string(i) + ".csv");
-            std::ofstream outputVFile("shd_output_v_" + std::to_string(i) + ".csv");
-            std::ofstream outputVSumFile("shd_output_v_sum_" + std::to_string(i) + ".csv");
-            auto iHV = hiddenVRecording.cbegin();
-            auto iHA = hiddenARecording.cbegin();
-            auto iOV = outputVRecording.cbegin();
-            auto iOVS = outputVSumRecording.cbegin();
-            for(uint32_t t = 0; t < numTimesteps; t++) {
-                AppUtils::writeSpikes(inputSpikes, inputSpikeRecording.data() + (numInputSpikeWords * t),
-                                    t, numInputSpikeWords);
-                AppUtils::writeSpikes(hiddenSpikes, hiddenSpikeRecording.data() + (numHiddenSpikeWords * t),
-                                    t, numHiddenSpikeWords);
-            
-                for(uint32_t i = 0; i < numHidden; i++) {
-                    hiddenVFile << *iHV++;
-                    hiddenAFile << *iHA++;
-                    if(i != (numHidden - 1)) {
-                        hiddenVFile << ", ";
-                        hiddenAFile << ", ";
-                    }
-                }
-                for(uint32_t i = 0; i < numOutput; i++) {
-                    outputVFile << *iOV++;
-                    outputVSumFile << *iOVS++;
-                    if(i != (numOutput - 1)) {
-                        outputVFile << ", ";
-                        outputVSumFile << ", ";
-                    }
-                }
-                hiddenVFile << std::endl;
-                hiddenAFile << std::endl;
-                outputVFile << std::endl;
-                outputVSumFile << std::endl;
-            }
-        }*/
+        std::cout << numCorrect << " / " << numExamples << " correct (" << 100.0 * (numCorrect / (double)numExamples) << "%)" << std::endl;
+        std::cout << "Stats:" << std::endl;
+        std::cout << "\t" << riscV.getTotalNumInstructionsExecuted() << " instructions executed" << std::endl;
+        std::cout << "\t\t" << riscV.getTotalNumCoprocessorInstructionsExecuted(vectorQuadrant) << " vector instructions executed" << std::endl;
+        std::cout << "\t\t" << riscV.getNumJumps() << " jumps" << std::endl;
+        std::cout << "\t\t" << riscV.getNumMemory() << " scalar memory" << std::endl;
+        std::cout << "\t\t" << riscV.getNumALU() << " scalar ALU" << std::endl;
+        std::cout << "\t\t" << riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getNumMemory(riscV.getNumCoprocessorInstructionsExecuted(vectorQuadrant)) << " vector memory" << std::endl;
+        std::cout << "\t\t" << riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getNumALU(riscV.getNumCoprocessorInstructionsExecuted(vectorQuadrant)) << " vector ALU" << std::endl;
     }
+    else {
+        LOGI << "Creating device";
+        Device device;
 
-    std::cout << numCorrect << " / " << numExamples << " correct (" << 100.0 * (numCorrect / (double)numExamples) << "%)" << std::endl;
-    std::cout << "Stats:" << std::endl;
-    std::cout << "\t" << riscV.getTotalNumInstructionsExecuted() << " instructions executed" << std::endl;
-    std::cout << "\t\t" << riscV.getTotalNumCoprocessorInstructionsExecuted(vectorQuadrant) << " vector instructions executed" << std::endl;
-    std::cout << "\t\t" << riscV.getNumJumps() << " jumps" << std::endl;
-    std::cout << "\t\t" << riscV.getNumMemory() << " scalar memory" << std::endl;
-    std::cout << "\t\t" << riscV.getNumALU() << " scalar ALU" << std::endl;
-    std::cout << "\t\t" << riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getNumMemory(riscV.getNumCoprocessorInstructionsExecuted(vectorQuadrant)) << " vector memory" << std::endl;
-    std::cout << "\t\t" << riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getNumALU(riscV.getNumCoprocessorInstructionsExecuted(vectorQuadrant)) << " vector ALU" << std::endl;
+        // Put core into reset state
+        LOGI << "Resetting";
+        device.setReset(false);
+        
+        // RNG seeding
+        {
+            LOGI << "Copying RNG seeding instructions (" << rngSeedCode.size() * sizeof(uint32_t) << " bytes)";
+            device.uploadCode(rngSeedCode);
 
+            // **TODO** copy RNG seed to device
+
+        }
+        
+        // Initialisation
+        {
+            LOGI << "Copying init instructions (" << initCode.size() * sizeof(uint32_t) << " bytes)";
+            device.uploadCode(initCode);
+
+            // Run kernels to copy initData into vector memory
+            device.runInit(initData, initStartVectorPtr, initNumVectorsPtr, initScalarScratchPtr, weightInHidPtr, initReadyFlagPtr);
+
+            LOGI << "Seeding RNG";
+
+            // Put core into running state
+            device.setReset(true);
+
+            // Wait until ready flag
+            device.waitOnNonZero(readyFlagPtr);
+
+            // Reset core
+            device.setReset(false);
+        }
+        
+        // Simulation
+        {
+            LOGI << "Copying simulation instructions (" << code.size() * sizeof(uint32_t) << " bytes)";
+            device.uploadCode(code);
+
+            // Loop through examples
+            int numCorrect = 0;
+            const volatile int16_t *outputVSum = reinterpret_cast<const volatile int16_t*>(device.getDataMemory() + outputVSumScalarPtr);
+            for(size_t i = 0; i < numExamples; i++) {
+                // Show % progress
+                const auto iPerc = std::div(i, 100);
+                if(iPerc.rem == 0) {
+                    std:: cout << iPerc.quot << "%" << std::endl;
+                }
+
+                // Copy input spike bits into scalar memory
+                LOGI << "Copying stimuli to device (" << numInputSpikeArrayWords * 4 << " bytes)";
+                device.memcpyDataToDevice(inputSpikeArrayPtr, 
+                                          reinterpret_cast<const uint8_t*>(shdSpikes.data() + (numInputSpikeArrayWords * i)),
+                                          numInputSpikeArrayWords * 4);
+
+                // Disable core
+                LOGI << "Simulating";
+                device.setReset(true);
+
+                // Wait until ready flag
+                device.waitOnNonZero(readyFlagPtr);
+
+                // Enable core
+                device.setReset(false);
+
+                // Determine if output is correct
+                const auto classification = std::distance(outputVSum, std::max_element(outputVSum, outputVSum + numOutput));
+                if(classification == shdLabels[i]) {
+                    numCorrect++;
+                }
+            }
+
+            std::cout << numCorrect << " / " << numOutput << " correct (" << 100.0 * (numCorrect / (double)numOutput) << "%)" << std::endl;
+        }
+    }
     
     return 0;
 }
