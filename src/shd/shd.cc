@@ -359,6 +359,11 @@ int main()
             // Labels
             Label timeLoop;
             Label spinLoop;
+            Label inputSpikeStart;
+            Label hiddenSpikeStart;
+            Label hiddenNeuronStart;
+            Label outputNeuronStart;
+            Label outputNeuronEnd;
 
             // Set timestep range and load ready flag pointer
             c.li(*STime, 0);
@@ -370,6 +375,7 @@ int main()
                 // ---------------------------------------------------------------
                 // Input->Hidden synapses
                 // ---------------------------------------------------------------
+                c.L(inputSpikeStart);
                 {
                     ALLOCATE_SCALAR(SSpikeArrayBuffer);
             
@@ -411,6 +417,7 @@ int main()
                 // Hidden->Output and Hidden->Hidden synapses
                 // ---------------------------------------------------------------
                 // 2^6 = 2 bytes * 32 output neurons (rounded up)
+                c.L(hiddenSpikeStart);
                 genStaticPulse(c, vectorRegisterAllocator, scalarRegisterAllocator, 
                                hiddenSpikePtr, numHidden,
                                {{weightHidOutPtr, outputIsynPtr, numOutput, 6, false},
@@ -419,6 +426,7 @@ int main()
                 // ---------------------------------------------------------------
                 // Hidden neurons
                 // ---------------------------------------------------------------
+                c.L(hiddenNeuronStart);
                 {
                     // Register allocation
                     ALLOCATE_SCALAR(SVBuffer);
@@ -556,6 +564,7 @@ int main()
                 // ---------------------------------------------------------------
                 // Output neurons
                 // ---------------------------------------------------------------
+                c.L(outputNeuronStart);
                 {
                     // Register allocation
                     ALLOCATE_SCALAR(SVBuffer);
@@ -626,6 +635,7 @@ int main()
                         c.vstore(*VISyn, *SISynBuffer);
                     }
                 }
+                c.L(outputNeuronEnd);
 
                 c.addi(*STime, *STime, 1);
                 c.bne(*STime, *STimeEnd, timeLoop);
@@ -662,6 +672,12 @@ int main()
                 c.vlui(*VVSum, 0);
                 c.vstore(*VVSum, *SVSumBuffer, 0);
             }
+
+            LOGI << "Input spike start:" << inputSpikeStart.getAddress();
+            LOGI << "Hidden spike start:" << hiddenSpikeStart.getAddress();
+            LOGI << "Hidden neuron start:" << hiddenNeuronStart.getAddress();
+            LOGI << "Output neuron start:" << outputNeuronStart.getAddress();
+            LOGI << "Output neuron end:" << outputNeuronEnd.getAddress();
         });
 
     // Assemble instructions
@@ -832,6 +848,11 @@ int main()
         std::cout << "\t\t" << riscV.getNumALU() << " scalar ALU" << std::endl;
         std::cout << "\t\t" << riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getNumMemory(riscV.getNumCoprocessorInstructionsExecuted(vectorQuadrant)) << " vector memory" << std::endl;
         std::cout << "\t\t" << riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getNumALU(riscV.getNumCoprocessorInstructionsExecuted(vectorQuadrant)) << " vector ALU" << std::endl;
+
+        std::ofstream heatmapFile("shd_heatmap.txt");
+        for(size_t i : riscV.getInstructionHeatmap()) {
+            heatmapFile << i << std::endl;
+        }
     }
     else {
         LOGI << "Creating device";
