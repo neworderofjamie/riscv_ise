@@ -164,10 +164,11 @@ void unrollLoopBody(CodeGenerator &c, uint32_t numIterations, uint32_t maxUnroll
             genBodyFn(c, r);
         }
 
-        genTailFn(c, numUnrolls);
-                    
-        // If we haven't reached end of Isyn buffer, loop
+        // If we haven't already unrolled everything, generate increment and loop
+        // **TODO** this is incorrect if there's a tail
         if(numUnrolledIterations > 1) {
+            genTailFn(c, numUnrolls);
+        
             c.bne(testBufferReg, testBufferEndReg, loop);
         }
     }
