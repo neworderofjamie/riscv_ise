@@ -153,7 +153,7 @@ bool RISCV::run()
                 // normal instruction execution
                 const uint32_t inst = m_InstructionMemory.getInstruction(m_PC);
                 m_NumInstructionsExecuted[inst & 0b1111111]++;
-
+                m_InstructionHeatmap[m_PC / 4]++;
 #ifdef DEBUG_OUTPUT
                 printf("[%08x]=%08x, mtime: %lx, mtimecmp: %lx\n", pc, insn, mtime, mtimecmp);
 #endif
@@ -289,6 +289,9 @@ bool RISCV::runInit(const std::vector<uint8_t> &initData, uint32_t startVectorPt
 void RISCV::setInstructions(const std::vector<uint32_t> &instructions)
 {
     m_InstructionMemory.setInstructions(instructions);
+    
+    // Reset heatmap
+    m_InstructionHeatmap.assign(instructions.size(), 0);
 }
 //----------------------------------------------------------------------------
 void RISCV::resetStats()
@@ -297,6 +300,9 @@ void RISCV::resetStats()
     std::fill(m_NumInstructionsExecuted.begin(), m_NumInstructionsExecuted.end(), 0);
     m_NumTrueBranches = 0;
     m_NumFalseBranches = 0;
+
+    // Reset heatmap
+    m_InstructionHeatmap.assign(m_InstructionMemory.getNumInstructions(), 0);
 }
 //----------------------------------------------------------------------------
 size_t RISCV::getTotalNumInstructionsExecuted() const

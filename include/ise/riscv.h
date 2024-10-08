@@ -25,6 +25,8 @@ public:
 
     void setInstructions(const std::vector<uint32_t> &instructions){ m_Instructions = instructions; }
 
+    size_t getNumInstructions() const{ return m_Instructions.size(); }
+
 private:
     std::vector<uint32_t> m_Instructions;
 };
@@ -138,6 +140,7 @@ public:
     void resetStats();
     const auto &getNumInstructionExecuted() const{ return m_NumInstructionsExecuted; }
     std::array<size_t, 32> getNumCoprocessorInstructionsExecuted(uint32_t quadrant) const;
+    const std::vector<size_t> &getInstructionHeatmap() const{ return m_InstructionHeatmap; }
     size_t getNumInstructionsExecuted(StandardOpCode opCode) const;
     size_t getTotalNumInstructionsExecuted() const;
     size_t getTotalNumCoprocessorInstructionsExecuted(uint32_t quadrant) const;
@@ -173,6 +176,7 @@ private:
 
     // Stats
     std::array<size_t, 128> m_NumInstructionsExecuted;
+    std::vector<size_t> m_InstructionHeatmap;
     size_t m_NumTrueBranches;
     size_t m_NumFalseBranches;
 };
