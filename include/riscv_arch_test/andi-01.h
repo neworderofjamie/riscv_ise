@@ -10,5 +10,5 @@ namespace ArchTest::andi_01
 {
 const std::vector<uint32_t> &getScalarInitData();
 
-CodeGenerator generateCode();
+std::vector<uint32_t> generateCode(bool simulate);
 }
