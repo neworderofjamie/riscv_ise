@@ -1,9 +1,9 @@
 # Include common makefile
-include ../src/MakefileCommon
+include ../../src/MakefileCommon
 
 # Get tests path i.e. directory of this Makefile
-TEST_PATH		:=$(RISCV_DIR)/tests
-OBJECT_DIRECTORY	:=$(OBJECT_DIRECTORY)/tests
+TEST_PATH		:=$(RISCV_DIR)/tests/simulator
+OBJECT_DIRECTORY	:=$(OBJECT_DIRECTORY)/tests/simulator
 
 SOURCES			:=$(GTEST_DIR)/src/gtest-all.cc $(GTEST_DIR)/src/gtest_main.cc $(wildcard *.cc)
 OBJECTS			:=$(SOURCES:%.cc=$(OBJECT_DIRECTORY)/%.o)
