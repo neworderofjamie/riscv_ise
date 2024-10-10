@@ -28,7 +28,7 @@ protected:
                     scalarWordInitData.size() * 4);
 
         // Create RISC-V core with instruction and scalar data
-        RISCV riscV(ArchTest::{{clean_title}}::generateCode().getCode(), scalarInitData);
+        RISCV riscV(ArchTest::{{clean_title}}::generateCode(true), scalarInitData);
         
         if(!riscV.run()) {
             throw std::runtime_error("Error running test code");

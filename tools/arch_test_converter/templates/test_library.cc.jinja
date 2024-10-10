@@ -28,13 +28,33 @@ const std::vector<uint32_t> &ArchTest::{{clean_title}}::getScalarInitData()
     return g_ScalarData;
 }
 //----------------------------------------------------------------------------
-CodeGenerator ArchTest::{{clean_title}}::generateCode()
+std::vector<uint32_t> ArchTest::{{clean_title}}::generateCode(bool simulate)
 {
     CodeGenerator c;
+    
+    // Ready flag is always stored in first word, zero it
+    c.sw(Reg::X0, Reg::X0);
+    
     {% filter indent(width=4) %}
 {{test_code}}
     {% endfilter %}
-    // End
-    c.ecall();
-    return c;
+    
+    // If we're simulating, add ecall
+    if(simulate) {
+        c.ecall();
+    }
+    // Otherwise
+    else {
+        // Set ready flag 
+        c.li(Reg::X1, 1);
+        c.sw(Reg::X1, Reg::X0);
+        
+        // Infinite loop
+        Label spinLoop;
+        c.L(spinLoop);
+        {
+            c.j_(spinLoop);
+        }
+    }
+    return c.getCode();
 }

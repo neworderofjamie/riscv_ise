@@ -21,13 +21,13 @@ _match_align = re.compile(fr".align\s+{_num}")
 _match_word = re.compile(fr".word\s+{_num}")
 
 def parse_data(lines):
-    mem_contents = []
+    mem_contents = [0]
     var_addresses = {}
 
     # Loop through lines
     in_model_data = False
     in_test_data = False
-    address = 0
+    address = 4
     for l in lines:
         # Strip initial whitespace
         l = l.lstrip()
@@ -60,6 +60,7 @@ def parse_data(lines):
                 repeat = int(eval(repeat_code, None, {"XLEN": 32}))
                 size = int(match.group(2), 0)
                 value = int(match.group(3), 0)
+                assert size == 4
 
                 # Add repeats of value to memory contents
                 mem_contents.extend(itertools.repeat(value, repeat))
