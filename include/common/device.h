@@ -26,7 +26,7 @@ public:
     volatile uint8_t *getDataMemory(){ return m_DataMemory; };
     volatile uint32_t *getGPIO(){ return m_GPIO; }
 
-    void setReset(bool reset);
+    void setEnabled(bool enabled);
 
     void waitOnNonZero(uint32_t address) const;
 

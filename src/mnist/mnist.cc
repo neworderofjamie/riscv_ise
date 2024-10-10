@@ -685,7 +685,7 @@ int main()
 
         // Put core into reset state
         LOGI << "Resetting";
-        device.setReset(false);
+        device.setEnabled(false);
         
         // Initialisation
         {
@@ -718,14 +718,14 @@ int main()
 
                 // Put core into running state
                 LOGI << "Enabling";
-                device.setReset(true);
+                device.setEnabled(true);
 
                 // Wait until ready flag
                 device.waitOnNonZero(readyFlagPtr);
 
                 // Reset core
                 LOGI << "Disabling";
-                device.setReset(false);
+                device.setEnabled(false);
 
                 // Determine if output is correct
                 const auto classification = std::distance(outputVSum, std::max_element(outputVSum, outputVSum + 10));

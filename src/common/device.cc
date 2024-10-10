@@ -91,9 +91,9 @@ Device::~Device()
 #endif  // __linux__
 }
 //----------------------------------------------------------------------------
-void Device::setReset(bool reset)
+void Device::setEnabled(bool enabled)
 {
-    m_GPIO[0] = reset ? 0xFFFFFFFF : 0x0;
+    m_GPIO[0] = enabled ? 0xFFFFFFFF : 0x0;
 }
 //----------------------------------------------------------------------------
 void Device::waitOnNonZero(uint32_t address) const
@@ -129,9 +129,9 @@ void Device::runInit(const std::vector<uint8_t> &initData, uint32_t startVectorP
         *numVectors = numBatchVectors;
 
         // Enable device, wait for flag and disable again
-        setReset(true);
+        setEnabled(true);
         waitOnNonZero(readyFlagPtr);
-        setReset(false);
+        setEnabled(false);
     }
 }
 //----------------------------------------------------------------------------

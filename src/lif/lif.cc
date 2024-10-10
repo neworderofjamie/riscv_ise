@@ -188,7 +188,7 @@ int main()
         Device device;
         LOGI << "Resetting";
         // Put core into reset state
-        device.setReset(false);
+        device.setEnabled(false);
         
         LOGI << "Copying instructions (" << code.size() * sizeof(uint32_t) << " bytes)";
         device.uploadCode(code);
@@ -198,7 +198,7 @@ int main()
         
         LOGI << "Enabling";
         // Put core into running state
-        device.setReset(true);
+        device.setEnabled(true);
         LOGI << "Running";
         
         // Wait until ready flag

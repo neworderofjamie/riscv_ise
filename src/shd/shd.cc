@@ -860,7 +860,7 @@ int main()
 
         // Put core into reset state
         LOGI << "Resetting";
-        device.setReset(false);
+        device.setEnabled(false);
         
         // RNG seeding
         {
@@ -882,13 +882,13 @@ int main()
             LOGI << "Seeding RNG";
 
             // Put core into running state
-            device.setReset(true);
+            device.setEnabled(true);
 
             // Wait until ready flag
             device.waitOnNonZero(readyFlagPtr);
 
             // Reset core
-            device.setReset(false);
+            device.setEnabled(false);
         }
         
         // Simulation
@@ -914,13 +914,13 @@ int main()
 
                 // Disable core
                 LOGI << "Simulating";
-                device.setReset(true);
+                device.setEnabled(true);
 
                 // Wait until ready flag
                 device.waitOnNonZero(readyFlagPtr);
 
                 // Enable core
-                device.setReset(false);
+                device.setEnabled(false);
 
                 // Determine if output is correct
                 const auto classification = std::distance(outputVSum, std::max_element(outputVSum, outputVSum + numOutput));
