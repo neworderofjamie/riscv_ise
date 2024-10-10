@@ -25,3 +25,6 @@ test_library:
 
 simulator_google_test: test_library
 	python $(ARCH_TEST_CONVERTER_DIR)/generate_tests.py -t simulator_google_test.cc.jinja -o $(SIMULATOR_TESTS_DIR) $(ASSEMBLER_SOURCES)
+
+device_google_test: test_library
+	python $(ARCH_TEST_CONVERTER_DIR)/generate_tests.py -t device_google_test.cc.jinja -o $(DEVICE_TESTS_DIR) $(ASSEMBLER_SOURCES)

@@ -1,0 +1,73 @@
+// Standard C includes
+#include <cassert>
+#include <cstring>
+
+// Google test includes
+#include "gtest/gtest.h"
+
+// RISC-V commonincludes
+#include "common/device.h"
+
+// RISC-V architecture test includes
+#include "riscv_arch_test/{{title}}.h"
+
+namespace
+{
+class {{clean_title}} : public testing::Test 
+{
+protected:
+    // Per-test-suite set-up.
+    // Called before the first test in this test suite.
+    // Can be omitted if not needed.
+    static void SetUpTestSuite() 
+    {
+        const auto &scalarWordInitData = ArchTest::{{clean_title}}::getScalarInitData();
+        
+        std::vector<uint8_t> scalarInitData(scalarWordInitData.size() * 4);
+        std::memcpy(scalarInitData.data(), scalarWordInitData.data(),
+                    scalarWordInitData.size() * 4);
+
+        // Disable device, upload code and data
+        Device device;
+        device.setEnabled(false);
+        device.uploadCode(ArchTest::{{clean_title}}::generateCode(false));
+        device.memcpyDataToDevice(0, scalarInitData.data(), scalarInitData.size());
+        
+        // Re-enable 
+        device.setEnabled(true);
+        
+        // Wait for tests to complete
+        device.waitOnNonZero(0);
+        
+        // Disable and copy data
+        device.setEnabled(false);
+        s_ScalarData.resize(scalarInitData.size());
+        device.memcpyDataFromDevice(s_ScalarData.data(), 0, scalarInitData.size());
+    }
+    
+
+    // Per-test-suite tear-down.
+    // Called after the last test in this test suite.
+    // Can be omitted if not needed.
+    static void TearDownTestSuite() 
+    {
+        s_ScalarData.clear();
+    }
+    
+    static uint32_t *getScalarWordData(){ return reinterpret_cast<uint32_t*>(s_ScalarData.data()); }
+
+private:
+    static std::vector<uint8_t> s_ScalarData;
+};
+
+std::vector<uint8_t> {{clean_title}}::s_ScalarData;
+}
+
+
+// Generate google tests
+{% for c in correct_outputs %}
+TEST_F({{clean_title}}, {{c[2]}}) {
+  ASSERT_EQ(getScalarWordData()[{{c[0] // 4}}], {{c[1]}});
+}
+
+{% endfor %}
