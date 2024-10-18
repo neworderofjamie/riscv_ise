@@ -30,7 +30,7 @@ std::vector<uint32_t> generateCode(uint32_t numTimesteps, uint32_t inputCurrentV
         {
             // Generate code to copy vector of currents from scalar memory to vector memory
             AssemblerUtils::generateScalarVectorMemcpy(c, vectorRegisterAllocator, scalarRegisterAllocator,
-                                                       inputCurrentScalarPtr, inputCurrentVectorPtr, 1);
+                                                       inputCurrentScalarPtr, inputCurrentVectorPtr, 1u);
 
             // Register allocation
             ALLOCATE_SCALAR(SIBuffer);
