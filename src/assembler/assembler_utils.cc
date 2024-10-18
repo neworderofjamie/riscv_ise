@@ -226,7 +226,9 @@ std::vector<uint32_t> generateStandardKernel(bool simulate, uint32_t readyFlagPt
         // Infinite loop
         c.L(spinLoop);
         {
-            c.j_(spinLoop);
+            // **HACK** 
+            //c.j_(spinLoop);
+            c.beq(Reg::X0, Reg::X0, spinLoop);
         }
     }
 
