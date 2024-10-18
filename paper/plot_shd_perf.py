@@ -29,7 +29,7 @@ sect_addresses = [8, 232, 508, 1028, 1136]
 sect_names = ["Input\nspikes", "Hidden\nspikes", "Hidden\nneurons", "Output\nneurons"]
 assert len(sect_names) == (len(sect_addresses) - 1)
 
-fenn_seconds = 3822376542 / 180E6   # TODO
+fenn_seconds = 3822376542 / 164E6   # TODO
 jetson_gpu_seconds = 42.4 + 25.7 + 1.5
 jetson_cpu_seconds = 119    # TODO
 
