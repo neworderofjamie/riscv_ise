@@ -353,6 +353,25 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
     c.L(wordEnd);
 }*/
 
+void check(const volatile int16_t *hiddenIsyn, size_t numInput, size_t numHidden)
+{
+    int numCorrect = 0;
+    for(size_t i = 0; i < numHidden; i++) {
+        int16_t val = 0;
+        for(size_t j = 0; j < numInput; j++) {
+            if(0xDEADBEEF & (1u << j)) {
+                val += ((32 * j) + i); 
+            }
+        }
+        std::cout << hiddenIsyn[i] << "(" << val << "), ";
+        if(val == hiddenIsyn[i]) {
+            numCorrect++;
+        }
+    }
+    std::cout << std::endl;
+    std::cout << numCorrect << " correct" << std::endl;
+}
+
 std::vector<uint32_t> generateSimCode(bool simulate, uint32_t numInput, uint32_t numHidden, uint32_t numInputSpikeWords, uint32_t numHiddenSpikeWords, 
                                       uint32_t inputSpikePtr, uint32_t weightInHidPtr, uint32_t weightInHidScalarPtr, uint32_t hiddenIsynPtr, uint32_t hiddenIsynScalarPtr, 
                                       uint32_t readyFlagPtr)
@@ -445,21 +464,7 @@ int main()
 
         auto *scalarData = riscV.getScalarDataMemory().getData().data();
         const int16_t *hiddenIsyn = reinterpret_cast<const int16_t*>(scalarData + hiddenIsynScalarPtr);
-        int numCorrect = 0;
-        for(size_t i = 0; i < numHidden; i++) {
-            int16_t val = 0;
-            for(size_t j = 0; j < numInput; j++) {
-                if(0xDEADBEEF & (1u << j)) {
-                    val += ((32 * j) + i); 
-                }
-            }
-            std::cout << hiddenIsyn[i] << "(" << val << "), ";
-            if(val == hiddenIsyn[i]) {
-                numCorrect++;
-            }
-        }
-        std::cout << std::endl;
-        std::cout << numCorrect << " correct" << std::endl;
+        check(hiddenIsyn, numInput, numHidden);
 
     }
     else {
@@ -483,6 +488,8 @@ int main()
         // Wait until ready flag
         device.waitOnNonZero(readyFlagPtr);
         LOGI << "Done";
+
+        check(reinterpret_cast<const volatile int16_t*>(device.getDataMemory() + hiddenIsynScalarPtr), numInput, numHidden);
         
     }
     return 0;
