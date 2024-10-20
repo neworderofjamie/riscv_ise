@@ -145,14 +145,16 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
         c.bne(*SSpikeWord, Reg::X0, bitLoopStart);
 
         // Goto wordEnd
-        c.j_(wordEnd);
+        //c.j_(wordEnd);
+        c.beq(Reg::X0, Reg::X0, wordEnd);
     }
 
     // Zero spike word
     {
         c.L(zeroSpikeWord);
         c.li(*SSpikeWord, 0);
-        c.j_(bitLoopBody);
+        //c.j_(bitLoopBody);
+        c.beq(Reg::X0, Reg::X0, bitLoopBody);
     }
     
     c.L(wordEnd);
@@ -353,7 +355,7 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
     c.L(wordEnd);
 }*/
 
-void check(const volatile int16_t *hiddenIsyn, size_t numInput, size_t numHidden)
+void check(const int16_t *hiddenIsyn, size_t numInput, size_t numHidden)
 {
     int numCorrect = 0;
     for(size_t i = 0; i < numHidden; i++) {
@@ -384,6 +386,7 @@ std::vector<uint32_t> generateSimCode(bool simulate, uint32_t numInput, uint32_t
             AssemblerUtils::generateScalarVectorMemcpy(c, vectorRegisterAllocator, scalarRegisterAllocator,
                                                        weightInHidScalarPtr, weightInHidPtr, 
                                                        (numInput * numHiddenSpikeWords) + numHiddenSpikeWords);
+            
             
             // 2^6 = 2 bytes * 32 hidden neurons
             genStaticPulse(c, vectorRegisterAllocator, scalarRegisterAllocator,
@@ -443,10 +446,16 @@ int main()
         }
         std::memcpy(scalarInitData.data() + inputSpikePtr, test.data(), test.size() * 4);
     }
-
+    
+    std::vector<uint32_t> wordData(scalarInitData.size() / 4);
+    std::memcpy(wordData.data(), scalarInitData.data(), scalarInitData.size());
+    AppUtils::dumpCOE("spike_data.coe", wordData);
+    
     // Generate sim code
     const auto simCode = generateSimCode(simulate, numInput, numHidden, numInputSpikeWords, numHiddenSpikeWords, 
                                          inputSpikePtr, weightInHidPtr, weightInHidScalarPtr, hiddenIsynPtr, hiddenIsynScalarPtr, readyFlagPtr);
+    // Dump to coe file
+    AppUtils::dumpCOE("spike.coe", simCode);
     LOGI << simCode.size() << " simulation instructions";
     LOGI << scalarInitData.size() << " bytes of scalar memory required";
     LOGI << vectorInitData.size() * 2 << " bytes of vector memory required (" << ceilDivide(vectorInitData.size() / 32, 4096) << " URAM cascade)";
@@ -468,7 +477,7 @@ int main()
 
     }
     else {
-         LOGI << "Creating device";
+        LOGI << "Creating device";
         Device device;
         LOGI << "Resetting";
         // Put core into reset state
@@ -488,8 +497,11 @@ int main()
         // Wait until ready flag
         device.waitOnNonZero(readyFlagPtr);
         LOGI << "Done";
-
-        check(reinterpret_cast<const volatile int16_t*>(device.getDataMemory() + hiddenIsynScalarPtr), numInput, numHidden);
+        device.setEnabled(false);
+        
+        int16_t hiddenIsyn[32];
+        device.memcpyDataFromDevice(reinterpret_cast<uint8_t*>(&hiddenIsyn[0]), hiddenIsynScalarPtr, numHidden * 2);
+        check(hiddenIsyn, numInput, numHidden);
         
     }
     return 0;
