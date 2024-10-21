@@ -2,6 +2,8 @@ import itertools
 import logging
 import re
 
+from utils import evaluate
+
 logger = logging.getLogger(__name__)
 
 
@@ -55,9 +57,7 @@ def parse_data(lines):
             elif (match := _match_fill.search(l)) is not None:
                 # Parse repeat, size and value 
                 # **HACK** use python to evaluate expression
-                repeat_code = match.group(1)
-                repeat_code = repeat_code.replace("/", "//")
-                repeat = int(eval(repeat_code, None, {"XLEN": 32}))
+                repeat = evaluate(match.group(1))
                 size = int(match.group(2), 0)
                 value = int(match.group(3), 0)
                 assert size == 4

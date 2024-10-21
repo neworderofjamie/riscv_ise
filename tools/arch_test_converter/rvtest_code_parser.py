@@ -1,7 +1,7 @@
 import logging
 import re
 
-from utils import get_clean_name
+from utils import evaluate, get_clean_name
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +21,7 @@ def _add_correct_output(base_addresses, correct_outputs, match, lines, line_idx,
     correct_value = (correct_value if correct_value is not None
                      else int(match.group("correctval"), 0))
     # Calculate destination address and add result to check
-    result_address = base_addresses[match.group("swreg")] + int(match.group("offset"), 0)
+    result_address = base_addresses[match.group("swreg")] + evaluate(match.group('offset'))
     correct_outputs.append((result_address, correct_value,
                             _get_description(lines, line_idx)))
 
@@ -33,6 +33,9 @@ def _get_assembler_func(op_code):
 def _reg(name):
     return fr"x(?P<{name}>[0-9]+)"
 
+def _code(name):
+    return fr"(?P<{name}>.+)"
+
 def _num(name):
     return fr"(?P<{name}>-?(?:0x)?[0-9a-fA-F]+)"
 
@@ -42,23 +45,27 @@ _label = r"(?P<label>[0-9][fb])"
 
 # Register-register operation
 # TEST_RR_OP(inst, destreg, reg1, reg2, correctval, val1, val2, swreg, offset, testreg)
-_match_test_rr_op = re.compile(fr"TEST_RR_OP\(\s*{_inst},\s*{_reg('destreg')},\s*{_reg('reg1')},\s*{_reg('reg2')},\s*{_num('correctval')},\s*{_num('val1')},\s*{_num('val2')},\s*{_reg('swreg')},\s*{_num('offset')},\s*{_reg('testreg')}\)")
+_match_test_rr_op = re.compile(fr"TEST_RR_OP\(\s*{_inst},\s*{_reg('destreg')},\s*{_reg('reg1')},\s*{_reg('reg2')},\s*{_num('correctval')},\s*{_num('val1')},\s*{_num('val2')},\s*{_reg('swreg')},\s*{_code('offset')},\s*{_reg('testreg')}\)")
+
+# Single register operation
+# TEST_RD_OP(inst, destreg, reg1, correctval, val1, swreg, offset, testreg)
+_match_test_rd_op = re.compile(fr"TEST_RD_OP\(\s*{_inst},\s*{_reg('destreg')},\s*{_reg('reg1')},\s*{_num('correctval')},\s*{_num('val1')},\s*{_reg('swreg')},\s*{_code('offset')},\s*{_reg('testreg')}\)")
 
 # Register-immediate instruction
 # TEST_IMM_OP( inst, destreg, reg, correctval, val, imm, swreg, offset, testreg)
-_match_test_imm_op = re.compile(fr"TEST_IMM_OP\(\s*{_inst},\s*{_reg('destreg')},\s*{_reg('reg')},\s*{_num('correctval')},\s*{_num('val')},\s*{_num('imm')},\s*{_reg('swreg')},\s*{_num('offset')},\s*{_reg('testreg')}\)")
+_match_test_imm_op = re.compile(fr"TEST_IMM_OP\(\s*{_inst},\s*{_reg('destreg')},\s*{_reg('reg')},\s*{_num('correctval')},\s*{_num('val')},\s*{_num('imm')},\s*{_reg('swreg')},\s*{_code('offset')},\s*{_reg('testreg')}\)")
 
 # Load instruction
 #define TEST_LOAD(swreg,testreg,index,rs1,destreg,imm_val,offset,inst,adj);\
-_match_test_load_op = re.compile(fr"TEST_LOAD\(\s*{_reg('swreg')},\s*{_reg('testreg')},\s*{_num('index')},\s*{_reg('rs1')},\s*{_reg('destreg')},\s*{_num('imm_val')},\s*{_num('offset')},\s*{_inst},\s*{_num('adj')}\)")
+_match_test_load_op = re.compile(fr"TEST_LOAD\(\s*{_reg('swreg')},\s*{_reg('testreg')},\s*{_num('index')},\s*{_reg('rs1')},\s*{_reg('destreg')},\s*{_num('imm_val')},\s*{_code('offset')},\s*{_inst},\s*{_num('adj')}\)")
 
 # Branch instruction
 # TEST_BRANCH_OP(inst, tempreg, reg1, reg2, val1, val2, imm, label, swreg, offset,adj)
-_match_test_branch_op = re.compile(fr"TEST_BRANCH_OP\(\s*{_inst},\s*{_reg('tempreg')},\s*{_reg('reg1')},\s*{_reg('reg2')},\s*{_num('val1')},\s*{_num('val2')},\s*{_num('imm')},\s*{_label},\s*{_reg('swreg')},\s*{_num('offset')},\s*{_num('adj')}\)")
+_match_test_branch_op = re.compile(fr"TEST_BRANCH_OP\(\s*{_inst},\s*{_reg('tempreg')},\s*{_reg('reg1')},\s*{_reg('reg2')},\s*{_num('val1')},\s*{_num('val2')},\s*{_num('imm')},\s*{_label},\s*{_reg('swreg')},\s*{_code('offset')},\s*{_num('adj')}\)")
 
 # Plain test case for simple instructions
 # TEST_CASE(testreg, destreg, correctval, swreg, offset, code... )
-_match_test_case = re.compile(fr"TEST_CASE\(\s*{_reg('testreg')},\s*{_reg('destreg')},\s*{_num('correctval')},\s*{_reg('swreg')},\s*{_num('offset')},\s*(?P<code>.*)\)")
+_match_test_case = re.compile(fr"TEST_CASE\(\s*{_reg('testreg')},\s*{_reg('destreg')},\s*{_num('correctval')},\s*{_reg('swreg')},\s*{_num('offset')},\s*{_code('code')}\)")
 
 # **YUCK** dedicated regular expression to match lui instructions used in TEST_CASE
 _match_test_case_lui = re.compile(fr"\s*lui\s+{_reg('reg')},\s*{_num('imm')}")
@@ -111,17 +118,27 @@ def parse_code(lines, var_addresses):
                     f"c.li(Reg::X{match.group('reg1')}, MASK_XLEN({match.group('val1')}));\n"
                     f"c.li(Reg::X{match.group('reg2')}, MASK_XLEN({match.group('val2')}));\n"
                     f"c.{_get_assembler_func(match.group('inst'))}(Reg::X{match.group('destreg')}, Reg::X{match.group('reg1')}, Reg::X{match.group('reg2')});\n"
-                    f"c.sw(Reg::X{match.group('destreg')}, Reg::X{match.group('swreg')}, {match.group('offset')});\n\n")
+                    f"c.sw(Reg::X{match.group('destreg')}, Reg::X{match.group('swreg')}, {evaluate(match.group('offset'))});\n\n")
                 
                 # Add correct output to list
-                _add_correct_output(base_addresses, correct_outputs, match, lines, i)                
+                _add_correct_output(base_addresses, correct_outputs, match, lines, i)
+            # If line contains single register operation
+            elif (match := _match_test_rd_op.search(l)) is not None:
+                # Generate code to load operands from immediates, perform operation and store result
+                test_code += (
+                    f"c.li(Reg::X{match.group('reg1')}, MASK_XLEN({match.group('val1')}));\n"
+                    f"c.{_get_assembler_func(match.group('inst'))}(Reg::X{match.group('destreg')}, Reg::X{match.group('reg1')});\n"
+                    f"c.sw(Reg::X{match.group('destreg')}, Reg::X{match.group('swreg')}, {evaluate(match.group('offset'))});\n\n")
+                
+                # Add correct output to list
+                _add_correct_output(base_addresses, correct_outputs, match, lines, i)      
             # If line contains register-immediate operation
             elif (match := _match_test_imm_op.search(l)) is not None:
                 # Generate code to load operands from immediates, perform operation and store result
                 test_code += (
                     f"c.li(Reg::X{match.group('reg')}, MASK_XLEN({match.group('val')}));\n"
                     f"c.{_get_assembler_func(match.group('inst'))}(Reg::X{match.group('destreg')}, Reg::X{match.group('reg')}, SEXT_IMM({match.group('imm')}));\n"
-                    f"c.sw(Reg::X{match.group('destreg')}, Reg::X{match.group('swreg')}, {match.group('offset')});\n\n")
+                    f"c.sw(Reg::X{match.group('destreg')}, Reg::X{match.group('swreg')}, {evaluate(match.group('offset'))});\n\n")
                 
                 # Add correct output to list
                 _add_correct_output(base_addresses, correct_outputs, match, lines, i)
@@ -131,7 +148,7 @@ def parse_code(lines, var_addresses):
                 test_code += (
                     f"c.li(Reg::X{match.group('rs1')}, {var_addresses['rvtest_data']}+({match.group('index')}*4)+({match.group('adj')})-({match.group('imm_val')}));\n"
                     f"c.{_get_assembler_func(match.group('inst'))}(Reg::X{match.group('destreg')}, Reg::X{match.group('rs1')}, {match.group('imm_val')});\n"
-                    f"c.sw(Reg::X{match.group('destreg')}, Reg::X{match.group('swreg')}, {match.group('offset')});\n\n")
+                    f"c.sw(Reg::X{match.group('destreg')}, Reg::X{match.group('swreg')}, {evaluate(match.group('offset'))});\n\n")
                 
                 # Add correct output to list
                 # **TODO** halfword and byte
@@ -228,7 +245,7 @@ def parse_code(lines, var_addresses):
                 # 4
                 #-------------------------------------------------------------
                 test_code += f"c.L(label4_{lab_count[4]});\n"
-                test_code += f"c.sw(Reg::X{match.group('tempreg')}, Reg::X{match.group('swreg')}, {match.group('offset')});\n\n"
+                test_code += f"c.sw(Reg::X{match.group('tempreg')}, Reg::X{match.group('swreg')}, {evaluate(match.group('offset'))});\n\n"
                 lab_count[4] += 1
                 
                 # Add correct output to list

@@ -9,3 +9,7 @@ def get_clean_name(name):
     
     # Remove any leading digits to get valid name
     return name.lstrip(digits)
+
+def evaluate(code):
+    code = code.replace("/", "//")
+    return int(eval(code, None, {"XLEN": 32}))
