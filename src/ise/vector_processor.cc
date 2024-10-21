@@ -147,25 +147,48 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
     case VectorOpCode::VLOAD:
     {
         auto [imm, rs1, funct3, rd] = decodeIType(inst);
-        const uint32_t addr = reg[rs1] + imm;
 
-        // VLOADV
-        if(funct3 == 0b000) {
-            PLOGV << "VLOADV " << rs1 << " " << imm;
-            PLOGV << "\t" << rd;
-            m_VReg[rd] = m_VectorDataMemory.readVector(addr); 
+        // If load is local
+        if(funct3 & 0b010) {
+            //VLOAD.LOCAL
+            if(funct3 == 0b010) {
+                PLOGV << "VLOAD.LOCAL " << rs1 << " " << imm;
+                PLOGV << "\t" << rd;
+                
+                // Read from each lane local memory into lane
+                std::transform(m_LaneLocalMemories.cbegin(), m_LaneLocalMemories.cend(),
+                               m_VReg[rs1].cbegin(), m_VReg[rd].begin(),
+                               [imm](const auto &mem, int16_t l){ return mem.read((uint32_t)(imm + l)); });
+            }
+            else {
+                throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
+            }
         }
-        // VLOADR0
-        else if(funct3 == 0b001) {
-            PLOGV << "VLOADR0 " << rs1 << " " << imm;
-            PLOGV << "\t" << rd;
-            m_S0 = m_VectorDataMemory.readVector(addr); 
-        }
-        // VLOADR1/VLOADR1I
-        else if(funct3 == 0b101) {
-            PLOGV << "VLOADR1 " << rs1 << " " << imm;
-            PLOGV << "\t" << rd;
-            m_S1 = m_VectorDataMemory.readVector(addr); 
+        // Otherwise
+        else {
+            const uint32_t addr = reg[rs1] + imm;
+
+            // VLOAD.V
+            if(funct3 == 0b000) {
+                PLOGV << "VLOAD.V " << rs1 << " " << imm;
+                PLOGV << "\t" << rd;
+                m_VReg[rd] = m_VectorDataMemory.readVector(addr); 
+            }
+            // VLOAD.R0
+            else if(funct3 == 0b001) {
+                PLOGV << "VLOAD.R0 " << rs1 << " " << imm;
+                PLOGV << "\t" << rd;
+                m_S0 = m_VectorDataMemory.readVector(addr); 
+            }
+            // VLOAD.R1
+            else if(funct3 == 0b101) {
+                PLOGV << "VLOAD.R1 " << rs1 << " " << imm;
+                PLOGV << "\t" << rd;
+                m_S1 = m_VectorDataMemory.readVector(addr); 
+            }
+            else {
+                throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
+            }
         }
         
         break;
@@ -250,17 +273,22 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
     case VectorOpCode::VSTORE:
     {
         auto [imm, rs2, rs1, funct3] = decodeSType(inst);
-        const uint32_t addr = reg[rs1] + imm;
 
-        if(funct3 == 0x2) {
-            PLOGV << "VSTOREI " << rs2 << " " << rs1 << " " << imm;
-            reg[rs1] += 64;
+        if(funct3 == 0b000) {
+            PLOGV << "VSTORE.V " << rs2 << " " << rs1 << " " << imm;
+            m_VectorDataMemory.writeVector(reg[rs1] + imm, m_VReg[rs2]);
+        }
+        else if(funct3 == 0b010) {
+            PLOGV << "VSTORE.LOCAL " << rs2 << " " << rs1 << " " << imm;
+
+            // Write contents of rs2 to lane local address
+            for(size_t i = 0; i < 32; i++) {
+                m_LaneLocalMemories[i].write((uint32_t)(m_VReg[rs1][i] + imm), m_VReg[rs2][i]);
+            }
         }
         else {
-            PLOGV << "VSTORE " << rs2 << " " << rs1 << " " << imm;
+            throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
         }
-
-        m_VectorDataMemory.writeVector(addr, m_VReg[rs2]);
         break;
     }
     
