@@ -60,446 +60,446 @@ std::vector<uint8_t> sll_01::s_ScalarData;
 // Generate google tests
 
 TEST_F(sll_01, opcode__sll___op1_x16__op2_x28__dest_x28__op1val__0x81___op2val_0xa) {
-  ASSERT_EQ(getScalarWordData()[5], 4294835200);
+  ASSERT_EQ(getScalarWordData()[5], (uint32_t)4294835200);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x21__op2_x21__dest_x0__op1val_0x5___op2val_0x5) {
-  ASSERT_EQ(getScalarWordData()[6], 0);
+  ASSERT_EQ(getScalarWordData()[6], (uint32_t)0);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x18__op2_x18__dest_x18__op1val__0x8001___op2val__0x8001) {
-  ASSERT_EQ(getScalarWordData()[7], 2147483648);
+  ASSERT_EQ(getScalarWordData()[7], (uint32_t)2147483648);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x5__op2_x13__dest_x5__op1val_0x7___op2val_0x0) {
-  ASSERT_EQ(getScalarWordData()[8], 7);
+  ASSERT_EQ(getScalarWordData()[8], (uint32_t)7);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x22__op2_x12__dest_x23__op1val_0x6___op2val_0x6) {
-  ASSERT_EQ(getScalarWordData()[9], 384);
+  ASSERT_EQ(getScalarWordData()[9], (uint32_t)384);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x19__op2_x0__dest_x6__op1val__0x80000000___op2val_0x0) {
-  ASSERT_EQ(getScalarWordData()[10], 2147483648);
+  ASSERT_EQ(getScalarWordData()[10], (uint32_t)2147483648);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x25__op2_x24__dest_x13__op1val_0x0___op2val_0x4) {
-  ASSERT_EQ(getScalarWordData()[11], 0);
+  ASSERT_EQ(getScalarWordData()[11], (uint32_t)0);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x12__op2_x26__dest_x16__op1val_0x7fffffff___op2val_0x15) {
-  ASSERT_EQ(getScalarWordData()[12], 4292870144);
+  ASSERT_EQ(getScalarWordData()[12], (uint32_t)4292870144);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x6__op2_x14__dest_x20__op1val_0x1___op2val_0x4) {
-  ASSERT_EQ(getScalarWordData()[13], 16);
+  ASSERT_EQ(getScalarWordData()[13], (uint32_t)16);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x14__op2_x1__dest_x22__op1val_0x2___op2val_0x1f) {
-  ASSERT_EQ(getScalarWordData()[14], 0);
+  ASSERT_EQ(getScalarWordData()[14], (uint32_t)0);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x29__op2_x7__dest_x21__op1val_0x4___op2val_0x2) {
-  ASSERT_EQ(getScalarWordData()[15], 16);
+  ASSERT_EQ(getScalarWordData()[15], (uint32_t)16);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x31__op2_x10__dest_x4__op1val_0x8___op2val_0x1f) {
-  ASSERT_EQ(getScalarWordData()[16], 0);
+  ASSERT_EQ(getScalarWordData()[16], (uint32_t)0);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x17__op2_x20__dest_x7__op1val_0x10___op2val_0x1f) {
-  ASSERT_EQ(getScalarWordData()[17], 0);
+  ASSERT_EQ(getScalarWordData()[17], (uint32_t)0);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x20__op2_x11__dest_x12__op1val_0x20___op2val_0x17) {
-  ASSERT_EQ(getScalarWordData()[18], 268435456);
+  ASSERT_EQ(getScalarWordData()[18], (uint32_t)268435456);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x11__op2_x22__dest_x3__op1val_0x40___op2val_0x11) {
-  ASSERT_EQ(getScalarWordData()[19], 8388608);
+  ASSERT_EQ(getScalarWordData()[19], (uint32_t)8388608);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x0__op2_x30__dest_x24__op1val_0x0___op2val_0x10) {
-  ASSERT_EQ(getScalarWordData()[20], 0);
+  ASSERT_EQ(getScalarWordData()[20], (uint32_t)0);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x3__op2_x31__dest_x8__op1val_0x100___op2val_0x1b) {
-  ASSERT_EQ(getScalarWordData()[21], 0);
+  ASSERT_EQ(getScalarWordData()[21], (uint32_t)0);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x27__op2_x17__dest_x10__op1val_0x200___op2val_0x0) {
-  ASSERT_EQ(getScalarWordData()[22], 512);
+  ASSERT_EQ(getScalarWordData()[22], (uint32_t)512);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x10__op2_x19__dest_x11__op1val_0x400___op2val_0x1b) {
-  ASSERT_EQ(getScalarWordData()[23], 0);
+  ASSERT_EQ(getScalarWordData()[23], (uint32_t)0);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x8__op2_x27__dest_x1__op1val_0x800___op2val_0x6) {
-  ASSERT_EQ(getScalarWordData()[24], 131072);
+  ASSERT_EQ(getScalarWordData()[24], (uint32_t)131072);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x28__op2_x9__dest_x25__op1val_0x1000___op2val_0x10) {
-  ASSERT_EQ(getScalarWordData()[25], 268435456);
+  ASSERT_EQ(getScalarWordData()[25], (uint32_t)268435456);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x2__op2_x15__dest_x27__op1val_0x2000___op2val_0xd) {
-  ASSERT_EQ(getScalarWordData()[26], 67108864);
+  ASSERT_EQ(getScalarWordData()[26], (uint32_t)67108864);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x24__op2_x29__dest_x26__op1val_0x4000___op2val_0x12) {
-  ASSERT_EQ(getScalarWordData()[27], 0);
+  ASSERT_EQ(getScalarWordData()[27], (uint32_t)0);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x1__op2_x23__dest_x9__op1val_0x8000___op2val_0x11) {
-  ASSERT_EQ(getScalarWordData()[28], 0);
+  ASSERT_EQ(getScalarWordData()[28], (uint32_t)0);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x23__op2_x16__dest_x14__op1val_0x10000___op2val_0x1f) {
-  ASSERT_EQ(getScalarWordData()[29], 0);
+  ASSERT_EQ(getScalarWordData()[29], (uint32_t)0);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x4__op2_x3__dest_x17__op1val_0x20000___op2val_0x13) {
-  ASSERT_EQ(getScalarWordData()[30], 0);
+  ASSERT_EQ(getScalarWordData()[30], (uint32_t)0);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x7__op2_x4__dest_x15__op1val_0x40000___op2val_0x17) {
-  ASSERT_EQ(getScalarWordData()[31], 0);
+  ASSERT_EQ(getScalarWordData()[31], (uint32_t)0);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x9__op2_x2__dest_x29__op1val_0x80000___op2val_0x13) {
-  ASSERT_EQ(getScalarWordData()[32], 0);
+  ASSERT_EQ(getScalarWordData()[32], (uint32_t)0);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x15__op2_x8__dest_x31__op1val_0x100000___op2val_0xb) {
-  ASSERT_EQ(getScalarWordData()[33], 2147483648);
+  ASSERT_EQ(getScalarWordData()[33], (uint32_t)2147483648);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x26__op2_x6__dest_x30__op1val_0x200000___op2val_0x1f) {
-  ASSERT_EQ(getScalarWordData()[34], 0);
+  ASSERT_EQ(getScalarWordData()[34], (uint32_t)0);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x30__op2_x5__dest_x19__op1val_0x400000___op2val_0x9) {
-  ASSERT_EQ(getScalarWordData()[35], 2147483648);
+  ASSERT_EQ(getScalarWordData()[35], (uint32_t)2147483648);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x13__op2_x25__dest_x2__op1val_0x800000___op2val_0x4) {
-  ASSERT_EQ(getScalarWordData()[36], 134217728);
+  ASSERT_EQ(getScalarWordData()[36], (uint32_t)134217728);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x10__op2_x11__dest_x12__op1val_0x1000000___op2val_0x2) {
-  ASSERT_EQ(getScalarWordData()[37], 67108864);
+  ASSERT_EQ(getScalarWordData()[37], (uint32_t)67108864);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x10__op2_x11__dest_x12__op1val_0x2000000___op2val_0x4) {
-  ASSERT_EQ(getScalarWordData()[38], 536870912);
+  ASSERT_EQ(getScalarWordData()[38], (uint32_t)536870912);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x10__op2_x11__dest_x12__op1val_0x4000000___op2val_0x8) {
-  ASSERT_EQ(getScalarWordData()[39], 0);
+  ASSERT_EQ(getScalarWordData()[39], (uint32_t)0);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x10__op2_x11__dest_x12__op1val_0x8000000___op2val_0x1d) {
-  ASSERT_EQ(getScalarWordData()[40], 0);
+  ASSERT_EQ(getScalarWordData()[40], (uint32_t)0);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x10__op2_x11__dest_x12__op1val_0x10000000___op2val_0x12) {
-  ASSERT_EQ(getScalarWordData()[41], 0);
+  ASSERT_EQ(getScalarWordData()[41], (uint32_t)0);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x10__op2_x11__dest_x12__op1val_0x20000000___op2val_0xd) {
-  ASSERT_EQ(getScalarWordData()[42], 0);
+  ASSERT_EQ(getScalarWordData()[42], (uint32_t)0);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x10__op2_x11__dest_x12__op1val_0x40000000___op2val_0xf) {
-  ASSERT_EQ(getScalarWordData()[43], 0);
+  ASSERT_EQ(getScalarWordData()[43], (uint32_t)0);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x10__op2_x11__dest_x12__op1val__0x2___op2val_0x1d) {
-  ASSERT_EQ(getScalarWordData()[44], 3221225472);
+  ASSERT_EQ(getScalarWordData()[44], (uint32_t)3221225472);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x10__op2_x11__dest_x12__op1val__0x3___op2val_0x1e) {
-  ASSERT_EQ(getScalarWordData()[45], 1073741824);
+  ASSERT_EQ(getScalarWordData()[45], (uint32_t)1073741824);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x10__op2_x11__dest_x12__op1val__0x5___op2val_0x15) {
-  ASSERT_EQ(getScalarWordData()[46], 4284481536);
+  ASSERT_EQ(getScalarWordData()[46], (uint32_t)4284481536);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x10__op2_x11__dest_x12__op1val__0x9___op2val_0x13) {
-  ASSERT_EQ(getScalarWordData()[47], 4290248704);
+  ASSERT_EQ(getScalarWordData()[47], (uint32_t)4290248704);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x10__op2_x11__dest_x12__op1val__0x11___op2val_0xa) {
-  ASSERT_EQ(getScalarWordData()[48], 4294949888);
+  ASSERT_EQ(getScalarWordData()[48], (uint32_t)4294949888);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x10__op2_x11__dest_x12__op1val__0x21___op2val_0x8) {
-  ASSERT_EQ(getScalarWordData()[49], 4294958848);
+  ASSERT_EQ(getScalarWordData()[49], (uint32_t)4294958848);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x10__op2_x11__dest_x12__op1val__0x41___op2val_0x6) {
-  ASSERT_EQ(getScalarWordData()[50], 4294963136);
+  ASSERT_EQ(getScalarWordData()[50], (uint32_t)4294963136);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x10__op2_x11__dest_x12__op1val__0x101___op2val_0x3) {
-  ASSERT_EQ(getScalarWordData()[51], 4294965240);
+  ASSERT_EQ(getScalarWordData()[51], (uint32_t)4294965240);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x10__op2_x11__dest_x12__op1val__0x201___op2val_0x8) {
-  ASSERT_EQ(getScalarWordData()[52], 4294835968);
+  ASSERT_EQ(getScalarWordData()[52], (uint32_t)4294835968);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x10__op2_x11__dest_x12__op1val__0x401___op2val_0x1) {
-  ASSERT_EQ(getScalarWordData()[53], 4294965246);
+  ASSERT_EQ(getScalarWordData()[53], (uint32_t)4294965246);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x10__op2_x11__dest_x12__op1val__0x801___op2val_0x1e) {
-  ASSERT_EQ(getScalarWordData()[54], 3221225472);
+  ASSERT_EQ(getScalarWordData()[54], (uint32_t)3221225472);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x10__op2_x11__dest_x12__op1val__0x1001___op2val_0xa) {
-  ASSERT_EQ(getScalarWordData()[55], 4290771968);
+  ASSERT_EQ(getScalarWordData()[55], (uint32_t)4290771968);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x10__op2_x11__dest_x12__op1val__0x2001___op2val_0xf) {
-  ASSERT_EQ(getScalarWordData()[56], 4026499072);
+  ASSERT_EQ(getScalarWordData()[56], (uint32_t)4026499072);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x10__op2_x11__dest_x12__op1val__0x4001___op2val_0x15) {
-  ASSERT_EQ(getScalarWordData()[57], 4292870144);
+  ASSERT_EQ(getScalarWordData()[57], (uint32_t)4292870144);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x10__op2_x11__dest_x12__op1val__0x10001___op2val_0x4) {
-  ASSERT_EQ(getScalarWordData()[58], 4293918704);
+  ASSERT_EQ(getScalarWordData()[58], (uint32_t)4293918704);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x10__op2_x11__dest_x12__op1val__0x20001___op2val_0x11) {
-  ASSERT_EQ(getScalarWordData()[59], 4294836224);
+  ASSERT_EQ(getScalarWordData()[59], (uint32_t)4294836224);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x10__op2_x11__dest_x12__op1val__0x40001___op2val_0x0) {
-  ASSERT_EQ(getScalarWordData()[60], 4294705151);
+  ASSERT_EQ(getScalarWordData()[60], (uint32_t)4294705151);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x10__op2_x11__dest_x12__op1val__0x800001___op2val_0x3) {
-  ASSERT_EQ(getScalarWordData()[61], 4227858424);
+  ASSERT_EQ(getScalarWordData()[61], (uint32_t)4227858424);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x10__op2_x11__dest_x12__op1val__0x1000001___op2val_0x0) {
-  ASSERT_EQ(getScalarWordData()[62], 4278190079);
+  ASSERT_EQ(getScalarWordData()[62], (uint32_t)4278190079);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x10__op2_x11__dest_x12__op1val__0x2000001___op2val_0x1) {
-  ASSERT_EQ(getScalarWordData()[63], 4227858430);
+  ASSERT_EQ(getScalarWordData()[63], (uint32_t)4227858430);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x10__op2_x11__dest_x12__op1val__0x4000001___op2val_0x13) {
-  ASSERT_EQ(getScalarWordData()[64], 4294443008);
+  ASSERT_EQ(getScalarWordData()[64], (uint32_t)4294443008);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x10__op2_x11__dest_x12__op1val__0x8000001___op2val_0x1e) {
-  ASSERT_EQ(getScalarWordData()[65], 3221225472);
+  ASSERT_EQ(getScalarWordData()[65], (uint32_t)3221225472);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x10__op2_x11__dest_x12__op1val__0x10000001___op2val_0x13) {
-  ASSERT_EQ(getScalarWordData()[66], 4294443008);
+  ASSERT_EQ(getScalarWordData()[66], (uint32_t)4294443008);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x10__op2_x11__dest_x12__op1val__0x20000001___op2val_0x12) {
-  ASSERT_EQ(getScalarWordData()[67], 4294705152);
+  ASSERT_EQ(getScalarWordData()[67], (uint32_t)4294705152);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x10__op2_x11__dest_x12__op1val__0x40000001___op2val_0x5) {
-  ASSERT_EQ(getScalarWordData()[68], 4294967264);
+  ASSERT_EQ(getScalarWordData()[68], (uint32_t)4294967264);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x10__op2_x11__dest_x12__op1val_0x55555555___op2val_0xc) {
-  ASSERT_EQ(getScalarWordData()[69], 1431654400);
+  ASSERT_EQ(getScalarWordData()[69], (uint32_t)1431654400);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x10__op2_x11__dest_x12__op1val__0x55555556___op2val_0x4) {
-  ASSERT_EQ(getScalarWordData()[70], 2863311520);
+  ASSERT_EQ(getScalarWordData()[70], (uint32_t)2863311520);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x10__op2_x11__dest_x12__op1val_0x3___op2val_0x1b) {
-  ASSERT_EQ(getScalarWordData()[71], 402653184);
+  ASSERT_EQ(getScalarWordData()[71], (uint32_t)402653184);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x10__op2_x11__dest_x12__op1val_0x33333333___op2val_0x0) {
-  ASSERT_EQ(getScalarWordData()[72], 858993459);
+  ASSERT_EQ(getScalarWordData()[72], (uint32_t)858993459);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x10__op2_x11__dest_x12__op1val_0x66666666___op2val_0xb) {
-  ASSERT_EQ(getScalarWordData()[73], 858992640);
+  ASSERT_EQ(getScalarWordData()[73], (uint32_t)858992640);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x10__op2_x11__dest_x12__op1val__0xb504___op2val_0x5) {
-  ASSERT_EQ(getScalarWordData()[74], 4293484416);
+  ASSERT_EQ(getScalarWordData()[74], (uint32_t)4293484416);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x10__op2_x11__dest_x12__op1val_0xb505___op2val_0x1b) {
-  ASSERT_EQ(getScalarWordData()[75], 671088640);
+  ASSERT_EQ(getScalarWordData()[75], (uint32_t)671088640);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x10__op2_x11__dest_x12__op1val__0xb503___op2val_0x1b) {
-  ASSERT_EQ(getScalarWordData()[76], 3892314112);
+  ASSERT_EQ(getScalarWordData()[76], (uint32_t)3892314112);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x10__op2_x11__dest_x12__op1val_0xb504___op2val_0x10) {
-  ASSERT_EQ(getScalarWordData()[77], 3036938240);
+  ASSERT_EQ(getScalarWordData()[77], (uint32_t)3036938240);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x10__op2_x11__dest_x12__op1val_0x55555554___op2val_0x1) {
-  ASSERT_EQ(getScalarWordData()[78], 2863311528);
+  ASSERT_EQ(getScalarWordData()[78], (uint32_t)2863311528);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x10__op2_x11__dest_x12__op1val__0x100001___op2val_0x3) {
-  ASSERT_EQ(getScalarWordData()[79], 4286578680);
+  ASSERT_EQ(getScalarWordData()[79], (uint32_t)4286578680);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x10__op2_x11__dest_x12__op1val_0x66666667___op2val_0x1d) {
-  ASSERT_EQ(getScalarWordData()[80], 3758096384);
+  ASSERT_EQ(getScalarWordData()[80], (uint32_t)3758096384);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x10__op2_x11__dest_x12__op1val_0x33333332___op2val_0x2) {
-  ASSERT_EQ(getScalarWordData()[81], 3435973832);
+  ASSERT_EQ(getScalarWordData()[81], (uint32_t)3435973832);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x10__op2_x11__dest_x12__op1val_0x66666665___op2val_0x2) {
-  ASSERT_EQ(getScalarWordData()[82], 2576980372);
+  ASSERT_EQ(getScalarWordData()[82], (uint32_t)2576980372);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x10__op2_x11__dest_x12__op1val_0xb503___op2val_0xb) {
-  ASSERT_EQ(getScalarWordData()[83], 94902272);
+  ASSERT_EQ(getScalarWordData()[83], (uint32_t)94902272);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x10__op2_x11__dest_x12__op1val_0x55555556___op2val_0x1) {
-  ASSERT_EQ(getScalarWordData()[84], 2863311532);
+  ASSERT_EQ(getScalarWordData()[84], (uint32_t)2863311532);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x10__op2_x11__dest_x12__op1val__0x55555555___op2val_0xb) {
-  ASSERT_EQ(getScalarWordData()[85], 1431656448);
+  ASSERT_EQ(getScalarWordData()[85], (uint32_t)1431656448);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x10__op2_x11__dest_x12__op1val__0x80001___op2val_0x11) {
-  ASSERT_EQ(getScalarWordData()[86], 4294836224);
+  ASSERT_EQ(getScalarWordData()[86], (uint32_t)4294836224);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x10__op2_x11__dest_x12__op1val_0x33333334___op2val_0x4) {
-  ASSERT_EQ(getScalarWordData()[87], 858993472);
+  ASSERT_EQ(getScalarWordData()[87], (uint32_t)858993472);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x10__op2_x11__dest_x12__op1val__0x200001___op2val_0x3) {
-  ASSERT_EQ(getScalarWordData()[88], 4278190072);
+  ASSERT_EQ(getScalarWordData()[88], (uint32_t)4278190072);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x10__op2_x11__dest_x12__op1val__0x400001___op2val_0x15) {
-  ASSERT_EQ(getScalarWordData()[89], 4292870144);
+  ASSERT_EQ(getScalarWordData()[89], (uint32_t)4292870144);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x10__op2_x11__dest_x12__op1val_0x5___op2val_0xd) {
-  ASSERT_EQ(getScalarWordData()[90], 40960);
+  ASSERT_EQ(getScalarWordData()[90], (uint32_t)40960);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x10__op2_x11__dest_x12__op1val__0x8001___op2val_0x0) {
-  ASSERT_EQ(getScalarWordData()[91], 4294934527);
+  ASSERT_EQ(getScalarWordData()[91], (uint32_t)4294934527);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x10__op2_x11__dest_x12__op1val__0x80000000___op2val_0x10) {
-  ASSERT_EQ(getScalarWordData()[92], 0);
+  ASSERT_EQ(getScalarWordData()[92], (uint32_t)0);
 }
 
 
 TEST_F(sll_01, opcode__sll___op1_x10__op2_x11__dest_x12__op1val_0x80___op2val_0x10) {
-  ASSERT_EQ(getScalarWordData()[93], 8388608);
+  ASSERT_EQ(getScalarWordData()[93], (uint32_t)8388608);
 }
 
