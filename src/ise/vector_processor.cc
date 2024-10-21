@@ -94,14 +94,49 @@ void VectorDataMemory::writeVector(uint32_t addr, const Vector &vector)
         m_Data[startHalfWord + i] = vector[i];
     }
 }
+//----------------------------------------------------------------------------
+LaneLocalMemory::LaneLocalMemory(size_t numEntries)
+:   m_Data(numEntries)
+{}
+//----------------------------------------------------------------------------
+int16_t LaneLocalMemory::read(uint32_t addr) const
+{
+    if (addr & 1) {
+        throw Exception(Exception::Cause::MISALIGNED_LOAD, addr);
+    }
 
+    const size_t halfWordAddr = addr / 2;
+    if (halfWordAddr >= m_Data.size())  {
+        throw Exception(Exception::Cause::FAULT_LOAD, addr);
+    }
+
+    return m_Data[halfWordAddr];
+}
+//----------------------------------------------------------------------------
+void LaneLocalMemory::write(uint32_t addr, int16_t data)
+{
+    if (addr & 1) {
+        throw Exception(Exception::Cause::MISALIGNED_LOAD, addr);
+    }
+
+    const size_t halfWordAddr = addr / 2;
+    if (halfWordAddr >= m_Data.size())  {
+        throw Exception(Exception::Cause::FAULT_STORE, addr);
+    }
+
+    m_Data[halfWordAddr] = data;
+}
 
 //----------------------------------------------------------------------------
 // VectorProcessor
 //----------------------------------------------------------------------------
-VectorProcessor::VectorProcessor(const std::vector<int16_t> &data)
+VectorProcessor::VectorProcessor(const std::vector<int16_t> &data, size_t laneLocalMemorySize)
 :   m_VectorDataMemory(data)
 {
+    m_LaneLocalMemories.reserve(32);
+    for(size_t i = 0; i < 32; i++) {
+        m_LaneLocalMemories.emplace_back(laneLocalMemorySize);
+    }
 }    
 //------------------------------------------------------------------------
 void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32], 
