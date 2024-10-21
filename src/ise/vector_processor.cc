@@ -147,6 +147,7 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
     case VectorOpCode::VLOAD:
     {
         auto [imm, rs1, funct3, rd] = decodeIType(inst);
+
         const uint32_t addr = reg[rs1] + imm;
 
         // VLOADV
@@ -254,6 +255,7 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
     case VectorOpCode::VSTORE:
     {
         auto [imm, rs2, rs1, funct3] = decodeSType(inst);
+
         const uint32_t addr = reg[rs1] + imm;
 
         PLOGV << "VSTORE " << rs2 << " " << rs1 << " " << imm;
