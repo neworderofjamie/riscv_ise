@@ -229,7 +229,7 @@ std::vector<uint32_t> generateSimCode(bool simulate, uint32_t numInput, uint32_t
                                       uint32_t outputBiasPtr, uint32_t hiddenIsynPtr, uint32_t hiddenVPtr, uint32_t hiddenRefracTimePtr, 
                                       uint32_t outputIsynPtr , uint32_t outputVPtr, uint32_t outputVSumPtr,
                                       uint32_t inputSpikeArrayPtr, uint32_t hiddenSpikePtr, uint32_t outputVSumScalarPtr, 
-                                      uint32_t hiddenSpikeRecordingArrayPtr, uint32_t readyFlagPtr)
+                                      uint32_t hiddenSpikeRecordingArrayPtr, uint32_t hiddenVRecordingArrayPtr, uint32_t readyFlagPtr)
 {
     return AssemblerUtils::generateStandardKernel(
         simulate, readyFlagPtr,
@@ -239,6 +239,7 @@ std::vector<uint32_t> generateSimCode(bool simulate, uint32_t numInput, uint32_t
             ALLOCATE_SCALAR(STime);
             ALLOCATE_SCALAR(STimeEnd);
             ALLOCATE_SCALAR(SHiddenSpikeRecordingBuffer);
+            ALLOCATE_SCALAR(SHiddenVRecordingBuffer);
 
             // Labels
             Label timeLoop;
@@ -248,11 +249,11 @@ std::vector<uint32_t> generateSimCode(bool simulate, uint32_t numInput, uint32_t
             c.li(*STime, 0);
             c.li(*STimeEnd, numTimesteps);
             c.li(*SHiddenSpikeRecordingBuffer, hiddenSpikeRecordingArrayPtr);
+            c.li(*SHiddenVRecordingBuffer, hiddenVRecordingArrayPtr);
 
             // Loop over time
             c.L(timeLoop);
             {
-
                 // ---------------------------------------------------------------
                 // Input->Hidden synapses
                 // ---------------------------------------------------------------
@@ -337,7 +338,7 @@ std::vector<uint32_t> generateSimCode(bool simulate, uint32_t numInput, uint32_t
                         c, numHidden, 4, *SVBuffer, *SVBufferEnd,
                         [&scalarRegisterAllocator, &vectorRegisterAllocator,
                          hiddenFixedPoint, 
-                         SVBuffer, SISynBuffer, SRefracTimeBuffer, SSpikeBuffer, SHiddenSpikeRecordingBuffer,
+                         SVBuffer, SISynBuffer, SRefracTimeBuffer, SSpikeBuffer, SHiddenSpikeRecordingBuffer, SHiddenVRecordingBuffer,
                          VAlpha, VDT, VTauRefrac, VThresh, VZero]
                         (CodeGenerator &c, uint32_t r)
                         {
@@ -384,7 +385,8 @@ std::vector<uint32_t> generateSimCode(bool simulate, uint32_t numInput, uint32_t
 
                             // *SSpikeBuffer = SSpikeOut
                             c.sw(*SSpikeOut, *SSpikeBuffer, 4 * r);
-                            c.sw(*SSpikeOut, *SHiddenSpikeRecordingBuffer, 4 * r);
+                            c.sw(*SSpikeOut, *SHiddenSpikeRecordingBuffer);
+                            c.addi(*SHiddenSpikeRecordingBuffer, *SHiddenSpikeRecordingBuffer, 4);
                             {
                                 // VTemp = V - VThresh
                                 ALLOCATE_VECTOR(VTemp);
@@ -392,6 +394,19 @@ std::vector<uint32_t> generateSimCode(bool simulate, uint32_t numInput, uint32_t
                             
                                 // VV = SSpikeOut ? VReset : VV
                                 c.vsel(*VV, *SSpikeOut, *VTemp);
+                            }
+
+                            // Unroll lane loop
+                            {
+                                ALLOCATE_SCALAR(STemp);
+                                for(int l = 0; l < 32; l++) {
+                                    // Extract lane into scalar registers
+                                    c.vextract(*STemp, *VV, l);
+
+                                    // Store halfword
+                                    c.sh(*STemp, *SHiddenVRecordingBuffer, l * 2);
+                                }
+                                c.addi(*SHiddenVRecordingBuffer, *SHiddenVRecordingBuffer, 64);
                             }
 
                             // VRefracTime = SSpikeOut ? VTauRefrac : VRefracTime
@@ -402,14 +417,13 @@ std::vector<uint32_t> generateSimCode(bool simulate, uint32_t numInput, uint32_t
                             c.vstore(*VISyn, *SISynBuffer, 64 * r);
                             c.vstore(*VRefracTime, *SRefracTimeBuffer, 64 * r);
                         },
-                        [SISynBuffer, SRefracTimeBuffer, SSpikeBuffer, SVBuffer, SHiddenSpikeRecordingBuffer]
+                        [SISynBuffer, SRefracTimeBuffer, SSpikeBuffer, SVBuffer, SHiddenSpikeRecordingBuffer, SHiddenVRecordingBuffer]
                         (CodeGenerator &c, uint32_t numUnrolls)
                         {
                             c.addi(*SVBuffer, *SVBuffer, 64 * numUnrolls);
                             c.addi(*SISynBuffer, *SISynBuffer, 64 * numUnrolls);
                             c.addi(*SRefracTimeBuffer, *SRefracTimeBuffer, 64 * numUnrolls);
                             c.addi(*SSpikeBuffer, *SSpikeBuffer, 4 * numUnrolls); 
-                            c.addi(*SHiddenSpikeRecordingBuffer, *SHiddenSpikeRecordingBuffer, 4 * numUnrolls);
                         });
                 }
 
@@ -565,6 +579,7 @@ int main()
     const uint32_t outputVSumScalarPtr = AppUtils::allocateScalarAndZero(numOutput * 2, scalarInitData);
     const uint32_t readyFlagPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
     const uint32_t hiddenSpikeRecordingArrayPtr = AppUtils::allocateScalarAndZero(numHiddenSpikeArrayWords * 4, scalarInitData);
+    const uint32_t hiddenVRecordingArrayPtr = AppUtils::allocateScalarAndZero(numHidden * numTimesteps * 2, scalarInitData);
 
     // Increase scalar memory size
     scalarInitData.resize(64 * 1024, 0);
@@ -596,7 +611,7 @@ int main()
                                          outputBiasPtr, hiddenIsynPtr, hiddenVPtr,
                                          hiddenRefracTimePtr, outputIsynPtr, outputVPtr, outputVSumPtr,
                                          inputSpikeArrayPtr, hiddenSpikePtr, outputVSumScalarPtr, 
-                                         hiddenSpikeRecordingArrayPtr, readyFlagPtr);
+                                         hiddenSpikeRecordingArrayPtr, hiddenVRecordingArrayPtr, readyFlagPtr);
     LOGI << simCode.size() << " simulation instructions";
     LOGI << scalarInitData.size() << " bytes of scalar memory required";
     LOGI << vectorInitData.size() * 2 << " bytes of vector memory required (" << ceilDivide(vectorInitData.size() / 32, 4096) << " URAM cascade)";
@@ -670,6 +685,18 @@ int main()
             for(size_t t = 0; t < numTimesteps; t++) {
                 AppUtils::writeSpikes(spikeFile, hiddenSpikeRecording, t, numHiddenSpikeWords);
                 hiddenSpikeRecording += numHiddenSpikeWords;
+            }
+
+            const int16_t *hiddenVRecording = reinterpret_cast<const int16_t*>(scalarData + hiddenVRecordingArrayPtr);
+            std::ofstream vFile("mnist_v_sim.csv");
+            for(size_t t = 0; t < numTimesteps; t++) {
+                for(size_t i = 0; i < numHidden; i++) {
+                    vFile << *hiddenVRecording++;
+                    if(i != (numHidden - 1)) {
+                        vFile  << ", ";
+                    }
+                }
+                vFile << std::endl;
             }
         }
 
