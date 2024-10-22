@@ -19,6 +19,8 @@ device_spikes = np.loadtxt("mnist_spikes_device.csv",delimiter=",")
 sim_v = np.loadtxt("mnist_v_sim.csv", delimiter=",")
 device_v = np.loadtxt("mnist_v_device.csv", delimiter=",")
 
+sim_isyn = np.loadtxt("mnist_isyn_sim.csv", delimiter=",")
+
 fig, axes = plt.subplots(3, sharex=True)
 axes[0].scatter(times, ids, s=1)
 axes[1].scatter(sim_spikes[:,0], sim_spikes[:,1], marker="x", alpha=0.5, label="sim")
@@ -30,4 +32,9 @@ for i in range(128):
     axes[0].plot((sim_v[:,i] / (2 ** 5)) + (i * 5))
     axes[1].plot((device_v[:,i] / (2 ** 5)) + (i * 5))
 
+fig, axes = plt.subplots(1, 2, sharey=True)
+for i in range(128):
+    axes[0].plot((sim_isyn[:,i] / (2 ** 5)) + (i * 5))
+   # axes[1].plot((device_v[:,i] / (2 ** 5)) + (i * 5))
+    
 plt.show()

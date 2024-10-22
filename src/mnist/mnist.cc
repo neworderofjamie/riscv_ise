@@ -229,7 +229,7 @@ std::vector<uint32_t> generateSimCode(bool simulate, uint32_t numInput, uint32_t
                                       uint32_t outputBiasPtr, uint32_t hiddenIsynPtr, uint32_t hiddenVPtr, uint32_t hiddenRefracTimePtr, 
                                       uint32_t outputIsynPtr , uint32_t outputVPtr, uint32_t outputVSumPtr,
                                       uint32_t inputSpikeArrayPtr, uint32_t hiddenSpikePtr, uint32_t outputVSumScalarPtr, 
-                                      uint32_t hiddenSpikeRecordingArrayPtr, uint32_t hiddenVRecordingArrayPtr, uint32_t readyFlagPtr)
+                                      uint32_t hiddenSpikeRecordingArrayPtr, uint32_t hiddenVRecordingArrayPtr, uint32_t hiddenISynRecordingArrayPtr, uint32_t readyFlagPtr)
 {
     return AssemblerUtils::generateStandardKernel(
         simulate, readyFlagPtr,
@@ -240,6 +240,7 @@ std::vector<uint32_t> generateSimCode(bool simulate, uint32_t numInput, uint32_t
             ALLOCATE_SCALAR(STimeEnd);
             ALLOCATE_SCALAR(SHiddenSpikeRecordingBuffer);
             ALLOCATE_SCALAR(SHiddenVRecordingBuffer);
+            ALLOCATE_SCALAR(SHiddenISynRecordingBuffer);
 
             // Labels
             Label timeLoop;
@@ -250,6 +251,7 @@ std::vector<uint32_t> generateSimCode(bool simulate, uint32_t numInput, uint32_t
             c.li(*STimeEnd, numTimesteps);
             c.li(*SHiddenSpikeRecordingBuffer, hiddenSpikeRecordingArrayPtr);
             c.li(*SHiddenVRecordingBuffer, hiddenVRecordingArrayPtr);
+            c.li(*SHiddenISynRecordingBuffer, hiddenISynRecordingArrayPtr);
 
             // Loop over time
             c.L(timeLoop);
@@ -338,7 +340,7 @@ std::vector<uint32_t> generateSimCode(bool simulate, uint32_t numInput, uint32_t
                         c, numHidden, 4, *SVBuffer, *SVBufferEnd,
                         [&scalarRegisterAllocator, &vectorRegisterAllocator,
                          hiddenFixedPoint, 
-                         SVBuffer, SISynBuffer, SRefracTimeBuffer, SSpikeBuffer, SHiddenSpikeRecordingBuffer, SHiddenVRecordingBuffer,
+                         SVBuffer, SISynBuffer, SRefracTimeBuffer, SSpikeBuffer, SHiddenSpikeRecordingBuffer, SHiddenVRecordingBuffer, SHiddenISynRecordingBuffer,
                          VAlpha, VDT, VTauRefrac, VThresh, VZero]
                         (CodeGenerator &c, uint32_t r)
                         {
@@ -359,6 +361,19 @@ std::vector<uint32_t> generateSimCode(bool simulate, uint32_t numInput, uint32_t
 
                             // VV += VISyn
                             c.vadd(*VV, *VV, *VISyn);
+
+                             // Unroll lane loop
+                            {
+                                ALLOCATE_SCALAR(STemp);
+                                for(int l = 0; l < 32; l++) {
+                                    // Extract lane into scalar registers
+                                    c.vextract(*STemp, *VISyn, l);
+
+                                    // Store halfword
+                                    c.sh(*STemp, *SHiddenISynRecordingBuffer, l * 2);
+                                }
+                                c.addi(*SHiddenISynRecordingBuffer, *SHiddenISynRecordingBuffer, 64);
+                            }
 
                             // VISyn = 0
                             c.vlui(*VISyn, 0);
@@ -546,7 +561,7 @@ int main()
     std::vector<int16_t> vectorInitData;
 
     // Constants
-    constexpr bool simulate = false;
+    constexpr bool simulate = true;
     constexpr uint32_t numInput = 28 * 28;
     constexpr uint32_t numHidden = 128;
     constexpr uint32_t numOutput = 10;
@@ -580,6 +595,7 @@ int main()
     const uint32_t readyFlagPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
     const uint32_t hiddenSpikeRecordingArrayPtr = AppUtils::allocateScalarAndZero(numHiddenSpikeArrayWords * 4, scalarInitData);
     const uint32_t hiddenVRecordingArrayPtr = AppUtils::allocateScalarAndZero(numHidden * numTimesteps * 2, scalarInitData);
+    const uint32_t hiddenISynRecordingArrayPtr = AppUtils::allocateScalarAndZero(numHidden * numTimesteps * 2, scalarInitData);
 
     // Increase scalar memory size
     scalarInitData.resize(64 * 1024, 0);
@@ -611,7 +627,8 @@ int main()
                                          outputBiasPtr, hiddenIsynPtr, hiddenVPtr,
                                          hiddenRefracTimePtr, outputIsynPtr, outputVPtr, outputVSumPtr,
                                          inputSpikeArrayPtr, hiddenSpikePtr, outputVSumScalarPtr, 
-                                         hiddenSpikeRecordingArrayPtr, hiddenVRecordingArrayPtr, readyFlagPtr);
+                                         hiddenSpikeRecordingArrayPtr, hiddenVRecordingArrayPtr, hiddenISynRecordingArrayPtr,
+                                         readyFlagPtr);
     LOGI << simCode.size() << " simulation instructions";
     LOGI << scalarInitData.size() << " bytes of scalar memory required";
     LOGI << vectorInitData.size() * 2 << " bytes of vector memory required (" << ceilDivide(vectorInitData.size() / 32, 4096) << " URAM cascade)";
@@ -698,6 +715,18 @@ int main()
                 }
                 vFile << std::endl;
             }
+
+            const int16_t *hiddenISynRecording = reinterpret_cast<const int16_t*>(scalarData + hiddenISynRecordingArrayPtr);
+            std::ofstream iSynFile("mnist_isyn_sim.csv");
+            for(size_t t = 0; t < numTimesteps; t++) {
+                for(size_t i = 0; i < numHidden; i++) {
+                    iSynFile << *hiddenISynRecording++;
+                    if(i != (numHidden - 1)) {
+                        iSynFile  << ", ";
+                    }
+                }
+                iSynFile << std::endl;
+            }
         }
 
         std::cout << numCorrect << " / 10000 correct (" << 100.0 * (numCorrect / 10000.0) << "%)" << std::endl;
@@ -748,6 +777,7 @@ int main()
             const volatile int16_t *outputVSum = reinterpret_cast<const volatile int16_t*>(device.getDataMemory() + outputVSumScalarPtr);
             const volatile uint32_t *hiddenSpikeRecording = reinterpret_cast<const volatile uint32_t*>(device.getDataMemory() + hiddenSpikeRecordingArrayPtr);
             const volatile int16_t *hiddenVRecording = reinterpret_cast<const volatile int16_t*>(device.getDataMemory() + hiddenVRecordingArrayPtr);
+            const volatile int16_t *hiddenISynRecording = reinterpret_cast<const volatile int16_t*>(device.getDataMemory() + hiddenISynRecordingArrayPtr);
             for(size_t i = 0; i < 1; i++) {
                 // Show % progress
                 const auto iPerc = std::div(i, 100);
@@ -794,6 +824,17 @@ int main()
                         }
                     }
                     vFile << std::endl;
+                }
+
+                std::ofstream iSynFile("mnist_isyn_device.csv");
+                for(size_t t = 0; t < numTimesteps; t++) {
+                    for(size_t i = 0; i < numHidden; i++) {
+                        iSynFile << *hiddenISynRecording++;
+                        if(i != (numHidden - 1)) {
+                            iSynFile  << ", ";
+                        }
+                    }
+                    iSynFile << std::endl;
                 }
             }
 
