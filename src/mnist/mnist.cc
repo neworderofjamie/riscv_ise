@@ -716,8 +716,9 @@ int main()
                                           reinterpret_cast<const uint8_t*>(mnistSpikes.data() + (numInputSpikeArrayWords * i)),
                                           numInputSpikeArrayWords * 4);
 
-                // Put core into running state
+                // Put core into running state and trigger ILA
                 LOGI << "Enabling";
+                device.setILATrigger(true);
                 device.setEnabled(true);
 
                 // Wait until ready flag
@@ -726,6 +727,7 @@ int main()
                 // Reset core
                 LOGI << "Disabling";
                 device.setEnabled(false);
+                device.setILATrigger(false);
 
                 // Determine if output is correct
                 const auto classification = std::distance(outputVSum, std::max_element(outputVSum, outputVSum + 10));

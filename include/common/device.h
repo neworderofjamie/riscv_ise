@@ -27,6 +27,7 @@ public:
     volatile uint32_t *getGPIO(){ return m_GPIO; }
 
     void setEnabled(bool enabled);
+    void setILATrigger(bool enabled);
 
     void waitOnNonZero(uint32_t address) const;
 
