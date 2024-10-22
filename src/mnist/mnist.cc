@@ -747,6 +747,7 @@ int main()
             int numCorrect = 0;
             const volatile int16_t *outputVSum = reinterpret_cast<const volatile int16_t*>(device.getDataMemory() + outputVSumScalarPtr);
             const volatile uint32_t *hiddenSpikeRecording = reinterpret_cast<const volatile uint32_t*>(device.getDataMemory() + hiddenSpikeRecordingArrayPtr);
+            const volatile int16_t *hiddenVRecording = reinterpret_cast<const volatile int16_t*>(device.getDataMemory() + hiddenVRecordingArrayPtr);
             for(size_t i = 0; i < 1; i++) {
                 // Show % progress
                 const auto iPerc = std::div(i, 100);
@@ -782,6 +783,17 @@ int main()
                 for(size_t t = 0; t < numTimesteps; t++) {
                     AppUtils::writeSpikes(spikeFile, hiddenSpikeRecording, t, numHiddenSpikeWords);
                     hiddenSpikeRecording += numHiddenSpikeWords;
+                }
+
+                std::ofstream vFile("mnist_v_device.csv");
+                for(size_t t = 0; t < numTimesteps; t++) {
+                    for(size_t i = 0; i < numHidden; i++) {
+                        vFile << *hiddenVRecording++;
+                        if(i != (numHidden - 1)) {
+                            vFile  << ", ";
+                        }
+                    }
+                    vFile << std::endl;
                 }
             }
 
