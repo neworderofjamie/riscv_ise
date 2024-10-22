@@ -20,6 +20,7 @@ sim_v = np.loadtxt("mnist_v_sim.csv", delimiter=",")
 device_v = np.loadtxt("mnist_v_device.csv", delimiter=",")
 
 sim_isyn = np.loadtxt("mnist_isyn_sim.csv", delimiter=",")
+device_isyn = np.loadtxt("mnist_isyn_device.csv", delimiter=",")
 
 fig, axes = plt.subplots(3, sharex=True)
 axes[0].scatter(times, ids, s=1)
@@ -35,6 +36,6 @@ for i in range(128):
 fig, axes = plt.subplots(1, 2, sharey=True)
 for i in range(128):
     axes[0].plot((sim_isyn[:,i] / (2 ** 5)) + (i * 5))
-   # axes[1].plot((device_v[:,i] / (2 ** 5)) + (i * 5))
+    axes[1].plot((device_isyn[:,i] / (2 ** 5)) + (i * 5))
     
 plt.show()
