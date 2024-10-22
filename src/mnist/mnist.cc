@@ -300,9 +300,9 @@ std::vector<uint32_t> generateSimCode(bool simulate, uint32_t numInput, uint32_t
                 // Hidden->Output synapses
                 // ---------------------------------------------------------------
                 // 2^6 = 2 bytes * 32 output neurons (rounded up)
-                genStaticPulse(c, vectorRegisterAllocator, scalarRegisterAllocator, 
+                /*genStaticPulse(c, vectorRegisterAllocator, scalarRegisterAllocator, 
                                 weightHidOutPtr, hiddenSpikePtr, 
-                                outputIsynPtr, numHidden, numOutput, 6, false);
+                                outputIsynPtr, numHidden, numOutput, 6, false);*/
 
                 
                 // ---------------------------------------------------------------
@@ -319,22 +319,22 @@ std::vector<uint32_t> generateSimCode(bool simulate, uint32_t numInput, uint32_t
                     ALLOCATE_VECTOR(VThresh);
                     ALLOCATE_VECTOR(VTauRefrac);
                     ALLOCATE_VECTOR(VDT);
-                    ALLOCATE_VECTOR(VZero); 
+                    ALLOCATE_VECTOR(VZero);
 
                     // Load constants
                     // alpha = e^(-1/20)
-                    c.vlui(*VAlpha, convertFixedPoint(std::exp(-1.0 / 20.0), hiddenFixedPoint));
+                    /*c.vlui(*VAlpha, convertFixedPoint(std::exp(-1.0 / 20.0), hiddenFixedPoint));
                     c.vlui(*VThresh, convertFixedPoint(0.61, hiddenFixedPoint));
                     c.vlui(*VTauRefrac, 5);
                     c.vlui(*VDT, 1);
-                    c.vlui(*VZero, 0);
+                    c.vlui(*VZero, 0);*/
 
                     // Get address of buffers
                     c.li(*SVBuffer, hiddenVPtr);
                     c.li(*SVBufferEnd, hiddenVPtr + (numHiddenSpikeWords * 64));
                     c.li(*SISynBuffer, hiddenIsynPtr);
-                    c.li(*SRefracTimeBuffer, hiddenRefracTimePtr);
-                    c.li(*SSpikeBuffer, hiddenSpikePtr);
+                    /*c.li(*SRefracTimeBuffer, hiddenRefracTimePtr);
+                    c.li(*SSpikeBuffer, hiddenSpikePtr);*/
                  
                     AssemblerUtils::unrollVectorLoopBody(
                         c, numHidden, 4, *SVBuffer, *SVBufferEnd,
@@ -352,19 +352,20 @@ std::vector<uint32_t> generateSimCode(bool simulate, uint32_t numInput, uint32_t
                             ALLOCATE_SCALAR(SRefractory); 
 
                             // Load voltage and isyn
-                            c.vloadv(*VV, *SVBuffer, 64 * r);
+                            //c.vloadv(*VV, *SVBuffer, 64 * r);
                             c.vloadv(*VISyn, *SISynBuffer, 64 * r);
-                            c.vloadv(*VRefracTime, *SRefracTimeBuffer, 64 * r);
+                            //c.vloadv(*VRefracTime, *SRefracTimeBuffer, 64 * r);
 
                             // VV *= VAlpha
-                            c.vmul(hiddenFixedPoint, *VV, *VV, *VAlpha);
+                            //c.vmul(hiddenFixedPoint, *VV, *VV, *VAlpha);
 
                             // VV += VISyn
-                            c.vadd(*VV, *VV, *VISyn);
+                            //c.vadd(*VV, *VV, *VISyn);
 
                              // Unroll lane loop
                             {
                                 ALLOCATE_SCALAR(STemp);
+                                c.nop();
                                 for(int l = 0; l < 32; l++) {
                                     // Extract lane into scalar registers
                                     c.vextract(*STemp, *VISyn, l);
@@ -379,7 +380,7 @@ std::vector<uint32_t> generateSimCode(bool simulate, uint32_t numInput, uint32_t
                             c.vlui(*VISyn, 0);
 
                             // SRefractory = VRefracTime > 0.0 (0.0 < VRefracTime)
-                            c.vtlt(*SRefractory, *VZero, *VRefracTime);
+                            /*c.vtlt(*SRefractory, *VZero, *VRefracTime);
                             {
                                 // VTemp = VRefracTime - VDT
                                 ALLOCATE_VECTOR(VTemp);
@@ -428,24 +429,24 @@ std::vector<uint32_t> generateSimCode(bool simulate, uint32_t numInput, uint32_t
                             c.vsel(*VRefracTime, *SSpikeOut, *VTauRefrac);
 
                             // Store VV, ISyn and refrac time and increment buffers
-                            c.vstore(*VV, *SVBuffer, 64 * r);
+                            c.vstore(*VV, *SVBuffer, 64 * r);*/
                             c.vstore(*VISyn, *SISynBuffer, 64 * r);
-                            c.vstore(*VRefracTime, *SRefracTimeBuffer, 64 * r);
+                            //c.vstore(*VRefracTime, *SRefracTimeBuffer, 64 * r);
                         },
                         [SISynBuffer, SRefracTimeBuffer, SSpikeBuffer, SVBuffer, SHiddenSpikeRecordingBuffer, SHiddenVRecordingBuffer]
                         (CodeGenerator &c, uint32_t numUnrolls)
                         {
                             c.addi(*SVBuffer, *SVBuffer, 64 * numUnrolls);
                             c.addi(*SISynBuffer, *SISynBuffer, 64 * numUnrolls);
-                            c.addi(*SRefracTimeBuffer, *SRefracTimeBuffer, 64 * numUnrolls);
-                            c.addi(*SSpikeBuffer, *SSpikeBuffer, 4 * numUnrolls); 
+                            //c.addi(*SRefracTimeBuffer, *SRefracTimeBuffer, 64 * numUnrolls);
+                            //c.addi(*SSpikeBuffer, *SSpikeBuffer, 4 * numUnrolls); 
                         });
                 }
 
                 // ---------------------------------------------------------------
                 // Output neurons
                 // ---------------------------------------------------------------
-                {
+                /*{
                     // Register allocation
                     ALLOCATE_SCALAR(SVBuffer);
                     ALLOCATE_SCALAR(SVSumBuffer);
@@ -509,14 +510,14 @@ std::vector<uint32_t> generateSimCode(bool simulate, uint32_t numInput, uint32_t
                         c.vstore(*VVSum, *SVSumBuffer);
                         c.vstore(*VISyn, *SISynBuffer);
                     }
-                }
+                }*/
 
                 c.addi(*STime, *STime, 1);
                 c.bne(*STime, *STimeEnd, timeLoop);
             }
 
             // Copy output v sum to scalar memory and zero
-            {
+            /*{
                 // Register allocation
                 ALLOCATE_VECTOR(VVSum);
                 ALLOCATE_SCALAR(SVSumBuffer);
@@ -546,7 +547,7 @@ std::vector<uint32_t> generateSimCode(bool simulate, uint32_t numInput, uint32_t
                 c.vlui(*VVSum, 0);
                 c.vstore(*VVSum, *SVSumBuffer, 0);
 
-            }
+            }*/
         });
 }
 
@@ -697,7 +698,7 @@ int main()
                 numCorrect++;
             }
 
-            const uint32_t *hiddenSpikeRecording = reinterpret_cast<const uint32_t*>(scalarData + hiddenSpikeRecordingArrayPtr);
+            /*const uint32_t *hiddenSpikeRecording = reinterpret_cast<const uint32_t*>(scalarData + hiddenSpikeRecordingArrayPtr);
             std::ofstream spikeFile("mnist_spikes_sim.csv");
             for(size_t t = 0; t < numTimesteps; t++) {
                 AppUtils::writeSpikes(spikeFile, hiddenSpikeRecording, t, numHiddenSpikeWords);
@@ -714,7 +715,7 @@ int main()
                     }
                 }
                 vFile << std::endl;
-            }
+            }*/
 
             const int16_t *hiddenISynRecording = reinterpret_cast<const int16_t*>(scalarData + hiddenISynRecordingArrayPtr);
             std::ofstream iSynFile("mnist_isyn_sim.csv");
@@ -809,7 +810,7 @@ int main()
                     numCorrect++;
                 }
 
-                std::ofstream spikeFile("mnist_spikes_device.csv");
+                /*std::ofstream spikeFile("mnist_spikes_device.csv");
                 for(size_t t = 0; t < numTimesteps; t++) {
                     AppUtils::writeSpikes(spikeFile, hiddenSpikeRecording, t, numHiddenSpikeWords);
                     hiddenSpikeRecording += numHiddenSpikeWords;
@@ -824,7 +825,7 @@ int main()
                         }
                     }
                     vFile << std::endl;
-                }
+                }*/
 
                 std::ofstream iSynFile("mnist_isyn_device.csv");
                 for(size_t t = 0; t < numTimesteps; t++) {
