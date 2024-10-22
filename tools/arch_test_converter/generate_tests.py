@@ -33,6 +33,7 @@ if template_extension[1] == ".jinja":
 
 # Loop through architecture test files
 for t in args.test_filenames:
+    print(f"Parsing {t}")
     # Extract title of source test
     title = path.splitext(path.split(t)[1])[0]
 
