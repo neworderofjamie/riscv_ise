@@ -247,8 +247,8 @@ std::vector<uint32_t> generateSimCode(bool simulate, uint32_t numInput, uint32_t
             Label spinLoop;
 
             // Set timestep range and load ready flag pointer
-            c.li(*STime, 0);
-            c.li(*STimeEnd, numTimesteps);
+            c.li(*STime, 4);
+            c.li(*STimeEnd, 8);
             c.li(*SHiddenSpikeRecordingBuffer, hiddenSpikeRecordingArrayPtr);
             c.li(*SHiddenVRecordingBuffer, hiddenVRecordingArrayPtr);
             c.li(*SHiddenISynRecordingBuffer, hiddenISynRecordingArrayPtr);
@@ -719,7 +719,7 @@ int main()
 
             const int16_t *hiddenISynRecording = reinterpret_cast<const int16_t*>(scalarData + hiddenISynRecordingArrayPtr);
             std::ofstream iSynFile("mnist_isyn_sim.csv");
-            for(size_t t = 0; t < numTimesteps; t++) {
+            for(size_t t = 0; t < 4; t++) {
                 for(size_t i = 0; i < numHidden; i++) {
                     iSynFile << *hiddenISynRecording++;
                     if(i != (numHidden - 1)) {
@@ -828,7 +828,7 @@ int main()
                 }*/
 
                 std::ofstream iSynFile("mnist_isyn_device.csv");
-                for(size_t t = 0; t < numTimesteps; t++) {
+                for(size_t t = 0; t < 4; t++) {
                     for(size_t i = 0; i < numHidden; i++) {
                         iSynFile << *hiddenISynRecording++;
                         if(i != (numHidden - 1)) {
