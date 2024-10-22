@@ -228,7 +228,8 @@ std::vector<uint32_t> generateSimCode(bool simulate, uint32_t numInput, uint32_t
                                       uint32_t numHiddenSpikeWords,  uint32_t weightInHidPtr, uint32_t weightHidOutPtr, 
                                       uint32_t outputBiasPtr, uint32_t hiddenIsynPtr, uint32_t hiddenVPtr, uint32_t hiddenRefracTimePtr, 
                                       uint32_t outputIsynPtr , uint32_t outputVPtr, uint32_t outputVSumPtr,
-                                      uint32_t inputSpikeArrayPtr, uint32_t hiddenSpikePtr, uint32_t outputVSumScalarPtr, uint32_t readyFlagPtr)
+                                      uint32_t inputSpikeArrayPtr, uint32_t hiddenSpikePtr, uint32_t outputVSumScalarPtr, 
+                                      uint32_t hiddenSpikeRecordingArrayPtr, uint32_t readyFlagPtr)
 {
     return AssemblerUtils::generateStandardKernel(
         simulate, readyFlagPtr,
@@ -237,6 +238,7 @@ std::vector<uint32_t> generateSimCode(bool simulate, uint32_t numInput, uint32_t
             // Register allocation
             ALLOCATE_SCALAR(STime);
             ALLOCATE_SCALAR(STimeEnd);
+            ALLOCATE_SCALAR(SHiddenSpikeRecordingBuffer);
 
             // Labels
             Label timeLoop;
@@ -245,6 +247,7 @@ std::vector<uint32_t> generateSimCode(bool simulate, uint32_t numInput, uint32_t
             // Set timestep range and load ready flag pointer
             c.li(*STime, 0);
             c.li(*STimeEnd, numTimesteps);
+            c.li(*SHiddenSpikeRecordingBuffer, hiddenSpikeRecordingArrayPtr);
 
             // Loop over time
             c.L(timeLoop);
@@ -334,7 +337,7 @@ std::vector<uint32_t> generateSimCode(bool simulate, uint32_t numInput, uint32_t
                         c, numHidden, 4, *SVBuffer, *SVBufferEnd,
                         [&scalarRegisterAllocator, &vectorRegisterAllocator,
                          hiddenFixedPoint, 
-                         SVBuffer, SISynBuffer, SRefracTimeBuffer, SSpikeBuffer,
+                         SVBuffer, SISynBuffer, SRefracTimeBuffer, SSpikeBuffer, SHiddenSpikeRecordingBuffer,
                          VAlpha, VDT, VTauRefrac, VThresh, VZero]
                         (CodeGenerator &c, uint32_t r)
                         {
@@ -381,7 +384,7 @@ std::vector<uint32_t> generateSimCode(bool simulate, uint32_t numInput, uint32_t
 
                             // *SSpikeBuffer = SSpikeOut
                             c.sw(*SSpikeOut, *SSpikeBuffer, 4 * r);
-
+                            c.sw(*SSpikeOut, *SHiddenSpikeRecordingBuffer, 4 * r);
                             {
                                 // VTemp = V - VThresh
                                 ALLOCATE_VECTOR(VTemp);
@@ -399,13 +402,14 @@ std::vector<uint32_t> generateSimCode(bool simulate, uint32_t numInput, uint32_t
                             c.vstore(*VISyn, *SISynBuffer, 64 * r);
                             c.vstore(*VRefracTime, *SRefracTimeBuffer, 64 * r);
                         },
-                        [SISynBuffer, SRefracTimeBuffer, SSpikeBuffer, SVBuffer]
+                        [SISynBuffer, SRefracTimeBuffer, SSpikeBuffer, SVBuffer, SHiddenSpikeRecordingBuffer]
                         (CodeGenerator &c, uint32_t numUnrolls)
                         {
                             c.addi(*SVBuffer, *SVBuffer, 64 * numUnrolls);
                             c.addi(*SISynBuffer, *SISynBuffer, 64 * numUnrolls);
                             c.addi(*SRefracTimeBuffer, *SRefracTimeBuffer, 64 * numUnrolls);
                             c.addi(*SSpikeBuffer, *SSpikeBuffer, 4 * numUnrolls); 
+                            c.addi(*SHiddenSpikeRecordingBuffer, *SHiddenSpikeRecordingBuffer, 4 * numUnrolls);
                         });
                 }
 
@@ -539,6 +543,7 @@ int main()
     constexpr uint32_t numHiddenSpikeWords = ceilDivide(numHidden, 32);
     constexpr uint32_t numOutputSpikeWords = ceilDivide(numOutput, 32);
     constexpr uint32_t numInputSpikeArrayWords = numInputSpikeWords * numTimesteps;
+    constexpr uint32_t numHiddenSpikeArrayWords = numHiddenSpikeWords * numTimesteps;
 
     // Allocate vector arrays
     // **NOTE** these are adjacent so data can be block-copied from scalar memory
@@ -559,6 +564,7 @@ int main()
     const uint32_t hiddenSpikePtr = AppUtils::allocateScalarAndZero(numHiddenSpikeWords * 4, scalarInitData);
     const uint32_t outputVSumScalarPtr = AppUtils::allocateScalarAndZero(numOutput * 2, scalarInitData);
     const uint32_t readyFlagPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
+    const uint32_t hiddenSpikeRecordingArrayPtr = AppUtils::allocateScalarAndZero(numHiddenSpikeArrayWords * 4, scalarInitData);
 
     // Increase scalar memory size
     scalarInitData.resize(64 * 1024, 0);
@@ -589,7 +595,8 @@ int main()
                                          numHiddenSpikeWords,  weightInHidPtr, weightHidOutPtr, 
                                          outputBiasPtr, hiddenIsynPtr, hiddenVPtr,
                                          hiddenRefracTimePtr, outputIsynPtr, outputVPtr, outputVSumPtr,
-                                         inputSpikeArrayPtr, hiddenSpikePtr, outputVSumScalarPtr, readyFlagPtr);
+                                         inputSpikeArrayPtr, hiddenSpikePtr, outputVSumScalarPtr, 
+                                         hiddenSpikeRecordingArrayPtr, readyFlagPtr);
     LOGI << simCode.size() << " simulation instructions";
     LOGI << scalarInitData.size() << " bytes of scalar memory required";
     LOGI << vectorInitData.size() * 2 << " bytes of vector memory required (" << ceilDivide(vectorInitData.size() / 32, 4096) << " URAM cascade)";
@@ -634,7 +641,7 @@ int main()
 
         // Loop through examples
         int numCorrect = 0;
-        for(size_t i = 0; i < 10000; i++) {
+        for(size_t i = 0; i < 1; i++) {
             // Show % progress
             const auto iPerc = std::div(i, 100);
             if(iPerc.rem == 0) {
@@ -651,10 +658,18 @@ int main()
                 return 1;
             }
 
+
             // Determine if output is correct
             const auto classification = std::distance(outputVSum, std::max_element(outputVSum, outputVSum + 10));
             if(classification == mnistLabels[i]) {
                 numCorrect++;
+            }
+
+            const uint32_t *hiddenSpikeRecording = reinterpret_cast<const uint32_t*>(scalarData + hiddenSpikeRecordingArrayPtr);
+            std::ofstream spikeFile("mnist_spikes_sim.csv");
+            for(size_t t = 0; t < numTimesteps; t++) {
+                AppUtils::writeSpikes(spikeFile, hiddenSpikeRecording, t, numHiddenSpikeWords);
+                hiddenSpikeRecording += numHiddenSpikeWords;
             }
         }
 
@@ -704,7 +719,8 @@ int main()
             // Loop through examples
             int numCorrect = 0;
             const volatile int16_t *outputVSum = reinterpret_cast<const volatile int16_t*>(device.getDataMemory() + outputVSumScalarPtr);
-            for(size_t i = 0; i < 10000; i++) {
+            const volatile uint32_t *hiddenSpikeRecording = reinterpret_cast<const volatile uint32_t*>(device.getDataMemory() + hiddenSpikeRecordingArrayPtr);
+            for(size_t i = 0; i < 1; i++) {
                 // Show % progress
                 const auto iPerc = std::div(i, 100);
                 if(iPerc.rem == 0) {
@@ -733,6 +749,12 @@ int main()
                 const auto classification = std::distance(outputVSum, std::max_element(outputVSum, outputVSum + 10));
                 if(classification == mnistLabels[i]) {
                     numCorrect++;
+                }
+
+                std::ofstream spikeFile("mnist_spikes_device.csv");
+                for(size_t t = 0; t < numTimesteps; t++) {
+                    AppUtils::writeSpikes(spikeFile, hiddenSpikeRecording, t, numHiddenSpikeWords);
+                    hiddenSpikeRecording += numHiddenSpikeWords;
                 }
             }
 
