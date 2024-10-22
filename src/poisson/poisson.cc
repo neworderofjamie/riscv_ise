@@ -8,7 +8,9 @@
 #include <plog/Appenders/ConsoleAppender.h>
 
 // RISC-V common includes
+#include "common/CLI11.hpp"
 #include "common/app_utils.h"
+#include "common/device.h"
 
 // RISC-V assembler includes
 #include "assembler/assembler.h"
@@ -29,16 +31,19 @@ std::vector<uint32_t> generateCode(bool simulate, uint32_t numTimesteps, uint32_
         {
             // Copy seed from scalar to vector memory
             AssemblerUtils::generateScalarVectorMemcpy(c, vectorRegisterAllocator, scalarRegisterAllocator,
-                                                       scalarSeedPtr, vectorSeedPtr, 2);
+                                                       scalarSeedPtr, vectorSeedPtr, 2u);
             // Register allocation
             ALLOCATE_SCALAR(SIBuffer);
             ALLOCATE_SCALAR(SIBufferEnd);
             ALLOCATE_VECTOR(VExpMinusLambda);
             ALLOCATE_VECTOR(VI);
+            ALLOCATE_VECTOR(VOne);
 
             // Labels
             Label timeLoop;
             Label poissonLoop;
+            Label poissonStart;
+            Label poissonEnd;
 
             // Load RNG seed from first 128 bytes of vector memory
             {
@@ -48,7 +53,9 @@ std::vector<uint32_t> generateCode(bool simulate, uint32_t numTimesteps, uint32_
                 c.vloadr1(*STmp, 64);
             }
 
-            c.vlui(*VExpMinusLambda, convertFixedPoint(std::exp(-20.0 * 256 / 1000.0), 14));
+            // Load immediates
+            c.vlui(*VExpMinusLambda, convertFixedPoint(std::exp(-5.0), 14));
+            c.vlui(*VOne, 1);
 
             // Start writing at start
             c.li(*SIBuffer, vectorRecordingPtr);
@@ -62,17 +69,15 @@ std::vector<uint32_t> generateCode(bool simulate, uint32_t numTimesteps, uint32_
                 ALLOCATE_SCALAR(SMask);
                 ALLOCATE_VECTOR(VNumSpikes);
                 ALLOCATE_VECTOR(VP);
-                ALLOCATE_VECTOR(VOne);
-        
+
+                c.L(poissonStart);
                 c.vlui(*VNumSpikes, 0);
                 c.vlui(*VP, convertFixedPoint(1.0, 14));
-                c.vlui(*VOne, 1);
                 c.li(*SMask, 0xFFFFFFFF);
                 c.L(poissonLoop);
                 {
                     ALLOCATE_VECTOR(VNewNumSpikes);
                     ALLOCATE_SCALAR(SNewMask);
-                    ALLOCATE_VECTOR(VNewP);
                     ALLOCATE_VECTOR(VRand);
 
                     // Generate uniformly distributed random number
@@ -82,20 +87,22 @@ std::vector<uint32_t> generateCode(bool simulate, uint32_t numTimesteps, uint32_
                     c.vadd(*VNewNumSpikes, *VNumSpikes, *VOne);
 
                     // P *= VRand
-                    c.vmul(15, *VNewP, *VP, *VRand);
-
-                    c.vsel(*VNumSpikes, *SMask, *VNewNumSpikes);
-                    c.vsel(*VP, *SMask, *VNewP);
+                    c.vmul(15, *VP, *VP, *VRand);
 
                     //SNewMask = ExpMinusLambda < p
-                    c.vtlt(*SNewMask, *VExpMinusLambda, *VNewP);
+                    c.vtlt(*SNewMask, *VExpMinusLambda, *VP);
+
+                    // VNumSpikes = SMask ? VNewNumSpikes : VNumSpikes
+                    c.vsel(*VNumSpikes, *SMask, *VNewNumSpikes);
+
+                    // VNumSpikes = SMask ? VNewNumSpikes : VNumSpikes
                     c.and_(*SMask, *SMask, *SNewMask);
 
                     c.bne(*SMask, Reg::X0, poissonLoop);
                 }
         
                 c.vsub(*VI, *VNumSpikes, *VOne);
-
+                c.L(poissonEnd);
                 //vmem[a...a+32] = v
                 c.vstore(*VI, *SIBuffer);
                 c.addi(*SIBuffer, *SIBuffer, 64);
@@ -107,20 +114,30 @@ std::vector<uint32_t> generateCode(bool simulate, uint32_t numTimesteps, uint32_
             // Copy recording data from vector to scalar memory
             AssemblerUtils::generateVectorScalarMemcpy(c, vectorRegisterAllocator, scalarRegisterAllocator,
                                                        vectorRecordingPtr, scalarRecordingPtr, numTimesteps);
+
+            LOGI << "Poisson start:" << poissonStart.getAddress();
+            LOGI << "Poisson end:" << poissonEnd.getAddress();
         });
 }
 
 
-int main()
+int main(int argc, char** argv)
 {
     // Configure logging
     plog::ConsoleAppender<plog::TxtFormatter> consoleAppender;
     plog::init(plog::debug, &consoleAppender);
     
-    constexpr uint32_t numTimesteps = 100;
-    constexpr bool simulate = true;
-    constexpr bool dump = true;
+    bool device = false;
+    bool dumpCoe = false;
+    uint32_t numTimesteps = 100;
 
+    CLI::App app{"Poisson generator"};
+    app.add_option("-n,--num-timesteps", numTimesteps, "How many timesteps to simulate for");
+    app.add_flag("-c,--dump-coe", dumpCoe, "Should a .coe file for simulation in the Xilinx simulator be dumped");
+    app.add_flag("-d,--device", device, "Should be run on device rather than simulator");
+
+    CLI11_PARSE(app, argc, argv);
+    
     // Create memory contents
     std::vector<uint8_t> scalarInitData;
     std::vector<int16_t> vectorInitData;
@@ -135,17 +152,48 @@ int main()
     const uint32_t scalarRecordingPtr = AppUtils::allocateScalarAndZero(64 * numTimesteps, scalarInitData);
     const uint32_t readyFlagPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
         
-    const auto code = generateCode(simulate, numTimesteps, vectorSeedPtr, vectorRecordingPtr,
+    const auto code = generateCode(!device, numTimesteps, vectorSeedPtr, vectorRecordingPtr,
                                    scalarSeedPtr, scalarRecordingPtr, readyFlagPtr);
 
-    if(dump) {
+    if(dumpCoe) {
         AppUtils::dumpCOE("poisson.coe", code);
 
         std::vector<uint32_t> wordData(scalarInitData.size() / 4);
         std::memcpy(wordData.data(), scalarInitData.data(), scalarInitData.size());
         AppUtils::dumpCOE("poisson_data.coe", wordData);
     }
-    if(simulate) {
+
+    if(device) {
+        LOGI << "Creating device";
+        Device device;
+        LOGI << "Resetting";
+        // Put core into reset state
+        device.setEnabled(false);
+        
+        LOGI << "Copying instructions (" << code.size() * sizeof(uint32_t) << " bytes)";
+        device.uploadCode(code);
+        
+        LOGI << "Copying data (" << scalarInitData.size() << " bytes);";
+        device.memcpyDataToDevice(0, scalarInitData.data(), scalarInitData.size());
+        
+        LOGI << "Enabling";
+
+        // Put core into running state
+        device.setEnabled(true);
+        LOGI << "Running";
+        
+        // Wait until ready flag
+        device.waitOnNonZero(readyFlagPtr);
+        LOGI << "Done";
+
+        const volatile int16_t *scalarRecordingData = reinterpret_cast<const volatile int16_t*>(device.getDataMemory() + scalarRecordingPtr);
+    
+        std::ofstream out("out_poisson_device.txt");
+        for(size_t t = 0; t < 32 * numTimesteps; t++) {
+            out << *scalarRecordingData++ << std::endl;
+        }
+    }
+    else {
         // Create RISC-V core with instruction and scalar data
         RISCV riscV(code, scalarInitData);
     
@@ -162,7 +210,11 @@ int main()
         for(size_t t = 0; t < 32 * numTimesteps; t++) {
             out << *scalarRecordingData++ << std::endl;
         }
+
+        std::ofstream heatmapFile("poisson_heatmap.txt");
+        for(size_t i = 0; i < riscV.getInstructionHeatmap().size(); i++) {
+            heatmapFile << (code.at(i) & 0b1111111) << ", " << riscV.getInstructionHeatmap()[i] << std::endl;
+        }
     }
     
-
 }

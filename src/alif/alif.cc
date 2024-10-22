@@ -11,9 +11,11 @@
 // RISC-V common includes
 #include "common/CLI11.hpp"
 #include "common/app_utils.h"
+#include "common/device.h"
 
 // RISC-V assembler includes
 #include "assembler/assembler.h"
+#include "assembler/assembler_utils.h"
 #include "assembler/register_allocator.h"
 
 // RISC-V ISE includes
@@ -27,129 +29,151 @@ enum class RoundMode
     STOCHASTIC,
 };
 
-CodeGenerator generateCode(double tauM, double tauA, uint32_t poissonPtr, uint32_t vPointer,  
-                           uint32_t aPointer, uint32_t seedPointer, size_t vFixedPoint, 
-                           size_t aFixedPoint, size_t numTimesteps, bool saturate, RoundMode roundMode)
+std::vector<uint32_t> generateCode(bool simulate, size_t numTimesteps, bool saturate, RoundMode roundMode, 
+                                   double tauM, double tauA, size_t vFixedPoint, size_t aFixedPoint,
+                                   uint32_t poissonPtr, uint32_t seedPtr, uint32_t poissonScalarPtr, uint32_t seedScalarPtr, 
+                                   uint32_t vScalarPtr, uint32_t aScalarPtr, uint32_t readyFlagPtr)
 {
-    CodeGenerator c;
-    VectorRegisterAllocator vectorRegisterAllocator;
-    ScalarRegisterAllocator scalarRegisterAllocator;
+    return AssemblerUtils::generateStandardKernel(
+        simulate, readyFlagPtr,
+        [=](CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator, ScalarRegisterAllocator &scalarRegisterAllocator)
+        {
+            // Generate code to copy poisson input and seeds from scalar to vector memory
+            AssemblerUtils::generateScalarVectorMemcpy(c, vectorRegisterAllocator, scalarRegisterAllocator,
+                                                       poissonScalarPtr, poissonPtr, static_cast<uint32_t>(numTimesteps + 2));
 
-    // Generate code to copy vector of currents from scalar memory to vector memory
-    //AppUtils::generateScalarVectorMemCpy(c, vectorRegisterAllocator, scalarRegisterAllocator,
-    //                                     0, 0, 1);
+            // Register allocation
+            ALLOCATE_SCALAR(SPoissonBuffer);
+            ALLOCATE_SCALAR(SABuffer);
+            ALLOCATE_SCALAR(SVBuffer);
+            ALLOCATE_SCALAR(SVBufferEnd);
+            ALLOCATE_VECTOR(VAlpha);
+            ALLOCATE_VECTOR(VRho);
+            ALLOCATE_VECTOR(VWeight);
+            ALLOCATE_VECTOR(VBeta);
+            ALLOCATE_VECTOR(VV);
+            ALLOCATE_VECTOR(VA);
+            ALLOCATE_VECTOR(VVThresh);
+            ALLOCATE_VECTOR(VVMinusThresh);
+            ALLOCATE_VECTOR(VOne);
+            ALLOCATE_VECTOR(VI);
 
-    // Register allocation
-    ALLOCATE_SCALAR(SPoissonBuffer);
-    ALLOCATE_SCALAR(SABuffer);
-    ALLOCATE_SCALAR(SVBuffer);
-    ALLOCATE_SCALAR(SVBufferEnd);
-    ALLOCATE_VECTOR(VAlpha);
-    ALLOCATE_VECTOR(VRho);
-    ALLOCATE_VECTOR(VWeight);
-    ALLOCATE_VECTOR(VBeta);
-    ALLOCATE_VECTOR(VV);
-    ALLOCATE_VECTOR(VA);
-    ALLOCATE_VECTOR(VVThresh);
-    ALLOCATE_VECTOR(VOne);
-    ALLOCATE_VECTOR(VI);
+            // Load RNG seed
+            if(roundMode == RoundMode::STOCHASTIC) {
+                ALLOCATE_SCALAR(STmp);
+                c.li(*STmp, seedPtr);
+                c.vloadr0(*STmp);
+                c.vloadr1(*STmp, 64);
+            }
 
-    // Load RNG seed
-    {
-        ALLOCATE_SCALAR(STmp);
-        c.li(*STmp, seedPointer);
-        c.vloadr0(*STmp);
-        c.vloadr1(*STmp, 64);
-    }
+            // Calculate constants
+            c.vlui(*VAlpha, convertFixedPoint(std::exp(-1.0 / tauM), 14));
+            c.vlui(*VRho, convertFixedPoint(std::exp(-1.0 / tauA), 14));
+            c.vlui(*VWeight, convertFixedPoint(0.01, vFixedPoint));
+            c.vlui(*VBeta, convertFixedPoint(0.0174, vFixedPoint));
+            c.vlui(*VV, 0);
+            c.vlui(*VA, 0);
+            c.vlui(*VVThresh, convertFixedPoint(0.6, vFixedPoint));
+            c.vlui(*VVMinusThresh, (uint16_t)convertFixedPoint(-0.6, vFixedPoint));
+            c.vlui(*VOne, convertFixedPoint(1.0, aFixedPoint));
 
-    // Calculate constants
-    c.vlui(*VAlpha, convertFixedPoint(std::exp(-1.0 / tauM), 14));
-    c.vlui(*VRho, convertFixedPoint(std::exp(-1.0 / tauA), 14));
-    c.vlui(*VWeight, convertFixedPoint(0.01, vFixedPoint));
-    c.vlui(*VBeta, convertFixedPoint(0.0174, vFixedPoint));
-    c.vlui(*VV, 0);
-    c.vlui(*VA, 0);
-    c.vlui(*VVThresh, convertFixedPoint(0.6, vFixedPoint));
-    c.vlui(*VOne, convertFixedPoint(1.0, aFixedPoint));
+            // Start reading at poisson pointer
+            c.li(*SPoissonBuffer, poissonPtr);
 
-    // Start reading at poisson pointer
-    c.li(*SPoissonBuffer, poissonPtr);
+            // Start writing 64 bytes in (after I values)
+            c.li(*SABuffer, aScalarPtr);
 
-    // Start writing 64 bytes in (after I values)
-    c.li(*SABuffer, aPointer);
+            // Start writing 64 bytes in (after I values)
+            c.li(*SVBuffer, vScalarPtr);
 
-    // Start writing 64 bytes in (after I values)
-    c.li(*SVBuffer, vPointer);
-
-    // End writing at 100 timesteps * 64 bytes
-    c.li(*SVBufferEnd, vPointer + (64 * numTimesteps));
+            // End writing at 100 timesteps * 64 bytes
+            c.li(*SVBufferEnd, vScalarPtr + (64 * numTimesteps));
     
-    // Pick vadd, vsub and vmul operations to use based on saturation
-    const auto vaddFn = std::mem_fn(saturate ? &CodeGenerator::vadd_s : &CodeGenerator::vadd);
-    const auto vsubFn = std::mem_fn(saturate ? &CodeGenerator::vsub_s : &CodeGenerator::vsub);
-    const auto vmulFn = std::mem_fn((roundMode == RoundMode::NEAREST) ? &CodeGenerator::vmul_rn 
-                                    : (roundMode == RoundMode::STOCHASTIC ? &CodeGenerator::vmul_rs 
-                                       : &CodeGenerator::vmul));
+            // Pick vadd, vsub and vmul operations to use based on saturation
+            const auto vaddFn = std::mem_fn(saturate ? &CodeGenerator::vadd_s : &CodeGenerator::vadd);
+            const auto vsubFn = std::mem_fn(saturate ? &CodeGenerator::vsub_s : &CodeGenerator::vsub);
+            const auto vmulFn = std::mem_fn((roundMode == RoundMode::NEAREST) ? &CodeGenerator::vmul_rn 
+                                            : (roundMode == RoundMode::STOCHASTIC ? &CodeGenerator::vmul_rs 
+                                               : &CodeGenerator::vmul));
 
-    // Loop over time
-    Label loop;
-    c.L(loop);
-    {
-        // Register allocation
-        ALLOCATE_SCALAR(SSpike);
+            // Loop over time
+            Label loop;
+            c.L(loop);
+            {
+                // Register allocation
+                ALLOCATE_SCALAR(SSpike);
 
-        // i = *poissonPointer
-        c.vloadv(*VI, *SPoissonBuffer);
-        c.addi(*SPoissonBuffer, *SPoissonBuffer, 64);
-        c.vmul(0, *VI, *VI, *VWeight);
+                // i = *poissonPointer
+                c.vloadv(*VI, *SPoissonBuffer);
+                c.addi(*SPoissonBuffer, *SPoissonBuffer, 64);
+                c.vmul(0, *VI, *VI, *VWeight);
    
-        // v *= alpha
-        vmulFn(&c, 14, *VV, *VV, *VAlpha);
+                // v *= alpha
+                vmulFn(&c, 14, *VV, *VV, *VAlpha);
     
-        // v += i
-        vaddFn(&c, *VV, *VV, *VI);
+                // v += i
+                vaddFn(&c, *VV, *VV, *VI);
 
-        // a *= rho
-        vmulFn(&c, 14, *VA, *VA, *VRho);
+                // a *= rho
+                vmulFn(&c, 14, *VA, *VA, *VRho);
     
-        // spike = VV >= (VThres + (Beta * A))
-        {
-            ALLOCATE_VECTOR(VTmp);
-            vmulFn(&c, aFixedPoint, *VTmp, *VA, *VBeta);
-            vaddFn(&c, *VTmp, *VTmp, *VVThresh);
-            c.vtge(*SSpike, *VV, *VTmp);
-        }
+                // spike = VV >= (VThres + (Beta * A))
+                {
+                    ALLOCATE_VECTOR(VTmp);
+                    vmulFn(&c, aFixedPoint, *VTmp, *VA, *VBeta);
+                    vaddFn(&c, *VTmp, *VTmp, *VVThresh);
+                    c.vtge(*SSpike, *VV, *VTmp);
+                    c.nop();
+                }
         
-        {
-            ALLOCATE_VECTOR(VTmp1);
-            ALLOCATE_VECTOR(VTmp2);
-            vsubFn(&c, *VTmp1, *VV, *VVThresh);
-            vaddFn(&c, *VTmp2, *VA, *VOne);
+                {
+                    ALLOCATE_VECTOR(VTmp1);
+                    ALLOCATE_VECTOR(VTmp2);
+                    vaddFn(&c, *VTmp1, *VV, *VVMinusThresh);
+                    vaddFn(&c, *VTmp2, *VA, *VOne);
 
-            // v = spk ? (v - v_thresh) : v
-            c.vsel(*VV, *SSpike, *VTmp1);
+                    // v = spk ? (v - v_thresh) : v
+                    c.vsel(*VV, *SSpike, *VTmp1);
 
-            // a = spk ? (a + 1) : a
-            c.vsel(*VA, *SSpike, *VTmp2);
-        }
+                    // a = spk ? (a + 1) : a
+                    c.vsel(*VA, *SSpike, *VTmp2);
+                }
         
-    
-        // Write V to memory
-        c.vstore(*VV, *SVBuffer);
-        c.addi(*SVBuffer, *SVBuffer, 64);
+                {
+                    ALLOCATE_SCALAR(SVTmp);
+                    ALLOCATE_SCALAR(SATmp);
+                    for(int i = 0; i < 32; i++) {
+                        c.vextract(*SVTmp, *VV, i);
+                        c.vextract(*SATmp, *VA, i);
 
-        // Write A to memory
-        c.vstore(*VA, *SABuffer);
-        c.addi(*SABuffer, *SABuffer, 64);
+                        c.sh(*SVTmp, *SVBuffer, i * 2);
+                        c.sh(*SATmp, *SABuffer, i * 2);
+                    }
+                }
+                c.addi(*SVBuffer, *SVBuffer, 64);
+                c.addi(*SABuffer, *SABuffer, 64);
     
-        // While x2 (address) < x1 (count), goto loop
-        c.bne(*SVBuffer, *SVBufferEnd, loop);
-    }
+                // While x2 (address) < x1 (count), goto loop
+                c.bne(*SVBuffer, *SVBufferEnd, loop);
+            }
     
-    c.ecall();
-    return c;
+        });   
 }
 
+void saveData(const volatile int16_t *outputV, const volatile int16_t *outputA,
+              const std::string &outputSuffix, const std::string &filenameSuffix, size_t numTimesteps)
+{
+    std::ofstream out("out_alif" + outputSuffix + filenameSuffix + ".txt");
+    for(size_t t = 0; t < numTimesteps; t++) {
+        for(int l = 0; l < 32; l++) {
+            out << *outputV++ << ", " << *outputA++;
+            if(l != 31) {
+                out << ", ";
+            }
+        }
+        out << std::endl;
+    }
+}
 
 int main(int argc, char** argv)
 {
@@ -164,6 +188,7 @@ int main(int argc, char** argv)
     size_t aFixedPoint = 10;
     size_t vFixedPoint = 10;
     bool saturate = false;
+    bool device = false;
     RoundMode roundMode = RoundMode::ZERO;
     
     CLI::App app{"ALIF neuron simulation"};
@@ -173,6 +198,7 @@ int main(int argc, char** argv)
     app.add_option("-a,--a-fractional-bits", aFixedPoint, "Number of fractional bits to use for A state variable");
     app.add_option("-v,--v-fractional-bits", vFixedPoint, "Number of fractional bits to use for V state variable");
     app.add_flag("-s,--saturate", saturate, "Should saturating operations be used");
+    app.add_flag("-d,--device", device, "Should be run on device rather than simulator");
     app.add_option("-r,--round-model", roundMode, "What round mode to use");
 
     CLI11_PARSE(app, argc, argv);
@@ -181,25 +207,35 @@ int main(int argc, char** argv)
     // Create memory contents
     std::vector<uint8_t> scalarInitData;
     std::vector<int16_t> vectorInitData;
-    
-    // Generate seed
-    const uint32_t seedPointer = AppUtils::allocateVectorSeedAndInit(vectorInitData);
 
-    // Load poisson data into vector memory
-    const uint32_t poissonPtr = AppUtils::loadVectors(inputFilename, vectorInitData);
-    
-    // Allocate memory to store neuron voltages and adaptation variables
-    const uint32_t vPointer = AppUtils::allocateVectorAndZero(32 * numTimesteps, vectorInitData);
-    const uint32_t aPointer = AppUtils::allocateVectorAndZero(32 * numTimesteps, vectorInitData);
+    auto poissonData = AppUtils::loadBinaryData<uint8_t>(inputFilename);
 
+    // Allocate vector memory
+    const uint32_t poissonPtr = AppUtils::allocateVectorAndZero(32 * numTimesteps, vectorInitData);
+    const uint32_t seedPtr = AppUtils::allocateVectorAndZero(32 * 2, vectorInitData);
+
+    // Allocate scalar memor
+    const uint32_t poissonScalarPtr = AppUtils::allocateScalarAndZero(64 * numTimesteps, scalarInitData);
+    const uint32_t seedScalarPtr = AppUtils::allocateScalarSeedAndInit(scalarInitData);
+    const uint32_t vScalarPtr = AppUtils::allocateScalarAndZero(64 * numTimesteps, scalarInitData);
+    const uint32_t aScalarPtr = AppUtils::allocateScalarAndZero(64 * numTimesteps, scalarInitData);
+    const uint32_t readyFlagPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
+
+    // Copy timesteps worth of poisson data
+    std::copy_n(poissonData.cbegin(), numTimesteps * 64, scalarInitData.data() + poissonScalarPtr);
+    
     // Generate code
-    const auto code = generateCode(20.0, 2000.0, poissonPtr, vPointer, aPointer, seedPointer,
-                                   vFixedPoint, aFixedPoint, numTimesteps, saturate, roundMode).getCode();
+    const auto code = generateCode(!device, numTimesteps, saturate, roundMode, 20.0, 2000.0, vFixedPoint, aFixedPoint,
+                                   poissonPtr, seedPtr, poissonScalarPtr, seedScalarPtr, vScalarPtr, aScalarPtr, readyFlagPtr);
+
+    LOGI << scalarInitData.size() << " bytes of scalar memory required";
+    LOGI << vectorInitData.size() * 2 << " bytes of vector memory required (" << ceilDivide(vectorInitData.size() / 32, 4096) << " URAM cascade)";
 
     std::string filenameSuffix = "_" + std::to_string(vFixedPoint) + "_" + std::to_string(aFixedPoint);
     if(saturate) {
         filenameSuffix += "_sat";
     }
+
     if(roundMode == RoundMode::NEAREST) {
         filenameSuffix += "_rn";
     }
@@ -207,33 +243,54 @@ int main(int argc, char** argv)
         filenameSuffix += "_rs";
     }
 
+    if(device) {
+        filenameSuffix += "_device";
+    }
+
     // Dump to coe file
     AppUtils::dumpCOE("alif" + filenameSuffix + ".coe", code);
 
-    // Create RISC-V core with instruction and scalar data
-    RISCV riscV(code, scalarInitData);
+    if(!device) {
+        // Create RISC-V core with instruction and scalar data
+        RISCV riscV(code, scalarInitData);
     
-    // Add vector co-processor
-    riscV.addCoprocessor<VectorProcessor>(vectorQuadrant, vectorInitData);
+        // Add vector co-processor
+        riscV.addCoprocessor<VectorProcessor>(vectorQuadrant, vectorInitData);
     
-    // Run!
-    riscV.run();
-    
-    // Get pointer to vector memory
-    auto *vectorData = riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getVectorDataMemory().getData().data();
-    
-    // From these, get pointers to data structures
-    int16_t *outputV = vectorData + (vPointer / 2);
-    int16_t *outputA = vectorData + (aPointer / 2);
+        // Run!
+        riscV.run();
+        
+        const auto *scalarData = riscV.getScalarDataMemory().getData().data();
 
-    std::ofstream out("out_alif" + outputSuffix + filenameSuffix + ".txt");
-    for(size_t t = 0; t < numTimesteps; t++) {
-        for(int l = 0; l < 32; l++) {
-            out << *outputV++ << ", " << *outputA++;
-            if(l != 31) {
-                out << ", ";
-            }
-        }
-        out << std::endl;
+        saveData(reinterpret_cast<const int16_t*>(scalarData + vScalarPtr),
+                 reinterpret_cast<const int16_t*>(scalarData + aScalarPtr),
+                 outputSuffix, filenameSuffix, numTimesteps);
+    }
+    else
+    {
+        LOGI << "Creating device";
+        Device device;
+        LOGI << "Resetting";
+        // Put core into reset state
+        device.setEnabled(false);
+        
+        LOGI << "Copying instructions (" << code.size() * sizeof(uint32_t) << " bytes)";
+        device.uploadCode(code);
+        
+        LOGI << "Copying data (" << scalarInitData.size() << " bytes);";
+        device.memcpyDataToDevice(0, scalarInitData.data(), scalarInitData.size());
+        
+        LOGI << "Enabling";
+        // Put core into running state
+        device.setEnabled(true);
+        LOGI << "Running";
+        
+        // Wait until ready flag
+        device.waitOnNonZero(readyFlagPtr);
+        LOGI << "Done";
+        saveData(reinterpret_cast<const volatile int16_t*>(device.getDataMemory() + vScalarPtr),
+                 reinterpret_cast<const volatile int16_t*>(device.getDataMemory() + aScalarPtr),
+                 outputSuffix, filenameSuffix, numTimesteps);
+
     }
 }

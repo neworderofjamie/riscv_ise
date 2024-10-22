@@ -60,7 +60,7 @@ std::vector<uint8_t> {{clean_title}}::s_ScalarData;
 // Generate google tests
 {% for c in correct_outputs %}
 TEST_F({{clean_title}}, {{c[2]}}) {
-  ASSERT_EQ(getScalarWordData()[{{c[0] // 4}}], {{c[1]}});
+  ASSERT_EQ(getScalarWordData()[{{c[0] // 4}}], (uint32_t){{c[1]}});
 }
 
 {% endfor %}

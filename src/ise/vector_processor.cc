@@ -148,49 +148,31 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
     {
         auto [imm, rs1, funct3, rd] = decodeIType(inst);
 
-        // If load is local
-        if(funct3 & 0b010) {
-            //VLOAD.LOCAL
-            if(funct3 == 0b010) {
-                PLOGV << "VLOAD.LOCAL " << rs1 << " " << imm;
-                PLOGV << "\t" << rd;
-                
-                // Read from each lane local memory into lane
-                std::transform(m_LaneLocalMemories.cbegin(), m_LaneLocalMemories.cend(),
-                               m_VReg[rs1].cbegin(), m_VReg[rd].begin(),
-                               [imm](const auto &mem, int16_t l){ return mem.read((uint32_t)(imm + l)); });
-            }
-            else {
-                throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
-            }
-        }
-        // Otherwise
-        else {
-            const uint32_t addr = reg[rs1] + imm;
+        const uint32_t addr = reg[rs1] + imm;
 
-            // VLOAD.V
-            if(funct3 == 0b000) {
-                PLOGV << "VLOAD.V " << rs1 << " " << imm;
-                PLOGV << "\t" << rd;
-                m_VReg[rd] = m_VectorDataMemory.readVector(addr); 
-            }
-            // VLOAD.R0
-            else if(funct3 == 0b001) {
-                PLOGV << "VLOAD.R0 " << rs1 << " " << imm;
-                PLOGV << "\t" << rd;
-                m_S0 = m_VectorDataMemory.readVector(addr); 
-            }
-            // VLOAD.R1
-            else if(funct3 == 0b101) {
-                PLOGV << "VLOAD.R1 " << rs1 << " " << imm;
-                PLOGV << "\t" << rd;
-                m_S1 = m_VectorDataMemory.readVector(addr); 
-            }
-            else {
-                throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
-            }
+        // VLOADV
+        const auto type = getVLoadType(funct3);
+        if(type == +VLoadType::VLOAD) {
+            PLOGV << "VLOADV " << rs1 << " " << imm;
+            PLOGV << "\t" << rd;
+            m_VReg[rd] = m_VectorDataMemory.readVector(addr); 
         }
-        
+        // VLOADR0
+        else if(type == +VLoadType::VLOAD_R0) {
+            PLOGV << "VLOADR0 " << rs1 << " " << imm;
+            PLOGV << "\t" << rd;
+            m_S0 = m_VectorDataMemory.readVector(addr); 
+        }
+        // VLOADR1/VLOADR1I
+        else if(type == +VLoadType::VLOAD_R1) {
+            PLOGV << "VLOADR1 " << rs1 << " " << imm;
+            PLOGV << "\t" << rd;
+            m_S1 = m_VectorDataMemory.readVector(addr); 
+        }
+        else {
+            throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
+        }
+
         break;
     }
 
@@ -207,8 +189,8 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
     {
         auto [imm, rs1, funct3, rd] = decodeIType(inst);
 
-        // VFILL
-        if(funct3 == 0b000) {
+        const auto type = getVMovType(funct3);
+        if(type == +VMovType::VFILL) {
             PLOGV << "VFILL " << rs1;
             PLOGV << "\t" << rd;
             const uint32_t val = reg[rs1];
@@ -216,8 +198,8 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
                       (int16_t)((val & 0x80000000) >> 16 | (val & 0x7FFF)));
         }
         // VEXTRACT
-        else if(funct3 == 0b001) {
-            PLOGV << "VFILL " << rs1;
+        else if(type == +VMovType::VEXTRACT) {
+            PLOGV << "VEXTRACT " << rs1;
             PLOGV << "\t" << rd;
             if(imm < 0 || imm > 31) {
                 throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
@@ -236,8 +218,8 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
     {
         auto [imm, rs1, funct3, rd] = decodeIType(inst);
 
-        // VRNG
-        if(funct3 == 0x0) {
+        const auto type = getVSpcType(funct3);
+        if(type == +VSpcType::VRNG) {
             if (rs1 != 0) {
                 throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
             }
@@ -274,21 +256,11 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
     {
         auto [imm, rs2, rs1, funct3] = decodeSType(inst);
 
-        if(funct3 == 0b000) {
-            PLOGV << "VSTORE.V " << rs2 << " " << rs1 << " " << imm;
-            m_VectorDataMemory.writeVector(reg[rs1] + imm, m_VReg[rs2]);
-        }
-        else if(funct3 == 0b010) {
-            PLOGV << "VSTORE.LOCAL " << rs2 << " " << rs1 << " " << imm;
+        const uint32_t addr = reg[rs1] + imm;
 
-            // Write contents of rs2 to lane local address
-            for(size_t i = 0; i < 32; i++) {
-                m_LaneLocalMemories[i].write((uint32_t)(m_VReg[rs1][i] + imm), m_VReg[rs2][i]);
-            }
-        }
-        else {
-            throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
-        }
+        PLOGV << "VSTORE " << rs2 << " " << rs1 << " " << imm;
+        
+        m_VectorDataMemory.writeVector(addr, m_VReg[rs2]);
         break;
     }
     
@@ -379,92 +351,75 @@ Vector VectorProcessor::calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs
     const auto &val2 = m_VReg[rs2];
 
     // Split funct7 into mode and fixed point position
-    const uint32_t mode = (funct7 >> 4);
     const uint32_t fixedPoint = (funct7 & 0b1111);
-    const bool saturateResult = (mode & 0b100);
-    const uint32_t roundMode = (mode & 0b011);
-    switch(funct3)
+    const bool saturateResult = ((funct7 >> 4) & 0b100);
+    switch(getVOpType(funct7, funct3))
     {
-    // VADD
-    case 0b000:
+    case VOpType::VADD:
     {
         PLOGV << "VADD " << rs1 << " " << rs2;
-        if(roundMode != 0) {
-            throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
-        }
         return binaryOp(val, val2, saturateResult,
                         [](int16_t a, int16_t b){ return a + b; });
     }
 
-    // VSUB
-    case 0b010:
+    case VOpType::VSUB:
     {
         PLOGV << "VSUB " << rs1 << " " << rs2;
-        if(roundMode != 0) {
-            throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
-        }
-
         return binaryOp(val, val2, saturateResult,
                         [](int16_t a, int16_t b){ return a - b; });
     }
-    // VMUL
-    case 0b100:
+    
+    case VOpType::VMUL:
     {
         PLOGV << "VMUL " << rs1 << " " << rs2;
-  
-        // Round-to-zero
-        if(roundMode == 0b00) {
-            return binaryOp(val, val2, saturateResult,
-                            [fixedPoint](int16_t a, int16_t b)
-                            {
-                                return (a * b) >> fixedPoint; 
-                            });
-        }
-        // Round-to-nearest (half up)
-        else if(roundMode == 0b01) {
-            const int16_t half = 1 << (fixedPoint - 1);
-            return binaryOp(val, val2, saturateResult,
-                            [half,fixedPoint](int16_t a, int16_t b)
-                            {
-                                auto product = a * b;
-                                product += (product < 0) ? -half : half;
-                                return product >> fixedPoint; 
-                            });
-        }
-        // Stochastic round
-        else if (roundMode == 0b10) {
-            // Sample from RNG
-            const auto r = sampleRNG();
+        return binaryOp(val, val2, saturateResult,
+                        [fixedPoint](int16_t a, int16_t b)
+                        {
+                            return (a * b) >> fixedPoint; 
+                        });
+    }
 
-            // Mask out bits corresponding to fractional bits in our format
-            Vector maskedStoch;
-            const uint16_t mask = (1 << fixedPoint) - 1;
-            std::transform(r.cbegin(), r.cend(), maskedStoch.begin(), 
-                           [mask](uint16_t a){ return (int16_t)(a & mask); });
+    case VOpType::VMUL_RN:
+    {
+        PLOGV << "VMUL_RN " << rs1 << " " << rs2;
+        const int16_t half = 1 << (fixedPoint - 1);
+        return binaryOp(val, val2, saturateResult,
+                        [half,fixedPoint](int16_t a, int16_t b)
+                        {
+                            auto product = (a * b) + half;
+                            return product >> fixedPoint; 
+                        });
+    }
 
-            Vector result;
-            if(saturateResult) {
-                for(size_t i = 0; i < 32; i++) {
-                    auto product = val[i] * val2[i];
-                    product += ((product < 0) ? -maskedStoch[i] : maskedStoch[i]);
-                    result[i] = saturate(product >> fixedPoint);
-                }
+    case VOpType::VMUL_RS:
+    {
+        PLOGV << "VMUL_RS " << rs1 << " " << rs2;
+        // Sample from RNG
+        const auto r = sampleRNG();
+
+        // Mask out bits corresponding to fractional bits in our format
+        Vector maskedStoch;
+        const uint16_t mask = (1 << fixedPoint) - 1;
+        std::transform(r.cbegin(), r.cend(), maskedStoch.begin(), 
+                        [mask](uint16_t a){ return (int16_t)(a & mask); });
+
+        Vector result;
+        if(saturateResult) {
+            for(size_t i = 0; i < 32; i++) {
+                auto product = (val[i] * val2[i]) + maskedStoch[i];
+                result[i] = saturate(product >> fixedPoint);
             }
-            else {
-                for(size_t i = 0; i < 32; i++) {
-                    auto product = val[i] * val2[i];
-                    product += ((product < 0) ? -maskedStoch[i] : maskedStoch[i]);
-                    result[i] = product >> fixedPoint;
-
-                }
-            }
-            return result;
         }
         else {
-            throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
+            for(size_t i = 0; i < 32; i++) {
+                auto product = (val[i] * val2[i]) + maskedStoch[i];
+                result[i] = product >> fixedPoint;
+
+            }
         }
-        
+        return result;
     }
+     
     default:
     {
         throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
@@ -477,29 +432,25 @@ uint32_t VectorProcessor::calcTestResult(uint32_t inst, uint32_t rs2, uint32_t r
     const auto &val = m_VReg[rs1];
     const auto &val2 = m_VReg[rs2];
     
-    switch(funct3)
+    switch(getVTstType(funct3))
     {
-    // VTEQ
-    case 0b000:
+    case VTstType::VTEQ:
     {
         PLOGV << "VTEQ " << rs1 << " " << rs2;
         return maskOp(val, val2, [](int16_t a, int16_t b){ return a == b; });
     }
 
-    // VTNE
-    case 0b010:
+    case VTstType::VTNE:
     {
         PLOGV << "VTNE " << rs1 << " " << rs2;
         return maskOp(val, val2, [](int16_t a, int16_t b){ return a != b; });
     }
-    // VTLT
-    case 0b100:
+    case VTstType::VTLT:
     {
         PLOGV << "VTLT " << rs1 << " " << rs2;
         return maskOp(val, val2, [](int16_t a, int16_t b){ return a < b; });
     }
-    // VTGE
-    case 0b110:
+    case VTstType::VTGE:
     {
         PLOGV << "VTGE " << rs1 << " " << rs2;
         return maskOp(val, val2, [](int16_t a, int16_t b){ return a >= b; });

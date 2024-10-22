@@ -22,12 +22,17 @@
 
 std::vector<uint32_t> generateCode(uint32_t numTimesteps, uint32_t inputCurrentVectorPtr, uint32_t inputCurrentScalarPtr,
                                    uint32_t voltageRecordingPtr, uint32_t spikeRecordingPtr, uint32_t readyFlagPtr,
-                                   bool simulate)
+                                   uint32_t startInstRetPtr, uint32_t endInstRetPtr, uint32_t startCyclePtr, uint32_t endCyclePtr, bool simulate)
 {
     return AssemblerUtils::generateStandardKernel(
         simulate, readyFlagPtr,
         [=](CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator, ScalarRegisterAllocator &scalarRegisterAllocator)
         {
+            // On device, enable perforamnce counters
+            // **NOTE** this takes a few cycles to make it through the pipeline so we do it well before we try and access counters
+            if(!simulate) {
+                c.csrw(CSR::MCOUNTINHIBIT, Reg::X0);
+            }
             // Generate code to copy vector of currents from scalar memory to vector memory
             AssemblerUtils::generateScalarVectorMemcpy(c, vectorRegisterAllocator, scalarRegisterAllocator,
                                                        inputCurrentScalarPtr, inputCurrentVectorPtr, 1u);
@@ -45,6 +50,14 @@ std::vector<uint32_t> generateCode(uint32_t numTimesteps, uint32_t inputCurrentV
 
             // Labels
             Label loop;
+
+            // On device write instructions retired and cycle counts to memory
+            if(!simulate) {
+                AssemblerUtils::generatePerformanceCountWrite(c, scalarRegisterAllocator,
+                                                              CSR::MCYCLE, CSR::MCYCLEH, startCyclePtr);
+                AssemblerUtils::generatePerformanceCountWrite(c, scalarRegisterAllocator,
+                                                              CSR::MINSTRET, CSR::MINSTRETH, startInstRetPtr);
+            }
 
             // Load pointers
             c.li(*SIBuffer, inputCurrentVectorPtr);
@@ -96,6 +109,14 @@ std::vector<uint32_t> generateCode(uint32_t numTimesteps, uint32_t inputCurrentV
                 // While x2 (address) < x1 (count), goto loop
                 c.bne(*SVBuffer, *SVBufferEnd, loop);
             }
+
+            // On device write instructions retired and cycle counts to memory
+            if(!simulate) {
+                AssemblerUtils::generatePerformanceCountWrite(c, scalarRegisterAllocator,
+                                                              CSR::MCYCLE, CSR::MCYCLEH, endCyclePtr);
+                AssemblerUtils::generatePerformanceCountWrite(c, scalarRegisterAllocator,
+                                                              CSR::MINSTRET, CSR::MINSTRETH, endInstRetPtr);
+            }
         });
 }
 
@@ -144,6 +165,10 @@ int main()
     const uint32_t inputCurrentScalarPtr = AppUtils::allocateScalarAndZero(2 * 32, scalarInitData);
     const uint32_t spikeRecordingPtr = AppUtils::allocateScalarAndZero(numTimesteps * 4, scalarInitData);
     const uint32_t readyFlagPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
+    const uint32_t startInstRetPtr = AppUtils::allocateScalarAndZero(8, scalarInitData);
+    const uint32_t endInstRetPtr = AppUtils::allocateScalarAndZero(8, scalarInitData);
+    const uint32_t startCyclePtr = AppUtils::allocateScalarAndZero(8, scalarInitData);
+    const uint32_t endCyclePtr = AppUtils::allocateScalarAndZero(8, scalarInitData);
 
     // Copy increasing input currents into scalar memory
     std::vector<int16_t> test{0, 26, 53, 79, 106, 132, 159, 185, 211, 238, 264, 291, 317, 344, 370, 396, 423, 449,
@@ -157,7 +182,9 @@ int main()
 
     // Generate code
     const auto code = generateCode(numTimesteps, inputCurrentVectorPtr, inputCurrentScalarPtr,
-                                   voltageRecordingPtr, spikeRecordingPtr, readyFlagPtr, simulate);
+                                   voltageRecordingPtr, spikeRecordingPtr, 
+                                   readyFlagPtr, startInstRetPtr, endInstRetPtr, startCyclePtr, endCyclePtr, 
+                                   simulate);
 
     // Dump to coe file
     //AppUtils::dumpCOE("lif.coe", code);
@@ -204,6 +231,18 @@ int main()
         // Wait until ready flag
         device.waitOnNonZero(readyFlagPtr);
         LOGI << "Done";
+
+        // Read cycle and instruction retired counters
+        uint64_t startInstRet;
+        uint64_t endInstRet;
+        uint64_t startCycles;
+        uint64_t endCycles;
+        device.memcpyDataFromDevice(reinterpret_cast<uint8_t*>(&startInstRet), startInstRetPtr, 8);
+        device.memcpyDataFromDevice(reinterpret_cast<uint8_t*>(&endInstRet), endInstRetPtr, 8);
+        device.memcpyDataFromDevice(reinterpret_cast<uint8_t*>(&startCycles), startCyclePtr, 8);
+        device.memcpyDataFromDevice(reinterpret_cast<uint8_t*>(&endCycles), endCyclePtr, 8);
+        LOGI << (endInstRet - startInstRet) << " instructions retired in " << (endCycles - startCycles) << " cycles" << std::endl;
+
         // Record spikes
         recordSpikes(reinterpret_cast<const volatile uint32_t*>(device.getDataMemory() + spikeRecordingPtr), 
                      numTimesteps);

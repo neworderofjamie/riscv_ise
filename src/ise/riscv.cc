@@ -364,56 +364,38 @@ void RISCV::setNextPC(uint32_t nextPC)
 //----------------------------------------------------------------------------
 bool RISCV::calcBranchCondition(uint32_t inst, uint32_t rs2, uint32_t rs1, uint32_t funct3) const
 {
-    switch(funct3) {
-    case 0: // BEQ
+    switch(getBranchType(funct3)) {
+    case BranchType::BEQ:
     {
         PLOGV << "BEQ " << rs1 << " " << rs2;
-#ifdef DEBUG_EXTRA
-        stats[4]++;
-#endif
         return (m_Reg[rs1] == m_Reg[rs2]);
     }
 
-    case 1: // BNE
+    case BranchType::BNE:
     {
         PLOGV << "BNE " << rs1 << " " << rs2;
-#ifdef DEBUG_EXTRA
-        stats[5]++;
-#endif
         return (m_Reg[rs1] != m_Reg[rs2]);
     }
 
-    case 4: // BLT
+    case BranchType::BLT:
     {
         PLOGV << "BLT " << rs1 << " " << rs2;
-#ifdef DEBUG_EXTRA
-        stats[6]++;
-#endif
         return ((int32_t)m_Reg[rs1] < (int32_t)m_Reg[rs2]);
     }
 
-    case 5: // BGE
+    case BranchType::BGE:
     {
         PLOGV << "BGE " << rs1 << " " << rs2;
-#ifdef DEBUG_EXTRA
-        stats[7]++;
-#endif
         return ((int32_t)m_Reg[rs1] >= (int32_t)m_Reg[rs2]);
     }
-    case 6: // BLTU
+    case BranchType::BLTU:
     {
         PLOGV << "BLTU " << rs1 << " " << rs2;
-#ifdef DEBUG_EXTRA
-        stats[8]++;
-#endif
         return (m_Reg[rs1] < m_Reg[rs2]);
     }
-    case 7: // BGEU
+    case BranchType::BGEU: // BGEU
     {
         PLOGV << "BGEU " << rs1 << " " << rs2;
-#ifdef DEBUG_EXTRA
-        stats[9]++;
-#endif
         return (m_Reg[rs1] >= m_Reg[rs2]);
     }
     default:
@@ -426,139 +408,92 @@ bool RISCV::calcBranchCondition(uint32_t inst, uint32_t rs2, uint32_t rs1, uint3
 uint32_t RISCV::calcOpImmResult(uint32_t inst, int32_t imm, uint32_t rs1, uint32_t funct3) const
 {
     const uint32_t val = m_Reg[rs1];
-    switch(funct3) {
-    case 0: // ADDI
+    const uint32_t shamt = imm & 0b11111;
+    switch(getOpImmType(imm, funct3)) {
+    case OpImmType::ADDI:
     {
         PLOGV << "ADDI " << rs1 << " " << imm;
-#ifdef DEBUG_EXTRA
-        stats[18]++;
-#endif
         return (int32_t)(val + imm);
     }
-    case 1: // SLLI/CLZ/CPOP/CTZ/SEXT
+
+    case OpImmType::SLLI:
     {
-        // Split immediate into shamt (shift) and upper field
-        const uint32_t shamt = imm & 0b11111;
-        const uint32_t pre = imm >> 5;
-
-        // SLLI
-        if (pre == 0) {
-            PLOGV << "SLLI " << rs1 << " " << imm;
-#ifdef DEBUG_EXTRA
-            stats[24]++;
-#endif
-            return (int32_t)(val << shamt);
-        }
-        // CLZ/CPOP/CTZ/SEXT
-        else if(pre == 0b110000) {
-            switch(shamt) {
-            case 0: // CLZ
-            {
-                PLOGV << "CLZ " << rs1;
-                return (val == 0) ? 32 : clz(val);
-            }
-
-            case 1: // CTZ
-            {
-                PLOGV << "CTZ " << rs1;
-                return (val == 0) ? 32 : ctz(val);
-            }
-
-            case 2: // CPOP
-            {
-                PLOGV << "CPOP " << rs1;
-                return popCount(val);
-            }
-
-            case 4: // SEXT.B
-            {
-                PLOGV << "SEXT.B " << rs1;
-                return (int32_t)(val << 24) >> 24;
-            }
-
-            case 5: // SEXT.H
-            {
-                PLOGV << "SEXT.H " << rs1;
-                return (int32_t)(val << 16) >> 16;
-            }
-
-            default:
-            {
-                throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
-            }
-            }
-        }
-        else {
-            throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
-        }
+        PLOGV << "SLLI " << rs1 << " " << imm;
+        return (int32_t)(val << shamt);
     }
 
-    case 2: // SLTI
+    case OpImmType::CLZ:
+    {
+        PLOGV << "CLZ " << rs1;
+        return (val == 0) ? 32 : clz(val);
+    }
+
+    case OpImmType::CTZ:
+    {
+        PLOGV << "CTZ " << rs1;
+        return (val == 0) ? 32 : ctz(val);
+    }
+
+    case OpImmType::CPOP:
+    {
+        PLOGV << "CPOP " << rs1;
+        return popCount(val);
+    }
+
+    case OpImmType::SEXT_B:
+    {
+        PLOGV << "SEXT.B " << rs1;
+        return (int32_t)(val << 24) >> 24;
+    }
+
+    case OpImmType::SEXT_H:
+    {
+        PLOGV << "SEXT.H " << rs1;
+        return (int32_t)(val << 16) >> 16;
+    }
+    
+    case OpImmType::SLTI:
     {
         PLOGV << "SLTI " << rs1 << " " << imm;
-#ifdef DEBUG_EXTRA
-        stats[19]++;
-#endif
         return ((int32_t)val < (int32_t)imm);
     }
-    case 3: // SLTIU
+
+    case OpImmType::SLTIU:
     {
         PLOGV << "SLTIU " << rs1 << " " << imm;
-#ifdef DEBUG_EXTRA
-        stats[20]++;
-#endif
         return (val < (uint32_t)imm);
     }
-    case 4: // XORI
+
+    case OpImmType::XORI:
     {
         PLOGV << "XORI " << rs1 << " " << imm;
-#ifdef DEBUG_EXTRA
-        dprintf(">>> XORI\n");
-        stats[21]++;
-#endif
         return (val ^ imm);
     }
-    case 5: // SRLI / SRAI
-    {
-        // Error if any bits other than the 11th bit are set in immediate field
-        if ((imm & ~(0b11111 | 0x400)) != 0) {
-            throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
-        }
 
-        // If 11th bit set, SRAI
-        if (imm & 0x400) {
-            PLOGV << "SRAI " << rs1 << " " << imm;
-#ifdef DEBUG_EXTRA
-            stats[26]++;
-#endif
-            return ((int32_t)val >> (imm & 31));
-        }
-        // Otherwise SRLI
-        else
-        {
-            PLOGV << "SRLI " << rs1 << " " << imm;
-#ifdef DEBUG_EXTRA
-            stats[25]++;
-#endif
-            return (int32_t)((uint32_t)val >> (imm & 31));
-        }
+    case OpImmType::SRAI:
+    {
+        PLOGV << "SRAI " << rs1 << " " << imm;
+        return ((int32_t)val >> (imm & 31));
     }
-    case 6: // ORI
+
+    case OpImmType::SRLI:
+    {
+        PLOGV << "SRLI " << rs1 << " " << imm;
+        return (int32_t)((uint32_t)val >> (imm & 31));
+    }
+    
+    case OpImmType::ORI:
     {
         PLOGV << "ORI " << rs1 << " " << imm;
-#ifdef DEBUG_EXTRA
-        stats[22]++;
-#endif
         return (val | imm);
     }
-    case 7: // ANDI
+
+    case OpImmType::ANDI:
     {
         PLOGV << "ANDI " << rs1 << " " << imm;
-#ifdef DEBUG_EXTRA
-        stats[23]++;
-#endif
         return (val & imm);
     }
+
     default:
     {
         throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
@@ -637,98 +572,67 @@ uint32_t RISCV::calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs2, uint3
     else
 #endif
     {
-        // If any bits are set in funct7 aside from the one used for distinguishing ops
-        if (funct7 & ~0x20) {
-            throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
-        }
-        switch(funct3) {
-        case 0: // ADD/SUB
+        switch(getOpType(funct7, funct3)) {
+        case OpType::ADD:
         {
-            if(funct7 == 0) {
-                PLOGV << "ADD " << rs1 << " " << rs2;
-#ifdef DEBUG_EXTRA
-                stats[27]++;
-#endif
-                return (int32_t)(val + val2);
-            }
-            else {
-                PLOGV << "SUB " << rs1 << " " << rs2;
-#ifdef DEBUG_EXTRA
-                stats[28]++;
-#endif
-                return (int32_t)(val - val2);
-            }
+            PLOGV << "ADD " << rs1 << " " << rs2;
+            return (int32_t)(val + val2);
+        }
+        
+        case OpType::SUB:
+        {
+            PLOGV << "SUB " << rs1 << " " << rs2;
+            return (int32_t)(val - val2);
         }
 
-        case 1: // SLL
+        case OpType::SLL:
         {
             PLOGV << "SLL " << rs1 << " " << rs2;
-#ifdef DEBUG_EXTRA
-            stats[29]++;
-#endif
             return (int32_t)(val << (val2 & 31));
         }
 
-        case 2: // SLT
+        case OpType::SLT:
         {
             PLOGV << "SLT " << rs1 << " " << rs2;
-#ifdef DEBUG_EXTRA
-            stats[30]++;
-#endif
             return (int32_t)val < (int32_t)val2;
         }
-        case 3: // SLTU
+
+        case OpType::SLTU:
         {
             PLOGV << "SLTU " << rs1 << " " << rs2;
-#ifdef DEBUG_EXTRA
-            stats[31]++;
-#endif
             return val < val2;
         }
 
-        case 4: // XOR
+        case OpType::XOR:
         {
             PLOGV << "XOR " << rs1 << " " << rs2;
-#ifdef DEBUG_EXTRA
-            stats[32]++;
-#endif
             return val ^ val2;
         }
 
-        case 5: // SRL/SRA
+        case OpType::SRL:
         {
-            if(funct7 == 0) {
-                PLOGV << "SRL " << rs1 << " " << rs2;
-#ifdef DEBUG_EXTRA
-                stats[33]++;
-#endif
-                return (int32_t)((uint32_t)val >> (val2 & 31));
-            }
-            else {
-                PLOGV << "SRA " << rs1 << " " << rs2;
-#ifdef DEBUG_EXTRA
-                stats[34]++;
-#endif
-                return (int32_t)val >> (val2 & 31);
-            }
+            PLOGV << "SRL " << rs1 << " " << rs2;
+            return (int32_t)((uint32_t)val >> (val2 & 31));
         }
 
-        case 6: // OR
+        case OpType::SRA:
+        {
+            PLOGV << "SRA " << rs1 << " " << rs2;
+            return (int32_t)val >> (val2 & 31);
+        }
+        
+        case OpType::OR:
         {
             PLOGV << "OR " << rs1 << " " << rs2;
-#ifdef DEBUG_EXTRA
-            stats[35]++;
-#endif
             return val | val2;
         }
-        case 7: // AND
+
+        case OpType::AND:
         {
             PLOGV << "AND " << rs1 << " " << rs2;
-#ifdef DEBUG_EXTRA
-            stats[36]++;
-#endif
             return val & val2;
         }
+
         default:
         {
             throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
@@ -740,50 +644,35 @@ uint32_t RISCV::calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs2, uint3
 uint32_t RISCV::loadValue(uint32_t inst, int32_t imm, uint32_t rs1, uint32_t funct3) const
 {
     const uint32_t addr = m_Reg[rs1] + imm;
-    switch(funct3) {
-    case 0: // LB
+    switch(getLoadType(funct3)) {
+    case LoadType::LB:
     {
         PLOGV << "LB " << rs1 << " " << imm;
-#ifdef DEBUG_EXTRA
-        stats[10]++;
-#endif
         return (int8_t)m_ScalarDataMemory.read8(addr);
     }
 
-    case 1: // LH
+    case LoadType::LH:
     {
         PLOGV << "LH " << rs1 << " " << imm;
-#ifdef DEBUG_EXTRA
-        stats[11]++;
-#endif
         return (int16_t)m_ScalarDataMemory.read16(addr);
     }
 
-    case 2: // LW
+    case LoadType::LW:
     {
         PLOGV << "LW " << rs1 << " " << imm;
-#ifdef DEBUG_EXTRA
-        stats[12]++;
-#endif
         return (int32_t)m_ScalarDataMemory.read32(addr);
     }
     
-    case 4: // LBU
+    case LoadType::LBU:
     {
         PLOGV << "LBU " << rs1 << " " << imm;
-#ifdef DEBUG_EXTRA
-        stats[13]++;
-#endif
         return m_ScalarDataMemory.read8(addr);
     }
     break;
 
-    case 5: // LHU
+    case LoadType::LHU:
     {
         PLOGV << "LHU " << rs1 << " " << imm;
-#ifdef DEBUG_EXTRA
-        stats[14]++;
-#endif
         return m_ScalarDataMemory.read16(addr);
     }
 
@@ -898,34 +787,24 @@ void RISCV::executeStandardInstruction(uint32_t inst)
         auto [imm, rs2, rs1, funct3] = decodeSType(inst);
         const uint32_t addr = m_Reg[rs1] + imm;
         const uint32_t val = m_Reg[rs2];
-        switch(funct3) {
-        case 0: // SB
+        switch(getStoreType(funct3)) {
+        case StoreType::SB:
         {
             PLOGV << "SB " << rs2 << " " << rs1 << " " << imm;
-#ifdef DEBUG_EXTRA
-            stats[15]++;
-#endif
             m_ScalarDataMemory.write8(addr, val);
             break;
         }
 
-        case 1: // SH
+        case StoreType::SH:
         {
             PLOGV << "SH " << rs2 << " " << rs1 << " " << imm;
-#ifdef DEBUG_EXTRA
-            dprintf(">>> SH\n");
-            stats[16]++;
-#endif
             m_ScalarDataMemory.write16(addr, val);
             break;
         }
 
-        case 2: // SW
+        case StoreType::SW:
         {
             PLOGV << "SW " << rs2 << " " << rs1 << " " << imm;
-#ifdef DEBUG_EXTRA
-            stats[17]++;
-#endif
             m_ScalarDataMemory.write32(addr, val);
             break;
         }

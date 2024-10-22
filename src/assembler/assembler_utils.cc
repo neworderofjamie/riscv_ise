@@ -145,6 +145,19 @@ void generateVectorScalarMemcpy(CodeGenerator &c, VectorRegisterAllocator &vecto
     }
 }
 //----------------------------------------------------------------------------
+void generatePerformanceCountWrite(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator,
+                                   CSR lowCSR, CSR highCSR, uint32_t scalarPtr)
+{
+    ALLOCATE_SCALAR(SAddress);
+    ALLOCATE_SCALAR(SValue);
+    
+    c.li(*SAddress, scalarPtr);
+    c.csrr(*SValue, lowCSR);
+    c.sw(*SValue, *SAddress);
+    c.csrr(*SValue, highCSR);
+    c.sw(*SValue, *SAddress, 4);
+}
+//----------------------------------------------------------------------------
 void unrollLoopBody(CodeGenerator &c, uint32_t numIterations, uint32_t maxUnroll, 
                     Reg testBufferReg, Reg testBufferEndReg, 
                     std::function<void(CodeGenerator&, uint32_t)> genBodyFn, 

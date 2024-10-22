@@ -18,14 +18,20 @@
 //----------------------------------------------------------------------------
 namespace
 {
-void seedRNG(int16_t *seedPointer)
+void seedRNG(int16_t *seedPointer, const std::optional<std::array<int16_t, 64>> &seed)
 {
-    // Fill first 64 half words of vector memory with random seed data
-    std::random_device seedSource;
-    for(size_t i = 0; i < 32; i++) {
-        const uint32_t seed = seedSource();
-        *seedPointer++ =  seed & 0xFFFF;
-        *seedPointer++ = (seed >> 16) & 0xFFFF;
+    // If seed is provided, copy into seed pointer
+    if(seed) {
+        std::copy(seed.value().cbegin(), seed.value().cend(), seedPointer);
+    }
+    // Otherwise, fill first 64 half words of vector memory with random seed data
+    else {
+        std::random_device seedSource;
+        for(size_t i = 0; i < 32; i++) {
+            const uint32_t seed = seedSource();
+            *seedPointer++ =  seed & 0xFFFF;
+            *seedPointer++ = (seed >> 16) & 0xFFFF;
+        }
     }
 }
 }
@@ -51,7 +57,8 @@ uint32_t allocateVectorAndZero(size_t numHalfWords, std::vector<int16_t> &memory
     return static_cast<uint32_t>(startHalfWords) * 2;
 }
 //----------------------------------------------------------------------------
-uint32_t allocateVectorSeedAndInit(std::vector<int16_t> &memory)
+uint32_t allocateVectorSeedAndInit(std::vector<int16_t> &memory,
+                                   const std::optional<std::array<int16_t, 64>> &seed)
 {
     LOGW << "allocateVectorSeedAndInit is not supported on devices without direct vector memory access";
 
@@ -59,7 +66,7 @@ uint32_t allocateVectorSeedAndInit(std::vector<int16_t> &memory)
     const uint32_t startBytes = allocateVectorAndZero(64, memory);
 
     // Generate seed
-    seedRNG(memory.data() + (startBytes / 2));
+    seedRNG(memory.data() + (startBytes / 2), seed);
     
     return startBytes;
 }
@@ -68,7 +75,8 @@ uint32_t loadVectors(const std::string &filename, std::vector<int16_t> &memory)
 {
     LOGW << "loadVectors is not supported on devices without direct vector memory access";
     std::ifstream input(filename, std::ios::binary);
-    
+    input.exceptions(std::ifstream::badbit | std::ifstream::failbit);
+
     // Get length
     input.seekg (0, std::ios::end);
     const auto lengthBytes = input.tellg();
@@ -87,13 +95,14 @@ uint32_t loadVectors(const std::string &filename, std::vector<int16_t> &memory)
     return startBytes;
 }
 //----------------------------------------------------------------------------
-uint32_t allocateScalarSeedAndInit(std::vector<uint8_t> &memory)
+uint32_t allocateScalarSeedAndInit(std::vector<uint8_t> &memory,
+                                   const std::optional<std::array<int16_t, 64>> &seed)
 {
     // Allocate two vectors of seed
     const uint32_t startBytes = allocateScalarAndZero(128, memory);
 
     // Generate seed
-    seedRNG(reinterpret_cast<int16_t*>(memory.data() + startBytes));
+    seedRNG(reinterpret_cast<int16_t*>(memory.data() + startBytes), seed);
     
     return startBytes;
 }
@@ -109,6 +118,33 @@ uint32_t allocateScalarAndZero(size_t numBytes, std::vector<uint8_t> &memory)
 
     // Return start address
     return static_cast<uint32_t>(startBytes);
+}
+//----------------------------------------------------------------------------
+uint32_t loadScalars(const std::string &filename, std::vector<uint8_t> &memory)
+{
+    std::ifstream input(filename, std::ios::binary);
+    input.exceptions(std::ifstream::badbit | std::ifstream::failbit);
+
+    // Get length
+    input.seekg (0, std::ios::end);
+    const auto lengthBytes = input.tellg();
+    input.seekg (0, std::ios::beg);
+
+    // Allocate memory
+    const uint32_t startBytes = allocateScalarAndZero(lengthBytes, memory);
+
+    // Read data directly into newly allocated memory
+    input.read(reinterpret_cast<char*>(memory.data() + startBytes), lengthBytes);
+
+    // Return start address in bytes
+    return startBytes;
+}
+//----------------------------------------------------------------------------
+std::vector<uint8_t> getSeedData(const std::optional<std::array<int16_t, 64>> &seed)
+{
+    std::vector<uint8_t> data(32 * 2 * 2);
+    seedRNG(reinterpret_cast<int16_t*>(data.data()), seed);
+    return data;
 }
 //----------------------------------------------------------------------------
 void writeSpikes(std::ofstream &os, const volatile uint32_t *data, 

@@ -1,8 +1,10 @@
 #pragma once
 
 // Standard C++ includes
+#include <array>
 #include <fstream>
 #include <functional>
+#include <optional>
 #include <string>
 #include <variant>
 #include <vector>
@@ -25,16 +27,23 @@ namespace AppUtils
 uint32_t allocateVectorAndZero(size_t numHalfWords, std::vector<int16_t> &memory);
 
 // Seed RNG
-uint32_t allocateVectorSeedAndInit(std::vector<int16_t> &memory);
+uint32_t allocateVectorSeedAndInit(std::vector<int16_t> &memory, 
+                                   const std::optional<std::array<int16_t, 64>> &seed = std::nullopt);
 
 // Load vector data from int16_t binary file into vector-aligned memory
 uint32_t loadVectors(const std::string &filename, std::vector<int16_t> &memory);
 
 // Seed RNG
-uint32_t allocateScalarSeedAndInit(std::vector<uint8_t> &memory);
+uint32_t allocateScalarSeedAndInit(std::vector<uint8_t> &memory,
+                                   const std::optional<std::array<int16_t, 64>> &seed = std::nullopt);
 
 // Allocate word-aligned memory
 uint32_t allocateScalarAndZero(size_t numBytes, std::vector<uint8_t> &memory);
+
+uint32_t loadScalars(const std::string &filename, std::vector<uint8_t> &memory);
+
+// Get seed data, in form suitable for bulk-copying
+std::vector<uint8_t> getSeedData(const std::optional<std::array<int16_t, 64>> &seed = std::nullopt);
 
 // Write one timestep of spikes from a bitfield in CSV format
 void writeSpikes(std::ofstream &os, const volatile uint32_t *data, 
@@ -48,6 +57,7 @@ template<typename T>
 std::vector<T> loadBinaryData(const std::string &filename)
 {
     std::ifstream input(filename, std::ios::binary);
+    input.exceptions(std::ifstream::badbit | std::ifstream::failbit);
 
     // Get length
     input.seekg (0, std::ios::end);

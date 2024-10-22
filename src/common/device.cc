@@ -93,7 +93,14 @@ Device::~Device()
 //----------------------------------------------------------------------------
 void Device::setEnabled(bool enabled)
 {
+    // Channel 1 AXI GPIO Data Register
     m_GPIO[0] = enabled ? 0xFFFFFFFF : 0x0;
+}
+//----------------------------------------------------------------------------
+void Device::setILATrigger(bool enabled)
+{
+    // Channel 2 AXI GPIO Data Register.
+    m_GPIO[2] = enabled ? 0xFFFFFFFF : 0x0;
 }
 //----------------------------------------------------------------------------
 void Device::waitOnNonZero(uint32_t address) const
@@ -102,7 +109,7 @@ void Device::waitOnNonZero(uint32_t address) const
     assert((address % 4) == 0);
     volatile const uint32_t *data = reinterpret_cast<const uint32_t*>(m_DataMemory + address);
     while(*data == 0){
-        std::this_thread::sleep_for(std::chrono::microseconds{10});
+        //std::this_thread::sleep_for(std::chrono::microseconds{10});
     }
 }
 //----------------------------------------------------------------------------

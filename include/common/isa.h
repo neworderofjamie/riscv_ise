@@ -7,6 +7,9 @@
 #include <cassert>
 #include <cstdint>
 
+// Third party includes
+#include "common/enum.h"
+
 inline constexpr uint32_t mask(uint32_t n)
 {
     assert (n <= 32);
@@ -30,7 +33,12 @@ inline constexpr bool isValidImm(size_t imm, uint32_t maskBit)
     return (imm < M || ~M <= imm) && (imm & 1) == 0;
 }
 
-// Opcode in the standard encoding quadrant (11)
+// Quadrants different sorts of instructions live in
+static constexpr uint32_t standardQuadrant = 0b11;
+static constexpr uint32_t vectorQuadrant = 0b10;
+
+
+// Standard RISC-V opcode 
 enum class StandardOpCode : uint32_t
 {
     LOAD    = 0b00000,
@@ -45,9 +53,7 @@ enum class StandardOpCode : uint32_t
     SYSTEM  = 0b11100,
 };
 
-static constexpr uint32_t standardQuadrant = 0b11;
-static constexpr uint32_t vectorQuadrant = 0b10;
-
+// FeNN opcodes
 enum class VectorOpCode : uint32_t
 {
     VSOP    = 0b00000,
@@ -60,6 +66,20 @@ enum class VectorOpCode : uint32_t
     VSPC    = 0b01000, 
 };
 
+// Types of operations in each op-code
+// **NOTE** uses Better Enums so they can be printed for debug/disassembly
+BETTER_ENUM(LoadType, uint32_t, LB, LH, LW, LBU, LHU, INVALID)
+BETTER_ENUM(StoreType, uint32_t, SB, SH, SW, INVALID)
+BETTER_ENUM(BranchType, uint32_t, BEQ, BNE, BLT, BGE, BLTU, BGEU, INVALID)
+BETTER_ENUM(OpImmType, uint32_t, ADDI, SLLI, CLZ, CTZ, CPOP, SEXT_B, SEXT_H, SLTI,
+            SLTIU, XORI, SRLI, SRAI, ORI, ANDI, INVALID)
+BETTER_ENUM(OpType, uint32_t, ADD, SUB, SLL, SLT, SLTU, XOR, SRL, SRA, OR, AND, INVALID)
+
+BETTER_ENUM(VOpType, uint32_t, VADD, VSUB, VMUL, VMUL_RS, VMUL_RN, INVALID)
+BETTER_ENUM(VTstType, uint32_t, VTEQ, VTNE, VTLT, VTGE, INVALID)
+BETTER_ENUM(VMovType, uint32_t, VFILL, VEXTRACT, INVALID)
+BETTER_ENUM(VLoadType, uint32_t, VLOAD, VLOAD_R0, VLOAD_R1, INVALID)
+BETTER_ENUM(VSpcType, uint32_t, VRNG, INVALID)
 
 inline uint32_t addQuadrant(StandardOpCode op)
 {
@@ -147,6 +167,38 @@ enum class VReg : uint32_t
 // Control and Status Register
 enum class CSR : uint32_t 
 {
+    MSTATUS         = 0x300,
+    MISA            = 0x301,
+    MIE             = 0x304,
+    MTVEC           = 0x305,
+    MTVT            = 0x307,
+    MSTATUSH        = 0x310,
+    MCOUNTINHIBIT   = 0x320,
+    MHPEVENT3       = 0x323,
+    // **TODO**
+    MHPEVENT31      = 0x33F,
+    MSCRATCH        = 0x340,
+    MEPC            = 0x341,
+    MCAUSE          = 0x342,
+    MTVAL           = 0x343,
+    MIP             = 0x344,
+    
+    MCYCLE          = 0xB00,
+    MINSTRET        = 0xB02,
+    MHPMCOUNTER3    = 0xB03,
+    // **TODO**
+    MHPMCOUNTER31   = 0xB1F,
+    MCYCLEH         = 0xB80,
+    MINSTRETH       = 0xB82,
+    MHPMCOUNTERH3   = 0xB83,
+    // **TODO**
+    MHPMCOUNTERH31  = 0xB9F,
+    
+    MVENDORID       = 0xF11,
+    MARCHID         = 0xF12,
+    MIMPID          = 0xF13,
+    MHARTID         = 0xF14,
+    MCONFIGPTRID    = 0xF15,
 };
 
 // funct7 rs2 rs1 funct3 rd
@@ -202,6 +254,26 @@ inline std::tuple<int32_t, uint32_t> decodeUType(uint32_t inst)
     const uint32_t rd = (inst >> 7) & 0x1f;
     return std::make_tuple(imm, rd);
 }
+
+LoadType getLoadType(uint32_t funct3);
+
+StoreType getStoreType(uint32_t funct3);
+
+BranchType getBranchType(uint32_t funct3);
+
+OpImmType getOpImmType(int32_t imm, uint32_t funct3);
+
+OpType getOpType(int32_t funct7, uint32_t funct3);
+
+VOpType getVOpType(uint32_t funct7, uint32_t funct3);
+
+VTstType getVTstType(uint32_t funct3);
+
+VMovType getVMovType(uint32_t funct3);
+
+VLoadType getVLoadType(uint32_t funct3);
+
+VSpcType getVSpcType(uint32_t funct3);
 
 template<size_t N>
 class Bit {

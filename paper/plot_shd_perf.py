@@ -29,9 +29,9 @@ sect_addresses = [8, 232, 508, 1028, 1136]
 sect_names = ["Input\nspikes", "Hidden\nspikes", "Hidden\nneurons", "Output\nneurons"]
 assert len(sect_names) == (len(sect_addresses) - 1)
 
-fenn_seconds = 3822376542 / 164E6   # TODO
+fenn_seconds = 28.6
 jetson_gpu_seconds = 42.4 + 25.7 + 1.5
-jetson_cpu_seconds = 119    # TODO
+jetson_cpu_seconds = 75.68 + 35.81
 
 fenn_seconds_per_timestep = fenn_seconds / (NUM_EXAMPLES * NUM_TIMESTEPS)
 jetson_gpu_seconds_per_timestep = jetson_gpu_seconds / (NUM_EXAMPLES * NUM_TIMESTEPS)

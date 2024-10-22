@@ -27,6 +27,7 @@ public:
     volatile uint32_t *getGPIO(){ return m_GPIO; }
 
     void setEnabled(bool enabled);
+    void setILATrigger(bool enabled);
 
     void waitOnNonZero(uint32_t address) const;
 
@@ -40,6 +41,7 @@ public:
 
     void memcpyDataToDevice(size_t destinationOffset, const uint8_t *source, size_t count);
     void memcpyDataFromDevice(uint8_t *destination, size_t sourceOffset, size_t count) const;
+
 private:
     //------------------------------------------------------------------------
     // Members

@@ -13,6 +13,7 @@
   <ItemGroup>
     <ClCompile Include="app_utils.cc" />
     <ClCompile Include="device.cc" />
+    <ClCompile Include="isa.cc" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\common\app_utils.h" />

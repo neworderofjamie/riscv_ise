@@ -1,5 +1,6 @@
 // Standard C++ includes
 #include <bitset>
+#include <chrono>
 #include <fstream>
 #include <iterator>
 #include <limits>
@@ -15,6 +16,7 @@
 #include <plog/Appenders/ConsoleAppender.h>
 
 // RISC-V utils include
+#include "common/CLI11.hpp"
 #include "common/app_utils.h"
 #include "common/device.h"
 #include "common/utils.h"
@@ -156,7 +158,7 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
                         
                         // Add weights to ISyn
                         auto VISyn = even ? VISyn1 : VISyn2;
-                        c.vadd(*VISyn, *VISyn, *VWeight);
+                        c.vadd_s(*VISyn, *VISyn, *VWeight);
 
                         // Write back ISyn and increment SISynBuffer
                         c.vstore(*VISyn, *SISynBuffer, r * 64);
@@ -187,7 +189,7 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
                 c.nop();
 
                 // Add weights to ISyn with mask
-                c.vadd(*VISynNew, *VISyn, *VWeight);
+                c.vadd_s(*VISynNew, *VISyn, *VWeight);
                 c.vsel(*VISyn, *SMask, *VISynNew);
 
                 // Write back ISyn
@@ -311,16 +313,18 @@ std::vector<uint32_t> generateSimCode(bool simulate, uint32_t numInput, uint32_t
                     ALLOCATE_SCALAR(SSpikeBuffer);
                     ALLOCATE_VECTOR(VAlpha);
                     ALLOCATE_VECTOR(VThresh);
+                    ALLOCATE_VECTOR(VMinusThresh);
                     ALLOCATE_VECTOR(VTauRefrac);
-                    ALLOCATE_VECTOR(VDT);
+                    ALLOCATE_VECTOR(VMinusDT);
                     ALLOCATE_VECTOR(VZero); 
 
                     // Load constants
                     // alpha = e^(-1/20)
                     c.vlui(*VAlpha, convertFixedPoint(std::exp(-1.0 / 20.0), hiddenFixedPoint));
                     c.vlui(*VThresh, convertFixedPoint(0.61, hiddenFixedPoint));
+                    c.vlui(*VMinusThresh, (uint16_t)convertFixedPoint(-0.61, hiddenFixedPoint));
                     c.vlui(*VTauRefrac, 5);
-                    c.vlui(*VDT, 1);
+                    c.vlui(*VMinusDT, (uint16_t)-1);
                     c.vlui(*VZero, 0);
 
                     // Get address of buffers
@@ -335,7 +339,7 @@ std::vector<uint32_t> generateSimCode(bool simulate, uint32_t numInput, uint32_t
                         [&scalarRegisterAllocator, &vectorRegisterAllocator,
                          hiddenFixedPoint, 
                          SVBuffer, SISynBuffer, SRefracTimeBuffer, SSpikeBuffer,
-                         VAlpha, VDT, VTauRefrac, VThresh, VZero]
+                         VAlpha, VMinusDT, VTauRefrac, VThresh, VMinusThresh, VZero]
                         (CodeGenerator &c, uint32_t r)
                         {
                             // Register allocation
@@ -354,7 +358,7 @@ std::vector<uint32_t> generateSimCode(bool simulate, uint32_t numInput, uint32_t
                             c.vmul(hiddenFixedPoint, *VV, *VV, *VAlpha);
 
                             // VV += VISyn
-                            c.vadd(*VV, *VV, *VISyn);
+                            c.vadd_s(*VV, *VV, *VISyn);
 
                             // VISyn = 0
                             c.vlui(*VISyn, 0);
@@ -364,7 +368,8 @@ std::vector<uint32_t> generateSimCode(bool simulate, uint32_t numInput, uint32_t
                             {
                                 // VTemp = VRefracTime - VDT
                                 ALLOCATE_VECTOR(VTemp);
-                                c.vsub(*VTemp, *VRefracTime, *VDT);
+                                //c.vsub(*VTemp, *VRefracTime, *VDT);
+                                c.vadd(*VTemp, *VRefracTime, *VMinusDT);
                             
                                 // VRefracTime = SRefractory ? VTemp : VRefracTime
                                 c.vsel(*VRefracTime, *SRefractory, *VTemp);
@@ -385,7 +390,7 @@ std::vector<uint32_t> generateSimCode(bool simulate, uint32_t numInput, uint32_t
                             {
                                 // VTemp = V - VThresh
                                 ALLOCATE_VECTOR(VTemp);
-                                c.vsub(*VTemp, *VV, *VThresh);
+                                c.vadd(*VTemp, *VV, *VMinusThresh);
                             
                                 // VV = SSpikeOut ? VReset : VV
                                 c.vsel(*VV, *SSpikeOut, *VTemp);
@@ -456,13 +461,13 @@ std::vector<uint32_t> generateSimCode(bool simulate, uint32_t numInput, uint32_t
                         c.vmul(outFixedPoint, *VVNew, *VV, *VAlpha);
 
                         // VV += VISyn
-                        c.vadd(*VVNew, *VVNew, *VISyn);
+                        c.vadd_s(*VVNew, *VVNew, *VISyn);
 
                         // VV += VBias
-                        c.vadd(*VVNew, *VVNew, *VBias);
+                        c.vadd_s(*VVNew, *VVNew, *VBias);
 
                         // VSum += VV
-                        c.vadd(*VVSumNew, *VVSum, *VISyn);
+                        c.vadd_s(*VVSumNew, *VVSum, *VISyn);
 
                         // Zero Isyn
                         c.vlui(*VISyn, 0);
@@ -517,18 +522,27 @@ std::vector<uint32_t> generateSimCode(bool simulate, uint32_t numInput, uint32_t
         });
 }
 
-int main()
+int main(int argc, char** argv)
 {
     // Configure logging
     plog::ConsoleAppender<plog::TxtFormatter> consoleAppender;
     plog::init(plog::debug, &consoleAppender);
+
+    bool device = false;
+    size_t numExamples = 10000;
+
+    CLI::App app{"Latency MNIST inference"};
+    app.add_option("-n,--num-examples", numExamples, "How many examples to simulate");
+    app.add_flag("-d,--device", device, "Should be run on device rather than simulator");
+    
+
+    CLI11_PARSE(app, argc, argv);
     
     // Allocate memory
     std::vector<uint8_t> scalarInitData;
     std::vector<int16_t> vectorInitData;
 
     // Constants
-    constexpr bool simulate = true;
     constexpr uint32_t numInput = 28 * 28;
     constexpr uint32_t numHidden = 128;
     constexpr uint32_t numOutput = 10;
@@ -584,7 +598,7 @@ int main()
     std::copy(outputBias.cbegin(), outputBias.cend(), std::back_inserter(initData));
 
     // Generate sim code
-    const auto simCode = generateSimCode(simulate, numInput, numHidden, numOutput, numTimesteps,
+    const auto simCode = generateSimCode(!device, numInput, numHidden, numOutput, numTimesteps,
                                          hiddenFixedPoint, outFixedPoint, numInputSpikeWords,
                                          numHiddenSpikeWords,  weightInHidPtr, weightHidOutPtr, 
                                          outputBiasPtr, hiddenIsynPtr, hiddenVPtr,
@@ -599,87 +613,12 @@ int main()
     const uint32_t initNumVectorsPtr = 4;
     const uint32_t initReadyFlagPtr = 8;
     const uint32_t initScalarScratchPtr = 12;
-    const auto initCode = AssemblerUtils::generateInitCode(simulate, initStartVectorPtr, initNumVectorsPtr, 
+    const auto initCode = AssemblerUtils::generateInitCode(!device, initStartVectorPtr, initNumVectorsPtr, 
                                                            initReadyFlagPtr, initScalarScratchPtr);
-    
-    if(simulate) {
-        RISCV riscV(initCode, scalarInitData);
-        
-        // Add vector co-processor
-        riscV.addCoprocessor<VectorProcessor>(vectorQuadrant, vectorInitData);
-        
-        // Run kernels to copy initData into vector memory
-        if(!riscV.runInit(initData, initStartVectorPtr, initNumVectorsPtr, initScalarScratchPtr, weightInHidPtr)) {
-            return 1;
-        }
-            
-        // Reset stats for simulations
-        riscV.resetStats();
+    LOGI << scalarInitData.size() << " bytes of scalar memory required";
+    LOGI << vectorInitData.size() * 2 << " bytes of vector memory required (" << ceilDivide(vectorInitData.size() / 32, 4096) << " URAM cascade)";
 
-        // Load simulation program
-        riscV.setInstructions(simCode);
-
-        // Recording data
-        //std::vector<uint32_t> inputSpikeRecording;
-        //std::vector<uint32_t> hiddenSpikeRecording;
-        //inputSpikeRecording.reserve(79 * numInputSpikeWords);
-        ///hiddenSpikeRecording.reserve(79 * numHiddenSpikeWords);
-
-        // From these, get pointers to data structures
-        // 
-        //const uint32_t *inputSpikeWords = reinterpret_cast<const uint32_t*>(scalarData + inputSpikePtr);
-        //const uint32_t *hiddenSpikeWords = reinterpret_cast<const uint32_t*>(scalarData + hiddenSpikePtr);
-        auto *scalarData = riscV.getScalarDataMemory().getData().data();
-        const int16_t *outputVSum = reinterpret_cast<const int16_t*>(scalarData + outputVSumScalarPtr);
-
-        // Loop through examples
-        int numCorrect = 0;
-        for(size_t i = 0; i < 10000; i++) {
-            // Show % progress
-            const auto iPerc = std::div(i, 100);
-            if(iPerc.rem == 0) {
-                std:: cout << iPerc.quot << "%" << std::endl;
-            }
-
-            // Copy input spike bits into scalar memory
-            std::copy_n(mnistSpikes.data() + (numInputSpikeArrayWords * i), numInputSpikeArrayWords, 
-                        reinterpret_cast<uint32_t*>(scalarData + inputSpikeArrayPtr));
-
-            // Reset PC and run
-            riscV.setPC(0);
-            if(!riscV.run()) {
-                return 1;
-            }
-
-            // Determine if output is correct
-            const auto classification = std::distance(outputVSum, std::max_element(outputVSum, outputVSum + 10));
-            if(classification == mnistLabels[i]) {
-                numCorrect++;
-            }
-        }
-
-        std::cout << numCorrect << " / 10000 correct (" << 100.0 * (numCorrect / 10000.0) << "%)" << std::endl;
-        std::cout << "Stats:" << std::endl;
-        std::cout << "\t" << riscV.getTotalNumInstructionsExecuted() << " instructions executed" << std::endl;
-        std::cout << "\t\t" << riscV.getTotalNumCoprocessorInstructionsExecuted(vectorQuadrant) << " vector instructions executed" << std::endl;
-        std::cout << "\t\t" << riscV.getNumJumps() << " jumps" << std::endl;
-        std::cout << "\t\t" << riscV.getNumMemory() << " scalar memory" << std::endl;
-        std::cout << "\t\t" << riscV.getNumALU() << " scalar ALU" << std::endl;
-        std::cout << "\t\t" << riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getNumMemory(riscV.getNumCoprocessorInstructionsExecuted(vectorQuadrant)) << " vector memory" << std::endl;
-        std::cout << "\t\t" << riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getNumALU(riscV.getNumCoprocessorInstructionsExecuted(vectorQuadrant)) << " vector ALU" << std::endl;
-    
-    
-        // Record output spikes
-        //std::ofstream inputSpikes("input_spikes.csv");
-        //std::ofstream hiddenSpikes("hidden_spikes.csv");
-        //for(uint32_t t = 0; t < 79; t++) {
-        //    AppUtils::writeSpikes(inputSpikes, inputSpikeRecording.data() + (numInputSpikeWords * t),
-        //                          t, numInputSpikeWords);
-        //    AppUtils::writeSpikes(hiddenSpikes, hiddenSpikeRecording.data() + (numHiddenSpikeWords * t),
-        //                          t, numHiddenSpikeWords);
-        //}
-    }
-    else {
+    if(device) {
         LOGI << "Creating device";
         Device device;
 
@@ -704,28 +643,25 @@ int main()
             // Loop through examples
             int numCorrect = 0;
             const volatile int16_t *outputVSum = reinterpret_cast<const volatile int16_t*>(device.getDataMemory() + outputVSumScalarPtr);
-            for(size_t i = 0; i < 10000; i++) {
-                // Show % progress
-                const auto iPerc = std::div(i, 100);
-                if(iPerc.rem == 0) {
-                    std:: cout << iPerc.quot << "%" << std::endl;
-                }
-
+            std::chrono::duration<double> duration{0};
+            for(size_t i = 0; i < numExamples; i++) {
                 // Copy input spike bits into scalar memory
                 device.memcpyDataToDevice(inputSpikeArrayPtr, 
                                           reinterpret_cast<const uint8_t*>(mnistSpikes.data() + (numInputSpikeArrayWords * i)),
                                           numInputSpikeArrayWords * 4);
 
-                // Put core into running state
-                LOGI << "Enabling";
+                // Put core into running state and trigger ILA
+                device.setILATrigger(true);
                 device.setEnabled(true);
+                const auto startTime = std::chrono::high_resolution_clock::now();
 
                 // Wait until ready flag
-                device.waitOnNonZero(readyFlagPtr);
+                device.waitOnNonZero(readyFlagPtr); 
+                duration += (std::chrono::high_resolution_clock::now() - startTime);
 
                 // Reset core
-                LOGI << "Disabling";
                 device.setEnabled(false);
+                device.setILATrigger(false);
 
                 // Determine if output is correct
                 const auto classification = std::distance(outputVSum, std::max_element(outputVSum, outputVSum + 10));
@@ -734,8 +670,61 @@ int main()
                 }
             }
 
-            std::cout << numCorrect << " / 10000 correct (" << 100.0 * (numCorrect / 10000.0) << "%)" << std::endl;
+            std::cout << numCorrect << " / " << numExamples << " correct (" << 100.0 * (numCorrect / double(numExamples)) << "%)" << std::endl;
+            std::cout << duration.count() << " seconds" << std::endl;
         }
     }
+    else {
+        RISCV riscV(initCode, scalarInitData);
+        
+        // Add vector co-processor
+        riscV.addCoprocessor<VectorProcessor>(vectorQuadrant, vectorInitData);
+        
+        // Run kernels to copy initData into vector memory
+        if(!riscV.runInit(initData, initStartVectorPtr, initNumVectorsPtr, initScalarScratchPtr, weightInHidPtr)) {
+            return 1;
+        }
+            
+        // Reset stats for simulations
+        riscV.resetStats();
+
+        // Load simulation program
+        riscV.setInstructions(simCode);
+
+        // Get pointer to output sim
+        auto *scalarData = riscV.getScalarDataMemory().getData().data();
+        const int16_t *outputVSum = reinterpret_cast<const int16_t*>(scalarData + outputVSumScalarPtr);
+
+        // Loop through examples
+        int numCorrect = 0;
+        for(size_t i = 0; i < numExamples; i++) {
+            // Copy input spike bits into scalar memory
+            std::copy_n(mnistSpikes.data() + (numInputSpikeArrayWords * i), numInputSpikeArrayWords, 
+                        reinterpret_cast<uint32_t*>(scalarData + inputSpikeArrayPtr));
+
+            // Reset PC and run
+            riscV.setPC(0);
+            if(!riscV.run()) {
+                return 1;
+            }
+
+            // Determine if output is correct
+            const auto classification = std::distance(outputVSum, std::max_element(outputVSum, outputVSum + 10));
+            if(classification == mnistLabels[i]) {
+                numCorrect++;
+            }
+        }
+
+        std::cout << numCorrect << " / " << numExamples << " correct (" << 100.0 * (numCorrect / double(numExamples)) << "%)" << std::endl;
+        std::cout << "Stats:" << std::endl;
+        std::cout << "\t" << riscV.getTotalNumInstructionsExecuted() << " instructions executed" << std::endl;
+        std::cout << "\t\t" << riscV.getTotalNumCoprocessorInstructionsExecuted(vectorQuadrant) << " vector instructions executed" << std::endl;
+        std::cout << "\t\t" << riscV.getNumJumps() << " jumps" << std::endl;
+        std::cout << "\t\t" << riscV.getNumMemory() << " scalar memory" << std::endl;
+        std::cout << "\t\t" << riscV.getNumALU() << " scalar ALU" << std::endl;
+        std::cout << "\t\t" << riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getNumMemory(riscV.getNumCoprocessorInstructionsExecuted(vectorQuadrant)) << " vector memory" << std::endl;
+        std::cout << "\t\t" << riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getNumALU(riscV.getNumCoprocessorInstructionsExecuted(vectorQuadrant)) << " vector ALU" << std::endl;
+    }
+
     return 0;
 }
