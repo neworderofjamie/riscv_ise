@@ -410,7 +410,7 @@ int main()
     std::vector<int16_t> vectorInitData;
 
     // Constants
-    constexpr bool simulate = true;
+    constexpr bool simulate = false;
     constexpr uint32_t numInput = 32;
     constexpr uint32_t numHidden = 32;
     constexpr uint32_t numInputSpikeWords = ceilDivide(numInput, 32);

@@ -126,7 +126,7 @@ void recordV(const int16_t *vRecordingData, uint32_t numTimesteps)
 int main()
 {
     constexpr uint32_t numTimesteps = 100;
-    constexpr bool simulate = true;
+    constexpr bool simulate = false;
 
     // Configure logging
     plog::ConsoleAppender<plog::TxtFormatter> consoleAppender;
