@@ -642,6 +642,98 @@ int main()
     const auto initCode = AssemblerUtils::generateInitCode(simulate, initStartVectorPtr, initNumVectorsPtr, 
                                                            initReadyFlagPtr, initScalarScratchPtr);
     
+    const auto zeroCode = AssemblerUtils::generateStandardKernel(
+        simulate, readyFlagPtr,
+        [=](CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator, ScalarRegisterAllocator &scalarRegisterAllocator)
+        {
+            // Hidden neurons
+            {
+                // Register allocation
+                ALLOCATE_SCALAR(SVBuffer);
+                ALLOCATE_SCALAR(SVBufferEnd);
+                ALLOCATE_SCALAR(SISynBuffer);
+                ALLOCATE_SCALAR(SRefracTimeBuffer);
+                
+                // Get address of buffers
+                c.li(*SVBuffer, hiddenVPtr);
+                c.li(*SVBufferEnd, hiddenVPtr + (numHiddenSpikeWords * 64));
+                c.li(*SISynBuffer, hiddenIsynPtr);
+                c.li(*SRefracTimeBuffer, hiddenRefracTimePtr);
+
+                AssemblerUtils::unrollVectorLoopBody(
+                    c, numHidden, 4, *SVBuffer, *SVBufferEnd,
+                    [&scalarRegisterAllocator, &vectorRegisterAllocator,
+                        SVBuffer, SISynBuffer, SRefracTimeBuffer]
+                    (CodeGenerator &c, uint32_t r)
+                    {
+                         // Register allocation
+                        ALLOCATE_VECTOR(VV);
+                        ALLOCATE_VECTOR(VISyn);
+                        ALLOCATE_VECTOR(VRefracTime);
+
+                        // Load voltage and isyn
+                        c.vloadv(*VV, *SVBuffer, 64 * r);
+                        c.vloadv(*VISyn, *SISynBuffer, 64 * r);
+                        c.vloadv(*VRefracTime, *SRefracTimeBuffer, 64 * r);
+
+                        // Zero everything
+                        c.vlui(*VV, 0);
+                        c.vlui(*VISyn, 0);
+                        c.vlui(*VRefracTime, 0);
+
+                        // Store VV, ISyn and refrac time and increment buffers
+                        c.vstore(*VV, *SVBuffer, 64 * r);
+                        c.vstore(*VISyn, *SISynBuffer, 64 * r);
+                        c.vstore(*VRefracTime, *SRefracTimeBuffer, 64 * r);
+                    },
+                    [SISynBuffer, SRefracTimeBuffer, SVBuffer]
+                    (CodeGenerator &c, uint32_t numUnrolls)
+                    {
+                        c.addi(*SVBuffer, *SVBuffer, 64 * numUnrolls);
+                        c.addi(*SISynBuffer, *SISynBuffer, 64 * numUnrolls);
+                        c.addi(*SRefracTimeBuffer, *SRefracTimeBuffer, 64 * numUnrolls);
+                    });
+            }
+
+            // ---------------------------------------------------------------
+            // Output neurons
+            // ---------------------------------------------------------------
+            {
+                // Register allocation
+                ALLOCATE_SCALAR(SVBuffer);
+                ALLOCATE_SCALAR(SVSumBuffer);
+                ALLOCATE_SCALAR(SISynBuffer);
+
+                // Get address of voltage, voltage sum and Isyn buffers
+                c.li(*SVBuffer, outputVPtr);
+                c.li(*SVSumBuffer, outputVSumPtr);
+                c.li(*SISynBuffer, outputIsynPtr);
+
+                // Output neuron tail
+                {
+                    // Register allocation
+                    ALLOCATE_VECTOR(VV);
+                    ALLOCATE_VECTOR(VVSum);
+                    ALLOCATE_VECTOR(VISyn);
+  
+                    // Load V, VSum and ISyn
+                    c.vloadv(*VV, *SVBuffer);
+                    c.vloadv(*VVSum, *SVSumBuffer);
+                    c.vloadv(*VISyn, *SISynBuffer);
+
+                    // Zero Isyn
+                    c.vlui(*VV, 0);
+                    c.vlui(*VVSum, 0);
+                    c.vlui(*VISyn, 0);
+
+                    // Store V, VSum and ISyn
+                    c.vstore(*VV, *SVBuffer);
+                    c.vstore(*VVSum, *SVSumBuffer);
+                    c.vstore(*VISyn, *SISynBuffer);
+                }
+            }
+        });
+
     if(simulate) {
         RISCV riscV(initCode, scalarInitData);
         
@@ -652,7 +744,14 @@ int main()
         if(!riscV.runInit(initData, initStartVectorPtr, initNumVectorsPtr, initScalarScratchPtr, weightInHidPtr)) {
             return 1;
         }
-            
+
+        // Run zero code
+        riscV.setInstructions(zeroCode);
+        riscV.setPC(0);
+        if(!riscV.run()) {
+            return 1;
+        }
+
         // Reset stats for simulations
         riscV.resetStats();
 
@@ -766,6 +865,23 @@ int main()
 
             // Run kernels to copy initData into vector memory
             device.runInit(initData, initStartVectorPtr, initNumVectorsPtr, initScalarScratchPtr, weightInHidPtr, initReadyFlagPtr);
+        }
+
+        // Zeroing
+        {
+            LOGI << "Copying zeroing instructions (" << zeroCode.size() * sizeof(uint32_t) << " bytes)";
+            device.uploadCode(zeroCode);
+
+            // Put core into running state
+            LOGD << "Enabling";
+            device.setEnabled(true);
+
+            // Wait until ready flag
+            device.waitOnNonZero(readyFlagPtr);
+
+            // Reset core
+            LOGD << "Disabling";
+            device.setEnabled(false);
         }
         
         // Simulation
