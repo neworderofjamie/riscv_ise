@@ -247,8 +247,8 @@ std::vector<uint32_t> generateSimCode(bool simulate, uint32_t numInput, uint32_t
             Label spinLoop;
 
             // Set timestep range and load ready flag pointer
-            c.li(*STime, 4);
-            c.li(*STimeEnd, 8);
+            c.li(*STime, 5);
+            c.li(*STimeEnd, 7);
             c.li(*SHiddenSpikeRecordingBuffer, hiddenSpikeRecordingArrayPtr);
             c.li(*SHiddenVRecordingBuffer, hiddenVRecordingArrayPtr);
             c.li(*SHiddenISynRecordingBuffer, hiddenISynRecordingArrayPtr);
