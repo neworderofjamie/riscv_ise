@@ -248,7 +248,7 @@ std::vector<uint32_t> generateSimCode(bool simulate, uint32_t numInput, uint32_t
 
             // Set timestep range and load ready flag pointer
             c.li(*STime, 5);
-            c.li(*STimeEnd, 7);
+            c.li(*STimeEnd, 6);
             c.li(*SHiddenSpikeRecordingBuffer, hiddenSpikeRecordingArrayPtr);
             c.li(*SHiddenVRecordingBuffer, hiddenVRecordingArrayPtr);
             c.li(*SHiddenISynRecordingBuffer, hiddenISynRecordingArrayPtr);
@@ -562,7 +562,7 @@ int main()
     std::vector<int16_t> vectorInitData;
 
     // Constants
-    constexpr bool simulate = true;
+    constexpr bool simulate = false;
     constexpr uint32_t numInput = 28 * 28;
     constexpr uint32_t numHidden = 128;
     constexpr uint32_t numOutput = 10;
@@ -630,6 +630,7 @@ int main()
                                          inputSpikeArrayPtr, hiddenSpikePtr, outputVSumScalarPtr, 
                                          hiddenSpikeRecordingArrayPtr, hiddenVRecordingArrayPtr, hiddenISynRecordingArrayPtr,
                                          readyFlagPtr);
+    AppUtils::dumpCOE("mnist.coe", simCode);
     LOGI << simCode.size() << " simulation instructions";
     LOGI << scalarInitData.size() << " bytes of scalar memory required";
     LOGI << vectorInitData.size() * 2 << " bytes of vector memory required (" << ceilDivide(vectorInitData.size() / 32, 4096) << " URAM cascade)";
@@ -818,7 +819,7 @@ int main()
 
             const int16_t *hiddenISynRecording = reinterpret_cast<const int16_t*>(scalarData + hiddenISynRecordingArrayPtr);
             std::ofstream iSynFile("mnist_isyn_sim.csv");
-            for(size_t t = 0; t < 4; t++) {
+            for(size_t t = 0; t < 1; t++) {
                 for(size_t i = 0; i < numHidden; i++) {
                     iSynFile << *hiddenISynRecording++;
                     if(i != (numHidden - 1)) {
@@ -944,7 +945,7 @@ int main()
                 }*/
 
                 std::ofstream iSynFile("mnist_isyn_device.csv");
-                for(size_t t = 0; t < 4; t++) {
+                for(size_t t = 0; t < 1; t++) {
                     for(size_t i = 0; i < numHidden; i++) {
                         iSynFile << *hiddenISynRecording++;
                         if(i != (numHidden - 1)) {
