@@ -31,6 +31,10 @@ void generateVectorScalarMemcpy(CodeGenerator &c, VectorRegisterAllocator &vecto
                                 ScalarRegisterAllocator &scalarRegisterAllocator,
                                 uint32_t vectorPtr, uint32_t scalarPtr, uint32_t numVectors);
 
+// Generate code to copy 64-bit performance counter value from pair of CSR registers to scalar memory
+void generatePerformanceCountWrite(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator,
+                                   CSR lowCSR, CSR highCSR, uint32_t scalarPtr);
+
 // Generate an unrolled loop body
 void unrollLoopBody(CodeGenerator &c, uint32_t numIterations, uint32_t maxUnroll, 
                     Reg testBufferReg, Reg testBufferEndReg, 

@@ -147,6 +147,38 @@ enum class VReg : uint32_t
 // Control and Status Register
 enum class CSR : uint32_t 
 {
+    MSTATUS         = 0x300,
+    MISA            = 0x301,
+    MIE             = 0x304,
+    MTVEC           = 0x305,
+    MTVT            = 0x307,
+    MSTATUSH        = 0x310,
+    MCOUNTINHIBIT   = 0x320,
+    MHPEVENT3       = 0x323,
+    // **TODO**
+    MHPEVENT31      = 0x33F,
+    MSCRATCH        = 0x340,
+    MEPC            = 0x341,
+    MCAUSE          = 0x342,
+    MTVAL           = 0x343,
+    MIP             = 0x344,
+    
+    MCYCLE          = 0xB00,
+    MINSTRET        = 0xB02,
+    MHPMCOUNTER3    = 0xB03,
+    // **TODO**
+    MHPMCOUNTER31   = 0xB1F,
+    MCYCLEH         = 0xB80,
+    MINSTRETH       = 0xB82,
+    MHPMCOUNTERH3   = 0xB83,
+    // **TODO**
+    MHPMCOUNTERH31  = 0xB9F,
+    
+    MVENDORID       = 0xF11,
+    MARCHID         = 0xF12,
+    MIMPID          = 0xF13,
+    MHARTID         = 0xF14,
+    MCONFIGPTRID    = 0xF15,
 };
 
 // funct7 rs2 rs1 funct3 rd
