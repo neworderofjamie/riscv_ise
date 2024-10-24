@@ -9,6 +9,7 @@
 
 // RISC-V common includes
 #include "common/app_utils.h"
+#include "common/device.h"
 
 // RISC-V assembler includes
 #include "assembler/assembler.h"
@@ -163,6 +164,34 @@ int main()
             out << *scalarRecordingData++ << std::endl;
         }
     }
-    
+    else {
+        LOGI << "Creating device";
+        Device device;
+        LOGI << "Resetting";
+        // Put core into reset state
+        device.setEnabled(false);
+        
+        LOGI << "Copying instructions (" << code.size() * sizeof(uint32_t) << " bytes)";
+        device.uploadCode(code);
+        
+        LOGI << "Copying data (" << scalarInitData.size() << " bytes);";
+        device.memcpyDataToDevice(0, scalarInitData.data(), scalarInitData.size());
+        
+        LOGI << "Enabling";
 
+        // Put core into running state
+        device.setEnabled(true);
+        LOGI << "Running";
+        
+        // Wait until ready flag
+        device.waitOnNonZero(readyFlagPtr);
+        LOGI << "Done";
+
+        const volatile int16_t *scalarRecordingData = reinterpret_cast<const volatile int16_t*>(device.getDataMemory() + scalarRecordingPtr);
+    
+        std::ofstream out("out_poisson_device.txt");
+        for(size_t t = 0; t < 32 * numTimesteps; t++) {
+            out << *scalarRecordingData++ << std::endl;
+        }
+    }
 }
