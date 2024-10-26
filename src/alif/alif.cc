@@ -40,7 +40,7 @@ std::vector<uint32_t> generateCode(bool simulate, size_t numTimesteps, bool satu
         {
             // Generate code to copy poisson input and seeds from scalar to vector memory
             AssemblerUtils::generateScalarVectorMemcpy(c, vectorRegisterAllocator, scalarRegisterAllocator,
-                                                       poissonScalarPtr, poissonPtr, numTimesteps + 2);
+                                                       poissonScalarPtr, poissonPtr, uint32_t{numTimesteps + 2});
 
             // Register allocation
             ALLOCATE_SCALAR(SPoissonBuffer);
