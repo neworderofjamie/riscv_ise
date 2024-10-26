@@ -1,5 +1,6 @@
 // Standard C++ includes
 #include <bitset>
+#include <chrono>
 #include <fstream>
 #include <iterator>
 #include <limits>
@@ -213,7 +214,10 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
                     // Load next vector of weights and ISyns
                     c.vloadv(*VWeight, *SWeightBuffer);
                     c.vloadv(*VISyn, *iReg.first);
-
+                    
+                    // **STALL**
+                    c.nop();
+                    
                     // Add weights to ISyn with mask
                     c.vadd_s(*VISynNew, *VISyn, *VWeight);
                     c.vsel(*VISyn, *SMask, *VISynNew);
@@ -238,14 +242,16 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
         c.bne(*SSpikeBuffer, *SSpikeBufferEnd, wordLoop);
 
         // Goto wordEnd
-        c.j_(wordEnd);
+        //c.j_(wordEnd);
+        c.beq(Reg::X0, Reg::X0, wordEnd);
     }
 
     // Zero spike word
     {
         c.L(zeroSpikeWord);
         c.li(*SSpikeWord, 0);
-        c.j_(bitLoopBody);
+        //c.j_(bitLoopBody);
+        c.beq(Reg::X0, Reg::X0, bitLoopBody);
     }
     
     c.L(wordEnd);
@@ -263,7 +269,7 @@ int main()
 
     // Constants
     constexpr bool record = false;
-    constexpr bool simulate = true;
+    constexpr bool simulate = false;
     constexpr uint32_t numInput = 700;
     constexpr uint32_t numHidden = 256;
     constexpr uint32_t numOutput = 20;
@@ -487,7 +493,7 @@ int main()
                             c.vloadv(*VRefracTime, *SRefracTimeBuffer, r * 64);
 
                             // V *= Alpha
-                            c.vmul_rs(14, *VV, *VV, *VAlpha);
+                            c.vmul(14, *VV, *VV, *VAlpha);
 
                             // V += ISyn
                             c.vadd_s(*VV, *VV, *VISyn);
@@ -496,7 +502,7 @@ int main()
                             c.vlui(*VISyn, 0);
 
                             // A *= Rho
-                            c.vmul_rs(14, *VA, *VA, *VRho);
+                            c.vmul(14, *VA, *VA, *VRho);
 
                             // Refractory = RefracTime > 0.0 (0.0 < VRefracTime)
                             c.vtlt(*SRefractory, *VZero, *VRefracTime);
@@ -512,7 +518,7 @@ int main()
                             // SSpikeOut = VV >= (VThres + (Beta * A)) 
                             {
                                 ALLOCATE_VECTOR(VTmp);
-                                c.vmul_rs(hiddenAFixedPoint, *VTmp, *VA, *VBeta);
+                                c.vmul(hiddenAFixedPoint, *VTmp, *VA, *VBeta);
                                 c.vadd_s(*VTmp, *VTmp, *VVThresh);
                                 c.vtge(*SSpikeOut, *VV, *VTmp);
                             }
@@ -606,7 +612,7 @@ int main()
                         c.vloadv(*VBias, *SBiasBuffer);
  
                         // VV *= VAlpha
-                        c.vmul_rs(14, *VVNew, *VV, *VAlpha);
+                        c.vmul(14, *VVNew, *VV, *VAlpha);
 
                         // VV += VISyn
                         c.vadd_s(*VVNew, *VVNew, *VISyn);
@@ -618,7 +624,7 @@ int main()
                         {
                             // Register allocation
                             ALLOCATE_VECTOR(VTmp);
-                            c.vmul_rs(outFixedPoint, *VTmp, *VAvgScale, *VVNew);
+                            c.vmul(outFixedPoint, *VTmp, *VAvgScale, *VVNew);
                             c.vadd_s(*VVSumNew, *VVSum, *VTmp);
                         }
 
@@ -863,13 +869,13 @@ int main()
         device.setEnabled(false);
         
         // RNG seeding
-        {
+        /*{
             LOGI << "Copying RNG seeding instructions (" << rngSeedCode.size() * sizeof(uint32_t) << " bytes)";
             device.uploadCode(rngSeedCode);
 
             // **TODO** copy RNG seed to device
 
-        }
+        }*/
         
         // Initialisation
         {
@@ -878,17 +884,6 @@ int main()
 
             // Run kernels to copy initData into vector memory
             device.runInit(initData, initStartVectorPtr, initNumVectorsPtr, initScalarScratchPtr, weightInHidPtr, initReadyFlagPtr);
-
-            LOGI << "Seeding RNG";
-
-            // Put core into running state
-            device.setEnabled(true);
-
-            // Wait until ready flag
-            device.waitOnNonZero(readyFlagPtr);
-
-            // Reset core
-            device.setEnabled(false);
         }
         
         // Simulation
@@ -898,27 +893,28 @@ int main()
 
             // Loop through examples
             int numCorrect = 0;
+            std::chrono::duration<double> duration{0};
             const volatile int16_t *outputVSum = reinterpret_cast<const volatile int16_t*>(device.getDataMemory() + outputVSumScalarPtr);
-            for(size_t i = 0; i < numExamples; i++) {
+            for(int i = 0; i < numExamples; i++) {
                 // Show % progress
-                const auto iPerc = std::div(i, 100);
+                const auto iPerc = std::div(i, ceilDivide(numExamples, 100));
                 if(iPerc.rem == 0) {
                     std:: cout << iPerc.quot << "%" << std::endl;
                 }
 
                 // Copy input spike bits into scalar memory
-                LOGI << "Copying stimuli to device (" << numInputSpikeArrayWords * 4 << " bytes)";
+                //LOGI << "Copying stimuli to device (" << numInputSpikeArrayWords * 4 << " bytes)";
                 device.memcpyDataToDevice(inputSpikeArrayPtr, 
                                           reinterpret_cast<const uint8_t*>(shdSpikes.data() + (numInputSpikeArrayWords * i)),
                                           numInputSpikeArrayWords * 4);
 
                 // Disable core
-                LOGI << "Simulating";
+                //LOGI << "Simulating";
                 device.setEnabled(true);
-
+                const auto startTime = std::chrono::high_resolution_clock::now();
                 // Wait until ready flag
                 device.waitOnNonZero(readyFlagPtr);
-
+                duration += (std::chrono::high_resolution_clock::now() - startTime);
                 // Enable core
                 device.setEnabled(false);
 
@@ -929,7 +925,8 @@ int main()
                 }
             }
 
-            std::cout << numCorrect << " / " << numOutput << " correct (" << 100.0 * (numCorrect / (double)numOutput) << "%)" << std::endl;
+            std::cout << numCorrect << " / " << numExamples << " correct (" << 100.0 * (numCorrect / (double)numExamples) << "%)" << std::endl;
+            std::cout << duration.count() << " seconds" << std::endl;
         }
     }
     
