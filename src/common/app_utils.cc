@@ -111,6 +111,25 @@ uint32_t allocateScalarAndZero(size_t numBytes, std::vector<uint8_t> &memory)
     return static_cast<uint32_t>(startBytes);
 }
 //----------------------------------------------------------------------------
+uint32_t loadScalars(const std::string &filename, std::vector<uint8_t> &memory)
+{
+    std::ifstream input(filename, std::ios::binary);
+    
+    // Get length
+    input.seekg (0, std::ios::end);
+    const auto lengthBytes = input.tellg();
+    input.seekg (0, std::ios::beg);
+
+    // Allocate memory
+    const uint32_t startBytes = allocateScalarAndZero(lengthBytes, memory);
+
+    // Read data directly into newly allocated memory
+    input.read(reinterpret_cast<char*>(memory.data() + startBytes), lengthBytes);
+
+    // Return start address in bytes
+    return startBytes;
+}
+//----------------------------------------------------------------------------
 void writeSpikes(std::ofstream &os, const volatile uint32_t *data, 
                  float time, size_t numWords)
 {

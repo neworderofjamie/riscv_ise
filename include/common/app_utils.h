@@ -36,6 +36,8 @@ uint32_t allocateScalarSeedAndInit(std::vector<uint8_t> &memory);
 // Allocate word-aligned memory
 uint32_t allocateScalarAndZero(size_t numBytes, std::vector<uint8_t> &memory);
 
+uint32_t loadScalars(const std::string &filename, std::vector<uint8_t> &memory);
+
 // Write one timestep of spikes from a bitfield in CSV format
 void writeSpikes(std::ofstream &os, const volatile uint32_t *data, 
                  float time, size_t numWords);
