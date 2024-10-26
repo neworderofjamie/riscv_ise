@@ -40,7 +40,7 @@ std::vector<uint32_t> generateCode(bool simulate, size_t numTimesteps, bool satu
         {
             // Generate code to copy poisson input and seeds from scalar to vector memory
             AssemblerUtils::generateScalarVectorMemcpy(c, vectorRegisterAllocator, scalarRegisterAllocator,
-                                                       poissonScalarPtr, poissonPtr, uint32_t{numTimesteps + 2});
+                                                       poissonScalarPtr, poissonPtr, static_cast<uint32_t>(numTimesteps + 2));
 
             // Register allocation
             ALLOCATE_SCALAR(SPoissonBuffer);
@@ -205,20 +205,28 @@ int main(int argc, char** argv)
     std::vector<uint8_t> scalarInitData;
     std::vector<int16_t> vectorInitData;
 
+    auto poissonData = AppUtils::loadBinaryData<uint8_t>(inputFilename);
+
     // Allocate vector memory
     const uint32_t poissonPtr = AppUtils::allocateVectorAndZero(32 * numTimesteps, vectorInitData);
     const uint32_t seedPtr = AppUtils::allocateVectorAndZero(32 * 2, vectorInitData);
 
     // Allocate scalar memor
-    const uint32_t poissonScalarPtr = AppUtils::loadScalars(inputFilename, scalarInitData);
+    const uint32_t poissonScalarPtr = AppUtils::allocateScalarAndZero(64 * numTimesteps, scalarInitData);
     const uint32_t seedScalarPtr = AppUtils::allocateScalarSeedAndInit(scalarInitData);
     const uint32_t vScalarPtr = AppUtils::allocateScalarAndZero(64 * numTimesteps, scalarInitData);
     const uint32_t aScalarPtr = AppUtils::allocateScalarAndZero(64 * numTimesteps, scalarInitData);
     const uint32_t readyFlagPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
 
+    // Copy timesteps worth of poisson data
+    std::copy_n(poissonData.cbegin(), numTimesteps * 64, scalarInitData.data() + poissonScalarPtr);
+    
     // Generate code
     const auto code = generateCode(!device, numTimesteps, saturate, roundMode, 20.0, 2000.0, vFixedPoint, aFixedPoint,
                                    poissonPtr, seedPtr, poissonScalarPtr, seedScalarPtr, vScalarPtr, aScalarPtr, readyFlagPtr);
+
+    LOGI << scalarInitData.size() << " bytes of scalar memory required";
+    LOGI << vectorInitData.size() * 2 << " bytes of vector memory required (" << ceilDivide(vectorInitData.size() / 32, 4096) << " URAM cascade)";
 
     std::string filenameSuffix = "_" + std::to_string(vFixedPoint) + "_" + std::to_string(aFixedPoint);
     if(saturate) {
