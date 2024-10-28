@@ -269,7 +269,7 @@ int main()
 
     // Constants
     constexpr bool record = false;
-    constexpr bool simulate = false;
+    constexpr bool simulate = true;
     constexpr uint32_t numInput = 700;
     constexpr uint32_t numHidden = 256;
     constexpr uint32_t numOutput = 20;
@@ -277,11 +277,12 @@ int main()
     constexpr uint32_t hiddenAFixedPoint = 7;
     constexpr uint32_t outFixedPoint = 11;
     constexpr uint32_t numTimesteps = 1170;
-    constexpr uint32_t numExamples = 2264;
+    constexpr uint32_t numExamples = 1;//2264;
     constexpr uint32_t numInputSpikeWords = ceilDivide(numInput, 32);
     constexpr uint32_t numHiddenSpikeWords = ceilDivide(numHidden, 32);
     constexpr uint32_t numOutputSpikeWords = ceilDivide(numOutput, 32);
     constexpr uint32_t numInputSpikeArrayWords = numInputSpikeWords * numTimesteps;
+    constexpr uint32_t numHiddenSpikeArrayWords = numHiddenSpikeWords * 400;
 
     // Generate seed
     const uint32_t seedPointer = AppUtils::allocateVectorSeedAndInit(vectorInitData);
@@ -307,6 +308,7 @@ int main()
     const uint32_t inputSpikeArrayPtr = AppUtils::allocateScalarAndZero(numInputSpikeArrayWords * 4, scalarInitData);
     const uint32_t hiddenSpikePtr = AppUtils::allocateScalarAndZero(numHiddenSpikeWords * 4, scalarInitData);
     const uint32_t outputVSumScalarPtr = AppUtils::allocateScalarAndZero(numOutput * 2, scalarInitData);
+    const uint32_t hiddenSpikeRecordingPtr = AppUtils::allocateScalarAndZero(numHiddenSpikeArrayWords * 4, scalarInitData);
     const uint32_t readyFlagPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
 
     // Increase scalar memory for buffering
@@ -361,6 +363,7 @@ int main()
             // Register allocation
             ALLOCATE_SCALAR(STime);
             ALLOCATE_SCALAR(STimeEnd);
+            ALLOCATE_SCALAR(SHiddenSpikeRecordingBuffer);
 
             // Labels
             Label timeLoop;
@@ -373,7 +376,8 @@ int main()
 
             // Set timestep range and load ready flag pointer
             c.li(*STime, 0);
-            c.li(*STimeEnd, numTimesteps);
+            c.li(*STimeEnd, 400);
+            c.li(*SHiddenSpikeRecordingBuffer, hiddenSpikeRecordingPtr);
 
             // Loop over time
             c.L(timeLoop);
@@ -474,7 +478,7 @@ int main()
                         c, numHidden, 4, *SVBuffer, *SVBufferEnd,
                         [&scalarRegisterAllocator, &vectorRegisterAllocator,
                         hiddenAFixedPoint,
-                         SABuffer, SISynBuffer, SRefracTimeBuffer, SSpikeBuffer, SVBuffer,
+                         SABuffer, SISynBuffer, SRefracTimeBuffer, SSpikeBuffer, SVBuffer, SHiddenSpikeRecordingBuffer,
                          VAlpha, VBeta, VDT, VOne, VRho, VTauRefrac, VVThresh, VZero]
                         (CodeGenerator &c, uint32_t r)
                         {
@@ -533,6 +537,8 @@ int main()
 
                             // *SSpikeBuffer = SSpikeOut
                             c.sw(*SSpikeOut, *SSpikeBuffer, r * 4);
+                            c.sw(*SSpikeOut, *SHiddenSpikeRecordingBuffer);
+                            c.addi(*SHiddenSpikeRecordingBuffer, *SHiddenSpikeRecordingBuffer, 4);
 
                             {
                                 ALLOCATE_VECTOR(VTmp1);
@@ -771,6 +777,14 @@ int main()
             if(!riscV.run()) {
                 return 1;
             }
+
+            const uint32_t *hiddenSpikeRecording = reinterpret_cast<const uint32_t*>(scalarData + hiddenSpikeRecordingPtr);
+            std::ofstream spikeFile("shd_spikes_sim.csv");
+            for(size_t t = 0; t < 400; t++) {
+                AppUtils::writeSpikes(spikeFile, hiddenSpikeRecording, t, numHiddenSpikeWords);
+                hiddenSpikeRecording += numHiddenSpikeWords;
+            }
+
             // Loop through time
             /*for(uint32_t t = 0; t < numTimesteps; t++) {
                 // Copy timestep into scalar memory
@@ -918,6 +932,12 @@ int main()
                 // Enable core
                 device.setEnabled(false);
 
+                const volatile uint32_t *hiddenSpikeRecording = reinterpret_cast<const volatile uint32_t*>(device.getDataMemory() + hiddenSpikeRecordingPtr);
+                std::ofstream spikeFile("shd_spikes_device.csv");
+                for(size_t t = 0; t < 400; t++) {
+                    AppUtils::writeSpikes(spikeFile, hiddenSpikeRecording, t, numHiddenSpikeWords);
+                    hiddenSpikeRecording += numHiddenSpikeWords;
+                }
                 // Determine if output is correct
                 const auto classification = std::distance(outputVSum, std::max_element(outputVSum, outputVSum + numOutput));
                 if(classification == shdLabels[i]) {
