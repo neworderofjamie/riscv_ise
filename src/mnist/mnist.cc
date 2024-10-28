@@ -1,5 +1,6 @@
 // Standard C++ includes
 #include <bitset>
+#include <chrono>
 #include <fstream>
 #include <iterator>
 #include <limits>
@@ -156,7 +157,7 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
                         
                         // Add weights to ISyn
                         auto VISyn = even ? VISyn1 : VISyn2;
-                        c.vadd(*VISyn, *VISyn, *VWeight);
+                        c.vadd_s(*VISyn, *VISyn, *VWeight);
 
                         // Write back ISyn and increment SISynBuffer
                         c.vstore(*VISyn, *SISynBuffer, r * 64);
@@ -187,7 +188,7 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
                 c.nop();
 
                 // Add weights to ISyn with mask
-                c.vadd(*VISynNew, *VISyn, *VWeight);
+                c.vadd_s(*VISynNew, *VISyn, *VWeight);
                 c.vsel(*VISyn, *SMask, *VISynNew);
 
                 // Write back ISyn
@@ -311,16 +312,18 @@ std::vector<uint32_t> generateSimCode(bool simulate, uint32_t numInput, uint32_t
                     ALLOCATE_SCALAR(SSpikeBuffer);
                     ALLOCATE_VECTOR(VAlpha);
                     ALLOCATE_VECTOR(VThresh);
+                    ALLOCATE_VECTOR(VMinusThresh);
                     ALLOCATE_VECTOR(VTauRefrac);
-                    ALLOCATE_VECTOR(VDT);
+                    ALLOCATE_VECTOR(VMinusDT);
                     ALLOCATE_VECTOR(VZero); 
 
                     // Load constants
                     // alpha = e^(-1/20)
                     c.vlui(*VAlpha, convertFixedPoint(std::exp(-1.0 / 20.0), hiddenFixedPoint));
                     c.vlui(*VThresh, convertFixedPoint(0.61, hiddenFixedPoint));
+                    c.vlui(*VMinusThresh, (uint16_t)convertFixedPoint(-0.61, hiddenFixedPoint));
                     c.vlui(*VTauRefrac, 5);
-                    c.vlui(*VDT, 1);
+                    c.vlui(*VMinusDT, (uint16_t)-1);
                     c.vlui(*VZero, 0);
 
                     // Get address of buffers
@@ -335,7 +338,7 @@ std::vector<uint32_t> generateSimCode(bool simulate, uint32_t numInput, uint32_t
                         [&scalarRegisterAllocator, &vectorRegisterAllocator,
                          hiddenFixedPoint, 
                          SVBuffer, SISynBuffer, SRefracTimeBuffer, SSpikeBuffer,
-                         VAlpha, VDT, VTauRefrac, VThresh, VZero]
+                         VAlpha, VMinusDT, VTauRefrac, VThresh, VMinusThresh, VZero]
                         (CodeGenerator &c, uint32_t r)
                         {
                             // Register allocation
@@ -354,7 +357,7 @@ std::vector<uint32_t> generateSimCode(bool simulate, uint32_t numInput, uint32_t
                             c.vmul(hiddenFixedPoint, *VV, *VV, *VAlpha);
 
                             // VV += VISyn
-                            c.vadd(*VV, *VV, *VISyn);
+                            c.vadd_s(*VV, *VV, *VISyn);
 
                             // VISyn = 0
                             c.vlui(*VISyn, 0);
@@ -364,7 +367,8 @@ std::vector<uint32_t> generateSimCode(bool simulate, uint32_t numInput, uint32_t
                             {
                                 // VTemp = VRefracTime - VDT
                                 ALLOCATE_VECTOR(VTemp);
-                                c.vsub(*VTemp, *VRefracTime, *VDT);
+                                //c.vsub(*VTemp, *VRefracTime, *VDT);
+                                c.vadd(*VTemp, *VRefracTime, *VMinusDT);
                             
                                 // VRefracTime = SRefractory ? VTemp : VRefracTime
                                 c.vsel(*VRefracTime, *SRefractory, *VTemp);
@@ -385,7 +389,7 @@ std::vector<uint32_t> generateSimCode(bool simulate, uint32_t numInput, uint32_t
                             {
                                 // VTemp = V - VThresh
                                 ALLOCATE_VECTOR(VTemp);
-                                c.vsub(*VTemp, *VV, *VThresh);
+                                c.vadd(*VTemp, *VV, *VMinusThresh);
                             
                                 // VV = SSpikeOut ? VReset : VV
                                 c.vsel(*VV, *SSpikeOut, *VTemp);
@@ -456,13 +460,13 @@ std::vector<uint32_t> generateSimCode(bool simulate, uint32_t numInput, uint32_t
                         c.vmul(outFixedPoint, *VVNew, *VV, *VAlpha);
 
                         // VV += VISyn
-                        c.vadd(*VVNew, *VVNew, *VISyn);
+                        c.vadd_s(*VVNew, *VVNew, *VISyn);
 
                         // VV += VBias
-                        c.vadd(*VVNew, *VVNew, *VBias);
+                        c.vadd_s(*VVNew, *VVNew, *VBias);
 
                         // VSum += VV
-                        c.vadd(*VVSumNew, *VVSum, *VISyn);
+                        c.vadd_s(*VVSumNew, *VVSum, *VISyn);
 
                         // Zero Isyn
                         c.vlui(*VISyn, 0);
@@ -528,7 +532,7 @@ int main()
     std::vector<int16_t> vectorInitData;
 
     // Constants
-    constexpr bool simulate = true;
+    constexpr bool simulate = false;
     constexpr uint32_t numInput = 28 * 28;
     constexpr uint32_t numHidden = 128;
     constexpr uint32_t numOutput = 10;
@@ -601,7 +605,9 @@ int main()
     const uint32_t initScalarScratchPtr = 12;
     const auto initCode = AssemblerUtils::generateInitCode(simulate, initStartVectorPtr, initNumVectorsPtr, 
                                                            initReadyFlagPtr, initScalarScratchPtr);
-    
+    LOGI << scalarInitData.size() << " bytes of scalar memory required";
+    LOGI << vectorInitData.size() * 2 << " bytes of vector memory required (" << ceilDivide(vectorInitData.size() / 32, 4096) << " URAM cascade)";
+
     if(simulate) {
         RISCV riscV(initCode, scalarInitData);
         
@@ -636,10 +642,10 @@ int main()
         int numCorrect = 0;
         for(size_t i = 0; i < 10000; i++) {
             // Show % progress
-            const auto iPerc = std::div(i, 100);
+            /*const auto iPerc = std::div(i, 100);
             if(iPerc.rem == 0) {
                 std:: cout << iPerc.quot << "%" << std::endl;
-            }
+            }*/
 
             // Copy input spike bits into scalar memory
             std::copy_n(mnistSpikes.data() + (numInputSpikeArrayWords * i), numInputSpikeArrayWords, 
@@ -653,6 +659,7 @@ int main()
 
             // Determine if output is correct
             const auto classification = std::distance(outputVSum, std::max_element(outputVSum, outputVSum + 10));
+            std::cout << i << ", " << classification << ", " << mnistLabels[i] << std::endl;                
             if(classification == mnistLabels[i]) {
                 numCorrect++;
             }
@@ -704,12 +711,13 @@ int main()
             // Loop through examples
             int numCorrect = 0;
             const volatile int16_t *outputVSum = reinterpret_cast<const volatile int16_t*>(device.getDataMemory() + outputVSumScalarPtr);
+            std::chrono::duration<double> duration{0};
             for(size_t i = 0; i < 10000; i++) {
                 // Show % progress
-                const auto iPerc = std::div(i, 100);
+                /*const auto iPerc = std::div(i, 100);
                 if(iPerc.rem == 0) {
                     std:: cout << iPerc.quot << "%" << std::endl;
-                }
+                }*/
 
                 // Copy input spike bits into scalar memory
                 device.memcpyDataToDevice(inputSpikeArrayPtr, 
@@ -717,26 +725,30 @@ int main()
                                           numInputSpikeArrayWords * 4);
 
                 // Put core into running state and trigger ILA
-                LOGI << "Enabling";
+                //LOGI << "Enabling";
                 device.setILATrigger(true);
                 device.setEnabled(true);
+                const auto startTime = std::chrono::high_resolution_clock::now();
 
                 // Wait until ready flag
                 device.waitOnNonZero(readyFlagPtr);
-
+                
+                duration += (std::chrono::high_resolution_clock::now() - startTime);
                 // Reset core
-                LOGI << "Disabling";
+                //LOGI << "Disabling";
                 device.setEnabled(false);
                 device.setILATrigger(false);
 
                 // Determine if output is correct
                 const auto classification = std::distance(outputVSum, std::max_element(outputVSum, outputVSum + 10));
+                //std::cout << i << ", " << classification << ", " << mnistLabels[i] << std::endl;                
                 if(classification == mnistLabels[i]) {
                     numCorrect++;
                 }
             }
 
             std::cout << numCorrect << " / 10000 correct (" << 100.0 * (numCorrect / 10000.0) << "%)" << std::endl;
+            std::cout << duration.count() << " seconds" << std::endl;
         }
     }
     return 0;

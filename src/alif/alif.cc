@@ -54,6 +54,7 @@ std::vector<uint32_t> generateCode(bool simulate, size_t numTimesteps, bool satu
             ALLOCATE_VECTOR(VV);
             ALLOCATE_VECTOR(VA);
             ALLOCATE_VECTOR(VVThresh);
+            ALLOCATE_VECTOR(VVMinusThresh);
             ALLOCATE_VECTOR(VOne);
             ALLOCATE_VECTOR(VI);
 
@@ -73,6 +74,7 @@ std::vector<uint32_t> generateCode(bool simulate, size_t numTimesteps, bool satu
             c.vlui(*VV, 0);
             c.vlui(*VA, 0);
             c.vlui(*VVThresh, convertFixedPoint(0.6, vFixedPoint));
+            c.vlui(*VVMinusThresh, (uint16_t)convertFixedPoint(-0.6, vFixedPoint));
             c.vlui(*VOne, convertFixedPoint(1.0, aFixedPoint));
 
             // Start reading at poisson pointer
@@ -121,12 +123,13 @@ std::vector<uint32_t> generateCode(bool simulate, size_t numTimesteps, bool satu
                     vmulFn(&c, aFixedPoint, *VTmp, *VA, *VBeta);
                     vaddFn(&c, *VTmp, *VTmp, *VVThresh);
                     c.vtge(*SSpike, *VV, *VTmp);
+                    c.nop();
                 }
         
                 {
                     ALLOCATE_VECTOR(VTmp1);
                     ALLOCATE_VECTOR(VTmp2);
-                    vsubFn(&c, *VTmp1, *VV, *VVThresh);
+                    vaddFn(&c, *VTmp1, *VV, *VVMinusThresh);
                     vaddFn(&c, *VTmp2, *VA, *VOne);
 
                     // v = spk ? (v - v_thresh) : v
