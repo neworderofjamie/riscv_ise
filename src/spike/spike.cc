@@ -441,7 +441,7 @@ int main()
             // Copy input spike bits into scalar memory
             device.memcpyDataToDevice(inputSpikePtr, 
                                       reinterpret_cast<const uint8_t*>(spikes.data()),
-                                      numInputSpikeWords);
+                                      numInputSpikeWords * 4);
             device.setILATrigger(true);
             device.setEnabled(true);
             
