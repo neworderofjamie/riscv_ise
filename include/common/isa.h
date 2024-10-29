@@ -45,6 +45,51 @@ enum class StandardOpCode : uint32_t
     SYSTEM  = 0b11100,
 };
 
+enum class BranchType
+{
+    BEQ,
+    BNE,
+    BLT,
+    BGE,
+    BLTU,
+    BGEU,
+    INVALID,
+};
+
+enum class OpImmType
+{
+    ADDI,
+    SLLI,
+    CLZ,
+    CTZ,
+    CPOP,
+    SEXT_B,
+    SEXT_H,
+    SLTI,
+    SLTIU,
+    XORI,
+    SRLI,
+    SRAI,
+    ORI,
+    ANDI,
+    INVALID,
+};
+
+enum class OpType
+{
+    ADD,
+    SUB,
+    SLL,
+    SLT,
+    SLTU,
+    XOR,
+    SRL,
+    SRA,
+    OR,
+    AND,
+    INVALID,
+};
+
 static constexpr uint32_t standardQuadrant = 0b11;
 static constexpr uint32_t vectorQuadrant = 0b10;
 
@@ -234,6 +279,12 @@ inline std::tuple<int32_t, uint32_t> decodeUType(uint32_t inst)
     const uint32_t rd = (inst >> 7) & 0x1f;
     return std::make_tuple(imm, rd);
 }
+
+BranchType getBranchType(uint32_t funct3);
+
+OpImmType getOpImmType(int32_t imm, uint32_t funct3);
+
+OpType getOpType(int32_t funct7, uint32_t funct3);
 
 template<size_t N>
 class Bit {
