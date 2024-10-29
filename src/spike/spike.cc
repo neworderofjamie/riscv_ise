@@ -257,11 +257,12 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
 
 void check(const volatile int16_t *hiddenIsyn, size_t numHidden)
 {
-    
-    for(size_t i = 0; i < numHidden; i++) {
-        std::cout << hiddenIsyn[i] << ", ";
-    }
-    std::cout << std::endl;
+    for(size_t i = 0; i < ceilDivide(numHidden, 32); i++) {
+        for(size_t i = 0; i < 32; i++) {
+            std::cout << *hiddenIsyn++ << ", ";
+        }
+        std::cout << std::endl;
+   }
    
 }
 
@@ -308,7 +309,7 @@ int main()
     std::vector<int16_t> vectorInitData;
 
     // Constants
-    constexpr bool simulate = false;
+    constexpr bool simulate = true;
     constexpr uint32_t numInput = 700;
     constexpr uint32_t numHidden = 256;
     constexpr uint32_t numOutput = 20;
@@ -329,6 +330,8 @@ int main()
     const uint32_t inputSpikePtr = AppUtils::allocateScalarAndZero(numInputSpikeWords * 4, scalarInitData);
     const uint32_t hiddenIsynScalarPtr = AppUtils::allocateScalarAndZero(64, scalarInitData);
     const uint32_t readyFlagPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
+    
+    assert(vectorInitData.size() < (8192 * 32));
 
     // Increase scalar memory for buffering
     scalarInitData.resize(128 * 1024, 0);
