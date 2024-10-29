@@ -68,10 +68,12 @@ enum class VectorOpCode : uint32_t
 
 // Types of operations in each op-code
 // **NOTE** uses Better Enums so they can be printed for debug/disassembly
+BETTER_ENUM(LoadType, uint32_t, LB, LH, LW, LBU, LHU, INVALID)
+BETTER_ENUM(StoreType, uint32_t, SB, SH, SW, INVALID)
 BETTER_ENUM(BranchType, uint32_t, BEQ, BNE, BLT, BGE, BLTU, BGEU, INVALID)
 BETTER_ENUM(OpImmType, uint32_t, ADDI, SLLI, CLZ, CTZ, CPOP, SEXT_B, SEXT_H, SLTI,
-            SLTIU, XORI, SRLI, SRAI, ORI, ANDI, INVALID);
-BETTER_ENUM(OpType, uint32_t, ADD, SUB, SLL, SLT, SLTU, XOR, SRL, SRA, OR, AND, INVALID);
+            SLTIU, XORI, SRLI, SRAI, ORI, ANDI, INVALID)
+BETTER_ENUM(OpType, uint32_t, ADD, SUB, SLL, SLT, SLTU, XOR, SRL, SRA, OR, AND, INVALID)
 
 
 inline uint32_t addQuadrant(StandardOpCode op)
@@ -247,6 +249,10 @@ inline std::tuple<int32_t, uint32_t> decodeUType(uint32_t inst)
     const uint32_t rd = (inst >> 7) & 0x1f;
     return std::make_tuple(imm, rd);
 }
+
+LoadType getLoadType(uint32_t funct3);
+
+StoreType getStoreType(uint32_t funct3);
 
 BranchType getBranchType(uint32_t funct3);
 

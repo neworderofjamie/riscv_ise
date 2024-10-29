@@ -10,48 +10,75 @@
 // Common include
 #include "common/isa.h"
 
+/*
+    JALR    = 0b11001,
+    JAL     = 0b11011,
+    AUIPC   = 0b00101,*/
+// Anonymous namespace
 namespace
 {
 using disassembleFunc = std::function<void(std::ostream&, uint32_t)>;
 
+void disassembleLoad(std::ostream &os, uint32_t inst)
+{
+    auto [imm, rs1, funct3, rd] = decodeIType(inst);
+    auto type = getLoadType(funct3);
+    os << type._to_string() << " X" << rd << ", " << imm << "(" << rs1 << ")";
+}
+
+void disassembleStore(std::ostream &os, uint32_t inst)
+{
+    auto [imm, rs2, rs1, funct3] = decodeSType(inst);
+    auto type = getStoreType(funct3);
+    os << type._to_string() << " X" << rs2 << ", " << imm << "(" << rs1 << ")";
+}
+
+void disassembleBranch(std::ostream &os, uint32_t inst)
+{
+    auto [imm, rs2, rs1, funct3] = decodeBType(inst);
+    auto type = getBranchType(funct3);
+    os << type._to_string() << " X" << rs1 << ", X" << rs2 << ", " << imm;
+}
+
 void disassembleOP(std::ostream &os, uint32_t inst)
 {
-    // Decode
     auto [funct7, rs2, rs1, funct3, rd] = decodeRType(inst);
-
-    // Get sub-operation
-    const auto opType = getOpType(funct7, funct3);
-
-    // Print
-    os << opType._to_string() << " X" << rd << ", X" << rs1 << ", X" << rs2 << std::endl;
+    const auto type = getOpType(funct7, funct3);
+    os << type._to_string() << " X" << rd << ", X" << rs1 << ", X" << rs2;
 }
 
 void disassembleOPImm(std::ostream &os, uint32_t inst)
 {
-    // Decode
     auto [imm, rs1, funct3, rd] = decodeIType(inst);
-
-    // Get sub-operation
-    const auto opType = getOpImmType(imm, funct3);
-
-    // Print
-    os << opType._to_string() << " X" << rd << ", X" << rs1 << " " << imm << std::endl;
+    const auto type = getOpImmType(imm, funct3);
+    os << type._to_string() << " X" << rd << ", X" << rs1 << ", " << imm;
 }
 
-const std::unordered_map<uint32_t, disassembleFunc> standardInstructionDecoders{
-    {static_cast<uint32_t>(StandardOpCode::OP), &disassembleOP},
-    {static_cast<uint32_t>(StandardOpCode::OP_IMM), &disassembleOPImm}
+void disassembleLUI(std::ostream &os, uint32_t inst)
+{
+    auto [imm, rd] = decodeUType(inst);
+    os << "LUI X" << rd << ", " << imm;
+}
+
+const std::unordered_map<StandardOpCode, disassembleFunc> standardInstructionDecoders{
+    {StandardOpCode::LOAD, &disassembleLoad},
+    {StandardOpCode::STORE, &disassembleStore},
+    {StandardOpCode::BRANCH, &disassembleBranch},
+    {StandardOpCode::OP, &disassembleOP},
+    {StandardOpCode::OP_IMM, &disassembleOPImm},
+    {StandardOpCode::LUI, &disassembleLUI},
 };
 }
 
-std::string disassemble(std::ostream &os, uint32_t inst)
+void disassemble(std::ostream &os, uint32_t inst)
 {
     // Extract 2-bit quadrant
     const uint32_t quadrant = inst & 0b11;
+    const uint32_t opCode = (inst & 0b1111100) >> 2;
 
     // If instruction is in standard quadrant
     if(quadrant == standardQuadrant) {
-        const auto i = standardInstructionDecoders.find((inst & 0b1111100) >> 2);
+        const auto i = standardInstructionDecoders.find(static_cast<StandardOpCode>(opCode));
         if(i != standardInstructionDecoders.cend()) {
             i->second(os, inst);
         }
@@ -75,6 +102,7 @@ int main(int argc, char *argv[])
 
     try {
         disassemble(std::cout, std::stoul(argv[1], nullptr, 0));
+        std::cout << std::endl;
         return 0;
     }
     catch(const std::exception &ex){

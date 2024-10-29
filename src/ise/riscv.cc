@@ -644,50 +644,35 @@ uint32_t RISCV::calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs2, uint3
 uint32_t RISCV::loadValue(uint32_t inst, int32_t imm, uint32_t rs1, uint32_t funct3) const
 {
     const uint32_t addr = m_Reg[rs1] + imm;
-    switch(funct3) {
-    case 0: // LB
+    switch(getLoadType(funct3)) {
+    case LoadType::LB:
     {
         PLOGV << "LB " << rs1 << " " << imm;
-#ifdef DEBUG_EXTRA
-        stats[10]++;
-#endif
         return (int8_t)m_ScalarDataMemory.read8(addr);
     }
 
-    case 1: // LH
+    case LoadType::LH:
     {
         PLOGV << "LH " << rs1 << " " << imm;
-#ifdef DEBUG_EXTRA
-        stats[11]++;
-#endif
         return (int16_t)m_ScalarDataMemory.read16(addr);
     }
 
-    case 2: // LW
+    case LoadType::LW:
     {
         PLOGV << "LW " << rs1 << " " << imm;
-#ifdef DEBUG_EXTRA
-        stats[12]++;
-#endif
         return (int32_t)m_ScalarDataMemory.read32(addr);
     }
     
-    case 4: // LBU
+    case LoadType::LBU:
     {
         PLOGV << "LBU " << rs1 << " " << imm;
-#ifdef DEBUG_EXTRA
-        stats[13]++;
-#endif
         return m_ScalarDataMemory.read8(addr);
     }
     break;
 
-    case 5: // LHU
+    case LoadType::LHU:
     {
         PLOGV << "LHU " << rs1 << " " << imm;
-#ifdef DEBUG_EXTRA
-        stats[14]++;
-#endif
         return m_ScalarDataMemory.read16(addr);
     }
 
@@ -802,34 +787,24 @@ void RISCV::executeStandardInstruction(uint32_t inst)
         auto [imm, rs2, rs1, funct3] = decodeSType(inst);
         const uint32_t addr = m_Reg[rs1] + imm;
         const uint32_t val = m_Reg[rs2];
-        switch(funct3) {
-        case 0: // SB
+        switch(getStoreType(funct3)) {
+        case StoreType::SB:
         {
             PLOGV << "SB " << rs2 << " " << rs1 << " " << imm;
-#ifdef DEBUG_EXTRA
-            stats[15]++;
-#endif
             m_ScalarDataMemory.write8(addr, val);
             break;
         }
 
-        case 1: // SH
+        case StoreType::SH:
         {
             PLOGV << "SH " << rs2 << " " << rs1 << " " << imm;
-#ifdef DEBUG_EXTRA
-            dprintf(">>> SH\n");
-            stats[16]++;
-#endif
             m_ScalarDataMemory.write16(addr, val);
             break;
         }
 
-        case 2: // SW
+        case StoreType::SW:
         {
             PLOGV << "SW " << rs2 << " " << rs1 << " " << imm;
-#ifdef DEBUG_EXTRA
-            stats[17]++;
-#endif
             m_ScalarDataMemory.write32(addr, val);
             break;
         }

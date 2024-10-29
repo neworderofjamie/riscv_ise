@@ -1,6 +1,48 @@
 #include "common/isa.h"
 
+//----------------------------------------------------------------------------
+// ISA
+//----------------------------------------------------------------------------
+LoadType getLoadType(uint32_t funct3)
+{
+    switch(funct3) {
+    case 0:
+        return LoadType::LB;
 
+    case 1: 
+        return LoadType::LH;
+
+    case 2: 
+        return LoadType::LW;
+    
+    case 4: 
+        return LoadType::LBU;
+    
+    case 5:
+        return LoadType::LHU;
+    
+    default:
+        return LoadType::INVALID;
+    }
+}
+//----------------------------------------------------------------------------
+StoreType getStoreType(uint32_t funct3)
+{
+    switch(funct3) {
+    case 0:
+        return StoreType::SB;
+
+    case 1:
+        return StoreType::SH;
+
+    case 2:
+        return StoreType::SW;
+
+    default:
+        return StoreType::INVALID;
+    }
+}
+//----------------------------------------------------------------------------
 BranchType getBranchType(uint32_t funct3)
 {
     switch(funct3) {
@@ -26,7 +68,7 @@ BranchType getBranchType(uint32_t funct3)
         return BranchType::INVALID;
     }
 }
-
+//----------------------------------------------------------------------------
 OpImmType getOpImmType(int32_t imm, uint32_t funct3)
 {
     switch(funct3) {
@@ -105,7 +147,7 @@ OpImmType getOpImmType(int32_t imm, uint32_t funct3)
         return OpImmType::INVALID;
     }
 }
-
+//----------------------------------------------------------------------------
 OpType getOpType(int32_t funct7, uint32_t funct3)
 {
     // If any bits are set in funct7 aside from the one used for distinguishing ops
