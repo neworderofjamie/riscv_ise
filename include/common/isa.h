@@ -7,6 +7,9 @@
 #include <cassert>
 #include <cstdint>
 
+// Third party includes
+#include "common/enum.h"
+
 inline constexpr uint32_t mask(uint32_t n)
 {
     assert (n <= 32);
@@ -30,7 +33,12 @@ inline constexpr bool isValidImm(size_t imm, uint32_t maskBit)
     return (imm < M || ~M <= imm) && (imm & 1) == 0;
 }
 
-// Opcode in the standard encoding quadrant (11)
+// Quadrants different sorts of instructions live in
+static constexpr uint32_t standardQuadrant = 0b11;
+static constexpr uint32_t vectorQuadrant = 0b10;
+
+
+// Standard RISC-V opcode 
 enum class StandardOpCode : uint32_t
 {
     LOAD    = 0b00000,
@@ -45,54 +53,7 @@ enum class StandardOpCode : uint32_t
     SYSTEM  = 0b11100,
 };
 
-enum class BranchType
-{
-    BEQ,
-    BNE,
-    BLT,
-    BGE,
-    BLTU,
-    BGEU,
-    INVALID,
-};
-
-enum class OpImmType
-{
-    ADDI,
-    SLLI,
-    CLZ,
-    CTZ,
-    CPOP,
-    SEXT_B,
-    SEXT_H,
-    SLTI,
-    SLTIU,
-    XORI,
-    SRLI,
-    SRAI,
-    ORI,
-    ANDI,
-    INVALID,
-};
-
-enum class OpType
-{
-    ADD,
-    SUB,
-    SLL,
-    SLT,
-    SLTU,
-    XOR,
-    SRL,
-    SRA,
-    OR,
-    AND,
-    INVALID,
-};
-
-static constexpr uint32_t standardQuadrant = 0b11;
-static constexpr uint32_t vectorQuadrant = 0b10;
-
+// FeNN opcodes
 enum class VectorOpCode : uint32_t
 {
     VSOP    = 0b00000,
@@ -104,6 +65,13 @@ enum class VectorOpCode : uint32_t
     VMOV    = 0b00110,
     VSPC    = 0b01000, 
 };
+
+// Types of operations in each op-code
+// **NOTE** uses Better Enums so they can be printed for debug/disassembly
+BETTER_ENUM(BranchType, uint32_t, BEQ, BNE, BLT, BGE, BLTU, BGEU, INVALID)
+BETTER_ENUM(OpImmType, uint32_t, ADDI, SLLI, CLZ, CTZ, CPOP, SEXT_B, SEXT_H, SLTI,
+            SLTIU, XORI, SRLI, SRAI, ORI, ANDI, INVALID);
+BETTER_ENUM(OpType, uint32_t, ADD, SUB, SLL, SLT, SLTU, XOR, SRL, SRA, OR, AND, INVALID);
 
 
 inline uint32_t addQuadrant(StandardOpCode op)
