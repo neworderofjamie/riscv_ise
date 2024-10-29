@@ -64,10 +64,12 @@ std::vector<uint32_t> generateCode(bool simulate, uint32_t numTimesteps, uint32_
                 ALLOCATE_VECTOR(VNumSpikes);
                 ALLOCATE_VECTOR(VP);
                 ALLOCATE_VECTOR(VOne);
+                ALLOCATE_VECTOR(VMinusOne);
         
                 c.vlui(*VNumSpikes, 0);
                 c.vlui(*VP, convertFixedPoint(1.0, 14));
                 c.vlui(*VOne, 1);
+                c.vlui(*VMinusOne, (uint16_t)-1);
                 c.li(*SMask, 0xFFFFFFFF);
                 c.L(poissonLoop);
                 {
@@ -90,12 +92,13 @@ std::vector<uint32_t> generateCode(bool simulate, uint32_t numTimesteps, uint32_
 
                     //SNewMask = ExpMinusLambda < p
                     c.vtlt(*SNewMask, *VExpMinusLambda, *VNewP);
+                    c.nop();
                     c.and_(*SMask, *SMask, *SNewMask);
 
                     c.bne(*SMask, Reg::X0, poissonLoop);
                 }
         
-                c.vsub(*VI, *VNumSpikes, *VOne);
+                c.vadd(*VI, *VNumSpikes, *VMinusOne);
 
                 //vmem[a...a+32] = v
                 c.vstore(*VI, *SIBuffer);
@@ -120,7 +123,7 @@ int main()
     
     constexpr uint32_t numTimesteps = 100;
     constexpr bool simulate = true;
-    constexpr bool dump = true;
+    constexpr bool dump = false;
 
     // Create memory contents
     std::vector<uint8_t> scalarInitData;
