@@ -24,14 +24,14 @@ void disassembleLoad(std::ostream &os, uint32_t inst)
 {
     const auto [imm, rs1, funct3, rd] = decodeIType(inst);
     auto type = getLoadType(funct3);
-    os << type._to_string() << " X" << rd << ", " << imm << "(" << rs1 << ")";
+    os << type._to_string() << " X" << rd << ", " << imm << "(X" << rs1 << ")";
 }
 
 void disassembleStore(std::ostream &os, uint32_t inst)
 {
     const auto [imm, rs2, rs1, funct3] = decodeSType(inst);
     const auto type = getStoreType(funct3);
-    os << type._to_string() << " X" << rs2 << ", " << imm << "(" << rs1 << ")";
+    os << type._to_string() << " X" << rs2 << ", " << imm << "(X" << rs1 << ")";
 }
 
 void disassembleBranch(std::ostream &os, uint32_t inst)
@@ -97,13 +97,13 @@ void disassembleVLoad(std::ostream &os, uint32_t inst)
 {
     const auto [imm, rs1, funct3, rd] = decodeIType(inst);
     const auto type = getVLoadType(funct3);
-    os << type._to_string() << " V" << rd << ", " << imm << "(" << rs1 << ")";
+    os << type._to_string() << " V" << rd << ", " << imm << "(X" << rs1 << ")";
 }
 
 void disassembleVStore(std::ostream &os, uint32_t inst)
 {
     const auto [imm, rs2, rs1, funct3] = decodeSType(inst);
-    os << "VSTORE V" << rs2 << ", " << imm << "(" << rs1 << ")";
+    os << "VSTORE V" << rs2 << ", " << imm << "(X" << rs1 << ")";
 }
 
 void disassembleVMov(std::ostream &os, uint32_t inst)
