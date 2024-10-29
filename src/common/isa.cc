@@ -182,5 +182,105 @@ OpType getOpType(int32_t funct7, uint32_t funct3)
     default:
         return OpType::INVALID;
     }
+}
+//----------------------------------------------------------------------------
+VOpType getVOpType(uint32_t funct7, uint32_t funct3)
+{
+    const uint32_t roundMode = ((funct7 >> 4) & 0b011);
+    switch(funct3)
+    {
+    case 0b000:
+        return (roundMode == 0) ? VOpType::VADD : VOpType::INVALID;
 
+    case 0b010:
+        return (roundMode == 0) ? VOpType::VSUB : VOpType::INVALID;
+
+    // VMUL
+    case 0b100:
+    {
+        // Round-to-zero
+        if(roundMode == 0b00) {
+            return VOpType::VMUL;
+        }
+        // Round-to-nearest (half up)
+        else if(roundMode == 0b01) {
+            return VOpType::VMUL_RN;
+        }
+        // Stochastic round
+        else if (roundMode == 0b10) {
+            return VOpType::VMUL_RS;
+        }
+        else {
+            return VOpType::INVALID;
+        }
+        
+    }
+    default:
+    {
+        return VOpType::INVALID;
+    }
+    }
+}
+//----------------------------------------------------------------------------
+VTstType getVTstType(uint32_t funct3)
+{
+    switch(funct3)
+    {
+    case 0b000:
+        return VTstType::VTEQ;
+
+    case 0b010:
+        return VTstType::VTNE;
+
+    case 0b100:
+        return VTstType::VTLT;
+
+    case 0b110:
+        return VTstType::VTGE;
+
+    default:
+        return VTstType::INVALID;
+    }
+}
+//----------------------------------------------------------------------------
+VMovType getVMovType(uint32_t funct3)
+{
+    switch(funct3) {
+    case 0b000:
+        return VMovType::VFILL;
+
+    case 0b001:
+        return VMovType::VEXTRACT;
+    
+    default:
+        return VMovType::INVALID;
+    }
+}
+//----------------------------------------------------------------------------
+VLoadType getVLoadType(uint32_t funct3)
+{
+    switch(funct3){
+    case 0b000:
+        return VLoadType::VLOAD;
+        
+    case 0b001:
+        return VLoadType::VLOAD_R0;
+    
+    case 0b101:
+        return VLoadType::VLOAD_R1;
+    
+    default:
+        return VLoadType::INVALID;
+    }
+}
+//----------------------------------------------------------------------------
+VSpcType getVSpcType(uint32_t funct3)
+{
+    switch(funct3){
+    case 0b000:
+        return VSpcType::VRNG;
+        
+    default:
+        return VSpcType::INVALID;
+    }
 }

@@ -75,6 +75,11 @@ BETTER_ENUM(OpImmType, uint32_t, ADDI, SLLI, CLZ, CTZ, CPOP, SEXT_B, SEXT_H, SLT
             SLTIU, XORI, SRLI, SRAI, ORI, ANDI, INVALID)
 BETTER_ENUM(OpType, uint32_t, ADD, SUB, SLL, SLT, SLTU, XOR, SRL, SRA, OR, AND, INVALID)
 
+BETTER_ENUM(VOpType, uint32_t, VADD, VSUB, VMUL, VMUL_RS, VMUL_RN, INVALID)
+BETTER_ENUM(VTstType, uint32_t, VTEQ, VTNE, VTLT, VTGE, INVALID)
+BETTER_ENUM(VMovType, uint32_t, VFILL, VEXTRACT, INVALID)
+BETTER_ENUM(VLoadType, uint32_t, VLOAD, VLOAD_R0, VLOAD_R1, INVALID)
+BETTER_ENUM(VSpcType, uint32_t, VRNG, INVALID)
 
 inline uint32_t addQuadrant(StandardOpCode op)
 {
@@ -259,6 +264,16 @@ BranchType getBranchType(uint32_t funct3);
 OpImmType getOpImmType(int32_t imm, uint32_t funct3);
 
 OpType getOpType(int32_t funct7, uint32_t funct3);
+
+VOpType getVOpType(uint32_t funct7, uint32_t funct3);
+
+VTstType getVTstType(uint32_t funct3);
+
+VMovType getVMovType(uint32_t funct3);
+
+VLoadType getVLoadType(uint32_t funct3);
+
+VSpcType getVSpcType(uint32_t funct3);
 
 template<size_t N>
 class Bit {
