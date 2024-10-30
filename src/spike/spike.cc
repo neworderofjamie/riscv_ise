@@ -281,10 +281,9 @@ std::vector<uint32_t> generateSimCode(bool simulate, uint32_t numInput, uint32_t
                 c.vlui(*VZero, 0);
                 c.li(*STmp, hiddenIsynPtr);
                 
-                c.vstore(*VZero, *STmp);
-                c.vstore(*VZero, *STmp, 64);
-                c.vstore(*VZero, *STmp, 128);
-                c.vstore(*VZero, *STmp, 192);
+                for(int i = 0; i < (256 * 2); i += 64) {
+                    c.vstore(*VZero, *STmp, i);
+                }
             }
 
             // 2^6 = 2 bytes * 32 hidden neurons
@@ -328,7 +327,7 @@ int main()
     
     // Allocate scalar arrays
     const uint32_t inputSpikePtr = AppUtils::allocateScalarAndZero(numInputSpikeWords * 4, scalarInitData);
-    const uint32_t hiddenIsynScalarPtr = AppUtils::allocateScalarAndZero(64, scalarInitData);
+    const uint32_t hiddenIsynScalarPtr = AppUtils::allocateScalarAndZero(numHiddenSpikeWords * 64, scalarInitData);
     const uint32_t readyFlagPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
     
     assert(vectorInitData.size() < (8192 * 32));
@@ -387,7 +386,7 @@ int main()
 
     std::vector<uint32_t> spikes(numInputSpikeWords, 0);
     //const uint32_t spikes[4]{0xDEADBEEF, 0xDEADBEEF, 0xDEADBEEF, 0xDEADBEEF};
-    spikes[0] = 1;
+    spikes[0] = 0xDEADBEEF;
     if(simulate) {
         RISCV riscV(initCode, scalarInitData);
         
