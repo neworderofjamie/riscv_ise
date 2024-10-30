@@ -532,7 +532,7 @@ int main()
     std::vector<int16_t> vectorInitData;
 
     // Constants
-    constexpr bool simulate = false;
+    constexpr bool simulate = true;
     constexpr uint32_t numInput = 28 * 28;
     constexpr uint32_t numHidden = 128;
     constexpr uint32_t numOutput = 10;
