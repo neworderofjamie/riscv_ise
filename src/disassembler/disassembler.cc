@@ -139,7 +139,7 @@ const std::unordered_map<VectorOpCode, DisassembleFunc> vectorInstructionDecoder
     {VectorOpCode::VSOP, &disassembleVOp},
     {VectorOpCode::VLUI, &disassembleVLUI},
     {VectorOpCode::VTST, &disassembleVTst},
-    {VectorOpCode::VTST, &disassembleVSel},
+    {VectorOpCode::VSEL, &disassembleVSel},
     {VectorOpCode::VLOAD, &disassembleVLoad},
     {VectorOpCode::VSTORE, &disassembleVStore},
     {VectorOpCode::VMOV, &disassembleVMov},
