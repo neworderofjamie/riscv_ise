@@ -268,7 +268,6 @@ int main()
     std::vector<int16_t> vectorInitData;
 
     // Constants
-    constexpr bool record = false;
     constexpr bool simulate = true;
     constexpr uint32_t numInput = 700;
     constexpr uint32_t numHidden = 256;
@@ -283,11 +282,9 @@ int main()
     constexpr uint32_t numOutputSpikeWords = ceilDivide(numOutput, 32);
     constexpr uint32_t numInputSpikeArrayWords = numInputSpikeWords * numTimesteps;
 
-    // Generate seed
-    const uint32_t seedPointer = AppUtils::allocateVectorSeedAndInit(vectorInitData);
-
     // Allocate vector arrays
     // **NOTE** these are adjacent so data can be block-copied from scalar memory
+    const uint32_t seedPtr = AppUtils::allocateVectorAndZero(32 * 2, vectorInitData);
     const uint32_t weightInHidPtr = AppUtils::allocateVectorAndZero(numInput * numHiddenSpikeWords * 32, vectorInitData);
     const uint32_t weightHidOutPtr = AppUtils::allocateVectorAndZero(numHidden * numOutputSpikeWords * 32, vectorInitData);
     const uint32_t weightHidHidPtr = AppUtils::allocateVectorAndZero(numHidden * numHiddenSpikeWords * 32, vectorInitData);
@@ -303,13 +300,13 @@ int main()
     const uint32_t outputVSumPtr = AppUtils::allocateVectorAndZero(numOutput, vectorInitData);
    
     // Allocate scalar arrays
-    const uint32_t timestepPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
     const uint32_t inputSpikeArrayPtr = AppUtils::allocateScalarAndZero(numInputSpikeArrayWords * 4, scalarInitData);
     const uint32_t hiddenSpikePtr = AppUtils::allocateScalarAndZero(numHiddenSpikeWords * 4, scalarInitData);
     const uint32_t outputVSumScalarPtr = AppUtils::allocateScalarAndZero(numOutput * 2, scalarInitData);
     const uint32_t readyFlagPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
 
     // Increase scalar memory for buffering
+    assert(scalarInitData.size() <= (128 * 1024));
     scalarInitData.resize(128 * 1024, 0);
 
     // Load dataset (this is streamed)
@@ -322,38 +319,116 @@ int main()
     const auto weightHidHid = AppUtils::loadBinaryData<uint8_t>("99-Conn_Pop1_Pop1-g.bin");
     const auto outputBias = AppUtils::loadBinaryData<uint8_t>("99-Pop2-Bias.bin");
 
+    // Load seed
+    const auto seed = AppUtils::getSeedData();
+
     // Check first three are correctly padded
     assert(weightInHid.size() == numInput * numHiddenSpikeWords * 64);
     assert(weightHidOut.size() == numHidden * numOutputSpikeWords * 64);
     assert(weightHidHid.size() == numHidden * numHiddenSpikeWords * 64);
     
     // Concatenate into single vector
-    std::vector<uint8_t> initData;
-    initData.reserve(weightInHid.size() + weightHidOut.size() + weightHidHid.size() + outputBias.size());
-    std::copy(weightInHid.cbegin(), weightInHid.cend(), std::back_inserter(initData));
-    std::copy(weightHidOut.cbegin(), weightHidOut.cend(), std::back_inserter(initData));
-    std::copy(weightHidHid.cbegin(), weightHidHid.cend(), std::back_inserter(initData));
-    std::copy(outputBias.cbegin(), outputBias.cend(), std::back_inserter(initData));
+    std::vector<uint8_t> copyData;
+    copyData.reserve(seed.size() + weightInHid.size() + weightHidOut.size() + weightHidHid.size() + outputBias.size());
+    std::copy(seed.cbegin(), seed.cend(), std::back_inserter(copyData));
+    std::copy(weightInHid.cbegin(), weightInHid.cend(), std::back_inserter(copyData));
+    std::copy(weightHidOut.cbegin(), weightHidOut.cend(), std::back_inserter(copyData));
+    std::copy(weightHidHid.cbegin(), weightHidHid.cend(), std::back_inserter(copyData));
+    std::copy(outputBias.cbegin(), outputBias.cend(), std::back_inserter(copyData));
 
-    const auto rngSeedCode = AssemblerUtils::generateStandardKernel(
+    // Generate code to copy blocks of data from scalar to vector memory
+    const uint32_t copyStartVectorPtr = 0;
+    const uint32_t copyNumVectorsPtr = 4;
+    const uint32_t copyReadyFlagPtr = 8;
+    const uint32_t copyScalarScratchPtr = 12;
+    const auto copyCode = AssemblerUtils::generateInitCode(simulate, copyStartVectorPtr, copyNumVectorsPtr, 
+                                                           copyReadyFlagPtr, copyScalarScratchPtr);
+
+    const auto initCode = AssemblerUtils::generateStandardKernel(
         simulate, readyFlagPtr,
         [=](CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator, ScalarRegisterAllocator &scalarRegisterAllocator)
         {
-            ALLOCATE_SCALAR(SSeedBuffer);
+            // ---------------------------------------------------------------
+            // RNG
+            // ---------------------------------------------------------------
+            {
+        	    // Register allocation
+                ALLOCATE_SCALAR(SSeedBuffer);
 
-            c.li(*SSeedBuffer, seedPointer);
-            c.vloadr0(*SSeedBuffer);
-            c.vloadr1(*SSeedBuffer, 64);
+                // Get seed pointer
+                c.li(*SSeedBuffer, seedPtr);
+
+                // Load RNG seed into dedicated registers
+                c.vloadr0(*SSeedBuffer);
+                c.vloadr1(*SSeedBuffer, 64);
+            }
+
+            // ---------------------------------------------------------------
+            // Hidden neurons
+            // ---------------------------------------------------------------
+            {
+                // Register allocation
+                ALLOCATE_SCALAR(SVBuffer);
+                ALLOCATE_SCALAR(SVBufferEnd);
+                ALLOCATE_SCALAR(SABuffer);
+                ALLOCATE_SCALAR(SISynBuffer);
+                ALLOCATE_SCALAR(SRefracTimeBuffer);
+                ALLOCATE_VECTOR(VZero);
+                
+                // Load constants
+                c.vlui(*VZero, 0);
+
+                // Get address of buffers
+                c.li(*SVBuffer, hiddenVPtr);
+                c.li(*SVBufferEnd, hiddenVPtr + (numHidden * 2));
+                c.li(*SABuffer, hiddenAPtr);
+                c.li(*SISynBuffer, hiddenIsynPtr);
+                c.li(*SRefracTimeBuffer, hiddenRefracTimePtr);
+
+                // Hidden neuron loop
+                AssemblerUtils::unrollVectorLoopBody(
+                    c, numHidden, 4, *SVBuffer, *SVBufferEnd,
+                    [&scalarRegisterAllocator, &vectorRegisterAllocator,
+                    hiddenAFixedPoint,
+                    SABuffer, SISynBuffer, SRefracTimeBuffer, SVBuffer, VZero]
+                    (CodeGenerator &c, uint32_t r)
+                    {
+                        c.vstore(*VZero, *SVBuffer, r * 64);
+                        c.vstore(*VZero, *SABuffer, r * 64);
+                        c.vstore(*VZero, *SISynBuffer, r * 64);
+                        c.vstore(*VZero, *SRefracTimeBuffer, r * 64);
+                    },
+                    [SABuffer, SISynBuffer, SRefracTimeBuffer, SVBuffer]
+                    (CodeGenerator &c, uint32_t numUnrolls)
+                    {
+                        c.addi(*SVBuffer, *SVBuffer, 64 * numUnrolls);
+                        c.addi(*SABuffer, *SABuffer, 64 * numUnrolls);
+                        c.addi(*SISynBuffer, *SISynBuffer, 64 * numUnrolls);
+                        c.addi(*SRefracTimeBuffer, *SRefracTimeBuffer, 64 * numUnrolls);
+                    });
+            }
+
+            // ---------------------------------------------------------------
+            // Output neurons
+            // ---------------------------------------------------------------
+            {
+                // Register allocation
+                ALLOCATE_SCALAR(SVBuffer);
+                ALLOCATE_SCALAR(SISynBuffer);
+                ALLOCATE_VECTOR(VZero);
+                
+                // Load constants
+                c.vlui(*VZero, 0);
+               
+                // Get address of voltage and Isyn buffers
+                c.li(*SVBuffer, outputVPtr);
+                c.li(*SISynBuffer, outputIsynPtr);
+
+                c.vstore(*VZero, *SVBuffer);
+                c.vstore(*VZero, *SISynBuffer);
+            }
         });
 
-    // Generate initialisation code to copy blocks of data from scalar to vector memory
-    const uint32_t initStartVectorPtr = 0;
-    const uint32_t initNumVectorsPtr = 4;
-    const uint32_t initReadyFlagPtr = 8;
-    const uint32_t initScalarScratchPtr = 12;
-    const auto initCode = AssemblerUtils::generateInitCode(simulate, initStartVectorPtr, initNumVectorsPtr, 
-                                                           initReadyFlagPtr, initScalarScratchPtr);
-    
     const auto code = AssemblerUtils::generateStandardKernel(
         simulate, readyFlagPtr,
         [=](CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator, ScalarRegisterAllocator &scalarRegisterAllocator)
@@ -693,13 +768,13 @@ int main()
 
     if(simulate) {
         // Create RISC-V core with instruction and scalar data
-        RISCV riscV(rngSeedCode, scalarInitData);
+        RISCV riscV(copyCode, scalarInitData);
     
         // Add vector co-processor
         riscV.addCoprocessor<VectorProcessor>(vectorQuadrant, vectorInitData);
-    
-        // Run RISC-V to seed RNG
-        if(!riscV.run()) {
+
+        // Run kernels to copy initData into vector memory
+        if(!riscV.runInit(copyData, copyStartVectorPtr, copyNumVectorsPtr, copyScalarScratchPtr, seedPtr)) {
             return 1;
         }
 
@@ -709,53 +784,27 @@ int main()
         // Load init program
         riscV.setInstructions(initCode);
 
-        // Run kernels to copy initData into vector memory
-        if(!riscV.runInit(initData, initStartVectorPtr, initNumVectorsPtr, initScalarScratchPtr, weightInHidPtr)) {
+        // Run RISC-V to initialize
+        riscV.setPC(0);
+        if(!riscV.run()) {
             return 1;
         }
-            
+
         // Reset stats for simulations
         riscV.resetStats();
 
         // Load simulation program
         riscV.setInstructions(code);
 
-        // Recording data
-        /*std::vector<uint32_t> inputSpikeRecording;
-        std::vector<uint32_t> hiddenSpikeRecording;
-        std::vector<int16_t> hiddenVRecording;
-        std::vector<int16_t> hiddenARecording;
-        std::vector<int16_t> outputVRecording;
-        std::vector<int16_t> outputVSumRecording;
-        inputSpikeRecording.reserve(numTimesteps * numInputSpikeWords);
-        hiddenSpikeRecording.reserve(numTimesteps * numHiddenSpikeWords);
-        hiddenVRecording.reserve(numTimesteps * numHidden);
-        hiddenARecording.reserve(numTimesteps * numHidden);
-        outputVRecording.reserve(numTimesteps * numOutput);
-        outputVSumRecording.reserve(numTimesteps * numOutput);*/
-
-        // Get pointers to scalar and vector memory
+        // Get pointers to scalar memory
         auto *scalarData = riscV.getScalarDataMemory().getData().data();
-        //auto *vectorData = riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getVectorDataMemory().getData().data();
 
-        // From these, get pointers to data structures
-        /*const uint32_t *inputSpikeWords = reinterpret_cast<const uint32_t*>(scalarData + inputSpikePtr);
-        const uint32_t *hiddenSpikeWords = reinterpret_cast<const uint32_t*>(scalarData + hiddenSpikePtr);
-        const int16_t *hiddenV = vectorData + (hiddenVPtr / 2);
-        const int16_t *hiddenA = vectorData + (hiddenAPtr / 2);
-        const int16_t *outputV = vectorData + (outputVPtr / 2);*/
+        // From this, get pointers to data structures
         const int16_t *outputVSum = reinterpret_cast<const int16_t*>(scalarData + outputVSumScalarPtr);
 
         // Loop through examples
         int numCorrect = 0;
         for(int i = 0; i < numExamples; i++) {
-            /*inputSpikeRecording.clear();
-            hiddenSpikeRecording.clear();
-            hiddenVRecording.clear();
-            hiddenARecording.clear();
-            outputVRecording.clear();
-            outputVSumRecording.clear();*/
-        
             // Show % progress
             const auto iPerc = std::div(i, ceilDivide(numExamples, 100));
             if(iPerc.rem == 0) {
@@ -771,78 +820,12 @@ int main()
             if(!riscV.run()) {
                 return 1;
             }
-            // Loop through time
-            /*for(uint32_t t = 0; t < numTimesteps; t++) {
-                // Copy timestep into scalar memory
-                std::memcpy(scalarData + timestepPtr, &t, 4);
-        
-                // Reset PC and run
-                riscV.setPC(0);
-                if(!riscV.run()) {
-                    return 1;
-                }
-
-                // Record spike words
-                if(record) {
-                    std::copy(inputSpikeWords, inputSpikeWords + numInputSpikeWords,
-                              std::back_inserter(inputSpikeRecording));
-                    std::copy(hiddenSpikeWords, hiddenSpikeWords + numHiddenSpikeWords,
-                              std::back_inserter(hiddenSpikeRecording));
-            
-                    // Record state variables
-                    std::copy_n(hiddenV, numHidden, std::back_inserter(hiddenVRecording));
-                    std::copy_n(hiddenA, numHidden, std::back_inserter(hiddenARecording));
-                    std::copy_n(outputV, numOutput, std::back_inserter(outputVRecording));
-                    std::copy_n(outputVSum, numOutput, std::back_inserter(outputVSumRecording));
-                }
-            }*/
 
             // Determine if output is correct
             const auto classification = std::distance(outputVSum, std::max_element(outputVSum, outputVSum + numOutput));
             if(classification == shdLabels[i]) {
                 numCorrect++;
             }
-
-            /*if(record) {
-                // Record output spikes
-                std::ofstream inputSpikes("shd_input_spikes_" + std::to_string(i) + ".csv");
-                std::ofstream hiddenSpikes("shd_hidden_spikes_" + std::to_string(i) + ".csv");
-                std::ofstream hiddenVFile("shd_hidden_v_" + std::to_string(i) + ".csv");
-                std::ofstream hiddenAFile("shd_hidden_a_" + std::to_string(i) + ".csv");
-                std::ofstream outputVFile("shd_output_v_" + std::to_string(i) + ".csv");
-                std::ofstream outputVSumFile("shd_output_v_sum_" + std::to_string(i) + ".csv");
-                auto iHV = hiddenVRecording.cbegin();
-                auto iHA = hiddenARecording.cbegin();
-                auto iOV = outputVRecording.cbegin();
-                auto iOVS = outputVSumRecording.cbegin();
-                for(uint32_t t = 0; t < numTimesteps; t++) {
-                    AppUtils::writeSpikes(inputSpikes, inputSpikeRecording.data() + (numInputSpikeWords * t),
-                                        t, numInputSpikeWords);
-                    AppUtils::writeSpikes(hiddenSpikes, hiddenSpikeRecording.data() + (numHiddenSpikeWords * t),
-                                        t, numHiddenSpikeWords);
-            
-                    for(uint32_t i = 0; i < numHidden; i++) {
-                        hiddenVFile << *iHV++;
-                        hiddenAFile << *iHA++;
-                        if(i != (numHidden - 1)) {
-                            hiddenVFile << ", ";
-                            hiddenAFile << ", ";
-                        }
-                    }
-                    for(uint32_t i = 0; i < numOutput; i++) {
-                        outputVFile << *iOV++;
-                        outputVSumFile << *iOVS++;
-                        if(i != (numOutput - 1)) {
-                            outputVFile << ", ";
-                            outputVSumFile << ", ";
-                        }
-                    }
-                    hiddenVFile << std::endl;
-                    hiddenAFile << std::endl;
-                    outputVFile << std::endl;
-                    outputVSumFile << std::endl;
-                }
-            }*/
         }
 
         std::cout << numCorrect << " / " << numExamples << " correct (" << 100.0 * (numCorrect / (double)numExamples) << "%)" << std::endl;
@@ -868,22 +851,25 @@ int main()
         LOGI << "Resetting";
         device.setEnabled(false);
         
-        // RNG seeding
-        /*{
-            LOGI << "Copying RNG seeding instructions (" << rngSeedCode.size() * sizeof(uint32_t) << " bytes)";
-            device.uploadCode(rngSeedCode);
-
-            // **TODO** copy RNG seed to device
-
-        }*/
-        
-        // Initialisation
+        // Copying
         {
-            LOGI << "Copying init instructions (" << initCode.size() * sizeof(uint32_t) << " bytes)";
-            device.uploadCode(initCode);
+            LOGI << "Copying copy instructions (" << copyCode.size() * sizeof(uint32_t) << " bytes)";
+            device.uploadCode(copyCode);
 
             // Run kernels to copy initData into vector memory
-            device.runInit(initData, initStartVectorPtr, initNumVectorsPtr, initScalarScratchPtr, weightInHidPtr, initReadyFlagPtr);
+            device.runInit(copyData, copyStartVectorPtr, copyNumVectorsPtr, copyScalarScratchPtr, seedPtr, copyReadyFlagPtr);
+        }
+
+
+        // Initialisation seeding
+        {
+            LOGI << "Copying initialisation instructions (" << initCode.size() * sizeof(uint32_t) << " bytes)";
+            device.uploadCode(initCode);
+
+            LOGI << "Running initialisation"; 
+            device.setEnabled(true);
+            device.waitOnNonZero(readyFlagPtr);
+            device.setEnabled(false);
         }
         
         // Simulation
