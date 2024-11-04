@@ -41,6 +41,9 @@ uint32_t allocateScalarAndZero(size_t numBytes, std::vector<uint8_t> &memory);
 
 uint32_t loadScalars(const std::string &filename, std::vector<uint8_t> &memory);
 
+// Get seed data, in form suitable for bulk-copying
+std::vector<uint8_t> getSeedData(const std::optional<std::array<int16_t, 64>> &seed = std::nullopt);
+
 // Write one timestep of spikes from a bitfield in CSV format
 void writeSpikes(std::ofstream &os, const volatile uint32_t *data, 
                  float time, size_t numWords);

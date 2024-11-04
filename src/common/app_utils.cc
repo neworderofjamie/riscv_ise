@@ -138,6 +138,13 @@ uint32_t loadScalars(const std::string &filename, std::vector<uint8_t> &memory)
     return startBytes;
 }
 //----------------------------------------------------------------------------
+std::vector<uint8_t> getSeedData(const std::optional<std::array<int16_t, 64>> &seed)
+{
+    std::vector<uint8_t> data(32 * 2 * 2);
+    seedRNG(reinterpret_cast<int16_t*>(data.data()), seed);
+    return data;
+}
+//----------------------------------------------------------------------------
 void writeSpikes(std::ofstream &os, const volatile uint32_t *data, 
                  float time, size_t numWords)
 {
