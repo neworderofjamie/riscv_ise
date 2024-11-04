@@ -121,7 +121,7 @@ int main()
     plog::ConsoleAppender<plog::TxtFormatter> consoleAppender;
     plog::init(plog::debug, &consoleAppender);
     
-    constexpr uint32_t numTimesteps = 100;
+    constexpr uint32_t numTimesteps = 1;
     constexpr bool simulate = true;
     constexpr bool dump = false;
 
@@ -135,7 +135,15 @@ int main()
     const uint32_t vectorRecordingPtr = AppUtils::allocateVectorAndZero(32 * numTimesteps, vectorInitData);
    
     // Allocate scalar arrays
-    const uint32_t scalarSeedPtr = AppUtils::allocateScalarSeedAndInit(scalarInitData);
+    std::array<int16_t, 64> seed{-32460, -10133, -23275,  29911, -28922,   -994,  14693,  31254,
+        -1618, -28123, -23892,  -5489,  -9227,   8730, -18748,   4346,
+       -22307, -26384, -29244,  -7921, -13051,  -9607,  -4270,  10471,
+       -32057, -18957, -29715,   9108, -13945, -15437, -15695, -15787,
+        27310,  22700, -16462,  -1015,  29043, -24426, -30704, -12674,
+        26071,   4954,   2188, -32078,  11124,  -8116,  19067, -22055,
+       -28415,  17941,  19338,   -565,  22295, -11483, -14053,  13472,
+        30833,   -684, -17752,  -7024, -22868,   6444,  18888, -30332};
+    const uint32_t scalarSeedPtr = AppUtils::allocateScalarSeedAndInit(scalarInitData, seed);
     const uint32_t scalarRecordingPtr = AppUtils::allocateScalarAndZero(64 * numTimesteps, scalarInitData);
     const uint32_t readyFlagPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
         
