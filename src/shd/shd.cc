@@ -29,7 +29,6 @@
 #include "ise/riscv.h"
 #include "ise/vector_processor.h"
 
-
 struct StaticPulseTarget
 {
     uint32_t weightPtr;
@@ -277,13 +276,14 @@ int main()
     constexpr uint32_t hiddenAFixedPoint = 7;
     constexpr uint32_t outFixedPoint = 11;
     constexpr uint32_t numTimesteps = 1170;
-    constexpr uint32_t numTempTimesteps = 50;
+    constexpr uint32_t numTempTimesteps = 400;
     constexpr uint32_t numExamples = 1;//2264;
     constexpr uint32_t numInputSpikeWords = ceilDivide(numInput, 32);
     constexpr uint32_t numHiddenSpikeWords = ceilDivide(numHidden, 32);
     constexpr uint32_t numOutputSpikeWords = ceilDivide(numOutput, 32);
     constexpr uint32_t numInputSpikeArrayWords = numInputSpikeWords * numTimesteps;
     constexpr uint32_t numHiddenSpikeArrayWords = numHiddenSpikeWords * numTempTimesteps;
+    constexpr uint32_t numOutputSpikeArrayWords = numOutputSpikeWords * numTempTimesteps;
 
     // Generate seed
     const uint32_t seedPointer = AppUtils::allocateVectorSeedAndInit(vectorInitData);
@@ -310,7 +310,8 @@ int main()
     const uint32_t hiddenSpikePtr = AppUtils::allocateScalarAndZero(numHiddenSpikeWords * 4, scalarInitData);
     const uint32_t outputVSumScalarPtr = AppUtils::allocateScalarAndZero(numOutput * 2, scalarInitData);
     //const uint32_t hiddenSpikeRecordingPtr = AppUtils::allocateScalarAndZero(numHiddenSpikeArrayWords * 4, scalarInitData);
-    const uint32_t hiddenISynRecordingPtr = AppUtils::allocateScalarAndZero(numHiddenSpikeArrayWords * 64, scalarInitData);
+    //const uint32_t hiddenISynRecordingPtr = AppUtils::allocateScalarAndZero(numHiddenSpikeArrayWords * 64, scalarInitData);
+    const uint32_t outputVarRecordingPtr = AppUtils::allocateScalarAndZero(numOutputSpikeArrayWords * 64, scalarInitData);
     const uint32_t readyFlagPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
 
     assert(scalarInitData.size() <= (128 * 1024));
@@ -404,7 +405,8 @@ int main()
             ALLOCATE_SCALAR(STime);
             ALLOCATE_SCALAR(STimeEnd);
             //ALLOCATE_SCALAR(SHiddenSpikeRecordingBuffer);
-            ALLOCATE_SCALAR(SHiddenISynRecordingBuffer);
+            //ALLOCATE_SCALAR(SHiddenISynRecordingBuffer);
+            ALLOCATE_SCALAR(SOutputVarRecordingBuffer);
 
             // Labels
             Label timeLoop;
@@ -419,7 +421,8 @@ int main()
             c.li(*STime, 0);
             c.li(*STimeEnd, numTempTimesteps);
             //c.li(*SHiddenSpikeRecordingBuffer, hiddenSpikeRecordingPtr);
-            c.li(*SHiddenISynRecordingBuffer, hiddenISynRecordingPtr);
+            //c.li(*SHiddenISynRecordingBuffer, hiddenISynRecordingPtr);
+            c.li(*SOutputVarRecordingBuffer, outputVarRecordingPtr);
 
             // Loop over time
             c.L(timeLoop);
@@ -473,7 +476,7 @@ int main()
                 genStaticPulse(c, vectorRegisterAllocator, scalarRegisterAllocator, 
                                hiddenSpikePtr, numHidden,
                                {{weightHidOutPtr, outputIsynPtr, numOutput, 6, false},
-                                /*{weightHidHidPtr, hiddenIsynPtr, numHidden, 9, false}*/});
+                                {weightHidHidPtr, hiddenIsynPtr, numHidden, 9, false}});
 
                 // ---------------------------------------------------------------
                 // Hidden neurons
@@ -520,7 +523,7 @@ int main()
                         c, numHidden, 4, *SVBuffer, *SVBufferEnd,
                         [&scalarRegisterAllocator, &vectorRegisterAllocator,
                         hiddenAFixedPoint,
-                         SABuffer, SISynBuffer, SRefracTimeBuffer, SSpikeBuffer, SVBuffer, SHiddenISynRecordingBuffer/*SHiddenSpikeRecordingBuffer*/,
+                         SABuffer, SISynBuffer, SRefracTimeBuffer, SSpikeBuffer, SVBuffer, /*SHiddenISynRecordingBufferSHiddenSpikeRecordingBuffer,*/
                          VAlpha, VBeta, VDT, VOne, VRho, VTauRefrac, VVThresh, VZero]
                         (CodeGenerator &c, uint32_t r)
                         {
@@ -551,11 +554,11 @@ int main()
                             // A *= Rho
                             c.vmul(14, *VA, *VA, *VRho);
                             
-                            for(int l = 0; l < 32; l++) {
+                            /*for(int l = 0; l < 32; l++) {
                                 c.vextract(*STmp, *VV, l);
                                 c.sh(*STmp, *SHiddenISynRecordingBuffer, l * 2);
                             }
-                            c.addi(*SHiddenISynRecordingBuffer, *SHiddenISynRecordingBuffer, 64);
+                            c.addi(*SHiddenISynRecordingBuffer, *SHiddenISynRecordingBuffer, 64);*/
 
 
                             // Refractory = RefracTime > 0.0 (0.0 < VRefracTime)
@@ -651,6 +654,7 @@ int main()
                     {
                         // Register allocation
                         ALLOCATE_SCALAR(SMask);
+                        ALLOCATE_SCALAR(STmp);
                         ALLOCATE_VECTOR(VV);
                         ALLOCATE_VECTOR(VVNew);
                         ALLOCATE_VECTOR(VVSum);
@@ -666,7 +670,14 @@ int main()
                         c.vloadv(*VVSum, *SVSumBuffer);
                         c.vloadv(*VISyn, *SISynBuffer);
                         c.vloadv(*VBias, *SBiasBuffer);
- 
+                        
+                        for(int l = 0; l < numOutput; l++) {
+                            c.vextract(*STmp, *VISyn, l);
+                            c.sh(*STmp, *SOutputVarRecordingBuffer, l * 2);
+                        }
+                        c.addi(*SOutputVarRecordingBuffer, *SOutputVarRecordingBuffer, numOutput * 2);
+
+
                         // VV *= VAlpha
                         c.vmul(14, *VVNew, *VV, *VAlpha);
 
@@ -781,23 +792,11 @@ int main()
         //auto *vectorData = riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getVectorDataMemory().getData().data();
 
         // From these, get pointers to data structures
-        /*const uint32_t *inputSpikeWords = reinterpret_cast<const uint32_t*>(scalarData + inputSpikePtr);
-        const uint32_t *hiddenSpikeWords = reinterpret_cast<const uint32_t*>(scalarData + hiddenSpikePtr);
-        const int16_t *hiddenV = vectorData + (hiddenVPtr / 2);
-        const int16_t *hiddenA = vectorData + (hiddenAPtr / 2);
-        const int16_t *outputV = vectorData + (outputVPtr / 2);*/
         const int16_t *outputVSum = reinterpret_cast<const int16_t*>(scalarData + outputVSumScalarPtr);
 
         // Loop through examples
         int numCorrect = 0;
         for(int i = 0; i < numExamples; i++) {
-            /*inputSpikeRecording.clear();
-            hiddenSpikeRecording.clear();
-            hiddenVRecording.clear();
-            hiddenARecording.clear();
-            outputVRecording.clear();
-            outputVSumRecording.clear();*/
-        
             // Show % progress
             const auto iPerc = std::div(i, ceilDivide(numExamples, 100));
             if(iPerc.rem == 0) {
@@ -819,13 +818,24 @@ int main()
             for(size_t t = 0; t < numTempTimesteps; t++) {
                 AppUtils::writeSpikes(spikeFile, hiddenSpikeRecording, t, numHiddenSpikeWords);
                 hiddenSpikeRecording += numHiddenSpikeWords;
-            }*/
+            }
             const int16_t *hiddenISynRecording = reinterpret_cast<const int16_t*>(scalarData + hiddenISynRecordingPtr);
             std::ofstream isynFile("shd_v_sim.csv");
             for(size_t t = 0; t < numTempTimesteps; t++) {
                 for(size_t i = 0; i < numHidden; i++) {
                     isynFile << *hiddenISynRecording++;
                     if(i != (numHidden - 1)) {
+                        isynFile << ", ";
+                    }
+                }
+                isynFile << std::endl;
+            }*/
+            const int16_t *outputVarRecording = reinterpret_cast<const int16_t*>(scalarData + outputVarRecordingPtr);
+            std::ofstream isynFile("shd_output_isyn_sim.csv");
+            for(size_t t = 0; t < numTempTimesteps; t++) {
+                for(size_t i = 0; i < numOutput; i++) {
+                    isynFile << *outputVarRecording++;
+                    if(i != (numOutput - 1)) {
                         isynFile << ", ";
                     }
                 }
@@ -924,13 +934,24 @@ int main()
                 for(size_t t = 0; t < numTempTimesteps; t++) {
                     AppUtils::writeSpikes(spikeFile, hiddenSpikeRecording, t, numHiddenSpikeWords);
                     hiddenSpikeRecording += numHiddenSpikeWords;
-                }*/
+                }
                 const volatile int16_t *hiddenISynRecording = reinterpret_cast<const volatile int16_t*>(device.getDataMemory() + hiddenISynRecordingPtr);
                 std::ofstream isynFile("shd_v_device.csv");
                 for(size_t t = 0; t < numTempTimesteps; t++) {
                     for(size_t i = 0; i < numHidden; i++) {
                         isynFile << *hiddenISynRecording++;
                         if(i != (numHidden - 1)) {
+                            isynFile << ", ";
+                        }
+                    }
+                    isynFile << std::endl;
+                }*/
+                const volatile int16_t *outputVarRecording = reinterpret_cast<const volatile int16_t*>(device.getDataMemory() + outputVarRecordingPtr);
+                std::ofstream isynFile("shd_output_isyn_device.csv");
+                for(size_t t = 0; t < numTempTimesteps; t++) {
+                    for(size_t i = 0; i < numOutput; i++) {
+                        isynFile << *outputVarRecording++;
+                        if(i != (numOutput - 1)) {
                             isynFile << ", ";
                         }
                     }
