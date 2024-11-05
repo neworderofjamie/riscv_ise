@@ -29,6 +29,12 @@
 #include "ise/riscv.h"
 #include "ise/vector_processor.h"
 
+#define RECORD_HIDDEN_SPIKES
+//#define RECORD_HIDDEN_ISYN
+//#define RECORD_HIDDEN_V
+//#define RECORD_OUTPUT_ISYN
+//#define RECORD_OUTPUT_V
+
 struct StaticPulseTarget
 {
     uint32_t weightPtr;
@@ -268,7 +274,7 @@ int main()
 
     // Constants
     constexpr bool record = false;
-    constexpr bool simulate = false;
+    constexpr bool simulate = true;
     constexpr uint32_t numInput = 700;
     constexpr uint32_t numHidden = 256;
     constexpr uint32_t numOutput = 20;
@@ -309,9 +315,15 @@ int main()
     const uint32_t inputSpikeArrayPtr = AppUtils::allocateScalarAndZero(numInputSpikeArrayWords * 4, scalarInitData);
     const uint32_t hiddenSpikePtr = AppUtils::allocateScalarAndZero(numHiddenSpikeWords * 4, scalarInitData);
     const uint32_t outputVSumScalarPtr = AppUtils::allocateScalarAndZero(numOutput * 2, scalarInitData);
-    //const uint32_t hiddenSpikeRecordingPtr = AppUtils::allocateScalarAndZero(numHiddenSpikeArrayWords * 4, scalarInitData);
-    //const uint32_t hiddenISynRecordingPtr = AppUtils::allocateScalarAndZero(numHiddenSpikeArrayWords * 64, scalarInitData);
+#ifdef RECORD_HIDDEN_SPIKES
+    const uint32_t hiddenSpikeRecordingPtr = AppUtils::allocateScalarAndZero(numHiddenSpikeArrayWords * 4, scalarInitData);
+#endif
+#if defined(RECORD_HIDDEN_ISYN) || defined(RECORD_HIDDEN_V)
+    const uint32_t hiddenVarRecordingPtr = AppUtils::allocateScalarAndZero(numHiddenSpikeArrayWords * 64, scalarInitData);
+#endif
+#if defined(RECORD_OUTPUT_ISYN) || defined(RECORD_OUTPUT_V)
     const uint32_t outputVarRecordingPtr = AppUtils::allocateScalarAndZero(numOutputSpikeArrayWords * 64, scalarInitData);
+#endif
     const uint32_t readyFlagPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
 
     assert(scalarInitData.size() <= (128 * 1024));
@@ -404,10 +416,15 @@ int main()
             // Register allocation
             ALLOCATE_SCALAR(STime);
             ALLOCATE_SCALAR(STimeEnd);
-            //ALLOCATE_SCALAR(SHiddenSpikeRecordingBuffer);
-            //ALLOCATE_SCALAR(SHiddenISynRecordingBuffer);
+#ifdef RECORD_HIDDEN_SPIKES
+            ALLOCATE_SCALAR(SHiddenSpikeRecordingBuffer);
+#endif
+#if defined(RECORD_HIDDEN_ISYN) || defined(RECORD_HIDDEN_V)
+            ALLOCATE_SCALAR(SHiddenVarRecordingBuffer);
+#endif
+#if defined(RECORD_OUTPUT_ISYN) || defined(RECORD_OUTPUT_V)
             ALLOCATE_SCALAR(SOutputVarRecordingBuffer);
-
+#endif
             // Labels
             Label timeLoop;
             Label spinLoop;
@@ -420,10 +437,15 @@ int main()
             // Set timestep range and load ready flag pointer
             c.li(*STime, 0);
             c.li(*STimeEnd, numTempTimesteps);
-            //c.li(*SHiddenSpikeRecordingBuffer, hiddenSpikeRecordingPtr);
-            //c.li(*SHiddenISynRecordingBuffer, hiddenISynRecordingPtr);
+#ifdef RECORD_HIDDEN_SPIKES
+            c.li(*SHiddenSpikeRecordingBuffer, hiddenSpikeRecordingPtr);
+#endif
+#if defined(RECORD_HIDDEN_ISYN) || defined(RECORD_HIDDEN_V)
+            c.li(*SHiddenVarRecordingBuffer, hiddenVarRecordingPtr);
+#endif
+#if defined(RECORD_OUTPUT_ISYN) || defined(RECORD_OUTPUT_V)
             c.li(*SOutputVarRecordingBuffer, outputVarRecordingPtr);
-
+#endif
             // Loop over time
             c.L(timeLoop);
             {
@@ -523,7 +545,16 @@ int main()
                         c, numHidden, 4, *SVBuffer, *SVBufferEnd,
                         [&scalarRegisterAllocator, &vectorRegisterAllocator,
                         hiddenAFixedPoint,
-                         SABuffer, SISynBuffer, SRefracTimeBuffer, SSpikeBuffer, SVBuffer, /*SHiddenISynRecordingBufferSHiddenSpikeRecordingBuffer,*/
+                         SABuffer, SISynBuffer, SRefracTimeBuffer, SSpikeBuffer, SVBuffer, 
+ #ifdef RECORD_HIDDEN_SPIKES
+                         SHiddenSpikeRecordingBuffer,
+ #endif
+ #if defined(RECORD_HIDDEN_ISYN) || defined(RECORD_HIDDEN_V)
+                         SHiddenVarRecordingBuffer,
+ #endif
+ #if defined(RECORD_OUTPUT_ISYN) || defined(RECORD_OUTPUT_V)
+                         SOutputVarRecordingBuffer,
+#endif
                          VAlpha, VBeta, VDT, VOne, VRho, VTauRefrac, VVThresh, VZero]
                         (CodeGenerator &c, uint32_t r)
                         {
@@ -547,20 +578,24 @@ int main()
 
                             // V += ISyn
                             c.vadd_s(*VV, *VV, *VISyn);
-                            
+                              
+#if defined(RECORD_HIDDEN_ISYN) || defined(RECORD_HIDDEN_V)
+                            for(int l = 0; l < 32; l++) {
+#ifdef RECORD_HIDDEN_V
+                                c.vextract(*STmp, *VV, l);
+#elif defined(RECORD_HIDDEN_ISYN)
+                                c.vextract(*STmp, *VISyn, l);
+#endif
+                                c.sh(*STmp, *SHiddenVarRecordingBuffer, l * 2);
+                            }
+                            c.addi(*SHiddenVarRecordingBuffer, *SHiddenVarRecordingBuffer, 64);
+#endif
                             // ISyn = 0
                             c.vlui(*VISyn, 0);
 
                             // A *= Rho
                             c.vmul(14, *VA, *VA, *VRho);
                             
-                            /*for(int l = 0; l < 32; l++) {
-                                c.vextract(*STmp, *VV, l);
-                                c.sh(*STmp, *SHiddenISynRecordingBuffer, l * 2);
-                            }
-                            c.addi(*SHiddenISynRecordingBuffer, *SHiddenISynRecordingBuffer, 64);*/
-
-
                             // Refractory = RefracTime > 0.0 (0.0 < VRefracTime)
                             c.vtlt(*SRefractory, *VZero, *VRefracTime);
                             {
@@ -590,8 +625,10 @@ int main()
 
                             // *SSpikeBuffer = SSpikeOut
                             c.sw(*SSpikeOut, *SSpikeBuffer, r * 4);
-                            //c.sw(*SSpikeOut, *SHiddenSpikeRecordingBuffer);
-                            //c.addi(*SHiddenSpikeRecordingBuffer, *SHiddenSpikeRecordingBuffer, 4);
+#ifdef RECORD_HIDDEN_SPIKES
+                            c.sw(*SSpikeOut, *SHiddenSpikeRecordingBuffer);
+                            c.addi(*SHiddenSpikeRecordingBuffer, *SHiddenSpikeRecordingBuffer, 4);
+#endif
 
                             {
                                 ALLOCATE_VECTOR(VTmp1);
@@ -670,13 +707,14 @@ int main()
                         c.vloadv(*VVSum, *SVSumBuffer);
                         c.vloadv(*VISyn, *SISynBuffer);
                         c.vloadv(*VBias, *SBiasBuffer);
-                        
+
+#if defined(RECORD_OUTPUT_ISYN) || defined(RECORD_OUTPUT_V)
                         for(int l = 0; l < numOutput; l++) {
                             c.vextract(*STmp, *VISyn, l);
                             c.sh(*STmp, *SOutputVarRecordingBuffer, l * 2);
                         }
                         c.addi(*SOutputVarRecordingBuffer, *SOutputVarRecordingBuffer, numOutput * 2);
-
+#endif
 
                         // VV *= VAlpha
                         c.vmul(14, *VVNew, *VV, *VAlpha);
@@ -812,24 +850,33 @@ int main()
             if(!riscV.run()) {
                 return 1;
             }
-
-            /*const uint32_t *hiddenSpikeRecording = reinterpret_cast<const uint32_t*>(scalarData + hiddenSpikeRecordingPtr);
+#ifdef RECORD_HIDDEN_SPIKES
+            const uint32_t *hiddenSpikeRecording = reinterpret_cast<const uint32_t*>(scalarData + hiddenSpikeRecordingPtr);
             std::ofstream spikeFile("shd_spikes_sim.csv");
             for(size_t t = 0; t < numTempTimesteps; t++) {
                 AppUtils::writeSpikes(spikeFile, hiddenSpikeRecording, t, numHiddenSpikeWords);
                 hiddenSpikeRecording += numHiddenSpikeWords;
             }
-            const int16_t *hiddenISynRecording = reinterpret_cast<const int16_t*>(scalarData + hiddenISynRecordingPtr);
+#endif
+
+#if defined(RECORD_HIDDEN_ISYN) || defined(RECORD_HIDDEN_V)
+            const int16_t *hiddenVarRecording = reinterpret_cast<const int16_t*>(scalarData + hiddenVarRecordingPtr);
+#ifdef RECORD_HIDDEN_V
             std::ofstream isynFile("shd_v_sim.csv");
+#elif defined(RECORD_HIDDEN_ISYN)
+            std::ofstream isynFile("shd_isyn_sim.csv");
+#endif
             for(size_t t = 0; t < numTempTimesteps; t++) {
                 for(size_t i = 0; i < numHidden; i++) {
-                    isynFile << *hiddenISynRecording++;
+                    isynFile << *hiddenVarRecording++;
                     if(i != (numHidden - 1)) {
                         isynFile << ", ";
                     }
                 }
                 isynFile << std::endl;
-            }*/
+            }
+#endif
+#if defined(RECORD_OUTPUT_ISYN) || defined(RECORD_OUTPUT_V)
             const int16_t *outputVarRecording = reinterpret_cast<const int16_t*>(scalarData + outputVarRecordingPtr);
             std::ofstream isynFile("shd_output_isyn_sim.csv");
             for(size_t t = 0; t < numTempTimesteps; t++) {
@@ -841,7 +888,7 @@ int main()
                 }
                 isynFile << std::endl;
             }
-
+#endif
             // Determine if output is correct
             const auto classification = std::distance(outputVSum, std::max_element(outputVSum, outputVSum + numOutput));
             if(classification == shdLabels[i]) {
@@ -928,24 +975,33 @@ int main()
                 duration += (std::chrono::high_resolution_clock::now() - startTime);
                 // Enable core
                 device.setEnabled(false);
-
-                /*const volatile uint32_t *hiddenSpikeRecording = reinterpret_cast<const volatile uint32_t*>(device.getDataMemory() + hiddenSpikeRecordingPtr);
+#ifdef RECORD_HIDDEN_SPIKES
+                const volatile uint32_t *hiddenSpikeRecording = reinterpret_cast<const volatile uint32_t*>(device.getDataMemory() + hiddenSpikeRecordingPtr);
                 std::ofstream spikeFile("shd_spikes_device.csv");
                 for(size_t t = 0; t < numTempTimesteps; t++) {
                     AppUtils::writeSpikes(spikeFile, hiddenSpikeRecording, t, numHiddenSpikeWords);
                     hiddenSpikeRecording += numHiddenSpikeWords;
                 }
-                const volatile int16_t *hiddenISynRecording = reinterpret_cast<const volatile int16_t*>(device.getDataMemory() + hiddenISynRecordingPtr);
+#endif
+             
+#if defined(RECORD_HIDDEN_ISYN) || defined(RECORD_HIDDEN_V)   
+                const volatile int16_t *hiddenVarRecording = reinterpret_cast<const volatile int16_t*>(device.getDataMemory() + hiddenVarRecordingPtr);
+#ifdef RECORD_HIDDEN_V
                 std::ofstream isynFile("shd_v_device.csv");
+#elif defined(RECORD_HIDDEN_ISYN)
+                std::ofstream isynFile("shd_isyn_device.csv");
+#endif
                 for(size_t t = 0; t < numTempTimesteps; t++) {
                     for(size_t i = 0; i < numHidden; i++) {
-                        isynFile << *hiddenISynRecording++;
+                        isynFile << *hiddenVarRecording++;
                         if(i != (numHidden - 1)) {
                             isynFile << ", ";
                         }
                     }
                     isynFile << std::endl;
-                }*/
+                }
+#endif
+#if defined(RECORD_OUTPUT_ISYN) || defined(RECORD_OUTPUT_V)
                 const volatile int16_t *outputVarRecording = reinterpret_cast<const volatile int16_t*>(device.getDataMemory() + outputVarRecordingPtr);
                 std::ofstream isynFile("shd_output_isyn_device.csv");
                 for(size_t t = 0; t < numTempTimesteps; t++) {
@@ -957,6 +1013,7 @@ int main()
                     }
                     isynFile << std::endl;
                 }
+#endif
                 // Determine if output is correct
                 const auto classification = std::distance(outputVSum, std::max_element(outputVSum, outputVSum + numOutput));
                 if(classification == shdLabels[i]) {
