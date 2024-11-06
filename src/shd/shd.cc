@@ -268,7 +268,7 @@ int main()
     std::vector<int16_t> vectorInitData;
 
     // Constants
-    constexpr bool simulate = true;
+    constexpr bool simulate = false;
     constexpr uint32_t numInput = 700;
     constexpr uint32_t numHidden = 256;
     constexpr uint32_t numOutput = 20;
@@ -510,6 +510,7 @@ int main()
                 c.L(hiddenNeuronStart);
                 {
                     // Register allocation
+                    ALLOCATE_SCALAR(SMeep); // **HACK**
                     ALLOCATE_SCALAR(SVBuffer);
                     ALLOCATE_SCALAR(SVBufferEnd);
                     ALLOCATE_SCALAR(SABuffer);
@@ -762,6 +763,7 @@ int main()
         });
 
     // Assemble instructions
+    AppUtils::dumpCOE("shd_fixed.coe", code);
     LOGI << code.size() << " instructions (" << code.size() * 4 << " bytes)";
     LOGI << scalarInitData.size() << " bytes of scalar memory required";
     LOGI << vectorInitData.size() * 2 << " bytes of vector memory required (" << ceilDivide(vectorInitData.size() / 32, 4096) << " URAM cascade)";
