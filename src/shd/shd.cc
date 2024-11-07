@@ -259,6 +259,8 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
 
 int main()
 {
+    const auto programStartTime = std::chrono::high_resolution_clock::now();
+
     // Configure logging
     plog::ConsoleAppender<plog::TxtFormatter> consoleAppender;
     plog::init(plog::info, &consoleAppender);
@@ -774,7 +776,7 @@ int main()
     
         // Add vector co-processor
         riscV.addCoprocessor<VectorProcessor>(vectorQuadrant, vectorInitData);
-
+        
         // Run kernels to copy initData into vector memory
         if(!riscV.runInit(copyData, copyStartVectorPtr, copyNumVectorsPtr, copyScalarScratchPtr, seedPtr)) {
             return 1;
@@ -852,8 +854,9 @@ int main()
         // Put core into reset state
         LOGI << "Resetting";
         device.setEnabled(false);
-        
+
         // Copying
+        const auto copyStartTime = std::chrono::high_resolution_clock::now();
         {
             LOGI << "Copying copy instructions (" << copyCode.size() * sizeof(uint32_t) << " bytes)";
             device.uploadCode(copyCode);
@@ -864,6 +867,7 @@ int main()
 
 
         // Initialisation seeding
+        const auto initStartTime = std::chrono::high_resolution_clock::now();
         {
             LOGI << "Copying initialisation instructions (" << initCode.size() * sizeof(uint32_t) << " bytes)";
             device.uploadCode(initCode);
@@ -875,6 +879,7 @@ int main()
         }
         
         // Simulation
+        const auto simStartTime = std::chrono::high_resolution_clock::now();
         {
             LOGI << "Copying simulation instructions (" << code.size() * sizeof(uint32_t) << " bytes)";
             device.uploadCode(code);
@@ -912,9 +917,13 @@ int main()
                     numCorrect++;
                 }
             }
-
+            const auto simEndTime = std::chrono::high_resolution_clock::now();
             std::cout << numCorrect << " / " << numExamples << " correct (" << 100.0 * (numCorrect / (double)numExamples) << "%)" << std::endl;
-            std::cout << duration.count() << " seconds" << std::endl;
+            std::cout << "Simulation compute time:" << duration.count() << " seconds" << std::endl;
+            std::cout << "Startup time:" << (copyStartTime - programStartTime).count() << " seconds" << std::endl;
+            std::cout << "Copy time:" << (initStartTime - copyStartTime).count() << " seconds" << std::endl;
+            std::cout << "Init time:" << (simStartTime - initStartTime).count() << " seconds" << std::endl;
+            std::cout << "Simulation time:" << (simEndTime - simStartTime).count() << " seconds" << std::endl;
         }
     }
     
