@@ -13,7 +13,7 @@ data = [("power_fenn.csv", 8.6, 8.7, 36.6),
 fig, axes = plt.subplots(len(data), figsize=(plot_settings.column_width, 2.25), sharex=True, squeeze=False)
 
 
-#total_synaptic_events = 938037605 * 10
+total_synaptic_events = (18631462 * 256) + (2648880 * (256 + 20))
 
 idle_actor = None
 init_actor = None
@@ -70,17 +70,26 @@ for i, (d, a) in enumerate(zip(data, axes[:,0])):
     # Calculate energy to solution
     energy_to_solution = np.trapz(power[exp_start_index:exp_end_index],
                                   time[exp_start_index:exp_end_index])
+    
+    energy_to_solution_no_idle = np.trapz(power[exp_start_index:exp_end_index] - idle_power,
+                                          time[exp_start_index:exp_end_index])
 
-    # **TODO** should we subtract idle power
     sim_energy = np.trapz(power[sim_start_index:exp_end_index],
                           time[sim_start_index:exp_end_index])
-    #energy_per_synaptic_event = sim_energy/ float(total_synaptic_events)
+    
+    sim_energy_no_idle = np.trapz(power[sim_start_index:exp_end_index] - idle_power,
+                                  time[sim_start_index:exp_end_index])
+    energy_per_synaptic_event = sim_energy / float(total_synaptic_events)
+    energy_per_synaptic_event_no_idle = sim_energy_no_idle / float(total_synaptic_events)
 
     print("%s:" % (d[0]))
     print("\tIdle power = %fW" % (idle_power))
     print("\tEnergy to solution = %fJ = %fkWh" % (energy_to_solution, energy_to_solution / 3600000.0))
+    print("\tEnergy to solution (idle subtracted) = %fJ = %fkWh" % (energy_to_solution_no_idle, energy_to_solution / 3600000.0))
     print("\tSimulation energy = %fJ = %fkWh" % (sim_energy, sim_energy / 3600000.0))
-    #print("\tEnergy per synaptic event = %fuJ" % (energy_per_synaptic_event * 1E6))
+    print("\tSimulation energy (idle subtracted) = %fJ = %fkWh" % (sim_energy_no_idle, sim_energy / 3600000.0))
+    print("\tEnergy per synaptic event = %fnJ" % (energy_per_synaptic_event * 1E9))
+    print("\tEnergy per synaptic event (no idle) = %fnJ" % (energy_per_synaptic_event_no_idle * 1E9))
 
     a.axvline(0.0, color="black", linestyle="--", linewidth=1.0)
     a.axvline(exp_end_time - exp_start_time, color="black", linestyle="--", linewidth=1.0)
