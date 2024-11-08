@@ -512,7 +512,6 @@ int main()
                 c.L(hiddenNeuronStart);
                 {
                     // Register allocation
-                    ALLOCATE_SCALAR(SMeep); // **HACK**
                     ALLOCATE_SCALAR(SVBuffer);
                     ALLOCATE_SCALAR(SVBufferEnd);
                     ALLOCATE_SCALAR(SABuffer);
