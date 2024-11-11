@@ -126,6 +126,7 @@ int main()
 {
     constexpr unsigned int numVectorMultiply = 680;
     constexpr bool simulate = true;
+    constexpr bool dump = false;
 
     // Configure logging
     plog::ConsoleAppender<plog::TxtFormatter> consoleAppender;
@@ -146,6 +147,14 @@ int main()
     // Create RISC-V core with instruction and scalar data
     assert(scalarInitData.size() <= (128 * 1024));
     const auto code = generateCode(simulate, numVectorMultiply, seedPtr, scalarSeedPtr, scalarOperandPtr, readyFlagPtr);
+
+    if(dump) {
+        AppUtils::dumpCOE("stoch_round.coe", code);
+
+        std::vector<uint32_t> wordData(scalarInitData.size() / 4);
+        std::memcpy(wordData.data(), scalarInitData.data(), scalarInitData.size());
+        AppUtils::dumpCOE("stoch_round_data.coe", wordData);
+    }
 
     if(simulate) {
         RISCV riscV(code, scalarInitData);
