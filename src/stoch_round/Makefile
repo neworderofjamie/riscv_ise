@@ -2,7 +2,7 @@
 include ../MakefileCommon
 
 # Add compiler and linker flags to link libGeNN and correct backend; and to configure generator to use backend
-LDFLAGS			+= -L$(LIBRARY_DIRECTORY) -lcommon$(PREFIX) -lise$(PREFIX) -lassembler$(PREFIX)
+LDFLAGS			+= -L$(LIBRARY_DIRECTORY) -lise$(PREFIX) -lassembler$(PREFIX) -lcommon$(PREFIX) 
 
 # Determine full path to test_mnist
 STOCH_ROUND		:=$(BIN_DIRECTORY)/stoch_round$(PREFIX)
