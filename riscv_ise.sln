@@ -87,6 +87,13 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "blank", "src\blank\blank.vc
 		{695590D3-FA1D-4CD7-9B12-B03F15FC98E6} = {695590D3-FA1D-4CD7-9B12-B03F15FC98E6}
 	EndProjectSection
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "stoch_round", "src\stoch_round\stoch_round.vcxproj", "{8970E837-0630-4E52-8110-84B37131BD22}"
+	ProjectSection(ProjectDependencies) = postProject
+		{CD770F05-BCE1-4550-BDB0-87C804610716} = {CD770F05-BCE1-4550-BDB0-87C804610716}
+		{EF52D22C-C128-4A30-ABE2-C00ADDA02440} = {EF52D22C-C128-4A30-ABE2-C00ADDA02440}
+		{695590D3-FA1D-4CD7-9B12-B03F15FC98E6} = {695590D3-FA1D-4CD7-9B12-B03F15FC98E6}
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -149,6 +156,10 @@ Global
 		{A535D9A4-B311-4293-9113-FA07A9EDFA52}.Debug|x64.Build.0 = Debug|x64
 		{A535D9A4-B311-4293-9113-FA07A9EDFA52}.Release|x64.ActiveCfg = Release|x64
 		{A535D9A4-B311-4293-9113-FA07A9EDFA52}.Release|x64.Build.0 = Release|x64
+		{8970E837-0630-4E52-8110-84B37131BD22}.Debug|x64.ActiveCfg = Debug|x64
+		{8970E837-0630-4E52-8110-84B37131BD22}.Debug|x64.Build.0 = Debug|x64
+		{8970E837-0630-4E52-8110-84B37131BD22}.Release|x64.ActiveCfg = Release|x64
+		{8970E837-0630-4E52-8110-84B37131BD22}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
