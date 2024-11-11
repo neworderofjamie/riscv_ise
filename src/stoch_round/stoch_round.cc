@@ -9,6 +9,7 @@
 
 // RISC-V common includes
 #include "common/app_utils.h"
+#include "common/device.h"
 
 // RISC-V assembler includes
 #include "assembler/assembler.h"
@@ -161,6 +162,37 @@ int main()
         std::ofstream out("out_stoch_round.bin", std::ios::binary);
         out.write(reinterpret_cast<const char*>(scalarData + scalarOperandPtr),
                   64 * 3 * numVectorMultiply);
+    }
+    else {
+        LOGI << "Creating device";
+        Device device;
+        LOGI << "Resetting";
+        // Put core into reset state
+        device.setEnabled(false);
+        
+        LOGI << "Copying instructions (" << code.size() * sizeof(uint32_t) << " bytes)";
+        device.uploadCode(code);
+        
+        LOGI << "Copying data (" << scalarInitData.size() << " bytes);";
+        device.memcpyDataToDevice(0, scalarInitData.data(), scalarInitData.size());
+        
+        LOGI << "Enabling";
+
+        // Put core into running state
+        device.setEnabled(true);
+        LOGI << "Running";
+        
+        // Wait until ready flag
+        device.waitOnNonZero(readyFlagPtr);
+        LOGI << "Done";
+
+        // Read operands
+        std::vector<uint8_t> operands(64 * 3 * numVectorMultiply);
+        device.memcpyDataFromDevice(operands.data(), scalarOperandPtr, 64 * 3 * numVectorMultiply);
+        
+        // Write results to binary file
+        std::ofstream out("out_stoch_round_device.bin", std::ios::binary);
+        out.write(reinterpret_cast<const char*>(operands.data()), operands.size());
     }
     
 
