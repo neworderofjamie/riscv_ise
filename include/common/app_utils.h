@@ -1,6 +1,7 @@
 #pragma once
 
 // Standard C++ includes
+#include <array>
 #include <fstream>
 #include <functional>
 #include <optional>
@@ -56,6 +57,7 @@ template<typename T>
 std::vector<T> loadBinaryData(const std::string &filename)
 {
     std::ifstream input(filename, std::ios::binary);
+    input.exceptions(std::ifstream::badbit | std::ifstream::failbit);
 
     // Get length
     input.seekg (0, std::ios::end);

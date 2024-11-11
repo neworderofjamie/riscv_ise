@@ -75,7 +75,8 @@ uint32_t loadVectors(const std::string &filename, std::vector<int16_t> &memory)
 {
     LOGW << "loadVectors is not supported on devices without direct vector memory access";
     std::ifstream input(filename, std::ios::binary);
-    
+    input.exceptions(std::ifstream::badbit | std::ifstream::failbit);
+
     // Get length
     input.seekg (0, std::ios::end);
     const auto lengthBytes = input.tellg();
@@ -122,7 +123,8 @@ uint32_t allocateScalarAndZero(size_t numBytes, std::vector<uint8_t> &memory)
 uint32_t loadScalars(const std::string &filename, std::vector<uint8_t> &memory)
 {
     std::ifstream input(filename, std::ios::binary);
-    
+    input.exceptions(std::ifstream::badbit | std::ifstream::failbit);
+
     // Get length
     input.seekg (0, std::ios::end);
     const auto lengthBytes = input.tellg();
