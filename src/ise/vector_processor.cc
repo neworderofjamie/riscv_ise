@@ -349,8 +349,7 @@ Vector VectorProcessor::calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs
         return binaryOp(val, val2, saturateResult,
                         [half,fixedPoint](int16_t a, int16_t b)
                         {
-                            auto product = a * b;
-                            product += (product < 0) ? -half : half;
+                            auto product = (a * b) + half;
                             return product >> fixedPoint; 
                         });
     }
@@ -370,15 +369,13 @@ Vector VectorProcessor::calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs
         Vector result;
         if(saturateResult) {
             for(size_t i = 0; i < 32; i++) {
-                auto product = val[i] * val2[i];
-                product += ((product < 0) ? -maskedStoch[i] : maskedStoch[i]);
+                auto product = (val[i] * val2[i]) + maskedStoch[i];
                 result[i] = saturate(product >> fixedPoint);
             }
         }
         else {
             for(size_t i = 0; i < 32; i++) {
-                auto product = val[i] * val2[i];
-                product += ((product < 0) ? -maskedStoch[i] : maskedStoch[i]);
+                auto product = (val[i] * val2[i]) + maskedStoch[i];
                 result[i] = product >> fixedPoint;
 
             }
