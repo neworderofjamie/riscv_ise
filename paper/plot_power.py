@@ -4,7 +4,7 @@ import seaborn as sns
 import plot_settings
 
 # CSV filename, 'idle' power, sim time
-data = [("power_fenn.csv", 8.6, 8.7, 36.6, 29.04),
+data = [("power_fenn_2.csv", 9.2, 9.2, 36.6, 29.04, 13.7, 77.0, 8.0),
         ("power_jetson_gpu.csv", 7.0, 8.0, 77.05, 42.4 + 25.7 + 1.5),
         ("power_jetson_cpu.csv", 7.0, 7.9, 119.29, 75.68 + 35.81)]
 
@@ -30,8 +30,13 @@ for i, (d, a) in enumerate(zip(data, axes[:,0])):
     power = trace["power"][valid]
     
     # Find points power trace first crossed idle - assume first and last are experiment start and end times
-    exp_start_index = np.where(power > d[1])[0][0]
-    exp_end_index = np.where(power > d[2])[0][-1]
+    if len(d) > 5:
+        mask = (time >= d[5]) & (time < d[6])
+        exp_start_index = np.where(mask & (power > d[1]))[0][0]
+        exp_end_index = np.where(mask & (power > d[2]))[0][-1]
+    else:
+        exp_start_index = np.where(power > d[1])[0][0]
+        exp_end_index = np.where(power > d[2])[0][-1]
     exp_start_time = time[exp_start_index]
     exp_end_time = time[exp_end_index]
 
@@ -64,7 +69,10 @@ for i, (d, a) in enumerate(zip(data, axes[:,0])):
                    color=idle_actor.get_facecolor())
 
     # Calculate mean idle power
-    idle_power = np.average(np.hstack((power[:exp_start_index], power[exp_end_index:])))
+    if len(d) > 6:
+        idle_power = 8.0
+    else:
+        idle_power = np.average(np.hstack((power[:exp_start_index], power[exp_end_index:])))
 
     # Calculate total simulation energy
     sim_energy = np.trapz(power[sim_start_index:exp_end_index],
@@ -77,6 +85,7 @@ for i, (d, a) in enumerate(zip(data, axes[:,0])):
     
     # Calculate energy per SOP
     energy_per_synaptic_event_no_idle = sim_energy_no_idle / float(total_synaptic_events)
+    energy_per_inference = sim_energy_no_idle / 2264
 
     print("%s:" % (d[0]))
     print("\tIdle power = %fW" % (idle_power))
