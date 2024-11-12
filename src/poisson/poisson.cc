@@ -36,10 +36,13 @@ std::vector<uint32_t> generateCode(bool simulate, uint32_t numTimesteps, uint32_
             ALLOCATE_SCALAR(SIBufferEnd);
             ALLOCATE_VECTOR(VExpMinusLambda);
             ALLOCATE_VECTOR(VI);
+            ALLOCATE_VECTOR(VOne);
 
             // Labels
             Label timeLoop;
             Label poissonLoop;
+            Label poissonStart;
+            Label poissonEnd;
 
             // Load RNG seed from first 128 bytes of vector memory
             {
@@ -49,7 +52,9 @@ std::vector<uint32_t> generateCode(bool simulate, uint32_t numTimesteps, uint32_
                 c.vloadr1(*STmp, 64);
             }
 
-            c.vlui(*VExpMinusLambda, convertFixedPoint(std::exp(-20.0 * 256 / 1000.0), 14));
+            // Load immediates
+            c.vlui(*VExpMinusLambda, convertFixedPoint(std::exp(-5.0), 14));
+            c.vlui(*VOne, 1);
 
             // Start writing at start
             c.li(*SIBuffer, vectorRecordingPtr);
@@ -63,19 +68,15 @@ std::vector<uint32_t> generateCode(bool simulate, uint32_t numTimesteps, uint32_
                 ALLOCATE_SCALAR(SMask);
                 ALLOCATE_VECTOR(VNumSpikes);
                 ALLOCATE_VECTOR(VP);
-                ALLOCATE_VECTOR(VOne);
-                ALLOCATE_VECTOR(VMinusOne);
-        
+
+                c.L(poissonStart);
                 c.vlui(*VNumSpikes, 0);
                 c.vlui(*VP, convertFixedPoint(1.0, 14));
-                c.vlui(*VOne, 1);
-                c.vlui(*VMinusOne, (uint16_t)-1);
                 c.li(*SMask, 0xFFFFFFFF);
                 c.L(poissonLoop);
                 {
                     ALLOCATE_VECTOR(VNewNumSpikes);
                     ALLOCATE_SCALAR(SNewMask);
-                    ALLOCATE_VECTOR(VNewP);
                     ALLOCATE_VECTOR(VRand);
 
                     // Generate uniformly distributed random number
@@ -85,21 +86,22 @@ std::vector<uint32_t> generateCode(bool simulate, uint32_t numTimesteps, uint32_
                     c.vadd(*VNewNumSpikes, *VNumSpikes, *VOne);
 
                     // P *= VRand
-                    c.vmul(15, *VNewP, *VP, *VRand);
-
-                    c.vsel(*VNumSpikes, *SMask, *VNewNumSpikes);
-                    c.vsel(*VP, *SMask, *VNewP);
+                    c.vmul(15, *VP, *VP, *VRand);
 
                     //SNewMask = ExpMinusLambda < p
-                    c.vtlt(*SNewMask, *VExpMinusLambda, *VNewP);
-                    c.nop();
+                    c.vtlt(*SNewMask, *VExpMinusLambda, *VP);
+
+                    // VNumSpikes = SMask ? VNewNumSpikes : VNumSpikes
+                    c.vsel(*VNumSpikes, *SMask, *VNewNumSpikes);
+
+                    // VNumSpikes = SMask ? VNewNumSpikes : VNumSpikes
                     c.and_(*SMask, *SMask, *SNewMask);
 
                     c.bne(*SMask, Reg::X0, poissonLoop);
                 }
         
-                c.vadd(*VI, *VNumSpikes, *VMinusOne);
-
+                c.vsub(*VI, *VNumSpikes, *VOne);
+                c.L(poissonEnd);
                 //vmem[a...a+32] = v
                 c.vstore(*VI, *SIBuffer);
                 c.addi(*SIBuffer, *SIBuffer, 64);
@@ -111,6 +113,9 @@ std::vector<uint32_t> generateCode(bool simulate, uint32_t numTimesteps, uint32_
             // Copy recording data from vector to scalar memory
             AssemblerUtils::generateVectorScalarMemcpy(c, vectorRegisterAllocator, scalarRegisterAllocator,
                                                        vectorRecordingPtr, scalarRecordingPtr, numTimesteps);
+
+            LOGI << "Poisson start:" << poissonStart.getAddress();
+            LOGI << "Poisson end:" << poissonEnd.getAddress();
         });
 }
 
@@ -165,6 +170,11 @@ int main()
         std::ofstream out("out_poisson.txt");
         for(size_t t = 0; t < 32 * numTimesteps; t++) {
             out << *scalarRecordingData++ << std::endl;
+        }
+
+        std::ofstream heatmapFile("poisson_heatmap.txt");
+        for(size_t i = 0; i < riscV.getInstructionHeatmap().size(); i++) {
+            heatmapFile << (code.at(i) & 0b1111111) << ", " << riscV.getInstructionHeatmap()[i] << std::endl;
         }
     }
     else {
