@@ -3,11 +3,10 @@ import numpy as np
 import seaborn as sns
 import plot_settings
 
-
 # CSV filename, 'idle' power, sim time
-data = [("power_fenn.csv", 8.6, 8.7, 36.6),
-        ("power_jetson_gpu.csv", 7.0, 8.0, 77.05),
-        ("power_jetson_cpu.csv", 7.0, 7.9, 119.29)]
+data = [("power_fenn.csv", 8.6, 8.7, 36.6, 29.04),
+        ("power_jetson_gpu.csv", 7.0, 8.0, 77.05, 42.4 + 25.7 + 1.5),
+        ("power_jetson_cpu.csv", 7.0, 7.9, 119.29, 75.68 + 35.81)]
 
 
 fig, axes = plt.subplots(len(data), figsize=(plot_settings.column_width, 2.25), sharex=True, squeeze=False)
@@ -67,35 +66,29 @@ for i, (d, a) in enumerate(zip(data, axes[:,0])):
     # Calculate mean idle power
     idle_power = np.average(np.hstack((power[:exp_start_index], power[exp_end_index:])))
 
-    # Calculate energy to solution
-    energy_to_solution = np.trapz(power[exp_start_index:exp_end_index],
-                                  time[exp_start_index:exp_end_index])
-    
-    energy_to_solution_no_idle = np.trapz(power[exp_start_index:exp_end_index] - idle_power,
-                                          time[exp_start_index:exp_end_index])
-
+    # Calculate total simulation energy
     sim_energy = np.trapz(power[sim_start_index:exp_end_index],
                           time[sim_start_index:exp_end_index])
-    
+
+    # Calculate total simulation energy and scale by fraction of time spend actually using accelerator
     sim_energy_no_idle = np.trapz(power[sim_start_index:exp_end_index] - idle_power,
                                   time[sim_start_index:exp_end_index])
-    energy_per_synaptic_event = sim_energy / float(total_synaptic_events)
+    sim_energy_no_idle *= (d[4] / d[3])
+    
+    # Calculate energy per SOP
     energy_per_synaptic_event_no_idle = sim_energy_no_idle / float(total_synaptic_events)
 
     print("%s:" % (d[0]))
     print("\tIdle power = %fW" % (idle_power))
-    print("\tEnergy to solution = %fJ = %fkWh" % (energy_to_solution, energy_to_solution / 3600000.0))
-    print("\tEnergy to solution (idle subtracted) = %fJ = %fkWh" % (energy_to_solution_no_idle, energy_to_solution / 3600000.0))
     print("\tSimulation energy = %fJ = %fkWh" % (sim_energy, sim_energy / 3600000.0))
-    print("\tSimulation energy (idle subtracted) = %fJ = %fkWh" % (sim_energy_no_idle, sim_energy / 3600000.0))
-    print("\tEnergy per synaptic event = %fnJ" % (energy_per_synaptic_event * 1E9))
-    print("\tEnergy per synaptic event (no idle) = %fnJ" % (energy_per_synaptic_event_no_idle * 1E9))
+    
+    print("\tSimulation energy (no idle or copy) = %fJ = %fkWh" % (sim_energy_no_idle, sim_energy / 3600000.0))
+    print("\tEnergy per synaptic event (no idle or copy) = %fnJ" % (energy_per_synaptic_event_no_idle * 1E9))
 
     a.axvline(0.0, color="black", linestyle="--", linewidth=1.0)
     a.axvline(exp_end_time - exp_start_time, color="black", linestyle="--", linewidth=1.0)
     a.set_ylabel("Power [W]")
     a.xaxis.grid(False)
-    #hidden_raster_axis.yaxis.grid(False)
     sns.despine(ax=a)
 
 axes[-1,0].set_xlabel("Simulation time [s]")
