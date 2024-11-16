@@ -28,8 +28,11 @@
 #include "ise/riscv.h"
 #include "ise/vector_processor.h"
 
+#define _STRINGIFY(x) #x
+#define STRINGIFY(x) _STRINGIFY(x)
+
 #define RECORD_HIDDEN_SPIKES
-//#define RECORD_HIDDEN_ISYN
+#define RECORD_HIDDEN_VAR VISyn
 //#define RECORD_HIDDEN_V
 //#define RECORD_OUTPUT_ISYN
 //#define RECORD_OUTPUT_V
@@ -240,7 +243,7 @@ int main()
     std::vector<int16_t> vectorInitData;
 
     // Constants
-    constexpr bool simulate = true;
+    constexpr bool simulate = false;
     constexpr uint32_t numInput = 28 * 28;
     constexpr uint32_t numHidden = 128;
     constexpr uint32_t numOutput = 10;
@@ -283,6 +286,7 @@ int main()
     const uint32_t outputVarRecordingPtr = AppUtils::allocateScalarAndZero(numOutputSpikeArrayWords * 64, scalarInitData);
 #endif
     const uint32_t readyFlagPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
+    assert(scalarInitData.size() <= (128 * 1024));
 
     // Increase scalar memory size
     scalarInitData.resize(64 * 1024, 0);
@@ -458,7 +462,7 @@ int main()
 #ifdef RECORD_HIDDEN_VAR
                             ALLOCATE_SCALAR(STmp);
                             for(int l = 0; l < 32; l++) {
-                                c.vextract(*STmp, *VV, l);
+                                c.vextract(*STmp, *RECORD_HIDDEN_VAR, l);
                                 c.sh(*STmp, *SHiddenVarRecordingBuffer, l * 2);
                             }
                             c.addi(*SHiddenVarRecordingBuffer, *SHiddenVarRecordingBuffer, 64);
@@ -696,7 +700,7 @@ int main()
 
 #ifdef RECORD_HIDDEN_VAR
             const int16_t *hiddenVarRecording = reinterpret_cast<const int16_t*>(scalarData + hiddenVarRecordingPtr);
-            std::ofstream isynFile("mnist_v_sim.csv");
+            std::ofstream isynFile("mnist_" STRINGIFY(RECORD_HIDDEN_VAR) "_sim.csv");
             for(size_t t = 0; t < numTimesteps; t++) {
                 for(size_t i = 0; i < numHidden; i++) {
                     isynFile << *hiddenVarRecording++;
@@ -709,7 +713,7 @@ int main()
 #endif
 #ifdef RECORD_OUTPUT_VAR
             const int16_t *outputVarRecording = reinterpret_cast<const int16_t*>(scalarData + outputVarRecordingPtr);
-            std::ofstream isynFile("mnist_output_isyn_sim.csv");
+            std::ofstream isynFile("mnist_output_" STRINGIFY(RECORD_OUTPUT_VAR) "_sim.csv");
             for(size_t t = 0; t < numTimesteps; t++) {
                 for(size_t i = 0; i < numOutput; i++) {
                     isynFile << *outputVarRecording++;
@@ -797,7 +801,7 @@ int main()
              
 #ifdef RECORD_HIDDEN_VAR
                 const volatile int16_t *hiddenVarRecording = reinterpret_cast<const volatile int16_t*>(device.getDataMemory() + hiddenVarRecordingPtr);
-                std::ofstream isynFile("mnist_v_device.csv");
+                std::ofstream isynFile("mnist_" STRINGIFY(RECORD_HIDDEN_VAR) "_device.csv");
                 for(size_t t = 0; t < numTimesteps; t++) {
                     for(size_t i = 0; i < numHidden; i++) {
                         isynFile << *hiddenVarRecording++;
@@ -810,7 +814,7 @@ int main()
 #endif
 #ifdef RECORD_OUTPUT_VAR
                 const volatile int16_t *outputVarRecording = reinterpret_cast<const volatile int16_t*>(device.getDataMemory() + outputVarRecordingPtr);
-                std::ofstream isynFile("mnist_output_isyn_device.csv");
+                std::ofstream isynFile("mnist_output_" STRINGIFY(RECORD_OUTPUT_VAR) "_device.csv");
                 for(size_t t = 0; t < numTimesteps; t++) {
                     for(size_t i = 0; i < numOutput; i++) {
                         isynFile << *outputVarRecording++;
