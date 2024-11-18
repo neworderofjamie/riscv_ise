@@ -8,6 +8,7 @@
 #include <plog/Appenders/ConsoleAppender.h>
 
 // RISC-V common includes
+#include "common/CLI11.hpp"
 #include "common/app_utils.h"
 #include "common/device.h"
 
@@ -122,11 +123,18 @@ std::vector<uint32_t> generateCode(bool simulate, unsigned int numVectorMultiply
 }
 
 
-int main()
+int main(int argc, char** argv)
 {
-    constexpr unsigned int numVectorMultiply = 680;
-    constexpr bool simulate = true;
-    constexpr bool dump = false;
+    bool device = false;
+    bool dumpCoe = false;
+    unsigned int numVectorMultiply = 680;
+
+    CLI::App app{"Rounding"};
+    app.add_option("-n,--num-mul", numVectorMultiply, "How many vectors to multiply");
+    app.add_flag("-c,--dump-coe", dumpCoe, "Should a .coe file for simulation in the Xilinx simulator be dumped");
+    app.add_flag("-d,--device", device, "Should be run on device rather than simulator");
+
+    CLI11_PARSE(app, argc, argv);
 
     // Configure logging
     plog::ConsoleAppender<plog::TxtFormatter> consoleAppender;
@@ -146,9 +154,9 @@ int main()
     
     // Create RISC-V core with instruction and scalar data
     assert(scalarInitData.size() <= (128 * 1024));
-    const auto code = generateCode(simulate, numVectorMultiply, seedPtr, scalarSeedPtr, scalarOperandPtr, readyFlagPtr);
+    const auto code = generateCode(!device, numVectorMultiply, seedPtr, scalarSeedPtr, scalarOperandPtr, readyFlagPtr);
 
-    if(dump) {
+    if(dumpCoe) {
         AppUtils::dumpCOE("stoch_round.coe", code);
 
         std::vector<uint32_t> wordData(scalarInitData.size() / 4);
@@ -156,23 +164,7 @@ int main()
         AppUtils::dumpCOE("stoch_round_data.coe", wordData);
     }
 
-    if(simulate) {
-        RISCV riscV(code, scalarInitData);
-    
-        // Add vector co-processor
-        riscV.addCoprocessor<VectorProcessor>(vectorQuadrant, vectorInitData);
-    
-        // Run!
-        riscV.run();
-    
-        const auto *scalarData = riscV.getScalarDataMemory().getData().data();
-    
-        // Write results to binary file
-        std::ofstream out("out_stoch_round.bin", std::ios::binary);
-        out.write(reinterpret_cast<const char*>(scalarData + scalarOperandPtr),
-                  64 * 3 * numVectorMultiply);
-    }
-    else {
+    if(device) {
         LOGI << "Creating device";
         Device device;
         LOGI << "Resetting";
@@ -203,6 +195,22 @@ int main()
         std::ofstream out("out_stoch_round_device.bin", std::ios::binary);
         out.write(reinterpret_cast<const char*>(operands.data()), operands.size());
     }
+    else {
+        RISCV riscV(code, scalarInitData);
     
+        // Add vector co-processor
+        riscV.addCoprocessor<VectorProcessor>(vectorQuadrant, vectorInitData);
+    
+        // Run!
+        riscV.run();
+    
+        const auto *scalarData = riscV.getScalarDataMemory().getData().data();
+    
+        // Write results to binary file
+        std::ofstream out("out_stoch_round.bin", std::ios::binary);
+        out.write(reinterpret_cast<const char*>(scalarData + scalarOperandPtr),
+                  64 * 3 * numVectorMultiply);
+    }
 
+    return 0;
 }

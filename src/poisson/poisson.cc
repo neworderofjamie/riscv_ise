@@ -8,6 +8,7 @@
 #include <plog/Appenders/ConsoleAppender.h>
 
 // RISC-V common includes
+#include "common/CLI11.hpp"
 #include "common/app_utils.h"
 #include "common/device.h"
 
@@ -120,16 +121,23 @@ std::vector<uint32_t> generateCode(bool simulate, uint32_t numTimesteps, uint32_
 }
 
 
-int main()
+int main(int argc, char** argv)
 {
     // Configure logging
     plog::ConsoleAppender<plog::TxtFormatter> consoleAppender;
     plog::init(plog::debug, &consoleAppender);
     
-    constexpr uint32_t numTimesteps = 100;
-    constexpr bool simulate = true;
-    constexpr bool dump = false;
+    bool device = false;
+    bool dumpCoe = false;
+    uint32_t numTimesteps = 10000;
 
+    CLI::App app{"Poisson generator"};
+    app.add_option("-n,--num-timesteps", numTimesteps, "How many timesteps to simulate for");
+    app.add_flag("-c,--dump-coe", dumpCoe, "Should a .coe file for simulation in the Xilinx simulator be dumped");
+    app.add_flag("-d,--device", device, "Should be run on device rather than simulator");
+
+    CLI11_PARSE(app, argc, argv);
+    
     // Create memory contents
     std::vector<uint8_t> scalarInitData;
     std::vector<int16_t> vectorInitData;
@@ -144,40 +152,18 @@ int main()
     const uint32_t scalarRecordingPtr = AppUtils::allocateScalarAndZero(64 * numTimesteps, scalarInitData);
     const uint32_t readyFlagPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
         
-    const auto code = generateCode(simulate, numTimesteps, vectorSeedPtr, vectorRecordingPtr,
+    const auto code = generateCode(!device, numTimesteps, vectorSeedPtr, vectorRecordingPtr,
                                    scalarSeedPtr, scalarRecordingPtr, readyFlagPtr);
 
-    if(dump) {
+    if(dumpCoe) {
         AppUtils::dumpCOE("poisson.coe", code);
 
         std::vector<uint32_t> wordData(scalarInitData.size() / 4);
         std::memcpy(wordData.data(), scalarInitData.data(), scalarInitData.size());
         AppUtils::dumpCOE("poisson_data.coe", wordData);
     }
-    if(simulate) {
-        // Create RISC-V core with instruction and scalar data
-        RISCV riscV(code, scalarInitData);
-    
-        // Add vector co-processor
-        riscV.addCoprocessor<VectorProcessor>(vectorQuadrant, vectorInitData);
-    
-        // Run!
-        riscV.run();
-    
-        auto *scalarData = riscV.getScalarDataMemory().getData().data();
-        const int16_t *scalarRecordingData = reinterpret_cast<const int16_t*>(scalarData + scalarRecordingPtr);
-    
-        std::ofstream out("out_poisson.txt");
-        for(size_t t = 0; t < 32 * numTimesteps; t++) {
-            out << *scalarRecordingData++ << std::endl;
-        }
 
-        std::ofstream heatmapFile("poisson_heatmap.txt");
-        for(size_t i = 0; i < riscV.getInstructionHeatmap().size(); i++) {
-            heatmapFile << (code.at(i) & 0b1111111) << ", " << riscV.getInstructionHeatmap()[i] << std::endl;
-        }
-    }
-    else {
+    if(device) {
         LOGI << "Creating device";
         Device device;
         LOGI << "Resetting";
@@ -207,4 +193,28 @@ int main()
             out << *scalarRecordingData++ << std::endl;
         }
     }
+    else {
+        // Create RISC-V core with instruction and scalar data
+        RISCV riscV(code, scalarInitData);
+    
+        // Add vector co-processor
+        riscV.addCoprocessor<VectorProcessor>(vectorQuadrant, vectorInitData);
+    
+        // Run!
+        riscV.run();
+    
+        auto *scalarData = riscV.getScalarDataMemory().getData().data();
+        const int16_t *scalarRecordingData = reinterpret_cast<const int16_t*>(scalarData + scalarRecordingPtr);
+    
+        std::ofstream out("out_poisson.txt");
+        for(size_t t = 0; t < 32 * numTimesteps; t++) {
+            out << *scalarRecordingData++ << std::endl;
+        }
+
+        std::ofstream heatmapFile("poisson_heatmap.txt");
+        for(size_t i = 0; i < riscV.getInstructionHeatmap().size(); i++) {
+            heatmapFile << (code.at(i) & 0b1111111) << ", " << riscV.getInstructionHeatmap()[i] << std::endl;
+        }
+    }
+    
 }

@@ -16,6 +16,7 @@
 #include <plog/Appenders/ConsoleAppender.h>
 
 // RISC-V utils include
+#include "common/CLI11.hpp"
 #include "common/app_utils.h"
 #include "common/device.h"
 #include "common/utils.h"
@@ -257,7 +258,7 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
     c.L(wordEnd);
 }
 
-int main()
+int main(int argc, char** argv)
 {
     const auto programStartTime = std::chrono::high_resolution_clock::now();
 
@@ -265,12 +266,20 @@ int main()
     plog::ConsoleAppender<plog::TxtFormatter> consoleAppender;
     plog::init(plog::info, &consoleAppender);
     
+    bool device = false;
+    uint32_t numExamples = 2264;
+
+    CLI::App app{"SHD inference"};
+    app.add_option("-n,--num-examples", numExamples, "How many examples to simulate");
+    app.add_flag("-d,--device", device, "Should be run on device rather than simulator");
+
+    CLI11_PARSE(app, argc, argv);
+    
     // Allocate memory
     std::vector<uint8_t> scalarInitData;
     std::vector<int16_t> vectorInitData;
 
     // Constants
-    constexpr bool simulate = true;
     constexpr uint32_t numInput = 700;
     constexpr uint32_t numHidden = 256;
     constexpr uint32_t numOutput = 20;
@@ -278,7 +287,6 @@ int main()
     constexpr uint32_t hiddenAFixedPoint = 7;
     constexpr uint32_t outFixedPoint = 11;
     constexpr uint32_t numTimesteps = 1170;
-    constexpr uint32_t numExamples = 2264;
     constexpr uint32_t numInputSpikeWords = ceilDivide(numInput, 32);
     constexpr uint32_t numHiddenSpikeWords = ceilDivide(numHidden, 32);
     constexpr uint32_t numOutputSpikeWords = ceilDivide(numOutput, 32);
@@ -343,11 +351,11 @@ int main()
     const uint32_t copyNumVectorsPtr = 4;
     const uint32_t copyReadyFlagPtr = 8;
     const uint32_t copyScalarScratchPtr = 12;
-    const auto copyCode = AssemblerUtils::generateInitCode(simulate, copyStartVectorPtr, copyNumVectorsPtr, 
+    const auto copyCode = AssemblerUtils::generateInitCode(!device, copyStartVectorPtr, copyNumVectorsPtr, 
                                                            copyReadyFlagPtr, copyScalarScratchPtr);
 
     const auto initCode = AssemblerUtils::generateStandardKernel(
-        simulate, readyFlagPtr,
+        !device, readyFlagPtr,
         [=](CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator, ScalarRegisterAllocator &scalarRegisterAllocator)
         {
             // ---------------------------------------------------------------
@@ -432,7 +440,7 @@ int main()
         });
 
     const auto code = AssemblerUtils::generateStandardKernel(
-        simulate, readyFlagPtr,
+        !device, readyFlagPtr,
         [=](CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator, ScalarRegisterAllocator &scalarRegisterAllocator)
         {
             // Register allocation
@@ -764,12 +772,89 @@ int main()
         });
 
     // Assemble instructions
-    AppUtils::dumpCOE("shd_fixed.coe", code);
     LOGI << code.size() << " instructions (" << code.size() * 4 << " bytes)";
     LOGI << scalarInitData.size() << " bytes of scalar memory required";
     LOGI << vectorInitData.size() * 2 << " bytes of vector memory required (" << ceilDivide(vectorInitData.size() / 32, 4096) << " URAM cascade)";
 
-    if(simulate) {
+    if(device) {
+        LOGI << "Creating device";
+        Device device;
+
+        // Put core into reset state
+        LOGI << "Resetting";
+        device.setEnabled(false);
+
+        // Copying
+        const auto copyStartTime = std::chrono::high_resolution_clock::now();
+        {
+            LOGI << "Copying copy instructions (" << copyCode.size() * sizeof(uint32_t) << " bytes)";
+            device.uploadCode(copyCode);
+
+            // Run kernels to copy initData into vector memory
+            device.runInit(copyData, copyStartVectorPtr, copyNumVectorsPtr, copyScalarScratchPtr, seedPtr, copyReadyFlagPtr);
+        }
+
+
+        // Initialisation seeding
+        const auto initStartTime = std::chrono::high_resolution_clock::now();
+        {
+            LOGI << "Copying initialisation instructions (" << initCode.size() * sizeof(uint32_t) << " bytes)";
+            device.uploadCode(initCode);
+
+            LOGI << "Running initialisation"; 
+            device.setEnabled(true);
+            device.waitOnNonZero(readyFlagPtr);
+            device.setEnabled(false);
+        }
+        
+        // Simulation
+        const auto simStartTime = std::chrono::high_resolution_clock::now();
+        {
+            LOGI << "Copying simulation instructions (" << code.size() * sizeof(uint32_t) << " bytes)";
+            device.uploadCode(code);
+
+            // Loop through examples
+            int numCorrect = 0;
+            std::chrono::duration<double> duration{0};
+            const volatile int16_t *outputVSum = reinterpret_cast<const volatile int16_t*>(device.getDataMemory() + outputVSumScalarPtr);
+            for(int i = 0; i < numExamples; i++) {
+                // Show % progress
+                const auto iPerc = std::div(i, ceilDivide(numExamples, 100));
+                if(iPerc.rem == 0) {
+                    std:: cout << iPerc.quot << "%" << std::endl;
+                }
+
+                // Copy input spike bits into scalar memory
+                device.memcpyDataToDevice(inputSpikeArrayPtr, 
+                                          reinterpret_cast<const uint8_t*>(shdSpikes.data() + (numInputSpikeArrayWords * i)),
+                                          numInputSpikeArrayWords * 4);
+
+                // Disable core
+                device.setEnabled(true);
+                const auto startTime = std::chrono::high_resolution_clock::now();
+                // Wait until ready flag
+                device.waitOnNonZero(readyFlagPtr);
+                duration += (std::chrono::high_resolution_clock::now() - startTime);
+
+                // Enable core
+                device.setEnabled(false);
+
+                // Determine if output is correct
+                const auto classification = std::distance(outputVSum, std::max_element(outputVSum, outputVSum + numOutput));
+                if(classification == shdLabels[i]) {
+                    numCorrect++;
+                }
+            }
+            const auto simEndTime = std::chrono::high_resolution_clock::now();
+            std::cout << numCorrect << " / " << numExamples << " correct (" << 100.0 * (numCorrect / (double)numExamples) << "%)" << std::endl;
+            std::cout << "Simulation compute time:" << duration.count() << " seconds" << std::endl;
+            std::cout << "Startup time:" << (copyStartTime - programStartTime).count() << " seconds" << std::endl;
+            std::cout << "Copy time:" << (initStartTime - copyStartTime).count() << " seconds" << std::endl;
+            std::cout << "Init time:" << (simStartTime - initStartTime).count() << " seconds" << std::endl;
+            std::cout << "Simulation time:" << (simEndTime - simStartTime).count() << " seconds" << std::endl;
+        }
+    }
+    else {
         // Create RISC-V core with instruction and scalar data
         RISCV riscV(copyCode, scalarInitData);
     
@@ -846,85 +931,7 @@ int main()
             heatmapFile << (code.at(i) & 0b1111111) << ", " << riscV.getInstructionHeatmap()[i] << std::endl;
         }
     }
-    else {
-        LOGI << "Creating device";
-        Device device;
-
-        // Put core into reset state
-        LOGI << "Resetting";
-        device.setEnabled(false);
-
-        // Copying
-        const auto copyStartTime = std::chrono::high_resolution_clock::now();
-        {
-            LOGI << "Copying copy instructions (" << copyCode.size() * sizeof(uint32_t) << " bytes)";
-            device.uploadCode(copyCode);
-
-            // Run kernels to copy initData into vector memory
-            device.runInit(copyData, copyStartVectorPtr, copyNumVectorsPtr, copyScalarScratchPtr, seedPtr, copyReadyFlagPtr);
-        }
-
-
-        // Initialisation seeding
-        const auto initStartTime = std::chrono::high_resolution_clock::now();
-        {
-            LOGI << "Copying initialisation instructions (" << initCode.size() * sizeof(uint32_t) << " bytes)";
-            device.uploadCode(initCode);
-
-            LOGI << "Running initialisation"; 
-            device.setEnabled(true);
-            device.waitOnNonZero(readyFlagPtr);
-            device.setEnabled(false);
-        }
-        
-        // Simulation
-        const auto simStartTime = std::chrono::high_resolution_clock::now();
-        {
-            LOGI << "Copying simulation instructions (" << code.size() * sizeof(uint32_t) << " bytes)";
-            device.uploadCode(code);
-
-            // Loop through examples
-            int numCorrect = 0;
-            std::chrono::duration<double> duration{0};
-            const volatile int16_t *outputVSum = reinterpret_cast<const volatile int16_t*>(device.getDataMemory() + outputVSumScalarPtr);
-            for(int i = 0; i < numExamples; i++) {
-                // Show % progress
-                const auto iPerc = std::div(i, ceilDivide(numExamples, 100));
-                if(iPerc.rem == 0) {
-                    std:: cout << iPerc.quot << "%" << std::endl;
-                }
-
-                // Copy input spike bits into scalar memory
-                //LOGI << "Copying stimuli to device (" << numInputSpikeArrayWords * 4 << " bytes)";
-                device.memcpyDataToDevice(inputSpikeArrayPtr, 
-                                          reinterpret_cast<const uint8_t*>(shdSpikes.data() + (numInputSpikeArrayWords * i)),
-                                          numInputSpikeArrayWords * 4);
-
-                // Disable core
-                //LOGI << "Simulating";
-                device.setEnabled(true);
-                const auto startTime = std::chrono::high_resolution_clock::now();
-                // Wait until ready flag
-                device.waitOnNonZero(readyFlagPtr);
-                duration += (std::chrono::high_resolution_clock::now() - startTime);
-                // Enable core
-                device.setEnabled(false);
-
-                // Determine if output is correct
-                const auto classification = std::distance(outputVSum, std::max_element(outputVSum, outputVSum + numOutput));
-                if(classification == shdLabels[i]) {
-                    numCorrect++;
-                }
-            }
-            const auto simEndTime = std::chrono::high_resolution_clock::now();
-            std::cout << numCorrect << " / " << numExamples << " correct (" << 100.0 * (numCorrect / (double)numExamples) << "%)" << std::endl;
-            std::cout << "Simulation compute time:" << duration.count() << " seconds" << std::endl;
-            std::cout << "Startup time:" << (copyStartTime - programStartTime).count() << " seconds" << std::endl;
-            std::cout << "Copy time:" << (initStartTime - copyStartTime).count() << " seconds" << std::endl;
-            std::cout << "Init time:" << (simStartTime - initStartTime).count() << " seconds" << std::endl;
-            std::cout << "Simulation time:" << (simEndTime - simStartTime).count() << " seconds" << std::endl;
-        }
-    }
+   
     
     return 0;
 }
