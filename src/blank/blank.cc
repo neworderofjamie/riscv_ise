@@ -22,8 +22,10 @@
 
 int main()
 {
-    constexpr uint32_t numTimesteps = 100;
+    constexpr uint32_t numHidden = 32;
+    constexpr uint32_t numTimesteps = 10;
     constexpr bool simulate = false;
+    constexpr uint32_t numHiddenSpikeWords = ceilDivide(numHidden, 32);
 
     // Configure logging
     plog::ConsoleAppender<plog::TxtFormatter> consoleAppender;
@@ -34,7 +36,7 @@ int main()
     std::vector<int16_t> vectorInitData;
 
     // Allocate scalar arrays
-    const uint32_t outputPtr = AppUtils::allocateScalarAndZero(64, scalarInitData);
+    const uint32_t outputPtr = AppUtils::allocateScalarAndZero(numHiddenSpikeWords * numTimesteps * 64, scalarInitData);
     const uint32_t readyFlagPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
     
     // Generate code
@@ -42,25 +44,63 @@ int main()
         simulate, readyFlagPtr,
         [=](CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator, ScalarRegisterAllocator &scalarRegisterAllocator)
         {
-           ALLOCATE_VECTOR(VA);
-           ALLOCATE_VECTOR(VB);
-           ALLOCATE_VECTOR(VC);
-           ALLOCATE_VECTOR(VZero);        
-   
-           c.vlui(*VA, 38);
-           c.vlui(*VB, convertFixedPoint(std::exp(-1.0 / 20.0), 15));
-           c.vlui(*VZero, 0);
-           c.vmul(15, *VC, *VA, *VB);
-           c.vadd(*VC, *VC, *VZero);
-           {
-               ALLOCATE_SCALAR(STmp);
-               ALLOCATE_SCALAR(SAddress);
-               c.li(*SAddress, outputPtr);
-               for(int l = 0; l < 32; l++) {
-                   c.vextract(*STmp, *VC, l);
-                   c.sh(*STmp, *SAddress, l * 2);
-               }
-           }
+            // Register allocation
+            ALLOCATE_SCALAR(STime);
+            ALLOCATE_SCALAR(STimeEnd);
+            ALLOCATE_SCALAR(SHiddenVarRecordingBuffer);
+            ALLOCATE_VECTOR(VV);
+            // Labels
+            Label timeLoop;
+            Label spinLoop;
+
+            // Set timestep range and load ready flag pointer
+            c.li(*STime, 0);
+            c.li(*STimeEnd, numTimesteps);
+            c.li(*SHiddenVarRecordingBuffer, outputPtr);
+
+            c.vlui(*VV, 0);
+          
+            // Loop over time
+            c.L(timeLoop);
+            {
+
+                // ---------------------------------------------------------------
+                // Hidden neurons
+                // ---------------------------------------------------------------
+                {
+                    // Register allocation
+                    ALLOCATE_VECTOR(VAlpha);
+
+                    // Load constants
+                    // alpha = e^(-1/20)
+                    c.vlui(*VAlpha, convertFixedPoint(std::exp(-1.0 / 20.0), 5));
+
+                    {
+                        // Register allocation
+                        ALLOCATE_VECTOR(VISyn);
+          
+                        c.vlui(*VISyn, 26);
+
+                        // VV *= VAlpha
+                        c.vmul(5, *VV, *VV, *VAlpha);
+                        
+                        // VV += VISyn
+                        c.vadd(*VV, *VV, *VISyn);
+
+                        ALLOCATE_SCALAR(STmp);
+                        for(int l = 0; l < 32; l++) {
+                            c.vextract(*STmp, *VV, l);
+                            c.nop();
+                            c.sh(*STmp, *SHiddenVarRecordingBuffer, l * 2);
+                        }
+                        c.addi(*SHiddenVarRecordingBuffer, *SHiddenVarRecordingBuffer, 64);
+                 
+                    }  
+                }
+
+                c.addi(*STime, *STime, 1);
+                c.bne(*STime, *STimeEnd, timeLoop);
+            }
         });
 
     // Dump to coe file
@@ -80,12 +120,12 @@ int main()
         
         auto *scalarData = riscV.getScalarDataMemory().getData().data();
         const int16_t *output = reinterpret_cast<const int16_t*>(scalarData + outputPtr);
-        for(size_t i = 0; i < 32; i++) {
-            std::cout << *output++ << ", ";
+        for(size_t i = 0; i < numTimesteps; i++) {
+            for(size_t i = 0; i < numHidden; i++) {
+                std::cout << *output++ << ", ";
+            }
+            std::cout << std::endl;
         }
-        std::cout << std::endl;
-
-    
     }
     else {
         LOGI << "Creating device";
@@ -110,10 +150,12 @@ int main()
         LOGI << "Done";
         
         const volatile int16_t *output = reinterpret_cast<const volatile int16_t*>(device.getDataMemory() + outputPtr);
-        for(size_t i = 0; i < 32; i++) {
-            std::cout << *output++ << ", ";
+        for(size_t i = 0; i < numTimesteps; i++) {
+            for(size_t i = 0; i < numHidden; i++) {
+                std::cout << *output++ << ", ";
+            }
+            std::cout << std::endl;
         }
-        std::cout << std::endl;
 
 
     }
