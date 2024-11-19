@@ -8,6 +8,8 @@ It features:
 * A handful of command line tools to help debug issues e.g. a command line disassembler
 * Several example applications using the above functionality to e.g. perform Spiking Heidelberg Digits and MNIST classification
 
+The instruction set for the processor is described in ``docs/instruction_set.pdf``.
+
 ## Usage
 Examples can be build using Visual Studio (probably a minimum of 2019 for sufficient C++17 support) or GCC using GNU make. 
 If using Visual Studio, just open the ``riscv_ise.sln`` in the root directory and build projects as required.
@@ -16,6 +18,9 @@ All executables will be built in the ``bin`` directory.
 Most examples have a CLI with ``--help`` so, for example you can run the MNIST
 
 ## Data generation
-Because the data required for some of the examples is rather too large to put on git, there are some python scripts to generate data for some examples:
+Because the data required for some of the examples is rather too large to put on git, some examples come with python scripts to generate data:
 * SHD, run ``bin/generate_shd.py`` to download and convert dataset (requires ``tonic`` package installing with pip)
 * MNIST, run ``bin/generate_mnist.py`` to download and convert dataset (requires ``mnist`` package installing with pip)
+
+## Creating new applications
+There is an empty projec tin ``src/blank``. This is a good starting point for creating your own application you can just start writing instructions within the ``AssemblerUtils::generateStandardKernel`` block.
