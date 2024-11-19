@@ -109,7 +109,7 @@ void Device::waitOnNonZero(uint32_t address) const
     assert((address % 4) == 0);
     volatile const uint32_t *data = reinterpret_cast<const uint32_t*>(m_DataMemory + address);
     while(*data == 0){
-        std::this_thread::sleep_for(std::chrono::microseconds{10});
+        //std::this_thread::sleep_for(std::chrono::microseconds{10});
     }
 }
 //----------------------------------------------------------------------------
