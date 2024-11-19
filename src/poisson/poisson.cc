@@ -129,7 +129,7 @@ int main(int argc, char** argv)
     
     bool device = false;
     bool dumpCoe = false;
-    uint32_t numTimesteps = 10000;
+    uint32_t numTimesteps = 100;
 
     CLI::App app{"Poisson generator"};
     app.add_option("-n,--num-timesteps", numTimesteps, "How many timesteps to simulate for");
