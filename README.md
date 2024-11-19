@@ -11,11 +11,13 @@ It features:
 The instruction set for the processor is described in ``docs/instruction_set.pdf``.
 
 ## Usage
-Examples can be build using Visual Studio (probably a minimum of 2019 for sufficient C++17 support) or GCC using GNU make. 
+Examples can be build using Visual Studio (at least 2019) on Windows or GCC (at least 7.4.0) and GNU make on Linux. 
 If using Visual Studio, just open the ``riscv_ise.sln`` in the root directory and build projects as required.
 If using GNU make run ``make`` in a project directory e.g. ``src/mnist``. You can add ``DEBUG=1`` to generate debug code.
 All executables will be built in the ``bin`` directory.
 Most examples have a CLI with ``--help`` so, for example you can run the MNIST
+Currently, using a standard debugger on the Instruction Set Simulator is the best way of debugging difficult issues.
+If you use Visual Studio Code on Linux, there are launch configurations for running the examples with the debugger attached.
 
 ## Data generation
 Because the data required for some of the examples is rather too large to put on git, some examples come with python scripts to generate data:
