@@ -8,6 +8,7 @@
 #include <plog/Appenders/ConsoleAppender.h>
 
 // RISC-V common includes
+#include "common/CLI11.hpp"
 #include "common/app_utils.h"
 #include "common/device.h"
 
@@ -20,14 +21,18 @@
 #include "ise/riscv.h"
 #include "ise/vector_processor.h"
 
-int main()
+int main(int argc, char** argv)
 {
-    constexpr uint32_t numTimesteps = 100;
-    constexpr bool simulate = true;
-
     // Configure logging
     plog::ConsoleAppender<plog::TxtFormatter> consoleAppender;
     plog::init(plog::debug, &consoleAppender);
+    
+    bool device = false;
+
+    CLI::App app{"Blank example"};
+    app.add_flag("-d,--device", device, "Should be run on device rather than simulator");
+
+    CLI11_PARSE(app, argc, argv);
     
     // Create memory contents
     std::vector<uint8_t> scalarInitData;
@@ -38,7 +43,7 @@ int main()
 
     // Generate code
     const auto code = AssemblerUtils::generateStandardKernel(
-        simulate, readyFlagPtr,
+        !device, readyFlagPtr,
         [=](CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator, ScalarRegisterAllocator &scalarRegisterAllocator)
         {
            
@@ -47,20 +52,8 @@ int main()
     // Dump to coe file
     //AppUtils::dumpCOE("lif.coe", code);
 
-    if(simulate) {
-        // Create RISC-V core with instruction and scalar data
-        RISCV riscV(code, scalarInitData);
-        
-        // Add vector co-processor
-        riscV.addCoprocessor<VectorProcessor>(vectorQuadrant, vectorInitData);
-        
-        // Run!
-        if(!riscV.run()) {
-            return 1;
-        }
     
-    }
-    else {
+    if(device) {
         LOGI << "Creating device";
         Device device;
         LOGI << "Resetting";
@@ -83,7 +76,19 @@ int main()
         LOGI << "Done";
 
     }
-   
+    else {
+        // Create RISC-V core with instruction and scalar data
+        RISCV riscV(code, scalarInitData);
+        
+        // Add vector co-processor
+        riscV.addCoprocessor<VectorProcessor>(vectorQuadrant, vectorInitData);
+        
+        // Run!
+        if(!riscV.run()) {
+            return 1;
+        }
     
+    }
+    return 0;
 
 }
