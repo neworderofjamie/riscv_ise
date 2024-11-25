@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 
 from scipy.stats import poisson
 
-poisson_data = np.loadtxt("out_poisson.txt", dtype=int)
+poisson_data = np.loadtxt("out_poisson_device.txt", dtype=int)
 x = np.arange(np.amin(poisson_data), 1 + np.amax(poisson_data))
 
 fig, axis = plt.subplots()

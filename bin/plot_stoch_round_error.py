@@ -12,7 +12,7 @@ operands_float = operands / SCALE
 assert np.all(np.abs(operands_float) <= 1.0)
 
 # Load results and reshape into triples of vectors
-results = np.fromfile("out_stoch_round.bin", dtype=np.int16)
+results = np.fromfile("out_stoch_round_device.bin", dtype=np.int16)
 results = np.reshape(results, (-1, 3, 32))
 results_float = results / SCALE
 
