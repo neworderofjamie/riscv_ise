@@ -578,7 +578,7 @@ int main(int argc, char** argv)
                             c.vloadv(*VRefracTime, *SRefracTimeBuffer, r * 64);
 
                             // V *= Alpha
-                            c.vmul(14, *VV, *VV, *VAlpha);
+                            c.vmul_rs(14, *VV, *VV, *VAlpha);
 
                             // V += ISyn
                             c.vadd_s(*VV, *VV, *VISyn);
@@ -587,7 +587,7 @@ int main(int argc, char** argv)
                             c.vlui(*VISyn, 0);
 
                             // A *= Rho
-                            c.vmul(14, *VA, *VA, *VRho);
+                            c.vmul_rs(14, *VA, *VA, *VRho);
 
                             // Refractory = RefracTime > 0.0 (0.0 < VRefracTime)
                             c.vtlt(*SRefractory, *VZero, *VRefracTime);
@@ -603,7 +603,7 @@ int main(int argc, char** argv)
                             // SSpikeOut = VV >= (VThres + (Beta * A)) 
                             {
                                 ALLOCATE_VECTOR(VTmp);
-                                c.vmul(hiddenAFixedPoint, *VTmp, *VA, *VBeta);
+                                c.vmul_rs(hiddenAFixedPoint, *VTmp, *VA, *VBeta);
                                 c.vadd_s(*VTmp, *VTmp, *VVThresh);
                                 c.vtge(*SSpikeOut, *VV, *VTmp);
                             }
@@ -697,7 +697,7 @@ int main(int argc, char** argv)
                         c.vloadv(*VBias, *SBiasBuffer);
  
                         // VV *= VAlpha
-                        c.vmul(14, *VVNew, *VV, *VAlpha);
+                        c.vmul_rs(14, *VVNew, *VV, *VAlpha);
 
                         // VV += VISyn
                         c.vadd_s(*VVNew, *VVNew, *VISyn);
@@ -709,7 +709,7 @@ int main(int argc, char** argv)
                         {
                             // Register allocation
                             ALLOCATE_VECTOR(VTmp);
-                            c.vmul(outFixedPoint, *VTmp, *VAvgScale, *VVNew);
+                            c.vmul_rs(outFixedPoint, *VTmp, *VAvgScale, *VVNew);
                             c.vadd_s(*VVSumNew, *VVSum, *VTmp);
                         }
 
