@@ -7,12 +7,14 @@
 #include <cassert>
 #include <cstring>
 
+// PLOG includes
+#include <plog/Log.h>
+
 #ifdef __linux__     
     // POSIX includes
     #include <fcntl.h>
     #include <unistd.h>
     #include <errno.h>
-    #include <sys/ioctl.h>
     #include <sys/mman.h>
 #endif
 
@@ -25,6 +27,8 @@
 DMAController::DMAController(int memory, size_t baseAddress)
 {
 #ifdef __linux__ 
+    LOGI << "Creating DMA at  " << baseAddress;
+
     // Memory map DMA controller registers
     m_Registers = reinterpret_cast<uint32_t*>(mmap(nullptr, 65535, PROT_READ | PROT_WRITE, MAP_SHARED, 
                                                    memory, baseAddress));
@@ -45,6 +49,8 @@ void DMAController::startWrite(uint32_t destination, const DMABuffer &sourceBuff
     const uint64_t sourceAddress = sourceBuffer.getPhysicalAddress() + sourceOffset;
     assert((sourceOffset + size) < sourceBuffer.getSize());
 
+    LOGD << "Starting " << size << " byte DMA write from " << sourceAddress;
+
     // Split into low and high words and write to registers
     writeReg(Register::MM2S_SA, static_cast<uint32_t>(sourceAddress & 0xFFFFFFFF));
     writeReg(Register::MM2S_SA_MSB, static_cast<uint32_t>(sourceAddress >> 32));
@@ -61,6 +67,8 @@ void DMAController::startRead(DMABuffer &destBuffer, size_t destOffset, uint32_t
     // Build 64-bit destination address
     const uint64_t destAddress = destBuffer.getPhysicalAddress() + destOffset;
     assert((destOffset + size) < destBuffer.getSize());
+
+    LOGD << "Starting " << size << " byte DMA read to " << destAddress;
 
     // Split into low and high words and write to registers
     writeReg(Register::S2MM_DA, static_cast<uint32_t>(destAddress & 0xFFFFFFFF));
