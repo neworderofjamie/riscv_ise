@@ -10,7 +10,7 @@
 class DMABuffer
 {
 public:
-    DMABuffer(int index);
+    DMABuffer(int index = 0);
     ~DMABuffer();
 
     //------------------------------------------------------------------------
