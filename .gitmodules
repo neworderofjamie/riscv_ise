@@ -1,0 +1,3 @@
+[submodule "udmabuf"]
+	path = udmabuf
+	url = ../../ikwzm/udmabuf.git
