@@ -24,7 +24,7 @@
 //----------------------------------------------------------------------------
 // DMAController
 //----------------------------------------------------------------------------
-DMAController::DMAController(int memory, size_t baseAddress)
+DMAController::DMAController(int memory, size_t baseAddress, size_t destRegisterBaseAddress)
 {
 #ifdef __linux__ 
     LOGI << "Creating DMA at  " << baseAddress;
@@ -34,6 +34,13 @@ DMAController::DMAController(int memory, size_t baseAddress)
                                                    memory, baseAddress));
     if(m_Registers == MAP_FAILED) {
         throw std::runtime_error("DMA register map failed (" + std::to_string(errno) + " = " + strerror(errno) + ")");
+    }
+
+    // Memory map destination address register
+    m_DestAddressRegister = reinterpret_cast<uint32_t*>(mmap(nullptr, 65535, PROT_READ | PROT_WRITE, MAP_SHARED, 
+                                                             memory, destRegisterBaseAddress));
+    if(m_DestAddressRegister == MAP_FAILED) {
+        throw std::runtime_error("DMA destination address register map failed (" + std::to_string(errno) + " = " + strerror(errno) + ")");
     }
 
     // Reset DMA controller into known state
@@ -50,6 +57,12 @@ void DMAController::startWrite(uint32_t destination, const DMABuffer &sourceBuff
     assert((sourceOffset + size) < sourceBuffer.getSize());
 
     LOGD << "Starting " << size << " byte DMA write from " << sourceAddress;
+    if((destination & 63) != 0) {
+        throw std::runtime_error("DMA writes to URAM must be 64 byte aligned");
+    }
+
+    // Set destination address
+    writeURAMDestinationAddress(destination);
 
     // Split into low and high words and write to registers
     writeReg(Register::MM2S_SA, static_cast<uint32_t>(sourceAddress & 0xFFFFFFFF));

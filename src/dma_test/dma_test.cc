@@ -46,8 +46,7 @@ int main()
     }
 
     // Create DMA controller
-    // **TODO** base address
-    DMAController dmaController(memory, 0xA5000000);
+    DMAController dmaController(memory, 0xA0000000, 0xA0010000);
 
     // Write vector from buffer
     dmaController.startWrite(0, dmaBuffer, 0, 32 * 2);

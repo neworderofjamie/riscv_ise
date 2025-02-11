@@ -13,7 +13,7 @@ class DMABuffer;
 class DMAController
 {
 public:
-    DMAController(int memory, size_t baseAddress);
+    DMAController(int memory, size_t baseAddress, size_t destRegisterBaseAddress);
 
     //------------------------------------------------------------------------
     // Public API
@@ -65,8 +65,11 @@ private:
     void writeReg(Register reg, uint32_t val){ m_Registers[static_cast<int>(reg) / 4] = val; }
     uint32_t readReg(Register reg) const{ return m_Registers[static_cast<int>(reg) / 4]; }
 
+    void writeURAMDestinationAddress(uint32_t val){ m_DestAddressRegister[0] = val; }
+
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
     uint32_t *m_Registers;
+    uint32_t *m_DestAddressRegister;
 };
