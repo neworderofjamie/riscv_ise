@@ -255,13 +255,13 @@ public:
 
     // VLOAD
     void vloadv(VReg rd, Reg addr, int imm = 0){ Itype(VectorOpCode::VLOAD, 0b000, rd, addr, imm); }
+    void vloadl(VReg rd, VReg addr, int imm = 0){ Itype(VectorOpCode::VLOAD, 0b010, rd, addr, imm); }
     void vloadr0(Reg addr, int imm = 0){ Itype(VectorOpCode::VLOAD, 0b001, 0, addr, imm); }
     void vloadr1(Reg addr, int imm = 0){ Itype(VectorOpCode::VLOAD, 0b101, 0, addr, imm); }
-    void vload_local(VReg addr, int imm = 0){ Itype(VectorOpCode::VLOAD, 0b010, 0, addr, imm); }
     
     // VSTORE
     void vstore(VReg rs, Reg addr, int imm = 0){ Stype(VectorOpCode::VSTORE, 0b000, addr, rs, imm); }
-    void vstore_local(VReg rs, VReg addr, int imm = 0){ Stype(VectorOpCode::VSTORE, 0b010, addr, rs, imm); }
+    void vstorel(VReg rs, VReg addr, int imm = 0){ Stype(VectorOpCode::VSTORE, 0b010, addr, rs, imm); }
 
 private:
     friend Label;
