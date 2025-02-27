@@ -1,7 +1,7 @@
 from typing import Sequence
 import numpy as np
 
-def pad_connectivity(row_ind: Sequence[np.ndarray]):
+def pad_connectivity(row_ind: Sequence[np.ndarray]) -> np.ndarray:
     num_pre = len(row_ind)
 
     # Determine which lane each postsynaptic index belongs in
@@ -16,26 +16,25 @@ def pad_connectivity(row_ind: Sequence[np.ndarray]):
     # Determine maximum number of vectors
     num_vectors = max(np.amax(c) for c in row_conns_per_lane)
 
-    print(f"Connectivity requires {num_vectors} wide processing")
-
     # Calculate cumulative sum of bin count to determine where to split per-bank
     row_conn_lane_ind = [np.cumsum(c) for c in row_conns_per_lane]
 
     padded_rows = []
     for i, l in zip(row_ind_sorted, row_conn_lane_ind):
         # Split, pad list of connections with  
-        conn_id_banked = np.transpose(np.vstack([np.pad(a, (0, num_vectors - len(a)), 
+        # **NOTE** we only care about which L.L.M. address of target in bytes
+        conn_id_banked = np.transpose(np.vstack([np.pad((a // 32) * 2, (0, num_vectors - len(a)), 
                                                         constant_values=-1)
                                                 for a in np.split(i, l[:-1])]))
-
         conn_id_banked = np.pad(conn_id_banked, ((0, 0), (0, 32 - conn_id_banked.shape[1])),
                                 constant_values=-1)
         
-        padded_rows.append(conn_id_banked)
+        padded_rows.append(np.reshape(conn_id_banked, 32 * num_vectors))
     
-    return padded_rows
+    return np.vstack(padded_rows)
 
-def generate_fixed_prob(num_pre: int, num_post: int, prob: float):
+def generate_fixed_prob(num_pre: int, num_post: int,
+                        prob: float) -> Sequence[np.ndarray]:
     # Loop through presynaptic neurons
     rows = []
     for i in range(num_pre):
