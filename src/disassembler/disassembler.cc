@@ -96,14 +96,29 @@ void disassembleVSel(std::ostream &os, uint32_t inst)
 void disassembleVLoad(std::ostream &os, uint32_t inst)
 {
     const auto [imm, rs1, funct3, rd] = decodeIType(inst);
-    const auto type = getVLoadType(funct3);
-    os << type._to_string() << " V" << rd << ", " << imm << "(X" << rs1 << ")";
+    const auto [type, local] = getVLoadType(funct3);
+
+    os << type._to_string() << " V" << rd << ", " << imm;
+    if(local) {
+        os << "(V" << rs1 << ")";
+    }
+    else {
+        os << "(X" << rs1 << ")";
+    }
 }
 
 void disassembleVStore(std::ostream &os, uint32_t inst)
 {
     const auto [imm, rs2, rs1, funct3] = decodeSType(inst);
-    os << "VSTORE V" << rs2 << ", " << imm << "(X" << rs1 << ")";
+    const auto [type, local] = getVStoreType(funct3);
+
+    os << type._to_string() << " V" << rs2 << ", " << imm;
+    if(local) {
+        os << "(X" << rs1 << ")";
+    }
+    else {
+        os << "(V" << rs1 << ")";
+    }
 }
 
 void disassembleVMov(std::ostream &os, uint32_t inst)

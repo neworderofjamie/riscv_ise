@@ -257,20 +257,37 @@ VMovType getVMovType(uint32_t funct3)
     }
 }
 //----------------------------------------------------------------------------
-VLoadType getVLoadType(uint32_t funct3)
+std::tuple<VLoadType, bool> getVLoadType(uint32_t funct3)
 {
     switch(funct3){
     case 0b000:
-        return VLoadType::VLOAD;
+        return std::make_tuple(VLoadType::VLOAD, false);
         
     case 0b001:
-        return VLoadType::VLOAD_R0;
+        return std::make_tuple(VLoadType::VLOAD_R0, false);
     
     case 0b101:
-        return VLoadType::VLOAD_R1;
+        return std::make_tuple(VLoadType::VLOAD_R1, false);
     
+    case 0b010:
+        return std::make_tuple(VLoadType::VLOAD_L, true);
+
     default:
-        return VLoadType::INVALID;
+        return std::make_tuple(VLoadType::INVALID, false);
+    }
+}
+//----------------------------------------------------------------------------
+std::tuple<VStoreType, bool> getVStoreType(uint32_t funct3)
+{
+    switch(funct3){
+    case 0b000:
+        return std::make_tuple(VStoreType::VSTORE, false);
+        
+    case 0b010:
+        return std::make_tuple(VStoreType::VSTORE_L, true);
+
+    default:
+        return std::make_tuple(VStoreType::INVALID, false);
     }
 }
 //----------------------------------------------------------------------------

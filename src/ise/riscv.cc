@@ -689,7 +689,7 @@ void RISCV::executeStandardInstruction(uint32_t inst)
     switch(opcode) {
     case StandardOpCode::LUI:
     {
-        auto [imm, rd] = decodeUType(inst);
+        const auto [imm, rd] = decodeUType(inst);
         PLOGV << "LUI " << imm;
         PLOGV << "\t"  << rd;
 #ifdef DEBUG_EXTRA
@@ -703,7 +703,7 @@ void RISCV::executeStandardInstruction(uint32_t inst)
 
     case StandardOpCode::AUIPC:
     {
-        auto [imm, rd] = decodeUType(inst);
+        const auto [imm, rd] = decodeUType(inst);
         PLOGV << "AUIPC " << imm;
         PLOGV << "\t"  << rd;
 #ifdef DEBUG_EXTRA
@@ -741,7 +741,7 @@ void RISCV::executeStandardInstruction(uint32_t inst)
 
     case StandardOpCode::JALR:
     {
-        auto [imm, rs1, funct3, rd] = decodeIType(inst);
+        const auto [imm, rs1, funct3, rd] = decodeIType(inst);
         PLOGV << "JALR " << rs1 << " " << imm;
         PLOGV << "\t"  << rd;
 #ifdef DEBUG_EXTRA
@@ -758,7 +758,7 @@ void RISCV::executeStandardInstruction(uint32_t inst)
 
     case StandardOpCode::BRANCH:
     {
-        auto [imm, rs2, rs1, funct3] = decodeBType(inst);
+        const auto [imm, rs2, rs1, funct3] = decodeBType(inst);
         if (calcBranchCondition(inst, rs2, rs1, funct3)) {
             PLOGV << "\t" << (m_PC + imm);
 
@@ -773,7 +773,7 @@ void RISCV::executeStandardInstruction(uint32_t inst)
 
     case StandardOpCode::LOAD:
     {
-        auto [imm, rs1, funct3, rd] = decodeIType(inst);
+        const auto [imm, rs1, funct3, rd] = decodeIType(inst);
         const auto value = loadValue(inst, imm, rs1, funct3);
         PLOGV << "\t" << rd;
         if (rd != 0) {
@@ -784,7 +784,7 @@ void RISCV::executeStandardInstruction(uint32_t inst)
 
     case StandardOpCode::STORE:
     {
-        auto [imm, rs2, rs1, funct3] = decodeSType(inst);
+        const auto [imm, rs2, rs1, funct3] = decodeSType(inst);
         const uint32_t addr = m_Reg[rs1] + imm;
         const uint32_t val = m_Reg[rs2];
         switch(getStoreType(funct3)) {
@@ -819,7 +819,7 @@ void RISCV::executeStandardInstruction(uint32_t inst)
 
     case StandardOpCode::OP_IMM:
     {
-        auto [imm, rs1, funct3, rd] = decodeIType(inst);
+        const auto [imm, rs1, funct3, rd] = decodeIType(inst);
         const uint32_t val = calcOpImmResult(inst, imm, rs1, funct3);
         PLOGV << "\t" << rd;
         if (rd != 0) {
@@ -830,7 +830,7 @@ void RISCV::executeStandardInstruction(uint32_t inst)
 
     case StandardOpCode::OP:
     {
-        auto [funct7, rs2, rs1, funct3, rd] = decodeRType(inst);
+        const auto [funct7, rs2, rs1, funct3, rd] = decodeRType(inst);
         const uint32_t val = calcOpResult(inst, funct7, rs2, rs1, funct3);
         PLOGV << "\t" << rd;
         if (rd != 0) {

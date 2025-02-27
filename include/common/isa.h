@@ -78,7 +78,8 @@ BETTER_ENUM(OpType, uint32_t, ADD, SUB, SLL, SLT, SLTU, XOR, SRL, SRA, OR, AND, 
 BETTER_ENUM(VOpType, uint32_t, VADD, VSUB, VMUL, VMUL_RS, VMUL_RN, INVALID)
 BETTER_ENUM(VTstType, uint32_t, VTEQ, VTNE, VTLT, VTGE, INVALID)
 BETTER_ENUM(VMovType, uint32_t, VFILL, VEXTRACT, INVALID)
-BETTER_ENUM(VLoadType, uint32_t, VLOAD, VLOAD_R0, VLOAD_R1, INVALID)
+BETTER_ENUM(VLoadType, uint32_t, VLOAD, VLOAD_L, VLOAD_R0, VLOAD_R1, INVALID)
+BETTER_ENUM(VStoreType, uint32_t, VSTORE, VSTORE_L, INVALID)
 BETTER_ENUM(VSpcType, uint32_t, VRNG, INVALID)
 
 inline uint32_t addQuadrant(StandardOpCode op)
@@ -271,7 +272,9 @@ VTstType getVTstType(uint32_t funct3);
 
 VMovType getVMovType(uint32_t funct3);
 
-VLoadType getVLoadType(uint32_t funct3);
+std::tuple<VLoadType, bool> getVLoadType(uint32_t funct3);
+
+std::tuple<VStoreType, bool> getVStoreType(uint32_t funct3);
 
 VSpcType getVSpcType(uint32_t funct3);
 
