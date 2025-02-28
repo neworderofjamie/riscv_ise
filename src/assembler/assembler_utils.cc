@@ -159,45 +159,83 @@ void generatePerformanceCountWrite(CodeGenerator &c, ScalarRegisterAllocator &sc
 }
 //----------------------------------------------------------------------------
 void unrollLoopBody(CodeGenerator &c, uint32_t numIterations, uint32_t maxUnroll, 
-                    Reg testBufferReg, Reg testBufferEndReg, 
-                    std::function<void(CodeGenerator&, uint32_t)> genBodyFn, 
+                    Reg testBufferReg, Reg testBufferEndReg, bool alwaysGenerateTail,
+                    std::function<void(CodeGenerator&, uint32_t, uint32_t)> genBodyFn, 
                     std::function<void(CodeGenerator&, uint32_t)> genTailFn)
 {
-    // **TODO** tail loop after unrolling
-    assert((numIterations % maxUnroll) == 0);
-    const uint32_t numUnrolls = std::min(numIterations, maxUnroll);
-    const uint32_t numUnrolledIterations = numIterations / numUnrolls;
+    // Determine number of unrolled iterations and remainder
+    const auto numUnrolls = std::div(static_cast<int64_t>(numIterations), maxUnroll);
+    
+    // If there are are complete unrols
+    uint32_t i = 0;
+    if(numUnrolls.quot != 0) {
+        Label loop;
+        c.L(loop);
+        {
+            // Unroll loop
+            for(uint32_t r = 0; r < maxUnroll; r++, i++) {
+                genBodyFn(c, r, i);
+            }
 
-    // Input postsynaptic neuron loop
-    Label loop;
-    c.L(loop);
-    {
-        // Unroll loop
-        for(uint32_t r = 0; r < numUnrolls; r++) {
-            genBodyFn(c, r);
+            // If more than 1 unroll is required or there are more iterations, generate tail
+            if(numUnrolls.quot > 1 || numUnrolls.rem != 0 || alwaysGenerateTail) {
+                genTailFn(c, maxUnroll);
+            }
+            
+            // If more than 1 unroll is required, generate loop
+            if(numUnrolls.quot > 1) {
+                c.bne(testBufferReg, testBufferEndReg, loop);
+            }
+        }
+    }
+
+    // If there is a remainder
+    if(numUnrolls.rem != 0) {
+        // Unroll tail
+        for(uint32_t r = 0; r < numUnrolls.rem; r++, i++) {
+            genBodyFn(c, r, i);
         }
 
-        // If we haven't already unrolled everything, generate increment and loop
-        // **TODO** this is incorrect if there's a tail
-        if(numUnrolledIterations > 1) {
-            genTailFn(c, numUnrolls);
+        // If we should always generate a tail, do so
+        if(alwaysGenerateTail) {
+            genTailFn(c, numUnrolls.rem);
+        }
         
-            c.bne(testBufferReg, testBufferEndReg, loop);
-        }
     }
 }
 //----------------------------------------------------------------------------
-void unrollVectorLoopBody(CodeGenerator &c, uint32_t numIterations, uint32_t maxUnroll, 
+void unrollVectorLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator, 
+                          uint32_t numIterations, uint32_t maxUnroll, 
                           Reg testBufferReg, Reg testBufferEndReg, 
-                          std::function<void(CodeGenerator&, uint32_t)> genBodyFn, 
+                          std::function<void(CodeGenerator&, uint32_t, uint32_t, ScalarRegisterAllocator::RegisterPtr)> genBodyFn, 
                           std::function<void(CodeGenerator&, uint32_t)> genTailFn)
 {
-    // Only loop bodies for now
-    assert((numIterations % 32) == 0);
-    unrollLoopBody(c, numIterations / 32, maxUnroll, 
-                   testBufferReg, testBufferEndReg,
-                   genBodyFn, genTailFn);
+    // Determine number of vectorised iterations and remainder
+    const auto numVectors = std::div(numIterations, 32);
+    
+    // If there are any complete vector iterations, unroll them
+    // **NOTE** always generate a tail if there will be a partial vector to follow
+    if(numVectors.quot != 0) {
+        unrollLoopBody(c, numVectors.quot, maxUnroll, 
+                    testBufferReg, testBufferEndReg, 
+                    (numVectors.rem != 0),
+                    [genBodyFn](CodeGenerator &c, uint32_t r, uint32_t i)
+                    { 
+                        genBodyFn(c, r, i, nullptr); 
+                    }, 
+                    genTailFn);
+    }
 
+    // If there is a remainder
+    if(numVectors.rem != 0) {
+        ALLOCATE_SCALAR(SMask);
+
+        // Calculate mask for final iteration
+        c.li(*SMask, (1 << numVectors.rem) - 1);
+        
+        // Generate body with mask
+        genBodyFn(c, 0, numVectors.quot, SMask);
+    }
 }
 //----------------------------------------------------------------------------
 std::vector<uint32_t> generateStandardKernel(bool simulate, uint32_t readyFlagPtr, 

@@ -37,14 +37,15 @@ void generatePerformanceCountWrite(CodeGenerator &c, ScalarRegisterAllocator &sc
 
 // Generate an unrolled loop body
 void unrollLoopBody(CodeGenerator &c, uint32_t numIterations, uint32_t maxUnroll, 
-                    Reg testBufferReg, Reg testBufferEndReg, 
-                    std::function<void(CodeGenerator&, uint32_t)> genBodyFn, 
+                    Reg testBufferReg, Reg testBufferEndReg, bool alwaysGenerateTail,
+                    std::function<void(CodeGenerator&, uint32_t, uint32_t)> genBodyFn, 
                     std::function<void(CodeGenerator&, uint32_t)> genTailFn);
 
 // Generate an unrolled loop body for a vectorised loop
-void unrollVectorLoopBody(CodeGenerator &c, uint32_t numIterations, uint32_t maxUnroll, 
+void unrollVectorLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator, 
+                          uint32_t numIterations, uint32_t maxUnroll, 
                           Reg testBufferReg, Reg testBufferEndReg, 
-                          std::function<void(CodeGenerator&, uint32_t)> genBodyFn, 
+                          std::function<void(CodeGenerator&, uint32_t, uint32_t, ScalarRegisterAllocator::RegisterPtr)> genBodyFn, 
                           std::function<void(CodeGenerator&, uint32_t)> genTailFn);
 
 // Generate preamble and postamble for code using standard ecall instruction to terminate simulations and polling on device

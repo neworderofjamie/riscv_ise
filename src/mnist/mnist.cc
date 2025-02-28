@@ -30,8 +30,8 @@
 #include "ise/riscv.h"
 #include "ise/vector_processor.h"
 
-void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAllocator,
-                    RegisterAllocator<Reg> &scalarRegisterAllocator, uint32_t weightPtr, 
+void genStaticPulse(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator,
+                    ScalarRegisterAllocator &scalarRegisterAllocator, uint32_t weightPtr, 
                     std::variant<uint32_t, ScalarRegisterAllocator::RegisterPtr> preSpikePtr, uint32_t postISynPtr, 
                     uint32_t numPre, uint32_t numPost, uint32_t scaleShift, bool debug)
 {
@@ -134,68 +134,48 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
                 c.ebreak();
             }
 
-            // Loop over postsynaptic neurons
-            if(numPost > 32) {
-                ALLOCATE_VECTOR(VWeight);
-                ALLOCATE_VECTOR(VISyn1);
-                ALLOCATE_VECTOR(VISyn2);
+            ALLOCATE_VECTOR(VWeight);
+            ALLOCATE_VECTOR(VISyn1);
+            ALLOCATE_VECTOR(VISyn2);
+            ALLOCATE_VECTOR(VISynNew);
 
-                // Preload first ISyn to avoid stall
-                c.vloadv(*VISyn1, *SISynBuffer, 0);
+            // Preload first ISyn to avoid stall
+            c.vloadv(*VISyn1, *SISynBuffer, 0);
 
-                AssemblerUtils::unrollVectorLoopBody(
-                    c, numPost, 4, *SISynBuffer, *SISynBufferEnd,
-                    [SWeightBuffer, SISynBuffer, VWeight, VISyn1, VISyn2]
-                    (CodeGenerator &c, uint32_t r)
-                    {
-                        // Load vector of weights
-                        c.vloadv(*VWeight, *SWeightBuffer, r * 64);
+            AssemblerUtils::unrollVectorLoopBody(
+                c, scalarRegisterAllocator, numPost, 4, *SISynBuffer, *SISynBufferEnd,
+                [SWeightBuffer, SISynBuffer, VWeight, VISyn1, VISyn2, VISynNew]
+                (CodeGenerator &c, uint32_t r, uint32_t i, ScalarRegisterAllocator::RegisterPtr maskReg)
+                {
+                    // Load vector of weights
+                    c.vloadv(*VWeight, *SWeightBuffer, r * 64);
 
-                        // Unless this is last unroll, load NEXT vector of ISyn to avoid stall
-                        // **YUCK** in last iteration, while this may not be accessed, it may be out of bounds
-                        const bool even = ((r % 2) == 0);
-                        c.vloadv(even ? *VISyn2 : *VISyn1, *SISynBuffer, (r + 1) * 64);
-                        
-                        // Add weights to ISyn
-                        auto VISyn = even ? VISyn1 : VISyn2;
+                    // Unless this is last unroll, load NEXT vector of ISyn to avoid stall
+                    // **YUCK** in last iteration, while this may not be accessed, it may be out of bounds
+                    const bool even = ((i % 2) == 0);
+                    c.vloadv(even ? *VISyn2 : *VISyn1, *SISynBuffer, (r + 1) * 64);
+                    
+                    // Add weights to ISyn
+                    auto VISyn = even ? VISyn1 : VISyn2;
+
+                    if(maskReg) {
+                        c.vadd_s(*VISynNew, *VISyn, *VWeight);
+                        c.vsel(*VISyn, *maskReg, *VISynNew);
+                    }
+                    else {
                         c.vadd_s(*VISyn, *VISyn, *VWeight);
+                    }
 
-                        // Write back ISyn and increment SISynBuffer
-                        c.vstore(*VISyn, *SISynBuffer, r * 64);
-                    },
-                    [SWeightBuffer, SISynBuffer]
-                    (CodeGenerator &c, uint32_t numUnrolls)
-                    {
-                        // Increment pointers 
-                        c.addi(*SISynBuffer, *SISynBuffer, 64 * numUnrolls);
-                        c.addi(*SWeightBuffer, *SWeightBuffer, 64 * numUnrolls);
-                    });
-            }
-            // Tail if there are non-POT number of postsynaptic neurons
-            if((numPost % 32) != 0) {
-                ALLOCATE_SCALAR(SMask);
-                ALLOCATE_VECTOR(VWeight);
-                ALLOCATE_VECTOR(VISyn);
-                ALLOCATE_VECTOR(VISynNew);
-
-                // Calculate mask for final iteration
-                c.li(*SMask, (1 << (padSize(numPost, 32) - numPost)) - 1);
-
-                // Load next vector of weights and ISyns
-                c.vloadv(*VWeight, *SWeightBuffer);
-                c.vloadv(*VISyn, *SISynBuffer);
-
-                // **STALL**
-                c.nop();
-
-                // Add weights to ISyn with mask
-                c.vadd_s(*VISynNew, *VISyn, *VWeight);
-                c.vsel(*VISyn, *SMask, *VISynNew);
-
-                // Write back ISyn
-                c.vstore(*VISyn, *SISynBuffer);
-            }
-
+                    // Write back ISyn and increment SISynBuffer
+                    c.vstore(*VISyn, *SISynBuffer, r * 64);
+                },
+                [SWeightBuffer, SISynBuffer]
+                (CodeGenerator &c, uint32_t numUnrolls)
+                {
+                    // Increment pointers 
+                    c.addi(*SISynBuffer, *SISynBuffer, 64 * numUnrolls);
+                    c.addi(*SWeightBuffer, *SWeightBuffer, 64 * numUnrolls);
+                });
 
             // SN --
             c.addi(*SN, *SN, -1);
@@ -335,20 +315,22 @@ std::vector<uint32_t> generateSimCode(bool simulate, uint32_t numInput, uint32_t
                     c.li(*SSpikeBuffer, hiddenSpikePtr);
                  
                     AssemblerUtils::unrollVectorLoopBody(
-                        c, numHidden, 4, *SVBuffer, *SVBufferEnd,
+                        c, scalarRegisterAllocator, numHidden, 4, *SVBuffer, *SVBufferEnd,
                         [&scalarRegisterAllocator, &vectorRegisterAllocator,
                          hiddenFixedPoint, 
                          SVBuffer, SISynBuffer, SRefracTimeBuffer, SSpikeBuffer,
                          VAlpha, VMinusDT, VTauRefrac, VThresh, VMinusThresh, VZero]
-                        (CodeGenerator &c, uint32_t r)
+                        (CodeGenerator &c, uint32_t r, uint32_t, ScalarRegisterAllocator::RegisterPtr maskReg)
                         {
+                            assert(!maskReg);
+
                             // Register allocation
                             ALLOCATE_VECTOR(VV);
                             ALLOCATE_VECTOR(VISyn);
                             ALLOCATE_VECTOR(VRefracTime);
                             ALLOCATE_SCALAR(SSpikeOut);
                             ALLOCATE_SCALAR(SRefractory); 
-
+                            
                             // Load voltage and isyn
                             c.vloadv(*VV, *SVBuffer, 64 * r);
                             c.vloadv(*VISyn, *SISynBuffer, 64 * r);
