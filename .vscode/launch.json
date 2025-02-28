@@ -25,7 +25,8 @@
         "lif",
         "mnist",
         "poisson",
-        "shd"
+        "shd",
+        "va_benchmark"
       ],
       "default": "lif"
     }
