@@ -41,8 +41,8 @@ struct StaticPulseTarget
     bool debug;
 };
 
-void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAllocator,
-                    RegisterAllocator<Reg> &scalarRegisterAllocator,
+void genStaticPulse(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator,
+                    ScalarRegisterAllocator &scalarRegisterAllocator,
                     std::variant<uint32_t, ScalarRegisterAllocator::RegisterPtr> preSpikePtr, uint32_t numPre, 
                     const std::vector<StaticPulseTarget> &targets)
 {
@@ -171,6 +171,7 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
                 ALLOCATE_VECTOR(VPostInd2);
                 ALLOCATE_VECTOR(VAccum1);
                 ALLOCATE_VECTOR(VAccum2);
+                ALLOCATE_VECTOR(VAccumNew);
                 
                 // Preload first index and accumulator
                 c.vloadv(*VPostInd1, *std::get<0>(tReg));
@@ -179,13 +180,15 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
 
                 const uint32_t laneLocalImm = t.laneLocalImm;
                 AssemblerUtils::unrollVectorLoopBody(
-                    c, t.maxRowLength, 4, *std::get<0>(tReg), *std::get<1>(tReg),
-                    [&tReg, laneLocalImm, SMask, SPostIndBuffer, VPostInd1, VPostInd2, VAccum1, VAccum2, VWeight, VZero]
-                    (CodeGenerator &c, uint32_t r)
+                    c, scalarRegisterAllocator, t.maxRowLength, 4, *std::get<0>(tReg), *std::get<1>(tReg),
+                    [&tReg, laneLocalImm, SMask, SPostIndBuffer, VPostInd1, VPostInd2, VAccum1, VAccum2, VAccumNew, VWeight, VZero]
+                    (CodeGenerator &c, uint32_t r, uint32_t i, ScalarRegisterAllocator::RegisterPtr maskReg)
                     {
+                        assert(!maskReg);
+
                         // Load vector of postsynaptic indices for next iteration
                         // **YUCK** in last iteration, while this may not be accessed, it may be out of bounds
-                        const bool even = ((r % 2) == 0);                            
+                        const bool even = ((i % 2) == 0);                            
                         c.vloadv(even ? *VPostInd2 : *VPostInd1, 
                                     *std::get<0>(tReg), (r + 1) * 64);
                             
@@ -194,11 +197,12 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
 
                         // Using postsynaptic indices, load accumulator for next iteration
                         c.vloadl(even ? *VAccum2 : *VAccum1, even ? *VPostInd2 : *VPostInd1,
-                                    laneLocalImm);
+                                 laneLocalImm);
 
                         // Add weights to accumulator loaded in previous iteration
                         auto VAccum = even ? VAccum1 : VAccum2;
-                        c.vadd_s(*VAccum, *VAccum, VWeight);
+                        c.vadd_s(*VAccumNew, *VAccum, VWeight);
+                        c.vsel(*VAccum, *SMask, *VAccumNew);
 
                         // Write back accumulator
                         c.vstorel(*VAccum, even ? *VPostInd1 : *VPostInd2);
@@ -263,7 +267,7 @@ int main(int argc, char** argv)
     std::vector<int16_t> vectorInitData;
 
     // Constants
-    constexpr uint32_t fixedPoint = 11;
+    constexpr uint32_t fixedPoint = 8;
     constexpr uint32_t numExc = 410;
     constexpr uint32_t numInh = 102;
     constexpr uint32_t neuronFixedPoint = 5;
@@ -375,12 +379,13 @@ int main(int argc, char** argv)
                 c.li(*SRefracTimeBuffer, excRefracTimePtr);
 
                 // Excitatory neuron loop
+                // **NOTE** all these allocations are padded so it's fine to ignore mask register
                 AssemblerUtils::unrollVectorLoopBody(
-                    c, numExcWords * 32, 4, *SVBuffer, *SVBufferEnd,
+                    c, scalarRegisterAllocator, numExcWords * 32, 4, *SVBuffer, *SVBufferEnd,
                     [&scalarRegisterAllocator, &vectorRegisterAllocator,
                     fixedPoint, eeLLAddr, eiLLAddr,
                     SRefracTimeBuffer, SVBuffer, VRandom, VScale, VSynLLOffset, VZero]
-                    (CodeGenerator &c, uint32_t r)
+                    (CodeGenerator &c, uint32_t r, uint32_t, ScalarRegisterAllocator::RegisterPtr)
                     {
                         // Generate initial mebrane voltages from U(0,Scale) 
                         c.vrng(*VRandom);
@@ -488,7 +493,7 @@ int main(int argc, char** argv)
                     c.li(*SSpikeBuffer, excSpikeArrayPtr);
                  
                     AssemblerUtils::unrollVectorLoopBody(
-                        c, numExc, 4, *SVBuffer, *SVBufferEnd,
+                        c, scalarRegisterAllocator, numExc, 4, *SVBuffer, *SVBufferEnd,
                         [&scalarRegisterAllocator, &vectorRegisterAllocator,
                          fixedPoint, eeLLAddr, eiLLAddr,
                          SVBuffer, SRefracTimeBuffer, SSpikeBuffer,
@@ -496,7 +501,7 @@ int main(int argc, char** argv)
                          SExcSpikeRecordingBuffer,
  #endif
                          VAlpha, VEBeta, VIBeta, VEScale, VIScale, VDT, VRMembrane, VSynLLOffset, VTauRefrac, VThresh, VIOffset, VZero]
-                        (CodeGenerator &c, uint32_t r)
+                        (CodeGenerator &c, uint32_t r, uint32_t, ScalarRegisterAllocator::RegisterPtr maskReg)
                         {
                             // Register allocation
                             ALLOCATE_VECTOR(VV);
@@ -517,10 +522,10 @@ int main(int argc, char** argv)
                             // Excitatory
                             {
                                 // Scale VEISyn 
-                                c.vmul(fixedPoint, *VInSyn, *VESyn, *VEScale);
+                                c.vmul_rs(fixedPoint, *VInSyn, *VESyn, *VEScale);
 
                                 // Decay VEIsyn
-                                c.vmul(14, *VESyn, *VESyn, *VEBeta);
+                                c.vmul_rs(14, *VESyn, *VESyn, *VEBeta);
                             }
 
                             // Inhibitory
@@ -528,11 +533,11 @@ int main(int argc, char** argv)
                                 ALLOCATE_VECTOR(VTmp);
 
                                 // Scale VIISyn 
-                                c.vmul(fixedPoint, *VTmp, *VISyn, *VEScale);
-                                c.vadd(*VInSyn, *VInSyn, *VTmp);
+                                c.vmul_rs(fixedPoint, *VTmp, *VISyn, *VEScale);
+                                c.vadd_s(*VInSyn, *VInSyn, *VTmp);
 
                                 // Decay VIISyn
-                                c.vmul(14, *VISyn, *VISyn, *VIBeta);
+                                c.vmul_rs(14, *VISyn, *VISyn, *VIBeta);
                             }
                             
                             // SRefractory = VRefracTime > 0.0 (0.0 < VRefracTime)
@@ -543,18 +548,18 @@ int main(int argc, char** argv)
                                 ALLOCATE_VECTOR(VVTemp);
 
                                 // VRefractTimeTemp = VRefracTime - VDT
-                                c.vsub(*VRefracTimeTemp, *VRefracTime, *VDT);
+                                c.vsub_s(*VRefracTimeTemp, *VRefracTime, *VDT);
 
                                 // VAlphaTemp = (VInSyn + VIoffset) * VRMembrane
-                                c.vadd(*VAlphaTemp, *VInSyn, *VIOffset);
-                                c.vmul(fixedPoint, *VAlphaTemp, *VAlphaTemp, *VRMembrane);
+                                c.vadd_s(*VAlphaTemp, *VInSyn, *VIOffset);
+                                c.vmul_rs(fixedPoint, *VAlphaTemp, *VAlphaTemp, *VRMembrane);
 
                                 // VVTemp = VAlpha * (VAlphaTemp - VV)
                                 c.vsub(*VVTemp, *VAlphaTemp, *VV);
-                                c.vmul(fixedPoint, *VVTemp, *VVTemp, *VAlpha);
+                                c.vmul_rs(fixedPoint, *VVTemp, *VVTemp, *VAlpha);
 
                                 // VVTemp = VAlphaTemp - VVTemp
-                                c.vsub(*VVTemp, *VAlphaTemp, *VVTemp);
+                                c.vsub_s(*VVTemp, *VAlphaTemp, *VVTemp);
 
                                 // SNonRefactory = !SRefractory
                                 c.not_(*SNonRefractory, *SRefractory);
@@ -569,6 +574,11 @@ int main(int argc, char** argv)
                             // SSpikeOut = VV >= VThresh && !SRefractory
                             c.vtge(*SSpikeOut, *VV, *VThresh);
                             c.and_(*SSpikeOut, *SSpikeOut, *SNonRefractory);
+                            
+                            // If we have a mask, and spikes with it
+                            if(maskReg) {
+                                c.and_(*SSpikeOut, *SSpikeOut, *maskReg);
+                            }
                             
                             // *SSpikeBuffer = SSpikeOut
                             c.sw(*SSpikeOut, *SSpikeBuffer, 4 * r);
@@ -693,15 +703,7 @@ int main(int argc, char** argv)
         if(!riscV.run()) {
             return 1;
         }
-#ifdef RECORD_SPIKES
-        auto *scalarData = riscV.getScalarDataMemory().getData().data();
-        const uint32_t *excSpikeRecording = reinterpret_cast<const uint32_t*>(scalarData + excSpikeRecordingPtr);
-        std::ofstream spikeFile("exc_spikes_sim.csv");
-        for(size_t t = 0; t < numTimesteps; t++) {
-            AppUtils::writeSpikes(spikeFile, excSpikeRecording, t, numExcWords);
-            excSpikeRecording += numExcWords;
-        }
-#endif
+
         // Reset stats for simulations
         riscV.resetStats();
 
@@ -737,7 +739,15 @@ int main(int argc, char** argv)
         std::cout << "\t\t" << riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getNumMemory(riscV.getNumCoprocessorInstructionsExecuted(vectorQuadrant)) << " vector memory" << std::endl;
         std::cout << "\t\t" << riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getNumALU(riscV.getNumCoprocessorInstructionsExecuted(vectorQuadrant)) << " vector ALU" << std::endl;
     
-    
+#ifdef RECORD_SPIKES
+        auto *scalarData = riscV.getScalarDataMemory().getData().data();
+        const uint32_t *excSpikeRecording = reinterpret_cast<const uint32_t*>(scalarData + excSpikeRecordingPtr);
+        std::ofstream spikeFile("exc_spikes_sim.csv");
+        for(size_t t = 0; t < numTimesteps; t++) {
+            AppUtils::writeSpikes(spikeFile, excSpikeRecording, t, numExcWords);
+            excSpikeRecording += numExcWords;
+        }
+#endif
         // Record output spikes
         //std::ofstream inputSpikes("input_spikes.csv");
         //std::ofstream hiddenSpikes("hidden_spikes.csv");
@@ -747,5 +757,6 @@ int main(int argc, char** argv)
         //    AppUtils::writeSpikes(hiddenSpikes, hiddenSpikeRecording.data() + (numHiddenSpikeWords * t),
         //                          t, numHiddenSpikeWords);
         //}
+    }
     return 0;
 }
