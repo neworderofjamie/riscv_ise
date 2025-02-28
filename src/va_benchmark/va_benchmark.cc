@@ -30,6 +30,8 @@
 #include "ise/riscv.h"
 #include "ise/vector_processor.h"
 
+#define RECORD_SPIKES
+
 struct StaticPulseTarget
 {
     uint32_t postIndPtr;
@@ -269,6 +271,8 @@ int main(int argc, char** argv)
     constexpr uint32_t numInhWords = ceilDivide(numInh, 32);
     constexpr uint32_t numExcIncomingVectors = 7;
     constexpr uint32_t numInhIncomingVectors = 3;
+    const uint32_t numExcSpikeRecordingWords = numExcWords * numTimesteps;
+    const uint32_t numInhSpikeRecordingWords = numInhWords * numTimesteps;
 
     // Layout lane local memory
     constexpr uint32_t eeLLAddr = 0;
@@ -294,6 +298,10 @@ int main(int argc, char** argv)
     const uint32_t excSpikeArrayPtr = AppUtils::allocateScalarAndZero(numExcWords * 4, scalarInitData);
     const uint32_t inhSpikePtr = AppUtils::allocateScalarAndZero(numInhWords * 4, scalarInitData);
     const uint32_t readyFlagPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
+
+#ifdef RECORD_SPIKES
+     const uint32_t excSpikeRecordingPtr = AppUtils::allocateScalarAndZero(numExcSpikeRecordingWords * 4, scalarInitData);
+#endif
     //const uint32_t exc
     // Increase scalar memory size
     scalarInitData.resize(64 * 1024, 0);
@@ -401,15 +409,19 @@ int main(int argc, char** argv)
             // Register allocation
             ALLOCATE_SCALAR(STime);
             ALLOCATE_SCALAR(STimeEnd);
-
+#ifdef RECORD_SPIKES
+            ALLOCATE_SCALAR(SExcSpikeRecordingBuffer);
+#endif
             // Labels
             Label timeLoop;
             Label spinLoop;
 
-            // Set timestep range and load ready flag pointer
+            // Set timestep range
             c.li(*STime, 0);
             c.li(*STimeEnd, numTimesteps);
-
+#ifdef RECORD_SPIKES
+            c.li(*SExcSpikeRecordingBuffer, excSpikeRecordingPtr);
+#endif
             // Loop over time
             c.L(timeLoop);
             {
@@ -480,6 +492,9 @@ int main(int argc, char** argv)
                         [&scalarRegisterAllocator, &vectorRegisterAllocator,
                          fixedPoint, eeLLAddr, eiLLAddr,
                          SVBuffer, SRefracTimeBuffer, SSpikeBuffer,
+ #ifdef RECORD_SPIKES
+                         SExcSpikeRecordingBuffer,
+ #endif
                          VAlpha, VEBeta, VIBeta, VEScale, VIScale, VDT, VRMembrane, VSynLLOffset, VTauRefrac, VThresh, VIOffset, VZero]
                         (CodeGenerator &c, uint32_t r)
                         {
@@ -557,7 +572,10 @@ int main(int argc, char** argv)
                             
                             // *SSpikeBuffer = SSpikeOut
                             c.sw(*SSpikeOut, *SSpikeBuffer, 4 * r);
-
+#ifdef RECORD_SPIKES
+                            c.sw(*SSpikeOut, *SExcSpikeRecordingBuffer);
+                            c.addi(*SExcSpikeRecordingBuffer, *SExcSpikeRecordingBuffer, 4);
+#endif
                             // VV = SSpikeOut ? VZero : VV
                             c.vsel(*VV, *SSpikeOut, *VZero);
 
@@ -675,7 +693,15 @@ int main(int argc, char** argv)
         if(!riscV.run()) {
             return 1;
         }
-
+#ifdef RECORD_SPIKES
+        auto *scalarData = riscV.getScalarDataMemory().getData().data();
+        const uint32_t *excSpikeRecording = reinterpret_cast<const uint32_t*>(scalarData + excSpikeRecordingPtr);
+        std::ofstream spikeFile("exc_spikes_sim.csv");
+        for(size_t t = 0; t < numTimesteps; t++) {
+            AppUtils::writeSpikes(spikeFile, excSpikeRecording, t, numExcWords);
+            excSpikeRecording += numExcWords;
+        }
+#endif
         // Reset stats for simulations
         riscV.resetStats();
 
