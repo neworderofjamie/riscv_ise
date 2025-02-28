@@ -43,36 +43,42 @@ constexpr size_t gpioSize = 2 * 1024;
 // Device
 //----------------------------------------------------------------------------
 Device::Device()
-:   m_Memory(0), m_InstructionMemory(nullptr), m_DataMemory(nullptr), m_GPIO(nullptr)
+:   m_InstructionMemory(nullptr), m_DataMemory(nullptr), m_GPIO(nullptr)
 {
 #ifdef __linux__ 
-    // Open memory
-    // **NOTE** O_SYNC turns of caching
-    m_Memory = open("/dev/mem", O_RDWR | O_SYNC);
-    if(m_Memory == -1) {
-        throw std::runtime_error("/dev/mem open failure (" + std::to_string(errno) + " = " + strerror(errno) + ")");
-    }
-
+    
     // Memory map instruction memory
+    int instMemory = open("/dev/uiomem1", O_RDWR | O_SYNC);
     m_InstructionMemory = reinterpret_cast<uint32_t*>(mmap(nullptr, instructionSize, PROT_WRITE, MAP_SHARED, 
-                                                           m_Memory, instructionBase));
+                                                           instMemory, 0));
     if(m_InstructionMemory == MAP_FAILED) {
         throw std::runtime_error("ITCM map failed (" + std::to_string(errno) + " = " + strerror(errno) + ")");
     }
-
+    close(instMemory);
+    
     // Memory map data memory
+    int dataMemory = open("/dev/uiomem2", O_RDWR | O_SYNC);
     m_DataMemory = reinterpret_cast<uint8_t*>(mmap(nullptr, dataSize, PROT_READ | PROT_WRITE, MAP_SHARED, 
-                                                   m_Memory, dataBase));
+                                                   dataMemory, 0));
     if(m_DataMemory == MAP_FAILED) {
         throw std::runtime_error("DTCM map failed (" + std::to_string(errno) + " = " + strerror(errno) + ")");
+    }
+    close(dataMemory);
+
+    // Open memory
+    // **NOTE** O_SYNC turns of caching
+    int memory = open("/dev/mem", O_RDWR | O_SYNC);
+    if(memory == -1) {
+        throw std::runtime_error("/dev/mem open failure (" + std::to_string(errno) + " = " + strerror(errno) + ")");
     }
 
     // Memory map GPIO
     m_GPIO = reinterpret_cast<uint32_t*>(mmap(nullptr, gpioSize, PROT_READ | PROT_WRITE, MAP_SHARED,
-                                              m_Memory, gpioBase));
+                                              memory, gpioBase));
     if(m_GPIO == MAP_FAILED) {
         throw std::runtime_error("GPIO map failed (" + std::to_string(errno) + " = " + strerror(errno) + ")");
     }
+    close(memory);
 #else
     throw std::runtime_error("Device interface only supports Linux");
 #endif  // __linux__
@@ -87,7 +93,7 @@ Device::~Device()
     munmap(m_InstructionMemory, instructionSize);
     
     // Close memory device
-    close(m_Memory);
+    //close(m_Memory);
 #endif  // __linux__
 }
 //----------------------------------------------------------------------------
