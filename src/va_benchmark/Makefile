@@ -11,7 +11,7 @@ VA_BENCHMARK		:=$(BIN_DIRECTORY)/va_benchmark$(PREFIX)
 
 all: $(VA_BENCHMARK)
 
--include mnist.d
+-include va_benchmark.d
 
 $(VA_BENCHMARK): va_benchmark.cc va_benchmark.d libise libcommon libassembler
 	mkdir -p $(@D)
