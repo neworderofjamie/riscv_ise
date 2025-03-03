@@ -505,139 +505,96 @@ uint32_t RISCV::calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs2, uint3
 {
     const uint32_t val = m_Reg[rs1];
     const uint32_t val2 = m_Reg[rs2];
-#ifdef STRICT_RV32I
-    if (imm == 1) {
-        switch(funct3) {
-        case 0: /* mul */
-#ifdef DEBUG_EXTRA
-            dprintf(">>> MUL\n");
-            stats[48]++;
-#endif
-            val = (int32_t)((int32_t)val * (int32_t)val2);
-            break;
-        case 1: /* mulh */
-#ifdef DEBUG_EXTRA
-            dprintf(">>> MULH\n");
-            stats[49]++;
-#endif
-            val = (int32_t)mulh32(val, val2);
-            break;
-        case 2:/* mulhsu */
-#ifdef DEBUG_EXTRA
-            dprintf(">>> MULHSU\n");
-            stats[50]++;
-#endif
-            val = (int32_t)mulhsu32(val, val2);
-            break;
-        case 3:/* mulhu */
-#ifdef DEBUG_EXTRA
-            dprintf(">>> MULHU\n");
-            stats[51]++;
-#endif
-            val = (int32_t)mulhu32(val, val2);
-            break;
-        case 4:/* div */
-#ifdef DEBUG_EXTRA
-            dprintf(">>> DIV\n");
-            stats[52]++;
-#endif
-            val = div32(val, val2);
-            break;
-        case 5:/* divu */
-#ifdef DEBUG_EXTRA
-            dprintf(">>> DIVU\n");
-            stats[53]++;
-#endif
-            val = (int32_t)divu32(val, val2);
-            break;
-        case 6:/* rem */
-#ifdef DEBUG_EXTRA
-            dprintf(">>> REM\n");
-            stats[54]++;
-#endif
-            val = rem32(val, val2);
-            break;
-        case 7:/* remu */
-#ifdef DEBUG_EXTRA
-            dprintf(">>> REMU\n");
-            stats[55]++;
-#endif
-            val = (int32_t)remu32(val, val2);
-            break;
-        default:
-            raise_exception(CAUSE_ILLEGAL_INSTRUCTION, insn);
-            return;
-        }
-    }
-    else
-#endif
+
+    switch(getOpType(funct7, funct3)) {
+    case OpType::ADD:
     {
-        switch(getOpType(funct7, funct3)) {
-        case OpType::ADD:
-        {
-            PLOGV << "ADD " << rs1 << " " << rs2;
-            return (int32_t)(val + val2);
-        }
-        
-        case OpType::SUB:
-        {
-            PLOGV << "SUB " << rs1 << " " << rs2;
-            return (int32_t)(val - val2);
-        }
+        PLOGV << "ADD " << rs1 << " " << rs2;
+        return (int32_t)(val + val2);
+    }
+    
+    case OpType::SUB:
+    {
+        PLOGV << "SUB " << rs1 << " " << rs2;
+        return (int32_t)(val - val2);
+    }
 
-        case OpType::SLL:
-        {
-            PLOGV << "SLL " << rs1 << " " << rs2;
-            return (int32_t)(val << (val2 & 31));
-        }
+    case OpType::SLL:
+    {
+        PLOGV << "SLL " << rs1 << " " << rs2;
+        return (int32_t)(val << (val2 & 31));
+    }
 
-        case OpType::SLT:
-        {
-            PLOGV << "SLT " << rs1 << " " << rs2;
-            return (int32_t)val < (int32_t)val2;
-        }
+    case OpType::SLT:
+    {
+        PLOGV << "SLT " << rs1 << " " << rs2;
+        return (int32_t)val < (int32_t)val2;
+    }
 
-        case OpType::SLTU:
-        {
-            PLOGV << "SLTU " << rs1 << " " << rs2;
-            return val < val2;
-        }
+    case OpType::SLTU:
+    {
+        PLOGV << "SLTU " << rs1 << " " << rs2;
+        return val < val2;
+    }
 
-        case OpType::XOR:
-        {
-            PLOGV << "XOR " << rs1 << " " << rs2;
-            return val ^ val2;
-        }
+    case OpType::XOR:
+    {
+        PLOGV << "XOR " << rs1 << " " << rs2;
+        return val ^ val2;
+    }
 
-        case OpType::SRL:
-        {
-            PLOGV << "SRL " << rs1 << " " << rs2;
-            return (int32_t)((uint32_t)val >> (val2 & 31));
-        }
+    case OpType::SRL:
+    {
+        PLOGV << "SRL " << rs1 << " " << rs2;
+        return (int32_t)((uint32_t)val >> (val2 & 31));
+    }
 
-        case OpType::SRA:
-        {
-            PLOGV << "SRA " << rs1 << " " << rs2;
-            return (int32_t)val >> (val2 & 31);
-        }
-        
-        case OpType::OR:
-        {
-            PLOGV << "OR " << rs1 << " " << rs2;
-            return val | val2;
-        }
+    case OpType::SRA:
+    {
+        PLOGV << "SRA " << rs1 << " " << rs2;
+        return (int32_t)val >> (val2 & 31);
+    }
+    
+    case OpType::OR:
+    {
+        PLOGV << "OR " << rs1 << " " << rs2;
+        return val | val2;
+    }
 
-        case OpType::AND:
-        {
-            PLOGV << "AND " << rs1 << " " << rs2;
-            return val & val2;
-        }
+    case OpType::AND:
+    {
+        PLOGV << "AND " << rs1 << " " << rs2;
+        return val & val2;
+    }
 
-        default:
-        {
-            throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
-        }
-        }
+    case OpType::MUL:
+    {
+        PLOGV << "MUL " << rs1 << " " << rs2;
+        return (int32_t)((int32_t)val * (int32_t)val2);
+    }
+
+    /*case OpType::MULH:
+    {
+        PLOGV << "MULH " << rs1 << " " << rs2;
+        return (int32_t)((int32_t)val * (int32_t)val2);
+    }
+
+    case OpType::MULHSU:
+    {
+        PLOGV << "MULHSU " << rs1 << " " << rs2;
+        return (int32_t)((int32_t)val * (int32_t)val2);
+    }
+
+    case OpType::MULHU:
+    {
+        PLOGV << "MULHU " << rs1 << " " << rs2;
+        return (int32_t)((int32_t)val * (int32_t)val2);
+    }*/
+
+    default:
+    {
+        throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
+    }
     }
 }
 //----------------------------------------------------------------------------
