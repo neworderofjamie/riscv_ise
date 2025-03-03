@@ -33,6 +33,11 @@
 #define RECORD_SPIKES
 //#define RECORD_V
 
+// ---------------------------------------------------------------------------
+// Anonymous namespace
+// ---------------------------------------------------------------------------
+namespace
+{
 struct StaticPulseTarget
 {
     uint32_t postIndPtr;
@@ -240,7 +245,7 @@ void genStaticPulse(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAll
     
     c.L(wordEnd);
 }
-
+// ---------------------------------------------------------------------------
 void genLIF(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator,
             ScalarRegisterAllocator &scalarRegisterAllocator,
             uint32_t numNeurons,
@@ -418,7 +423,17 @@ void genLIF(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator,
             c.vadd(*VSynLLOffset, *VSynLLOffset, *VNumUnrollBytes);
         });
 }
-
+// ---------------------------------------------------------------------------
+void writeSpikes(const char *filename, const uint32_t *recordingData,
+                 uint32_t numTimesteps, uint32_t numWords)
+{
+    std::ofstream spikeFile(filename);
+    for(size_t t = 0; t < numTimesteps; t++) {
+        AppUtils::writeSpikes(spikeFile, recordingData, t * 1.0, numWords);
+        recordingData += numWords;
+    }
+}
+}
 
 int main(int argc, char** argv)
 {
@@ -474,18 +489,20 @@ int main(int argc, char** argv)
     
     // Allocate scalar arrays
     const uint32_t excSpikeArrayPtr = AppUtils::allocateScalarAndZero(numExcWords * 4, scalarInitData);
-    const uint32_t inhSpikePtr = AppUtils::allocateScalarAndZero(numInhWords * 4, scalarInitData);
+    const uint32_t inhSpikeArrayPtr = AppUtils::allocateScalarAndZero(numInhWords * 4, scalarInitData);
     const uint32_t readyFlagPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
 
 #ifdef RECORD_SPIKES
      const uint32_t excSpikeRecordingPtr = AppUtils::allocateScalarAndZero(numExcSpikeRecordingWords * 4, scalarInitData);
+     const uint32_t inhSpikeRecordingPtr = AppUtils::allocateScalarAndZero(numInhSpikeRecordingWords * 4, scalarInitData);
 #endif
 #ifdef RECORD_V
     const uint32_t excVRecordingPtr = AppUtils::allocateScalarAndZero(2 * numTimesteps, scalarInitData);
 #endif
-    //const uint32_t exc
-    // Increase scalar memory size
-    scalarInitData.resize(64 * 1024, 0);
+
+    // Increase scalar memory for buffering
+    assert(scalarInitData.size() <= (128 * 1024));
+    scalarInitData.resize(128 * 1024, 0);
 
     // Load connectivity data
     const auto eeInd = AppUtils::loadBinaryData<uint8_t>("va_benchmark_ee.bin");
@@ -579,6 +596,56 @@ int main(int argc, char** argv)
                         c.vadd(*VSynLLOffset, *VSynLLOffset, *VNumUnrollBytes);
                     });
             }
+
+            // ---------------------------------------------------------------
+            // Inh neurons
+            // ---------------------------------------------------------------
+            {
+                // Register allocation
+                ALLOCATE_SCALAR(SVBuffer);
+                ALLOCATE_SCALAR(SRefracTimeBuffer);
+                ALLOCATE_VECTOR(VZero);
+                ALLOCATE_VECTOR(VScale);
+                ALLOCATE_VECTOR(VRandom);
+                ALLOCATE_VECTOR(VSynLLOffset);
+                ALLOCATE_VECTOR(VNumUnrollBytes);
+                
+                // Load constants
+                c.vlui(*VZero, 0);
+                c.vlui(*VScale, convertFixedPoint(10.0, fixedPoint));
+                c.vlui(*VSynLLOffset, 0);
+                c.vlui(*VNumUnrollBytes, 2 * std::min(numInhWords, 4u));
+
+                // Get address of buffers
+                c.li(*SVBuffer, inhVPtr);
+                c.li(*SRefracTimeBuffer, inhRefracTimePtr);
+
+                // Excitatory neuron loop
+                // **NOTE** all these allocations are padded so we overfill to simplify code
+                AssemblerUtils::unrollVectorLoopBody(
+                    c, scalarRegisterAllocator, numInhWords * 32, 4, *SVBuffer,
+                    [&scalarRegisterAllocator, &vectorRegisterAllocator,
+                    fixedPoint, eiLLAddr, iiLLAddr,
+                    SRefracTimeBuffer, SVBuffer, VRandom, VScale, VSynLLOffset, VZero]
+                    (CodeGenerator &c, uint32_t r, uint32_t, ScalarRegisterAllocator::RegisterPtr)
+                    {
+                        // Generate initial mebrane voltages from U(0,Scale) 
+                        c.vrng(*VRandom);
+                        c.vmul(15, *VRandom, *VRandom, *VScale);
+
+                        c.vstorel(*VZero, *VSynLLOffset, eiLLAddr + (r * 2));
+                        c.vstorel(*VZero, *VSynLLOffset, iiLLAddr + (r * 2));
+                        c.vstore(*VRandom, *SVBuffer, r * 64);
+                        c.vstore(*VZero, *SRefracTimeBuffer, r * 64);
+                    },
+                    [SRefracTimeBuffer, SVBuffer, VNumUnrollBytes, VSynLLOffset]
+                    (CodeGenerator &c, uint32_t numUnrolls)
+                    {
+                        c.addi(*SVBuffer, *SVBuffer, 64 * numUnrolls);
+                        c.addi(*SRefracTimeBuffer, *SRefracTimeBuffer, 64 * numUnrolls);
+                        c.vadd(*VSynLLOffset, *VSynLLOffset, *VNumUnrollBytes);
+                    });
+            }
         });
 
     // Generate sim code
@@ -591,6 +658,7 @@ int main(int argc, char** argv)
             ALLOCATE_SCALAR(STimeEnd);
 #ifdef RECORD_SPIKES
             ALLOCATE_SCALAR(SExcSpikeRecordingBuffer);
+            ALLOCATE_SCALAR(SInhSpikeRecordingBuffer);
 #endif
 #ifdef RECORD_V
             ALLOCATE_SCALAR(SExcVRecordingBuffer);
@@ -604,6 +672,7 @@ int main(int argc, char** argv)
             c.li(*STimeEnd, numTimesteps);
 #ifdef RECORD_SPIKES
             c.li(*SExcSpikeRecordingBuffer, excSpikeRecordingPtr);
+            c.li(*SInhSpikeRecordingBuffer, inhSpikeRecordingPtr);
 #endif
 #ifdef RECORD_V
             c.li(*SExcVRecordingBuffer, excVRecordingPtr);
@@ -629,8 +698,9 @@ int main(int argc, char** argv)
                                outputIsynPtr, numHidden, numOutput, false);*/
 
                 
+
                 // ---------------------------------------------------------------
-                // E neurons
+                // Excitatory neurons
                 // ---------------------------------------------------------------
                 genLIF(c, vectorRegisterAllocator, scalarRegisterAllocator,
                        numExc, excVPtr, excRefracTimePtr, excSpikeArrayPtr,
@@ -642,6 +712,20 @@ int main(int argc, char** argv)
                        ,SExcVRecordingBuffer
 #endif
                     );
+                
+                // ---------------------------------------------------------------
+                // Inhibitory neurons
+                // ---------------------------------------------------------------
+                genLIF(c, vectorRegisterAllocator, scalarRegisterAllocator,
+                    numInh, inhVPtr, inhRefracTimePtr, inhSpikeArrayPtr,
+                    eiLLAddr, iiLLAddr, fixedPoint
+#ifdef RECORD_SPIKES
+                    ,SInhSpikeRecordingBuffer
+#endif
+#ifdef RECORD_V
+                    ,SInhVRecordingBuffer
+#endif
+                 );
 
                 c.addi(*STime, *STime, 1);
                 c.bne(*STime, *STimeEnd, timeLoop);
@@ -775,11 +859,12 @@ int main(int argc, char** argv)
         auto *scalarData = riscV.getScalarDataMemory().getData().data();
 #ifdef RECORD_SPIKES
         const uint32_t *excSpikeRecording = reinterpret_cast<const uint32_t*>(scalarData + excSpikeRecordingPtr);
-        std::ofstream spikeFile("exc_spikes_sim.csv");
-        for(size_t t = 0; t < numTimesteps; t++) {
-            AppUtils::writeSpikes(spikeFile, excSpikeRecording, t * 1.0, numExcWords);
-            excSpikeRecording += numExcWords;
-        }
+        writeSpikes("exc_spikes_sim.csv", excSpikeRecording,
+                    numTimesteps, numExcWords);
+        
+        const uint32_t *inhSpikeRecording = reinterpret_cast<const uint32_t*>(scalarData + inhSpikeRecordingPtr);
+        writeSpikes("inh_spikes_sim.csv", inhSpikeRecording,
+                    numTimesteps, numInhWords);
 #endif
 #ifdef RECORD_V
         const int16_t *excVRecording = reinterpret_cast<const int16_t*>(scalarData + excVRecordingPtr);
