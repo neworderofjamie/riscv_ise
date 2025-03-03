@@ -31,6 +31,7 @@
 #include "ise/vector_processor.h"
 
 #define RECORD_SPIKES
+//#define RECORD_V
 
 struct StaticPulseTarget
 {
@@ -267,7 +268,6 @@ int main(int argc, char** argv)
     constexpr uint32_t fixedPoint = 8;
     constexpr uint32_t numExc = 410;
     constexpr uint32_t numInh = 102;
-    constexpr uint32_t neuronFixedPoint = 5;
     constexpr uint32_t numExcWords = ceilDivide(numExc, 32);
     constexpr uint32_t numInhWords = ceilDivide(numInh, 32);
     constexpr uint32_t numExcIncomingVectors = 7;
@@ -302,6 +302,9 @@ int main(int argc, char** argv)
 
 #ifdef RECORD_SPIKES
      const uint32_t excSpikeRecordingPtr = AppUtils::allocateScalarAndZero(numExcSpikeRecordingWords * 4, scalarInitData);
+#endif
+#ifdef RECORD_V
+    const uint32_t excVRecordingPtr = AppUtils::allocateScalarAndZero(2 * numTimesteps, scalarInitData);
 #endif
     //const uint32_t exc
     // Increase scalar memory size
@@ -412,6 +415,9 @@ int main(int argc, char** argv)
 #ifdef RECORD_SPIKES
             ALLOCATE_SCALAR(SExcSpikeRecordingBuffer);
 #endif
+#ifdef RECORD_V
+            ALLOCATE_SCALAR(SExcVRecordingBuffer);
+#endif
             // Labels
             Label timeLoop;
             Label spinLoop;
@@ -421,6 +427,9 @@ int main(int argc, char** argv)
             c.li(*STimeEnd, numTimesteps);
 #ifdef RECORD_SPIKES
             c.li(*SExcSpikeRecordingBuffer, excSpikeRecordingPtr);
+#endif
+#ifdef RECORD_V
+            c.li(*SExcVRecordingBuffer, excVRecordingPtr);
 #endif
             // Loop over time
             c.L(timeLoop);
@@ -472,7 +481,7 @@ int main(int argc, char** argv)
                     c.vlui(*VEScale, convertFixedPoint(5.0 * (1.0 - std::exp(-1.0 / 5.0)), fixedPoint));
                     c.vlui(*VIScale, convertFixedPoint(10.0 * (1.0 - std::exp(-1.0 / 10.0)), fixedPoint));
                     c.vlui(*VThresh, convertFixedPoint(10.0, fixedPoint));
-                    c.vlui(*VIOffset, convertFixedPoint(5.5, fixedPoint));
+                    c.vlui(*VIOffset, convertFixedPoint(0.55, fixedPoint));
                     c.vlui(*VRMembrane, convertFixedPoint(20.0 / 1.0, fixedPoint));
                     c.vlui(*VTauRefrac, 5);
                     c.vlui(*VDT, 1);
@@ -490,11 +499,14 @@ int main(int argc, char** argv)
                         [&scalarRegisterAllocator, &vectorRegisterAllocator,
                          fixedPoint, eeLLAddr, eiLLAddr,
                          SVBuffer, SRefracTimeBuffer, SSpikeBuffer,
- #ifdef RECORD_SPIKES
+#ifdef RECORD_SPIKES
                          SExcSpikeRecordingBuffer,
- #endif
+#endif
+#ifdef RECORD_V
+                         SExcVRecordingBuffer,
+#endif
                          VAlpha, VEBeta, VIBeta, VEScale, VIScale, VDT, VRMembrane, VSynLLOffset, VTauRefrac, VThresh, VIOffset, VZero]
-                        (CodeGenerator &c, uint32_t r, uint32_t, ScalarRegisterAllocator::RegisterPtr maskReg)
+                        (CodeGenerator &c, uint32_t r, uint32_t i, ScalarRegisterAllocator::RegisterPtr maskReg)
                         {
                             // Register allocation
                             ALLOCATE_VECTOR(VV);
@@ -526,7 +538,7 @@ int main(int argc, char** argv)
                                 ALLOCATE_VECTOR(VTmp);
 
                                 // Scale VIISyn 
-                                c.vmul_rs(fixedPoint, *VTmp, *VISyn, *VEScale);
+                                c.vmul_rs(fixedPoint, *VTmp, *VISyn, *VIScale);
                                 c.vadd_s(*VInSyn, *VInSyn, *VTmp);
 
                                 // Decay VIISyn
@@ -549,7 +561,7 @@ int main(int argc, char** argv)
 
                                 // VVTemp = VAlpha * (VAlphaTemp - VV)
                                 c.vsub(*VVTemp, *VAlphaTemp, *VV);
-                                c.vmul_rs(fixedPoint, *VVTemp, *VVTemp, *VAlpha);
+                                c.vmul_rs(14, *VVTemp, *VVTemp, *VAlpha);
 
                                 // VVTemp = VAlphaTemp - VVTemp
                                 c.vsub_s(*VVTemp, *VAlphaTemp, *VVTemp);
@@ -578,6 +590,14 @@ int main(int argc, char** argv)
 #ifdef RECORD_SPIKES
                             c.sw(*SSpikeOut, *SExcSpikeRecordingBuffer);
                             c.addi(*SExcSpikeRecordingBuffer, *SExcSpikeRecordingBuffer, 4);
+#endif
+#ifdef RECORD_V
+                            if(i == 0){
+                                ALLOCATE_SCALAR(STmp);
+                                c.vextract(*STmp, *VV, 0);
+                                c.sh(*STmp, *SExcVRecordingBuffer);
+                                c.addi(*SExcVRecordingBuffer, *SExcVRecordingBuffer, 2);
+                            }
 #endif
                             // VV = SSpikeOut ? VZero : VV
                             c.vsel(*VV, *SSpikeOut, *VZero);
@@ -731,14 +751,21 @@ int main(int argc, char** argv)
         std::cout << "\t\t" << riscV.getNumALU() << " scalar ALU" << std::endl;
         std::cout << "\t\t" << riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getNumMemory(riscV.getNumCoprocessorInstructionsExecuted(vectorQuadrant)) << " vector memory" << std::endl;
         std::cout << "\t\t" << riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getNumALU(riscV.getNumCoprocessorInstructionsExecuted(vectorQuadrant)) << " vector ALU" << std::endl;
-    
-#ifdef RECORD_SPIKES
+        
         auto *scalarData = riscV.getScalarDataMemory().getData().data();
+#ifdef RECORD_SPIKES
         const uint32_t *excSpikeRecording = reinterpret_cast<const uint32_t*>(scalarData + excSpikeRecordingPtr);
         std::ofstream spikeFile("exc_spikes_sim.csv");
         for(size_t t = 0; t < numTimesteps; t++) {
             AppUtils::writeSpikes(spikeFile, excSpikeRecording, t * 1.0, numExcWords);
             excSpikeRecording += numExcWords;
+        }
+#endif
+#ifdef RECORD_V
+        const int16_t *excVRecording = reinterpret_cast<const int16_t*>(scalarData + excVRecordingPtr);
+        std::ofstream vFile("exc_v_sim.csv");
+        for(size_t t = 0; t < numTimesteps; t++) {
+            vFile << *excVRecording++ << std::endl;
         }
 #endif
         // Record output spikes
