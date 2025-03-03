@@ -24,10 +24,10 @@ def pad_connectivity(row_ind: Sequence[np.ndarray]) -> np.ndarray:
         # Split, pad list of connections with  
         # **NOTE** we only care about which L.L.M. address of target in bytes
         conn_id_banked = np.transpose(np.vstack([np.pad((a // 32) * 2, (0, num_vectors - len(a)), 
-                                                        constant_values=-1)
+                                                        constant_values=-2)
                                                 for a in np.split(i, l[:-1])]))
         conn_id_banked = np.pad(conn_id_banked, ((0, 0), (0, 32 - conn_id_banked.shape[1])),
-                                constant_values=-1)
+                                constant_values=-2)
         
         padded_rows.append(np.reshape(conn_id_banked, 32 * num_vectors))
     
