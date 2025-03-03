@@ -36,15 +36,15 @@ void generatePerformanceCountWrite(CodeGenerator &c, ScalarRegisterAllocator &sc
                                    CSR lowCSR, CSR highCSR, uint32_t scalarPtr);
 
 // Generate an unrolled loop body
-void unrollLoopBody(CodeGenerator &c, uint32_t numIterations, uint32_t maxUnroll, 
-                    Reg testBufferReg, Reg testBufferEndReg, bool alwaysGenerateTail,
+void unrollLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator,
+                    uint32_t numIterations, uint32_t maxUnroll, uint32_t iterationBytes,
+                    Reg testBufferReg, bool alwaysGenerateTail,
                     std::function<void(CodeGenerator&, uint32_t, uint32_t)> genBodyFn, 
                     std::function<void(CodeGenerator&, uint32_t)> genTailFn);
 
 // Generate an unrolled loop body for a vectorised loop
 void unrollVectorLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator, 
-                          uint32_t numIterations, uint32_t maxUnroll, 
-                          Reg testBufferReg, Reg testBufferEndReg, 
+                          uint32_t numIterations, uint32_t maxUnroll, Reg testBufferReg,
                           std::function<void(CodeGenerator&, uint32_t, uint32_t, ScalarRegisterAllocator::RegisterPtr)> genBodyFn, 
                           std::function<void(CodeGenerator&, uint32_t)> genTailFn);
 

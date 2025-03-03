@@ -41,7 +41,6 @@ void genStaticPulse(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAll
     ALLOCATE_SCALAR(SConst1);
     ALLOCATE_SCALAR(SSpikeWord);
     ALLOCATE_SCALAR(SISynBuffer);
-    ALLOCATE_SCALAR(SISynBufferEnd);
 
     // Labels
     Label wordLoop;
@@ -67,9 +66,7 @@ void genStaticPulse(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAll
     c.add(*SSpikeBufferEnd, *SSpikeBufferEnd, *SSpikeBuffer);
     
     // SISynBuffer = hiddenIsyn;
-    // **NOTE** is only the end of the vectorised region
     c.li(*SISynBuffer, postISynPtr);
-    c.li(*SISynBufferEnd, postISynPtr + ((numPost / 32) * 64));
 
     // Load some useful constants
     c.li(*SConst1, 1);
@@ -143,7 +140,7 @@ void genStaticPulse(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAll
             c.vloadv(*VISyn1, *SISynBuffer, 0);
 
             AssemblerUtils::unrollVectorLoopBody(
-                c, scalarRegisterAllocator, numPost, 4, *SISynBuffer, *SISynBufferEnd,
+                c, scalarRegisterAllocator, numPost, 4, *SISynBuffer,
                 [SWeightBuffer, SISynBuffer, VWeight, VISyn1, VISyn2, VISynNew]
                 (CodeGenerator &c, uint32_t r, uint32_t i, ScalarRegisterAllocator::RegisterPtr maskReg)
                 {
@@ -309,13 +306,12 @@ std::vector<uint32_t> generateSimCode(bool simulate, uint32_t numInput, uint32_t
 
                     // Get address of buffers
                     c.li(*SVBuffer, hiddenVPtr);
-                    c.li(*SVBufferEnd, hiddenVPtr + (numHiddenSpikeWords * 64));
                     c.li(*SISynBuffer, hiddenIsynPtr);
                     c.li(*SRefracTimeBuffer, hiddenRefracTimePtr);
                     c.li(*SSpikeBuffer, hiddenSpikePtr);
                  
                     AssemblerUtils::unrollVectorLoopBody(
-                        c, scalarRegisterAllocator, numHidden, 4, *SVBuffer, *SVBufferEnd,
+                        c, scalarRegisterAllocator, numHidden, 4, *SVBuffer,
                         [&scalarRegisterAllocator, &vectorRegisterAllocator,
                          hiddenFixedPoint, 
                          SVBuffer, SISynBuffer, SRefracTimeBuffer, SSpikeBuffer,

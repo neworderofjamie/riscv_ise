@@ -76,20 +76,16 @@ void genStaticPulse(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAll
     
 
     // Loop through postsynaptic targets
-    std::vector<std::pair<std::shared_ptr<ScalarRegisterAllocator::Handle>,
-                          std::shared_ptr<ScalarRegisterAllocator::Handle>>> sISynBufferRegs;
+    std::vector<ScalarRegisterAllocator::RegisterPtr> sISynBufferRegs;
     for(const auto &t : targets) {
         // Allocate scalar registers
         auto bufferStartReg = scalarRegisterAllocator.getRegister("SISynBuffer = X");
-        auto bufferEndReg = scalarRegisterAllocator.getRegister("SISynBufferEnd = X");
 
         // Load addresses as immediates
-        // **NOTE** end address is only end of loop body not tail
         c.li(*bufferStartReg, t.postISynPtr);
-        c.li(*bufferEndReg, t.postISynPtr + (t.numPost / 32) * 64);
 
         // Add scalar registers to vector
-        sISynBufferRegs.emplace_back(bufferStartReg, bufferEndReg);
+        sISynBufferRegs.emplace_back(bufferStartReg);
     }
     
     // Load some useful constants
@@ -153,7 +149,7 @@ void genStaticPulse(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAll
                 }
 
                 // Reset Isyn pointer
-                c.li(*iReg.first, t.postISynPtr);
+                c.li(*iReg, t.postISynPtr);
                 
                 // Load weight and Isyn
                 if(t.debug) {
@@ -166,10 +162,10 @@ void genStaticPulse(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAll
                 ALLOCATE_VECTOR(VISynNew);
 
                 // Preload first ISyn to avoid stall
-                c.vloadv(*VISyn1, *iReg.first, 0);
+                c.vloadv(*VISyn1, *iReg, 0);
 
                 AssemblerUtils::unrollVectorLoopBody(
-                    c, scalarRegisterAllocator, t.numPost, 4, *iReg.first, *iReg.second,
+                    c, scalarRegisterAllocator, t.numPost, 4, *iReg,
                     [&iReg, SWeightBuffer, VWeight, VISyn1, VISyn2, VISynNew]
                     (CodeGenerator &c, uint32_t r, uint32_t i, ScalarRegisterAllocator::RegisterPtr maskReg)
                     {
@@ -179,7 +175,7 @@ void genStaticPulse(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAll
                         // Load NEXT vector of ISyn to avoid stall
                         // **YUCK** in last iteration, while this may not be accessed, it may be out of bounds
                         const bool even = ((r % 2) == 0);                            
-                        c.vloadv(even ? *VISyn2 : *VISyn1, *iReg.first, (r + 1) * 64);
+                        c.vloadv(even ? *VISyn2 : *VISyn1, *iReg, (r + 1) * 64);
                         
                         // Add weights to ISyn
                         auto VISyn = even ? VISyn1 : VISyn2;
@@ -192,13 +188,13 @@ void genStaticPulse(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAll
                         }
 
                         // Write back ISyn and increment SISynBuffer
-                        c.vstore(*VISyn, *iReg.first, r * 64);
+                        c.vstore(*VISyn, *iReg, r * 64);
                     },
                     [&iReg, SWeightBuffer]
                     (CodeGenerator &c, uint32_t numUnrolls)
                     {
                         // Increment pointers 
-                        c.addi(*iReg.first, *iReg.first, 64 * numUnrolls);
+                        c.addi(*iReg, *iReg, 64 * numUnrolls);
                         c.addi(*SWeightBuffer, *SWeightBuffer, 64 * numUnrolls);
                     });
             }
@@ -354,7 +350,6 @@ int main(int argc, char** argv)
             {
                 // Register allocation
                 ALLOCATE_SCALAR(SVBuffer);
-                ALLOCATE_SCALAR(SVBufferEnd);
                 ALLOCATE_SCALAR(SABuffer);
                 ALLOCATE_SCALAR(SISynBuffer);
                 ALLOCATE_SCALAR(SRefracTimeBuffer);
@@ -365,14 +360,13 @@ int main(int argc, char** argv)
 
                 // Get address of buffers
                 c.li(*SVBuffer, hiddenVPtr);
-                c.li(*SVBufferEnd, hiddenVPtr + (numHidden * 2));
                 c.li(*SABuffer, hiddenAPtr);
                 c.li(*SISynBuffer, hiddenIsynPtr);
                 c.li(*SRefracTimeBuffer, hiddenRefracTimePtr);
 
                 // Hidden neuron loop
                 AssemblerUtils::unrollVectorLoopBody(
-                    c, scalarRegisterAllocator, numHidden, 4, *SVBuffer, *SVBufferEnd,
+                    c, scalarRegisterAllocator, numHidden, 4, *SVBuffer,
                     [&scalarRegisterAllocator, &vectorRegisterAllocator,
                     hiddenAFixedPoint,
                     SABuffer, SISynBuffer, SRefracTimeBuffer, SVBuffer, VZero]
@@ -498,7 +492,6 @@ int main(int argc, char** argv)
                 {
                     // Register allocation
                     ALLOCATE_SCALAR(SVBuffer);
-                    ALLOCATE_SCALAR(SVBufferEnd);
                     ALLOCATE_SCALAR(SABuffer);
                     ALLOCATE_SCALAR(SISynBuffer);
                     ALLOCATE_SCALAR(SRefracTimeBuffer);
@@ -525,7 +518,6 @@ int main(int argc, char** argv)
 
                     // Get address of buffers
                     c.li(*SVBuffer, hiddenVPtr);
-                    c.li(*SVBufferEnd, hiddenVPtr + (numHidden * 2));
                     c.li(*SABuffer, hiddenAPtr);
                     c.li(*SISynBuffer, hiddenIsynPtr);
                     c.li(*SRefracTimeBuffer, hiddenRefracTimePtr);
@@ -533,7 +525,7 @@ int main(int argc, char** argv)
 
                     // Hidden neuron loop
                     AssemblerUtils::unrollVectorLoopBody(
-                        c, scalarRegisterAllocator, numHidden, 4, *SVBuffer, *SVBufferEnd,
+                        c, scalarRegisterAllocator, numHidden, 4, *SVBuffer,
                         [&scalarRegisterAllocator, &vectorRegisterAllocator,
                         hiddenAFixedPoint,
                          SABuffer, SISynBuffer, SRefracTimeBuffer, SSpikeBuffer, SVBuffer,
