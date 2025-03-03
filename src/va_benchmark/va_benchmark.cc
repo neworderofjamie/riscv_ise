@@ -241,6 +241,183 @@ void genStaticPulse(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAll
     c.L(wordEnd);
 }
 
+void genLIF(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator,
+            ScalarRegisterAllocator &scalarRegisterAllocator,
+            uint32_t numNeurons,
+            uint32_t vPtr, uint32_t refracTimePtr, uint32_t spikeArrayPtr,
+            uint32_t eLLPtr, uint32_t iLLPtr,
+            uint32_t fixedPoint = 8,
+            ScalarRegisterAllocator::RegisterPtr spikeRecordingBuffer = nullptr,
+            ScalarRegisterAllocator::RegisterPtr vRecordingBuffer = nullptr,
+            double tauM = 20.0, double tauSynExc = 5.0, double tauSynInh = 10.0,
+            double vThresh = 10.0, double iOffset = 0.55)
+{
+    // Register allocation
+    ALLOCATE_SCALAR(SVBuffer);
+    ALLOCATE_SCALAR(SRefracTimeBuffer);
+    ALLOCATE_SCALAR(SSpikeBuffer);
+    ALLOCATE_VECTOR(VAlpha);
+    ALLOCATE_VECTOR(VEBeta);
+    ALLOCATE_VECTOR(VIBeta);
+    ALLOCATE_VECTOR(VEScale);
+    ALLOCATE_VECTOR(VIScale);
+    ALLOCATE_VECTOR(VThresh);
+    ALLOCATE_VECTOR(VIOffset);
+    ALLOCATE_VECTOR(VRMembrane);
+    ALLOCATE_VECTOR(VTauRefrac);
+    ALLOCATE_VECTOR(VDT);
+    ALLOCATE_VECTOR(VZero); 
+    ALLOCATE_VECTOR(VSynLLOffset);
+    ALLOCATE_VECTOR(VNumUnrollBytes);
+
+    const uint32_t numNeuronWords = ceilDivide(numNeurons, 32);
+
+    // Load constants
+    c.vlui(*VAlpha, convertFixedPoint(std::exp(-1.0 / tauM), 14));
+    c.vlui(*VEBeta, convertFixedPoint(std::exp(-1.0 / tauSynExc), 14));
+    c.vlui(*VIBeta, convertFixedPoint(std::exp(-1.0 / tauSynInh), 14));
+    c.vlui(*VEScale, convertFixedPoint(tauSynExc * (1.0 - std::exp(-1.0 / tauSynExc)), fixedPoint));
+    c.vlui(*VIScale, convertFixedPoint(tauSynInh * (1.0 - std::exp(-1.0 / tauSynInh)), fixedPoint));
+    c.vlui(*VThresh, convertFixedPoint(vThresh, fixedPoint));
+    c.vlui(*VIOffset, convertFixedPoint(iOffset, fixedPoint));
+    c.vlui(*VRMembrane, convertFixedPoint(tauM / 1.0, fixedPoint));
+    c.vlui(*VTauRefrac, 5);
+    c.vlui(*VDT, 1);
+    c.vlui(*VZero, 0);
+    c.vlui(*VSynLLOffset, 0);
+    c.vlui(*VNumUnrollBytes, 2 * std::min(numNeuronWords, 4u));
+
+    // Get address of buffers
+    c.li(*SVBuffer, vPtr);
+    c.li(*SRefracTimeBuffer, refracTimePtr);
+    c.li(*SSpikeBuffer, spikeArrayPtr);
+ 
+    AssemblerUtils::unrollVectorLoopBody(
+        c, scalarRegisterAllocator, numNeurons, 4, *SVBuffer,
+        [&scalarRegisterAllocator, &vectorRegisterAllocator,
+         fixedPoint, eLLPtr, iLLPtr,
+         SVBuffer, SRefracTimeBuffer, SSpikeBuffer,
+         spikeRecordingBuffer, vRecordingBuffer,
+         VAlpha, VEBeta, VIBeta, VEScale, VIScale, VDT, VRMembrane, VSynLLOffset, VTauRefrac, VThresh, VIOffset, VZero]
+        (CodeGenerator &c, uint32_t r, uint32_t i, ScalarRegisterAllocator::RegisterPtr maskReg)
+        {
+            // Register allocation
+            ALLOCATE_VECTOR(VV);
+            ALLOCATE_VECTOR(VESyn);
+            ALLOCATE_VECTOR(VISyn);
+            ALLOCATE_VECTOR(VInSyn);
+            ALLOCATE_VECTOR(VRefracTime);
+            ALLOCATE_SCALAR(SSpikeOut);
+            ALLOCATE_SCALAR(SRefractory);
+            ALLOCATE_SCALAR(SNonRefractory);
+
+            // Load voltage and isyn
+            c.vloadv(*VV, *SVBuffer, 64 * r);
+            c.vloadl(*VESyn, *VSynLLOffset, eLLPtr + (r * 2));
+            c.vloadl(*VISyn, *VSynLLOffset, iLLPtr + (r * 2));
+            c.vloadv(*VRefracTime, *SRefracTimeBuffer, 64 * r);
+            
+            // Excitatory
+            {
+                // Scale VEISyn 
+                c.vmul_rs(fixedPoint, *VInSyn, *VESyn, *VEScale);
+
+                // Decay VEIsyn
+                c.vmul_rs(14, *VESyn, *VESyn, *VEBeta);
+            }
+
+            // Inhibitory
+            {
+                ALLOCATE_VECTOR(VTmp);
+
+                // Scale VIISyn 
+                c.vmul_rs(fixedPoint, *VTmp, *VISyn, *VIScale);
+                c.vadd_s(*VInSyn, *VInSyn, *VTmp);
+
+                // Decay VIISyn
+                c.vmul_rs(14, *VISyn, *VISyn, *VIBeta);
+            }
+            
+            // SRefractory = VRefracTime > 0.0 (0.0 < VRefracTime)
+            c.vtlt(*SRefractory, *VZero, *VRefracTime);
+            {
+                ALLOCATE_VECTOR(VRefracTimeTemp);
+                ALLOCATE_VECTOR(VAlphaTemp);
+                ALLOCATE_VECTOR(VVTemp);
+
+                // VRefractTimeTemp = VRefracTime - VDT
+                c.vsub_s(*VRefracTimeTemp, *VRefracTime, *VDT);
+
+                // VAlphaTemp = (VInSyn + VIoffset) * VRMembrane
+                c.vadd_s(*VAlphaTemp, *VInSyn, *VIOffset);
+                c.vmul_rs(fixedPoint, *VAlphaTemp, *VAlphaTemp, *VRMembrane);
+
+                // VVTemp = VAlpha * (VAlphaTemp - VV)
+                c.vsub(*VVTemp, *VAlphaTemp, *VV);
+                c.vmul_rs(14, *VVTemp, *VVTemp, *VAlpha);
+
+                // VVTemp = VAlphaTemp - VVTemp
+                c.vsub_s(*VVTemp, *VAlphaTemp, *VVTemp);
+
+                // SNonRefactory = !SRefractory
+                c.not_(*SNonRefractory, *SRefractory);
+                
+                // VRefracTime = SRefractory ? VRefracTimeTemp : VRefracTime
+                c.vsel(*VRefracTime, *SRefractory, *VRefracTimeTemp);
+
+                // VV = SNonRefractory ? VVTemp : VV
+                c.vsel(*VV, *SNonRefractory, *VVTemp);
+            }
+
+            // SSpikeOut = VV >= VThresh && !SRefractory
+            c.vtge(*SSpikeOut, *VV, *VThresh);
+            c.and_(*SSpikeOut, *SSpikeOut, *SNonRefractory);
+            
+            // If we have a mask, and spikes with it
+            if(maskReg) {
+                c.and_(*SSpikeOut, *SSpikeOut, *maskReg);
+            }
+            
+            // *SSpikeBuffer = SSpikeOut
+            c.sw(*SSpikeOut, *SSpikeBuffer, 4 * r);
+
+            // VV = SSpikeOut ? VZero : VV
+            c.vsel(*VV, *SSpikeOut, *VZero);
+
+            // VRefracTime = SSpikeOut ? VTauRefrac : VRefracTime
+            c.vsel(*VRefracTime, *SSpikeOut, *VTauRefrac);
+            
+            // Record spikes
+            if(spikeRecordingBuffer) {
+                c.sw(*SSpikeOut, *spikeRecordingBuffer);
+                c.addi(*spikeRecordingBuffer, *spikeRecordingBuffer, 4);
+            }
+
+            // Record v of first neuron
+            if(vRecordingBuffer && i == 0) {
+                ALLOCATE_SCALAR(STmp);
+                c.vextract(*STmp, *VV, 0);
+                c.sh(*STmp, *vRecordingBuffer);
+                c.addi(*vRecordingBuffer, *vRecordingBuffer, 2);
+            }
+
+            // Store VV and refrac time and increment buffers
+            c.vstore(*VV, *SVBuffer, 64 * r);
+            c.vstore(*VRefracTime, *SRefracTimeBuffer, 64 * r);
+
+            // Store VESyn and VIsyn back to lane-local memory
+            c.vstorel(*VESyn, *VSynLLOffset, eLLPtr + (r * 2));
+            c.vstorel(*VISyn, *VSynLLOffset, iLLPtr + (r * 2));
+        },
+        [SRefracTimeBuffer, SSpikeBuffer, SVBuffer, VNumUnrollBytes, VSynLLOffset]
+        (CodeGenerator &c, uint32_t numUnrolls)
+        {
+            c.addi(*SVBuffer, *SVBuffer, 64 * numUnrolls);
+            c.addi(*SRefracTimeBuffer, *SRefracTimeBuffer, 64 * numUnrolls);
+            c.addi(*SSpikeBuffer, *SSpikeBuffer, 4 * numUnrolls); 
+            c.vadd(*VSynLLOffset, *VSynLLOffset, *VNumUnrollBytes);
+        });
+}
 
 
 int main(int argc, char** argv)
@@ -455,173 +632,16 @@ int main(int argc, char** argv)
                 // ---------------------------------------------------------------
                 // E neurons
                 // ---------------------------------------------------------------
-                {
-                    // Register allocation
-                    ALLOCATE_SCALAR(SVBuffer);
-                    ALLOCATE_SCALAR(SRefracTimeBuffer);
-                    ALLOCATE_SCALAR(SSpikeBuffer);
-                    ALLOCATE_VECTOR(VAlpha);
-                    ALLOCATE_VECTOR(VEBeta);
-                    ALLOCATE_VECTOR(VIBeta);
-                    ALLOCATE_VECTOR(VEScale);
-                    ALLOCATE_VECTOR(VIScale);
-                    ALLOCATE_VECTOR(VThresh);
-                    ALLOCATE_VECTOR(VIOffset);
-                    ALLOCATE_VECTOR(VRMembrane);
-                    ALLOCATE_VECTOR(VTauRefrac);
-                    ALLOCATE_VECTOR(VDT);
-                    ALLOCATE_VECTOR(VZero); 
-                    ALLOCATE_VECTOR(VSynLLOffset);
-                    ALLOCATE_VECTOR(VNumUnrollBytes);
-
-                    // Load constants
-                    c.vlui(*VAlpha, convertFixedPoint(std::exp(-1.0 / 20.0), 14));
-                    c.vlui(*VEBeta, convertFixedPoint(std::exp(-1.0 / 5.0), 14));
-                    c.vlui(*VIBeta, convertFixedPoint(std::exp(-1.0 / 10.0), 14));
-                    c.vlui(*VEScale, convertFixedPoint(5.0 * (1.0 - std::exp(-1.0 / 5.0)), fixedPoint));
-                    c.vlui(*VIScale, convertFixedPoint(10.0 * (1.0 - std::exp(-1.0 / 10.0)), fixedPoint));
-                    c.vlui(*VThresh, convertFixedPoint(10.0, fixedPoint));
-                    c.vlui(*VIOffset, convertFixedPoint(0.55, fixedPoint));
-                    c.vlui(*VRMembrane, convertFixedPoint(20.0 / 1.0, fixedPoint));
-                    c.vlui(*VTauRefrac, 5);
-                    c.vlui(*VDT, 1);
-                    c.vlui(*VZero, 0);
-                    c.vlui(*VSynLLOffset, 0);
-                    c.vlui(*VNumUnrollBytes, 2 * std::min(numExcWords, 4u));
-
-                    // Get address of buffers
-                    c.li(*SVBuffer, excVPtr);
-                    c.li(*SRefracTimeBuffer, excRefracTimePtr);
-                    c.li(*SSpikeBuffer, excSpikeArrayPtr);
-                 
-                    AssemblerUtils::unrollVectorLoopBody(
-                        c, scalarRegisterAllocator, numExc, 4, *SVBuffer,
-                        [&scalarRegisterAllocator, &vectorRegisterAllocator,
-                         fixedPoint, eeLLAddr, eiLLAddr,
-                         SVBuffer, SRefracTimeBuffer, SSpikeBuffer,
+                genLIF(c, vectorRegisterAllocator, scalarRegisterAllocator,
+                       numExc, excVPtr, excRefracTimePtr, excSpikeArrayPtr,
+                       eeLLAddr, ieLLAddr, fixedPoint
 #ifdef RECORD_SPIKES
-                         SExcSpikeRecordingBuffer,
+                       ,SExcSpikeRecordingBuffer
 #endif
 #ifdef RECORD_V
-                         SExcVRecordingBuffer,
+                       ,SExcVRecordingBuffer
 #endif
-                         VAlpha, VEBeta, VIBeta, VEScale, VIScale, VDT, VRMembrane, VSynLLOffset, VTauRefrac, VThresh, VIOffset, VZero]
-                        (CodeGenerator &c, uint32_t r, uint32_t i, ScalarRegisterAllocator::RegisterPtr maskReg)
-                        {
-                            // Register allocation
-                            ALLOCATE_VECTOR(VV);
-                            ALLOCATE_VECTOR(VESyn);
-                            ALLOCATE_VECTOR(VISyn);
-                            ALLOCATE_VECTOR(VInSyn);
-                            ALLOCATE_VECTOR(VRefracTime);
-                            ALLOCATE_SCALAR(SSpikeOut);
-                            ALLOCATE_SCALAR(SRefractory);
-                            ALLOCATE_SCALAR(SNonRefractory);
-
-                            // Load voltage and isyn
-                            c.vloadv(*VV, *SVBuffer, 64 * r);
-                            c.vloadl(*VESyn, *VSynLLOffset, eeLLAddr + (r * 2));
-                            c.vloadl(*VISyn, *VSynLLOffset, eiLLAddr + (r * 2));
-                            c.vloadv(*VRefracTime, *SRefracTimeBuffer, 64 * r);
-                            
-                            // Excitatory
-                            {
-                                // Scale VEISyn 
-                                c.vmul_rs(fixedPoint, *VInSyn, *VESyn, *VEScale);
-
-                                // Decay VEIsyn
-                                c.vmul_rs(14, *VESyn, *VESyn, *VEBeta);
-                            }
-
-                            // Inhibitory
-                            {
-                                ALLOCATE_VECTOR(VTmp);
-
-                                // Scale VIISyn 
-                                c.vmul_rs(fixedPoint, *VTmp, *VISyn, *VIScale);
-                                c.vadd_s(*VInSyn, *VInSyn, *VTmp);
-
-                                // Decay VIISyn
-                                c.vmul_rs(14, *VISyn, *VISyn, *VIBeta);
-                            }
-                            
-                            // SRefractory = VRefracTime > 0.0 (0.0 < VRefracTime)
-                            c.vtlt(*SRefractory, *VZero, *VRefracTime);
-                            {
-                                ALLOCATE_VECTOR(VRefracTimeTemp);
-                                ALLOCATE_VECTOR(VAlphaTemp);
-                                ALLOCATE_VECTOR(VVTemp);
-
-                                // VRefractTimeTemp = VRefracTime - VDT
-                                c.vsub_s(*VRefracTimeTemp, *VRefracTime, *VDT);
-
-                                // VAlphaTemp = (VInSyn + VIoffset) * VRMembrane
-                                c.vadd_s(*VAlphaTemp, *VInSyn, *VIOffset);
-                                c.vmul_rs(fixedPoint, *VAlphaTemp, *VAlphaTemp, *VRMembrane);
-
-                                // VVTemp = VAlpha * (VAlphaTemp - VV)
-                                c.vsub(*VVTemp, *VAlphaTemp, *VV);
-                                c.vmul_rs(14, *VVTemp, *VVTemp, *VAlpha);
-
-                                // VVTemp = VAlphaTemp - VVTemp
-                                c.vsub_s(*VVTemp, *VAlphaTemp, *VVTemp);
-
-                                // SNonRefactory = !SRefractory
-                                c.not_(*SNonRefractory, *SRefractory);
-                                
-                                // VRefracTime = SRefractory ? VRefracTimeTemp : VRefracTime
-                                c.vsel(*VRefracTime, *SRefractory, *VRefracTimeTemp);
-
-                                // VV = SNonRefractory ? VVTemp : VV
-                                c.vsel(*VV, *SNonRefractory, *VVTemp);
-                            }
-
-                            // SSpikeOut = VV >= VThresh && !SRefractory
-                            c.vtge(*SSpikeOut, *VV, *VThresh);
-                            c.and_(*SSpikeOut, *SSpikeOut, *SNonRefractory);
-                            
-                            // If we have a mask, and spikes with it
-                            if(maskReg) {
-                                c.and_(*SSpikeOut, *SSpikeOut, *maskReg);
-                            }
-                            
-                            // *SSpikeBuffer = SSpikeOut
-                            c.sw(*SSpikeOut, *SSpikeBuffer, 4 * r);
-#ifdef RECORD_SPIKES
-                            c.sw(*SSpikeOut, *SExcSpikeRecordingBuffer);
-                            c.addi(*SExcSpikeRecordingBuffer, *SExcSpikeRecordingBuffer, 4);
-#endif
-#ifdef RECORD_V
-                            if(i == 0){
-                                ALLOCATE_SCALAR(STmp);
-                                c.vextract(*STmp, *VV, 0);
-                                c.sh(*STmp, *SExcVRecordingBuffer);
-                                c.addi(*SExcVRecordingBuffer, *SExcVRecordingBuffer, 2);
-                            }
-#endif
-                            // VV = SSpikeOut ? VZero : VV
-                            c.vsel(*VV, *SSpikeOut, *VZero);
-
-                            // VRefracTime = SSpikeOut ? VTauRefrac : VRefracTime
-                            c.vsel(*VRefracTime, *SSpikeOut, *VTauRefrac);
-
-                            // Store VV and refrac time and increment buffers
-                            c.vstore(*VV, *SVBuffer, 64 * r);
-                            c.vstore(*VRefracTime, *SRefracTimeBuffer, 64 * r);
-
-                            // Store VESyn and VIsyn back to lane-local memory
-                            c.vstorel(*VESyn, *VSynLLOffset, eeLLAddr + (r * 2));
-                            c.vstorel(*VISyn, *VSynLLOffset, eiLLAddr + (r * 2));
-                        },
-                        [SRefracTimeBuffer, SSpikeBuffer, SVBuffer, VNumUnrollBytes, VSynLLOffset]
-                        (CodeGenerator &c, uint32_t numUnrolls)
-                        {
-                            c.addi(*SVBuffer, *SVBuffer, 64 * numUnrolls);
-                            c.addi(*SRefracTimeBuffer, *SRefracTimeBuffer, 64 * numUnrolls);
-                            c.addi(*SSpikeBuffer, *SSpikeBuffer, 4 * numUnrolls); 
-                            c.vadd(*VSynLLOffset, *VSynLLOffset, *VNumUnrollBytes);
-                        });
-                }
+                    );
 
                 c.addi(*STime, *STime, 1);
                 c.bne(*STime, *STimeEnd, timeLoop);
