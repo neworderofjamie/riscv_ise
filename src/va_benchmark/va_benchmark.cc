@@ -83,22 +83,17 @@ void genStaticPulse(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAll
     c.add(*SSpikeBufferEnd, *SSpikeBufferEnd, *SSpikeBuffer);
 
     // Loop through postsynaptic targets
-    std::vector<std::pair<std::shared_ptr<ScalarRegisterAllocator::Handle>,
-                          std::shared_ptr<ScalarRegisterAllocator::Handle>>> targetRegisters;
+    std::vector<ScalarRegisterAllocator::RegisterPtr> targetRegisters;
     for(const auto &t : targets) {
         // Allocate scalar registers
-        auto bufferStartReg = scalarRegisterAllocator.getRegister("SIndBuffer = X");
-
         auto numPostStrideReg = scalarRegisterAllocator.getRegister("SNumPostStride = X");
 
-        // Load addresses as immediates
-        c.li(*bufferStartReg, t.postIndPtr);
-
-        // Load postsynaptic stride a immediate
-        c.li(*numPostStrideReg, t.maxRowLength);
+        // Convert postsynaptic stride to bytes and load immediate
+        // **THINK** this seems totally unecessary
+        c.li(*numPostStrideReg, t.maxRowLength * 2);
 
         // Add scalar registers to vector
-        targetRegisters.emplace_back(bufferStartReg, numPostStrideReg);
+        targetRegisters.emplace_back(numPostStrideReg);
     }
     
     // Load some useful constants
@@ -151,18 +146,18 @@ void genStaticPulse(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAll
             // Loop through postsynaptic targets
             for(size_t i = 0; i < targets.size(); i++) {
                 const auto &t = targets[i];
-                const auto &tReg = targetRegisters[i];
+                const auto &byteStrideReg = targetRegisters[i];
 
-                // Multiply presynaptic neuron index by stride
+                // Multiply presynaptic neuron index by max row length
                 ALLOCATE_SCALAR(SPostIndBuffer);
                 c.li(*SPostIndBuffer, t.postIndPtr);
                 {
                     ALLOCATE_SCALAR(STemp);
-                    c.mul(*STemp, *SN, *tReg.second);
+                    c.mul(*STemp, *SN, *byteStrideReg);
                     c.add(*SPostIndBuffer, *SPostIndBuffer, *STemp);
                 }
                 
-                // Load weight and Isyn
+                // Break if debug is enabled on this target
                 if(t.debug) {
                     c.ebreak();
                 }
@@ -177,14 +172,14 @@ void genStaticPulse(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAll
                 ALLOCATE_VECTOR(VWeight);
                 
                 // Preload first index and accumulator
-                c.vloadv(*VPostInd1, *tReg.first);
+                c.vloadv(*VPostInd1, *SPostIndBuffer);
                 c.vlui(*VWeight, (uint16_t)t.weight);
                 c.vloadl(*VAccum1, *VPostInd1, t.laneLocalImm);
 
                 const uint32_t laneLocalImm = t.laneLocalImm;
                 AssemblerUtils::unrollVectorLoopBody(
-                    c, scalarRegisterAllocator, t.maxRowLength, 4, *tReg.first,
-                    [&tReg, laneLocalImm, SMask, SPostIndBuffer, VPostInd1, VPostInd2, VAccum1, VAccum2, VAccumNew, VWeight, VZero]
+                    c, scalarRegisterAllocator, t.maxRowLength, 4, *SPostIndBuffer,
+                    [laneLocalImm, SMask, SPostIndBuffer, VPostInd1, VPostInd2, VAccum1, VAccum2, VAccumNew, VWeight, VZero]
                     (CodeGenerator &c, uint32_t r, uint32_t i, ScalarRegisterAllocator::RegisterPtr maskReg)
                     {
                         assert(!maskReg);
@@ -193,7 +188,7 @@ void genStaticPulse(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAll
                         // **YUCK** in last iteration, while this may not be accessed, it may be out of bounds
                         const bool even = ((i % 2) == 0);                            
                         c.vloadv(even ? *VPostInd2 : *VPostInd1, 
-                                 *tReg.first, (r + 1) * 64);
+                                 *SPostIndBuffer, (r + 1) * 64);
                             
                         // Test whether any of the postsynaptic indices from previous iteration are >= 0
                         c.vtge(*SMask, even ? *VPostInd1 : *VPostInd2, *VZero);
@@ -210,11 +205,11 @@ void genStaticPulse(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAll
                         // Write back accumulator
                         c.vstorel(*VAccum, even ? *VPostInd1 : *VPostInd2, laneLocalImm);
                     },
-                    [&tReg]
+                    [SPostIndBuffer]
                     (CodeGenerator &c, uint32_t numUnrolls)
                     {
                         // Increment pointers 
-                        c.addi(*tReg.first, *tReg.first, 64 * numUnrolls);
+                        c.addi(*SPostIndBuffer, *SPostIndBuffer, 64 * numUnrolls);
                     });
             }
 
@@ -554,6 +549,7 @@ int main(int argc, char** argv)
                 // Register allocation
                 ALLOCATE_SCALAR(SVBuffer);
                 ALLOCATE_SCALAR(SRefracTimeBuffer);
+                ALLOCATE_SCALAR(SSpikeArrayBuffer);
                 ALLOCATE_VECTOR(VZero);
                 ALLOCATE_VECTOR(VScale);
                 ALLOCATE_VECTOR(VRandom);
@@ -569,6 +565,7 @@ int main(int argc, char** argv)
                 // Get address of buffers
                 c.li(*SVBuffer, excVPtr);
                 c.li(*SRefracTimeBuffer, excRefracTimePtr);
+                c.li(*SSpikeArrayBuffer, excSpikeArrayPtr);
 
                 // Excitatory neuron loop
                 // **NOTE** all these allocations are padded so we overfill to simplify code
@@ -576,7 +573,7 @@ int main(int argc, char** argv)
                     c, scalarRegisterAllocator, numExcWords * 32, 4, *SVBuffer,
                     [&scalarRegisterAllocator, &vectorRegisterAllocator,
                     fixedPoint, eeLLAddr, eiLLAddr,
-                    SRefracTimeBuffer, SVBuffer, VRandom, VScale, VSynLLOffset, VZero]
+                    SRefracTimeBuffer, SVBuffer, SSpikeArrayBuffer, VRandom, VScale, VSynLLOffset, VZero]
                     (CodeGenerator &c, uint32_t r, uint32_t, ScalarRegisterAllocator::RegisterPtr)
                     {
                         // Generate initial mebrane voltages from U(0,Scale) 
@@ -587,12 +584,14 @@ int main(int argc, char** argv)
                         c.vstorel(*VZero, *VSynLLOffset, eiLLAddr + (r * 2));
                         c.vstore(*VRandom, *SVBuffer, r * 64);
                         c.vstore(*VZero, *SRefracTimeBuffer, r * 64);
+                        c.sw(Reg::X0, *SSpikeArrayBuffer, r * 4);
                     },
-                    [SRefracTimeBuffer, SVBuffer, VNumUnrollBytes, VSynLLOffset]
+                    [SRefracTimeBuffer, SVBuffer, SSpikeArrayBuffer, VNumUnrollBytes, VSynLLOffset]
                     (CodeGenerator &c, uint32_t numUnrolls)
                     {
                         c.addi(*SVBuffer, *SVBuffer, 64 * numUnrolls);
                         c.addi(*SRefracTimeBuffer, *SRefracTimeBuffer, 64 * numUnrolls);
+                        c.addi(*SSpikeArrayBuffer, *SSpikeArrayBuffer, 4);
                         c.vadd(*VSynLLOffset, *VSynLLOffset, *VNumUnrollBytes);
                     });
             }
@@ -604,6 +603,7 @@ int main(int argc, char** argv)
                 // Register allocation
                 ALLOCATE_SCALAR(SVBuffer);
                 ALLOCATE_SCALAR(SRefracTimeBuffer);
+                ALLOCATE_SCALAR(SSpikeArrayBuffer);
                 ALLOCATE_VECTOR(VZero);
                 ALLOCATE_VECTOR(VScale);
                 ALLOCATE_VECTOR(VRandom);
@@ -619,6 +619,7 @@ int main(int argc, char** argv)
                 // Get address of buffers
                 c.li(*SVBuffer, inhVPtr);
                 c.li(*SRefracTimeBuffer, inhRefracTimePtr);
+                c.li(*SSpikeArrayBuffer, inhSpikeArrayPtr);
 
                 // Excitatory neuron loop
                 // **NOTE** all these allocations are padded so we overfill to simplify code
@@ -626,7 +627,7 @@ int main(int argc, char** argv)
                     c, scalarRegisterAllocator, numInhWords * 32, 4, *SVBuffer,
                     [&scalarRegisterAllocator, &vectorRegisterAllocator,
                     fixedPoint, eiLLAddr, iiLLAddr,
-                    SRefracTimeBuffer, SVBuffer, VRandom, VScale, VSynLLOffset, VZero]
+                    SRefracTimeBuffer, SVBuffer, SSpikeArrayBuffer, VRandom, VScale, VSynLLOffset, VZero]
                     (CodeGenerator &c, uint32_t r, uint32_t, ScalarRegisterAllocator::RegisterPtr)
                     {
                         // Generate initial mebrane voltages from U(0,Scale) 
@@ -637,12 +638,14 @@ int main(int argc, char** argv)
                         c.vstorel(*VZero, *VSynLLOffset, iiLLAddr + (r * 2));
                         c.vstore(*VRandom, *SVBuffer, r * 64);
                         c.vstore(*VZero, *SRefracTimeBuffer, r * 64);
+                        c.sw(Reg::X0, *SSpikeArrayBuffer, r * 4);
                     },
-                    [SRefracTimeBuffer, SVBuffer, VNumUnrollBytes, VSynLLOffset]
+                    [SRefracTimeBuffer, SVBuffer, SSpikeArrayBuffer, VNumUnrollBytes, VSynLLOffset]
                     (CodeGenerator &c, uint32_t numUnrolls)
                     {
                         c.addi(*SVBuffer, *SVBuffer, 64 * numUnrolls);
                         c.addi(*SRefracTimeBuffer, *SRefracTimeBuffer, 64 * numUnrolls);
+                        c.addi(*SSpikeArrayBuffer, *SSpikeArrayBuffer, 4);
                         c.vadd(*VSynLLOffset, *VSynLLOffset, *VNumUnrollBytes);
                     });
             }
