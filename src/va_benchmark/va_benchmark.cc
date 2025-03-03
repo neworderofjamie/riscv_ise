@@ -695,9 +695,9 @@ int main(int argc, char** argv)
                 // ---------------------------------------------------------------
                 const int16_t excWeight = convertFixedPoint(0.0062499999999999995, fixedPoint);
                 genStaticPulse(c, vectorRegisterAllocator, scalarRegisterAllocator,
-                    excSpikeArrayPtr, numExc,
-                    {{eiIndPtr, excWeight, numInhIncomingVectors * 32, eiLLAddr, false},
-                     {eeIndPtr, excWeight, numExcIncomingVectors * 32, eeLLAddr, false}});
+                               excSpikeArrayPtr, numExc,
+                               {{eiIndPtr, excWeight, numInhIncomingVectors * 32, eiLLAddr, false},
+                                {eeIndPtr, excWeight, numExcIncomingVectors * 32, eeLLAddr, false}});
 
                 // ---------------------------------------------------------------
                 // Excitatory neurons
@@ -717,13 +717,13 @@ int main(int argc, char** argv)
                 // Inhibitory neurons
                 // ---------------------------------------------------------------
                 genLIF(c, vectorRegisterAllocator, scalarRegisterAllocator,
-                    numInh, inhVPtr, inhRefracTimePtr, inhSpikeArrayPtr,
-                    eiLLAddr, iiLLAddr, fixedPoint
+                       numInh, inhVPtr, inhRefracTimePtr, inhSpikeArrayPtr,
+                       eiLLAddr, iiLLAddr, fixedPoint
 #ifdef RECORD_SPIKES
-                    ,SInhSpikeRecordingBuffer
+                       ,SInhSpikeRecordingBuffer
 #endif
 #ifdef RECORD_V
-                    ,SInhVRecordingBuffer
+                       ,SInhVRecordingBuffer
 #endif
                  );
 
@@ -827,20 +827,6 @@ int main(int argc, char** argv)
         // Load simulation program
         riscV.setInstructions(simCode);
 
-        // Recording data
-        //std::vector<uint32_t> inputSpikeRecording;
-        //std::vector<uint32_t> hiddenSpikeRecording;
-        //inputSpikeRecording.reserve(79 * numInputSpikeWords);
-        ///hiddenSpikeRecording.reserve(79 * numHiddenSpikeWords);
-
-        // From these, get pointers to data structures
-        // 
-        //const uint32_t *inputSpikeWords = reinterpret_cast<const uint32_t*>(scalarData + inputSpikePtr);
-        //const uint32_t *hiddenSpikeWords = reinterpret_cast<const uint32_t*>(scalarData + hiddenSpikePtr);
-        //auto *scalarData = riscV.getScalarDataMemory().getData().data();
-        //const int16_t *outputVSum = reinterpret_cast<const int16_t*>(scalarData + outputVSumScalarPtr);
-
-
         // Reset PC and run
         riscV.setPC(0);
         if(!riscV.run()) {
@@ -873,15 +859,6 @@ int main(int argc, char** argv)
             vFile << *excVRecording++ << std::endl;
         }
 #endif
-        // Record output spikes
-        //std::ofstream inputSpikes("input_spikes.csv");
-        //std::ofstream hiddenSpikes("hidden_spikes.csv");
-        //for(uint32_t t = 0; t < 79; t++) {
-        //    AppUtils::writeSpikes(inputSpikes, inputSpikeRecording.data() + (numInputSpikeWords * t),
-        //                          t, numInputSpikeWords);
-        //    AppUtils::writeSpikes(hiddenSpikes, hiddenSpikeRecording.data() + (numHiddenSpikeWords * t),
-        //                          t, numHiddenSpikeWords);
-        //}
     }
     return 0;
 }
