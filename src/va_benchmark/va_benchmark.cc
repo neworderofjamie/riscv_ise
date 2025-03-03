@@ -41,7 +41,7 @@ namespace
 struct StaticPulseTarget
 {
     uint32_t postIndPtr;
-    VReg weight;
+    int16_t weight;
     uint32_t maxRowLength;
     uint32_t laneLocalImm;
     bool debug;
@@ -95,7 +95,7 @@ void genStaticPulse(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAll
         c.li(*bufferStartReg, t.postIndPtr);
 
         // Load postsynaptic stride a immediate
-        c.li(*numPostStrideReg, padSize(t.maxRowLength, 32));
+        c.li(*numPostStrideReg, t.maxRowLength);
 
         // Add scalar registers to vector
         targetRegisters.emplace_back(bufferStartReg, numPostStrideReg);
@@ -168,17 +168,17 @@ void genStaticPulse(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAll
                 }
 
                 // Loop over postsynaptic neurons
-                auto VWeight = t.weight;
                 ALLOCATE_SCALAR(SMask);
                 ALLOCATE_VECTOR(VPostInd1);
                 ALLOCATE_VECTOR(VPostInd2);
                 ALLOCATE_VECTOR(VAccum1);
                 ALLOCATE_VECTOR(VAccum2);
                 ALLOCATE_VECTOR(VAccumNew);
+                ALLOCATE_VECTOR(VWeight);
                 
                 // Preload first index and accumulator
                 c.vloadv(*VPostInd1, *tReg.first);
-                c.nop();
+                c.vlui(*VWeight, (uint16_t)t.weight);
                 c.vloadl(*VAccum1, *VPostInd1, t.laneLocalImm);
 
                 const uint32_t laneLocalImm = t.laneLocalImm;
@@ -204,11 +204,11 @@ void genStaticPulse(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAll
 
                         // Add weights to accumulator loaded in previous iteration
                         auto VAccum = even ? VAccum1 : VAccum2;
-                        c.vadd_s(*VAccumNew, *VAccum, VWeight);
+                        c.vadd_s(*VAccumNew, *VAccum, *VWeight);
                         c.vsel(*VAccum, *SMask, *VAccumNew);
 
                         // Write back accumulator
-                        c.vstorel(*VAccum, even ? *VPostInd1 : *VPostInd2);
+                        c.vstorel(*VAccum, even ? *VPostInd1 : *VPostInd2, laneLocalImm);
                     },
                     [&tReg]
                     (CodeGenerator &c, uint32_t numUnrolls)
@@ -468,7 +468,7 @@ int main(int argc, char** argv)
     const uint32_t numInhSpikeRecordingWords = numInhWords * numTimesteps;
 
     // Layout lane local memory
-    constexpr uint32_t eeLLAddr = 0;
+    constexpr uint32_t eeLLAddr = 2;
     constexpr uint32_t eiLLAddr = eeLLAddr + (numExcWords * 2);
     constexpr uint32_t iiLLAddr = eiLLAddr + (numInhWords * 2);
     constexpr uint32_t ieLLAddr = iiLLAddr + (numInhWords * 2);
@@ -684,20 +684,20 @@ int main(int argc, char** argv)
                 // ---------------------------------------------------------------
                 // Inhibitory synapses
                 // ---------------------------------------------------------------
-                /*genStaticPulse(c, vectorRegisterAllocator, scalarRegisterAllocator, 
-                               iSpikePtr, numI,
-                               {{weightHidOutPtr, outputIsynPtr, numOutput, false},
-                                {weightHidHidPtr, hiddenIsynPtr, numHidden, false}});*/
-
-                // ---------------------------------------------------------------
-                // Hidden->Output synapses
-                // ---------------------------------------------------------------
-                // 2^6 = 2 bytes * 32 output neurons (rounded up)
-                /*genStaticPulse(c, vectorRegisterAllocator, scalarRegisterAllocator, 
-                               weightHidOutPtr, hiddenSpikePtr, 
-                               outputIsynPtr, numHidden, numOutput, false);*/
-
+                const int16_t inhWeight = convertFixedPoint(-0.07968749999999998, fixedPoint);
+                genStaticPulse(c, vectorRegisterAllocator, scalarRegisterAllocator,
+                               inhSpikeArrayPtr, numInh,
+                               {{iiIndPtr, inhWeight, numInhIncomingVectors * 32, iiLLAddr, false},
+                                {ieIndPtr, inhWeight, numExcIncomingVectors * 32, ieLLAddr, false}});
                 
+                // ----------------------------------   -----------------------------
+                // Excitatory synapses
+                // ---------------------------------------------------------------
+                const int16_t excWeight = convertFixedPoint(0.0062499999999999995, fixedPoint);
+                genStaticPulse(c, vectorRegisterAllocator, scalarRegisterAllocator,
+                    excSpikeArrayPtr, numExc,
+                    {{eiIndPtr, excWeight, numInhIncomingVectors * 32, eiLLAddr, false},
+                     {eeIndPtr, excWeight, numExcIncomingVectors * 32, eeLLAddr, false}});
 
                 // ---------------------------------------------------------------
                 // Excitatory neurons
