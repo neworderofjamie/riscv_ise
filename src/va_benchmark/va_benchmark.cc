@@ -176,34 +176,36 @@ void genStaticPulse(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAll
                 c.vlui(*VWeight, (uint16_t)t.weight);
                 c.vloadl(*VAccum1, *VPostInd1, t.laneLocalImm);
 
-                const uint32_t laneLocalImm = t.laneLocalImm;
                 AssemblerUtils::unrollVectorLoopBody(
                     c, scalarRegisterAllocator, t.maxRowLength, 4, *SPostIndBuffer,
-                    [laneLocalImm, SMask, SPostIndBuffer, VPostInd1, VPostInd2, VAccum1, VAccum2, VAccumNew, VWeight, VZero]
+                    [&t, SMask, SPostIndBuffer, VPostInd1, VPostInd2, VAccum1, VAccum2, VAccumNew, VWeight, VZero]
                     (CodeGenerator &c, uint32_t r, uint32_t i, ScalarRegisterAllocator::RegisterPtr maskReg)
                     {
                         assert(!maskReg);
 
                         // Load vector of postsynaptic indices for next iteration
-                        // **YUCK** in last iteration, while this may not be accessed, it may be out of bounds
-                        const bool even = ((i % 2) == 0);                            
-                        c.vloadv(even ? *VPostInd2 : *VPostInd1, 
-                                 *SPostIndBuffer, (r + 1) * 64);
+                        const bool even = ((i % 2) == 0);
+                        const bool last = (i == ((t.maxRowLength / 32) - 1));
+                        if (!last) {
+                            c.vloadv(even ? *VPostInd2 : *VPostInd1,
+                                     *SPostIndBuffer, (r + 1) * 64);
+                        }
                             
                         // Test whether any of the postsynaptic indices from previous iteration are >= 0
                         c.vtge(*SMask, even ? *VPostInd1 : *VPostInd2, *VZero);
 
                         // Using postsynaptic indices, load accumulator for next iteration
-                        c.vloadl(even ? *VAccum2 : *VAccum1, even ? *VPostInd2 : *VPostInd1,
-                                 laneLocalImm);
-
+                        if (!last) {
+                            c.vloadl(even ? *VAccum2 : *VAccum1, even ? *VPostInd2 : *VPostInd1,
+                                     t.laneLocalImm);
+                        }
                         // Add weights to accumulator loaded in previous iteration
                         auto VAccum = even ? VAccum1 : VAccum2;
                         c.vadd_s(*VAccumNew, *VAccum, *VWeight);
                         c.vsel(*VAccum, *SMask, *VAccumNew);
 
                         // Write back accumulator
-                        c.vstorel(*VAccum, even ? *VPostInd1 : *VPostInd2, laneLocalImm);
+                        c.vstorel(*VAccum, even ? *VPostInd1 : *VPostInd2, t.laneLocalImm);
                     },
                     [SPostIndBuffer]
                     (CodeGenerator &c, uint32_t numUnrolls)
