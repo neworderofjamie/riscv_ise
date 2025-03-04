@@ -454,7 +454,7 @@ int main(int argc, char** argv)
     std::vector<int16_t> vectorInitData;
 
     // Constants
-    constexpr uint32_t fixedPoint = 8;
+    constexpr uint32_t fixedPoint = 10;
     constexpr uint32_t numExc = 410;
     constexpr uint32_t numInh = 102;
     constexpr uint32_t numExcWords = ceilDivide(numExc, 32);
