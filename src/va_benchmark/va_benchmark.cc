@@ -355,7 +355,7 @@ void genLIF(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator,
                 c.vmul_rs(fixedPoint, *VAlphaTemp, *VAlphaTemp, *VRMembrane);
 
                 // VVTemp = VAlpha * (VAlphaTemp - VV)
-                c.vsub(*VVTemp, *VAlphaTemp, *VV);
+                c.vsub_s(*VVTemp, *VAlphaTemp, *VV);
                 c.vmul_rs(14, *VVTemp, *VVTemp, *VAlpha);
 
                 // VVTemp = VAlphaTemp - VVTemp
