@@ -142,14 +142,13 @@ void genStaticPulse(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAll
             AssemblerUtils::unrollVectorLoopBody(
                 c, scalarRegisterAllocator, numPost, 4, *SISynBuffer,
                 [SWeightBuffer, SISynBuffer, VWeight, VISyn1, VISyn2, VISynNew]
-                (CodeGenerator &c, uint32_t r, uint32_t i, ScalarRegisterAllocator::RegisterPtr maskReg)
+                (CodeGenerator &c, uint32_t r, bool even, ScalarRegisterAllocator::RegisterPtr maskReg)
                 {
                     // Load vector of weights
                     c.vloadv(*VWeight, *SWeightBuffer, r * 64);
 
                     // Unless this is last unroll, load NEXT vector of ISyn to avoid stall
-                    // **YUCK** in last iteration, while this may not be accessed, it may be out of bounds
-                    const bool even = ((i % 2) == 0);
+                    // **YUCK** in last iteration, while this may not be accessed, it may be out of 
                     c.vloadv(even ? *VISyn2 : *VISyn1, *SISynBuffer, (r + 1) * 64);
                     
                     // Add weights to ISyn
@@ -316,7 +315,7 @@ std::vector<uint32_t> generateSimCode(bool simulate, uint32_t numInput, uint32_t
                          hiddenFixedPoint, 
                          SVBuffer, SISynBuffer, SRefracTimeBuffer, SSpikeBuffer,
                          VAlpha, VMinusDT, VTauRefrac, VThresh, VMinusThresh, VZero]
-                        (CodeGenerator &c, uint32_t r, uint32_t, ScalarRegisterAllocator::RegisterPtr maskReg)
+                        (CodeGenerator &c, uint32_t r, bool, ScalarRegisterAllocator::RegisterPtr maskReg)
                         {
                             assert(!maskReg);
 

@@ -167,14 +167,13 @@ void genStaticPulse(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAll
                 AssemblerUtils::unrollVectorLoopBody(
                     c, scalarRegisterAllocator, t.numPost, 4, *iReg,
                     [&iReg, SWeightBuffer, VWeight, VISyn1, VISyn2, VISynNew]
-                    (CodeGenerator &c, uint32_t r, uint32_t i, ScalarRegisterAllocator::RegisterPtr maskReg)
+                    (CodeGenerator &c, uint32_t r, bool even, ScalarRegisterAllocator::RegisterPtr maskReg)
                     {
                         // Load vector of weights
                         c.vloadv(*VWeight, *SWeightBuffer, r * 64);
 
                         // Load NEXT vector of ISyn to avoid stall
-                        // **YUCK** in last iteration, while this may not be accessed, it may be out of bounds
-                        const bool even = ((r % 2) == 0);                            
+                        // **YUCK** in last iteration, while this may not be accessed, it may be out of bounds                  
                         c.vloadv(even ? *VISyn2 : *VISyn1, *iReg, (r + 1) * 64);
                         
                         // Add weights to ISyn
@@ -370,7 +369,7 @@ int main(int argc, char** argv)
                     [&scalarRegisterAllocator, &vectorRegisterAllocator,
                     hiddenAFixedPoint,
                     SABuffer, SISynBuffer, SRefracTimeBuffer, SVBuffer, VZero]
-                    (CodeGenerator &c, uint32_t r, uint32_t, ScalarRegisterAllocator::RegisterPtr maskReg)
+                    (CodeGenerator &c, uint32_t r, bool, ScalarRegisterAllocator::RegisterPtr maskReg)
                     {
                         assert(!maskReg);
                         
@@ -530,7 +529,7 @@ int main(int argc, char** argv)
                         hiddenAFixedPoint,
                          SABuffer, SISynBuffer, SRefracTimeBuffer, SSpikeBuffer, SVBuffer,
                          VAlpha, VBeta, VDT, VOne, VRho, VTauRefrac, VVThresh, VZero]
-                        (CodeGenerator &c, uint32_t r, uint32_t, ScalarRegisterAllocator::RegisterPtr maskReg)
+                        (CodeGenerator &c, uint32_t r, bool, ScalarRegisterAllocator::RegisterPtr maskReg)
                         {
                             assert(!maskReg);
 

@@ -179,26 +179,21 @@ void genStaticPulse(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAll
                 AssemblerUtils::unrollVectorLoopBody(
                     c, scalarRegisterAllocator, t.maxRowLength, 4, *SPostIndBuffer,
                     [&t, SMask, SPostIndBuffer, VPostInd1, VPostInd2, VAccum1, VAccum2, VAccumNew, VWeight, VZero]
-                    (CodeGenerator &c, uint32_t r, uint32_t i, ScalarRegisterAllocator::RegisterPtr maskReg)
+                    (CodeGenerator &c, uint32_t r, bool even, ScalarRegisterAllocator::RegisterPtr maskReg)
                     {
                         assert(!maskReg);
 
                         // Load vector of postsynaptic indices for next iteration
-                        const bool even = ((i % 2) == 0);
-                        const bool last = (i == ((t.maxRowLength / 32) - 1));
-                        if (!last) {
-                            c.vloadv(even ? *VPostInd2 : *VPostInd1,
-                                     *SPostIndBuffer, (r + 1) * 64);
-                        }
+                        c.vloadv(even ? *VPostInd2 : *VPostInd1,
+                                    *SPostIndBuffer, (r + 1) * 64);
                             
                         // Test whether any of the postsynaptic indices from previous iteration are >= 0
                         c.vtge(*SMask, even ? *VPostInd1 : *VPostInd2, *VZero);
 
                         // Using postsynaptic indices, load accumulator for next iteration
-                        if (!last) {
-                            c.vloadl(even ? *VAccum2 : *VAccum1, even ? *VPostInd2 : *VPostInd1,
-                                     t.laneLocalImm);
-                        }
+                        c.vloadl(even ? *VAccum2 : *VAccum1, even ? *VPostInd2 : *VPostInd1,
+                                    t.laneLocalImm);
+
                         // Add weights to accumulator loaded in previous iteration
                         auto VAccum = even ? VAccum1 : VAccum2;
                         c.vadd_s(*VAccumNew, *VAccum, *VWeight);
@@ -301,7 +296,7 @@ void genLIF(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator,
          SVBuffer, SRefracTimeBuffer, SSpikeBuffer,
          spikeRecordingBuffer, vRecordingBuffer,
          VAlpha, VEBeta, VIBeta, VEScale, VIScale, VDT, VRMembrane, VSynLLOffset, VTauRefrac, VThresh, VIOffset, VZero]
-        (CodeGenerator &c, uint32_t r, uint32_t i, ScalarRegisterAllocator::RegisterPtr maskReg)
+        (CodeGenerator &c, uint32_t r, bool, ScalarRegisterAllocator::RegisterPtr maskReg)
         {
             // Register allocation
             ALLOCATE_VECTOR(VV);
@@ -396,12 +391,12 @@ void genLIF(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator,
             }
 
             // Record v of first neuron
-            if(vRecordingBuffer && i == 0) {
+            /*if(vRecordingBuffer && i == 0) {
                 ALLOCATE_SCALAR(STmp);
                 c.vextract(*STmp, *VV, 0);
                 c.sh(*STmp, *vRecordingBuffer);
                 c.addi(*vRecordingBuffer, *vRecordingBuffer, 2);
-            }
+            }*/
 
             // Store VV and refrac time and increment buffers
             c.vstore(*VV, *SVBuffer, 64 * r);
@@ -477,7 +472,7 @@ int main(int argc, char** argv)
     const uint32_t eiIndPtr = AppUtils::allocateVectorAndZero(numExc * numInhIncomingVectors * 32, vectorInitData);
     const uint32_t iiIndPtr = AppUtils::allocateVectorAndZero(numInh * numInhIncomingVectors * 32, vectorInitData);
     const uint32_t ieIndPtr = AppUtils::allocateVectorAndZero(numInh * numExcIncomingVectors * 32, vectorInitData);
-
+    const uint32_t indPadPtr = AppUtils::allocateVectorAndZero(32, vectorInitData);
     const uint32_t excVPtr = AppUtils::allocateVectorAndZero(numExc, vectorInitData);
     const uint32_t excRefracTimePtr = AppUtils::allocateVectorAndZero(numExc, vectorInitData);
 
@@ -651,6 +646,22 @@ int main(int argc, char** argv)
                         c.vadd(*VSynLLOffset, *VSynLLOffset, *VNumUnrollBytes);
                     });
             }
+
+            // ---------------------------------------------------------------
+            // Padding
+            // ---------------------------------------------------------------
+            // **YUCK** this seems the easiest way to follow connectivity with one vector of -2
+            {
+                ALLOCATE_SCALAR(SIndPad);
+                ALLOCATE_VECTOR(VPad);
+
+                c.li(*SIndPad, indPadPtr);
+
+                c.vlui(*VPad, (uint16_t)-2);
+
+                c.vstore(*VPad, *SIndPad);
+            }
+                
         });
 
     // Generate sim code

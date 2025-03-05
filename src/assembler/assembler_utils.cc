@@ -161,14 +161,16 @@ void generatePerformanceCountWrite(CodeGenerator &c, ScalarRegisterAllocator &sc
 void unrollLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator, 
                     uint32_t numIterations, uint32_t maxUnroll, uint32_t iterationBytes,
                     Reg testBufferReg, bool alwaysGenerateTail,
-                    std::function<void(CodeGenerator&, uint32_t, uint32_t)> genBodyFn, 
+                    std::function<void(CodeGenerator&, uint32_t, bool)> genBodyFn, 
                     std::function<void(CodeGenerator&, uint32_t)> genTailFn)
 {
+    // Evenness of iterations can only be determined with even numbers of unrolls
+    assert((maxUnroll % 2) == 0);
+
     // Determine number of unrolled iterations and remainder
     const auto numUnrolls = std::div(static_cast<int64_t>(numIterations), maxUnroll);
     
     // If there are are complete unrolls
-    uint32_t i = 0;
     if(numUnrolls.quot != 0) {
         // Calculate end of unrolled section of buffer
         ALLOCATE_SCALAR(STestBufferEndReg);
@@ -178,8 +180,8 @@ void unrollLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAll
         c.L(loop);
         {
             // Unroll loop
-            for(uint32_t r = 0; r < maxUnroll; r++, i++) {
-                genBodyFn(c, r, i);
+            for(uint32_t r = 0; r < maxUnroll; r++) {
+                genBodyFn(c, r, (r % 2) == 0);
             }
 
             // If more than 1 unroll is required or there are more iterations, generate tail
@@ -197,8 +199,8 @@ void unrollLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAll
     // If there is a remainder
     if(numUnrolls.rem != 0) {
         // Unroll tail
-        for(uint32_t r = 0; r < numUnrolls.rem; r++, i++) {
-            genBodyFn(c, r, i);
+        for(uint32_t r = 0; r < numUnrolls.rem; r++) {
+            genBodyFn(c, r, (r % 2) == 0);
         }
 
         // If we should always generate a tail, do so
@@ -211,7 +213,7 @@ void unrollLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAll
 //----------------------------------------------------------------------------
 void unrollVectorLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator, 
                           uint32_t numIterations, uint32_t maxUnroll, Reg testBufferReg,
-                          std::function<void(CodeGenerator&, uint32_t, uint32_t, ScalarRegisterAllocator::RegisterPtr)> genBodyFn, 
+                          std::function<void(CodeGenerator&, uint32_t, bool, ScalarRegisterAllocator::RegisterPtr)> genBodyFn, 
                           std::function<void(CodeGenerator&, uint32_t)> genTailFn)
 {
     // Determine number of vectorised iterations and remainder
@@ -222,9 +224,9 @@ void unrollVectorLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegis
     if(numVectors.quot != 0) {
         unrollLoopBody(c, scalarRegisterAllocator, numVectors.quot, maxUnroll, 
                        64, testBufferReg, (numVectors.rem != 0),
-                       [genBodyFn](CodeGenerator &c, uint32_t r, uint32_t i)
+                       [genBodyFn](CodeGenerator &c, uint32_t r, bool even)
                        { 
-                           genBodyFn(c, r, i, nullptr); 
+                           genBodyFn(c, r, even, nullptr); 
                        }, 
                        genTailFn);
     }
@@ -237,7 +239,7 @@ void unrollVectorLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegis
         c.li(*SMask, (1 << numVectors.rem) - 1);
         
         // Generate body with mask
-        genBodyFn(c, 0, numVectors.quot, SMask);
+        genBodyFn(c, 0, (numVectors.quot % 2) == 0, SMask);
     }
 }
 //----------------------------------------------------------------------------
