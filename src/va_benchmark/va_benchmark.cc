@@ -168,7 +168,6 @@ void genStaticPulse(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAll
                 ALLOCATE_VECTOR(VPostInd2);
                 ALLOCATE_VECTOR(VAccum1);
                 ALLOCATE_VECTOR(VAccum2);
-                ALLOCATE_VECTOR(VAccumNew);
                 ALLOCATE_VECTOR(VWeight);
                 
                 // Preload first index and accumulator
@@ -178,26 +177,22 @@ void genStaticPulse(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAll
 
                 AssemblerUtils::unrollVectorLoopBody(
                     c, scalarRegisterAllocator, t.maxRowLength, 4, *SPostIndBuffer,
-                    [&t, SMask, SPostIndBuffer, VPostInd1, VPostInd2, VAccum1, VAccum2, VAccumNew, VWeight, VZero]
+                    [&t, SMask, SPostIndBuffer, VPostInd1, VPostInd2, VAccum1, VAccum2, VWeight, VZero]
                     (CodeGenerator &c, uint32_t r, bool even, ScalarRegisterAllocator::RegisterPtr maskReg)
                     {
                         assert(!maskReg);
 
                         // Load vector of postsynaptic indices for next iteration
                         c.vloadv(even ? *VPostInd2 : *VPostInd1,
-                                    *SPostIndBuffer, (r + 1) * 64);
-                            
-                        // Test whether any of the postsynaptic indices from previous iteration are >= 0
-                        c.vtge(*SMask, even ? *VPostInd1 : *VPostInd2, *VZero);
+                                 *SPostIndBuffer, (r + 1) * 64);
 
                         // Using postsynaptic indices, load accumulator for next iteration
                         c.vloadl(even ? *VAccum2 : *VAccum1, even ? *VPostInd2 : *VPostInd1,
-                                    t.laneLocalImm);
+                                 t.laneLocalImm);
 
                         // Add weights to accumulator loaded in previous iteration
                         auto VAccum = even ? VAccum1 : VAccum2;
-                        c.vadd_s(*VAccumNew, *VAccum, *VWeight);
-                        c.vsel(*VAccum, *SMask, *VAccumNew);
+                        c.vadd_s(*VAccum, *VAccum, *VWeight);
 
                         // Write back accumulator
                         c.vstorel(*VAccum, even ? *VPostInd1 : *VPostInd2, t.laneLocalImm);

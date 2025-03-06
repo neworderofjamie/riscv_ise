@@ -277,7 +277,9 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
 
                 // Write contents of rs2 to lane local address
                 for(size_t i = 0; i < 32; i++) {
-                    m_LaneLocalMemories[i].write((uint32_t)(m_VReg[rs1][i] + imm), m_VReg[rs2][i]);
+                    if(m_VReg[rs1][i] >= 0) {
+                        m_LaneLocalMemories[i].write((uint32_t)(m_VReg[rs1][i] + imm), m_VReg[rs2][i]);
+                    }
                 }
             }
             else {
