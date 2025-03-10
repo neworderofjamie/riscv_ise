@@ -22,6 +22,7 @@
 #include <plog/Log.h>
 
 // RISC-V common includes
+#include "common/dma_controller.h"
 #include "common/utils.h"
 
 //----------------------------------------------------------------------------
@@ -37,6 +38,9 @@ constexpr size_t dataSize = 128 * 1024;
 
 constexpr off_t gpioBase = 0xA7000000;
 constexpr size_t gpioSize = 2 * 1024;
+
+constexpr off_t dmaControllerBase = 0xA0000000;
+constexpr off_t dmaDestRegisterBase = 0xA0010000;
 }
 
 //----------------------------------------------------------------------------
@@ -73,6 +77,10 @@ Device::Device()
     if(m_GPIO == MAP_FAILED) {
         throw std::runtime_error("GPIO map failed (" + std::to_string(errno) + " = " + strerror(errno) + ")");
     }
+
+    // Create DMA controller
+    m_DMAController = std::make_unique<DMAController>(m_Memory, dmaControllerBase, dmaDestRegisterBase);
+
 #else
     throw std::runtime_error("Device interface only supports Linux");
 #endif  // __linux__

@@ -1,11 +1,15 @@
 #pragma once
 
 // Standard C++ includes
+#include <memory>
 #include <optional>
 #include <vector>
 
 // Standard C includes
 #include <cstdint>
+
+// Forward declarations
+class DMAController;
 
 //----------------------------------------------------------------------------
 // Device
@@ -25,6 +29,9 @@ public:
     volatile uint32_t *getInstructionMemory(){ return m_InstructionMemory; }
     volatile uint8_t *getDataMemory(){ return m_DataMemory; };
     volatile uint32_t *getGPIO(){ return m_GPIO; }
+
+    DMAController *getDMAController(){ return m_DMAController.get(); }
+    const DMAController *getDMAController() const{ return m_DMAController.get(); }
 
     void setEnabled(bool enabled);
     void setILATrigger(bool enabled);
@@ -50,4 +57,6 @@ private:
     uint32_t *m_InstructionMemory;
     uint8_t *m_DataMemory;
     uint32_t *m_GPIO;
+
+    std::unique_ptr<DMAController> m_DMAController;
 };
