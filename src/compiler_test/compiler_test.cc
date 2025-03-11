@@ -26,6 +26,7 @@
 
 // RISC-V assembler includes
 #include "compiler/event_container.h"
+#include "compiler/generate_process_group.h"
 #include "compiler/model.h"
 #include "compiler/parameter.h"
 #include "compiler/process.h"
@@ -35,6 +36,8 @@
 #include "ise/riscv.h"
 #include "ise/vector_processor.h"
 
+// **HACK**
+void disassemble(std::ostream &os, uint32_t inst);
 
 int main(int argc, char** argv)
 {
@@ -80,9 +83,9 @@ int main(int argc, char** argv)
         "   V -= VThresh;\n"
         "   RefracTime = TauRefrac;\n"
         "}\n",
-        {{"Alpha", model.addParameter(std::exp(-1.0 / 20.0))},
-         {"VThresh", model.addParameter(0.61)},
-         {"TauRefrac", model.addParameter(5.0)}},
+        {{"Alpha", model.addParameter(std::exp(-1.0 / 20.0), GeNN::Type::S10_5)},
+         {"VThresh", model.addParameter(0.61, GeNN::Type::S10_5)},
+         {"TauRefrac", model.addParameter(5, GeNN::Type::Int16)}},
         {{"V", hiddenV}, {"I", hiddenI}, {"RefracTime", hiddenRefracTime}},
         {{"Spike", hiddenSpikes}});
     
@@ -95,7 +98,7 @@ int main(int argc, char** argv)
         "V = (Alpha * V) + I + Bias\n"
         "I = 0.0;\n"
         "VSum += V;\n",
-        {{"Alpha", model.addParameter(std::exp(-1.0 / 20.0))}},
+        {{"Alpha", model.addParameter(std::exp(-1.0 / 20.0), GeNN::Type::S9_6)}},
         {{"V", outputV}, {"VSum", outputVSum}, {"I", outputI}, {"Bias", outputBias}});
     
     // Input->Hidden event propagation
@@ -105,5 +108,16 @@ int main(int argc, char** argv)
     // Hidden->Output event propagation
     const auto *hiddenOutputWeight = model.addVariable(hiddenOutputShape, GeNN::Type::S9_6);
     const auto *hiddenOutput = model.addEventPropagationProcess(hiddenSpikes, hiddenOutputWeight, outputI);
+
+    // Group processes
+    const auto *neuronUpdateProcesses = model.addProcessGroup({input, hidden, output});
+    const auto *synapseUpdateProcesses = model.addProcessGroup({inputHidden, hiddenOutput});
+
+    const auto code = generateSimulationKernel(synapseUpdateProcesses, neuronUpdateProcesses, 20, true);
+
+    for(uint32_t i: code) {
+        disassemble(std::cout, i);
+        std::cout << std::endl;
+    }
     return 0;
 }
