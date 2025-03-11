@@ -19,6 +19,7 @@
       "description": "What example do you want to debug?",
       "options": [
         "alif",
+        "compiler_test",
         "decay",
         "dump_coe",
         "init_vram",
