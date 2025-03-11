@@ -5,7 +5,7 @@
 #include "gennUtils.h"
 
 // Compiler includes
-#include "compiler/events.h"
+#include "compiler/event_container.h"
 #include "compiler/parameter.h"
 #include "compiler/process.h"
 #include "compiler/variable.h"
@@ -23,7 +23,7 @@ Process::Process(const std::string &code)
 // NeuronUpdateProcess
 //----------------------------------------------------------------------------
 NeuronUpdateProcess::NeuronUpdateProcess(const std::string &code, const ParameterMap &parameters, 
-                                         const VariableMap &variables, const EventsMap &outputEvents)
+                                         const VariableMap &variables, const EventContainerMap &outputEvents)
 :   Process(code), m_Parameters(parameters), m_Variables(variables), m_OutputEvents(outputEvents)
 {
     if(m_Variables.empty() && m_OutputEvents.empty()) {
@@ -57,7 +57,7 @@ NeuronUpdateProcess::NeuronUpdateProcess(const std::string &code, const Paramete
 //----------------------------------------------------------------------------
 // EventPropagationProcess
 //----------------------------------------------------------------------------
-EventPropagationProcess::EventPropagationProcess(const std::string &code, const Events *inputEvents,
+EventPropagationProcess::EventPropagationProcess(const std::string &code, const EventContainer *inputEvents,
                                                  const ParameterMap &parameters, const VariableMap &synapseVariables,
                                                  const VariableMap &sourceVariables, const VariableMap &targetVariables)
 :   Process(code), m_InputEvents(inputEvents), m_Parameters(parameters), m_SynapseVariables(synapseVariables), 

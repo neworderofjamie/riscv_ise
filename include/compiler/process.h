@@ -8,7 +8,7 @@
 #include "transpiler/token.h"
 
 // Forward declarations
-class Events;
+class EventContainer;
 class Parameter;
 class Variable;
 
@@ -18,7 +18,7 @@ class Variable;
 class Process
 {
 public:
-    using EventsMap = std::unordered_map<std::string, const Events*>;
+    using EventContainerMap = std::unordered_map<std::string, const EventContainer*>;
     using ParameterMap = std::unordered_map<std::string, const Parameter*>;
     using VariableMap = std::unordered_map<std::string, const Variable*>;
 
@@ -48,7 +48,7 @@ class NeuronUpdateProcess : public Process
 {
 public:
     NeuronUpdateProcess(const std::string &code, const ParameterMap &parameters, 
-                        const VariableMap &variables, const EventsMap &outputEvents);
+                        const VariableMap &variables, const EventContainerMap &outputEvents);
 
     //------------------------------------------------------------------------
     // Public API
@@ -65,7 +65,7 @@ private:
     //------------------------------------------------------------------------
     ParameterMap m_Parameters;
     VariableMap m_Variables;
-    EventsMap m_OutputEvents;
+    EventContainerMap m_OutputEvents;
 
     size_t m_NumNeurons;
 };
@@ -76,7 +76,7 @@ private:
 class EventPropagationProcess : public Process
 {
 public:
-    EventPropagationProcess(const std::string &code, const Events *inputEvents,
+    EventPropagationProcess(const std::string &code, const EventContainer *inputEvents,
                             const ParameterMap &parameters, const VariableMap &synapseVariables,
                             const VariableMap &sourceVariables, const VariableMap &targetVariables);
 
@@ -96,7 +96,7 @@ private:
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
-    const Events *m_InputEvents;
+    const EventContainer *m_InputEvents;
     ParameterMap m_Parameters;
     VariableMap m_SynapseVariables;
     VariableMap m_SourceVariables;

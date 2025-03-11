@@ -7,16 +7,16 @@
 #include "shape.h"
 
 //----------------------------------------------------------------------------
-// Events
+// EventContainer
 //----------------------------------------------------------------------------
-class Events
+class EventContainer
 {
 public:
-    Events(const Shape &shape)
+    EventContainer(const Shape &shape)
     :   m_Shape(shape)
     {}
 
-    Events(const Events&) = delete;
+    EventContainer(const EventContainer&) = delete;
 
     //------------------------------------------------------------------------
     // Public API
