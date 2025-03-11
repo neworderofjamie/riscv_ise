@@ -4,19 +4,18 @@
 #include <vector>
 
 // Compiler includes
+#include "model_component.h"
 #include "shape.h"
 
 //----------------------------------------------------------------------------
 // EventContainer
 //----------------------------------------------------------------------------
-class EventContainer
+class EventContainer : public ModelComponent
 {
 public:
     EventContainer(const Shape &shape)
     :   m_Shape(shape)
     {}
-
-    EventContainer(const EventContainer&) = delete;
 
     //------------------------------------------------------------------------
     // Public API

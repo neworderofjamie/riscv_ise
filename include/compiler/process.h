@@ -7,6 +7,9 @@
 // GeNN includes
 #include "transpiler/token.h"
 
+// Compiler includes
+#include "model_component.h"
+
 // Forward declarations
 class EventContainer;
 class Parameter;
@@ -15,16 +18,12 @@ class Variable;
 //----------------------------------------------------------------------------
 // Process
 //----------------------------------------------------------------------------
-class Process
+class Process : public ModelComponent
 {
 public:
     using EventContainerMap = std::unordered_map<std::string, const EventContainer*>;
     using ParameterMap = std::unordered_map<std::string, const Parameter*>;
     using VariableMap = std::unordered_map<std::string, const Variable*>;
-
-    Process(const Process&) = delete;
-    virtual ~Process()
-    {}
 
     //------------------------------------------------------------------------
     // Public API
