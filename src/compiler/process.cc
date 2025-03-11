@@ -10,13 +10,18 @@
 #include "compiler/process.h"
 #include "compiler/variable.h"
 
-
 //----------------------------------------------------------------------------
-// Process
+// SpikeInputProcess
 //----------------------------------------------------------------------------
-Process::Process(const std::string &code)
+SpikeInputProcess::SpikeInputProcess(const EventContainer *outputEvents)
+:   m_OutputEvents(outputEvents)
 {
-    m_Tokens = GeNN::Utils::scanCode(code, "Process");
+    if(m_OutputEvents == nullptr) {
+        throw std::runtime_error("Spike input process requires output events");
+    }
+
+    // Get number of neurons from output events
+    m_NumNeurons = m_OutputEvents->getShape().getNumNeurons();
 }
 
 //----------------------------------------------------------------------------
@@ -24,7 +29,7 @@ Process::Process(const std::string &code)
 //----------------------------------------------------------------------------
 NeuronUpdateProcess::NeuronUpdateProcess(const std::string &code, const ParameterMap &parameters, 
                                          const VariableMap &variables, const EventContainerMap &outputEvents)
-:   Process(code), m_Parameters(parameters), m_Variables(variables), m_OutputEvents(outputEvents)
+:   m_Parameters(parameters), m_Variables(variables), m_OutputEvents(outputEvents)
 {
     if(m_Variables.empty() && m_OutputEvents.empty()) {
         throw std::runtime_error("Neuron update process requires at least one variable or output event");
@@ -50,6 +55,9 @@ NeuronUpdateProcess::NeuronUpdateProcess(const std::string &code, const Paramete
         }
     }
     
+    // Parse code
+    m_Tokens = GeNN::Utils::scanCode(code, "NeuronUpdateProcess");
+
     // Batched = any output events batched
     // 
 }
@@ -57,59 +65,39 @@ NeuronUpdateProcess::NeuronUpdateProcess(const std::string &code, const Paramete
 //----------------------------------------------------------------------------
 // EventPropagationProcess
 //----------------------------------------------------------------------------
-EventPropagationProcess::EventPropagationProcess(const std::string &code, const EventContainer *inputEvents,
-                                                 const ParameterMap &parameters, const VariableMap &synapseVariables,
-                                                 const VariableMap &sourceVariables, const VariableMap &targetVariables)
-:   Process(code), m_InputEvents(inputEvents), m_Parameters(parameters), m_SynapseVariables(synapseVariables), 
-    m_SourceVariables(sourceVariables), m_TargetVariables(targetVariables)
+EventPropagationProcess::EventPropagationProcess(const EventContainer *inputEvents, const Variable *weight, const Variable *target)
+:   m_InputEvents(inputEvents), m_Weight(weight), m_Target(target)
 {
     if(m_InputEvents == nullptr) {
         throw std::runtime_error("Event propagation process requires input events");
     }
 
-    if(m_SynapseVariables.empty() && m_TargetVariables.empty()) {
-        throw std::runtime_error("Event propagation process requires at least one synapse or target variable");
+    if(m_Weight == nullptr) {
+        throw std::runtime_error("Event propagation process requires weight variable");
+    }
+
+    if(m_Target == nullptr) {
+        throw std::runtime_error("Event propagation process requires target variable");
     }
 
     // Get number of source neurons from input events
     m_NumSourceNeurons = m_InputEvents->getShape().getNumNeurons();
 
-    // Get number of target neurons from arbitrary synapsed or target variable
-    m_NumTargetNeurons = (m_SynapseVariables.empty() ? m_SourceVariables.cbegin()->second->getShape().getNumNeurons() 
-                          : m_SynapseVariables.cbegin()->second->getShape().getNumTargetNeurons());
+    // Get number of target neurons from target variable
+    m_NumTargetNeurons = m_Target->getShape().getNumNeurons();
 
-    // Loop through synapse variables
-    for(const auto &v : m_SynapseVariables) {
-        // Check number of source neurons matches
-        if(v.second->getShape().getNumSourceNeurons() != m_NumSourceNeurons) {
-            throw std::runtime_error("Variable '" + v.first + "' with shape: " + v.second->getShape().toString() 
-                                     + " is not compatible with event propagation process with " 
-                                     + std::to_string(m_NumSourceNeurons) + " source neurons");
-        }
-
-         // Check number of target neurons matches
-        if(v.second->getShape().getNumTargetNeurons() != m_NumTargetNeurons) {
-            throw std::runtime_error("Variable '" + v.first + "' with shape: " + v.second->getShape().toString() 
-                                     + " is not compatible with event propagation process with " 
-                                     + std::to_string(m_NumTargetNeurons) + " target neurons");
-        }
+    // Check weight number of source neurons matches
+    if(m_Weight->getShape().getNumSourceNeurons() != m_NumSourceNeurons) {
+        throw std::runtime_error("Weight with shape: " + weight->getShape().toString() 
+                                 + " is not compatible with event propagation process with " 
+                                 + std::to_string(m_NumSourceNeurons) + " source neurons");
     }
 
-    // Check all source variables have same number of neurons
-    for(const auto &v : m_SourceVariables) {
-        if(v.second->getShape().getNumNeurons() != m_NumSourceNeurons) {
-            throw std::runtime_error("Variable '" + v.first + "' with shape: " + v.second->getShape().toString() 
-                                     + " is not compatible with neuron update process with " 
-                                     + std::to_string(m_NumSourceNeurons) + " source neurons");
-        }
+    // Check weight number of target neurons matches
+    if(m_Weight->getShape().getNumTargetNeurons() != m_NumTargetNeurons) {
+        throw std::runtime_error("Weight with shape: " + weight->getShape().toString() 
+                                 + " is not compatible with event propagation process with " 
+                                 + std::to_string(m_NumTargetNeurons) + " target neurons");
     }
-
-     // Check all target variables have same number of neurons
-    for(const auto &v : m_TargetVariables) {
-        if(v.second->getShape().getNumNeurons() != m_NumTargetNeurons) {
-            throw std::runtime_error("Variable '" + v.first + "' with shape: " + v.second->getShape().toString() 
-                                     + " is not compatible with neuron update process with " 
-                                     + std::to_string(m_NumTargetNeurons) + " target neurons");
-        }
-    }
+    
 }
