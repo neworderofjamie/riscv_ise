@@ -24,20 +24,29 @@ public:
     using EventContainerMap = std::unordered_map<std::string, const EventContainer*>;
     using ParameterMap = std::unordered_map<std::string, const Parameter*>;
     using VariableMap = std::unordered_map<std::string, const Variable*>;
+};
+
+//----------------------------------------------------------------------------
+// SpikeInputProcess
+//----------------------------------------------------------------------------
+class SpikeInputProcess : public Process
+{
+public:
+    SpikeInputProcess(const EventContainer *outputEvents);
 
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
-    const auto &getTokens() const{ return m_Tokens; }
+    const auto *getOutputEvents() const{ return m_OutputEvents; }
 
-protected:
-    Process(const std::string &code);
+    size_t getNumNeurons() const{ return m_NumNeurons; }
 
 private:
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
-    std::vector<GeNN::Transpiler::Token> m_Tokens;
+    const EventContainer *m_OutputEvents;
+    size_t m_NumNeurons;
 };
 
 //----------------------------------------------------------------------------
@@ -56,6 +65,8 @@ public:
     const auto &getVariables() const{ return m_Variables; }
     const auto &getOutputEvents() const{ return m_OutputEvents; }
 
+    const auto &getTokens() const{ return m_Tokens; }
+
     size_t getNumNeurons() const{ return m_NumNeurons; }
 
 private:
@@ -66,6 +77,8 @@ private:
     VariableMap m_Variables;
     EventContainerMap m_OutputEvents;
 
+    std::vector<GeNN::Transpiler::Token> m_Tokens;
+
     size_t m_NumNeurons;
 };
 
@@ -75,18 +88,15 @@ private:
 class EventPropagationProcess : public Process
 {
 public:
-    EventPropagationProcess(const std::string &code, const EventContainer *inputEvents,
-                            const ParameterMap &parameters, const VariableMap &synapseVariables,
-                            const VariableMap &sourceVariables, const VariableMap &targetVariables);
+    EventPropagationProcess(const EventContainer *inputEvents, const Variable *weight,
+                            const Variable *target);
 
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
     const auto *getInputEvents() const{ return m_InputEvents; }
-    const auto &getParameters() const{ return m_Parameters; }
-    const auto &getSynapseVariables() const{ return m_SynapseVariables; }
-    const auto &getSourceVariables() const{ return m_SourceVariables; }
-    const auto &getTargetVariables() const{ return m_TargetVariables; }
+    const auto *getWeight() const{ return m_Weight; }
+    const auto *getTarget() const{ return m_Target; }
 
     size_t getNumSourceNeurons() const{ return m_NumSourceNeurons; }
     size_t getNumTargetNeurons() const{ return m_NumTargetNeurons; }
@@ -96,11 +106,9 @@ private:
     // Members
     //------------------------------------------------------------------------
     const EventContainer *m_InputEvents;
-    ParameterMap m_Parameters;
-    VariableMap m_SynapseVariables;
-    VariableMap m_SourceVariables;
-    VariableMap m_TargetVariables;
-
+    const Variable *m_Weight;
+    const Variable *m_Target;
+    
     size_t m_NumSourceNeurons;
     size_t m_NumTargetNeurons;
 };

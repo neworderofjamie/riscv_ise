@@ -46,7 +46,7 @@ size_t Shape::getNumSourceNeurons() const
 size_t Shape::getNumTargetNeurons() const
 {
     if(m_Dims.size() == 2) {
-        return m_Dims[2];
+        return m_Dims[1];
     }
     else if(m_Dims.size() == 3) {
         return m_Dims[2];
