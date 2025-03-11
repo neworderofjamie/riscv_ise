@@ -74,12 +74,12 @@ int main(int argc, char** argv)
     const auto *hiddenSpikes = model.addEventContainer(hiddenShape);
     const auto *hidden = model.addNeuronUpdateProcess(
         "V = (Alpha * V) + I;\n"
-        "I = 0.0;\n"
+        "I = 0.0h5;\n"
         "if (RefracTime > 0) {\n"
         "   RefracTime -= 1;\n"
         "}\n"
-        "if(V >= Vthresh && RefracTime <= 0) {\n"
-        "   Spike();\n"
+        "if(V >= VThresh && RefracTime <= 0) {\n"
+        "   //Spike();\n"
         "   V -= VThresh;\n"
         "   RefracTime = TauRefrac;\n"
         "}\n",
@@ -95,8 +95,8 @@ int main(int argc, char** argv)
     const auto *outputVSum = model.addVariable(outputShape, GeNN::Type::S9_6);
     const auto *outputBias = model.addVariable(outputShape, GeNN::Type::S9_6);
     const auto *output = model.addNeuronUpdateProcess(
-        "V = (Alpha * V) + I + Bias\n"
-        "I = 0.0;\n"
+        "V = (Alpha * V) + I + Bias;\n"
+        "I = 0.0h6;\n"
         "VSum += V;\n",
         {{"Alpha", model.addParameter(std::exp(-1.0 / 20.0), GeNN::Type::S9_6)}},
         {{"V", outputV}, {"VSum", outputVSum}, {"I", outputI}, {"Bias", outputBias}});
@@ -116,7 +116,12 @@ int main(int argc, char** argv)
     const auto code = generateSimulationKernel(synapseUpdateProcesses, neuronUpdateProcesses, 20, true);
 
     for(uint32_t i: code) {
-        disassemble(std::cout, i);
+        try {
+            disassemble(std::cout, i);
+        }
+        catch(const std::runtime_error&) {
+            std::cout << "Unsupported";
+        }
         std::cout << std::endl;
     }
     return 0;

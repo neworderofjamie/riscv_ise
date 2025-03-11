@@ -153,7 +153,6 @@ void updateLiteralPool(const std::vector<Token> &tokens, const Type::TypeContext
                        std::unordered_map<int16_t, VectorRegisterAllocator::RegisterPtr> &literalPool)
 {
     // Loop through tokens
-    const auto &scalarType = typeContext.at("scalar");
     for(const auto &t : tokens) {
         // If token is a number
         if(t.type == Token::Type::NUMBER) {
@@ -164,7 +163,7 @@ void updateLiteralPool(const std::vector<Token> &tokens, const Type::TypeContext
             
             // Get it's type (scalar if not specified)
             int64_t integerResult;
-            const auto &numericType = t.numberType.value_or(scalarType).getNumeric();
+            const auto &numericType = t.numberType.value().getNumeric();
             if(numericType.isIntegral) {
                 if(numericType.isSigned) {
                     int result;
@@ -239,6 +238,14 @@ public:
     
     }
     // ModelComponentVisitor virtuals
+    virtual void visit(const ProcessGroup &processGroup) final
+    {
+        // Visit all the processes
+        for(const auto *p : processGroup.getProcesses()) {
+            p->accept(*this);
+        }
+    }
+
     virtual void visit(const SpikeInputProcess &spikeInputProcess) final
     {
 
