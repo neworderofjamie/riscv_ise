@@ -12,9 +12,13 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="compiler.cc" />
+    <ClCompile Include="process.cc" />
+    <ClCompile Include="shape.cc" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\include\compiler\array.h" />
+    <ClInclude Include="..\..\include\compiler\events.h" />
+    <ClInclude Include="..\..\include\compiler\shape.h" />
+    <ClInclude Include="..\..\include\compiler\variable.h" />
     <ClInclude Include="..\..\include\compiler\compiler.h" />
     <ClInclude Include="..\..\include\compiler\model.h" />
     <ClInclude Include="..\..\include\compiler\parameter.h" />
@@ -71,7 +75,7 @@
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp17</LanguageStandard>
-      <AdditionalIncludeDirectories>$(SolutionDir)include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)include;$(GENN_PATH)/include/genn/third_party;$(GENN_PATH)/include/genn/genn;$(GENN_PATH)/include/genn/third_party/libffi;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -87,7 +91,7 @@
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp17</LanguageStandard>
-      <AdditionalIncludeDirectories>$(SolutionDir)include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)include;$(GENN_PATH)/include/genn/third_party;$(GENN_PATH)/include/genn/genn;$(GENN_PATH)/include/genn/third_party/libffi;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
