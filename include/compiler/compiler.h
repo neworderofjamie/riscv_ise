@@ -6,33 +6,27 @@
 #include <variant>
 
 // GeNN includes
-#include "gennExport.h"
 #include "type.h"
 
 // Transpiler includes
 #include "transpiler/statement.h"
 #include "transpiler/typeChecker.h"
 
-// FeNN backend includes
-#include "registerAllocator.h"
+// Assembler includes
+#include "assembler/register_allocator.h"
 
 // Forward declarations
-namespace GeNN::CodeGenerator::FeNN::Assembler
-{
 class CodeGenerator;
-}
 
 //----------------------------------------------------------------------------
 // GeNN::CodeGenerator::FeNN::Compiler
 //----------------------------------------------------------------------------
-namespace GeNN::CodeGenerator::FeNN::Compiler
-{
 using RegisterPtr = std::variant<ScalarRegisterAllocator::RegisterPtr, VectorRegisterAllocator::RegisterPtr>;
 
 //----------------------------------------------------------------------------
-// GeNN::CodeGenerator::FeNN::EnvironmentBase
+// EnvironmentBase
 //----------------------------------------------------------------------------
-class GENN_EXPORT EnvironmentBase
+class EnvironmentBase
 {
 public:
     //------------------------------------------------------------------------
@@ -45,7 +39,7 @@ public:
     virtual RegisterPtr getRegister(const std::string &name) = 0;
     
     //! Get stream to write code within this environment to
-    virtual Assembler::CodeGenerator &getCodeGenerator() = 0;
+    virtual CodeGenerator &getCodeGenerator() = 0;
 
     //------------------------------------------------------------------------
     // Operators
@@ -57,9 +51,9 @@ public:
 };
 
 //----------------------------------------------------------------------------
-// GeNN::CodeGenerator::FeNN::EnvironmentInternal
+// EnvironmentInternal
 //----------------------------------------------------------------------------
-class GENN_EXPORT EnvironmentInternal : public EnvironmentBase
+class EnvironmentInternal : public EnvironmentBase
 {
 public:
     EnvironmentInternal(EnvironmentBase &enclosing)
@@ -74,7 +68,7 @@ public:
 
     virtual RegisterPtr getRegister(const std::string &name) final;
 
-    virtual Assembler::CodeGenerator &getCodeGenerator() final;
+    virtual CodeGenerator &getCodeGenerator() final;
 
 private:
     //---------------------------------------------------------------------------
@@ -87,13 +81,12 @@ private:
 //---------------------------------------------------------------------------
 // Free functions
 //---------------------------------------------------------------------------
-GENN_EXPORT void compile(const GeNN::Transpiler::Statement::StatementList &statements, EnvironmentInternal &environment, 
-                         const Type::TypeContext &context, const GeNN::Transpiler::TypeChecker::ResolvedTypeMap &resolvedTypes,
-                         const std::unordered_map<int16_t, VectorRegisterAllocator::RegisterPtr> &literalPool,
-                         std::optional<ScalarRegisterAllocator::RegisterPtr> maskRegister, 
-                         ScalarRegisterAllocator &scalarRegisterAllocator, VectorRegisterAllocator &vectorRegisterAllocator);
-GENN_EXPORT RegisterPtr compile(const GeNN::Transpiler::Expression::ExpressionPtr &expression, EnvironmentInternal &environment, 
-                                const Type::TypeContext &context, const GeNN::Transpiler::TypeChecker::ResolvedTypeMap &resolvedTypes,
-                                const std::unordered_map<int16_t, VectorRegisterAllocator::RegisterPtr> &literalPool,
-                                ScalarRegisterAllocator &scalarRegisterAllocator, VectorRegisterAllocator &vectorRegisterAllocator);
-}
+void compile(const GeNN::Transpiler::Statement::StatementList &statements, EnvironmentInternal &environment, 
+             const GeNN::Type::TypeContext &context, const GeNN::Transpiler::TypeChecker::ResolvedTypeMap &resolvedTypes,
+             const std::unordered_map<int16_t, VectorRegisterAllocator::RegisterPtr> &literalPool,
+             std::optional<ScalarRegisterAllocator::RegisterPtr> maskRegister, 
+             ScalarRegisterAllocator &scalarRegisterAllocator, VectorRegisterAllocator &vectorRegisterAllocator);
+RegisterPtr compile(const GeNN::Transpiler::Expression::ExpressionPtr &expression, EnvironmentInternal &environment, 
+                    const GeNN::Type::TypeContext &context, const GeNN::Transpiler::TypeChecker::ResolvedTypeMap &resolvedTypes,
+                    const std::unordered_map<int16_t, VectorRegisterAllocator::RegisterPtr> &literalPool,
+                    ScalarRegisterAllocator &scalarRegisterAllocator, VectorRegisterAllocator &vectorRegisterAllocator);

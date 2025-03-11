@@ -1,15 +1,12 @@
-#include "compiler.h"
+#include "compiler/compiler.h"
 
 // Third-party includes
 #include <fast_float/fast_float.h>
 
 // FeNN backend includes
-#include "assembler.h"
+#include "assembler/assembler.h"
 
 using namespace GeNN;
-using namespace GeNN::CodeGenerator;
-using namespace GeNN::CodeGenerator::FeNN;
-using namespace GeNN::CodeGenerator::FeNN::Compiler;
 using namespace GeNN::Transpiler;
 
 //---------------------------------------------------------------------------
@@ -454,7 +451,7 @@ private:
         }
 
         // Start loop
-        Assembler::Label doLoop;
+        Label doLoop;
         m_Environment.get().getCodeGenerator().L(doLoop);
         {
             // Generate body
@@ -617,8 +614,8 @@ private:
         }
 
         // Start loop
-        Assembler::Label whileLoopStart;
-        Assembler::Label whileLoopEnd;
+        Label whileLoopStart;
+        Label whileLoopEnd;
         m_Environment.get().getCodeGenerator().L(whileLoopStart);
         {
             // And mask register with result of evaluating condition
@@ -725,8 +722,6 @@ private:
 //---------------------------------------------------------------------------
 // GeNN::CodeGenerator::FeNN::Compiler::EnvironmentInternal
 //---------------------------------------------------------------------------
-namespace GeNN::CodeGenerator::FeNN::Compiler
-{
 void EnvironmentInternal::define(const std::string &name, RegisterPtr reg)
 {
     if(!m_LocalVariables.emplace(name, reg).second) {
@@ -745,7 +740,7 @@ RegisterPtr EnvironmentInternal::getRegister(const std::string &name)
     }
 }
 //----------------------------------------------------------------------------
-Assembler::CodeGenerator &EnvironmentInternal::getCodeGenerator()
+CodeGenerator &EnvironmentInternal::getCodeGenerator()
 {
     return m_Enclosing.getCodeGenerator();
 }
@@ -768,5 +763,4 @@ RegisterPtr compile(const Expression::ExpressionPtr &expression, EnvironmentInte
     Visitor visitor(expression, environment, context, resolvedTypes, literalPool,
                     scalarRegisterAllocator, vectorRegisterAllocator);
     return visitor.getExpressionRegister();
-}
 }
