@@ -3,17 +3,18 @@
 // GeNN includes
 #include "type.h"
 
+// Compiler includes
+#include "model_component.h"
+
 //----------------------------------------------------------------------------
 // Parameter
 //----------------------------------------------------------------------------
-class Parameter
+class Parameter : public ModelComponent
 {
 public:
     Parameter(const GeNN::Type::NumericValue &value)
     :   m_Value(value)
     {}
-
-    Parameter(const Parameter&) = delete;
 
     //------------------------------------------------------------------------
     // Public API

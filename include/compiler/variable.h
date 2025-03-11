@@ -7,19 +7,18 @@
 #include "type.h"
 
 // Compiler includes
+#include "model_component.h"
 #include "shape.h"
 
 //----------------------------------------------------------------------------
 // Variable
 //----------------------------------------------------------------------------
-class Variable
+class Variable : public ModelComponent
 {
 public:
     Variable(const Shape &shape, const GeNN::Type::ResolvedType &type)
     :   m_Shape(shape), m_Type(type)
     {}
-
-    Variable(const Variable&) = delete;
 
     //------------------------------------------------------------------------
     // Public API
