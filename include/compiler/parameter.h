@@ -9,7 +9,7 @@
 //----------------------------------------------------------------------------
 // Parameter
 //----------------------------------------------------------------------------
-class Parameter : public ModelComponent
+class Parameter : public AcceptableModelComponent<Parameter>
 {
 public:
     Parameter(const GeNN::Type::NumericValue &value)

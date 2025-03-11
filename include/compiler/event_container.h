@@ -10,7 +10,7 @@
 //----------------------------------------------------------------------------
 // EventContainer
 //----------------------------------------------------------------------------
-class EventContainer : public ModelComponent
+class EventContainer : public AcceptableModelComponent<EventContainer>
 {
 public:
     EventContainer(const Shape &shape)

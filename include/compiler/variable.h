@@ -13,7 +13,7 @@
 //----------------------------------------------------------------------------
 // Variable
 //----------------------------------------------------------------------------
-class Variable : public ModelComponent
+class Variable : public AcceptableModelComponent<Variable>
 {
 public:
     Variable(const Shape &shape, const GeNN::Type::ResolvedType &type)
