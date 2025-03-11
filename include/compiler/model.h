@@ -41,8 +41,8 @@ public:
     }
 
     const NeuronUpdateProcess *addNeuronUpdateProcess(
-        const std::string &code, const Process::ParameterMap &parameters = {}, 
-        const Process::VariableMap &variables = {}, const Process::EventContainerMap &outputEvents = {})
+        const std::string &code, const ParameterMap &parameters = {}, 
+        const VariableMap &variables = {}, const EventContainerMap &outputEvents = {})
     {
         m_Components.push_back(
             std::make_unique<NeuronUpdateProcess>(code, parameters, variables, outputEvents));
