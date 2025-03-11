@@ -8,6 +8,7 @@
 #include "compiler/event_container.h"
 #include "compiler/parameter.h"
 #include "compiler/process.h"
+#include "compiler/process_group.h"
 #include "compiler/variable.h"
 
 //----------------------------------------------------------------------------
@@ -28,10 +29,17 @@ public:
         return static_cast<const EventContainer*>(m_Components.back().get());
     }
 
-    const Parameter *addParameter(const GeNN::Type::NumericValue &value)
+    const Parameter *addParameter(const GeNN::Type::NumericValue &value,
+                                  const GeNN::Type::ResolvedType &type)
     {
-        m_Components.push_back(std::make_unique<Parameter>(value));
+        m_Components.push_back(std::make_unique<Parameter>(value, type));
         return static_cast<const Parameter*>(m_Components.back().get());
+    }
+
+    const ProcessGroup *addProcessGroup(const std::vector<const Process*> processes)
+    {
+        m_Components.push_back(std::make_unique<ProcessGroup>(processes));
+        return static_cast<const ProcessGroup*>(m_Components.back().get());
     }
 
     const SpikeInputProcess *addSpikeInputProcess(const EventContainer *outputEvents)

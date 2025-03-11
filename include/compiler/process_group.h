@@ -1,31 +1,32 @@
 #pragma once
 
-// GeNN includes
-#include "type.h"
+// Standard C++ includes
+#include <vector>
 
 // Compiler includes
-#include "model_component.h"
+#include "compiler/model_component.h"
+
+// Forward declarations
+class Process;
 
 //----------------------------------------------------------------------------
-// Parameter
+// ProcessGroup
 //----------------------------------------------------------------------------
-class Parameter : public AcceptableModelComponent<Parameter>
+class ProcessGroup : public AcceptableModelComponent<ProcessGroup>
 {
 public:
-    Parameter(const GeNN::Type::NumericValue &value, const GeNN::Type::ResolvedType &type)
-    :   m_Value(value), m_Type(type)
+    ProcessGroup(const std::vector<const Process*> processes)
+    :   m_Processes(processes)
     {}
 
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
-    const auto &getValue() const{ return m_Value; }
-    const auto &getType() const{ return m_Type; }
+    const auto &getProcesses() const{ return m_Processes; }
 
 private:
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
-    GeNN::Type::NumericValue m_Value;
-    GeNN::Type::ResolvedType m_Type;
+    std::vector<const Process*> m_Processes;
 };

@@ -3,6 +3,7 @@
 // Forward declarations
 class EventContainer;
 class Parameter;
+class ProcessGroup;
 class SpikeInputProcess;
 class NeuronUpdateProcess;
 class EventPropagationProcess;
@@ -14,12 +15,13 @@ class Variable;
 class ModelComponentVisitor
 {
 public:
-    virtual void visit(const EventContainer &eventContainer) = 0;
-    virtual void visit(const Parameter &parameter) = 0;
-    virtual void visit(const SpikeInputProcess &spikeInputProcess) = 0;
-    virtual void visit(const NeuronUpdateProcess &neuronUpdateProcess) = 0;
-    virtual void visit(const EventPropagationProcess &eventPropagationProcess) = 0;
-    virtual void visit(const Variable &variable) = 0;
+    virtual void visit(const EventContainer&){}
+    virtual void visit(const Parameter&){}
+    virtual void visit(const ProcessGroup&){}
+    virtual void visit(const SpikeInputProcess&){}
+    virtual void visit(const NeuronUpdateProcess&){}
+    virtual void visit(const EventPropagationProcess&){}
+    virtual void visit(const Variable&){}
 };
 
 //----------------------------------------------------------------------------
