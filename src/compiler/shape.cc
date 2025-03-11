@@ -12,7 +12,7 @@ std::string Shape::toString() const
     std::ostringstream shapeStream;
     shapeStream << "(";
     std::copy(m_Dims.cbegin(), m_Dims.cend(),
-              std::ostream_iterator<std::string>(shapeStream, ", "));
+              std::ostream_iterator<size_t>(shapeStream, ", "));
     shapeStream << ")";
     return shapeStream.str();
 }
