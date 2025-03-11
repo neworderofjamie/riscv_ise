@@ -42,8 +42,8 @@ protected:
 //---------------------------------------------------------------------------
 // AcceptableModelComponent
 //---------------------------------------------------------------------------
-template<typename T>
-class AcceptableModelComponent : public ModelComponent
+template<typename T, typename B = ModelComponent>
+class AcceptableModelComponent : public B
 {
 public:
     virtual void accept(ModelComponentVisitor &visitor) const final

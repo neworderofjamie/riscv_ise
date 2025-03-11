@@ -20,9 +20,17 @@ using ParameterMap = std::unordered_map<std::string, const Parameter*>;
 using VariableMap = std::unordered_map<std::string, const Variable*>;
 
 //----------------------------------------------------------------------------
+// Process
+//----------------------------------------------------------------------------
+class Process : public ModelComponent
+{
+
+};
+
+//----------------------------------------------------------------------------
 // SpikeInputProcess
 //----------------------------------------------------------------------------
-class SpikeInputProcess : public AcceptableModelComponent<SpikeInputProcess>
+class SpikeInputProcess : public AcceptableModelComponent<SpikeInputProcess, Process>
 {
 public:
     SpikeInputProcess(const EventContainer *outputEvents);
@@ -45,7 +53,7 @@ private:
 //----------------------------------------------------------------------------
 // NeuronUpdateProcess
 //----------------------------------------------------------------------------
-class NeuronUpdateProcess : public AcceptableModelComponent<NeuronUpdateProcess>
+class NeuronUpdateProcess : public AcceptableModelComponent<NeuronUpdateProcess, Process>
 {
 public:
     NeuronUpdateProcess(const std::string &code, const ParameterMap &parameters, 
@@ -78,7 +86,7 @@ private:
 //----------------------------------------------------------------------------
 // EventPropagationProcess
 //----------------------------------------------------------------------------
-class EventPropagationProcess : public AcceptableModelComponent<EventPropagationProcess>
+class EventPropagationProcess : public AcceptableModelComponent<EventPropagationProcess, Process>
 {
 public:
     EventPropagationProcess(const EventContainer *inputEvents, const Variable *weight,
