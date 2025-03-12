@@ -9,6 +9,9 @@
 
 #include <fast_float/fast_float.h>
 
+// GeNN includes
+#include "type.h"
+
 // GeNN transpiler includes
 #include "transpiler/errorHandler.h"
 #include "transpiler/parser.h"
@@ -203,6 +206,7 @@ void updateLiteralPool(const std::vector<Token> &tokens, const Type::TypeContext
         }
     }
 }
+
 void compileStatements(const std::vector<Token> &tokens, const Type::TypeContext &typeContext,
                        const std::unordered_map<int16_t, VectorRegisterAllocator::RegisterPtr> &literalPool,
                        TypeChecker::EnvironmentInternal &typeCheckEnv, EnvironmentInternal &compilerEnv,
@@ -233,10 +237,14 @@ void compileStatements(const std::vector<Token> &tokens, const Type::TypeContext
 class CodeGeneratorVisitor : public ModelComponentVisitor
 {
 public:
-    CodeGeneratorVisitor(CodeGenerator &codeGenerator, VectorRegisterAllocator &vectorRegisterAllocator, 
-                         ScalarRegisterAllocator &scalarRegisterAllocator)
+    CodeGeneratorVisitor(CodeGenerator &codeGenerator, 
+                         VectorRegisterAllocator &vectorRegisterAllocator, 
+                         ScalarRegisterAllocator &scalarRegisterAllocator, 
+                         const std::unordered_map<const ModelComponent*, uint32_t> &uramAllocations,
+                         const std::unordered_map<const ModelComponent*, uint32_t> &bramAllocations)
     :   m_CodeGenerator(codeGenerator), m_VectorRegisterAllocator(vectorRegisterAllocator),
-        m_ScalarRegisterAllocator(scalarRegisterAllocator)
+        m_ScalarRegisterAllocator(scalarRegisterAllocator), m_URAMAllocations(uramAllocations),
+        m_BRAMAllocations(bramAllocations)
     {
     
     }
@@ -265,27 +273,114 @@ public:
         // Allocate registers for Isyn and zero
         env.add(Type::S8_7, "_zero", literalPool.at(0));
 
-        // Allocate registers for neuron variables
+        // Loop through neuron variables
         for(const auto &v : neuronUpdateProcess.getVariables()) {
-            env.add(v.second->getType(), v.first, m_VectorRegisterAllocator.get().getRegister((v.first + " V").c_str()));
+            // Allocate scalar register to hold address of variable
+            const auto reg = m_ScalarRegisterAllocator.get().getRegister((v.first + "Buffer X").c_str());
+
+            // Add (hidden) variable buffer to environment
+            env.add(GeNN::Type::Uint32, "_" + v.first + "Buffer", reg);
+
+            // Generate code to load address
+            env.getCodeGenerator().li(*reg, m_URAMAllocations.get().at(v.second));
         }
 
-        // Allocate registers for neuron parameters
+        // Loop through neuron parameters
         for(const auto &p : neuronUpdateProcess.getParameters()) {
-            env.add(p.second->getType(), p.first, m_VectorRegisterAllocator.get().getRegister((p.first + " V").c_str()));
+            // Allocate vector register for parameter
+            const auto reg = m_VectorRegisterAllocator.get().getRegister((p.first + " V").c_str());
+
+            // Add to environment
+            env.add(p.second->getType(), p.first, reg);
+
+            const auto &numericType = p.second->getType().getNumeric();
+            int64_t integerResult;
+            if(numericType.isIntegral) {
+                integerResult = p.second->getValue().cast<int64_t>();
+            }
+            // Otherwise, if it is fixed point
+            else if(numericType.fixedPoint) {
+                integerResult = std::round(p.second->getValue().cast<double>() * (1u << numericType.fixedPoint.value()));
+            }
+            else {
+                throw std::runtime_error("FeNN does not support floating point types");
+            }
+
+            // Check integer is in range and insert in pool
+            assert(integerResult >= std::numeric_limits<int16_t>::min());
+            assert(integerResult <= std::numeric_limits<int16_t>::max());
+
+            // Generate code to load parameter
+            env.getCodeGenerator().vlui(*reg, (uint16_t)integerResult);
         }
 
-        // TODO emit spike functions
-
-        // Resolve types within one scope
-        TypeChecker::EnvironmentInternal typeCheckEnv(env);
-        EnvironmentInternal compilerEnv(env);
-        ErrorHandler errorHandler("Errors");
+        // For now, unrollVectorLoopBody requires SOME buffers
+        assert(!neuronUpdateProcess.getVariables().empty());
         
-        // Compile tokens
-        compileStatements(neuronUpdateProcess.getTokens(), {}, literalPool, typeCheckEnv, compilerEnv,
-                          errorHandler, nullptr, std::nullopt, m_ScalarRegisterAllocator.get(),
-                          m_VectorRegisterAllocator.get());
+        // Get register used to store address of first variable's buffer
+        const auto firstVarBufferReg = std::get<ScalarRegisterAllocator::RegisterPtr>(
+            env.getRegister("_" + neuronUpdateProcess.getVariables().begin()->first + "Buffer"));
+  
+        // Build vectorised neuron loop
+        AssemblerUtils::unrollVectorLoopBody(
+            env.getCodeGenerator(), m_ScalarRegisterAllocator.get(), 
+            neuronUpdateProcess.getNumNeurons(), 4, *firstVarBufferReg,
+            [this, &env, &literalPool, &neuronUpdateProcess]
+            (CodeGenerator &c, uint32_t r, bool, ScalarRegisterAllocator::RegisterPtr maskReg)
+            {
+                EnvironmentExternal unrollEnv(env);
+
+                // Loop through variables
+                for(const auto &v : neuronUpdateProcess.getVariables()) {
+                    // Allocate vector register
+                    const auto reg = m_VectorRegisterAllocator.get().getRegister((v.first + " V").c_str());
+
+                    // Add to environment
+                    unrollEnv.add(v.second->getType(), v.first, reg);
+                        
+                    // Get buffer register
+                    const auto bufferReg = std::get<ScalarRegisterAllocator::RegisterPtr>(unrollEnv.getRegister("_" + v.first + "Buffer"));
+                    
+                    // Load vector from buffer
+                    unrollEnv.getCodeGenerator().vloadv(*reg, *bufferReg, 64 * r);
+                }
+
+                // Compile tokens
+                {
+                    TypeChecker::EnvironmentInternal typeCheckEnv(unrollEnv);
+                    EnvironmentInternal compilerEnv(unrollEnv);
+                    ErrorHandler errorHandler("Neuron update process '" + neuronUpdateProcess.getName() + "'");        
+                    compileStatements(neuronUpdateProcess.getTokens(), {}, literalPool, typeCheckEnv, compilerEnv,
+                                    errorHandler, nullptr, std::nullopt, m_ScalarRegisterAllocator.get(),
+                                    m_VectorRegisterAllocator.get());
+                }
+
+                // Loop through variables
+                for(const auto &v : neuronUpdateProcess.getVariables()) {
+                    // Get register
+                    const auto reg = std::get<VectorRegisterAllocator::RegisterPtr>(unrollEnv.getRegister(v.first));
+                    
+                    // Get buffer register
+                    const auto bufferReg = std::get<ScalarRegisterAllocator::RegisterPtr>(unrollEnv.getRegister("_" + v.first + "Buffer"));
+                    
+                    // Store updated vector back to buffer
+                    unrollEnv.getCodeGenerator().vstore(*reg, *bufferReg, 64 * r);
+                }
+            },
+            [this, &env, &neuronUpdateProcess]
+            (CodeGenerator &c, uint32_t numUnrolls)
+            {
+                // Loop through variables
+                for(const auto &v : neuronUpdateProcess.getVariables()) {
+                    // Get buffer register
+                    const auto bufferReg = std::get<ScalarRegisterAllocator::RegisterPtr>(env.getRegister("_" + v.first + "Buffer"));
+                    
+                    // Increment
+                    env.getCodeGenerator().addi(*bufferReg, *bufferReg, 64 * numUnrolls);
+                }
+                //c.addi(*SSpikeBuffer, *SSpikeBuffer, 4 * numUnrolls); 
+            });
+        
     }
 
     virtual void visit(const EventPropagationProcess &eventPropagationProcess)
@@ -297,17 +392,22 @@ private:
     std::reference_wrapper<CodeGenerator> m_CodeGenerator;
     std::reference_wrapper<VectorRegisterAllocator> m_VectorRegisterAllocator;
     std::reference_wrapper<ScalarRegisterAllocator> m_ScalarRegisterAllocator;
+    std::reference_wrapper<const std::unordered_map<const ModelComponent*, uint32_t>> m_URAMAllocations;
+    std::reference_wrapper<const std::unordered_map<const ModelComponent*, uint32_t>> m_BRAMAllocations;
 };
 }
 
-std::vector<uint32_t> generateSimulationKernel(const ProcessGroup *synapseProcessGroup, 
-                                               const ProcessGroup *neuronProcessGroup,
-                                               uint32_t numTimesteps, bool simulate)
+std::vector<uint32_t> generateSimulationKernel(
+    const ProcessGroup *synapseProcessGroup, const ProcessGroup *neuronProcessGroup,
+    const std::unordered_map<const ModelComponent*, uint32_t> &uramAllocations,
+    const std::unordered_map<const ModelComponent*, uint32_t> &bramAllocations,
+    uint32_t numTimesteps, bool simulate)
 {
     uint32_t readyFlagPtr = 0;
     return AssemblerUtils::generateStandardKernel(
         simulate, readyFlagPtr,
-        [=](CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator, ScalarRegisterAllocator &scalarRegisterAllocator)
+        [=, &uramAllocations, &bramAllocations]
+        (CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator, ScalarRegisterAllocator &scalarRegisterAllocator)
         {
             // Register allocation
             ALLOCATE_SCALAR(STime);
@@ -321,7 +421,8 @@ std::vector<uint32_t> generateSimulationKernel(const ProcessGroup *synapseProces
             c.li(*STimeEnd, numTimesteps);
 
             // Create code-generation visitor
-            CodeGeneratorVisitor visitor(c, vectorRegisterAllocator, scalarRegisterAllocator);
+            CodeGeneratorVisitor visitor(c, vectorRegisterAllocator, scalarRegisterAllocator,
+                                         uramAllocations, bramAllocations);
 
             // Loop over time
             c.L(timeLoop);
