@@ -71,6 +71,12 @@ public:
         return static_cast<const Variable*>(m_Components.back().get());
     }
 
+    void visitComponents(ModelComponentVisitor &visitor) const
+    {
+        for(const auto &c : m_Components) {
+            c->accept(visitor);
+        }
+    }
 
 private:
     

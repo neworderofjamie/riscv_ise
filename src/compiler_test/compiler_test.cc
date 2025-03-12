@@ -27,6 +27,7 @@
 // RISC-V assembler includes
 #include "compiler/event_container.h"
 #include "compiler/generate_process_group.h"
+#include "compiler/memory_allocator.h"
 #include "compiler/model.h"
 #include "compiler/parameter.h"
 #include "compiler/process.h"
@@ -113,6 +114,12 @@ int main(int argc, char** argv)
     const auto *neuronUpdateProcesses = model.addProcessGroup({input, hidden, output});
     const auto *synapseUpdateProcesses = model.addProcessGroup({inputHidden, hiddenOutput});
 
+    // Allocate memory
+    MemoryAllocator memoryAllocator;
+    MemoryAllocatorVisitor memoryAllocatorVisitor(memoryAllocator);
+    model.visitComponents(memoryAllocatorVisitor);
+
+    // Generate kernel
     const auto code = generateSimulationKernel(synapseUpdateProcesses, neuronUpdateProcesses, 20, true);
 
     for(uint32_t i: code) {
