@@ -23,6 +23,7 @@ public:
     size_t getNumSourceNeurons() const;
     size_t getNumTargetNeurons() const;
     size_t getBatchSize() const;
+    size_t getFlattenedSize() const;
 
 private:
     //------------------------------------------------------------------------

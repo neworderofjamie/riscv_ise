@@ -2,6 +2,7 @@
 
 // Standard C++ includes
 #include <iterator>
+#include <numeric>
 #include <sstream>
 
 //----------------------------------------------------------------------------
@@ -64,4 +65,9 @@ size_t Shape::getBatchSize() const
     else {
         throw std::runtime_error("Unbatched shape: " + toString());
     }
+}
+//----------------------------------------------------------------------------
+size_t Shape::getFlattenedSize() const
+{
+    return std::accumulate(m_Dims.cbegin(), m_Dims.cend(), 1, std::multiplies<size_t>());
 }
