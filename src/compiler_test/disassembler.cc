@@ -114,10 +114,10 @@ void disassembleVStore(std::ostream &os, uint32_t inst)
 
     os << type._to_string() << " V" << rs2 << ", " << imm;
     if(local) {
-        os << "(X" << rs1 << ")";
+        os << "(V" << rs1 << ")";
     }
     else {
-        os << "(V" << rs1 << ")";
+        os << "(S" << rs1 << ")";
     }
 }
 
