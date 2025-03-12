@@ -16,8 +16,8 @@
 class Variable : public AcceptableModelComponent<Variable>
 {
 public:
-    Variable(const Shape &shape, const GeNN::Type::ResolvedType &type)
-    :   m_Shape(shape), m_Type(type)
+    Variable(const Shape &shape, const GeNN::Type::ResolvedType &type, const std::string &name = "")
+    :   AcceptableModelComponent<Variable>(name), m_Shape(shape), m_Type(type)
     {}
 
     //------------------------------------------------------------------------

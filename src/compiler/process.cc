@@ -13,8 +13,8 @@
 //----------------------------------------------------------------------------
 // SpikeInputProcess
 //----------------------------------------------------------------------------
-SpikeInputProcess::SpikeInputProcess(const EventContainer *outputEvents)
-:   m_OutputEvents(outputEvents)
+SpikeInputProcess::SpikeInputProcess(const EventContainer *outputEvents, const std::string &name)
+:   AcceptableModelComponent<SpikeInputProcess, Process>(name), m_OutputEvents(outputEvents)
 {
     if(m_OutputEvents == nullptr) {
         throw std::runtime_error("Spike input process requires output events");
@@ -28,8 +28,10 @@ SpikeInputProcess::SpikeInputProcess(const EventContainer *outputEvents)
 // NeuronUpdateProcess
 //----------------------------------------------------------------------------
 NeuronUpdateProcess::NeuronUpdateProcess(const std::string &code, const ParameterMap &parameters, 
-                                         const VariableMap &variables, const EventContainerMap &outputEvents)
-:   m_Parameters(parameters), m_Variables(variables), m_OutputEvents(outputEvents)
+                                         const VariableMap &variables, const EventContainerMap &outputEvents,
+                                         const std::string &name)
+:   AcceptableModelComponent<NeuronUpdateProcess, Process>(name), m_Parameters(parameters), 
+    m_Variables(variables), m_OutputEvents(outputEvents)
 {
     if(m_Variables.empty() && m_OutputEvents.empty()) {
         throw std::runtime_error("Neuron update process requires at least one variable or output event");
@@ -65,8 +67,10 @@ NeuronUpdateProcess::NeuronUpdateProcess(const std::string &code, const Paramete
 //----------------------------------------------------------------------------
 // EventPropagationProcess
 //----------------------------------------------------------------------------
-EventPropagationProcess::EventPropagationProcess(const EventContainer *inputEvents, const Variable *weight, const Variable *target)
-:   m_InputEvents(inputEvents), m_Weight(weight), m_Target(target)
+EventPropagationProcess::EventPropagationProcess(const EventContainer *inputEvents, const Variable *weight,
+                                                 const Variable *target, const std::string &name)
+:   AcceptableModelComponent<EventPropagationProcess, Process>(name), m_InputEvents(inputEvents), 
+    m_Weight(weight), m_Target(target)
 {
     if(m_InputEvents == nullptr) {
         throw std::runtime_error("Event propagation process requires input events");

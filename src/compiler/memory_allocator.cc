@@ -3,6 +3,9 @@
 // Standard C includes
 #include <cstdint>
 
+// Plog includes
+#include <plog/Log.h>
+
 // Common includes
 #include "common/utils.h"
 
@@ -27,6 +30,8 @@ URAMAddress MemoryAllocator::allocate(const Variable &variable)
         throw std::runtime_error("URAM exceeded");
     }
 
+    LOGD << "Allocating " << varSize << " bytes of URAM starting at " << m_URAMHighWaterBytes << " bytes for variable '" << variable.getName() << "'";    
+
     // Build type-safe address wrapper and return
     URAMAddress address(m_URAMHighWaterBytes);
     m_URAMHighWaterBytes = newHighWaterBytes;
@@ -45,6 +50,8 @@ BRAMAddress MemoryAllocator::allocate(const EventContainer &eventContainer)
     if(newHighWaterBytes > m_BRAMSizeBytes) {
         throw std::runtime_error("BRAM exceeded");
     }
+
+    LOGD << "Allocating " << numEventWords * 4 << " bytes of BRAM starting at " << m_URAMHighWaterBytes << " bytes for event container '" << eventContainer.getName() << "'";
 
     // Build type-safe address wrapper and return
     BRAMAddress address(m_BRAMHighWaterBytes);

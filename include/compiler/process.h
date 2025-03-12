@@ -24,7 +24,8 @@ using VariableMap = std::unordered_map<std::string, const Variable*>;
 //----------------------------------------------------------------------------
 class Process : public ModelComponent
 {
-
+protected:
+    using ModelComponent::ModelComponent;
 };
 
 //----------------------------------------------------------------------------
@@ -33,7 +34,7 @@ class Process : public ModelComponent
 class SpikeInputProcess : public AcceptableModelComponent<SpikeInputProcess, Process>
 {
 public:
-    SpikeInputProcess(const EventContainer *outputEvents);
+    SpikeInputProcess(const EventContainer *outputEvents, const std::string &name = "");
 
     //------------------------------------------------------------------------
     // Public API
@@ -57,7 +58,8 @@ class NeuronUpdateProcess : public AcceptableModelComponent<NeuronUpdateProcess,
 {
 public:
     NeuronUpdateProcess(const std::string &code, const ParameterMap &parameters, 
-                        const VariableMap &variables, const EventContainerMap &outputEvents);
+                        const VariableMap &variables, const EventContainerMap &outputEvents,
+                        const std::string &name = "");
 
     //------------------------------------------------------------------------
     // Public API
@@ -90,7 +92,7 @@ class EventPropagationProcess : public AcceptableModelComponent<EventPropagation
 {
 public:
     EventPropagationProcess(const EventContainer *inputEvents, const Variable *weight,
-                            const Variable *target);
+                            const Variable *target, const std::string &name = "");
 
     //------------------------------------------------------------------------
     // Public API
