@@ -22,6 +22,8 @@
 
 // Compiler includes
 #include "compiler/compiler.h"
+#include "compiler/event_container.h"
+#include "compiler/memory_allocator.h"
 #include "compiler/parameter.h"
 #include "compiler/process.h"
 #include "compiler/process_group.h"
@@ -227,11 +229,46 @@ void compileStatements(const std::vector<Token> &tokens, const Type::TypeContext
     compile(updateStatements, compilerEnv, typeContext, resolvedTypes,
             literalPool, maskRegister, scalarRegisterAllocator, vectorRegisterAllocator);
 }
-class ModelVisitor : public ModelComponentVisitor
+class MemoryAllocatorVisitor : public ModelComponentVisitor
 {
 public:
-    ModelVisitor(CodeGenerator &codeGenerator, VectorRegisterAllocator &vectorRegisterAllocator, 
-                 ScalarRegisterAllocator &scalarRegisterAllocator)
+    MemoryAllocatorVisitor(MemoryAllocator &memoryAllocator)
+    :   m_MemoryAllocator(memoryAllocator)
+    {
+    
+    }
+
+    // ModelComponentVisitor virtuals
+    virtual void visit(const EventContainer &eventContainer)
+    {
+        if(!m_BRAMAllocations.try_emplace(&eventContainer, m_MemoryAllocator.get().allocate(eventContainer)).second) {
+            throw std::runtime_error("BRAM already allocated for event container");
+        }
+    }
+
+    virtual void visit(const Variable &variable)
+    {
+        if(!m_URAMAllocations.try_emplace(&variable, m_MemoryAllocator.get().allocate(variable)).second) {
+            throw std::runtime_error("URAM already allocated for variable");
+        }
+    }
+
+    // Public API
+    const auto &getURAMAllocations() const{ return m_URAMAllocations; }
+    const auto &getBRAMAllocations() const{ return m_BRAMAllocations; }
+
+private:
+    // Members
+    std::reference_wrapper<MemoryAllocator> m_MemoryAllocator;
+    std::unordered_map<const ModelComponent*, URAMAddress> m_URAMAllocations;
+    std::unordered_map<const ModelComponent*, BRAMAddress> m_BRAMAllocations;
+};
+
+class CodeGeneratorVisitor : public ModelComponentVisitor
+{
+public:
+    CodeGeneratorVisitor(CodeGenerator &codeGenerator, VectorRegisterAllocator &vectorRegisterAllocator, 
+                         ScalarRegisterAllocator &scalarRegisterAllocator)
     :   m_CodeGenerator(codeGenerator), m_VectorRegisterAllocator(vectorRegisterAllocator),
         m_ScalarRegisterAllocator(scalarRegisterAllocator)
     {
@@ -287,7 +324,7 @@ public:
 
     virtual void visit(const EventPropagationProcess &eventPropagationProcess)
     {
-
+        // **TODO** add to map keyed with input events
     }
 
 private:
@@ -318,7 +355,7 @@ std::vector<uint32_t> generateSimulationKernel(const ProcessGroup *synapseProces
             c.li(*STimeEnd, numTimesteps);
 
             // Create code-generation visitor
-            ModelVisitor visitor(c, vectorRegisterAllocator, scalarRegisterAllocator);
+            CodeGeneratorVisitor visitor(c, vectorRegisterAllocator, scalarRegisterAllocator);
 
             // Loop over time
             c.L(timeLoop);
