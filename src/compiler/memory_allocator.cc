@@ -16,7 +16,7 @@
 //----------------------------------------------------------------------------
 // MemoryAllocator
 //----------------------------------------------------------------------------
-URAMAddress MemoryAllocator::allocate(const Variable &variable)
+uint32_t MemoryAllocator::allocate(const Variable &variable)
 {
     assert(m_URAMHighWaterBytes % 64 == 0);
 
@@ -32,13 +32,13 @@ URAMAddress MemoryAllocator::allocate(const Variable &variable)
 
     LOGD << "Allocating " << varSize << " bytes of URAM starting at " << m_URAMHighWaterBytes << " bytes for variable '" << variable.getName() << "'";    
 
-    // Build type-safe address wrapper and return
-    URAMAddress address(m_URAMHighWaterBytes);
+    // Stash old high-water mark, update and return
+    const uint32_t address = m_URAMHighWaterBytes;
     m_URAMHighWaterBytes = newHighWaterBytes;
     return address;
 }
 //----------------------------------------------------------------------------
-BRAMAddress MemoryAllocator::allocate(const EventContainer &eventContainer)
+uint32_t MemoryAllocator::allocate(const EventContainer &eventContainer)
 {
     assert(m_BRAMHighWaterBytes % 4 == 0);
 
@@ -53,8 +53,8 @@ BRAMAddress MemoryAllocator::allocate(const EventContainer &eventContainer)
 
     LOGD << "Allocating " << numEventWords * 4 << " bytes of BRAM starting at " << m_BRAMHighWaterBytes << " bytes for event container '" << eventContainer.getName() << "'";
 
-    // Build type-safe address wrapper and return
-    BRAMAddress address(m_BRAMHighWaterBytes);
+    // Stash old high-water mark, update and return
+    const uint32_t address = m_BRAMHighWaterBytes;
     m_BRAMHighWaterBytes = newHighWaterBytes;
     return address;
 }
