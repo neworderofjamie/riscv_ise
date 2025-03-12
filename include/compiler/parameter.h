@@ -12,8 +12,9 @@
 class Parameter : public AcceptableModelComponent<Parameter>
 {
 public:
-    Parameter(const GeNN::Type::NumericValue &value, const GeNN::Type::ResolvedType &type)
-    :   m_Value(value), m_Type(type)
+    Parameter(const GeNN::Type::NumericValue &value, const GeNN::Type::ResolvedType &type,
+              const std::string &name = "")
+    :   AcceptableModelComponent<Parameter>(name), m_Value(value), m_Type(type)
     {}
 
     //------------------------------------------------------------------------

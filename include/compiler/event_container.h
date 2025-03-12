@@ -13,8 +13,8 @@
 class EventContainer : public AcceptableModelComponent<EventContainer>
 {
 public:
-    EventContainer(const Shape &shape)
-    :   m_Shape(shape)
+    EventContainer(const Shape &shape, const std::string &name = "")
+    :   AcceptableModelComponent<EventContainer>(name), m_Shape(shape)
     {}
 
     //------------------------------------------------------------------------

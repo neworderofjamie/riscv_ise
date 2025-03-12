@@ -1,5 +1,8 @@
 #pragma once
 
+// Standard C++ includes
+#include <string>
+
 // Forward declarations
 class EventContainer;
 class Parameter;
@@ -37,8 +40,15 @@ public:
     // Declared virtuals
     virtual void accept(ModelComponentVisitor &visitor) const = 0;
 
+    // Public API
+    const std::string &getName() const{ return m_Name; }
+
 protected:
-    ModelComponent() = default;
+    ModelComponent(const std::string &name) : m_Name(name)
+    {}
+
+private:
+    std::string m_Name;
 };
 
 //---------------------------------------------------------------------------
@@ -52,4 +62,7 @@ public:
     {
         visitor.visit(static_cast<const T&>(*this));
     }
+
+protected:
+    using B::B;
 };

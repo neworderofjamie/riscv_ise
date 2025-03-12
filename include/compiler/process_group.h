@@ -15,8 +15,8 @@ class Process;
 class ProcessGroup : public AcceptableModelComponent<ProcessGroup>
 {
 public:
-    ProcessGroup(const std::vector<const Process*> processes)
-    :   m_Processes(processes)
+    ProcessGroup(const std::vector<const Process*> processes, const std::string &name = "")
+    :   AcceptableModelComponent<ProcessGroup>(name), m_Processes(processes)
     {}
 
     //------------------------------------------------------------------------
