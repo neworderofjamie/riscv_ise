@@ -13,13 +13,13 @@
 //----------------------------------------------------------------------------
 // MemoryAllocator
 //----------------------------------------------------------------------------
-URAMAddress MemoryAllocator::allocate(const Variable *variable)
+URAMAddress MemoryAllocator::allocate(const Variable &variable)
 {
     assert(m_URAMHighWaterBytes % 64 == 0);
 
     // Pad variable size to 64 bytes
-    const size_t varSize = padSize(variable->getShape().getFlattenedSize() 
-                                   * variable->getType().getSize(0), 64);
+    const size_t varSize = padSize(variable.getShape().getFlattenedSize() 
+                                   * variable.getType().getSize(0), 64);
 
     // Update highwater and check against size
     const size_t newHighWaterBytes = m_URAMHighWaterBytes + varSize;
@@ -33,12 +33,12 @@ URAMAddress MemoryAllocator::allocate(const Variable *variable)
     return address;
 }
 //----------------------------------------------------------------------------
-BRAMAddress MemoryAllocator::allocate(const EventContainer *eventContainer)
+BRAMAddress MemoryAllocator::allocate(const EventContainer &eventContainer)
 {
     assert(m_BRAMHighWaterBytes % 4 == 0);
 
     // Events are stored 1 bit per neuron in 32-bit words
-    const size_t numEventWords = ceilDivide(eventContainer->getShape().getNumNeurons(), 32);
+    const size_t numEventWords = ceilDivide(eventContainer.getShape().getNumNeurons(), 32);
 
     // Update highwater and check against size
     const size_t newHighWaterBytes = m_BRAMHighWaterBytes + (numEventWords * 4);

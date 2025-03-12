@@ -57,8 +57,8 @@ public:
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
-    URAMAddress allocate(const Variable *variable);
-    BRAMAddress allocate(const EventContainer *eventContainer);
+    URAMAddress allocate(const Variable &variable);
+    BRAMAddress allocate(const EventContainer &eventContainer);
 
     size_t getFreeURAMBytes() const{ return m_URAMSizeBytes - m_URAMHighWaterBytes; }
     size_t getFreeBRAMBytes() const{ return m_BRAMSizeBytes - m_BRAMHighWaterBytes; };
