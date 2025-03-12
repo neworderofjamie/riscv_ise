@@ -120,7 +120,10 @@ int main(int argc, char** argv)
     model.visitComponents(memoryAllocatorVisitor);
 
     // Generate kernel
-    const auto code = generateSimulationKernel(synapseUpdateProcesses, neuronUpdateProcesses, 20, true);
+    const auto code = generateSimulationKernel(synapseUpdateProcesses, neuronUpdateProcesses, 
+                                               memoryAllocatorVisitor.getURAMAllocations(), 
+                                               memoryAllocatorVisitor.getBRAMAllocations(), 
+                                               1000, true);
 
     for(uint32_t i: code) {
         try {
