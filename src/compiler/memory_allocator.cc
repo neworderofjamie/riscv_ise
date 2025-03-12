@@ -51,10 +51,33 @@ BRAMAddress MemoryAllocator::allocate(const EventContainer &eventContainer)
         throw std::runtime_error("BRAM exceeded");
     }
 
-    LOGD << "Allocating " << numEventWords * 4 << " bytes of BRAM starting at " << m_URAMHighWaterBytes << " bytes for event container '" << eventContainer.getName() << "'";
+    LOGD << "Allocating " << numEventWords * 4 << " bytes of BRAM starting at " << m_BRAMHighWaterBytes << " bytes for event container '" << eventContainer.getName() << "'";
 
     // Build type-safe address wrapper and return
     BRAMAddress address(m_BRAMHighWaterBytes);
     m_BRAMHighWaterBytes = newHighWaterBytes;
     return address;
+}
+
+//----------------------------------------------------------------------------
+// MemoryAllocatorVisitor
+//----------------------------------------------------------------------------
+MemoryAllocatorVisitor::MemoryAllocatorVisitor(MemoryAllocator &memoryAllocator)
+:   m_MemoryAllocator(memoryAllocator)
+{
+
+}
+//------------------------------------------------------------------------
+void MemoryAllocatorVisitor::visit(const EventContainer &eventContainer)
+{
+    if(!m_BRAMAllocations.try_emplace(&eventContainer, m_MemoryAllocator.get().allocate(eventContainer)).second) {
+        throw std::runtime_error("BRAM already allocated for event container");
+    }
+}
+//----------------------------------------------------------------------------
+void MemoryAllocatorVisitor::visit(const Variable &variable)
+{
+    if(!m_URAMAllocations.try_emplace(&variable, m_MemoryAllocator.get().allocate(variable)).second) {
+        throw std::runtime_error("URAM already allocated for variable");
+    }
 }

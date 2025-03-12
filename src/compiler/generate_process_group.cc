@@ -229,40 +229,6 @@ void compileStatements(const std::vector<Token> &tokens, const Type::TypeContext
     compile(updateStatements, compilerEnv, typeContext, resolvedTypes,
             literalPool, maskRegister, scalarRegisterAllocator, vectorRegisterAllocator);
 }
-class MemoryAllocatorVisitor : public ModelComponentVisitor
-{
-public:
-    MemoryAllocatorVisitor(MemoryAllocator &memoryAllocator)
-    :   m_MemoryAllocator(memoryAllocator)
-    {
-    
-    }
-
-    // ModelComponentVisitor virtuals
-    virtual void visit(const EventContainer &eventContainer)
-    {
-        if(!m_BRAMAllocations.try_emplace(&eventContainer, m_MemoryAllocator.get().allocate(eventContainer)).second) {
-            throw std::runtime_error("BRAM already allocated for event container");
-        }
-    }
-
-    virtual void visit(const Variable &variable)
-    {
-        if(!m_URAMAllocations.try_emplace(&variable, m_MemoryAllocator.get().allocate(variable)).second) {
-            throw std::runtime_error("URAM already allocated for variable");
-        }
-    }
-
-    // Public API
-    const auto &getURAMAllocations() const{ return m_URAMAllocations; }
-    const auto &getBRAMAllocations() const{ return m_BRAMAllocations; }
-
-private:
-    // Members
-    std::reference_wrapper<MemoryAllocator> m_MemoryAllocator;
-    std::unordered_map<const ModelComponent*, URAMAddress> m_URAMAllocations;
-    std::unordered_map<const ModelComponent*, BRAMAddress> m_BRAMAllocations;
-};
 
 class CodeGeneratorVisitor : public ModelComponentVisitor
 {
