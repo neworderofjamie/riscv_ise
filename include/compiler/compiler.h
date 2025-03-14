@@ -22,6 +22,8 @@ class CodeGenerator;
 // GeNN::CodeGenerator::FeNN::Compiler
 //----------------------------------------------------------------------------
 using RegisterPtr = std::variant<ScalarRegisterAllocator::RegisterPtr, VectorRegisterAllocator::RegisterPtr>;
+using FunctionGenerator = std::function<RegisterPtr(CodeGenerator&, VectorRegisterAllocator&, 
+                                                    ScalarRegisterAllocator&, const std::vector<RegisterPtr>&)>;
 
 //----------------------------------------------------------------------------
 // EnvironmentBase
@@ -38,6 +40,9 @@ public:
     //! Get the register to use for the named identifier
     virtual RegisterPtr getRegister(const std::string &name) = 0;
     
+    //! Get the function generator to use for the named identifier
+    virtual FunctionGenerator getFunctionGenerator(const std::string &name) = 0;
+
     //! Get stream to write code within this environment to
     virtual CodeGenerator &getCodeGenerator() = 0;
 
@@ -67,6 +72,8 @@ public:
     virtual void define(const std::string &name, RegisterPtr reg) final;
 
     virtual RegisterPtr getRegister(const std::string &name) final;
+
+    virtual FunctionGenerator getFunctionGenerator(const std::string &name) final;
 
     virtual CodeGenerator &getCodeGenerator() final;
 

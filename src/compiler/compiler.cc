@@ -740,6 +740,11 @@ RegisterPtr EnvironmentInternal::getRegister(const std::string &name)
     }
 }
 //----------------------------------------------------------------------------
+FunctionGenerator EnvironmentInternal::getFunctionGenerator(const std::string &name)
+{
+    return m_Enclosing.getFunctionGenerator(name);
+}
+//----------------------------------------------------------------------------
 CodeGenerator &EnvironmentInternal::getCodeGenerator()
 {
     return m_Enclosing.getCodeGenerator();
