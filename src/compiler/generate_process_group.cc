@@ -82,9 +82,30 @@ public:
         }
         // Otherwise, get name from payload
         else {
-            return std::get<1>(env->second);
+            return std::get<RegisterPtr>(std::get<1>(env->second));
         }
     }
+
+    virtual FunctionGenerator getFunctionGenerator(const std::string &name) final
+    {
+        // If name isn't found in environment
+        auto env = m_Environment.find(name);
+        if (env == m_Environment.end()) {
+            // If context includes a pretty-printing environment, get name from it
+            if(std::get<1>(m_Context)) {
+                return std::get<1>(m_Context)->getFunctionGenerator(name);
+            }
+            // Otherwise, give error
+            else {
+                throw std::runtime_error("Identifier '" + name + "' undefined"); 
+            }
+        }
+        // Otherwise, get name from payload
+        else {
+            return std::get<FunctionGenerator>(std::get<1>(env->second));
+        }
+    }
+
 
     //! Get stream to write code within this environment to
     virtual CodeGenerator &getCodeGenerator() final
@@ -137,9 +158,9 @@ public:
     // Public API
     //------------------------------------------------------------------------
     //! Map a type (for type-checking) and a value (for pretty-printing) to an identifier
-    void add(const GeNN::Type::ResolvedType &type, const std::string &name, RegisterPtr reg)
+    void add(const GeNN::Type::ResolvedType &type, const std::string &name, std::variant<RegisterPtr, FunctionGenerator> value)
     {
-         if(!m_Environment.try_emplace(name, type, reg).second) {
+         if(!m_Environment.try_emplace(name, type, value).second) {
             throw std::runtime_error("Redeclaration of '" + std::string{name} + "'");
         }
     }
@@ -150,7 +171,7 @@ private:
     // Members
     //------------------------------------------------------------------------
     std::tuple<Transpiler::TypeChecker::EnvironmentBase*, ::EnvironmentBase*, CodeGenerator*> m_Context;
-    std::unordered_map<std::string, std::tuple<Type::ResolvedType, RegisterPtr>> m_Environment;
+    std::unordered_map<std::string, std::tuple<Type::ResolvedType, std::variant<RegisterPtr, FunctionGenerator>>> m_Environment;
 };
 
 void updateLiteralPool(const std::vector<Token> &tokens, const Type::TypeContext &typeContext, 
