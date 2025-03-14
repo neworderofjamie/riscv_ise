@@ -270,6 +270,11 @@ public:
         std::unordered_map<int16_t, VectorRegisterAllocator::RegisterPtr> literalPool;
         updateLiteralPool(neuronUpdateProcess.getTokens(), {}, m_VectorRegisterAllocator.get(), literalPool);
         
+        // Load literals
+        for(const auto &l : literalPool) {
+            env.getCodeGenerator().vlui(*l.second, (uint16_t)l.first);
+        }
+
         // Allocate registers for Isyn and zero
         env.add(Type::S8_7, "_zero", literalPool.at(0));
 
