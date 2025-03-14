@@ -39,8 +39,8 @@ constexpr size_t dataSize = 128 * 1024;
 constexpr off_t gpioBase = 0xA7000000;
 constexpr size_t gpioSize = 2 * 1024;
 
-constexpr off_t dmaControllerBase = 0xA0000000;
-constexpr off_t dmaDestRegisterBase = 0xA0010000;
+constexpr off_t dmaControllerBase = 0xB0000000;
+constexpr off_t dmaDestRegisterBase = 0xB0080000;
 }
 
 //----------------------------------------------------------------------------
