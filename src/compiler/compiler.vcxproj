@@ -13,6 +13,7 @@
   <ItemGroup>
     <ClCompile Include="compiler.cc" />
     <ClCompile Include="generate_process_group.cc" />
+    <ClCompile Include="memory_allocator.cc" />
     <ClCompile Include="process.cc" />
     <ClCompile Include="shape.cc" />
   </ItemGroup>
@@ -20,6 +21,7 @@
     <ClInclude Include="..\..\include\compiler\events.h" />
     <ClInclude Include="..\..\include\compiler\event_container.h" />
     <ClInclude Include="..\..\include\compiler\generate_process_group.h" />
+    <ClInclude Include="..\..\include\compiler\memory_allocator.h" />
     <ClInclude Include="..\..\include\compiler\process_group.h" />
     <ClInclude Include="..\..\include\compiler\shape.h" />
     <ClInclude Include="..\..\include\compiler\variable.h" />
