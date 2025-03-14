@@ -319,6 +319,18 @@ public:
             env.getCodeGenerator().vlui(*reg, (uint16_t)integerResult);
         }
 
+        // Loop through neuron event outputs
+        for(const auto &e : neuronUpdateProcess.getOutputEvents()) {
+            // Allocate scalar register to hold address of variable
+            const auto reg = m_ScalarRegisterAllocator.get().getRegister((e.first + "Buffer X").c_str());
+
+            // Add (hidden) variable buffer to environment
+            env.add(GeNN::Type::Uint32, "_" + e.first + "Buffer", reg);
+
+            // Generate code to load address
+            env.getCodeGenerator().li(*reg, m_BRAMAllocations.get().at(e.second));
+        }
+
         // For now, unrollVectorLoopBody requires SOME buffers
         assert(!neuronUpdateProcess.getVariables().empty());
         
@@ -380,10 +392,18 @@ public:
                     // Get buffer register
                     const auto bufferReg = std::get<ScalarRegisterAllocator::RegisterPtr>(env.getRegister("_" + v.first + "Buffer"));
                     
-                    // Increment
+                    // Increment by unrolled vectors
                     env.getCodeGenerator().addi(*bufferReg, *bufferReg, 64 * numUnrolls);
                 }
-                //c.addi(*SSpikeBuffer, *SSpikeBuffer, 4 * numUnrolls); 
+
+                // Loop through output events
+                for(const auto &e : neuronUpdateProcess.getOutputEvents()) {
+                     // Get buffer register
+                    const auto bufferReg = std::get<ScalarRegisterAllocator::RegisterPtr>(env.getRegister("_" + e.first + "Buffer"));
+                    
+                    // Increment by unrolled words
+                    env.getCodeGenerator().addi(*bufferReg, *bufferReg, 4 * numUnrolls);
+                 }
             });
         
     }
