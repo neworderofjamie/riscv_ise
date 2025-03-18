@@ -42,12 +42,6 @@ public:
         return static_cast<const ProcessGroup*>(m_Components.back().get());
     }
 
-    const SpikeInputProcess *addSpikeInputProcess(const EventContainer *outputEvents)
-    {
-        m_Components.push_back(std::make_unique<SpikeInputProcess>(outputEvents));
-        return static_cast<const SpikeInputProcess*>(m_Components.back().get());
-    }
-
     const NeuronUpdateProcess *addNeuronUpdateProcess(
         const std::string &code, const ParameterMap &parameters = {}, 
         const VariableMap &variables = {}, const EventContainerMap &outputEvents = {})

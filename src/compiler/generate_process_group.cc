@@ -258,7 +258,7 @@ void compileStatements(const std::vector<Token> &tokens, const Type::TypeContext
 class CodeGeneratorVisitor : public ModelComponentVisitor
 {
 public:
-    CodeGeneratorVisitor(CodeGenerator &codeGenerator, 
+    CodeGeneratorVisitor(const ProcessGroup *processGroup, CodeGenerator &codeGenerator, 
                          VectorRegisterAllocator &vectorRegisterAllocator, 
                          ScalarRegisterAllocator &scalarRegisterAllocator, 
                          const std::unordered_map<const ModelComponent*, uint32_t> &uramAllocations,
@@ -267,20 +267,24 @@ public:
         m_ScalarRegisterAllocator(scalarRegisterAllocator), m_URAMAllocations(uramAllocations),
         m_BRAMAllocations(bramAllocations)
     {
-    
-    }
-    // ModelComponentVisitor virtuals
-    virtual void visit(const ProcessGroup &processGroup) final
-    {
         // Visit all the processes
-        for(const auto *p : processGroup.getProcesses()) {
+        for(const auto *p : processGroup->getProcesses()) {
             p->accept(*this);
+        }
+
+        // Loop through all grouped event propagation processes
+        for(const auto &e : m_EventPropagationProcesses) {
+            generateEventPropagationProcesses(e.second);
         }
     }
 
-    virtual void visit(const SpikeInputProcess &spikeInputProcess) final
+private:
+    //------------------------------------------------------------------------
+    // ModelComponentVisitor virtuals
+    //------------------------------------------------------------------------
+    virtual void visit(const ProcessGroup &processGroup) final
     {
-
+        assert(false);
     }
 
     virtual void visit(const NeuronUpdateProcess &neuronUpdateProcess)
@@ -449,10 +453,217 @@ public:
 
     virtual void visit(const EventPropagationProcess &eventPropagationProcess)
     {
-        // **TODO** add to map keyed with input events
+        // Add event propagation process to vector of processes with same input event container
+        m_EventPropagationProcesses[eventPropagationProcess.getInputEvents()].emplace_back(eventPropagationProcess);
     }
 
-private:
+    //------------------------------------------------------------------------
+    // Private methods
+    //------------------------------------------------------------------------
+    void generateEventPropagationProcesses(const std::vector<std::reference_wrapper<const EventPropagationProcess>> &processes)
+    {
+        // Make some friendlier-named references
+        auto &scalarRegisterAllocator = m_ScalarRegisterAllocator.get();
+        auto &vectorRegisterAllocator = m_VectorRegisterAllocator.get();
+        auto &c = m_CodeGenerator.get();
+
+        // Register allocation
+        ALLOCATE_SCALAR(SEventBufferEnd);
+        ALLOCATE_SCALAR(SWordNStart);
+        ALLOCATE_SCALAR(SConst1);
+        ALLOCATE_SCALAR(SEventWord);
+        ALLOCATE_SCALAR(SEventBuffer);
+
+        // Labels
+        Label wordLoop;
+        Label bitLoopStart;
+        Label bitLoopBody;
+        Label bitLoopEnd;
+        Label zeroSpikeWord;
+        Label wordEnd;
+
+        // If literal is provided for start of presynapric spike buffer, allocate register and load immediate into it
+        /*ScalarRegisterAllocator::RegisterPtr SEventBuffer;
+        if(std::holds_alternative<uint32_t>(preSpikePtr)) {
+            SEventBuffer = scalarRegisterAllocator.getRegister("SEventBuffer = X");
+            c.li(*SEventBuffer, std::get<uint32_t>(preSpikePtr));
+        }
+        // Otherwise, use pointer register directly
+        else {
+            SEventBuffer = std::get<ScalarRegisterAllocator::RegisterPtr>(preSpikePtr);
+        }*/
+        // Generate code to load address of input event buffer
+        c.li(*SEventBuffer, m_BRAMAllocations.get().at(processes.front().get().getInputEvents()));
+    
+        // Get address of end of input event buffer
+        c.li(*SEventBufferEnd, (ceilDivide(processes.front().get().getNumSourceNeurons(), 32) * 4));
+        c.add(*SEventBufferEnd, *SEventBufferEnd, *SEventBuffer);
+    
+
+        // Loop through postsynaptic targets
+        std::vector<std::pair<ScalarRegisterAllocator::RegisterPtr, ScalarRegisterAllocator::RegisterPtr>> sTargetStrideBufferRegs;
+        for(const auto &p : processes) {
+            // Allocate scalar registers
+            auto bufferStartReg = scalarRegisterAllocator.getRegister("STargetBuffer = X");
+            auto strideReg = scalarRegisterAllocator.getRegister("SStride = X");
+
+            // Load addresses as immediates
+            c.li(*bufferStartReg, m_URAMAllocations.get().at(p.get().getTarget()));
+
+            // Calculate stride and load as immediate
+            c.li(*strideReg, ceilDivide(p.get().getNumTargetNeurons(), 32) * 64);
+
+            // Add scalar registers to vector
+            sTargetStrideBufferRegs.emplace_back(bufferStartReg, strideReg);
+        }
+    
+        // Load some useful constants
+        c.li(*SConst1, 1);
+
+        // SWordNStart = 31
+        c.li(*SWordNStart, 31);
+        
+        // Outer word loop
+        c.L(wordLoop);
+        {
+            // Register allocation
+            ALLOCATE_SCALAR(SN);
+
+            // SEventWord = *SEventBuffer++
+            c.lw(*SEventWord, *SEventBuffer);
+            c.addi(*SEventBuffer, *SEventBuffer, 4);
+
+            // If SEventWord == 0, goto bitloop end
+            c.beq(*SEventWord, Reg::X0, bitLoopEnd);
+
+            // SN = SWordNStart
+            c.mv(*SN, *SWordNStart);
+
+            // Inner bit loop
+            c.L(bitLoopStart);
+            {
+                // Register allocation
+                ALLOCATE_SCALAR(SNumLZ);
+                ALLOCATE_SCALAR(SNumLZPlusOne);
+
+                // CNumLZ = clz(SEventWord);
+                c.clz(*SNumLZ, *SEventWord);
+
+                // If SEventWord == 1  i.e. CNumLZ == 31, goto zeroSpikeWord
+                c.beq(*SEventWord, *SConst1, zeroSpikeWord);
+            
+                // CNumLZPlusOne = CNumLZ + 1
+                c.addi(*SNumLZPlusOne, *SNumLZ, 1);
+
+                // SEventWord <<= CNumLZPlusOne
+                c.sll(*SEventWord, *SEventWord, *SNumLZPlusOne);
+
+                // SN -= SNumLZ
+                c.L(bitLoopBody);
+                c.sub(*SN, *SN, *SNumLZ);
+
+                // Loop through postsynaptic targets
+                for(size_t i = 0; i < processes.size(); i++) {
+                    const auto &p = processes[i].get();
+
+                    ScalarRegisterAllocator::RegisterPtr targetReg;
+                    ScalarRegisterAllocator::RegisterPtr strideReg;
+                    std::tie(targetReg, strideReg) = sTargetStrideBufferRegs[i];
+
+                    // SWeightBuffer = weightInHidStart + (numPostVecs * 64 * SN);
+                    // **TODO** multiply
+                    ALLOCATE_SCALAR(SWeightBuffer);
+                    c.li(*SWeightBuffer, m_URAMAllocations.get().at(p.getWeight()));
+                    {
+                        ALLOCATE_SCALAR(STemp);
+                        c.mul(*STemp, *SN, *strideReg);
+                        c.add(*SWeightBuffer, *SWeightBuffer, *STemp);
+                    }
+
+                    // Reset target pointer
+                    c.li(*targetReg, m_URAMAllocations.get().at(p.getTarget()));
+                
+                    // Load weight and Isyn
+                    //if(t.debug) {
+                    //    c.ebreak();
+                    //}
+
+                    ALLOCATE_VECTOR(VWeight);
+                    ALLOCATE_VECTOR(VTarget1);
+                    ALLOCATE_VECTOR(VTarget2);
+                    ALLOCATE_VECTOR(VTargetNew);
+
+                    // Preload first ISyn to avoid stall
+                    c.vloadv(*VTarget1, *targetReg, 0);
+
+                    AssemblerUtils::unrollVectorLoopBody(
+                        c, scalarRegisterAllocator, p.getNumTargetNeurons(), 4, *targetReg,
+                        [&targetReg, SWeightBuffer, VWeight, VTarget1, VTarget2, VTargetNew]
+                        (CodeGenerator &c, uint32_t r, bool even, ScalarRegisterAllocator::RegisterPtr maskReg)
+                        {
+                            // Load vector of weights
+                            c.vloadv(*VWeight, *SWeightBuffer, r * 64);
+
+                            // Load NEXT vector of target to avoid stall
+                            // **YUCK** in last iteration, while this may not be accessed, it may be out of bounds                  
+                            c.vloadv(even ? *VTarget2 : *VTarget1, *targetReg, (r + 1) * 64);
+                        
+                            // Add weights to ISyn
+                            auto VTarget = even ? VTarget1 : VTarget2;
+                            if(maskReg) {
+                                c.vadd_s(*VTargetNew, *VTarget, *VWeight);
+                                c.vsel(*VTarget, *maskReg, *VTargetNew);
+                            }
+                            else {
+                                c.vadd_s(*VTarget, *VTarget, *VWeight);
+                            }
+
+                            // Write back target
+                            c.vstore(*VTarget, *targetReg, r * 64);
+                        },
+                        [&targetReg, SWeightBuffer]
+                        (CodeGenerator &c, uint32_t numUnrolls)
+                        {
+                            // Increment pointers 
+                            c.addi(*targetReg, *targetReg, 64 * numUnrolls);
+                            c.addi(*SWeightBuffer, *SWeightBuffer, 64 * numUnrolls);
+                        });
+                }
+
+                // SN --
+                c.addi(*SN, *SN, -1);
+            
+                // If SEventWord != 0, goto bitLoopStart
+                c.bne(*SEventWord, Reg::X0, bitLoopStart);
+            }
+
+            // SWordNStart += 32
+            c.L(bitLoopEnd);
+            c.addi(*SWordNStart, *SWordNStart, 32);
+        
+            // If SEventBuffer != SEventBufferEnd, goto wordloop
+            c.bne(*SEventBuffer, *SEventBufferEnd, wordLoop);
+
+            // Goto wordEnd
+            //c.j_(wordEnd);
+            c.beq(Reg::X0, Reg::X0, wordEnd);
+        }
+
+        // Zero event word
+        {
+            c.L(zeroSpikeWord);
+            c.li(*SEventWord, 0);
+            //c.j_(bitLoopBody);
+            c.beq(Reg::X0, Reg::X0, bitLoopBody);
+        }
+    
+        c.L(wordEnd);
+    }
+
+    //------------------------------------------------------------------------
+    // Members
+    //------------------------------------------------------------------------
+    std::unordered_map<const EventContainer*, std::vector<std::reference_wrapper<const EventPropagationProcess>>> m_EventPropagationProcesses;
     std::reference_wrapper<CodeGenerator> m_CodeGenerator;
     std::reference_wrapper<VectorRegisterAllocator> m_VectorRegisterAllocator;
     std::reference_wrapper<ScalarRegisterAllocator> m_ScalarRegisterAllocator;
@@ -484,18 +695,16 @@ std::vector<uint32_t> generateSimulationKernel(
             c.li(*STime, 0);
             c.li(*STimeEnd, numTimesteps);
 
-            // Create code-generation visitor
-            CodeGeneratorVisitor visitor(c, vectorRegisterAllocator, scalarRegisterAllocator,
-                                         uramAllocations, bramAllocations);
-
             // Loop over time
             c.L(timeLoop);
             {
                 // Visit synapse process group
-                synapseProcessGroup->accept(visitor);
+                CodeGeneratorVisitor synapseVisitor(synapseProcessGroup, c, vectorRegisterAllocator, scalarRegisterAllocator,
+                                                    uramAllocations, bramAllocations);
 
                 // Visit neuron process group
-                neuronProcessGroup->accept(visitor);
+                CodeGeneratorVisitor neuronVisitor(neuronProcessGroup, c, vectorRegisterAllocator, scalarRegisterAllocator,
+                                                   uramAllocations, bramAllocations);
 
                 c.addi(*STime, *STime, 1);
                 c.bne(*STime, *STimeEnd, timeLoop);
