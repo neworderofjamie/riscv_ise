@@ -22,7 +22,7 @@ public:
     void startWrite(uint32_t destination, const DMABuffer &sourceBuffer, size_t sourceOffset, size_t size);
     
     //! Start read (from URAM to DMA buffer)
-    void startRead(DMABuffer &destBuffer, size_t destOffset, uint32_t source, size_t size);
+    //void startRead(DMABuffer &destBuffer, size_t destOffset, uint32_t source, size_t size);
 
     //! Reset DMA controller
     void reset();
@@ -31,13 +31,13 @@ public:
     bool isWriteIdle() const;
 
     // Is read channel idle?
-    bool isReadIdle() const;
+    //bool isReadIdle() const;
 
     // Wait for write channel to goto idle
     void waitForWriteComplete() const;
 
     // Wait for read channel to goto idle
-    void waitForReadComplete() const;
+    //void waitForReadComplete() const;
 
 private:
     //------------------------------------------------------------------------

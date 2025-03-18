@@ -75,7 +75,7 @@ void DMAController::startWrite(uint32_t destination, const DMABuffer &sourceBuff
 
 }
 //----------------------------------------------------------------------------
-void DMAController::startRead(DMABuffer &destBuffer, size_t destOffset, uint32_t source, size_t size)
+/*void DMAController::startRead(DMABuffer &destBuffer, size_t destOffset, uint32_t source, size_t size)
 {
     // Build 64-bit destination address
     const uint64_t destAddress = destBuffer.getPhysicalAddress() + destOffset;
@@ -92,7 +92,7 @@ void DMAController::startRead(DMABuffer &destBuffer, size_t destOffset, uint32_t
 
     // Run
     writeReg(Register::S2MM_DMACR, 1);
-}
+}*/
 //----------------------------------------------------------------------------
 void DMAController::reset()
 {
@@ -111,10 +111,10 @@ bool DMAController::isWriteIdle() const
     return (readReg(Register::MM2S_DMASR) & 0b10);
 }
 //----------------------------------------------------------------------------
-bool DMAController::isReadIdle() const
+/*bool DMAController::isReadIdle() const
 {
     return (readReg(Register::S2MM_DMASR) & 0b10);
-}
+}*/
 //----------------------------------------------------------------------------
 void DMAController::waitForWriteComplete() const
 {
@@ -123,12 +123,12 @@ void DMAController::waitForWriteComplete() const
     }
 }
 //----------------------------------------------------------------------------
-void DMAController::waitForReadComplete() const
+/*void DMAController::waitForReadComplete() const
 {
     while(!isReadIdle()) {
         //std::this_thread::sleep_for(std::chrono::microseconds{10});
     }
-}
+}*/
 //----------------------------------------------------------------------------
 void DMAController::writeReg(Register reg, uint32_t val)
 { 
