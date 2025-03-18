@@ -60,6 +60,10 @@ void DMAController::startWrite(uint32_t destination, const DMABuffer &sourceBuff
     if((destination & 63) != 0) {
         throw std::runtime_error("DMA writes to URAM must be 64 byte aligned");
     }
+    
+    if(size > ((1 << 15) - 1)) {
+        throw std::runtime_error("Maximum size of DMA exceeded");
+    }
 
     // Set destination address
     writeURAMDestinationAddress(destination);

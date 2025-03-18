@@ -15,10 +15,12 @@
 #include <plog/Severity.h>
 #include <plog/Appenders/ConsoleAppender.h>
 
-// RISC-V utils include
+// RISC-V common include
 #include "common/CLI11.hpp"
 #include "common/app_utils.h"
 #include "common/device.h"
+#include "common/dma_buffer.h"
+#include "common/dma_controller.h"
 #include "common/utils.h"
 
 // RISC-V assembler includes
@@ -532,10 +534,9 @@ int main(int argc, char** argv)
     constexpr uint32_t numInputSpikeArrayWords = numInputSpikeWords * numTimesteps;
 
     // Allocate vector arrays
-    // **NOTE** these are adjacent so data can be block-copied from scalar memory
-    const uint32_t weightInHidPtr = AppUtils::allocateVectorAndZero(numInput * numHiddenSpikeWords * 32, vectorInitData);
-    const uint32_t weightHidOutPtr = AppUtils::allocateVectorAndZero(numHidden * numOutputSpikeWords * 32, vectorInitData);
-    const uint32_t outputBiasPtr = AppUtils::allocateVectorAndZero(numOutputSpikeWords * 32, vectorInitData);
+    const uint32_t weightInHidPtr = AppUtils::loadVectors("mnist_in_hid.bin", vectorInitData);
+    const uint32_t weightHidOutPtr = AppUtils::loadVectors("mnist_hid_out.bin", vectorInitData);
+    const uint32_t outputBiasPtr = AppUtils::loadVectors("mnist_bias.bin", vectorInitData);
     
     const uint32_t hiddenIsynPtr = AppUtils::allocateVectorAndZero(numHidden, vectorInitData);
     const uint32_t hiddenVPtr = AppUtils::allocateVectorAndZero(numHidden, vectorInitData);
@@ -551,29 +552,10 @@ int main(int argc, char** argv)
     const uint32_t outputVSumScalarPtr = AppUtils::allocateScalarAndZero(numOutput * 2, scalarInitData);
     const uint32_t readyFlagPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
 
-    // Increase scalar memory size
-    scalarInitData.resize(64 * 1024, 0);
-
     // Load data
     const auto mnistSpikes = AppUtils::loadBinaryData<uint32_t>("mnist_spikes.bin");
     const auto mnistLabels = AppUtils::loadBinaryData<int16_t>("mnist_labels.bin");
-
-    // Load weights
-    const auto weightInHid = AppUtils::loadBinaryData<uint8_t>("mnist_in_hid.bin");
-    const auto weightHidOut = AppUtils::loadBinaryData<uint8_t>("mnist_hid_out.bin");
-    const auto outputBias = AppUtils::loadBinaryData<uint8_t>("mnist_bias.bin");
-
-    // Check first two are correctly padded
-    assert(weightInHid.size() == numInput * numHiddenSpikeWords * 64);
-    assert(weightHidOut.size() == numHidden * numOutputSpikeWords * 64);
-    
-    // Concatenate into single vector
-    std::vector<uint8_t> initData;
-    initData.reserve(weightInHid.size() + weightHidOut.size() + outputBias.size());
-    std::copy(weightInHid.cbegin(), weightInHid.cend(), std::back_inserter(initData));
-    std::copy(weightHidOut.cbegin(), weightHidOut.cend(), std::back_inserter(initData));
-    std::copy(outputBias.cbegin(), outputBias.cend(), std::back_inserter(initData));
-
+   
     // Generate sim code
     const auto simCode = generateSimCode(!device, numInput, numHidden, numOutput, numTimesteps,
                                          hiddenFixedPoint, outFixedPoint, numInputSpikeWords,
@@ -585,16 +567,6 @@ int main(int argc, char** argv)
     LOGI << scalarInitData.size() << " bytes of scalar memory required";
     LOGI << vectorInitData.size() * 2 << " bytes of vector memory required (" << ceilDivide(vectorInitData.size() / 32, 4096) << " URAM cascade)";
 
-    // Generate initialisation code to copy blocks of data from scalar to vector memory
-    const uint32_t initStartVectorPtr = 0;
-    const uint32_t initNumVectorsPtr = 4;
-    const uint32_t initReadyFlagPtr = 8;
-    const uint32_t initScalarScratchPtr = 12;
-    const auto initCode = AssemblerUtils::generateInitCode(!device, initStartVectorPtr, initNumVectorsPtr, 
-                                                           initReadyFlagPtr, initScalarScratchPtr);
-    LOGI << scalarInitData.size() << " bytes of scalar memory required";
-    LOGI << vectorInitData.size() * 2 << " bytes of vector memory required (" << ceilDivide(vectorInitData.size() / 32, 4096) << " URAM cascade)";
-
     if(device) {
         LOGI << "Creating device";
         Device device;
@@ -603,13 +575,28 @@ int main(int argc, char** argv)
         LOGI << "Resetting";
         device.setEnabled(false);
         
-        // Initialisation
         {
-            LOGI << "Copying init instructions (" << initCode.size() * sizeof(uint32_t) << " bytes)";
-            device.uploadCode(initCode);
+            LOGI << "DMAing vector init data to device";
+           
+            // Create DMA buffer
+            DMABuffer dmaBuffer;
 
-            // Run kernels to copy initData into vector memory
-            device.runInit(initData, initStartVectorPtr, initNumVectorsPtr, initScalarScratchPtr, weightInHidPtr, initReadyFlagPtr);
+            // Check there's enough space for vector init data
+            assert(dmaBuffer.getSize() > (vectorInitData.size() * 2));
+
+            // Get halfword pointer to DMA buffer
+            int16_t *bufferData = reinterpret_cast<int16_t*>(dmaBuffer.getData());
+            
+            // Copy vector init data to buffer
+            std::copy(vectorInitData.cbegin(), vectorInitData.cend(), bufferData);
+            
+            for(int i = 0; i < vectorInitData.size() * 2; i += 8192) {
+                // Start DMA of data to URAM
+                device.getDMAController()->startWrite(i, dmaBuffer, i, std::min(8192ull, (vectorInitData.size() * 2) - 8192ull));
+    
+                // Wait for write to complete
+                device.getDMAController()->waitForWriteComplete();
+            }
         }
         
         // Simulation
@@ -652,21 +639,10 @@ int main(int argc, char** argv)
         }
     }
     else {
-        RISCV riscV(initCode, scalarInitData);
+        RISCV riscV(simCode, scalarInitData);
         
         // Add vector co-processor
         riscV.addCoprocessor<VectorProcessor>(vectorQuadrant, vectorInitData);
-        
-        // Run kernels to copy initData into vector memory
-        if(!riscV.runInit(initData, initStartVectorPtr, initNumVectorsPtr, initScalarScratchPtr, weightInHidPtr)) {
-            return 1;
-        }
-            
-        // Reset stats for simulations
-        riscV.resetStats();
-
-        // Load simulation program
-        riscV.setInstructions(simCode);
 
         // Get pointer to output sim
         auto *scalarData = riscV.getScalarDataMemory().getData().data();

@@ -51,7 +51,4 @@ void unrollVectorLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegis
 // Generate preamble and postamble for code using standard ecall instruction to terminate simulations and polling on device
 std::vector<uint32_t> generateStandardKernel(bool simulate, uint32_t readyFlagPtr, 
                                              std::function<void(CodeGenerator&, VectorRegisterAllocator&, ScalarRegisterAllocator&)> genBodyFn);
-
-// Generate an initialisation kernel which copies dynamically-sized block of data from scalar memory into vector memory
-std::vector<uint32_t> generateInitCode(bool simulate, uint32_t startVectorPtr, uint32_t numVectorsPtr, uint32_t readyFlagPtr, uint32_t scalarStartPtr);
 }

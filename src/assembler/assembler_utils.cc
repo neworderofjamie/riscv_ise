@@ -293,34 +293,4 @@ std::vector<uint32_t> generateStandardKernel(bool simulate, uint32_t readyFlagPt
 
     return c.getCode();
 }
-//----------------------------------------------------------------------------
-std::vector<uint32_t> generateInitCode(bool simulate, uint32_t startVectorPtr, uint32_t numVectorsPtr, uint32_t readyFlagPtr, uint32_t scalarScratchPtr)
-{
-    return generateStandardKernel(
-        simulate, readyFlagPtr,
-        [=](CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator, ScalarRegisterAllocator &scalarRegisterAllocator)
-        {
-            // Register allocation
-            ALLOCATE_SCALAR(SNumVectorsPtr);
-            ALLOCATE_SCALAR(SStartVectorPtr);
-
-            // Load pointer to vector memory start address
-            {
-                ALLOCATE_SCALAR(STmp);
-                c.li(*STmp, startVectorPtr);
-                c.lw(*SStartVectorPtr, *STmp);
-            }
-
-            // Load count of number of vectors
-            {
-                ALLOCATE_SCALAR(STmp);
-                c.li(*STmp, numVectorsPtr);
-                c.lw(*SNumVectorsPtr, *STmp);
-            }
-
-            // Generate copying code
-            generateScalarVectorMemcpy(c, vectorRegisterAllocator, scalarRegisterAllocator,
-                                       scalarScratchPtr, SStartVectorPtr, SNumVectorsPtr);
-        });
-}
 }

@@ -73,7 +73,6 @@ uint32_t allocateVectorSeedAndInit(std::vector<int16_t> &memory,
 //----------------------------------------------------------------------------
 uint32_t loadVectors(const std::string &filename, std::vector<int16_t> &memory)
 {
-    LOGW << "loadVectors is not supported on devices without direct vector memory access";
     std::ifstream input(filename, std::ios::binary);
     input.exceptions(std::ifstream::badbit | std::ifstream::failbit);
 
