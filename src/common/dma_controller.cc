@@ -68,11 +68,11 @@ void DMAController::startWrite(uint32_t destination, const DMABuffer &sourceBuff
     writeReg(Register::MM2S_SA, static_cast<uint32_t>(sourceAddress & 0xFFFFFFFF));
     writeReg(Register::MM2S_SA_MSB, static_cast<uint32_t>(sourceAddress >> 32));
 
+    // Run
+    writeReg(Register::MM2S_DMACR, 1);
     // Set number of bytes
     writeReg(Register::MM2S_LENGTH, size);
 
-    // Run
-    writeReg(Register::MM2S_DMACR, 1);
 }
 //----------------------------------------------------------------------------
 void DMAController::startRead(DMABuffer &destBuffer, size_t destOffset, uint32_t source, size_t size)
@@ -130,3 +130,21 @@ void DMAController::waitForReadComplete() const
     }
 }
 //----------------------------------------------------------------------------
+void DMAController::writeReg(Register reg, uint32_t val)
+{ 
+    volatile uint32_t *registers = m_Registers;
+    registers[static_cast<int>(reg) / 4] = val; 
+}
+//----------------------------------------------------------------------------
+uint32_t DMAController::readReg(Register reg) const
+{ 
+    volatile const uint32_t *registers = m_Registers;
+    return registers[static_cast<int>(reg) / 4]; 
+}
+//----------------------------------------------------------------------------
+void DMAController::writeURAMDestinationAddress(uint32_t val)
+{
+    volatile uint32_t *destAddressRegister = m_DestAddressRegister;
+    destAddressRegister[0] = val; 
+}
+    

@@ -102,13 +102,15 @@ Device::~Device()
 void Device::setEnabled(bool enabled)
 {
     // Channel 1 AXI GPIO Data Register
-    m_GPIO[0] = enabled ? 0xFFFFFFFF : 0x0;
+    volatile uint32_t *gpio = m_GPIO;
+    gpio[0] = enabled ? 0xFFFFFFFF : 0x0;
 }
 //----------------------------------------------------------------------------
 void Device::setILATrigger(bool enabled)
 {
     // Channel 2 AXI GPIO Data Register.
-    m_GPIO[2] = enabled ? 0xFFFFFFFF : 0x0;
+    volatile uint32_t *gpio = m_GPIO;
+    gpio[2] = enabled ? 0xFFFFFFFF : 0x0;
 }
 //----------------------------------------------------------------------------
 void Device::waitOnNonZero(uint32_t address) const

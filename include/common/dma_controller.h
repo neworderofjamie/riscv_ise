@@ -62,10 +62,10 @@ private:
     //------------------------------------------------------------------------
     // Private API
     //------------------------------------------------------------------------
-    void writeReg(Register reg, uint32_t val){ m_Registers[static_cast<int>(reg) / 4] = val; }
-    uint32_t readReg(Register reg) const{ return m_Registers[static_cast<int>(reg) / 4]; }
+    void writeReg(Register reg, uint32_t val);
+    uint32_t readReg(Register reg) const;
 
-    void writeURAMDestinationAddress(uint32_t val){ m_DestAddressRegister[0] = val; }
+    void writeURAMDestinationAddress(uint32_t val);
 
     //------------------------------------------------------------------------
     // Members
