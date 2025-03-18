@@ -1,5 +1,8 @@
 #include "compiler/compiler.h"
 
+// Standard C++ includes
+#include <stack>
+
 // Third-party includes
 #include <fast_float/fast_float.h>
 
@@ -53,7 +56,7 @@ public:
     Visitor(const Statement::StatementList &statements, EnvironmentInternal &environment,
             const Type::TypeContext &context, const TypeChecker::ResolvedTypeMap &resolvedTypes,
             const std::unordered_map<int16_t, VectorRegisterAllocator::RegisterPtr> &literalPool,
-            std::optional<ScalarRegisterAllocator::RegisterPtr> maskRegister,
+            ScalarRegisterAllocator::RegisterPtr maskRegister,
             ScalarRegisterAllocator &scalarRegisterAllocator, VectorRegisterAllocator &vectorRegisterAllocator)
     :   m_Environment(environment), m_Context(context), m_MaskRegister(maskRegister), m_ResolvedTypes(resolvedTypes),
         m_LiteralPool(literalPool), m_ScalarRegisterAllocator(scalarRegisterAllocator), m_VectorRegisterAllocator(vectorRegisterAllocator)
@@ -61,16 +64,6 @@ public:
          for(auto &s : statements) {
             s.get()->accept(*this);
         }
-    }
-
-    Visitor(const Expression::ExpressionPtr &expression, EnvironmentInternal &environment,
-            const Type::TypeContext &context, const TypeChecker::ResolvedTypeMap &resolvedTypes,
-            const std::unordered_map<int16_t, VectorRegisterAllocator::RegisterPtr> &literalPool,
-            ScalarRegisterAllocator &scalarRegisterAllocator, VectorRegisterAllocator &vectorRegisterAllocator)
-    :   m_Environment(environment), m_Context(context), m_ResolvedTypes(resolvedTypes), m_LiteralPool(literalPool),
-        m_ScalarRegisterAllocator(scalarRegisterAllocator), m_VectorRegisterAllocator(vectorRegisterAllocator)
-    {
-        expression.get()->accept(*this);
     }
 
     //---------------------------------------------------------------------------
@@ -103,7 +96,7 @@ private:
         if(m_MaskRegister) {
             // If we're doing plain assignement, conditionally assign from value register directly
             if(opType == Token::Type::EQUAL) {
-                m_Environment.get().getCodeGenerator().vsel(*vecAssigneeReg, *m_MaskRegister.value(), *vecValueReg);
+                m_Environment.get().getCodeGenerator().vsel(*vecAssigneeReg, *m_MaskRegister, *vecValueReg);
             }
             // Otherwise
             else {
@@ -114,7 +107,7 @@ private:
                                assigneeType, valueType);
 
                 // Conditionally assign back to assignee register
-                m_Environment.get().getCodeGenerator().vsel(*vecAssigneeReg, *m_MaskRegister.value(), *tempReg);
+                m_Environment.get().getCodeGenerator().vsel(*vecAssigneeReg, *m_MaskRegister, *tempReg);
             }
         }
         // Otherwise, generate assignement directly into assignee register
@@ -217,7 +210,34 @@ private:
 
     virtual void visit(const Expression::Call &call) final
     {
-        assert(false);
+        // Cache reference to current reference
+        std::reference_wrapper<EnvironmentBase> oldEnvironment = m_Environment; 
+
+        // Loop through call arguments
+        std::vector<RegisterPtr> arguments;
+        arguments.reserve(call.getArguments().size());
+        for (const auto &a : call.getArguments()) {
+            // Create new environment and set to current
+            EnvironmentInternal environment(oldEnvironment.get());
+            m_Environment = environment;
+
+            // Compile expression in this environment 
+            // and add result register to vector
+            a->accept(*this);
+            arguments.push_back(getExpressionRegister());
+        }
+
+        // Restore old environment
+        m_Environment = oldEnvironment;
+        
+        // Push arguments to top of stack
+        m_CallArguments.emplace(arguments);
+        
+        // Compile callee
+        call.getCallee()->accept(*this);
+
+        // Pop stack
+        m_CallArguments.pop();
     }
 
     virtual void visit(const Expression::Cast &cast) final
@@ -276,7 +296,7 @@ private:
                 float result;
                 auto answer = fast_float::from_chars(lexemeBegin, lexemeEnd, result);
                 assert(answer.ec == std::errc());
-                integerResult = std::round(result * (1u << numericType.fixedPoint.value()));
+                integerResult = static_cast<int64_t>(std::round(result * (1u << numericType.fixedPoint.value())));
             }
             else {
                 throw std::runtime_error("FeNN does not support floating point types");
@@ -291,7 +311,7 @@ private:
 
         // Set result register
         // **NOTE** result is a register assigned to pool so shouldn't be re-used
-        setExpressionRegister(m_LiteralPool.at(integerResult), false);
+        setExpressionRegister(m_LiteralPool.at(static_cast<int16_t>(integerResult)), false);
     }
 
     virtual void visit(const Expression::Logical &logical) final
@@ -387,6 +407,37 @@ private:
 
         // If identifier is function i.e. name is a function template
         if (type.isFunction()) {
+            // Check that there are call arguments on the stack
+            assert(!m_CallArguments.empty());
+
+            // Check argument sizes match
+            assert(type.getFunction().hasFlag(Type::FunctionFlags::VARIADIC)
+                   || m_CallArguments.top().size() == type.getFunction().argTypes.size());
+
+            // Get function generator
+            const auto functionGenerator = m_Environment.get().getFunctionGenerator(identifier.getName().lexeme);
+
+            
+            // Cache reference to current reference
+            std::reference_wrapper<EnvironmentBase> oldEnvironment = m_Environment; 
+            {
+                // Create new environment and set to current
+                EnvironmentInternal environment(m_Environment);
+                m_Environment = environment;
+                
+                // Call function generator to generate code
+                const auto result = functionGenerator(m_Environment.get(), m_VectorRegisterAllocator, 
+                                                      m_ScalarRegisterAllocator, m_MaskRegister, m_CallArguments.top());
+                setExpressionRegister(result.first, result.second);
+            }
+
+            // Restore old environment
+            m_Environment = oldEnvironment;
+          
+        }
+        // Otherwise, if there are array subscript arguments on top of stack
+        else if(!m_CallArguments.empty()) {
+            assert(m_CallArguments.top().size() == 1);
             assert(false);
         }
         else {
@@ -443,11 +494,11 @@ private:
 
         // If we already have a mask register, copy it into new register
         if(oldMaskRegister) {
-            m_Environment.get().getCodeGenerator().mv(*m_MaskRegister.value(), *oldMaskRegister.value());
+            m_Environment.get().getCodeGenerator().mv(*m_MaskRegister, *oldMaskRegister);
         }
         // Otherwise, load mask register with FFFF
         else {
-            m_Environment.get().getCodeGenerator().li(*m_MaskRegister.value(), 0xFFFFFFFF);
+            m_Environment.get().getCodeGenerator().li(*m_MaskRegister, 0xFFFFFFFF);
         }
 
         // Start loop
@@ -458,11 +509,11 @@ private:
             doStatement.getBody()->accept(*this);
 
             // And mask register with result of evaluating condition
-            m_Environment.get().getCodeGenerator().and_(*m_MaskRegister.value(), *m_MaskRegister.value(), 
+            m_Environment.get().getCodeGenerator().and_(*m_MaskRegister, *m_MaskRegister, 
                                                         *getExpressionScalarRegister(doStatement.getCondition()));
 
             // If mask isn't entirely zeroed yet, goto loop
-            m_Environment.get().getCodeGenerator().bne(*m_MaskRegister.value(), Reg::X0, doLoop);
+            m_Environment.get().getCodeGenerator().bne(*m_MaskRegister, Reg::X0, doLoop);
         }
 
         // Restore old mask register
@@ -478,6 +529,7 @@ private:
 
     virtual void visit(const Statement::For &forStatement) final
     {
+        assert(false);
         // Cache reference to current reference
         /*std::reference_wrapper<EnvironmentBase> oldEnvironment = m_Environment; 
 
@@ -522,7 +574,7 @@ private:
         auto oldMaskRegister = m_MaskRegister;
         if(oldMaskRegister) {
             auto combinedMaskRegister = m_ScalarRegisterAllocator.getRegister();
-            m_Environment.get().getCodeGenerator().and_(*combinedMaskRegister, *oldMaskRegister.value(), *scalarConditionReg);
+            m_Environment.get().getCodeGenerator().and_(*combinedMaskRegister, *oldMaskRegister, *scalarConditionReg);
             m_MaskRegister = combinedMaskRegister;
         }
         // Otherwise, just
@@ -540,7 +592,7 @@ private:
 
             // If we have an old mask, and it with this
             if(oldMaskRegister) {
-                m_Environment.get().getCodeGenerator().and_(*elseMaskRegister, *oldMaskRegister.value(),
+                m_Environment.get().getCodeGenerator().and_(*elseMaskRegister, *oldMaskRegister,
                                                             *elseMaskRegister);
             }
 
@@ -606,11 +658,11 @@ private:
 
         // If we already have a mask register, copy it into new register
         if(oldMaskRegister) {
-            m_Environment.get().getCodeGenerator().mv(*m_MaskRegister.value(), *oldMaskRegister.value());
+            m_Environment.get().getCodeGenerator().mv(*m_MaskRegister, *oldMaskRegister);
         }
         // Otherwise, load mask register with FFFF
         else {
-            m_Environment.get().getCodeGenerator().li(*m_MaskRegister.value(), 0xFFFFFFFF);
+            m_Environment.get().getCodeGenerator().li(*m_MaskRegister, 0xFFFFFFFF);
         }
 
         // Start loop
@@ -619,11 +671,11 @@ private:
         m_Environment.get().getCodeGenerator().L(whileLoopStart);
         {
             // And mask register with result of evaluating condition
-            m_Environment.get().getCodeGenerator().and_(*m_MaskRegister.value(), *m_MaskRegister.value(), 
+            m_Environment.get().getCodeGenerator().and_(*m_MaskRegister, *m_MaskRegister, 
                                                         *getExpressionScalarRegister(whileStatement.getCondition()));
 
             // If mask is zeroed, leave loop
-            m_Environment.get().getCodeGenerator().beq(*m_MaskRegister.value(), Reg::X0, whileLoopEnd);
+            m_Environment.get().getCodeGenerator().beq(*m_MaskRegister, Reg::X0, whileLoopEnd);
 
             // Generate body
             whileStatement.getBody()->accept(*this);
@@ -710,8 +762,9 @@ private:
     std::reference_wrapper<EnvironmentBase> m_Environment;
     const Type::TypeContext &m_Context;
     std::optional<std::pair<RegisterPtr, bool>> m_ExpressionRegister;
+    std::stack<std::vector<RegisterPtr>> m_CallArguments;
 
-    std::optional<ScalarRegisterAllocator::RegisterPtr> m_MaskRegister;
+    ScalarRegisterAllocator::RegisterPtr m_MaskRegister;
     const TypeChecker::ResolvedTypeMap &m_ResolvedTypes;
     const std::unordered_map<int16_t, VectorRegisterAllocator::RegisterPtr> &m_LiteralPool;
     ScalarRegisterAllocator &m_ScalarRegisterAllocator;
@@ -753,19 +806,9 @@ CodeGenerator &EnvironmentInternal::getCodeGenerator()
 void compile(const Statement::StatementList &statements, EnvironmentInternal &environment, 
              const Type::TypeContext &context, const TypeChecker::ResolvedTypeMap &resolvedTypes,
              const std::unordered_map<int16_t, VectorRegisterAllocator::RegisterPtr> &literalPool,
-             std::optional<ScalarRegisterAllocator::RegisterPtr> maskRegister, 
+             ScalarRegisterAllocator::RegisterPtr maskRegister, 
              ScalarRegisterAllocator &scalarRegisterAllocator, VectorRegisterAllocator &vectorRegisterAllocator)
 {
     Visitor visitor(statements, environment, context, resolvedTypes, literalPool, maskRegister,
                     scalarRegisterAllocator, vectorRegisterAllocator);
-}
-//---------------------------------------------------------------------------
-RegisterPtr compile(const Expression::ExpressionPtr &expression, EnvironmentInternal &environment,
-                    const Type::TypeContext &context, const TypeChecker::ResolvedTypeMap &resolvedTypes,
-                    const std::unordered_map<int16_t, VectorRegisterAllocator::RegisterPtr> &literalPool,
-                    ScalarRegisterAllocator &scalarRegisterAllocator, VectorRegisterAllocator &vectorRegisterAllocator)
-{
-    Visitor visitor(expression, environment, context, resolvedTypes, literalPool,
-                    scalarRegisterAllocator, vectorRegisterAllocator);
-    return visitor.getExpressionRegister();
 }
