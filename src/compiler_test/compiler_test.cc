@@ -110,7 +110,7 @@ int main(int argc, char** argv)
     const auto *hiddenOutput = model.addEventPropagationProcess(hiddenSpikes, hiddenOutputWeight, outputI);
 
     // Group processes
-    const auto *neuronUpdateProcesses = model.addProcessGroup({input, hidden, output});
+    const auto *neuronUpdateProcesses = model.addProcessGroup({hidden, output});
     const auto *synapseUpdateProcesses = model.addProcessGroup({inputHidden, hiddenOutput});
 
     // Allocate memory
