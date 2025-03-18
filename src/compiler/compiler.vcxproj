@@ -22,6 +22,7 @@
     <ClInclude Include="..\..\include\compiler\event_container.h" />
     <ClInclude Include="..\..\include\compiler\generate_process_group.h" />
     <ClInclude Include="..\..\include\compiler\memory_allocator.h" />
+    <ClInclude Include="..\..\include\compiler\model_component.h" />
     <ClInclude Include="..\..\include\compiler\process_group.h" />
     <ClInclude Include="..\..\include\compiler\shape.h" />
     <ClInclude Include="..\..\include\compiler\variable.h" />

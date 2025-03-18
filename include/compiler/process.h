@@ -29,29 +29,6 @@ protected:
 };
 
 //----------------------------------------------------------------------------
-// SpikeInputProcess
-//----------------------------------------------------------------------------
-class SpikeInputProcess : public AcceptableModelComponent<SpikeInputProcess, Process>
-{
-public:
-    SpikeInputProcess(const EventContainer *outputEvents, const std::string &name = "");
-
-    //------------------------------------------------------------------------
-    // Public API
-    //------------------------------------------------------------------------
-    const auto *getOutputEvents() const{ return m_OutputEvents; }
-
-    size_t getNumNeurons() const{ return m_NumNeurons; }
-
-private:
-    //------------------------------------------------------------------------
-    // Members
-    //------------------------------------------------------------------------
-    const EventContainer *m_OutputEvents;
-    size_t m_NumNeurons;
-};
-
-//----------------------------------------------------------------------------
 // NeuronUpdateProcess
 //----------------------------------------------------------------------------
 class NeuronUpdateProcess : public AcceptableModelComponent<NeuronUpdateProcess, Process>

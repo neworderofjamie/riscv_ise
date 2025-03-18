@@ -66,7 +66,6 @@ int main(int argc, char** argv)
 
     // Input spike source
     const auto *inputSpikes = model.addEventContainer(inputShape);
-    const auto *input = model.addSpikeInputProcess(inputSpikes);
 
     // Hidden neurons
     const auto *hiddenV = model.addVariable(hiddenShape, GeNN::Type::S10_5);

@@ -11,20 +11,6 @@
 #include "compiler/variable.h"
 
 //----------------------------------------------------------------------------
-// SpikeInputProcess
-//----------------------------------------------------------------------------
-SpikeInputProcess::SpikeInputProcess(const EventContainer *outputEvents, const std::string &name)
-:   AcceptableModelComponent<SpikeInputProcess, Process>(name), m_OutputEvents(outputEvents)
-{
-    if(m_OutputEvents == nullptr) {
-        throw std::runtime_error("Spike input process requires output events");
-    }
-
-    // Get number of neurons from output events
-    m_NumNeurons = m_OutputEvents->getShape().getNumNeurons();
-}
-
-//----------------------------------------------------------------------------
 // NeuronUpdateProcess
 //----------------------------------------------------------------------------
 NeuronUpdateProcess::NeuronUpdateProcess(const std::string &code, const ParameterMap &parameters, 

@@ -7,7 +7,6 @@
 class EventContainer;
 class Parameter;
 class ProcessGroup;
-class SpikeInputProcess;
 class NeuronUpdateProcess;
 class EventPropagationProcess;
 class Variable;
@@ -21,7 +20,6 @@ public:
     virtual void visit(const EventContainer&){}
     virtual void visit(const Parameter&){}
     virtual void visit(const ProcessGroup&){}
-    virtual void visit(const SpikeInputProcess&){}
     virtual void visit(const NeuronUpdateProcess&){}
     virtual void visit(const EventPropagationProcess&){}
     virtual void visit(const Variable&){}
