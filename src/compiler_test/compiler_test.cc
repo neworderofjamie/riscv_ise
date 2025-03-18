@@ -80,7 +80,7 @@ int main(int argc, char** argv)
         "   RefracTime -= 1;\n"
         "}\n"
         "if(V >= VThresh && RefracTime <= 0) {\n"
-        "   //Spike();\n"
+        "   Spike();\n"
         "   V -= VThresh;\n"
         "   RefracTime = TauRefrac;\n"
         "}\n",

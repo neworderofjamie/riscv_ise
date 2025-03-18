@@ -232,7 +232,7 @@ void compileStatements(const std::vector<Token> &tokens, const Type::TypeContext
                        const std::unordered_map<int16_t, VectorRegisterAllocator::RegisterPtr> &literalPool,
                        TypeChecker::EnvironmentInternal &typeCheckEnv, EnvironmentInternal &compilerEnv,
                        ErrorHandler &errorHandler, Transpiler::TypeChecker::StatementHandler forEachSynapseTypeCheckHandler,
-                       std::optional<ScalarRegisterAllocator::RegisterPtr> maskRegister, 
+                       ScalarRegisterAllocator::RegisterPtr maskRegister, 
                        ScalarRegisterAllocator &scalarRegisterAllocator, VectorRegisterAllocator &vectorRegisterAllocator)
 {
     
@@ -291,6 +291,9 @@ public:
         std::unordered_map<int16_t, VectorRegisterAllocator::RegisterPtr> literalPool;
         updateLiteralPool(neuronUpdateProcess.getTokens(), {}, m_VectorRegisterAllocator.get(), literalPool);
         
+        // Define type for event-emitting function
+        const auto emitEventFunctionType = Type::ResolvedType::createFunction(Type::Void, {});
+
         // Load literals
         for(const auto &l : literalPool) {
             env.getCodeGenerator().vlui(*l.second, (uint16_t)l.first);
@@ -363,7 +366,7 @@ public:
         AssemblerUtils::unrollVectorLoopBody(
             env.getCodeGenerator(), m_ScalarRegisterAllocator.get(), 
             neuronUpdateProcess.getNumNeurons(), 4, *firstVarBufferReg,
-            [this, &env, &literalPool, &neuronUpdateProcess]
+            [this, &env, &literalPool, &neuronUpdateProcess, &emitEventFunctionType]
             (CodeGenerator &c, uint32_t r, bool, ScalarRegisterAllocator::RegisterPtr maskReg)
             {
                 EnvironmentExternal unrollEnv(env);
@@ -383,14 +386,29 @@ public:
                     unrollEnv.getCodeGenerator().vloadv(*reg, *bufferReg, 64 * r);
                 }
 
+                // Loop through neuron event outputs
+                for(const auto &e : neuronUpdateProcess.getOutputEvents()) {
+                    // Add function to environment to store current mask (inherently which neurons are spiking) to scalar memory
+                    unrollEnv.add(emitEventFunctionType, e.first, 
+                                  [e, r](auto &env, auto&, auto&, auto maskReg, const auto&)
+                                  {
+                                      // Get buffer register
+                                      const auto bufferReg = std::get<ScalarRegisterAllocator::RegisterPtr>(env.getRegister("_" + e.first + "Buffer"));
+                                    
+                                      // Store buffer
+                                      env.getCodeGenerator().sw(*maskReg, *bufferReg, 4 * r);
+                                      return std::make_pair(RegisterPtr{}, false);
+                                  });
+                }
+
                 // Compile tokens
                 {
                     TypeChecker::EnvironmentInternal typeCheckEnv(unrollEnv);
                     EnvironmentInternal compilerEnv(unrollEnv);
                     ErrorHandler errorHandler("Neuron update process '" + neuronUpdateProcess.getName() + "'");        
                     compileStatements(neuronUpdateProcess.getTokens(), {}, literalPool, typeCheckEnv, compilerEnv,
-                                    errorHandler, nullptr, std::nullopt, m_ScalarRegisterAllocator.get(),
-                                    m_VectorRegisterAllocator.get());
+                                     errorHandler, nullptr, nullptr, m_ScalarRegisterAllocator.get(),
+                                     m_VectorRegisterAllocator.get());
                 }
 
                 // Loop through variables

@@ -17,14 +17,16 @@
 
 // Forward declarations
 class CodeGenerator;
+class EnvironmentBase;
 
 //----------------------------------------------------------------------------
 // GeNN::CodeGenerator::FeNN::Compiler
 //----------------------------------------------------------------------------
 using RegisterPtr = std::variant<ScalarRegisterAllocator::RegisterPtr, VectorRegisterAllocator::RegisterPtr>;
-using FunctionGenerator = std::function<RegisterPtr(CodeGenerator&, VectorRegisterAllocator&, 
-                                                    ScalarRegisterAllocator&, const std::vector<RegisterPtr>&)>;
-
+using FunctionGenerator = std::function<std::pair<RegisterPtr, bool>(EnvironmentBase&, VectorRegisterAllocator&,
+                                                                     ScalarRegisterAllocator&, 
+                                                                     ScalarRegisterAllocator::RegisterPtr, 
+                                                                     const std::vector<RegisterPtr>&)>;
 //----------------------------------------------------------------------------
 // EnvironmentBase
 //----------------------------------------------------------------------------
@@ -91,9 +93,5 @@ private:
 void compile(const GeNN::Transpiler::Statement::StatementList &statements, EnvironmentInternal &environment, 
              const GeNN::Type::TypeContext &context, const GeNN::Transpiler::TypeChecker::ResolvedTypeMap &resolvedTypes,
              const std::unordered_map<int16_t, VectorRegisterAllocator::RegisterPtr> &literalPool,
-             std::optional<ScalarRegisterAllocator::RegisterPtr> maskRegister, 
+             ScalarRegisterAllocator::RegisterPtr maskRegister, 
              ScalarRegisterAllocator &scalarRegisterAllocator, VectorRegisterAllocator &vectorRegisterAllocator);
-RegisterPtr compile(const GeNN::Transpiler::Expression::ExpressionPtr &expression, EnvironmentInternal &environment, 
-                    const GeNN::Type::TypeContext &context, const GeNN::Transpiler::TypeChecker::ResolvedTypeMap &resolvedTypes,
-                    const std::unordered_map<int16_t, VectorRegisterAllocator::RegisterPtr> &literalPool,
-                    ScalarRegisterAllocator &scalarRegisterAllocator, VectorRegisterAllocator &vectorRegisterAllocator);
