@@ -1,6 +1,7 @@
 // Standard C++ includes
 #include <algorithm>
 #include <numeric>
+#include <random>
 
 // Standard C includes
 #include <cassert>
@@ -42,8 +43,13 @@ int main()
     // Get halfword pointer to DMA buffer
     int16_t *bufferData = reinterpret_cast<int16_t*>(dmaBuffer.getData());
     
-    // Write five vectors of half words to DMA buffer
-    std::iota(bufferData, bufferData + (32 * 5), 0);
+    // Write five vectors of random data words to DMA buffer
+    std::random_device rng;
+    std::uniform_int_distribution<int16_t> dist(std::numeric_limits<int16_t>::min(),
+                                                std::numeric_limits<int16_t>::max());
+    std::generate_n(bufferData, 32 * 5, 
+                    [&rng, &dist](){ return dist(rng); });
+    LOGI << "First element:" << bufferData[0];
 
     // Create memory contents
     std::vector<uint8_t> scalarInitData;
@@ -61,9 +67,9 @@ int main()
         [=](CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator, ScalarRegisterAllocator &scalarRegisterAllocator)
         {
             AssemblerUtils::generateVectorScalarMemcpy(c, vectorRegisterAllocator, scalarRegisterAllocator,
-                                                       vectorOnePtr, outputPtr, 2);
-            AssemblerUtils::generateVectorScalarMemcpy(c, vectorRegisterAllocator, scalarRegisterAllocator,
-                                                       vectorTwoPtr, outputPtr + (64 * 2), 3);                                                       
+                                                       vectorOnePtr, outputPtr, 5);
+            //AssemblerUtils::generateVectorScalarMemcpy(c, vectorRegisterAllocator, scalarRegisterAllocator,
+            //                                           vectorTwoPtr, outputPtr + (64 * 2), 3);                                                       
         });
 
     LOGI << "Creating device";
@@ -73,24 +79,24 @@ int main()
     // Put core into reset state
     device.setEnabled(false);
     
-    // Write 2 vectors from DMA buffer to vectorOnePtr
-    device.getDMAController()->startWrite(vectorOnePtr, dmaBuffer, 0, 64 * 2);
-
-    // Wait for write to complete
-    device.getDMAController()->waitForWriteComplete();
-
-    // Write 3 vectors from DMA buffer to URAM address 
-    device.getDMAController()->startWrite(vectorTwoPtr, dmaBuffer, 64 * 2, 64 * 3);
-
-    // Wait for write to complete
-    device.getDMAController()->waitForWriteComplete();
-
     LOGI << "Copying instructions (" << code.size() * sizeof(uint32_t) << " bytes)";
     device.uploadCode(code);
     
     LOGI << "Copying data (" << scalarInitData.size() << " bytes);";
     device.memcpyDataToDevice(0, scalarInitData.data(), scalarInitData.size());
     
+    // Write 2 vectors from DMA buffer to vectorOnePtr
+    device.getDMAController()->startWrite(vectorOnePtr, dmaBuffer, 0, 64 * 5);
+    
+    // Wait for write to complete
+    device.getDMAController()->waitForWriteComplete();
+    
+    // Write 3 vectors from DMA buffer to URAM address 
+    //device.getDMAController()->startWrite(vectorTwoPtr, dmaBuffer, 64 * 2, 64 * 3);
+
+    // Wait for write to complete
+    //device.getDMAController()->waitForWriteComplete();
+ 
     LOGI << "Enabling";
     // Put core into running state
     device.setEnabled(true);
@@ -107,7 +113,7 @@ int main()
     if(!std::equal(bufferData, bufferData + (32 * 5), output)) {
         LOGE << "ERROR: copy incorrect";
         for(int i = 0; i < (32 * 5); i++) {
-            LOGI << output[i] << " vs " << bufferData[i];
+            LOGI << i << ":" << output[i] << " vs " << bufferData[i];
         }
     }
 }

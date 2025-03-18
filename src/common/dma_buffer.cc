@@ -46,7 +46,7 @@ DMABuffer::DMABuffer(int index)
 
     // Open memory
     const std::string bufferFile = "/dev/udmabuf" + std::to_string(index);
-    m_Memory = open(bufferFile.c_str(), O_RDWR);
+    m_Memory = open(bufferFile.c_str(), O_RDWR | O_SYNC);
     if(m_Memory == -1) {
         throw std::runtime_error(bufferFile + " open failure (" + std::to_string(errno) + " = " + strerror(errno) + ")");
     }
