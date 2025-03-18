@@ -67,9 +67,9 @@ int main()
         [=](CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator, ScalarRegisterAllocator &scalarRegisterAllocator)
         {
             AssemblerUtils::generateVectorScalarMemcpy(c, vectorRegisterAllocator, scalarRegisterAllocator,
-                                                       vectorOnePtr, outputPtr, 5);
-            //AssemblerUtils::generateVectorScalarMemcpy(c, vectorRegisterAllocator, scalarRegisterAllocator,
-            //                                           vectorTwoPtr, outputPtr + (64 * 2), 3);                                                       
+                                                       vectorOnePtr, outputPtr, 2);
+            AssemblerUtils::generateVectorScalarMemcpy(c, vectorRegisterAllocator, scalarRegisterAllocator,
+                                                       vectorTwoPtr, outputPtr + (64 * 2), 3);                                                       
         });
 
     LOGI << "Creating device";
@@ -86,16 +86,16 @@ int main()
     device.memcpyDataToDevice(0, scalarInitData.data(), scalarInitData.size());
     
     // Write 2 vectors from DMA buffer to vectorOnePtr
-    device.getDMAController()->startWrite(vectorOnePtr, dmaBuffer, 0, 64 * 5);
+    device.getDMAController()->startWrite(vectorOnePtr, dmaBuffer, 0, 64 * 2);
     
     // Wait for write to complete
     device.getDMAController()->waitForWriteComplete();
     
     // Write 3 vectors from DMA buffer to URAM address 
-    //device.getDMAController()->startWrite(vectorTwoPtr, dmaBuffer, 64 * 2, 64 * 3);
+    device.getDMAController()->startWrite(vectorTwoPtr, dmaBuffer, 64 * 2, 64 * 3);
 
     // Wait for write to complete
-    //device.getDMAController()->waitForWriteComplete();
+    device.getDMAController()->waitForWriteComplete();
  
     LOGI << "Enabling";
     // Put core into running state
