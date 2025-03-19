@@ -27,7 +27,6 @@ public:
     MemoryAllocator(const MemoryAllocator&) = delete;
 
     uint32_t allocate(uint32_t sizeBytes);
-    uint32_t allocate(uint32_t elementSize, uint32_t count){ return allocate(elementSize * count); }
 
     uint32_t getFreeBytes() const{ return m_SizeBytes - m_HighWaterBytes; }
 
