@@ -21,15 +21,6 @@ using ParameterMap = std::unordered_map<std::string, std::shared_ptr<const Param
 using VariableMap = std::unordered_map<std::string, std::shared_ptr<const Variable>>;
 
 //----------------------------------------------------------------------------
-// Process
-//----------------------------------------------------------------------------
-class Process : public ModelComponent
-{
-protected:
-    using ModelComponent::ModelComponent;
-};
-
-//----------------------------------------------------------------------------
 // NeuronUpdateProcess
 //----------------------------------------------------------------------------
 class NeuronUpdateProcess : public AcceptableModelComponent<NeuronUpdateProcess, Process>
@@ -54,7 +45,7 @@ public:
     // Static API
     //------------------------------------------------------------------------
     static std::shared_ptr<NeuronUpdateProcess> create(const std::string &code, const ParameterMap &parameters, 
-                                                       const VariableMap &variables, const EventContainerMap &outputEvents,
+                                                       const VariableMap &variables, const EventContainerMap &outputEvents = {},
                                                        const std::string &name = "")
     {
         return std::make_shared<NeuronUpdateProcess>(Private(), code, parameters, variables, outputEvents, name);

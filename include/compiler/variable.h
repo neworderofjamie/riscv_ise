@@ -14,11 +14,11 @@
 //----------------------------------------------------------------------------
 // Variable
 //----------------------------------------------------------------------------
-class Variable : public AcceptableModelComponent<Variable>
+class Variable : public AcceptableModelComponent<Variable, State>
 {
 public:
     Variable(Private, const Shape &shape, const GeNN::Type::ResolvedType &type, const std::string &name)
-    :   AcceptableModelComponent<Variable>(name), m_Shape(shape), m_Type(type)
+    :   AcceptableModelComponent<Variable, State>(name), m_Shape(shape), m_Type(type)
     {}
 
     //------------------------------------------------------------------------

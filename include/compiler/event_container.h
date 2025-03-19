@@ -11,11 +11,11 @@
 //----------------------------------------------------------------------------
 // EventContainer
 //----------------------------------------------------------------------------
-class EventContainer : public AcceptableModelComponent<EventContainer>
+class EventContainer : public AcceptableModelComponent<EventContainer, State>
 {
 public:
     EventContainer(Private, const Shape &shape, const std::string &name)
-    :   AcceptableModelComponent<EventContainer>(name), m_Shape(shape)
+    :   AcceptableModelComponent<EventContainer, State>(name), m_Shape(shape)
     {}
 
     //------------------------------------------------------------------------

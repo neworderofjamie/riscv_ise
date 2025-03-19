@@ -12,12 +12,12 @@
 //----------------------------------------------------------------------------
 // Parameter
 //----------------------------------------------------------------------------
-class Parameter : public AcceptableModelComponent<Parameter>
+class Parameter : public AcceptableModelComponent<Parameter, State>
 {
 public:
     Parameter(Private, const GeNN::Type::NumericValue &value,
               const GeNN::Type::ResolvedType &type, const std::string &name)
-    :   AcceptableModelComponent<Parameter>(name), m_Value(value), m_Type(type)
+    :   AcceptableModelComponent<Parameter, State>(name), m_Value(value), m_Type(type)
     {}
 
     //------------------------------------------------------------------------

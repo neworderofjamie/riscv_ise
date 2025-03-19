@@ -1,6 +1,7 @@
 #pragma once
 
 // Standard C++ includes
+#include <memory>
 #include <string>
 
 // Forward declarations
@@ -17,19 +18,19 @@ class Variable;
 class ModelComponentVisitor
 {
 public:
-    virtual void visit(const EventContainer&){}
-    virtual void visit(const Parameter&){}
-    virtual void visit(const ProcessGroup&){}
-    virtual void visit(const NeuronUpdateProcess&){}
-    virtual void visit(const EventPropagationProcess&){}
-    virtual void visit(const Variable&){}
+    virtual void visit(std::shared_ptr<const EventContainer>){}
+    virtual void visit(std::shared_ptr<const Parameter>){}
+    virtual void visit(std::shared_ptr<const ProcessGroup>){}
+    virtual void visit(std::shared_ptr<const NeuronUpdateProcess>){}
+    virtual void visit(std::shared_ptr<const EventPropagationProcess>){}
+    virtual void visit(std::shared_ptr<const Variable>){}
 };
 
 //----------------------------------------------------------------------------
 // ModelComponent
 //----------------------------------------------------------------------------
 //! Base class for things that can be added to models
-class ModelComponent
+class ModelComponent : public std::enable_shared_from_this<ModelComponent>
 {
 public:
     ModelComponent(const ModelComponent&) = delete;
@@ -51,6 +52,25 @@ private:
     std::string m_Name;
 };
 
+//----------------------------------------------------------------------------
+// Process
+//----------------------------------------------------------------------------
+class Process : public ModelComponent
+{
+protected:
+    using ModelComponent::ModelComponent;
+};
+
+//----------------------------------------------------------------------------
+// State
+//----------------------------------------------------------------------------
+class State : public ModelComponent
+{
+protected:
+    using ModelComponent::ModelComponent;
+};
+
+
 //---------------------------------------------------------------------------
 // AcceptableModelComponent
 //---------------------------------------------------------------------------
@@ -60,7 +80,7 @@ class AcceptableModelComponent : public B
 public:
     virtual void accept(ModelComponentVisitor &visitor) const final
     {
-        visitor.visit(static_cast<const T&>(*this));
+        visitor.visit(std::static_pointer_cast<const T>(this->shared_from_this()));
     }
 
 protected:
