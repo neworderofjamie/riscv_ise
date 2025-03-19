@@ -289,7 +289,7 @@ private:
 
     virtual void visit(const NeuronUpdateProcess &neuronUpdateProcess)
     {
-        EnvironmentExternal env(m_CodeGenerator.get());
+        auto &c = m_CodeGenerator.get();
 
         // Build literal pool
         std::unordered_map<int16_t, VectorRegisterAllocator::RegisterPtr> literalPool;
@@ -300,23 +300,40 @@ private:
 
         // Load literals
         for(const auto &l : literalPool) {
-            env.getCodeGenerator().vlui(*l.second, (uint16_t)l.first);
+            c.vlui(*l.second, (uint16_t)l.first);
         }
 
-        // Allocate registers for Isyn and zero
-        env.add(Type::S8_7, "_zero", literalPool.at(0));
+         // For now, unrollVectorLoopBody requires SOME buffers
+        assert(!neuronUpdateProcess.getVariables().empty());
 
         // Loop through neuron variables
+        std::unordered_map<const Variable*, ScalarRegisterAllocator::RegisterPtr> varBufferRegisters;
         for(const auto &v : neuronUpdateProcess.getVariables()) {
             // Allocate scalar register to hold address of variable
             const auto reg = m_ScalarRegisterAllocator.get().getRegister((v.first + "Buffer X").c_str());
 
-            // Add (hidden) variable buffer to environment
-            env.add(GeNN::Type::Uint32, "_" + v.first + "Buffer", reg);
+            // Add register to map
+            varBufferRegisters.try_emplace(v.second, reg);
 
             // Generate code to load address
-            env.getCodeGenerator().li(*reg, m_URAMAllocations.get().at(v.second));
+            c.li(*reg, m_URAMAllocations.get().at(v.second));
         }
+
+        // Loop through neuron event outputs
+        std::unordered_map<const EventContainer*, ScalarRegisterAllocator::RegisterPtr> eventBufferRegisters;
+        for(const auto &e : neuronUpdateProcess.getOutputEvents()) {
+            // Allocate scalar register to hold address of variable
+            const auto reg = m_ScalarRegisterAllocator.get().getRegister((e.first + "Buffer X").c_str());
+
+            // Add register to map
+            eventBufferRegisters.try_emplace(e.second, reg);
+
+            // Generate code to load address
+            c.li(*reg, m_BRAMAllocations.get().at(e.second));
+        }
+        
+        // Create code generation environment
+        EnvironmentExternal env(m_CodeGenerator.get());
 
         // Loop through neuron parameters
         for(const auto &p : neuronUpdateProcess.getParameters()) {
@@ -344,33 +361,17 @@ private:
             assert(integerResult <= std::numeric_limits<int16_t>::max());
 
             // Generate code to load parameter
-            env.getCodeGenerator().vlui(*reg, (uint16_t)integerResult);
+            c.vlui(*reg, (uint16_t)integerResult);
         }
 
-        // Loop through neuron event outputs
-        for(const auto &e : neuronUpdateProcess.getOutputEvents()) {
-            // Allocate scalar register to hold address of variable
-            const auto reg = m_ScalarRegisterAllocator.get().getRegister((e.first + "Buffer X").c_str());
+        env.add(Type::S8_7, "_zero", literalPool.at(0));
 
-            // Add (hidden) variable buffer to environment
-            env.add(GeNN::Type::Uint32, "_" + e.first + "Buffer", reg);
-
-            // Generate code to load address
-            env.getCodeGenerator().li(*reg, m_BRAMAllocations.get().at(e.second));
-        }
-
-        // For now, unrollVectorLoopBody requires SOME buffers
-        assert(!neuronUpdateProcess.getVariables().empty());
-        
-        // Get register used to store address of first variable's buffer
-        const auto firstVarBufferReg = std::get<ScalarRegisterAllocator::RegisterPtr>(
-            env.getRegister("_" + neuronUpdateProcess.getVariables().begin()->first + "Buffer"));
-  
         // Build vectorised neuron loop
         AssemblerUtils::unrollVectorLoopBody(
             env.getCodeGenerator(), m_ScalarRegisterAllocator.get(), 
-            neuronUpdateProcess.getNumNeurons(), 4, *firstVarBufferReg,
-            [this, &env, &literalPool, &neuronUpdateProcess, &emitEventFunctionType]
+            neuronUpdateProcess.getNumNeurons(), 4, *varBufferRegisters.begin()->second,
+            [this, &env, &eventBufferRegisters, &literalPool, &neuronUpdateProcess, 
+             &emitEventFunctionType, &varBufferRegisters]
             (CodeGenerator &c, uint32_t r, bool, ScalarRegisterAllocator::RegisterPtr maskReg)
             {
                 EnvironmentExternal unrollEnv(env);
@@ -383,24 +384,18 @@ private:
                     // Add to environment
                     unrollEnv.add(v.second->getType(), v.first, reg);
                         
-                    // Get buffer register
-                    const auto bufferReg = std::get<ScalarRegisterAllocator::RegisterPtr>(unrollEnv.getRegister("_" + v.first + "Buffer"));
-                    
                     // Load vector from buffer
-                    unrollEnv.getCodeGenerator().vloadv(*reg, *bufferReg, 64 * r);
+                    unrollEnv.getCodeGenerator().vloadv(*reg, *varBufferRegisters.at(v.second), 64 * r);
                 }
 
                 // Loop through neuron event outputs
                 for(const auto &e : neuronUpdateProcess.getOutputEvents()) {
                     // Add function to environment to store current mask (inherently which neurons are spiking) to scalar memory
                     unrollEnv.add(emitEventFunctionType, e.first, 
-                                  [e, r](auto &env, auto&, auto&, auto maskReg, const auto&)
+                                  [e, r, &eventBufferRegisters](auto &env, auto&, auto&, auto maskReg, const auto&)
                                   {
-                                      // Get buffer register
-                                      const auto bufferReg = std::get<ScalarRegisterAllocator::RegisterPtr>(env.getRegister("_" + e.first + "Buffer"));
-                                    
                                       // Store buffer
-                                      env.getCodeGenerator().sw(*maskReg, *bufferReg, 4 * r);
+                                      env.getCodeGenerator().sw(*maskReg, *eventBufferRegisters.at(e.second), 4 * r);
                                       return std::make_pair(RegisterPtr{}, false);
                                   });
                 }
@@ -420,31 +415,22 @@ private:
                     // Get register
                     const auto reg = std::get<VectorRegisterAllocator::RegisterPtr>(unrollEnv.getRegister(v.first));
                     
-                    // Get buffer register
-                    const auto bufferReg = std::get<ScalarRegisterAllocator::RegisterPtr>(unrollEnv.getRegister("_" + v.first + "Buffer"));
-                    
                     // Store updated vector back to buffer
-                    unrollEnv.getCodeGenerator().vstore(*reg, *bufferReg, 64 * r);
+                    unrollEnv.getCodeGenerator().vstore(*reg, *varBufferRegisters.at(v.second), 64 * r);
                 }
             },
-            [this, &env, &neuronUpdateProcess]
+            [this, &env, &eventBufferRegisters, &neuronUpdateProcess, &varBufferRegisters]
             (CodeGenerator &c, uint32_t numUnrolls)
             {
-                // Loop through variables
-                for(const auto &v : neuronUpdateProcess.getVariables()) {
-                    // Get buffer register
-                    const auto bufferReg = std::get<ScalarRegisterAllocator::RegisterPtr>(env.getRegister("_" + v.first + "Buffer"));
-                    
-                    // Increment by unrolled vectors
+                // Loop through variables and increment buffers
+                for(const auto &v : neuronUpdateProcess.getVariables()) {        
+                    const auto bufferReg = varBufferRegisters.at(v.second);
                     env.getCodeGenerator().addi(*bufferReg, *bufferReg, 64 * numUnrolls);
                 }
 
-                // Loop through output events
+                // Loop through output events and increment buffers
                 for(const auto &e : neuronUpdateProcess.getOutputEvents()) {
-                     // Get buffer register
-                    const auto bufferReg = std::get<ScalarRegisterAllocator::RegisterPtr>(env.getRegister("_" + e.first + "Buffer"));
-                    
-                    // Increment by unrolled words
+                    const auto bufferReg = eventBufferRegisters.at(e.second);
                     env.getCodeGenerator().addi(*bufferReg, *bufferReg, 4 * numUnrolls);
                  }
             });
