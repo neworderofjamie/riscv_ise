@@ -1,6 +1,7 @@
 #pragma once
 
 // Standard C++ includes
+#include <memory>
 #include <vector>
 
 // GeNN includes
@@ -16,7 +17,7 @@
 class Variable : public AcceptableModelComponent<Variable>
 {
 public:
-    Variable(const Shape &shape, const GeNN::Type::ResolvedType &type, const std::string &name = "")
+    Variable(Private, const Shape &shape, const GeNN::Type::ResolvedType &type, const std::string &name)
     :   AcceptableModelComponent<Variable>(name), m_Shape(shape), m_Type(type)
     {}
 
@@ -25,6 +26,14 @@ public:
     //------------------------------------------------------------------------
     const auto &getShape() const{ return m_Shape; }
     const auto &getType() const{ return m_Type; }
+
+    //------------------------------------------------------------------------
+    // Static API
+    //------------------------------------------------------------------------
+    static std::shared_ptr<Variable> create(const Shape &shape, const GeNN::Type::ResolvedType &type, const std::string &name = "")
+    {
+        return std::make_shared<Variable>(Private(), shape, type, name);
+    }
 
 private:
     //------------------------------------------------------------------------

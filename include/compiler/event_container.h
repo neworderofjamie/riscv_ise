@@ -1,6 +1,7 @@
 #pragma once
 
 // Standard C++ includes
+#include <memory>
 #include <vector>
 
 // Compiler includes
@@ -13,7 +14,7 @@
 class EventContainer : public AcceptableModelComponent<EventContainer>
 {
 public:
-    EventContainer(const Shape &shape, const std::string &name = "")
+    EventContainer(Private, const Shape &shape, const std::string &name)
     :   AcceptableModelComponent<EventContainer>(name), m_Shape(shape)
     {}
 
@@ -21,6 +22,14 @@ public:
     // Public API
     //------------------------------------------------------------------------
     const auto &getShape() const{ return m_Shape; }
+
+    //------------------------------------------------------------------------
+    // Static API
+    //------------------------------------------------------------------------
+    static std::shared_ptr<EventContainer> create(const Shape &shape, const std::string &name = "")
+    {
+        return std::make_shared<EventContainer>(Private(), shape, name);
+    }
 
 private:
     //------------------------------------------------------------------------

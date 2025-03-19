@@ -13,7 +13,7 @@
 //----------------------------------------------------------------------------
 // NeuronUpdateProcess
 //----------------------------------------------------------------------------
-NeuronUpdateProcess::NeuronUpdateProcess(const std::string &code, const ParameterMap &parameters, 
+NeuronUpdateProcess::NeuronUpdateProcess(Private, const std::string &code, const ParameterMap &parameters, 
                                          const VariableMap &variables, const EventContainerMap &outputEvents,
                                          const std::string &name)
 :   AcceptableModelComponent<NeuronUpdateProcess, Process>(name), m_Parameters(parameters), 
@@ -53,8 +53,9 @@ NeuronUpdateProcess::NeuronUpdateProcess(const std::string &code, const Paramete
 //----------------------------------------------------------------------------
 // EventPropagationProcess
 //----------------------------------------------------------------------------
-EventPropagationProcess::EventPropagationProcess(const EventContainer *inputEvents, const Variable *weight,
-                                                 const Variable *target, const std::string &name)
+EventPropagationProcess::EventPropagationProcess(Private, std::shared_ptr<const EventContainer> inputEvents, 
+                                                 std::shared_ptr<const Variable> weight, std::shared_ptr<const Variable> target,
+                                                 const std::string &name)
 :   AcceptableModelComponent<EventPropagationProcess, Process>(name), m_InputEvents(inputEvents), 
     m_Weight(weight), m_Target(target)
 {

@@ -28,9 +28,9 @@
 #include "compiler/event_container.h"
 #include "compiler/generate_process_group.h"
 #include "compiler/memory_allocator.h"
-#include "compiler/model.h"
 #include "compiler/parameter.h"
 #include "compiler/process.h"
+#include "compiler/process_group.h"
 #include "compiler/variable.h"
 
 // RISC-V ISE includes
@@ -62,17 +62,16 @@ int main(int argc, char** argv)
 
     CLI11_PARSE(app, argc, argv);
 
-    Model model;
 
-    // Input spike source
-    const auto *inputSpikes = model.addEventContainer(inputShape);
+    // Input spikes
+    const auto inputSpikes = EventContainer::create(inputShape);
 
     // Hidden neurons
-    const auto *hiddenV = model.addVariable(hiddenShape, GeNN::Type::S10_5);
-    const auto *hiddenI = model.addVariable(hiddenShape, GeNN::Type::S10_5);
-    const auto *hiddenRefracTime = model.addVariable(hiddenShape, GeNN::Type::Int16);
-    const auto *hiddenSpikes = model.addEventContainer(hiddenShape);
-    const auto *hidden = model.addNeuronUpdateProcess(
+    const auto hiddenV = Variable::create(hiddenShape, GeNN::Type::S10_5);
+    const auto hiddenI = Variable::create(hiddenShape, GeNN::Type::S10_5);
+    const auto hiddenRefracTime = Variable::create(hiddenShape, GeNN::Type::Int16);
+    const auto hiddenSpikes = EventContainer::create(hiddenShape);
+    const auto hidden = NeuronUpdateProcess::create(
         "V = (Alpha * V) + I;\n"
         "I = 0.0h5;\n"
         "if (RefracTime > 0) {\n"
@@ -83,35 +82,35 @@ int main(int argc, char** argv)
         "   V -= VThresh;\n"
         "   RefracTime = TauRefrac;\n"
         "}\n",
-        {{"Alpha", model.addParameter(std::exp(-1.0 / 20.0), GeNN::Type::S10_5)},
-         {"VThresh", model.addParameter(0.61, GeNN::Type::S10_5)},
-         {"TauRefrac", model.addParameter(5, GeNN::Type::Int16)}},
+        {{"Alpha", Parameter::create(std::exp(-1.0 / 20.0), GeNN::Type::S10_5)},
+         {"VThresh", Parameter::create(0.61, GeNN::Type::S10_5)},
+         {"TauRefrac", Parameter::create(5, GeNN::Type::Int16)}},
         {{"V", hiddenV}, {"I", hiddenI}, {"RefracTime", hiddenRefracTime}},
         {{"Spike", hiddenSpikes}});
     
     // Output neurons
-    const auto *outputV = model.addVariable(outputShape, GeNN::Type::S9_6);
-    const auto *outputI = model.addVariable(outputShape, GeNN::Type::S9_6);
-    const auto *outputVSum = model.addVariable(outputShape, GeNN::Type::S9_6);
-    const auto *outputBias = model.addVariable(outputShape, GeNN::Type::S9_6);
-    const auto *output = model.addNeuronUpdateProcess(
+    const auto outputV = Variable::create(outputShape, GeNN::Type::S9_6);
+    const auto outputI = Variable::create(outputShape, GeNN::Type::S9_6);
+    const auto outputVSum = Variable::create(outputShape, GeNN::Type::S9_6);
+    const auto outputBias = Variable::create(outputShape, GeNN::Type::S9_6);
+    const auto output = NeuronUpdateProcess::create(
         "V = (Alpha * V) + I + Bias;\n"
         "I = 0.0h6;\n"
         "VSum += V;\n",
-        {{"Alpha", model.addParameter(std::exp(-1.0 / 20.0), GeNN::Type::S9_6)}},
+        {{"Alpha", Parameter::create(std::exp(-1.0 / 20.0), GeNN::Type::S9_6)}},
         {{"V", outputV}, {"VSum", outputVSum}, {"I", outputI}, {"Bias", outputBias}});
     
     // Input->Hidden event propagation
-    const auto *inputHiddenWeight = model.addVariable(inputHiddenShape, GeNN::Type::S10_5);
-    const auto *inputHidden = model.addEventPropagationProcess(inputSpikes, inputHiddenWeight, hiddenI);
+    const auto inputHiddenWeight = Variable::create(inputHiddenShape, GeNN::Type::S10_5);
+    const auto inputHidden = EventPropagationProcess::create(inputSpikes, inputHiddenWeight, hiddenI);
 
     // Hidden->Output event propagation
-    const auto *hiddenOutputWeight = model.addVariable(hiddenOutputShape, GeNN::Type::S9_6);
-    const auto *hiddenOutput = model.addEventPropagationProcess(hiddenSpikes, hiddenOutputWeight, outputI);
+    const auto hiddenOutputWeight = Variable::create(hiddenOutputShape, GeNN::Type::S9_6);
+    const auto hiddenOutput = EventPropagationProcess::create(hiddenSpikes, hiddenOutputWeight, outputI);
 
     // Group processes
-    const auto *neuronUpdateProcesses = model.addProcessGroup({hidden, output});
-    const auto *synapseUpdateProcesses = model.addProcessGroup({inputHidden, hiddenOutput});
+    const auto neuronUpdateProcesses = ProcessGroup::create({hidden, output});
+    const auto synapseUpdateProcesses = ProcessGroup::create({inputHidden, hiddenOutput});
 
     // Allocate memory
     MemoryAllocator memoryAllocator;

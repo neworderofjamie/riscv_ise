@@ -18,7 +18,6 @@
     <ClCompile Include="shape.cc" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\include\compiler\events.h" />
     <ClInclude Include="..\..\include\compiler\event_container.h" />
     <ClInclude Include="..\..\include\compiler\generate_process_group.h" />
     <ClInclude Include="..\..\include\compiler\memory_allocator.h" />
@@ -27,7 +26,6 @@
     <ClInclude Include="..\..\include\compiler\shape.h" />
     <ClInclude Include="..\..\include\compiler\variable.h" />
     <ClInclude Include="..\..\include\compiler\compiler.h" />
-    <ClInclude Include="..\..\include\compiler\model.h" />
     <ClInclude Include="..\..\include\compiler\parameter.h" />
     <ClInclude Include="..\..\include\compiler\process.h" />
   </ItemGroup>

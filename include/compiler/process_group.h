@@ -1,6 +1,7 @@
 #pragma once
 
 // Standard C++ includes
+#include <memory>
 #include <vector>
 
 // Compiler includes
@@ -15,7 +16,7 @@ class Process;
 class ProcessGroup : public AcceptableModelComponent<ProcessGroup>
 {
 public:
-    ProcessGroup(const std::vector<const Process*> processes, const std::string &name = "")
+    ProcessGroup(Private, const std::vector<std::shared_ptr<const Process>> &processes, const std::string &name)
     :   AcceptableModelComponent<ProcessGroup>(name), m_Processes(processes)
     {}
 
@@ -24,9 +25,17 @@ public:
     //------------------------------------------------------------------------
     const auto &getProcesses() const{ return m_Processes; }
 
+    //------------------------------------------------------------------------
+    // Static API
+    //------------------------------------------------------------------------
+    static std::shared_ptr<ProcessGroup> create(const std::vector<std::shared_ptr<const Process>> &processes, const std::string &name = "")
+    {
+        return std::make_shared<ProcessGroup>(Private(), processes, name);
+    }
+
 private:
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
-    std::vector<const Process*> m_Processes;
+    std::vector<std::shared_ptr<const Process>> m_Processes;
 };
