@@ -61,7 +61,7 @@ void DMAController::startWrite(uint32_t destination, const DMABuffer &sourceBuff
         throw std::runtime_error("DMA writes to URAM must be 64 byte aligned");
     }
     
-    if(size > ((1 << 15) - 1)) {
+    if(size > ((1 << 19) - 1)) {
         throw std::runtime_error("Maximum size of DMA exceeded");
     }
 

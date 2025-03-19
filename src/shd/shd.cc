@@ -19,6 +19,8 @@
 #include "common/CLI11.hpp"
 #include "common/app_utils.h"
 #include "common/device.h"
+#include "common/dma_buffer.h"
+#include "common/dma_controller.h"
 #include "common/utils.h"
 
 // RISC-V assembler includes
@@ -263,12 +265,11 @@ int main(int argc, char** argv)
     constexpr uint32_t numInputSpikeArrayWords = numInputSpikeWords * numTimesteps;
 
     // Allocate vector arrays
-    // **NOTE** these are adjacent so data can be block-copied from scalar memory
-    const uint32_t seedPtr = AppUtils::allocateVectorAndZero(32 * 2, vectorInitData);
-    const uint32_t weightInHidPtr = AppUtils::allocateVectorAndZero(numInput * numHiddenSpikeWords * 32, vectorInitData);
-    const uint32_t weightHidOutPtr = AppUtils::allocateVectorAndZero(numHidden * numOutputSpikeWords * 32, vectorInitData);
-    const uint32_t weightHidHidPtr = AppUtils::allocateVectorAndZero(numHidden * numHiddenSpikeWords * 32, vectorInitData);
-    const uint32_t outputBiasPtr = AppUtils::allocateVectorAndZero(numOutputSpikeWords * 32, vectorInitData);
+    const uint32_t seedPtr = AppUtils::allocateVectorSeedAndInit(vectorInitData);
+    const uint32_t weightInHidPtr = AppUtils::loadVectors("99-Conn_Pop0_Pop1-g.bin", vectorInitData);
+    const uint32_t weightHidOutPtr = AppUtils::loadVectors("99-Conn_Pop1_Pop2-g.bin", vectorInitData);
+    const uint32_t weightHidHidPtr = AppUtils::loadVectors("99-Conn_Pop1_Pop1-g.bin", vectorInitData);
+    const uint32_t outputBiasPtr = AppUtils::loadVectors("99-Pop2-Bias.bin", vectorInitData);
     
     const uint32_t hiddenIsynPtr = AppUtils::allocateVectorAndZero(numHidden, vectorInitData);
     const uint32_t hiddenVPtr = AppUtils::allocateVectorAndZero(numHidden, vectorInitData);
@@ -287,42 +288,12 @@ int main(int argc, char** argv)
 
     // Increase scalar memory for buffering
     assert(scalarInitData.size() <= (128 * 1024));
-    scalarInitData.resize(128 * 1024, 0);
+    assert(vectorInitData.size() <= (512 * 1024));
 
     // Load dataset (this is streamed)
     const auto shdSpikes = AppUtils::loadBinaryData<uint32_t>("shd_spikes.bin");
     const auto shdLabels = AppUtils::loadBinaryData<int16_t>("shd_labels.bin");
 
-    // Load weights
-    const auto weightInHid = AppUtils::loadBinaryData<uint8_t>("99-Conn_Pop0_Pop1-g.bin");
-    const auto weightHidOut = AppUtils::loadBinaryData<uint8_t>("99-Conn_Pop1_Pop2-g.bin");
-    const auto weightHidHid = AppUtils::loadBinaryData<uint8_t>("99-Conn_Pop1_Pop1-g.bin");
-    const auto outputBias = AppUtils::loadBinaryData<uint8_t>("99-Pop2-Bias.bin");
-
-    // Load seed
-    const auto seed = AppUtils::getSeedData();
-
-    // Check first three are correctly padded
-    assert(weightInHid.size() == numInput * numHiddenSpikeWords * 64);
-    assert(weightHidOut.size() == numHidden * numOutputSpikeWords * 64);
-    assert(weightHidHid.size() == numHidden * numHiddenSpikeWords * 64);
-    
-    // Concatenate into single vector
-    std::vector<uint8_t> copyData;
-    copyData.reserve(seed.size() + weightInHid.size() + weightHidOut.size() + weightHidHid.size() + outputBias.size());
-    std::copy(seed.cbegin(), seed.cend(), std::back_inserter(copyData));
-    std::copy(weightInHid.cbegin(), weightInHid.cend(), std::back_inserter(copyData));
-    std::copy(weightHidOut.cbegin(), weightHidOut.cend(), std::back_inserter(copyData));
-    std::copy(weightHidHid.cbegin(), weightHidHid.cend(), std::back_inserter(copyData));
-    std::copy(outputBias.cbegin(), outputBias.cend(), std::back_inserter(copyData));
-
-    // Generate code to copy blocks of data from scalar to vector memory
-    const uint32_t copyStartVectorPtr = 0;
-    const uint32_t copyNumVectorsPtr = 4;
-    const uint32_t copyReadyFlagPtr = 8;
-    const uint32_t copyScalarScratchPtr = 12;
-    const auto copyCode = AssemblerUtils::generateInitCode(!device, copyStartVectorPtr, copyNumVectorsPtr, 
-                                                           copyReadyFlagPtr, copyScalarScratchPtr);
 
     const auto initCode = AssemblerUtils::generateStandardKernel(
         !device, readyFlagPtr,
@@ -332,7 +303,7 @@ int main(int argc, char** argv)
             // RNG
             // ---------------------------------------------------------------
             {
-        	    // Register allocation
+        	// Register allocation
                 ALLOCATE_SCALAR(SSeedBuffer);
 
                 // Get seed pointer
@@ -341,71 +312,6 @@ int main(int argc, char** argv)
                 // Load RNG seed into dedicated registers
                 c.vloadr0(*SSeedBuffer);
                 c.vloadr1(*SSeedBuffer, 64);
-            }
-
-            // ---------------------------------------------------------------
-            // Hidden neurons
-            // ---------------------------------------------------------------
-            {
-                // Register allocation
-                ALLOCATE_SCALAR(SVBuffer);
-                ALLOCATE_SCALAR(SABuffer);
-                ALLOCATE_SCALAR(SISynBuffer);
-                ALLOCATE_SCALAR(SRefracTimeBuffer);
-                ALLOCATE_VECTOR(VZero);
-                
-                // Load constants
-                c.vlui(*VZero, 0);
-
-                // Get address of buffers
-                c.li(*SVBuffer, hiddenVPtr);
-                c.li(*SABuffer, hiddenAPtr);
-                c.li(*SISynBuffer, hiddenIsynPtr);
-                c.li(*SRefracTimeBuffer, hiddenRefracTimePtr);
-
-                // Hidden neuron loop
-                AssemblerUtils::unrollVectorLoopBody(
-                    c, scalarRegisterAllocator, numHidden, 4, *SVBuffer,
-                    [&scalarRegisterAllocator, &vectorRegisterAllocator,
-                    hiddenAFixedPoint,
-                    SABuffer, SISynBuffer, SRefracTimeBuffer, SVBuffer, VZero]
-                    (CodeGenerator &c, uint32_t r, bool, ScalarRegisterAllocator::RegisterPtr maskReg)
-                    {
-                        assert(!maskReg);
-                        
-                        c.vstore(*VZero, *SVBuffer, r * 64);
-                        c.vstore(*VZero, *SABuffer, r * 64);
-                        c.vstore(*VZero, *SISynBuffer, r * 64);
-                        c.vstore(*VZero, *SRefracTimeBuffer, r * 64);
-                    },
-                    [SABuffer, SISynBuffer, SRefracTimeBuffer, SVBuffer]
-                    (CodeGenerator &c, uint32_t numUnrolls)
-                    {
-                        c.addi(*SVBuffer, *SVBuffer, 64 * numUnrolls);
-                        c.addi(*SABuffer, *SABuffer, 64 * numUnrolls);
-                        c.addi(*SISynBuffer, *SISynBuffer, 64 * numUnrolls);
-                        c.addi(*SRefracTimeBuffer, *SRefracTimeBuffer, 64 * numUnrolls);
-                    });
-            }
-
-            // ---------------------------------------------------------------
-            // Output neurons
-            // ---------------------------------------------------------------
-            {
-                // Register allocation
-                ALLOCATE_SCALAR(SVBuffer);
-                ALLOCATE_SCALAR(SISynBuffer);
-                ALLOCATE_VECTOR(VZero);
-                
-                // Load constants
-                c.vlui(*VZero, 0);
-               
-                // Get address of voltage and Isyn buffers
-                c.li(*SVBuffer, outputVPtr);
-                c.li(*SISynBuffer, outputIsynPtr);
-
-                c.vstore(*VZero, *SVBuffer);
-                c.vstore(*VZero, *SISynBuffer);
             }
         });
 
@@ -754,16 +660,27 @@ int main(int argc, char** argv)
         LOGI << "Resetting";
         device.setEnabled(false);
 
-        // Copying
-        const auto copyStartTime = std::chrono::high_resolution_clock::now();
         {
-            LOGI << "Copying copy instructions (" << copyCode.size() * sizeof(uint32_t) << " bytes)";
-            device.uploadCode(copyCode);
+            LOGI << "DMAing vector init data to device";
+           
+            // Create DMA buffer
+            DMABuffer dmaBuffer;
 
-            // Run kernels to copy initData into vector memory
-            device.runInit(copyData, copyStartVectorPtr, copyNumVectorsPtr, copyScalarScratchPtr, seedPtr, copyReadyFlagPtr);
+            // Check there's enough space for vector init data
+            assert(dmaBuffer.getSize() > (vectorInitData.size() * 2));
+
+            // Get halfword pointer to DMA buffer
+            int16_t *bufferData = reinterpret_cast<int16_t*>(dmaBuffer.getData());
+            
+            // Copy vector init data to buffer
+            std::copy(vectorInitData.cbegin(), vectorInitData.cend(), bufferData);
+            
+            // Start DMA of data to URAM
+            device.getDMAController()->startWrite(0, dmaBuffer, 0, vectorInitData.size() * 2);
+    
+            // Wait for write to complete
+            device.getDMAController()->waitForWriteComplete();
         }
-
 
         // Initialisation seeding
         const auto initStartTime = std::chrono::high_resolution_clock::now();
@@ -776,6 +693,7 @@ int main(int argc, char** argv)
             device.waitOnNonZero(readyFlagPtr);
             device.setEnabled(false);
         }
+        
         
         // Simulation
         const auto simStartTime = std::chrono::high_resolution_clock::now();
@@ -818,41 +736,17 @@ int main(int argc, char** argv)
             const auto simEndTime = std::chrono::high_resolution_clock::now();
             std::cout << numCorrect << " / " << numExamples << " correct (" << 100.0 * (numCorrect / (double)numExamples) << "%)" << std::endl;
             std::cout << "Simulation compute time:" << duration.count() << " seconds" << std::endl;
-            std::cout << "Startup time:" << (copyStartTime - programStartTime).count() << " seconds" << std::endl;
-            std::cout << "Copy time:" << (initStartTime - copyStartTime).count() << " seconds" << std::endl;
+            std::cout << "Startup time:" << (initStartTime - programStartTime).count() << " seconds" << std::endl;
             std::cout << "Init time:" << (simStartTime - initStartTime).count() << " seconds" << std::endl;
             std::cout << "Simulation time:" << (simEndTime - simStartTime).count() << " seconds" << std::endl;
         }
     }
     else {
         // Create RISC-V core with instruction and scalar data
-        RISCV riscV(copyCode, scalarInitData);
+        RISCV riscV(code, scalarInitData);
     
         // Add vector co-processor
         riscV.addCoprocessor<VectorProcessor>(vectorQuadrant, vectorInitData);
-        
-        // Run kernels to copy initData into vector memory
-        if(!riscV.runInit(copyData, copyStartVectorPtr, copyNumVectorsPtr, copyScalarScratchPtr, seedPtr)) {
-            return 1;
-        }
-
-        // Reset stats for simulations
-        riscV.resetStats();
-
-        // Load init program
-        riscV.setInstructions(initCode);
-
-        // Run RISC-V to initialize
-        riscV.setPC(0);
-        if(!riscV.run()) {
-            return 1;
-        }
-
-        // Reset stats for simulations
-        riscV.resetStats();
-
-        // Load simulation program
-        riscV.setInstructions(code);
 
         // Get pointers to scalar memory
         auto *scalarData = riscV.getScalarDataMemory().getData().data();

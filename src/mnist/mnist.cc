@@ -590,13 +590,11 @@ int main(int argc, char** argv)
             // Copy vector init data to buffer
             std::copy(vectorInitData.cbegin(), vectorInitData.cend(), bufferData);
             
-            for(int i = 0; i < vectorInitData.size() * 2; i += 8192) {
-                // Start DMA of data to URAM
-                device.getDMAController()->startWrite(i, dmaBuffer, i, std::min(8192ull, (vectorInitData.size() * 2) - 8192ull));
+            // Start DMA of data to URAM
+            device.getDMAController()->startWrite(0, dmaBuffer, 0, vectorInitData.size() * 2);
     
-                // Wait for write to complete
-                device.getDMAController()->waitForWriteComplete();
-            }
+            // Wait for write to complete
+            device.getDMAController()->waitForWriteComplete();
         }
         
         // Simulation

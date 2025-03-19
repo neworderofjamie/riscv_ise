@@ -60,8 +60,6 @@ uint32_t allocateVectorAndZero(size_t numHalfWords, std::vector<int16_t> &memory
 uint32_t allocateVectorSeedAndInit(std::vector<int16_t> &memory,
                                    const std::optional<std::array<int16_t, 64>> &seed)
 {
-    LOGW << "allocateVectorSeedAndInit is not supported on devices without direct vector memory access";
-
     // Allocate two vectors of seed
     const uint32_t startBytes = allocateVectorAndZero(64, memory);
 
