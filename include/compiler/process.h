@@ -1,6 +1,7 @@
 #pragma once
 
 // Standard C++ includes
+#include <memory>
 #include <string>
 #include <unordered_map>
 
@@ -15,9 +16,9 @@ class EventContainer;
 class Parameter;
 class Variable;
 
-using EventContainerMap = std::unordered_map<std::string, const EventContainer*>;
-using ParameterMap = std::unordered_map<std::string, const Parameter*>;
-using VariableMap = std::unordered_map<std::string, const Variable*>;
+using EventContainerMap = std::unordered_map<std::string, std::shared_ptr<EventContainer>>;
+using ParameterMap = std::unordered_map<std::string, std::shared_ptr<const Parameter>>;
+using VariableMap = std::unordered_map<std::string, std::shared_ptr<const Variable>>;
 
 //----------------------------------------------------------------------------
 // Process
@@ -34,9 +35,9 @@ protected:
 class NeuronUpdateProcess : public AcceptableModelComponent<NeuronUpdateProcess, Process>
 {
 public:
-    NeuronUpdateProcess(const std::string &code, const ParameterMap &parameters, 
+    NeuronUpdateProcess(Private, const std::string &code, const ParameterMap &parameters, 
                         const VariableMap &variables, const EventContainerMap &outputEvents,
-                        const std::string &name = "");
+                        const std::string &name);
 
     //------------------------------------------------------------------------
     // Public API
@@ -48,6 +49,16 @@ public:
     const auto &getTokens() const{ return m_Tokens; }
 
     size_t getNumNeurons() const{ return m_NumNeurons; }
+
+    //------------------------------------------------------------------------
+    // Static API
+    //------------------------------------------------------------------------
+    static std::shared_ptr<NeuronUpdateProcess> create(const std::string &code, const ParameterMap &parameters, 
+                                                       const VariableMap &variables, const EventContainerMap &outputEvents,
+                                                       const std::string &name = "")
+    {
+        return std::make_shared<NeuronUpdateProcess>(Private(), code, parameters, variables, outputEvents, name);
+    }
 
 private:
     //------------------------------------------------------------------------
@@ -68,26 +79,38 @@ private:
 class EventPropagationProcess : public AcceptableModelComponent<EventPropagationProcess, Process>
 {
 public:
-    EventPropagationProcess(const EventContainer *inputEvents, const Variable *weight,
-                            const Variable *target, const std::string &name = "");
+    EventPropagationProcess(Private, std::shared_ptr<const EventContainer> inputEvents, 
+                            std::shared_ptr<const Variable> weight, std::shared_ptr<const Variable> target,
+                            const std::string &name);
 
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
-    const auto *getInputEvents() const{ return m_InputEvents; }
-    const auto *getWeight() const{ return m_Weight; }
-    const auto *getTarget() const{ return m_Target; }
+    const auto getInputEvents() const{ return m_InputEvents; }
+    const auto getWeight() const{ return m_Weight; }
+    const auto getTarget() const{ return m_Target; }
 
     size_t getNumSourceNeurons() const{ return m_NumSourceNeurons; }
     size_t getNumTargetNeurons() const{ return m_NumTargetNeurons; }
+
+    //------------------------------------------------------------------------
+    // Static API
+    //------------------------------------------------------------------------
+    static std::shared_ptr<EventPropagationProcess> create(std::shared_ptr<const EventContainer> inputEvents, 
+                                                           std::shared_ptr<const Variable> weight,
+                                                           std::shared_ptr<const Variable> target, 
+                                                           const std::string &name = "")
+    {
+        return std::make_shared<EventPropagationProcess>(Private(), inputEvents, weight, target, name);
+    }
 
 private:
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
-    const EventContainer *m_InputEvents;
-    const Variable *m_Weight;
-    const Variable *m_Target;
+    std::shared_ptr<const EventContainer> m_InputEvents;
+    std::shared_ptr<const Variable> m_Weight;
+    std::shared_ptr<const Variable> m_Target;
     
     size_t m_NumSourceNeurons;
     size_t m_NumTargetNeurons;

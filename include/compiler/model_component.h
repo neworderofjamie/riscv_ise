@@ -42,6 +42,8 @@ public:
     const std::string &getName() const{ return m_Name; }
 
 protected:
+    struct Private{ explicit Private() = default; };
+
     ModelComponent(const std::string &name) : m_Name(name)
     {}
 
