@@ -16,68 +16,23 @@
 //----------------------------------------------------------------------------
 // MemoryAllocator
 //----------------------------------------------------------------------------
-uint32_t MemoryAllocator::allocate(const Variable &variable)
+uint32_t MemoryAllocator::allocate(uint32_t sizeBytes)
 {
-    assert(m_URAMHighWaterBytes % 64 == 0);
+    assert(m_HighWaterBytes % m_AlignementBytes == 0);
 
-    // Pad variable size to 64 bytes
-    const size_t varSize = padSize(variable.getShape().getFlattenedSize() 
-                                   * variable.getType().getSize(0), 64);
+    // Pad variable size to alignement bytes
+    const size_t varSize = padSize(sizeBytes, m_AlignementBytes);
 
     // Update highwater and check against size
-    const size_t newHighWaterBytes = m_URAMHighWaterBytes + varSize;
-    if(newHighWaterBytes > m_URAMSizeBytes) {
-        throw std::runtime_error("URAM exceeded");
+    const size_t newHighWaterBytes = m_HighWaterBytes + varSize;
+    if(newHighWaterBytes > m_SizeBytes) {
+        throw std::runtime_error("Memory exceeded");
     }
 
-    LOGD << "Allocating " << varSize << " bytes of URAM starting at " << m_URAMHighWaterBytes << " bytes for variable '" << variable.getName() << "'";    
+    LOGD << "Allocating " << varSize << " bytes of memorty starting at " << m_HighWaterBytes << " bytes";    
 
     // Stash old high-water mark, update and return
-    const uint32_t address = m_URAMHighWaterBytes;
-    m_URAMHighWaterBytes = newHighWaterBytes;
+    const uint32_t address = m_HighWaterBytes;
+    m_HighWaterBytes = newHighWaterBytes;
     return address;
-}
-//----------------------------------------------------------------------------
-uint32_t MemoryAllocator::allocate(const EventContainer &eventContainer)
-{
-    assert(m_BRAMHighWaterBytes % 4 == 0);
-
-    // Events are stored 1 bit per neuron in 32-bit words
-    const size_t numEventWords = ceilDivide(eventContainer.getShape().getNumNeurons(), 32);
-
-    // Update highwater and check against size
-    const size_t newHighWaterBytes = m_BRAMHighWaterBytes + (numEventWords * 4);
-    if(newHighWaterBytes > m_BRAMSizeBytes) {
-        throw std::runtime_error("BRAM exceeded");
-    }
-
-    LOGD << "Allocating " << numEventWords * 4 << " bytes of BRAM starting at " << m_BRAMHighWaterBytes << " bytes for event container '" << eventContainer.getName() << "'";
-
-    // Stash old high-water mark, update and return
-    const uint32_t address = m_BRAMHighWaterBytes;
-    m_BRAMHighWaterBytes = newHighWaterBytes;
-    return address;
-}
-
-//----------------------------------------------------------------------------
-// MemoryAllocatorVisitor
-//----------------------------------------------------------------------------
-MemoryAllocatorVisitor::MemoryAllocatorVisitor(MemoryAllocator &memoryAllocator)
-:   m_MemoryAllocator(memoryAllocator)
-{
-
-}
-//------------------------------------------------------------------------
-void MemoryAllocatorVisitor::visit(const EventContainer &eventContainer)
-{
-    if(!m_BRAMAllocations.try_emplace(&eventContainer, m_MemoryAllocator.get().allocate(eventContainer)).second) {
-        throw std::runtime_error("BRAM already allocated for event container");
-    }
-}
-//----------------------------------------------------------------------------
-void MemoryAllocatorVisitor::visit(const Variable &variable)
-{
-    if(!m_URAMAllocations.try_emplace(&variable, m_MemoryAllocator.get().allocate(variable)).second) {
-        throw std::runtime_error("URAM already allocated for variable");
-    }
 }
