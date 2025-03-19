@@ -1,3 +1,5 @@
+#include "compiler/generate_process_group.h"
+
 // Standard C++ include
 #include <functional>
 #include <unordered_map>
@@ -258,22 +260,20 @@ void compileStatements(const std::vector<Token> &tokens, const Type::TypeContext
 class CodeGeneratorVisitor : public ModelComponentVisitor
 {
 public:
-    CodeGeneratorVisitor(const ProcessGroup *processGroup, CodeGenerator &codeGenerator, 
+    CodeGeneratorVisitor(std::shared_ptr<const ProcessGroup> processGroup, CodeGenerator &codeGenerator, 
                          VectorRegisterAllocator &vectorRegisterAllocator, 
                          ScalarRegisterAllocator &scalarRegisterAllocator, 
-                         const std::unordered_map<const ModelComponent*, uint32_t> &uramAllocations,
-                         const std::unordered_map<const ModelComponent*, uint32_t> &bramAllocations)
+                         const ProcessFields &processFields)
     :   m_CodeGenerator(codeGenerator), m_VectorRegisterAllocator(vectorRegisterAllocator),
-        m_ScalarRegisterAllocator(scalarRegisterAllocator), m_URAMAllocations(uramAllocations),
-        m_BRAMAllocations(bramAllocations)
+        m_ScalarRegisterAllocator(scalarRegisterAllocator), m_ProcessFields(processFields)
     {
         // Visit all the processes
-        for(const auto *p : processGroup->getProcesses()) {
+        for(const auto p : processGroup->getProcesses()) {
             p->accept(*this);
         }
 
         // Loop through all grouped event propagation processes
-        for(const auto &e : m_EventPropagationProcesses) {
+        for(const auto e : m_EventPropagationProcesses) {
             generateEventPropagationProcesses(e.second);
         }
     }
@@ -282,18 +282,21 @@ private:
     //------------------------------------------------------------------------
     // ModelComponentVisitor virtuals
     //------------------------------------------------------------------------
-    virtual void visit(const ProcessGroup &processGroup) final
+    virtual void visit(std::shared_ptr<const ProcessGroup> processGroup) final
     {
         assert(false);
     }
 
-    virtual void visit(const NeuronUpdateProcess &neuronUpdateProcess)
+    virtual void visit(std::shared_ptr<const NeuronUpdateProcess> neuronUpdateProcess)
     {
         auto &c = m_CodeGenerator.get();
 
+        // Get fields associated with this process
+        const auto &stateFields = m_ProcessFields.get().at(neuronUpdateProcess);
+
         // Build literal pool
         std::unordered_map<int16_t, VectorRegisterAllocator::RegisterPtr> literalPool;
-        updateLiteralPool(neuronUpdateProcess.getTokens(), {}, m_VectorRegisterAllocator.get(), literalPool);
+        updateLiteralPool(neuronUpdateProcess->getTokens(), {}, m_VectorRegisterAllocator.get(), literalPool);
         
         // Define type for event-emitting function
         const auto emitEventFunctionType = Type::ResolvedType::createFunction(Type::Void, {});
@@ -304,11 +307,11 @@ private:
         }
 
          // For now, unrollVectorLoopBody requires SOME buffers
-        assert(!neuronUpdateProcess.getVariables().empty());
+        assert(!neuronUpdateProcess->getVariables().empty());
 
         // Loop through neuron variables
-        std::unordered_map<const Variable*, ScalarRegisterAllocator::RegisterPtr> varBufferRegisters;
-        for(const auto &v : neuronUpdateProcess.getVariables()) {
+        std::unordered_map<std::shared_ptr<const Variable>, ScalarRegisterAllocator::RegisterPtr> varBufferRegisters;
+        for(const auto v : neuronUpdateProcess->getVariables()) {
             // Allocate scalar register to hold address of variable
             const auto reg = m_ScalarRegisterAllocator.get().getRegister((v.first + "Buffer X").c_str());
 
@@ -316,12 +319,12 @@ private:
             varBufferRegisters.try_emplace(v.second, reg);
 
             // Generate code to load address
-            c.li(*reg, m_URAMAllocations.get().at(v.second));
+            c.lw(*reg, Reg::X0, stateFields.at(v.second));
         }
 
         // Loop through neuron event outputs
-        std::unordered_map<const EventContainer*, ScalarRegisterAllocator::RegisterPtr> eventBufferRegisters;
-        for(const auto &e : neuronUpdateProcess.getOutputEvents()) {
+        std::unordered_map<std::shared_ptr<const EventContainer>, ScalarRegisterAllocator::RegisterPtr> eventBufferRegisters;
+        for(const auto e : neuronUpdateProcess->getOutputEvents()) {
             // Allocate scalar register to hold address of variable
             const auto reg = m_ScalarRegisterAllocator.get().getRegister((e.first + "Buffer X").c_str());
 
@@ -329,14 +332,14 @@ private:
             eventBufferRegisters.try_emplace(e.second, reg);
 
             // Generate code to load address
-            c.li(*reg, m_BRAMAllocations.get().at(e.second));
+            c.lw(*reg, Reg::X0, stateFields.at(e.second));
         }
         
         // Create code generation environment
         EnvironmentExternal env(m_CodeGenerator.get());
 
         // Loop through neuron parameters
-        for(const auto &p : neuronUpdateProcess.getParameters()) {
+        for(const auto p : neuronUpdateProcess->getParameters()) {
             // Allocate vector register for parameter
             const auto reg = m_VectorRegisterAllocator.get().getRegister((p.first + " V").c_str());
 
@@ -369,7 +372,7 @@ private:
         // Build vectorised neuron loop
         AssemblerUtils::unrollVectorLoopBody(
             env.getCodeGenerator(), m_ScalarRegisterAllocator.get(), 
-            neuronUpdateProcess.getNumNeurons(), 4, *varBufferRegisters.begin()->second,
+            neuronUpdateProcess->getNumNeurons(), 4, *varBufferRegisters.begin()->second,
             [this, &env, &eventBufferRegisters, &literalPool, &neuronUpdateProcess, 
              &emitEventFunctionType, &varBufferRegisters]
             (CodeGenerator &c, uint32_t r, bool, ScalarRegisterAllocator::RegisterPtr maskReg)
@@ -377,7 +380,7 @@ private:
                 EnvironmentExternal unrollEnv(env);
 
                 // Loop through variables
-                for(const auto &v : neuronUpdateProcess.getVariables()) {
+                for(const auto v : neuronUpdateProcess->getVariables()) {
                     // Allocate vector register
                     const auto reg = m_VectorRegisterAllocator.get().getRegister((v.first + " V").c_str());
 
@@ -389,7 +392,7 @@ private:
                 }
 
                 // Loop through neuron event outputs
-                for(const auto &e : neuronUpdateProcess.getOutputEvents()) {
+                for(const auto e : neuronUpdateProcess->getOutputEvents()) {
                     // Add function to environment to store current mask (inherently which neurons are spiking) to scalar memory
                     unrollEnv.add(emitEventFunctionType, e.first, 
                                   [e, r, &eventBufferRegisters](auto &env, auto&, auto&, auto maskReg, const auto&)
@@ -404,14 +407,14 @@ private:
                 {
                     TypeChecker::EnvironmentInternal typeCheckEnv(unrollEnv);
                     EnvironmentInternal compilerEnv(unrollEnv);
-                    ErrorHandler errorHandler("Neuron update process '" + neuronUpdateProcess.getName() + "'");        
-                    compileStatements(neuronUpdateProcess.getTokens(), {}, literalPool, typeCheckEnv, compilerEnv,
+                    ErrorHandler errorHandler("Neuron update process '" + neuronUpdateProcess->getName() + "'");        
+                    compileStatements(neuronUpdateProcess->getTokens(), {}, literalPool, typeCheckEnv, compilerEnv,
                                      errorHandler, nullptr, nullptr, m_ScalarRegisterAllocator.get(),
                                      m_VectorRegisterAllocator.get());
                 }
 
                 // Loop through variables
-                for(const auto &v : neuronUpdateProcess.getVariables()) {
+                for(const auto v : neuronUpdateProcess->getVariables()) {
                     // Get register
                     const auto reg = std::get<VectorRegisterAllocator::RegisterPtr>(unrollEnv.getRegister(v.first));
                     
@@ -423,13 +426,13 @@ private:
             (CodeGenerator &c, uint32_t numUnrolls)
             {
                 // Loop through variables and increment buffers
-                for(const auto &v : neuronUpdateProcess.getVariables()) {        
+                for(const auto v : neuronUpdateProcess->getVariables()) {        
                     const auto bufferReg = varBufferRegisters.at(v.second);
                     env.getCodeGenerator().addi(*bufferReg, *bufferReg, 64 * numUnrolls);
                 }
 
                 // Loop through output events and increment buffers
-                for(const auto &e : neuronUpdateProcess.getOutputEvents()) {
+                for(const auto e : neuronUpdateProcess->getOutputEvents()) {
                     const auto bufferReg = eventBufferRegisters.at(e.second);
                     env.getCodeGenerator().addi(*bufferReg, *bufferReg, 4 * numUnrolls);
                  }
@@ -437,16 +440,16 @@ private:
         
     }
 
-    virtual void visit(const EventPropagationProcess &eventPropagationProcess)
+    virtual void visit(std::shared_ptr<const EventPropagationProcess> eventPropagationProcess)
     {
         // Add event propagation process to vector of processes with same input event container
-        m_EventPropagationProcesses[eventPropagationProcess.getInputEvents()].emplace_back(eventPropagationProcess);
+        m_EventPropagationProcesses[eventPropagationProcess->getInputEvents()].emplace_back(eventPropagationProcess);
     }
 
     //------------------------------------------------------------------------
     // Private methods
     //------------------------------------------------------------------------
-    void generateEventPropagationProcesses(const std::vector<std::reference_wrapper<const EventPropagationProcess>> &processes)
+    void generateEventPropagationProcesses(const std::vector<std::shared_ptr<const EventPropagationProcess>> &processes)
     {
         // Make some friendlier-named references
         auto &scalarRegisterAllocator = m_ScalarRegisterAllocator.get();
@@ -479,25 +482,25 @@ private:
             SEventBuffer = std::get<ScalarRegisterAllocator::RegisterPtr>(preSpikePtr);
         }*/
         // Generate code to load address of input event buffer
-        c.li(*SEventBuffer, m_BRAMAllocations.get().at(processes.front().get().getInputEvents()));
-    
+        c.lw(*SEventBuffer, Reg::X0, m_ProcessFields.get().at(processes.front()).at(processes.front()->getInputEvents()));
+        
         // Get address of end of input event buffer
-        c.li(*SEventBufferEnd, (ceilDivide(processes.front().get().getNumSourceNeurons(), 32) * 4));
+        c.li(*SEventBufferEnd, (ceilDivide(processes.front()->getNumSourceNeurons(), 32) * 4));
         c.add(*SEventBufferEnd, *SEventBufferEnd, *SEventBuffer);
     
 
         // Loop through postsynaptic targets
         std::vector<std::pair<ScalarRegisterAllocator::RegisterPtr, ScalarRegisterAllocator::RegisterPtr>> sTargetStrideBufferRegs;
-        for(const auto &p : processes) {
+        for(const auto p : processes) {
             // Allocate scalar registers
             auto bufferStartReg = scalarRegisterAllocator.getRegister("STargetBuffer = X");
             auto strideReg = scalarRegisterAllocator.getRegister("SStride = X");
 
-            // Load addresses as immediates
-            c.li(*bufferStartReg, m_URAMAllocations.get().at(p.get().getTarget()));
+            // Load addresses of targets
+            c.lw(*bufferStartReg, Reg::X0, m_ProcessFields.get().at(p).at(p->getTarget()));
 
             // Calculate stride and load as immediate
-            c.li(*strideReg, ceilDivide(p.get().getNumTargetNeurons(), 32) * 64);
+            c.li(*strideReg, ceilDivide(p->getNumTargetNeurons(), 32) * 64);
 
             // Add scalar registers to vector
             sTargetStrideBufferRegs.emplace_back(bufferStartReg, strideReg);
@@ -550,25 +553,26 @@ private:
 
                 // Loop through postsynaptic targets
                 for(size_t i = 0; i < processes.size(); i++) {
-                    const auto &p = processes[i].get();
+                    const auto p = processes[i];
+                    const auto &stateFields = m_ProcessFields.get().at(p);
 
                     ScalarRegisterAllocator::RegisterPtr targetReg;
                     ScalarRegisterAllocator::RegisterPtr strideReg;
                     std::tie(targetReg, strideReg) = sTargetStrideBufferRegs[i];
 
+                    // Reset target pointer
+                    c.lw(*targetReg, Reg::X0, stateFields.at(p->getTarget()));
+
                     // SWeightBuffer = weightInHidStart + (numPostVecs * 64 * SN);
                     // **TODO** multiply
                     ALLOCATE_SCALAR(SWeightBuffer);
-                    c.li(*SWeightBuffer, m_URAMAllocations.get().at(p.getWeight()));
+                    c.lw(*SWeightBuffer, Reg::X0, stateFields.at(p->getWeight()));
                     {
                         ALLOCATE_SCALAR(STemp);
                         c.mul(*STemp, *SN, *strideReg);
                         c.add(*SWeightBuffer, *SWeightBuffer, *STemp);
                     }
 
-                    // Reset target pointer
-                    c.li(*targetReg, m_URAMAllocations.get().at(p.getTarget()));
-                
                     // Load weight and Isyn
                     //if(t.debug) {
                     //    c.ebreak();
@@ -583,7 +587,7 @@ private:
                     c.vloadv(*VTarget1, *targetReg, 0);
 
                     AssemblerUtils::unrollVectorLoopBody(
-                        c, scalarRegisterAllocator, p.getNumTargetNeurons(), 4, *targetReg,
+                        c, scalarRegisterAllocator, p->getNumTargetNeurons(), 4, *targetReg,
                         [&targetReg, SWeightBuffer, VWeight, VTarget1, VTarget2, VTargetNew]
                         (CodeGenerator &c, uint32_t r, bool even, ScalarRegisterAllocator::RegisterPtr maskReg)
                         {
@@ -649,25 +653,22 @@ private:
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
-    std::unordered_map<const EventContainer*, std::vector<std::reference_wrapper<const EventPropagationProcess>>> m_EventPropagationProcesses;
+    std::unordered_map<std::shared_ptr<const EventContainer>, std::vector<std::shared_ptr<const EventPropagationProcess>>> m_EventPropagationProcesses;
     std::reference_wrapper<CodeGenerator> m_CodeGenerator;
     std::reference_wrapper<VectorRegisterAllocator> m_VectorRegisterAllocator;
     std::reference_wrapper<ScalarRegisterAllocator> m_ScalarRegisterAllocator;
-    std::reference_wrapper<const std::unordered_map<const ModelComponent*, uint32_t>> m_URAMAllocations;
-    std::reference_wrapper<const std::unordered_map<const ModelComponent*, uint32_t>> m_BRAMAllocations;
+    std::reference_wrapper<const ProcessFields> m_ProcessFields;
 };
 }
 
-std::vector<uint32_t> generateSimulationKernel(
-    const ProcessGroup *synapseProcessGroup, const ProcessGroup *neuronProcessGroup,
-    const std::unordered_map<const ModelComponent*, uint32_t> &uramAllocations,
-    const std::unordered_map<const ModelComponent*, uint32_t> &bramAllocations,
-    uint32_t numTimesteps, bool simulate)
+std::vector<uint32_t> generateSimulationKernel(std::shared_ptr<const ProcessGroup> synapseProcessGroup, 
+                                               std::shared_ptr<const ProcessGroup> neuronProcessGroup,
+                                               const ProcessFields &processFields, uint32_t numTimesteps, bool simulate)
 {
     uint32_t readyFlagPtr = 0;
     return AssemblerUtils::generateStandardKernel(
         simulate, readyFlagPtr,
-        [=, &uramAllocations, &bramAllocations]
+        [=, &processFields]
         (CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator, ScalarRegisterAllocator &scalarRegisterAllocator)
         {
             // Register allocation
@@ -686,11 +687,11 @@ std::vector<uint32_t> generateSimulationKernel(
             {
                 // Visit synapse process group
                 CodeGeneratorVisitor synapseVisitor(synapseProcessGroup, c, vectorRegisterAllocator, scalarRegisterAllocator,
-                                                    uramAllocations, bramAllocations);
+                                                    processFields);
 
                 // Visit neuron process group
                 CodeGeneratorVisitor neuronVisitor(neuronProcessGroup, c, vectorRegisterAllocator, scalarRegisterAllocator,
-                                                   uramAllocations, bramAllocations);
+                                                   processFields);
 
                 c.addi(*STime, *STime, 1);
                 c.bne(*STime, *STimeEnd, timeLoop);

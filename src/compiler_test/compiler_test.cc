@@ -30,6 +30,7 @@
 #include "compiler/memory_allocator.h"
 #include "compiler/parameter.h"
 #include "compiler/process.h"
+#include "compiler/process_fields.h"
 #include "compiler/process_group.h"
 #include "compiler/variable.h"
 
@@ -113,15 +114,21 @@ int main(int argc, char** argv)
     const auto synapseUpdateProcesses = ProcessGroup::create({inputHidden, hiddenOutput});
 
     // Allocate memory
-    MemoryAllocator memoryAllocator;
-    MemoryAllocatorVisitor memoryAllocatorVisitor(memoryAllocator);
-    model.visitComponents(memoryAllocatorVisitor);
+    BRAMAllocator bramAllocator;
+    URAMAllocator uramAllocator;
+
+    // Generate fields required for process groups
+    ProcessFields processFields;
+    addFields(synapseUpdateProcesses, bramAllocator, processFields);
+    addFields(neuronUpdateProcesses, bramAllocator, processFields);
+
+    // 1) Visit process groups and build fields
+    //MemoryAllocatorVisitor memoryAllocatorVisitor(memoryAllocator);
+    //model.visitComponents(memoryAllocatorVisitor);
 
     // Generate kernel
     const auto code = generateSimulationKernel(synapseUpdateProcesses, neuronUpdateProcesses, 
-                                               memoryAllocatorVisitor.getURAMAllocations(), 
-                                               memoryAllocatorVisitor.getBRAMAllocations(), 
-                                               1000, true);
+                                               processFields, 1000, true);
 
     for(uint32_t i: code) {
         try {

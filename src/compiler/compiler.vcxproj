@@ -15,6 +15,7 @@
     <ClCompile Include="generate_process_group.cc" />
     <ClCompile Include="memory_allocator.cc" />
     <ClCompile Include="process.cc" />
+    <ClCompile Include="process_fields.cc" />
     <ClCompile Include="shape.cc" />
   </ItemGroup>
   <ItemGroup>
@@ -22,6 +23,7 @@
     <ClInclude Include="..\..\include\compiler\generate_process_group.h" />
     <ClInclude Include="..\..\include\compiler\memory_allocator.h" />
     <ClInclude Include="..\..\include\compiler\model_component.h" />
+    <ClInclude Include="..\..\include\compiler\process_fields.h" />
     <ClInclude Include="..\..\include\compiler\process_group.h" />
     <ClInclude Include="..\..\include\compiler\shape.h" />
     <ClInclude Include="..\..\include\compiler\variable.h" />
