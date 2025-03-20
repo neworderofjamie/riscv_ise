@@ -742,14 +742,16 @@ int main(int argc, char** argv)
         }
     }
     else {
-        // Create RISC-V core with instruction and scalar data
-        RISCV riscV(code, scalarInitData);
-    
-        // Add vector co-processor
-        riscV.addCoprocessor<VectorProcessor>(vectorQuadrant, vectorInitData);
+        // Build ISE with vector co-processor
+        RISCV riscV;
+        riscV.addCoprocessor<VectorProcessor>(vectorQuadrant);
+
+        // Set instructions and vector init data
+        riscV.setInstructions(code);
+        riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getVectorDataMemory().setData(vectorInitData);
 
         // Get pointers to scalar memory
-        auto *scalarData = riscV.getScalarDataMemory().getData().data();
+        auto *scalarData = riscV.getScalarDataMemory().getData();
 
         // From this, get pointers to data structures
         const int16_t *outputVSum = reinterpret_cast<const int16_t*>(scalarData + outputVSumScalarPtr);
