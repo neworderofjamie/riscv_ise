@@ -19,11 +19,11 @@
 class InstructionMemory
 {
 public:
-    InstructionMemory(const std::vector<uint32_t> &instructions);
+    InstructionMemory(size_t numWords);
 
     uint32_t getInstruction(uint32_t addr) const;
 
-    void setInstructions(const std::vector<uint32_t> &instructions){ m_Instructions = instructions; }
+    void setInstructions(const std::vector<uint32_t> &instructions);
 
     size_t getNumInstructions() const{ return m_Instructions.size(); }
 
@@ -37,7 +37,7 @@ private:
 class ScalarDataMemory
 {
 public:
-    ScalarDataMemory(const std::vector<uint8_t> &data);
+    ScalarDataMemory(size_t numWords);
 
     uint32_t read32(uint32_t addr) const;
     void write32(uint32_t addr, uint32_t value);
@@ -48,9 +48,11 @@ public:
     uint8_t read8(uint32_t addr) const;
     void write8(uint32_t addr, uint8_t value);
     
-    auto &getData(){ return m_Data; }
-    const auto &getData() const{ return m_Data; }
+    void setData(const std::vector<uint8_t> &data);
 
+    const uint8_t *getData() const{ return m_Data.data(); }
+    uint8_t *getData(){ return m_Data.data(); }
+    
 private:
     std::vector<uint8_t> m_Data;
 };
@@ -100,16 +102,10 @@ public:
         virtual void dumpRegisters() const = 0;
     };
 
-    RISCV(const std::vector<uint32_t> &instructions, const std::vector<uint8_t> &data);
+    RISCV(size_t numInstructionWords = 1024, size_t numDataWords = 32768);
 
     bool run();
     void dumpRegisters() const;
-
-    // Copy block of init data to startVectorDestPtr in vector memory using initialistion kernel. 
-    // This works by copying blocks of data, starting at scratchScalarPtr in scalar memory up until it's end.
-    // startVectorPtr and numVectorsScalarPtr point to words in memory used to communicate with kernel
-    bool runInit(const std::vector<uint8_t> &initData, uint32_t startVectorPtr, uint32_t numVectorsScalarPtr, 
-                 uint32_t scratchScalarPtr, uint32_t startVectorDestPtr);
 
     template<typename T, typename... CoprocessorArgs>
     void addCoprocessor(uint32_t quadrant, CoprocessorArgs&&... coprocessorArg)

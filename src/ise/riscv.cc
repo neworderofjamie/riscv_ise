@@ -16,8 +16,8 @@
 //----------------------------------------------------------------------------
 // InstructionMemory
 //----------------------------------------------------------------------------
-InstructionMemory::InstructionMemory(const std::vector<uint32_t> &instructions)
-:   m_Instructions(instructions)
+InstructionMemory::InstructionMemory(size_t numWords)
+:   m_Instructions(numWords)
 {
 }
 //----------------------------------------------------------------------------
@@ -34,12 +34,21 @@ uint32_t InstructionMemory::getInstruction(uint32_t addr) const
         return m_Instructions.at(addr / 4); 
     }
 }
+//----------------------------------------------------------------------------
+void InstructionMemory::setInstructions(const std::vector<uint32_t> &instructions)
+{ 
+    // Check we're not overflowing instruction memory
+    assert(instructions.size() <= m_Instructions.size());
+
+    // Copy instructions
+    std::copy(instructions.cbegin(), instructions.cend(), m_Instructions.begin());
+}
 
 //----------------------------------------------------------------------------
 // ScalarDataMemory
 //----------------------------------------------------------------------------
-ScalarDataMemory::ScalarDataMemory(const std::vector<uint8_t> &data) 
-:   m_Data(data)
+ScalarDataMemory::ScalarDataMemory(size_t numWords) 
+:   m_Data(numWords)
 {}
 //----------------------------------------------------------------------------
 uint32_t ScalarDataMemory::read32(uint32_t addr) const
@@ -124,12 +133,21 @@ void ScalarDataMemory::write8(uint32_t addr, uint8_t value)
         m_Data[addr] = value;
     }
 }
+//----------------------------------------------------------------------------
+void ScalarDataMemory::setData(const std::vector<uint8_t> &data)
+{ 
+    // Check we're not overflowing instruction memory
+    assert(data.size() <= m_Data.size());
+
+    // Copy instructions
+    std::copy(data.cbegin(), data.cend(), m_Data.begin());
+}
 
 //----------------------------------------------------------------------------
 // RISCV
 //----------------------------------------------------------------------------
-RISCV::RISCV(const std::vector<uint32_t> &instructions, const std::vector<uint8_t> &data)
-:   m_PC(0), m_NextPC(0), m_Reg{0}, m_InstructionMemory(instructions), m_ScalarDataMemory(data)
+RISCV::RISCV(size_t numInstructionWords, size_t numDataWords)
+:   m_PC(0), m_NextPC(0), m_Reg{0}, m_InstructionMemory(numInstructionWords), m_ScalarDataMemory(numDataWords)
 {
     resetStats();
 }
@@ -252,38 +270,6 @@ void RISCV::dumpRegisters() const
             m_Coprocessors[c]->dumpRegisters();
         }
     }
-}
-//----------------------------------------------------------------------------
-bool RISCV::runInit(const std::vector<uint8_t> &initData, uint32_t startVectorPtr, uint32_t numVectorsScalarPtr, 
-                    uint32_t scratchScalarPtr, uint32_t startVectorDestPtr)
-{
-    // Get pointers to scalar memory where start pointer and count needs setting
-    auto *scalarData = getScalarDataMemory().getData().data();
-    uint32_t *startVector = reinterpret_cast<uint32_t*>(scalarData + startVectorPtr);
-    uint32_t *numVectors = reinterpret_cast<uint32_t*>(scalarData + numVectorsScalarPtr);
-
-    // Loop through vectors to copy
-    const size_t numInitVectors = ceilDivide(initData.size(), 64);
-    LOGI << "Initialising vector memory with " << initData.size() << " bytes (" << numInitVectors << " vectors) of data";
-    const size_t maxVectorsPerBatch = (getScalarDataMemory().getData().size() - scratchScalarPtr) / 64;
-    for(size_t c = 0; c < numInitVectors; c += maxVectorsPerBatch) {
-        const size_t numBatchVectors = std::min(numInitVectors - c, maxVectorsPerBatch);
-        LOGD << "Copying " << numBatchVectors << " vectors of data from scalar to vector memory starting at " << c * 64;
-
-        // Copy block of init data into scalar memory
-        std::copy_n(initData.data() + (c * 64u), numBatchVectors * 64u, scalarData + scratchScalarPtr);
-
-        // Set start and count
-        *startVector = startVectorDestPtr + (c * 64);
-        *numVectors = numBatchVectors;
-
-        // Reset program counter and run
-        setPC(0);
-        if(!run()) {
-            return false;
-        }
-    }
-    return true;
 }
 //----------------------------------------------------------------------------
 void RISCV::setInstructions(const std::vector<uint32_t> &instructions)

@@ -15,13 +15,15 @@ using Vector = std::array<int16_t, 32>;
 class VectorDataMemory
 {
 public:
-    VectorDataMemory(const std::vector<int16_t> &data);
+    VectorDataMemory(size_t numHalfWords);
 
     Vector readVector(uint32_t addr) const;
     void writeVector(uint32_t addr, const Vector &vector);
 
-    auto &getData(){ return m_Data; }
-    const auto &getData() const{ return m_Data; }
+    void setData(const std::vector<int16_t> &data);
+
+    const int16_t *getData() const{ return m_Data.data(); }
+    int16_t *getData(){ return m_Data.data(); }
 
 private:
     std::vector<int16_t> m_Data;
@@ -38,8 +40,8 @@ public:
     int16_t read(uint32_t addr) const;
     void write(uint32_t addr, int16_t data);
 
-    auto &getData(){ return m_Data; }
-    const auto &getData() const{ return m_Data; }
+    const int16_t *getData() const{ return m_Data.data(); }
+    int16_t *getData(){ return m_Data.data(); }
 
 private:
     std::vector<int16_t> m_Data;
@@ -51,7 +53,7 @@ private:
 class VectorProcessor : public RISCV::ICoprocessor
 {
 public:
-    VectorProcessor(const std::vector<int16_t> &data, size_t laneLocalMemorySize = 2304);
+    VectorProcessor(size_t vectorMemoryHalfWords = 262144, size_t laneLocalMemoryHalfWords = 1024);
 
     //------------------------------------------------------------------------
     // ICoprocessor virtuals

@@ -56,8 +56,8 @@ uint32_t maskOp(const Vector &val, const Vector &val2, F func)
 //----------------------------------------------------------------------------
 // VectorDataMemory
 //----------------------------------------------------------------------------
-VectorDataMemory::VectorDataMemory(const std::vector<int16_t> &data)
-:   m_Data(data)
+VectorDataMemory::VectorDataMemory(size_t numHalfWords)
+:   m_Data(numHalfWords)
 {
 }
 //----------------------------------------------------------------------------
@@ -95,6 +95,18 @@ void VectorDataMemory::writeVector(uint32_t addr, const Vector &vector)
     }
 }
 //----------------------------------------------------------------------------
+void VectorDataMemory::setData(const std::vector<int16_t> &data)
+{
+    // Check we're not overflowing vector memory
+    assert(data.size() <= m_Data.size());
+
+    // Copy data
+    std::copy(data.cbegin(), data.cend(), m_Data.begin());
+}
+
+//----------------------------------------------------------------------------
+// LaneLocalMemory
+//----------------------------------------------------------------------------
 LaneLocalMemory::LaneLocalMemory(size_t numEntries)
 :   m_Data(numEntries)
 {}
@@ -130,12 +142,12 @@ void LaneLocalMemory::write(uint32_t addr, int16_t data)
 //----------------------------------------------------------------------------
 // VectorProcessor
 //----------------------------------------------------------------------------
-VectorProcessor::VectorProcessor(const std::vector<int16_t> &data, size_t laneLocalMemorySize)
-:   m_VectorDataMemory(data)
+VectorProcessor::VectorProcessor(size_t vectorMemoryHalfWords, size_t laneLocalMemoryHalfWords)
+:   m_VectorDataMemory(vectorMemoryHalfWords)
 {
     m_LaneLocalMemories.reserve(32);
     for(size_t i = 0; i < 32; i++) {
-        m_LaneLocalMemories.emplace_back(laneLocalMemorySize);
+        m_LaneLocalMemories.emplace_back(laneLocalMemoryHalfWords);
     }
 }    
 //------------------------------------------------------------------------
