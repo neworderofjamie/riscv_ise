@@ -13,12 +13,16 @@
   <ItemGroup>
     <ClCompile Include="app_utils.cc" />
     <ClCompile Include="device.cc" />
+    <ClCompile Include="dma_buffer.cc" />
+    <ClCompile Include="dma_controller.cc" />
     <ClCompile Include="isa.cc" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\common\app_utils.h" />
     <ClInclude Include="..\..\include\common\CLI11.hpp" />
     <ClInclude Include="..\..\include\common\device.h" />
+    <ClInclude Include="..\..\include\common\dma_buffer.h" />
+    <ClInclude Include="..\..\include\common\dma_controller.h" />
     <ClInclude Include="..\..\include\common\isa.h" />
     <ClInclude Include="..\..\include\common\utils.h" />
   </ItemGroup>
