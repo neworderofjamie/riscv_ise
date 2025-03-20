@@ -106,7 +106,13 @@ public:
     uint32_t getURAMPointer() const{ return m_URAMPointer.value(); }
 
 protected:
-    using ArrayBase::ArrayBase;
+    URAMArrayBase(const GeNN::Type::ResolvedType &type, size_t count)
+    :   ArrayBase(type, count)
+    {
+        if(type.getSize(0) != 2) {
+            throw std::runtime_error("Only 16-bit types can be stored in URAM arrays");
+        }
+    }
 
     //------------------------------------------------------------------------
     // Protected API
