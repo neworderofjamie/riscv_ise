@@ -146,7 +146,7 @@ public:
     //! Allocate array
     virtual void allocate(size_t count) final override
     {
-         // Set count
+        // Set count
         setCount(count);
 
         // Allocate memory for host pointer
