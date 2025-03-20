@@ -41,4 +41,4 @@ $(OBJECT_DIRECTORY)/%.o: %.cc $(OBJECT_DIRECTORY)/%.d
 clean:
 	@find $(OBJECT_DIRECTORY) -type f -name "*.o" -delete
 	@find $(OBJECT_DIRECTORY) -type f -name "*.d" -delete
-	@rm -f $(LIBCOMMON)
+	@rm -f $(LIBCOMPILER)
