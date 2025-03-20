@@ -7,6 +7,7 @@
 #include <plog/Log.h>
 
 // Common includes
+#include "common/dma_buffer.h"
 #include "common/utils.h"
 
 // Compiler includes
@@ -16,7 +17,7 @@
 //----------------------------------------------------------------------------
 // MemoryAllocator
 //----------------------------------------------------------------------------
-uint32_t MemoryAllocator::allocate(uint32_t sizeBytes)
+size_t MemoryAllocator::allocate(size_t sizeBytes)
 {
     assert(m_HighWaterBytes % m_AlignementBytes == 0);
 
@@ -32,7 +33,16 @@ uint32_t MemoryAllocator::allocate(uint32_t sizeBytes)
     LOGD << "Allocating " << varSize << " bytes of memorty starting at " << m_HighWaterBytes << " bytes";    
 
     // Stash old high-water mark, update and return
-    const uint32_t address = m_HighWaterBytes;
+    const size_t address = m_HighWaterBytes;
     m_HighWaterBytes = newHighWaterBytes;
     return address;
+}
+
+//----------------------------------------------------------------------------
+// DMABufferAllocator
+//----------------------------------------------------------------------------
+// **THINK** do we want to vector align DMA buffer and remove hardware alignement
+DMABufferAllocator::DMABufferAllocator(const DMABuffer &dmaBuffer)
+:   MemoryAllocator(dmaBuffer.getSize(), 4)
+{
 }

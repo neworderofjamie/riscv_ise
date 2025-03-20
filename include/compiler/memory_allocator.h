@@ -12,6 +12,7 @@
 #include "compiler/model_component.h"
 
 // Forward declarations
+class DMABuffer;
 class EventContainer;
 class Variable;
 
@@ -21,19 +22,19 @@ class Variable;
 class MemoryAllocator
 {
 public:
-    MemoryAllocator(uint32_t sizeBytes, uint32_t alignementBytes)
+    MemoryAllocator(size_t sizeBytes, size_t alignementBytes)
     :   m_SizeBytes(sizeBytes), m_AlignementBytes(alignementBytes), m_HighWaterBytes(0)
     {}
     MemoryAllocator(const MemoryAllocator&) = delete;
 
-    uint32_t allocate(uint32_t sizeBytes);
+    size_t allocate(size_t sizeBytes);
 
-    uint32_t getFreeBytes() const{ return m_SizeBytes - m_HighWaterBytes; }
+    size_t getFreeBytes() const{ return m_SizeBytes - m_HighWaterBytes; }
 
 private:
-    uint32_t m_SizeBytes;
-    uint32_t m_AlignementBytes;
-    uint32_t m_HighWaterBytes;
+    size_t m_SizeBytes;
+    size_t m_AlignementBytes;
+    size_t m_HighWaterBytes;
 };
 
 //----------------------------------------------------------------------------
@@ -54,4 +55,13 @@ class URAMAllocator : public MemoryAllocator
 public:
     URAMAllocator() : MemoryAllocator(8 * 4096 * 2 * 8, 64)
     {}
+};
+
+//----------------------------------------------------------------------------
+// DMABufferAllocator
+//----------------------------------------------------------------------------
+class DMABufferAllocator : public MemoryAllocator
+{
+public:
+    DMABufferAllocator(const DMABuffer &dmaBuffer);
 };
