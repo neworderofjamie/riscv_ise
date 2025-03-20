@@ -20,37 +20,36 @@ namespace
 class State : public StateBase
 {
 public:
-    State(Device &device, BRAMAllocator &bramAllocator, URAMAllocator &uramAllocator, 
-          DMABufferAllocator &dmaBufferAllocator, DMABuffer &dmaBuffer, DMAController &dmaController)
-    :   m_Device(device), m_BRAMAllocator(bramAllocator), m_URAMAllocator(uramAllocator), 
-        m_DMABufferAllocator(dmaBufferAllocator), m_DMABuffer(dmaBuffer), m_DMAController(dmaController)
+    State() : m_DMABufferAllocator(m_DMABuffer)
     {}
 
-    const auto &getDevice() const{ return m_Device.get(); }
-    auto &getDevice(){ return m_Device.get(); }
+    //------------------------------------------------------------------------
+    // Public API
+    //------------------------------------------------------------------------
+    const auto &getDevice() const{ return m_Device; }
+    auto &getDevice(){ return m_Device; }
 
-    const auto &getBRAMAllocator() const{ return m_BRAMAllocator.get(); }
-    auto &getBRAMAllocator(){ return m_BRAMAllocator.get(); }
+    const auto &getBRAMAllocator() const{ return m_BRAMAllocator; }
+    auto &getBRAMAllocator(){ return m_BRAMAllocator; }
 
-    const auto &getURAMAllocator() const{ return m_URAMAllocator.get(); }
-    auto &getURAMAllocator(){ return m_URAMAllocator.get(); }
+    const auto &getURAMAllocator() const{ return m_URAMAllocator; }
+    auto &getURAMAllocator(){ return m_URAMAllocator; }
 
-    const auto &getDMABufferAllocator() const{ return m_DMABufferAllocator.get(); }
-    auto &getDMABufferAllocator(){ return m_DMABufferAllocator.get(); }
+    const auto &getDMABufferAllocator() const{ return m_DMABufferAllocator; }
+    auto &getDMABufferAllocator(){ return m_DMABufferAllocator; }
 
-    const auto &getDMABuffer() const{ return m_DMABuffer.get(); }
-    auto &getDMABuffer(){ return m_DMABuffer.get(); }
-
-    const auto &getDMAController() const{ return m_DMAController.get(); }
-    auto &getDMAController(){ return m_DMAController.get(); }
+    const auto &getDMABuffer() const{ return m_DMABuffer; }
+    auto &getDMABuffer(){ return m_DMABuffer; }
 
 private:
-    std::reference_wrapper<Device> m_Device;
-    std::reference_wrapper<BRAMAllocator> m_BRAMAllocator;
-    std::reference_wrapper<URAMAllocator> m_URAMAllocator;
-    std::reference_wrapper<DMABufferAllocator> m_DMABufferAllocator;
-    std::reference_wrapper<DMABuffer> m_DMABuffer;
-    std::reference_wrapper<DMAController> m_DMAController;
+    //------------------------------------------------------------------------
+    // Members
+    //------------------------------------------------------------------------
+    Device m_Device;
+    DMABuffer m_DMABuffer;
+    BRAMAllocator m_BRAMAllocator;
+    URAMAllocator m_URAMAllocator;
+    DMABufferAllocator m_DMABufferAllocator;
 };
 
 //------------------------------------------------------------------------
@@ -99,12 +98,11 @@ public:
     //! Copy entire array to device
     virtual void pushToDevice() final override
     {
-        // **TODO** use DMA controller
-        
         // Start DMA write and wait for completion
-        m_State.get().getDMAController().startWrite(getURAMPointer(), m_State.get().getDMABuffer(),
-                                                    m_DMABufferOffset.value(), getSizeBytes());
-        m_State.get().getDMAController().waitForWriteComplete();
+        auto *dmaController = m_State.get().getDevice().getDMAController();
+        dmaController->startWrite(getURAMPointer(), m_State.get().getDMABuffer(),
+                                  m_DMABufferOffset.value(), getSizeBytes());
+        dmaController->waitForWriteComplete();
     }
 
     //! Copy entire array from device
