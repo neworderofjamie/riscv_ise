@@ -12,15 +12,18 @@
 // Compiler includes
 #include "compiler/memory_allocator.h"
 
+//------------------------------------------------------------------------
+// Anonymous namespace
+//------------------------------------------------------------------------
 namespace
 {
 class State : public StateBase
 {
 public:
     State(Device &device, BRAMAllocator &bramAllocator, URAMAllocator &uramAllocator, 
-          DMABuffer &dmaBuffer, DMAController &dmaController)
+          DMABufferAllocator &dmaBufferAllocator, DMABuffer &dmaBuffer, DMAController &dmaController)
     :   m_Device(device), m_BRAMAllocator(bramAllocator), m_URAMAllocator(uramAllocator), 
-        m_DMABuffer(dmaBuffer), m_DMAController(dmaController)
+        m_DMABufferAllocator(dmaBufferAllocator), m_DMABuffer(dmaBuffer), m_DMAController(dmaController)
     {}
 
     const auto &getDevice() const{ return m_Device.get(); }
@@ -32,6 +35,9 @@ public:
     const auto &getURAMAllocator() const{ return m_URAMAllocator.get(); }
     auto &getURAMAllocator(){ return m_URAMAllocator.get(); }
 
+    const auto &getDMABufferAllocator() const{ return m_DMABufferAllocator.get(); }
+    auto &getDMABufferAllocator(){ return m_DMABufferAllocator.get(); }
+
     const auto &getDMABuffer() const{ return m_DMABuffer.get(); }
     auto &getDMABuffer(){ return m_DMABuffer.get(); }
 
@@ -42,10 +48,16 @@ private:
     std::reference_wrapper<Device> m_Device;
     std::reference_wrapper<BRAMAllocator> m_BRAMAllocator;
     std::reference_wrapper<URAMAllocator> m_URAMAllocator;
+    std::reference_wrapper<DMABufferAllocator> m_DMABufferAllocator;
     std::reference_wrapper<DMABuffer> m_DMABuffer;
     std::reference_wrapper<DMAController> m_DMAController;
 };
 
+//------------------------------------------------------------------------
+// URAMArray
+//------------------------------------------------------------------------
+//! Class for managing arrays in URAM. Host memory lives in 
+//! (uncached) DMA buffer and is transferred to FeNN using DMA controller
 class URAMArray : public URAMArrayBase
 {
 public:
@@ -67,9 +79,9 @@ public:
          // Set count
         setCount(count);
 
-        // **TODO** Get host pointer from DMA buffer
-        //setHostPointer(hostPointer);
-        
+        // Allocate block of DMA buffer and set host pointer
+        m_DMABufferOffset = m_State.get().getDMABufferAllocator().allocate(getSizeBytes());
+        setHostPointer(m_State.get().getDMABuffer().getData() + m_DMABufferOffset.value());
 
         // Allocate URAM
         setURAMPointer(m_State.get().getURAMAllocator().allocate(getSizeBytes()));
@@ -80,6 +92,7 @@ public:
     {
         setHostPointer(nullptr);
         setURAMPointer(std::nullopt);
+        m_DMABufferOffset.reset();
         setCount(0);
     }
 
@@ -88,8 +101,10 @@ public:
     {
         // **TODO** use DMA controller
         
+        // Start DMA write and wait for completion
         m_State.get().getDMAController().startWrite(getURAMPointer(), m_State.get().getDMABuffer(),
-                                                    OFFSET, getSizeBytes());
+                                                    m_DMABufferOffset.value(), getSizeBytes());
+        m_State.get().getDMAController().waitForWriteComplete();
     }
 
     //! Copy entire array from device
@@ -99,9 +114,15 @@ public:
     }
 
 private:
+    std::optional<size_t> m_DMABufferOffset;
     std::reference_wrapper<State> m_State;
 };
 
+//------------------------------------------------------------------------
+// BRAMArray
+//------------------------------------------------------------------------
+//! Class for managing arrays in BRAM. Host memory is allocated using standard
+//! allocator and is transferred to FeNN using Device functionality
 class BRAMArray : public BRAMArrayBase
 {
 public:
