@@ -194,16 +194,18 @@ int main(int argc, char** argv)
         }
     }
     else {
-        // Create RISC-V core with instruction and scalar data
-        RISCV riscV(code, scalarInitData);
-    
-        // Add vector co-processor
-        riscV.addCoprocessor<VectorProcessor>(vectorQuadrant, vectorInitData);
+        // Build ISE with vector co-processor
+        RISCV riscV;
+        riscV.addCoprocessor<VectorProcessor>(vectorQuadrant);
+
+        // Set instructions and vector init data
+        riscV.setInstructions(code);
+        riscV.getScalarDataMemory().setData(scalarInitData);
     
         // Run!
         riscV.run();
     
-        auto *scalarData = riscV.getScalarDataMemory().getData().data();
+        auto *scalarData = riscV.getScalarDataMemory().getData();
         const int16_t *scalarRecordingData = reinterpret_cast<const int16_t*>(scalarData + scalarRecordingPtr);
     
         std::ofstream out("out_poisson.txt");

@@ -196,15 +196,18 @@ int main(int argc, char** argv)
         out.write(reinterpret_cast<const char*>(operands.data()), operands.size());
     }
     else {
-        RISCV riscV(code, scalarInitData);
-    
-        // Add vector co-processor
-        riscV.addCoprocessor<VectorProcessor>(vectorQuadrant, vectorInitData);
+        // Build ISE with vector co-processor
+        RISCV riscV;
+        riscV.addCoprocessor<VectorProcessor>(vectorQuadrant);
+
+        // Set instructions and vector init data
+        riscV.setInstructions(code);
+        riscV.getScalarDataMemory().setData(scalarInitData);
     
         // Run!
         riscV.run();
     
-        const auto *scalarData = riscV.getScalarDataMemory().getData().data();
+        const auto *scalarData = riscV.getScalarDataMemory().getData();
     
         // Write results to binary file
         std::ofstream out("out_stoch_round.bin", std::ios::binary);
