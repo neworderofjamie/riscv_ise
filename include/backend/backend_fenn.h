@@ -16,6 +16,10 @@
 // Forward declarations
 class ProcessGroup;
 
+//----------------------------------------------------------------------------
+// StateBase
+//----------------------------------------------------------------------------
+//! Base class for runtime state objects created by backend
 class StateBase
 {
 public:
@@ -24,6 +28,11 @@ public:
     }
 };
 
+//----------------------------------------------------------------------------
+// ArrayBase
+//----------------------------------------------------------------------------
+//! Base class for arrays created by backend
+//! **NOTE** this is a temporary, simplified version of GeNN's ArrayBase
 class ArrayBase
 {
 public:
@@ -62,7 +71,6 @@ public:
     //! Memset the host pointer
     void memsetHostPointer(int value);
 
-   
 protected:
     ArrayBase(const GeNN::Type::ResolvedType &type, size_t count)
     :   m_Type(type), m_Count(count), m_HostPointer(nullptr)
@@ -85,6 +93,10 @@ private:
     uint8_t *m_HostPointer;
 };
 
+//----------------------------------------------------------------------------
+// URAMArrayBase
+//----------------------------------------------------------------------------
+//! Base class for arrays located in FeNN's URAM
 class URAMArrayBase : public ArrayBase
 {
 public:
@@ -94,6 +106,11 @@ public:
     uint32_t getURAMPointer() const{ return m_URAMPointer.value(); }
 
 protected:
+    using ArrayBase::ArrayBase;
+
+    //------------------------------------------------------------------------
+    // Protected API
+    //------------------------------------------------------------------------
     void setURAMPointer(std::optional<uint32_t> uramPointer){ m_URAMPointer = uramPointer; }
 
 private:
@@ -103,6 +120,10 @@ private:
     std::optional<uint32_t> m_URAMPointer;
 };
 
+//----------------------------------------------------------------------------
+// BRAMArrayBase
+//----------------------------------------------------------------------------
+//! Base class for arrays located in FeNN's BRAM
 class BRAMArrayBase : public ArrayBase
 {
 public:
@@ -112,6 +133,11 @@ public:
     uint32_t getBRAMPointer() const{ return m_BRAMPointer.value(); }
 
 protected:
+    using ArrayBase::ArrayBase;
+
+    //------------------------------------------------------------------------
+    // Protected API
+    //------------------------------------------------------------------------
     void setBRAMPointer(std::optional<uint32_t> uramPointer){ m_BRAMPointer = uramPointer; }
 
 private:
@@ -121,19 +147,28 @@ private:
     std::optional<uint32_t> m_BRAMPointer;
 };
 
+//----------------------------------------------------------------------------
+// BackendFeNN
+//----------------------------------------------------------------------------
+//! Base class for FeNN backends
+//! **NOTE** this is a temporary, simplified version of GeNN's BackendBase
 class BackendFeNN
 {
 public:
     virtual ~BackendFeNN()
     {}
 
+    //------------------------------------------------------------------------
     // Declared virtuals
+    //------------------------------------------------------------------------
     virtual std::unique_ptr<ArrayBase> createURAMArray(StateBase *state, const GeNN::Type::ResolvedType &type, size_t count) const = 0;
     virtual std::unique_ptr<ArrayBase> createBRAMArray(StateBase *state, const GeNN::Type::ResolvedType &type, size_t count) const = 0;
 
     virtual std::unique_ptr<StateBase> createState() const = 0;
 
+    //------------------------------------------------------------------------
     // Public API
+    //------------------------------------------------------------------------
     std::vector<uint32_t> generateSimulationKernel(std::shared_ptr<const ProcessGroup> synapseProcessGroup, 
                                                    std::shared_ptr<const ProcessGroup> neuronProcessGroup,
                                                    const ProcessFields &processFields,
