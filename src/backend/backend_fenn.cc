@@ -234,8 +234,8 @@ public:
     //------------------------------------------------------------------------
     // TypeChecker::EnvironmentBase virtuals
     //------------------------------------------------------------------------
-    virtual void define(const Transpiler::Token &name, const GeNN::Type::ResolvedType &type, 
-                        Transpiler::ErrorHandlerBase &errorHandler) override
+    virtual void define(const Transpiler::Token&, const GeNN::Type::ResolvedType&, 
+                        Transpiler::ErrorHandlerBase&) override
     {
         throw std::runtime_error("Cannot declare variable in external environment");
     }
@@ -281,8 +281,7 @@ private:
     std::unordered_map<std::string, std::tuple<Type::ResolvedType, std::variant<RegisterPtr, FunctionGenerator>>> m_Environment;
 };
 
-void updateLiteralPool(const std::vector<Token> &tokens, const Type::TypeContext &typeContext, 
-                       VectorRegisterAllocator &vectorRegisterAllocator, 
+void updateLiteralPool(const std::vector<Token> &tokens, VectorRegisterAllocator &vectorRegisterAllocator, 
                        std::unordered_map<int16_t, VectorRegisterAllocator::RegisterPtr> &literalPool)
 {
     // Loop through tokens
@@ -387,7 +386,7 @@ private:
     //------------------------------------------------------------------------
     // ModelComponentVisitor virtuals
     //------------------------------------------------------------------------
-    virtual void visit(std::shared_ptr<const ProcessGroup> processGroup) final
+    virtual void visit(std::shared_ptr<const ProcessGroup>) final
     {
         assert(false);
     }
@@ -401,7 +400,7 @@ private:
 
         // Build literal pool
         std::unordered_map<int16_t, VectorRegisterAllocator::RegisterPtr> literalPool;
-        updateLiteralPool(neuronUpdateProcess->getTokens(), {}, m_VectorRegisterAllocator.get(), literalPool);
+        updateLiteralPool(neuronUpdateProcess->getTokens(), m_VectorRegisterAllocator.get(), literalPool);
         
         // Define type for event-emitting function
         const auto emitEventFunctionType = Type::ResolvedType::createFunction(Type::Void, {});
@@ -514,8 +513,8 @@ private:
                     EnvironmentInternal compilerEnv(unrollEnv);
                     ErrorHandler errorHandler("Neuron update process '" + neuronUpdateProcess->getName() + "'");        
                     compileStatements(neuronUpdateProcess->getTokens(), {}, literalPool, typeCheckEnv, compilerEnv,
-                                     errorHandler, nullptr, nullptr, m_ScalarRegisterAllocator.get(),
-                                     m_VectorRegisterAllocator.get());
+                                      errorHandler, nullptr, nullptr, m_ScalarRegisterAllocator.get(),
+                                      m_VectorRegisterAllocator.get());
                 }
 
                 // Loop through variables
@@ -527,19 +526,19 @@ private:
                     unrollEnv.getCodeGenerator().vstore(*reg, *varBufferRegisters.at(v.second), 64 * r);
                 }
             },
-            [this, &env, &eventBufferRegisters, &neuronUpdateProcess, &varBufferRegisters]
+            [this, &eventBufferRegisters, &neuronUpdateProcess, &varBufferRegisters]
             (CodeGenerator &c, uint32_t numUnrolls)
             {
                 // Loop through variables and increment buffers
                 for(const auto v : neuronUpdateProcess->getVariables()) {        
                     const auto bufferReg = varBufferRegisters.at(v.second);
-                    env.getCodeGenerator().addi(*bufferReg, *bufferReg, 64 * numUnrolls);
+                    c.addi(*bufferReg, *bufferReg, 64 * numUnrolls);
                 }
 
                 // Loop through output events and increment buffers
                 for(const auto e : neuronUpdateProcess->getOutputEvents()) {
                     const auto bufferReg = eventBufferRegisters.at(e.second);
-                    env.getCodeGenerator().addi(*bufferReg, *bufferReg, 4 * numUnrolls);
+                    c.addi(*bufferReg, *bufferReg, 4 * numUnrolls);
                  }
             });
         
@@ -777,7 +776,7 @@ std::vector<uint32_t> BackendFeNN::generateSimulationKernel(std::shared_ptr<cons
     // Generate process fields
     ProcessFields processFields;
     ProcessFieldVisitor synapseVisitor(synapseProcessGroup, state->getBRAMAllocator(), processFields);
-    ProcessFieldVisitor neuronVisitor(synapseProcessGroup, state->getBRAMAllocator(), processFields);
+    ProcessFieldVisitor neuronVisitor(neuronProcessGroup, state->getBRAMAllocator(), processFields);
 
     uint32_t readyFlagPtr = 0;
     return AssemblerUtils::generateStandardKernel(
