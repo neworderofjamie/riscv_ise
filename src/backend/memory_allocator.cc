@@ -26,7 +26,7 @@ size_t MemoryAllocator::allocate(size_t sizeBytes)
         throw std::runtime_error("Memory exceeded");
     }
 
-    LOGD << "Allocating " << varSize << " bytes of memorty starting at " << m_HighWaterBytes << " bytes";    
+    LOGD << "Allocating " << varSize << " bytes of memory starting at " << m_HighWaterBytes << " bytes";    
 
     // Stash old high-water mark, update and return
     const size_t address = m_HighWaterBytes;

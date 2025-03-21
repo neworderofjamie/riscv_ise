@@ -31,7 +31,6 @@
 #include "compiler/event_container.h"
 #include "compiler/parameter.h"
 #include "compiler/process.h"
-#include "compiler/process_fields.h"
 #include "compiler/process_group.h"
 #include "compiler/variable.h"
 
@@ -129,7 +128,7 @@ int main(int argc, char** argv)
 
     // Generate kernel
     const auto code = backend.generateSimulationKernel(synapseUpdateProcesses, neuronUpdateProcesses, 
-                                                       processFields, 1000, true, state.get());
+                                                       1000, true, state.get());
 
     for(uint32_t i: code) {
         try {
