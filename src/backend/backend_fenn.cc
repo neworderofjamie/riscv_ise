@@ -313,6 +313,9 @@ private:
         // Loop through neuron variables
         std::unordered_map<std::shared_ptr<const Variable>, ScalarRegisterAllocator::RegisterPtr> varBufferRegisters;
         for(const auto v : neuronUpdateProcess->getVariables()) {
+            // **TODO** check data structure to determine how this variable is implemented
+            // i.e. in lane-local or vector memory and create appropriate address register
+
             // Allocate scalar register to hold address of variable
             const auto reg = m_ScalarRegisterAllocator.get().getRegister((v.first + "Buffer X").c_str());
 
@@ -389,6 +392,7 @@ private:
                     unrollEnv.add(v.second->getType(), v.first, reg);
                         
                     // Load vector from buffer
+                    // **TODO** based on data structure, determine if this variable should be loaded from vector or lane local memory
                     unrollEnv.getCodeGenerator().vloadv(*reg, *varBufferRegisters.at(v.second), 64 * r);
                 }
 
@@ -420,6 +424,7 @@ private:
                     const auto reg = std::get<VectorRegisterAllocator::RegisterPtr>(unrollEnv.getRegister(v.first));
                     
                     // Store updated vector back to buffer
+                    // **TODO** based on data structure, determine if this variable should be stored to vector or lane local memory
                     unrollEnv.getCodeGenerator().vstore(*reg, *varBufferRegisters.at(v.second), 64 * r);
                 }
             },
@@ -427,6 +432,7 @@ private:
             (CodeGenerator &c, uint32_t numUnrolls)
             {
                 // Loop through variables and increment buffers
+                // **TODO** based on data structure, determine stride
                 for(const auto v : neuronUpdateProcess->getVariables()) {        
                     const auto bufferReg = varBufferRegisters.at(v.second);
                     c.addi(*bufferReg, *bufferReg, 64 * numUnrolls);

@@ -12,7 +12,7 @@
 namespace
 {
 //----------------------------------------------------------------------------
-// StateVisitor
+// ProcessFieldVisitor
 //----------------------------------------------------------------------------
 class ProcessFieldVisitor : public ModelComponentVisitor
 {
