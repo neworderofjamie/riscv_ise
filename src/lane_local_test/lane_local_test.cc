@@ -21,14 +21,46 @@
 #include "ise/riscv.h"
 #include "ise/vector_processor.h"
 
+void checkData(const std::vector<int16_t> &address, const volatile int16_t *scalarOutputData)
+{
+    // Loop through COLUMNS of data
+    bool correct = true;
+    for(int j = 0; j < 32; j++) {
+        // Get row where three should be located in this column
+        const int16_t threeLoc = address[j];
+        
+        // Loop through rows
+        for(int i = 0; i < 32; i++) {
+            const int16_t val = scalarOutputData[(i * 32) + j];
+       
+            if(threeLoc >= 0 && i == (threeLoc / 2)) {
+                if(val != 3) {
+                    correct = false;
+                }
+            }
+            else if(val != 1) {
+                correct = false;
+            }
+        }
+    }
 
+    if(!correct) {
+        std::cout << "Incorrect data:" << std::endl;
+        for(int i = 0; i < 32; i++) {
+            for(int j = 0; j < 32; j++) {
+                std::cout << *scalarOutputData << ", ";
+                scalarOutputData++;
+            }
+            std::cout << std::endl;
+        }
+    }
+}
 int main(int argc, char** argv)
 {
     // Configure logging
     plog::ConsoleAppender<plog::TxtFormatter> consoleAppender;
     plog::init(plog::debug, &consoleAppender);
-    
-    uint32_t numTimesteps = 100;
+
     bool device = false;
     bool dumpCoe = false;
 
@@ -186,6 +218,8 @@ int main(int argc, char** argv)
         device.waitOnNonZero(readyFlagPtr);
         LOGI << "Done";
 
+        // Check data
+        checkData(address, reinterpret_cast<const volatile int16_t*>(device.getDataMemory() + outputPtr));
     }
     else {
         // Build ISE with vector co-processor
@@ -199,22 +233,10 @@ int main(int argc, char** argv)
         // Run!
         riscV.run();
         
-        // Get pointers to scalar and vector memories
+        // Get pointers to output data in scalar memory and validate
         const auto *scalarData = riscV.getScalarDataMemory().getData();
         const int16_t *scalarOutputData = reinterpret_cast<const int16_t*>(scalarData + outputPtr);
-        
-        for(int i = 0; i < 32; i++) {
-            for(int j = 0; j < 32; j++) {
-                if(j == i) {
-                     assert(*scalarOutputData == 3);
-                }
-                else {
-                    assert(*scalarOutputData == 1);
-                }
-                scalarOutputData++;
-            }
-        }
-      
+        checkData(address, scalarOutputData);
     }
    
     
