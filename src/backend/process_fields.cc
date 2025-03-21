@@ -1,11 +1,10 @@
-#include "compiler/process_fields.h"
+#include "backend/process_fields.h"
 
 // Plog includes
 #include <plog/Log.h>
 
 // Compiler includes
 #include "compiler/event_container.h"
-#include "compiler/memory_allocator.h"
 #include "compiler/process.h"
 #include "compiler/process_group.h"
 #include "compiler/variable.h"
@@ -18,15 +17,15 @@ namespace
 class ProcessFieldVisitor : public ModelComponentVisitor
 {
 public:
-    ProcessFieldVisitor(std::shared_ptr<const ProcessGroup> processGroup,
-                        BRAMAllocator &bramAllocator, ProcessFields &processFields)
-    :   m_BRAMAllocator(bramAllocator), m_ProcessFields(processFields)
+    ProcessFieldVisitor(std::shared_ptr<const ProcessGroup> processGroup, ProcessFields &processFields)
+    :   m_ProcessFields(processFields), m_FieldOffset(0)
     {
         for(auto p : processGroup->getProcesses()) {
             p->accept(*this);
         }
     }
 
+private:
     //------------------------------------------------------------------------
     // ModelComponentVisitor virtuals
     //------------------------------------------------------------------------
@@ -34,7 +33,10 @@ public:
     {
         // Allocate BRAM for field pointer
         LOGD << "\tEvent container '" << eventContainer->getName() << "'";
-        if(!m_CurrentStateFields.try_emplace(eventContainer, m_BRAMAllocator.get().allocate(4)).second) {
+        if(m_CurrentStateFields.try_emplace(eventContainer, m_FieldOffset).second) {
+            m_FieldOffset += 4;
+        }
+        else {
             throw std::runtime_error("Event container '" + eventContainer->getName() + "' encountered multiple times in model traversal");
         }
     }
@@ -91,24 +93,25 @@ public:
     {
         // Allocate BRAM for field pointer
         LOGD << "\tVariable '" << variable->getName() << "'";
-        if(!m_CurrentStateFields.try_emplace(variable, m_BRAMAllocator.get().allocate(4)).second) {
+        if(m_CurrentStateFields.try_emplace(variable, m_FieldOffset).second) {
+            m_FieldOffset += 4;
+        }
+        else {
             throw std::runtime_error("Variable '" + variable->getName() + "' encountered multiple times in model traversal");
         }
     }
 
-
-private:
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
-    std::reference_wrapper<BRAMAllocator> m_BRAMAllocator;
     std::reference_wrapper<ProcessFields> m_ProcessFields;
 
     StateFields m_CurrentStateFields;
+    uint32_t m_FieldOffset;
 };
 }
 
-void addFields(std::shared_ptr<const ProcessGroup> processGroup, BRAMAllocator &bramAllocator, ProcessFields &fields)
+void addFields(std::shared_ptr<const ProcessGroup> processGroup, ProcessFields &fields)
 {
-    ProcessFieldVisitor visitor(processGroup, bramAllocator, fields);
+    ProcessFieldVisitor visitor(processGroup, fields);
 }
