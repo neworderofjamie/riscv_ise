@@ -4,6 +4,9 @@
 #include <optional>
 #include <stdexcept>
 
+// PLOG includes
+#include <plog/Log.h>
+
 // Common includes
 #include "common/device.h"
 #include "common/dma_buffer.h"

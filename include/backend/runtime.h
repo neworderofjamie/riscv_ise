@@ -6,14 +6,12 @@
 #include <vector>
 
 // Standard C includes
-#include <cstdint>>
-
-// Backend includes
-#include "backend/process_fields.h"
+#include <cstdint>
 
 // Forward declarations
 class ArrayBase;
 class BackendFeNN;
+class Model;
 class State;
 class StateBase;
 
@@ -23,7 +21,7 @@ class StateBase;
 class Runtime
 {
 public:
-    Runtime(const ProcessFields &processFields, const BackendFeNN &backend);
+    Runtime(const Model &model, const BackendFeNN &backend);
     
     //------------------------------------------------------------------------
     // Public API
@@ -33,7 +31,7 @@ public:
     void allocate();
     void run();
 
-    ArrayBase *getArray(std::shared_ptr<State> variable) const;
+    ArrayBase *getArray(std::shared_ptr<const State> variable) const;
 
 private:
     //------------------------------------------------------------------------
@@ -41,5 +39,5 @@ private:
     //------------------------------------------------------------------------
     std::unique_ptr<StateBase> m_State;
     std::unordered_map<std::shared_ptr<const State>, std::unique_ptr<ArrayBase>> m_Arrays;
-    std::reference_wrapper<const ProcessFields> m_ProcessFields;
+    std::reference_wrapper<const Model> m_Model;
 };

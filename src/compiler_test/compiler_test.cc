@@ -26,7 +26,7 @@
 
 // RISC-V backend includes
 #include "backend/backend_fenn_sim.h"
-#include "backend/process_fields.h"
+#include "backend/model.h"
 
 // RISC-V assembler includes
 #include "compiler/event_container.h"
@@ -117,21 +117,16 @@ int main(int argc, char** argv)
     BackendFeNNSim backend;
     
     
-    // **TODO** build data structure mapping State objects to what processes reference them
-    // Will live in ModelMerged equivalent object alongside ProcessFields
-
-    // Generate fields required for process groups
-    ProcessFields processFields;
-    addFields(synapseUpdateProcesses, processFields);
-    addFields(neuronUpdateProcesses, processFields);
-
+    // Build model from process groups we want to simulate
+    Model model({synapseUpdateProcesses, neuronUpdateProcesses});
+    
     // 1) Visit process groups and build fields
     //MemoryAllocatorVisitor memoryAllocatorVisitor(memoryAllocator);
     //model.visitComponents(memoryAllocatorVisitor);
 
     // Generate kernel
     const auto code = backend.generateSimulationKernel(synapseUpdateProcesses, neuronUpdateProcesses, 
-                                                       1000, true, processFields);
+                                                       1000, true, model);
 
     
 
