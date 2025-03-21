@@ -10,8 +10,8 @@
 // GeNN includes
 #include "type.h"
 
-// Compiler ioncludes
-#include "compiler/process_fields.h"
+// Backend include
+#include "backend/memory_allocator.h"
 
 // Forward declarations
 class ProcessGroup;
@@ -26,6 +26,27 @@ public:
     virtual ~StateBase()
     {
     }
+
+    //------------------------------------------------------------------------
+    // Declared virtuals
+    //------------------------------------------------------------------------
+    virtual void setInstructions(const std::vector<uint32_t> &instructions) = 0;
+
+    //------------------------------------------------------------------------
+    // Public API
+    //------------------------------------------------------------------------
+    const auto &getBRAMAllocator() const{ return m_BRAMAllocator; }
+    auto &getBRAMAllocator(){ return m_BRAMAllocator; }
+
+    const auto &getURAMAllocator() const{ return m_URAMAllocator; }
+    auto &getURAMAllocator(){ return m_URAMAllocator; }
+
+private:
+    //------------------------------------------------------------------------
+    // Members
+    //------------------------------------------------------------------------
+    BRAMAllocator m_BRAMAllocator;
+    URAMAllocator m_URAMAllocator;
 };
 
 //----------------------------------------------------------------------------
@@ -167,8 +188,10 @@ public:
     //------------------------------------------------------------------------
     // Declared virtuals
     //------------------------------------------------------------------------
-    virtual std::unique_ptr<ArrayBase> createURAMArray(StateBase *state, const GeNN::Type::ResolvedType &type, size_t count) const = 0;
-    virtual std::unique_ptr<ArrayBase> createBRAMArray(StateBase *state, const GeNN::Type::ResolvedType &type, size_t count) const = 0;
+    virtual std::unique_ptr<ArrayBase> createURAMArray(const GeNN::Type::ResolvedType &type, size_t count,
+                                                       StateBase *state) const = 0;
+    virtual std::unique_ptr<ArrayBase> createBRAMArray(const GeNN::Type::ResolvedType &type, size_t count,
+                                                       StateBase *state) const = 0;
 
     virtual std::unique_ptr<StateBase> createState() const = 0;
 
@@ -177,7 +200,6 @@ public:
     //------------------------------------------------------------------------
     std::vector<uint32_t> generateSimulationKernel(std::shared_ptr<const ProcessGroup> synapseProcessGroup, 
                                                    std::shared_ptr<const ProcessGroup> neuronProcessGroup,
-                                                   const ProcessFields &processFields,
-                                                   uint32_t numTimesteps, bool simulate) const;
-
+                                                   uint32_t numTimesteps, bool simulate,
+                                                   StateBase *state) const;
 };

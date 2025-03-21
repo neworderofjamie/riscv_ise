@@ -1,4 +1,4 @@
-#include "compiler/memory_allocator.h"
+#include "backend/memory_allocator.h"
 
 // Standard C includes
 #include <cstdint>
@@ -9,10 +9,6 @@
 // Common includes
 #include "common/dma_buffer.h"
 #include "common/utils.h"
-
-// Compiler includes
-#include "compiler/event_container.h"
-#include "compiler/variable.h"
 
 //----------------------------------------------------------------------------
 // MemoryAllocator

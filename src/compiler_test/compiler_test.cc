@@ -24,10 +24,11 @@
 #include "common/device.h"
 #include "common/utils.h"
 
+// RISC-V backend includes
+#include "backend/backend_fenn_sim.h"
+
 // RISC-V assembler includes
 #include "compiler/event_container.h"
-#include "compiler/generate_process_group.h"
-#include "compiler/memory_allocator.h"
 #include "compiler/parameter.h"
 #include "compiler/process.h"
 #include "compiler/process_fields.h"
@@ -113,22 +114,22 @@ int main(int argc, char** argv)
     const auto neuronUpdateProcesses = ProcessGroup::create({hidden, output});
     const auto synapseUpdateProcesses = ProcessGroup::create({inputHidden, hiddenOutput});
 
-    // Allocate memory
-    BRAMAllocator bramAllocator;
-    URAMAllocator uramAllocator;
+    BackendFeNNSim backend;
+    
+    auto state = backend.createState();
 
     // Generate fields required for process groups
-    ProcessFields processFields;
-    addFields(synapseUpdateProcesses, bramAllocator, processFields);
-    addFields(neuronUpdateProcesses, bramAllocator, processFields);
+    //ProcessFields processFields;
+    //addFields(synapseUpdateProcesses, bramAllocator, processFields);
+    //addFields(neuronUpdateProcesses, bramAllocator, processFields);
 
     // 1) Visit process groups and build fields
     //MemoryAllocatorVisitor memoryAllocatorVisitor(memoryAllocator);
     //model.visitComponents(memoryAllocatorVisitor);
 
     // Generate kernel
-    const auto code = generateSimulationKernel(synapseUpdateProcesses, neuronUpdateProcesses, 
-                                               processFields, 1000, true);
+    const auto code = backend.generateSimulationKernel(synapseUpdateProcesses, neuronUpdateProcesses, 
+                                                       processFields, 1000, true, state.get());
 
     for(uint32_t i: code) {
         try {

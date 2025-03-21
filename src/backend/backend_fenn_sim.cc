@@ -10,36 +10,36 @@
 #include "ise/riscv.h"
 #include "ise/vector_processor.h"
 
-// Compiler includes
-#include "compiler/memory_allocator.h"
+// Backend includes
+#include "backend/memory_allocator.h"
 
 //------------------------------------------------------------------------
 // Anonymous namespace
 //------------------------------------------------------------------------
 namespace
 {
-class State : public StateBase
+class SimState : public StateBase
 {
 public:
+    //------------------------------------------------------------------------
+    // StateBase virtuals
+    //------------------------------------------------------------------------
+    virtual void setInstructions(const std::vector<uint32_t> &instructions) override final
+    {
+        m_RISCV.setInstructions(instructions);
+    }
+
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
     const auto &getRISCV() const{ return m_RISCV; }
-    auto &getRISCV(){ return m_RISCV; }
-
-    const auto &getBRAMAllocator() const{ return m_BRAMAllocator; }
-    auto &getBRAMAllocator(){ return m_BRAMAllocator; }
-
-    const auto &getURAMAllocator() const{ return m_URAMAllocator; }
-    auto &getURAMAllocator(){ return m_URAMAllocator; }
+    auto &getRISCV(){ return m_RISCV; }  
 
 private:
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
     RISCV m_RISCV;
-    BRAMAllocator m_BRAMAllocator;
-    URAMAllocator m_URAMAllocator;
 };
 
 
@@ -51,7 +51,7 @@ private:
 class URAMArray : public URAMArrayBase
 {
 public:
-     URAMArray(const GeNN::Type::ResolvedType &type, size_t count, State &state)
+     URAMArray(const GeNN::Type::ResolvedType &type, size_t count, SimState *state)
     :   URAMArrayBase(type, count), m_State(state)
     {
         // Allocate if count is specified
@@ -73,7 +73,7 @@ public:
         setHostPointer(new uint8_t[getSizeBytes()]);
 
         // Allocate URAM
-        setURAMPointer(m_State.get().getURAMAllocator().allocate(getSizeBytes()));
+        setURAMPointer(m_State->getURAMAllocator().allocate(getSizeBytes()));
     }
 
     //! Free array
@@ -89,7 +89,7 @@ public:
     virtual void pushToDevice() final override
     {
         // Copy correct number of int16_t from host pointer to vector data memory
-        auto &vectorDataMemory = m_State.get().getRISCV().getCoprocessor<VectorProcessor>(vectorQuadrant)->getVectorDataMemory();
+        auto &vectorDataMemory = m_State->getRISCV().getCoprocessor<VectorProcessor>(vectorQuadrant)->getVectorDataMemory();
         std::copy_n(getHostPointer<int16_t>(), getCount(), 
                     vectorDataMemory.getData() + (getURAMPointer() / 2));
     }
@@ -100,13 +100,13 @@ public:
         LOGW << "Copying URAM buffers is implemented in simulation for convenience but currently doens't work on device";
         
         // Copy correct number of int16_t from vector data memory to host pointer
-        const auto &vectorDataMemory = m_State.get().getRISCV().getCoprocessor<VectorProcessor>(vectorQuadrant)->getVectorDataMemory();
+        const auto &vectorDataMemory = m_State->getRISCV().getCoprocessor<VectorProcessor>(vectorQuadrant)->getVectorDataMemory();
         std::copy_n(vectorDataMemory.getData() + (getURAMPointer() / 2), getCount(), 
                     getHostPointer<int16_t>());
     }
 
 private:
-    std::reference_wrapper<State> m_State;
+SimState *m_State;
 };
 
 //------------------------------------------------------------------------
@@ -117,7 +117,7 @@ private:
 class BRAMArray : public BRAMArrayBase
 {
 public:
-     BRAMArray(const GeNN::Type::ResolvedType &type, size_t count, State &state)
+     BRAMArray(const GeNN::Type::ResolvedType &type, size_t count, SimState *state)
     :   BRAMArrayBase(type, count), m_State(state)
     {
         // Allocate if count is specified
@@ -146,7 +146,7 @@ public:
         setHostPointer(new uint8_t[getSizeBytes()]);
 
         // Allocate BRAM
-        setBRAMPointer(m_State.get().getBRAMAllocator().allocate(getSizeBytes()));
+        setBRAMPointer(m_State->getBRAMAllocator().allocate(getSizeBytes()));
     }
 
     //! Free array
@@ -162,7 +162,7 @@ public:
     virtual void pushToDevice() final override
     {
         // Copy correct number of int16_t from host pointer to vector data memory
-        auto &scalarDataMemory = m_State.get().getRISCV().getScalarDataMemory();
+        auto &scalarDataMemory = m_State->getRISCV().getScalarDataMemory();
         std::copy_n(getHostPointer<uint8_t>(), getSizeBytes(), 
                     scalarDataMemory.getData() + getBRAMPointer());
     }
@@ -171,12 +171,32 @@ public:
     virtual void pullFromDevice() final override
     {
         // Copy correct number of int16_t from vector data memory to host pointer
-        const auto &scalarDataMemory = m_State.get().getRISCV().getScalarDataMemory();
+        const auto &scalarDataMemory = m_State->getRISCV().getScalarDataMemory();
         std::copy_n(scalarDataMemory.getData() + getBRAMPointer(), getSizeBytes(), 
                     getHostPointer<uint8_t>());
     }
 
 private:
-     std::reference_wrapper<State> m_State;
+    SimState *m_State;
 };
+}
+
+//----------------------------------------------------------------------------
+// BackendFeNNSim
+//------------------------------------------------------------------------
+std::unique_ptr<ArrayBase> BackendFeNNSim::createURAMArray(const GeNN::Type::ResolvedType &type, size_t count,
+                                                           StateBase *state) const
+{
+    return std::make_unique<::URAMArray>(type, count, static_cast<SimState*>(state));
+}
+//------------------------------------------------------------------------
+std::unique_ptr<ArrayBase> BackendFeNNSim::createBRAMArray(const GeNN::Type::ResolvedType &type, size_t count,
+                                                           StateBase *state) const
+{
+    return std::make_unique<::BRAMArray>(type, count, static_cast<SimState*>(state));
+}
+//------------------------------------------------------------------------
+std::unique_ptr<StateBase> BackendFeNNSim::createState() const
+{
+    return std::make_unique<SimState>();
 }
