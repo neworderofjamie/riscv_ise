@@ -117,6 +117,9 @@ int main(int argc, char** argv)
     BackendFeNNSim backend;
     
     
+    // **TODO** build data structure mapping State objects to what processes reference them
+    // Will live in ModelMerged equivalent object alongside ProcessFields
+
     // Generate fields required for process groups
     ProcessFields processFields;
     addFields(synapseUpdateProcesses, processFields);

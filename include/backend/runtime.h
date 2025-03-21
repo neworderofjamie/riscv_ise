@@ -41,4 +41,5 @@ private:
     //------------------------------------------------------------------------
     std::unique_ptr<StateBase> m_State;
     std::unordered_map<std::shared_ptr<const State>, std::unique_ptr<ArrayBase>> m_Arrays;
+    std::reference_wrapper<const ProcessFields> m_ProcessFields;
 };
