@@ -167,9 +167,11 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
                 PLOGV << "\t" << rd;
 
                 // Read from each lane local memory into lane
-                std::transform(m_LaneLocalMemories.cbegin(), m_LaneLocalMemories.cend(),
-                               m_VReg[rs1].cbegin(), m_VReg[rd].begin(),
-                               [imm](const auto &mem, int16_t l){ return mem.read((uint32_t)(imm + l)); });
+                for(size_t i = 0; i < 32; i++) {
+                    if(m_VReg[rs1][i] >= 0) {
+                        m_VReg[rd][i] = m_LaneLocalMemories[i].read((uint32_t)(m_VReg[rs1][i] + imm));
+                    }
+                }
             }
             else {
                 throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
