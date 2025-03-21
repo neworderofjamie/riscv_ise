@@ -9,31 +9,33 @@
 #include "common/dma_buffer.h"
 #include "common/dma_controller.h"
 
-// Compiler includes
-#include "compiler/memory_allocator.h"
+// Backend includes
+#include "backend/memory_allocator.h"
 
 //------------------------------------------------------------------------
 // Anonymous namespace
 //------------------------------------------------------------------------
 namespace
 {
-class State : public StateBase
+class SimState : public StateBase
 {
 public:
-    State() : m_DMABufferAllocator(m_DMABuffer)
+    SimState() : m_DMABufferAllocator(m_DMABuffer)
     {}
+
+    //------------------------------------------------------------------------
+    // StateBase virtuals
+    //------------------------------------------------------------------------
+    virtual void setInstructions(const std::vector<uint32_t> &instructions) override final
+    {
+        m_Device.uploadCode(instructions);
+    }
 
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
     const auto &getDevice() const{ return m_Device; }
     auto &getDevice(){ return m_Device; }
-
-    const auto &getBRAMAllocator() const{ return m_BRAMAllocator; }
-    auto &getBRAMAllocator(){ return m_BRAMAllocator; }
-
-    const auto &getURAMAllocator() const{ return m_URAMAllocator; }
-    auto &getURAMAllocator(){ return m_URAMAllocator; }
 
     const auto &getDMABufferAllocator() const{ return m_DMABufferAllocator; }
     auto &getDMABufferAllocator(){ return m_DMABufferAllocator; }
@@ -47,8 +49,6 @@ private:
     //------------------------------------------------------------------------
     Device m_Device;
     DMABuffer m_DMABuffer;
-    BRAMAllocator m_BRAMAllocator;
-    URAMAllocator m_URAMAllocator;
     DMABufferAllocator m_DMABufferAllocator;
 };
 
@@ -60,7 +60,7 @@ private:
 class URAMArray : public URAMArrayBase
 {
 public:
-     URAMArray(const GeNN::Type::ResolvedType &type, size_t count, State &state)
+     URAMArray(const GeNN::Type::ResolvedType &type, size_t count, SimState *state)
     :   URAMArrayBase(type, count), m_State(state)
     {
         // Allocate if count is specified
@@ -79,11 +79,11 @@ public:
         setCount(count);
 
         // Allocate block of DMA buffer and set host pointer
-        m_DMABufferOffset = m_State.get().getDMABufferAllocator().allocate(getSizeBytes());
-        setHostPointer(m_State.get().getDMABuffer().getData() + m_DMABufferOffset.value());
+        m_DMABufferOffset = m_State->getDMABufferAllocator().allocate(getSizeBytes());
+        setHostPointer(m_State->getDMABuffer().getData() + m_DMABufferOffset.value());
 
         // Allocate URAM
-        setURAMPointer(m_State.get().getURAMAllocator().allocate(getSizeBytes()));
+        setURAMPointer(m_State->getURAMAllocator().allocate(getSizeBytes()));
     }
 
     //! Free array
@@ -99,8 +99,8 @@ public:
     virtual void pushToDevice() final override
     {
         // Start DMA write and wait for completion
-        auto *dmaController = m_State.get().getDevice().getDMAController();
-        dmaController->startWrite(getURAMPointer(), m_State.get().getDMABuffer(),
+        auto *dmaController = m_State->getDevice().getDMAController();
+        dmaController->startWrite(getURAMPointer(), m_State->getDMABuffer(),
                                   m_DMABufferOffset.value(), getSizeBytes());
         dmaController->waitForWriteComplete();
     }
@@ -113,7 +113,7 @@ public:
 
 private:
     std::optional<size_t> m_DMABufferOffset;
-    std::reference_wrapper<State> m_State;
+    SimState *m_State;
 };
 
 //------------------------------------------------------------------------
@@ -124,7 +124,7 @@ private:
 class BRAMArray : public BRAMArrayBase
 {
 public:
-     BRAMArray(const GeNN::Type::ResolvedType &type, size_t count, State &state)
+     BRAMArray(const GeNN::Type::ResolvedType &type, size_t count, SimState *state)
     :   BRAMArrayBase(type, count), m_State(state)
     {
         // Allocate if count is specified
@@ -153,7 +153,7 @@ public:
         setHostPointer(new uint8_t[getSizeBytes()]);
 
         // Allocate BRAM
-        setBRAMPointer(m_State.get().getBRAMAllocator().allocate(getSizeBytes()));
+        setBRAMPointer(m_State->getBRAMAllocator().allocate(getSizeBytes()));
     }
 
     //! Free array
@@ -168,18 +168,18 @@ public:
     //! Copy entire array to device
     virtual void pushToDevice() final override
     {
-        m_State.get().getDevice().memcpyDataToDevice(getBRAMPointer(), getHostPointer(),
-                                                     getSizeBytes());
+        m_State->getDevice().memcpyDataToDevice(getBRAMPointer(), getHostPointer(),
+                                                getSizeBytes());
     }
 
     //! Copy entire array from device
     virtual void pullFromDevice() final override
     {
-        m_State.get().getDevice().memcpyDataFromDevice(getHostPointer(), getBRAMPointer(), 
-                                                       getSizeBytes());
+        m_State->getDevice().memcpyDataFromDevice(getHostPointer(), getBRAMPointer(), 
+                                                  getSizeBytes());
     }
 
 private:
-     std::reference_wrapper<State> m_State;
+     SimState *m_State;
 };
 }
