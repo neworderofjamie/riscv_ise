@@ -21,12 +21,22 @@ namespace
 class SimState : public StateBase
 {
 public:
+    SimState()
+    {
+        m_RISCV.addCoprocessor<VectorProcessor>(vectorQuadrant);
+    }
+
     //------------------------------------------------------------------------
     // StateBase virtuals
     //------------------------------------------------------------------------
     virtual void setInstructions(const std::vector<uint32_t> &instructions) override final
     {
         m_RISCV.setInstructions(instructions);
+    }
+
+    virtual void run() override final
+    {
+        m_RISCV.run();
     }
 
     //------------------------------------------------------------------------
@@ -106,7 +116,7 @@ public:
     }
 
 private:
-SimState *m_State;
+    SimState *m_State;
 };
 
 //------------------------------------------------------------------------

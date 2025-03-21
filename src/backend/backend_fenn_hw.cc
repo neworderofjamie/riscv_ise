@@ -31,6 +31,21 @@ public:
         m_Device.uploadCode(instructions);
     }
 
+    virtual void run() override final
+    {
+        // Enable core
+        m_Device.setEnabled(true);
+        LOGD << "Running";
+        
+        // Wait until ready flag
+        // **TODO** ready flag pointer
+        m_Device.waitOnNonZero(0);
+        LOGD << "Done";
+
+        // Disable core
+        m_Device.setEnabled(true);
+    }
+
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------

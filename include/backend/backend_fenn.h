@@ -32,6 +32,7 @@ public:
     // Declared virtuals
     //------------------------------------------------------------------------
     virtual void setInstructions(const std::vector<uint32_t> &instructions) = 0;
+    virtual void run() = 0;
 
     //------------------------------------------------------------------------
     // Public API
