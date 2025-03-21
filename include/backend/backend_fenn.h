@@ -12,6 +12,7 @@
 
 // Backend include
 #include "backend/memory_allocator.h"
+#include "backend/process_fields.h"
 
 // Forward declarations
 class ProcessGroup;
@@ -201,5 +202,5 @@ public:
     std::vector<uint32_t> generateSimulationKernel(std::shared_ptr<const ProcessGroup> synapseProcessGroup, 
                                                    std::shared_ptr<const ProcessGroup> neuronProcessGroup,
                                                    uint32_t numTimesteps, bool simulate,
-                                                   StateBase *state) const;
+                                                   const ProcessFields &processFields) const;
 };
