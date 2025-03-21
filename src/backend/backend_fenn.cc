@@ -264,9 +264,9 @@ public:
     CodeGeneratorVisitor(std::shared_ptr<const ProcessGroup> processGroup, CodeGenerator &codeGenerator, 
                          VectorRegisterAllocator &vectorRegisterAllocator, 
                          ScalarRegisterAllocator &scalarRegisterAllocator, 
-                         const ProcessFields &processFields)
+                         const Model &model)
     :   m_CodeGenerator(codeGenerator), m_VectorRegisterAllocator(vectorRegisterAllocator),
-        m_ScalarRegisterAllocator(scalarRegisterAllocator), m_ProcessFields(processFields)
+        m_ScalarRegisterAllocator(scalarRegisterAllocator), m_Model(model)
     {
         // Visit all the processes
         for(const auto p : processGroup->getProcesses()) {
@@ -293,7 +293,7 @@ private:
         auto &c = m_CodeGenerator.get();
 
         // Get fields associated with this process
-        const auto &stateFields = m_ProcessFields.get().at(neuronUpdateProcess);
+        const auto &stateFields = m_Model.get().getProcessFields().at(neuronUpdateProcess);
 
         // Build literal pool
         std::unordered_map<int16_t, VectorRegisterAllocator::RegisterPtr> literalPool;
@@ -489,7 +489,8 @@ private:
             SEventBuffer = std::get<ScalarRegisterAllocator::RegisterPtr>(preSpikePtr);
         }*/
         // Generate code to load address of input event buffer
-        c.lw(*SEventBuffer, Reg::X0, m_ProcessFields.get().at(processes.front()).at(processes.front()->getInputEvents()));
+        const auto &processFields = m_Model.get().getProcessFields();
+        c.lw(*SEventBuffer, Reg::X0, processFields.at(processes.front()).at(processes.front()->getInputEvents()));
         
         // Get address of end of input event buffer
         c.li(*SEventBufferEnd, (ceilDivide(processes.front()->getNumSourceNeurons(), 32) * 4));
@@ -504,7 +505,7 @@ private:
             auto strideReg = scalarRegisterAllocator.getRegister("SStride = X");
 
             // Load addresses of targets
-            c.lw(*bufferStartReg, Reg::X0, m_ProcessFields.get().at(p).at(p->getTarget()));
+            c.lw(*bufferStartReg, Reg::X0, processFields.at(p).at(p->getTarget()));
 
             // Calculate stride and load as immediate
             c.li(*strideReg, ceilDivide(p->getNumTargetNeurons(), 32) * 64);
@@ -561,7 +562,7 @@ private:
                 // Loop through postsynaptic targets
                 for(size_t i = 0; i < processes.size(); i++) {
                     const auto p = processes[i];
-                    const auto &stateFields = m_ProcessFields.get().at(p);
+                    const auto &stateFields = processFields.at(p);
 
                     ScalarRegisterAllocator::RegisterPtr targetReg;
                     ScalarRegisterAllocator::RegisterPtr strideReg;
@@ -664,7 +665,7 @@ private:
     std::reference_wrapper<CodeGenerator> m_CodeGenerator;
     std::reference_wrapper<VectorRegisterAllocator> m_VectorRegisterAllocator;
     std::reference_wrapper<ScalarRegisterAllocator> m_ScalarRegisterAllocator;
-    std::reference_wrapper<const ProcessFields> m_ProcessFields;
+    std::reference_wrapper<const Model> m_Model;
 };
 }
 
@@ -674,12 +675,12 @@ private:
 std::vector<uint32_t> BackendFeNN::generateSimulationKernel(std::shared_ptr<const ProcessGroup> synapseProcessGroup, 
                                                             std::shared_ptr<const ProcessGroup> neuronProcessGroup,
                                                             uint32_t numTimesteps, bool simulate,
-                                                            const ProcessFields &processFields) const
+                                                            const Model &model) const
 {
     uint32_t readyFlagPtr = 0;
     return AssemblerUtils::generateStandardKernel(
         simulate, readyFlagPtr,
-        [=, &processFields]
+        [=, &model]
         (CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator, ScalarRegisterAllocator &scalarRegisterAllocator)
         {
             // Register allocation
@@ -698,11 +699,11 @@ std::vector<uint32_t> BackendFeNN::generateSimulationKernel(std::shared_ptr<cons
             {
                 // Visit synapse process group
                 CodeGeneratorVisitor synapseVisitor(synapseProcessGroup, c, vectorRegisterAllocator, scalarRegisterAllocator,
-                                                    processFields);
+                                                    model);
 
                 // Visit neuron process group
                 CodeGeneratorVisitor neuronVisitor(neuronProcessGroup, c, vectorRegisterAllocator, scalarRegisterAllocator,
-                                                   processFields);
+                                                   model);
 
                 c.addi(*STime, *STime, 1);
                 c.bne(*STime, *STimeEnd, timeLoop);

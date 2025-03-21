@@ -1,4 +1,4 @@
-#include "backend/process_fields.h"
+#include "backend/model.h"
 
 // Plog includes
 #include <plog/Log.h>
@@ -12,16 +12,18 @@
 namespace
 {
 //----------------------------------------------------------------------------
-// ProcessFieldVisitor
+// Visitor
 //----------------------------------------------------------------------------
-class ProcessFieldVisitor : public ModelComponentVisitor
+class Visitor : public ModelComponentVisitor
 {
 public:
-    ProcessFieldVisitor(std::shared_ptr<const ProcessGroup> processGroup, ProcessFields &processFields)
-    :   m_ProcessFields(processFields), m_FieldOffset(0)
+    Visitor(const std::vector<std::shared_ptr<const ProcessGroup>> processGroups, 
+            Model::ProcessFields &processFields, Model::StateProcesses &stateProcesses)
+    :   m_ProcessFields(processFields), m_StateProcesses(stateProcesses), m_FieldOffset(0)
     {
-        for(auto p : processGroup->getProcesses()) {
-            p->accept(*this);
+        // Loop through all process groups and visit
+        for(const auto g : processGroups)  {
+            g->accept(*this);
         }
     }
 
@@ -41,9 +43,12 @@ private:
         }
     }
 
-    virtual void visit(std::shared_ptr<const ProcessGroup>)
+    virtual void visit(std::shared_ptr<const ProcessGroup> processGroup)
     {
-        assert(false);
+        // Visit all the processes
+        for(const auto p : processGroup->getProcesses()) {
+            p->accept(*this);
+        }
     }
 
     virtual void visit(std::shared_ptr<const NeuronUpdateProcess> neuronUpdateProcess)
@@ -54,11 +59,13 @@ private:
         // Visit variables
         for(auto &v : neuronUpdateProcess->getVariables()) {
             v.second->accept(*this);
+            m_StateProcesses.get()[v.second].push_back(neuronUpdateProcess);
         }
 
         // Visit output event containers
         for(auto &e : neuronUpdateProcess->getOutputEvents()) {
             e.second->accept(*this);
+            m_StateProcesses.get()[e.second].push_back(neuronUpdateProcess);
         }
 
         // Add process fields
@@ -79,6 +86,11 @@ private:
         eventPropagationProcess->getInputEvents()->accept(*this);
         eventPropagationProcess->getWeight()->accept(*this);
         eventPropagationProcess->getTarget()->accept(*this);
+        
+        // Add back-references in state processes
+        m_StateProcesses.get()[eventPropagationProcess->getInputEvents()].push_back(eventPropagationProcess);
+        m_StateProcesses.get()[eventPropagationProcess->getWeight()].push_back(eventPropagationProcess);
+        m_StateProcesses.get()[eventPropagationProcess->getTarget()].push_back(eventPropagationProcess);
 
         // Add process fields
         if(!m_ProcessFields.get().try_emplace(eventPropagationProcess, m_CurrentStateFields).second) {
@@ -104,14 +116,20 @@ private:
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
-    std::reference_wrapper<ProcessFields> m_ProcessFields;
-
-    StateFields m_CurrentStateFields;
+    std::reference_wrapper<Model::ProcessFields> m_ProcessFields;
+    std::reference_wrapper<Model::StateProcesses> m_StateProcesses;
+    Model::StateFields m_CurrentStateFields;
     uint32_t m_FieldOffset;
 };
 }
 
-void addFields(std::shared_ptr<const ProcessGroup> processGroup, ProcessFields &fields)
+//----------------------------------------------------------------------------
+// Model
+//----------------------------------------------------------------------------
+Model::Model(const std::vector<std::shared_ptr<const ProcessGroup>> processGroups)
+:   m_ProcessGroups(processGroups)
 {
-    ProcessFieldVisitor visitor(processGroup, fields);
+    // Use visitor to populate process fields and 
+    // state processes data structures from process groups
+    Visitor visitor(processGroups, m_ProcessFields, m_StateProcesses);
 }

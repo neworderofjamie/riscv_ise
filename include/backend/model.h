@@ -1,0 +1,45 @@
+#pragma once
+
+// Standard C++ includes
+#include <memory>
+#include <unordered_map>
+#include <vector>
+
+// Standard C includes
+#include <cstdint>
+
+// Forward declarations
+class Process;
+class ProcessGroup;
+class State;
+
+//----------------------------------------------------------------------------
+// Model
+//----------------------------------------------------------------------------
+//! Backend-agnostic datastructure build from processes user wishes to deploy
+class Model
+{
+public:
+    // Mapping of state objects to field offset
+    using StateFields = std::unordered_map<std::shared_ptr<const State>, uint32_t>;
+
+    // Mapping of processes to their fields
+    using ProcessFields = std::unordered_map<std::shared_ptr<const Process>, StateFields>;
+
+    // Mapping of state objects to processes which reference them
+    using StateProcesses = std::unordered_map<std::shared_ptr<const State>, std::vector<std::shared_ptr<const Process>>>;
+
+    Model(const std::vector<std::shared_ptr<const ProcessGroup>> processGroups);
+
+    //------------------------------------------------------------------------
+    // Public API
+    //------------------------------------------------------------------------
+    const auto &getProcessGroups() const{ return m_ProcessGroups; }
+    const auto &getProcessFields() const{ return m_ProcessFields; }
+    const auto &getStateProcesses() const{ return m_StateProcesses; }
+
+private:
+    std::vector<std::shared_ptr<const ProcessGroup>> m_ProcessGroups;
+    ProcessFields m_ProcessFields;
+    StateProcesses m_StateProcesses;
+};
