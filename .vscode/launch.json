@@ -22,6 +22,7 @@
         "decay",
         "dump_coe",
         "init_vram",
+        "lane_local_test",
         "lif",
         "mnist",
         "poisson",
