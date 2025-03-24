@@ -11,6 +11,7 @@
 // Forward declarations
 class ArrayBase;
 class BackendFeNN;
+class IFieldArray;
 class Model;
 class State;
 class StateBase;
@@ -41,4 +42,5 @@ private:
     std::unordered_map<std::shared_ptr<const State>, std::unique_ptr<ArrayBase>> m_Arrays;
     std::reference_wrapper<const BackendFeNN> m_Backend;
     std::reference_wrapper<const Model> m_Model;
+    std::unique_ptr<IFieldArray> m_FieldArray;
 };

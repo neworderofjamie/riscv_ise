@@ -27,6 +27,8 @@ public:
         }
     }
 
+    uint32_t getNumFields() const { return m_FieldOffset; }
+
 private:
     //------------------------------------------------------------------------
     // ModelComponentVisitor virtuals
@@ -132,4 +134,6 @@ Model::Model(const std::vector<std::shared_ptr<const ProcessGroup>> processGroup
     // Use visitor to populate process fields and 
     // state processes data structures from process groups
     Visitor visitor(processGroups, m_ProcessFields, m_StateProcesses);
+
+    m_NumFields = visitor.getNumFields();
 }

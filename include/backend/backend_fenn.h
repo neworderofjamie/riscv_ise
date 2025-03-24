@@ -24,9 +24,9 @@ class ProcessGroup;
 class StateBase
 {
 public:
-    virtual ~StateBase()
-    {
-    }
+    StateBase() = default;
+    virtual ~StateBase() = default;
+    StateBase(const StateBase &) = delete;
 
     //------------------------------------------------------------------------
     // Declared virtuals
@@ -78,6 +78,9 @@ public:
     //! Copy entire array from device
     virtual void pullFromDevice() = 0;
 
+    //! Serialise backend-specific device object to uint32_t
+    virtual void serialiseDeviceObject(std::vector<std::byte> &bytes) const = 0;
+
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
@@ -117,12 +120,38 @@ private:
 };
 
 //----------------------------------------------------------------------------
+// IFieldArray
+//----------------------------------------------------------------------------
+//! Interface for object, probably backed by some sort of array,
+//! that anages in-device memory fields structure
+class IFieldArray
+{
+public:
+    virtual ~IFieldArray() = default;
+
+    //------------------------------------------------------------------------
+    // Declared virtuals
+    //------------------------------------------------------------------------
+    //! Sets field at offset to point to array
+    virtual void setFieldArray(uint32_t fieldOffset, const ArrayBase *array) = 0;
+
+    //! Copy field data to device
+    virtual void pushFieldsToDevice() = 0;
+};
+
+//----------------------------------------------------------------------------
 // URAMArrayBase
 //----------------------------------------------------------------------------
 //! Base class for arrays located in FeNN's URAM
 class URAMArrayBase : public ArrayBase
 {
 public:
+    //------------------------------------------------------------------------
+    // ArrayBase virtuals
+    //------------------------------------------------------------------------
+    //! Serialise backend-specific device object to uint32_t
+    virtual void serialiseDeviceObject(std::vector<std::byte> &bytes) const override final;
+
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
@@ -156,6 +185,12 @@ private:
 class BRAMArrayBase : public ArrayBase
 {
 public:
+    //------------------------------------------------------------------------
+    // ArrayBase virtuals
+    //------------------------------------------------------------------------
+    //! Serialise backend-specific device object to uint32_t
+    virtual void serialiseDeviceObject(std::vector<std::byte> &bytes) const override final;
+
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
@@ -194,7 +229,7 @@ public:
                                                        StateBase *state) const = 0;
     virtual std::unique_ptr<ArrayBase> createBRAMArray(const GeNN::Type::ResolvedType &type, size_t count,
                                                        StateBase *state) const = 0;
-
+    virtual std::unique_ptr<IFieldArray> createFieldArray(const Model &model, StateBase *state) const = 0;
     virtual std::unique_ptr<StateBase> createState() const = 0;
 
     //------------------------------------------------------------------------
@@ -210,4 +245,5 @@ public:
 
     std::unique_ptr<ArrayBase> createArray(std::shared_ptr<const EventContainer> eventContainer, 
                                            StateBase *state) const;
+
 };
