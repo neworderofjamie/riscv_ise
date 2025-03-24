@@ -14,10 +14,17 @@
     <ClInclude Include="..\..\include\backend\backend_fenn.h" />
     <ClInclude Include="..\..\include\backend\backend_fenn_hw.h" />
     <ClInclude Include="..\..\include\backend\backend_fenn_sim.h" />
+    <ClInclude Include="..\..\include\backend\memory_allocator.h" />
+    <ClInclude Include="..\..\include\backend\model.h" />
+    <ClInclude Include="..\..\include\backend\runtime.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="backend_fenn.cc" />
     <ClCompile Include="backend_fenn_hw.cc" />
     <ClCompile Include="backend_fenn_sim.cc" />
+    <ClCompile Include="memory_allocator.cc" />
+    <ClCompile Include="model.cc" />
+    <ClCompile Include="runtime.cc" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
@@ -67,7 +74,7 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_DEBUG;_CONSOLE;FFI_BUILDING;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalIncludeDirectories>$(SolutionDir)include;$(GENN_PATH)/include/genn/third_party;$(GENN_PATH)/include/genn/genn;$(GENN_PATH)/include/genn/third_party/libffi;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
@@ -83,7 +90,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NDEBUG;_CONSOLE;FFI_BUILDING;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalIncludeDirectories>$(SolutionDir)include;$(GENN_PATH)/include/genn/third_party;$(GENN_PATH)/include/genn/genn;$(GENN_PATH)/include/genn/third_party/libffi;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>

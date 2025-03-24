@@ -20,12 +20,33 @@
     <ClInclude Include="..\..\include\backend\backend_fenn_sim.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\include\backend\memory_allocator.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\backend\model.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\backend\runtime.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="backend_fenn_hw.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="backend_fenn_sim.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="memory_allocator.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="model.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="runtime.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="backend_fenn.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
