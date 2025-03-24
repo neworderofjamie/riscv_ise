@@ -38,8 +38,11 @@ public:
     const auto &getProcessFields() const{ return m_ProcessFields; }
     const auto &getStateProcesses() const{ return m_StateProcesses; }
 
+    uint32_t getNumFields() const { return m_NumFields; }
+
 private:
     std::vector<std::shared_ptr<const ProcessGroup>> m_ProcessGroups;
     ProcessFields m_ProcessFields;
     StateProcesses m_StateProcesses;
+    uint32_t m_NumFields;
 };

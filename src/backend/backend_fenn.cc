@@ -669,6 +669,33 @@ private:
 };
 }
 
+//------------------------------------------------------------------------
+// URAMArrayBase
+//------------------------------------------------------------------------
+void URAMArrayBase::serialiseDeviceObject(std::vector<std::byte> &bytes) const
+{
+    // Allocate 4 bytes of space
+    bytes.resize(4);
+
+    // Memcpy URAM pointer into bytes
+    const uint32_t uramPointer = m_URAMPointer.value(); 
+    std::memcpy(bytes.data(), &uramPointer, 4);
+}
+
+
+//------------------------------------------------------------------------
+// BRAMArrayBase
+//------------------------------------------------------------------------
+void BRAMArrayBase::serialiseDeviceObject(std::vector<std::byte> &bytes) const
+{
+    // Allocate 4 bytes of space
+    bytes.resize(4);
+
+    // Memcpy BRAM pointer into bytes
+    const uint32_t bramPointer = m_BRAMPointer.value();
+    std::memcpy(bytes.data(), &bramPointer, 4);
+}
+
 //----------------------------------------------------------------------------
 // BackendFeNN
 //------------------------------------------------------------------------
