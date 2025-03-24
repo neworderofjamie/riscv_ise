@@ -27,6 +27,7 @@
 // RISC-V backend includes
 #include "backend/backend_fenn_sim.h"
 #include "backend/model.h"
+#include "backend/runtime.h"
 
 // RISC-V assembler includes
 #include "compiler/event_container.h"
@@ -114,22 +115,21 @@ int main(int argc, char** argv)
     const auto neuronUpdateProcesses = ProcessGroup::create({hidden, output});
     const auto synapseUpdateProcesses = ProcessGroup::create({inputHidden, hiddenOutput});
 
-    BackendFeNNSim backend;
-    
     
     // Build model from process groups we want to simulate
     Model model({synapseUpdateProcesses, neuronUpdateProcesses});
     
-    // 1) Visit process groups and build fields
-    //MemoryAllocatorVisitor memoryAllocatorVisitor(memoryAllocator);
-    //model.visitComponents(memoryAllocatorVisitor);
+    BackendFeNNSim backend;
+
 
     // Generate kernel
     const auto code = backend.generateSimulationKernel(synapseUpdateProcesses, neuronUpdateProcesses, 
                                                        1000, true, model);
 
-    
+    Runtime runtime(model, backend);
 
+    // Allocate memory for model
+    runtime.allocate();
     for(uint32_t i: code) {
         try {
             disassemble(std::cout, i);

@@ -204,4 +204,10 @@ public:
                                                    std::shared_ptr<const ProcessGroup> neuronProcessGroup,
                                                    uint32_t numTimesteps, bool simulate,
                                                    const Model &model) const;
+
+    std::unique_ptr<ArrayBase> createArray(std::shared_ptr<const Variable> variable, 
+                                           StateBase *state) const;
+
+    std::unique_ptr<ArrayBase> createArray(std::shared_ptr<const EventContainer> eventContainer, 
+                                           StateBase *state) const;
 };

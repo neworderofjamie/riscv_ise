@@ -710,3 +710,19 @@ std::vector<uint32_t> BackendFeNN::generateSimulationKernel(std::shared_ptr<cons
             }
         });
 }
+//------------------------------------------------------------------------
+std::unique_ptr<ArrayBase> BackendFeNN::createArray(std::shared_ptr<const Variable> variable,
+                                                    StateBase *state) const
+{
+    // **TODO** should also take vector of processes that access variables.
+    // **TODO** if target of sparse or delayed event propoagation process, implement in L.L.M.
+    return createURAMArray(variable->getType(), variable->getShape().getFlattenedSize(), state);
+}
+//------------------------------------------------------------------------
+std::unique_ptr<ArrayBase> BackendFeNN::createArray(std::shared_ptr<const EventContainer> eventContainer,
+                                                    StateBase *state) const
+{
+    // Event containers are always implemented as BRAM bitfields
+    const size_t numSpikeWords = ceilDivide(eventContainer->getShape().getFlattenedSize(), 32);
+    return createBRAMArray(GeNN::Type::Uint32, numSpikeWords, state);
+}
