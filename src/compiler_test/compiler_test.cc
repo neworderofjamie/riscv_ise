@@ -21,6 +21,7 @@
 // RISC-V commo include
 #include "common/CLI11.hpp"
 #include "common/app_utils.h"
+#include "common/utils.h"
 
 // RISC-V backend includes
 #include "backend/backend_fenn_sim.h"
@@ -44,7 +45,7 @@ void loadAndPush(const std::string &filename, std::shared_ptr<const State> state
 
     // Get array
     auto *array = runtime.getArray(state);
-    assert(array->getSizeBytes() <= data.size());
+    assert(array->getSizeBytes() == data.size());
 
     // Copy data to array host pointer
     std::copy(data.cbegin(), data.cend(), array->getHostPointer());
@@ -67,11 +68,15 @@ void zeroAndPush(std::shared_ptr<const State> state, Runtime &runtime)
 
 int main(int argc, char** argv)
 {
+    constexpr size_t numTimesteps = 79;
     const Shape inputShape{{28 * 28}};
     const Shape hiddenShape{{128}};
     const Shape outputShape{{10}};
     const Shape inputHiddenShape{{28 * 28, 128}};
     const Shape hiddenOutputShape{{128, 10}};
+
+    const size_t numInputSpikeWords = ceilDivide(inputShape.getNumNeurons(), 32);
+    const size_t numInputSpikeArrayWords = numInputSpikeWords * numTimesteps;
 
     // Configure logging
     plog::ConsoleAppender<plog::TxtFormatter> consoleAppender;
@@ -89,7 +94,7 @@ int main(int argc, char** argv)
 
 
     // Input spikes
-    const auto inputSpikes = EventContainer::create(inputShape);
+    const auto inputSpikes = EventContainer::create(inputShape, numTimesteps);
 
     // Hidden neurons
     const auto hiddenV = Variable::create(hiddenShape, GeNN::Type::S10_5);
@@ -150,6 +155,9 @@ int main(int argc, char** argv)
 
     Runtime runtime(model, backend);
 
+    // Set instructions
+    runtime.setInstructions(code);
+
     // Allocate memory for model
     runtime.allocate();
 
@@ -158,7 +166,6 @@ int main(int argc, char** argv)
     loadAndPush("mnist_in_hid.bin", inputHiddenWeight, runtime);
     loadAndPush("mnist_hid_out.bin", hiddenOutputWeight, runtime);
     loadAndPush("mnist_bias.bin", outputBias, runtime);
-    
 
     // Zero remaining state
     zeroAndPush(hiddenV, runtime);
@@ -168,6 +175,34 @@ int main(int argc, char** argv)
     zeroAndPush(outputI, runtime);
     zeroAndPush(outputVSum, runtime);
 
+    // Load data
+    const auto mnistSpikes = AppUtils::loadBinaryData<uint32_t>("mnist_spikes.bin");
+    const auto mnistLabels = AppUtils::loadBinaryData<int16_t>("mnist_labels.bin");
+
+    // Loop through examples
+    auto *inputSpikeArray = runtime.getArray(inputSpikes);
+    auto *outputVSumArray = runtime.getArray(outputVSum);
+    auto *outputVSumArrayHostPtr = outputVSumArray->getHostPointer<int16_t>();
+    size_t numCorrect = 0;
+    for (size_t i = 0; i < numExamples; i++) {
+        // Copy data to array host pointer
+        std::copy_n(mnistSpikes.data() + (numInputSpikeArrayWords * i),
+                    numInputSpikeArrayWords,
+                    inputSpikeArray->getHostPointer<uint32_t>());
+        inputSpikeArray->pushToDevice();
+    
+        // Classify
+        runtime.run();
+
+        // Determine if output is correct
+        const auto classification = std::distance(outputVSumArrayHostPtr, std::max_element(outputVSumArrayHostPtr, outputVSumArrayHostPtr + 10));
+        if (classification == mnistLabels[i]) {
+            numCorrect++;
+        }
+    }
+
+    std::cout << numCorrect << " / " << numExamples << " correct (" << 100.0 * (numCorrect / double(numExamples)) << "%)" << std::endl;
+    //std::cout << duration.count() << " seconds" << std::endl;
     for(uint32_t i: code) {
         try {
             disassemble(std::cout, i);
