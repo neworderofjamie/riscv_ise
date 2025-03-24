@@ -2,8 +2,9 @@
 
 // Standard C++ include
 #include <functional>
-#include <unordered_map>
+#include <numeric>
 #include <tuple>
+#include <unordered_map>
 #include <vector>
 
 // Standard C includes
@@ -261,11 +262,13 @@ void compileStatements(const std::vector<Token> &tokens, const Type::TypeContext
 class CodeGeneratorVisitor : public ModelComponentVisitor
 {
 public:
-    CodeGeneratorVisitor(std::shared_ptr<const ProcessGroup> processGroup, CodeGenerator &codeGenerator, 
+    CodeGeneratorVisitor(std::shared_ptr<const ProcessGroup> processGroup, 
+                         ScalarRegisterAllocator::RegisterPtr timeRegister,
+                         CodeGenerator &codeGenerator, 
                          VectorRegisterAllocator &vectorRegisterAllocator, 
                          ScalarRegisterAllocator &scalarRegisterAllocator, 
                          const Model &model)
-    :   m_CodeGenerator(codeGenerator), m_VectorRegisterAllocator(vectorRegisterAllocator),
+    :   m_TimeRegister(timeRegister), m_CodeGenerator(codeGenerator), m_VectorRegisterAllocator(vectorRegisterAllocator),
         m_ScalarRegisterAllocator(scalarRegisterAllocator), m_Model(model)
     {
         // Visit all the processes
@@ -478,24 +481,26 @@ private:
         Label zeroSpikeWord;
         Label wordEnd;
 
-        // If literal is provided for start of presynapric spike buffer, allocate register and load immediate into it
-        /*ScalarRegisterAllocator::RegisterPtr SEventBuffer;
-        if(std::holds_alternative<uint32_t>(preSpikePtr)) {
-            SEventBuffer = scalarRegisterAllocator.getRegister("SEventBuffer = X");
-            c.li(*SEventBuffer, std::get<uint32_t>(preSpikePtr));
-        }
-        // Otherwise, use pointer register directly
-        else {
-            SEventBuffer = std::get<ScalarRegisterAllocator::RegisterPtr>(preSpikePtr);
-        }*/
         // Generate code to load address of input event buffer
         const auto &processFields = m_Model.get().getProcessFields();
         c.lw(*SEventBuffer, Reg::X0, processFields.at(processes.front()).at(processes.front()->getInputEvents()));
-        
-        // Get address of end of input event buffer
-        c.li(*SEventBufferEnd, (ceilDivide(processes.front()->getNumSourceNeurons(), 32) * 4));
-        c.add(*SEventBufferEnd, *SEventBufferEnd, *SEventBuffer);
-    
+
+        {
+            // Load immediate with number of words required to represent one timestep of input spikes
+            ALLOCATE_SCALAR(STmp);
+            c.li(*STmp, ceilDivide(processes.front()->getNumSourceNeurons(), 32) * 4);
+
+            // If there are multiple timesteps, multiply timestep by stride and add to event start pointer
+            // **TODO** modulus number of buffer timesteps/whatever else for delays
+            if (processes.front()->getInputEvents()->getNumBufferTimesteps() != 1) {
+                ALLOCATE_SCALAR(STmp2);
+                c.mul(*STmp2, *m_TimeRegister, *STmp);
+                c.add(*SEventBuffer, *SEventBuffer, *STmp2);
+            }
+
+            // Get address of end of input event buffer        
+            c.add(*SEventBufferEnd, *STmp, *SEventBuffer);
+        }
 
         // Loop through postsynaptic targets
         std::vector<std::pair<ScalarRegisterAllocator::RegisterPtr, ScalarRegisterAllocator::RegisterPtr>> sTargetStrideBufferRegs;
@@ -662,6 +667,7 @@ private:
     // Members
     //------------------------------------------------------------------------
     std::unordered_map<std::shared_ptr<const EventContainer>, std::vector<std::shared_ptr<const EventPropagationProcess>>> m_EventPropagationProcesses;
+    ScalarRegisterAllocator::RegisterPtr m_TimeRegister;
     std::reference_wrapper<CodeGenerator> m_CodeGenerator;
     std::reference_wrapper<VectorRegisterAllocator> m_VectorRegisterAllocator;
     std::reference_wrapper<ScalarRegisterAllocator> m_ScalarRegisterAllocator;
@@ -733,12 +739,12 @@ std::vector<uint32_t> BackendFeNN::generateSimulationKernel(std::shared_ptr<cons
             c.L(timeLoop);
             {
                 // Visit synapse process group
-                CodeGeneratorVisitor synapseVisitor(synapseProcessGroup, c, vectorRegisterAllocator, scalarRegisterAllocator,
-                                                    model);
+                CodeGeneratorVisitor synapseVisitor(synapseProcessGroup, STime, c, vectorRegisterAllocator,
+                                                    scalarRegisterAllocator, model);
 
                 // Visit neuron process group
-                CodeGeneratorVisitor neuronVisitor(neuronProcessGroup, c, vectorRegisterAllocator, scalarRegisterAllocator,
-                                                   model);
+                CodeGeneratorVisitor neuronVisitor(neuronProcessGroup, STime, c, vectorRegisterAllocator,
+                                                   scalarRegisterAllocator, model);
 
                 c.addi(*STime, *STime, 1);
                 c.bne(*STime, *STimeEnd, timeLoop);
@@ -749,15 +755,26 @@ std::vector<uint32_t> BackendFeNN::generateSimulationKernel(std::shared_ptr<cons
 std::unique_ptr<ArrayBase> BackendFeNN::createArray(std::shared_ptr<const Variable> variable,
                                                     StateBase *state) const
 {
+    // Pad last dimension to multiplies of 32
+    // **THINK** how much of this belongs in Shape?
+    // **TODO** more information is required here to seperate variables with
+    // shape (B,) which shouldn't be padded from (N,) variables which should
+    auto varDims = variable->getShape().getDims();
+    varDims.back() = padSize(varDims.back(), 32);
+
+    // Multiple padded dimensions together
+    const size_t count = std::accumulate(varDims.cbegin(), varDims.cend(), 
+                                         1, std::multiplies<size_t>());
+
     // **TODO** should also take vector of processes that access variables.
     // **TODO** if target of sparse or delayed event propoagation process, implement in L.L.M.
-    return createURAMArray(variable->getType(), variable->getShape().getFlattenedSize(), state);
+    return createURAMArray(variable->getType(), count, state);
 }
 //------------------------------------------------------------------------
 std::unique_ptr<ArrayBase> BackendFeNN::createArray(std::shared_ptr<const EventContainer> eventContainer,
                                                     StateBase *state) const
 {
     // Event containers are always implemented as BRAM bitfields
-    const size_t numSpikeWords = ceilDivide(eventContainer->getShape().getFlattenedSize(), 32);
+    const size_t numSpikeWords = ceilDivide(eventContainer->getShape().getFlattenedSize(), 32) * eventContainer->getNumBufferTimesteps();
     return createBRAMArray(GeNN::Type::Uint32, numSpikeWords, state);
 }

@@ -37,6 +37,10 @@ NeuronUpdateProcess::NeuronUpdateProcess(Private, const std::string &code, const
 
     // Check all output events have same number of neurons
     for(const auto &o : m_OutputEvents) {
+        if (o.second->getNumBufferTimesteps() != 1) {
+            throw std::runtime_error("Neuron update processes cannot currently emit events "
+                                     "into container with multiple timesteps of buffering");
+        }
         if(o.second->getShape().getNumNeurons() != m_NumNeurons) {
             throw std::runtime_error("Output events '" + o.first + "' with shape: " + o.second->getShape().toString()
                                      + " is not compatible with neuron update process with " + std::to_string(m_NumNeurons) + " neurons");
