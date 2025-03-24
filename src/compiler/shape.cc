@@ -20,9 +20,11 @@ std::string Shape::toString() const
 //----------------------------------------------------------------------------
 size_t Shape::getNumNeurons() const
 {
+    // Non-batched neuron variable (N)
     if(m_Dims.size() == 1) {
         return m_Dims[0];
     }
+    // Batched neuron variable (B, N)
     else if(m_Dims.size() == 2) {
         return m_Dims[1];
     }
@@ -33,9 +35,11 @@ size_t Shape::getNumNeurons() const
 //----------------------------------------------------------------------------
 size_t Shape::getNumSourceNeurons() const
 {
+    // Non-batched synapse variable (S, T)
     if(m_Dims.size() == 2) {
         return m_Dims[0];
     }
+    // Batched synapse variable (B, S, T)
     else if(m_Dims.size() == 3) {
         return m_Dims[1];
     }
@@ -46,9 +50,11 @@ size_t Shape::getNumSourceNeurons() const
 //----------------------------------------------------------------------------
 size_t Shape::getNumTargetNeurons() const
 {
+    // Non-batched synapse variable (S, T)
     if(m_Dims.size() == 2) {
         return m_Dims[1];
     }
+    // Batched synapse variable (B, S, T)
     else if(m_Dims.size() == 3) {
         return m_Dims[2];
     }
