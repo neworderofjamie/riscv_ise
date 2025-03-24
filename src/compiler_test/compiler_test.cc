@@ -18,11 +18,9 @@
 // GeNN includes
 #include "type.h"
 
-// RISC-V utils include
+// RISC-V commo include
 #include "common/CLI11.hpp"
 #include "common/app_utils.h"
-#include "common/device.h"
-#include "common/utils.h"
 
 // RISC-V backend includes
 #include "backend/backend_fenn_sim.h"
@@ -36,12 +34,36 @@
 #include "compiler/process_group.h"
 #include "compiler/variable.h"
 
-// RISC-V ISE includes
-#include "ise/riscv.h"
-#include "ise/vector_processor.h"
-
 // **HACK**
 void disassemble(std::ostream &os, uint32_t inst);
+
+void loadAndPush(const std::string &filename, std::shared_ptr<const State> state, Runtime &runtime)
+{
+    // Load data from file
+    const auto data = AppUtils::loadBinaryData<uint8_t>(filename);
+
+    // Get array
+    auto *array = runtime.getArray(state);
+    assert(array->getSizeBytes() <= data.size());
+
+    // Copy data to array host pointer
+    std::copy(data.cbegin(), data.cend(), array->getHostPointer());
+
+    // Push to device
+    array->pushToDevice();
+}
+
+void zeroAndPush(std::shared_ptr<const State> state, Runtime &runtime)
+{
+    // Get array
+    auto *array = runtime.getArray(state);
+ 
+    // Zero
+    array->memsetHostPointer(0);
+
+    // Push to device
+    array->pushToDevice();
+}
 
 int main(int argc, char** argv)
 {
@@ -130,6 +152,22 @@ int main(int argc, char** argv)
 
     // Allocate memory for model
     runtime.allocate();
+
+    // Load weights
+    // **TODO** AppUtils
+    loadAndPush("mnist_in_hid.bin", inputHiddenWeight, runtime);
+    loadAndPush("mnist_hid_out.bin", hiddenOutputWeight, runtime);
+    loadAndPush("mnist_bias.bin", outputBias, runtime);
+    
+
+    // Zero remaining state
+    zeroAndPush(hiddenV, runtime);
+    zeroAndPush(hiddenI, runtime);
+    zeroAndPush(hiddenRefracTime, runtime);
+    zeroAndPush(outputV, runtime);
+    zeroAndPush(outputI, runtime);
+    zeroAndPush(outputVSum, runtime);
+
     for(uint32_t i: code) {
         try {
             disassemble(std::cout, i);
