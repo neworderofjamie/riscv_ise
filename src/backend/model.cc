@@ -27,7 +27,7 @@ public:
         }
     }
 
-    uint32_t getNumFields() const { return m_FieldOffset; }
+    uint32_t getNumFields() const { return m_FieldOffset / 4; }
 
 private:
     //------------------------------------------------------------------------
