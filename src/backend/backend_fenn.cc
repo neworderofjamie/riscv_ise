@@ -313,35 +313,56 @@ private:
          // For now, unrollVectorLoopBody requires SOME buffers
         assert(!neuronUpdateProcess->getVariables().empty());
 
-        // Loop through neuron variables
         std::unordered_map<std::shared_ptr<const Variable>, ScalarRegisterAllocator::RegisterPtr> varBufferRegisters;
-        for(const auto v : neuronUpdateProcess->getVariables()) {
-            // **TODO** check data structure to determine how this variable is implemented
-            // i.e. in lane-local or vector memory and create appropriate address register
+        {
+            // Loop through neuron variables
+            for(const auto v : neuronUpdateProcess->getVariables()) {
+                // **TODO** check data structure to determine how this variable is implemented
+                // i.e. in lane-local or vector memory and create appropriate address register
 
-            // Allocate scalar register to hold address of variable
-            const auto reg = m_ScalarRegisterAllocator.get().getRegister((v.first + "Buffer X").c_str());
+                // Allocate scalar register to hold address of variable
+                const auto reg = m_ScalarRegisterAllocator.get().getRegister((v.first + "Buffer X").c_str());
 
-            // Add register to map
-            varBufferRegisters.try_emplace(v.second, reg);
+                // Add register to map
+                varBufferRegisters.try_emplace(v.second, reg);
 
-            // Generate code to load address
-            c.lw(*reg, Reg::X0, stateFields.at(v.second));
+                // Generate code to load address
+                c.lw(*reg, Reg::X0, stateFields.at(v.second));
+            }
         }
 
-        // Loop through neuron event outputs
         std::unordered_map<std::shared_ptr<const EventContainer>, ScalarRegisterAllocator::RegisterPtr> eventBufferRegisters;
-        for(const auto e : neuronUpdateProcess->getOutputEvents()) {
-            // Allocate scalar register to hold address of variable
-            const auto reg = m_ScalarRegisterAllocator.get().getRegister((e.first + "Buffer X").c_str());
+        {
+            // If any output events have buffering, calculate stride in bytes
+            // **TODO** make set of non-1 bufferings and pre-multiply time by this
+            const auto SNumEventBytes = m_ScalarRegisterAllocator.get().getRegister("SNumEventBytes X");;
+            if(std::any_of(neuronUpdateProcess->getOutputEvents().cbegin(), neuronUpdateProcess->getOutputEvents().cend(),
+                           [](const auto e){ return e.second->getNumBufferTimesteps() != 1; }))
+            {
+                c.li(*SNumEventBytes, ceilDivide(neuronUpdateProcess->getNumNeurons(), 32) * 4);
+            }   
 
-            // Add register to map
-            eventBufferRegisters.try_emplace(e.second, reg);
+            // Loop through neuron event outputs
+            for(const auto e : neuronUpdateProcess->getOutputEvents()) {
+                // Allocate scalar register to hold address of variable
+                const auto reg = m_ScalarRegisterAllocator.get().getRegister((e.first + "Buffer X").c_str());
 
-            // Generate code to load address
-            c.lw(*reg, Reg::X0, stateFields.at(e.second));
+                // Add register to map
+                eventBufferRegisters.try_emplace(e.second, reg);
+
+                // Generate code to load address
+                c.lw(*reg, Reg::X0, stateFields.at(e.second));
+
+                // If there are multiple timesteps, multiply timestep by stride and add to register
+                // **TODO** modulus number of buffer timesteps/whatever else for delays
+                if (e.second->getNumBufferTimesteps() != 1) {
+                    const auto STmp = m_ScalarRegisterAllocator.get().getRegister("STmp X");
+                    
+                    c.mul(*STmp, *m_TimeRegister, *SNumEventBytes);
+                    c.add(*reg, *reg, *STmp);
+                }
+            }
         }
-        
         // Create code generation environment
         EnvironmentExternal env(m_CodeGenerator.get());
 
