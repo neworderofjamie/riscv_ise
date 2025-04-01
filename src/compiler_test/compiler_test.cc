@@ -152,7 +152,17 @@ int main(int argc, char** argv)
     // Generate kernel
     const auto code = backend.generateSimulationKernel(synapseUpdateProcesses, neuronUpdateProcesses, 
                                                        1000, true, model);
-
+    
+    for(size_t i = 0; i < code.size(); i++){
+        try {
+            std::cout << i * 4 << ": ";
+            disassemble(std::cout, code[i]);
+        }
+        catch(const std::runtime_error&) {
+            std::cout << "Unsupported";
+        }
+        std::cout << std::endl;
+    }
     Runtime runtime(model, backend);
 
     // Set instructions
@@ -203,14 +213,6 @@ int main(int argc, char** argv)
 
     std::cout << numCorrect << " / " << numExamples << " correct (" << 100.0 * (numCorrect / double(numExamples)) << "%)" << std::endl;
     //std::cout << duration.count() << " seconds" << std::endl;
-    for(uint32_t i: code) {
-        try {
-            disassemble(std::cout, i);
-        }
-        catch(const std::runtime_error&) {
-            std::cout << "Unsupported";
-        }
-        std::cout << std::endl;
-    }
+    
     return 0;
 }
