@@ -151,7 +151,7 @@ int main(int argc, char** argv)
 
     // Generate kernel
     const auto code = backend.generateSimulationKernel(synapseUpdateProcesses, neuronUpdateProcesses, 
-                                                       1000, true, model);
+                                                       numTimesteps, true, model);
     
     for(size_t i = 0; i < code.size(); i++){
         try {
