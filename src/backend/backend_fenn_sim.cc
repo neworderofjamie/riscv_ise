@@ -127,7 +127,7 @@ private:
 class BRAMArray : public BRAMArrayBase
 {
 public:
-     BRAMArray(const GeNN::Type::ResolvedType &type, size_t count, SimState *state)
+    BRAMArray(const GeNN::Type::ResolvedType &type, size_t count, SimState *state)
     :   BRAMArrayBase(type, count), m_State(state)
     {
         // Allocate if count is specified
@@ -212,7 +212,7 @@ public:
         assert(bytes.size() == 4);
 
         // Memcpy bytes into field offset
-        std::memcpy(getHostPointer<uint32_t>() + fieldOffset, 
+        std::memcpy(getHostPointer() + fieldOffset, 
                     bytes.data(), 4);
             
     }
