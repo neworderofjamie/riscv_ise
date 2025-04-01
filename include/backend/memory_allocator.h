@@ -2,6 +2,7 @@
 
 // Standard C++ includes
 #include <functional>
+#include <string>
 #include <unordered_map>
 
 // Standard C includes
@@ -22,8 +23,8 @@ class Variable;
 class MemoryAllocator
 {
 public:
-    MemoryAllocator(size_t sizeBytes, size_t alignementBytes)
-    :   m_SizeBytes(sizeBytes), m_AlignementBytes(alignementBytes), m_HighWaterBytes(0)
+    MemoryAllocator(size_t sizeBytes, size_t alignementBytes, const std::string &context)
+    :   m_SizeBytes(sizeBytes), m_AlignementBytes(alignementBytes), m_HighWaterBytes(0), m_Context(context)
     {}
     MemoryAllocator(const MemoryAllocator&) = delete;
 
@@ -35,6 +36,7 @@ private:
     size_t m_SizeBytes;
     size_t m_AlignementBytes;
     size_t m_HighWaterBytes;
+    std::string m_Context;
 };
 
 //----------------------------------------------------------------------------
@@ -43,7 +45,7 @@ private:
 class BRAMAllocator : public MemoryAllocator
 {
 public:
-    BRAMAllocator() : MemoryAllocator(128 * 1024, 4)
+    BRAMAllocator() : MemoryAllocator(128 * 1024, 4, "BRAM")
     {}
 };
 
@@ -53,7 +55,7 @@ public:
 class URAMAllocator : public MemoryAllocator
 {
 public:
-    URAMAllocator() : MemoryAllocator(8 * 4096 * 2 * 8, 64)
+    URAMAllocator() : MemoryAllocator(8 * 4096 * 2 * 8, 64, "URAM")
     {}
 };
 
