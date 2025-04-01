@@ -38,6 +38,20 @@
 // **HACK**
 void disassemble(std::ostream &os, uint32_t inst);
 
+void recordSpikes(const std::string &filename, ArrayBase *spikeArray,
+                  size_t numNeurons, size_t numTimesteps)
+{
+    spikeArray->pullFromDevice();
+    const uint32_t *spikeRecording = spikeArray->getHostPointer<uint32_t>();
+            
+    const size_t numSpikeWords = ceilDivide(numNeurons, 32);
+    std::ofstream spikeFile(filename);
+    for(size_t t = 0; t < numTimesteps; t++) {
+        AppUtils::writeSpikes(spikeFile, spikeRecording, t, numSpikeWords);
+        spikeRecording += numSpikeWords;
+    }
+}
+
 void loadAndPush(const std::string &filename, std::shared_ptr<const State> state, Runtime &runtime)
 {
     // Load data from file
@@ -83,15 +97,15 @@ int main(int argc, char** argv)
     plog::init(plog::debug, &consoleAppender);
 
     bool device = false;
+    bool record = false;
     size_t numExamples = 10000;
 
     CLI::App app{"Latency MNIST inference"};
     app.add_option("-n,--num-examples", numExamples, "How many examples to simulate");
-    app.add_flag("-d,--device", device, "Should be run on device rather than simulator");
+    app.add_flag("-d,--device", device, "Whether model is run on device rather than simulator");
+    app.add_flag("-r,--record", record, "Whether spikes should be recorded?");
     
-
     CLI11_PARSE(app, argc, argv);
-
 
     // Input spikes
     const auto inputSpikes = EventContainer::create(inputShape, numTimesteps);
@@ -100,7 +114,7 @@ int main(int argc, char** argv)
     const auto hiddenV = Variable::create(hiddenShape, GeNN::Type::S10_5);
     const auto hiddenI = Variable::create(hiddenShape, GeNN::Type::S10_5);
     const auto hiddenRefracTime = Variable::create(hiddenShape, GeNN::Type::Int16);
-    const auto hiddenSpikes = EventContainer::create(hiddenShape);
+    const auto hiddenSpikes = EventContainer::create(hiddenShape, record ? numTimesteps : 1);
     const auto hidden = NeuronUpdateProcess::create(
         "V = (Alpha * V) + I;\n"
         "I = 0.0h5;\n"
@@ -153,7 +167,7 @@ int main(int argc, char** argv)
     const auto code = backend.generateSimulationKernel(synapseUpdateProcesses, neuronUpdateProcesses, 
                                                        numTimesteps, true, model);
     
-    for(size_t i = 0; i < code.size(); i++){
+    /*for(size_t i = 0; i < code.size(); i++){
         try {
             std::cout << i * 4 << ": ";
             disassemble(std::cout, code[i]);
@@ -162,7 +176,7 @@ int main(int argc, char** argv)
             std::cout << "Unsupported";
         }
         std::cout << std::endl;
-    }
+    }*/
     Runtime runtime(model, backend);
 
     // Set instructions
@@ -191,6 +205,7 @@ int main(int argc, char** argv)
 
     // Loop through examples
     auto *inputSpikeArray = runtime.getArray(inputSpikes);
+    auto *hiddenSpikeArray = runtime.getArray(hiddenSpikes);
     auto *outputVSumArray = runtime.getArray(outputVSum);
     auto *outputVSumArrayHostPtr = outputVSumArray->getHostPointer<int16_t>();
     size_t numCorrect = 0;
@@ -204,11 +219,32 @@ int main(int argc, char** argv)
         // Classify
         runtime.run();
 
+        // If we're recording, write input and hidden spikes to file
+        if(record) {
+            recordSpikes("mnist_input_spikes_" + std::to_string(i) + ".csv", inputSpikeArray,
+                         inputShape.getNumNeurons(), numTimesteps);
+            recordSpikes("mnist_hidden_spikes_" + std::to_string(i) + ".csv", hiddenSpikeArray,
+                         hiddenShape.getNumNeurons(), numTimesteps);
+        }
+
+        // Copy output V sum from device
+        outputVSumArray->pullFromDevice();
+
+        
         // Determine if output is correct
         const auto classification = std::distance(outputVSumArrayHostPtr, std::max_element(outputVSumArrayHostPtr, outputVSumArrayHostPtr + 10));
         if (classification == mnistLabels[i]) {
             numCorrect++;
         }
+
+        for(size_t j = 0; j < 10; j++) {
+            std::cout << outputVSumArrayHostPtr[j] << ", ";
+        }
+        std::cout << "(" << classification << " vs " << mnistLabels[i] << ")" << std::endl;
+
+        // Zero output and push
+        outputVSumArray->memsetHostPointer(0);
+        outputVSumArray->pushToDevice();
     }
 
     std::cout << numCorrect << " / " << numExamples << " correct (" << 100.0 * (numCorrect / double(numExamples)) << "%)" << std::endl;
