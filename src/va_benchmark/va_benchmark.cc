@@ -19,6 +19,8 @@
 #include "common/CLI11.hpp"
 #include "common/app_utils.h"
 #include "common/device.h"
+#include "common/dma_buffer.h"
+#include "common/dma_controller.h"
 #include "common/utils.h"
 
 // RISC-V assembler includes
@@ -411,7 +413,7 @@ void genLIF(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator,
         });
 }
 // ---------------------------------------------------------------------------
-void writeSpikes(const char *filename, const uint32_t *recordingData,
+void writeSpikes(const char *filename, const volatile uint32_t *recordingData,
                  uint32_t numTimesteps, uint32_t numWords)
 {
     std::ofstream spikeFile(filename);
@@ -461,12 +463,11 @@ int main(int argc, char** argv)
     constexpr uint32_t ieLLAddr = iiLLAddr + (numInhWords * 2);
 
     // Allocate vector arrays
-    // **NOTE** these are adjacent so data can be block-copied from scalar memory
-    const uint32_t seedPtr = AppUtils::allocateVectorAndZero(32 * 2, vectorInitData);
-    const uint32_t eeIndPtr = AppUtils::allocateVectorAndZero(numExc * numExcIncomingVectors * 32, vectorInitData);
-    const uint32_t eiIndPtr = AppUtils::allocateVectorAndZero(numExc * numInhIncomingVectors * 32, vectorInitData);
-    const uint32_t iiIndPtr = AppUtils::allocateVectorAndZero(numInh * numInhIncomingVectors * 32, vectorInitData);
-    const uint32_t ieIndPtr = AppUtils::allocateVectorAndZero(numInh * numExcIncomingVectors * 32, vectorInitData);
+    const uint32_t seedPtr = AppUtils::allocateVectorSeedAndInit(vectorInitData);
+    const uint32_t eeIndPtr = AppUtils::loadVectors("va_benchmark_ee.bin", vectorInitData);
+    const uint32_t eiIndPtr = AppUtils::loadVectors("va_benchmark_ei.bin", vectorInitData);
+    const uint32_t iiIndPtr = AppUtils::loadVectors("va_benchmark_ii.bin", vectorInitData);
+    const uint32_t ieIndPtr = AppUtils::loadVectors("va_benchmark_ie.bin", vectorInitData);
     const uint32_t indPadPtr = AppUtils::allocateVectorAndZero(32, vectorInitData);
     const uint32_t excVPtr = AppUtils::allocateVectorAndZero(numExc, vectorInitData);
     const uint32_t excRefracTimePtr = AppUtils::allocateVectorAndZero(numExc, vectorInitData);
@@ -490,30 +491,6 @@ int main(int argc, char** argv)
     // Increase scalar memory for buffering
     assert(scalarInitData.size() <= (128 * 1024));
     scalarInitData.resize(128 * 1024, 0);
-
-    // Load connectivity data
-    const auto eeInd = AppUtils::loadBinaryData<uint8_t>("va_benchmark_ee.bin");
-    const auto eiInd = AppUtils::loadBinaryData<uint8_t>("va_benchmark_ei.bin");
-    const auto iiInd = AppUtils::loadBinaryData<uint8_t>("va_benchmark_ii.bin");
-    const auto ieInd = AppUtils::loadBinaryData<uint8_t>("va_benchmark_ie.bin");
-
-    // Load seed
-    const auto seed = AppUtils::getSeedData();
-
-    // Check first two are correctly padded
-    assert(eeInd.size() == numExc * numExcIncomingVectors * 64);
-    assert(eiInd.size() == numExc * numInhIncomingVectors * 64);
-    assert(iiInd.size() == numInh * numInhIncomingVectors * 64);
-    assert(ieInd.size() == numInh * numExcIncomingVectors * 64);
-    
-    // Concatenate into single vector
-    std::vector<uint8_t> copyData;
-    copyData.reserve(seed.size() + eeInd.size() + eiInd.size() + iiInd.size() + ieInd.size());
-    std::copy(seed.cbegin(), seed.cend(), std::back_inserter(copyData));
-    std::copy(eeInd.cbegin(), eeInd.cend(), std::back_inserter(copyData));
-    std::copy(eiInd.cbegin(), eiInd.cend(), std::back_inserter(copyData));
-    std::copy(iiInd.cbegin(), iiInd.cend(), std::back_inserter(copyData));
-    std::copy(ieInd.cbegin(), ieInd.cend(), std::back_inserter(copyData));
 
     const auto initCode = AssemblerUtils::generateStandardKernel(
         !device, readyFlagPtr,
@@ -746,14 +723,6 @@ int main(int argc, char** argv)
     LOGI << scalarInitData.size() << " bytes of scalar memory required";
     LOGI << vectorInitData.size() * 2 << " bytes of vector memory required (" << ceilDivide(vectorInitData.size() / 32, 4096) << " URAM cascade)";
 
-    // Generate initialisation code to copy blocks of data from scalar to vector memory
-    const uint32_t copyStartVectorPtr = 0;
-    const uint32_t copyNumVectorsPtr = 4;
-    const uint32_t copyReadyFlagPtr = 8;
-    const uint32_t copyScalarScratchPtr = 12;
-    const auto copyCode = AssemblerUtils::generateInitCode(!device, copyStartVectorPtr, copyNumVectorsPtr, 
-                                                           copyReadyFlagPtr, copyScalarScratchPtr);
-    
     if(device) {
         LOGI << "Creating device";
         Device device;
@@ -762,14 +731,29 @@ int main(int argc, char** argv)
         LOGI << "Resetting";
         device.setEnabled(false);
         
-        // Copying
-        const auto copyStartTime = std::chrono::high_resolution_clock::now();
-        {
-            LOGI << "Copying copy instructions (" << copyCode.size() * sizeof(uint32_t) << " bytes)";
-            device.uploadCode(copyCode);
+        LOGI << "Copying data (" << scalarInitData.size() << " bytes);";
+        device.memcpyDataToDevice(0, scalarInitData.data(), scalarInitData.size());
 
-            // Run kernels to copy initData into vector memory
-            device.runInit(copyData, copyStartVectorPtr, copyNumVectorsPtr, copyScalarScratchPtr, seedPtr, copyReadyFlagPtr);
+        {
+            LOGI << "DMAing vector init data to device";
+           
+            // Create DMA buffer
+            DMABuffer dmaBuffer;
+
+            // Check there's enough space for vector init data
+            assert(dmaBuffer.getSize() > (vectorInitData.size() * 2));
+
+            // Get halfword pointer to DMA buffer
+            int16_t *bufferData = reinterpret_cast<int16_t*>(dmaBuffer.getData());
+            
+            // Copy vector init data to buffer
+            std::copy(vectorInitData.cbegin(), vectorInitData.cend(), bufferData);
+            
+            // Start DMA of data to URAM
+            device.getDMAController()->startWrite(0, dmaBuffer, 0, vectorInitData.size() * 2);
+    
+            // Wait for write to complete
+            device.getDMAController()->waitForWriteComplete();
         }
         
         // Initialisation seeding
@@ -803,29 +787,37 @@ int main(int argc, char** argv)
         }
 
         const auto simEndTime = std::chrono::high_resolution_clock::now();
-        std::cout << "Startup time:" << (copyStartTime - programStartTime).count() << " seconds" << std::endl;
-        std::cout << "Copy time:" << (initStartTime - copyStartTime).count() << " seconds" << std::endl;
+        std::cout << "Startup time:" << (initStartTime - programStartTime).count() << " seconds" << std::endl;
         std::cout << "Init time:" << (simStartTime - initStartTime).count() << " seconds" << std::endl;
         std::cout << "Simulation time:" << (simEndTime - simStartTime).count() << " seconds" << std::endl;
+        
+#ifdef RECORD_SPIKES
+        const volatile uint32_t *excSpikeRecording = reinterpret_cast<const volatile uint32_t*>(device.getDataMemory() + excSpikeRecordingPtr);
+        writeSpikes("exc_spikes_sim.csv", excSpikeRecording,
+                    numTimesteps, numExcWords);
+        
+        const volatile uint32_t *inhSpikeRecording = reinterpret_cast<const volatile uint32_t*>(device.getDataMemory() + inhSpikeRecordingPtr);
+        writeSpikes("inh_spikes_sim.csv", inhSpikeRecording,
+                    numTimesteps, numInhWords);
+#endif
+#ifdef RECORD_V
+        const volatile int16_t *excVRecording = reinterpret_cast<const volatile int16_t*>(device.getDataMemory() + excVRecordingPtr);
+        std::ofstream vFile("exc_v_sim.csv");
+        for(size_t t = 0; t < numTimesteps; t++) {
+            vFile << *excVRecording++ << std::endl;
+        }
+#endif
     }
     else {
-        // Create RISC-V core with instruction and scalar data
-        RISCV riscV(copyCode, scalarInitData);
-    
-        // Add vector co-processor
-        riscV.addCoprocessor<VectorProcessor>(vectorQuadrant, vectorInitData);
+        // Build ISE with vector co-processor
+        RISCV riscV;
+        riscV.addCoprocessor<VectorProcessor>(vectorQuadrant);
         
-        // Run kernels to copy initData into vector memory
-        if(!riscV.runInit(copyData, copyStartVectorPtr, copyNumVectorsPtr, copyScalarScratchPtr, seedPtr)) {
-            return 1;
-        }
-
-        // Reset stats for simulations
-        riscV.resetStats();
-
-        // Load init program
+        // Set instructions and init data
         riscV.setInstructions(initCode);
-
+        riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getVectorDataMemory().setData(vectorInitData);
+        riscV.getScalarDataMemory().setData(scalarInitData);
+    
         // Run RISC-V to initialize
         riscV.setPC(0);
         if(!riscV.run()) {
@@ -853,7 +845,7 @@ int main(int argc, char** argv)
         std::cout << "\t\t" << riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getNumMemory(riscV.getNumCoprocessorInstructionsExecuted(vectorQuadrant)) << " vector memory" << std::endl;
         std::cout << "\t\t" << riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getNumALU(riscV.getNumCoprocessorInstructionsExecuted(vectorQuadrant)) << " vector ALU" << std::endl;
         
-        auto *scalarData = riscV.getScalarDataMemory().getData().data();
+        auto *scalarData = riscV.getScalarDataMemory().getData();
 #ifdef RECORD_SPIKES
         const uint32_t *excSpikeRecording = reinterpret_cast<const uint32_t*>(scalarData + excSpikeRecordingPtr);
         writeSpikes("exc_spikes_sim.csv", excSpikeRecording,
