@@ -126,7 +126,7 @@ void Device::waitOnNonZero(uint32_t address) const
 void Device::uploadCode(const std::vector<uint32_t> &code)
 {
     // Check there is space
-    if(code.size() >= (instructionSize / 4)) {
+    if(code.size() > (instructionSize / 4)) {
         throw std::runtime_error("Insufficient code memory (" + std::to_string(instructionSize) + " bytes)");
     }
 
@@ -140,7 +140,7 @@ void Device::uploadCode(const std::vector<uint32_t> &code)
 void Device::memcpyDataToDevice(size_t destinationOffset, const uint8_t *source, size_t count)
 {
     // Check destination offset is valid
-    if((destinationOffset + count) >= dataSize) {
+    if((destinationOffset + count) > dataSize) {
         throw std::runtime_error("Destination address out of range");
     }
 
@@ -154,7 +154,7 @@ void Device::memcpyDataToDevice(size_t destinationOffset, const uint8_t *source,
 void Device::memcpyDataFromDevice(uint8_t *destination, size_t sourceOffset, size_t count) const
 {
     // Check source offset is valid
-    if((sourceOffset + count) >= dataSize) {
+    if((sourceOffset + count) > dataSize) {
         throw std::runtime_error("Source address out of range");
     }
 
