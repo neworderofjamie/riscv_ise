@@ -1,6 +1,7 @@
 // Standard C++ includes
 #include <fstream>
 #include <numeric>
+#include <random>
 
 // PLOG includes
 #include <plog/Log.h>
@@ -82,10 +83,23 @@ int main(int argc, char** argv)
     const uint32_t addressPtr = AppUtils::allocateScalarAndZero(64, scalarInitData);
     const uint32_t outputPtr = AppUtils::allocateScalarAndZero(64 * 32, scalarInitData);
 
-    // Generate address vector and copy into scalar memory
-    std::vector<int16_t> address{0, -1, 4, -1, 8, -1, 12, -1, 16, -1, 20, -1, 24, -1, 28, -1, 32,
-                                 -1, 36, -1, 40, -1, 44, -1, 48, -1, 52, -1, 56, -1, 60, -1};
-    assert(address.size() == 32);
+    // Generate random address vector
+    std::vector<int16_t> address(32);
+    std::random_device r;
+    std::uniform_int_distribution<int16_t> dist(-32, 32);
+    for(int i = 0; i < 32; i++) {
+        const int16_t val = dist(r);
+        if(val < 0) {
+            address[i] = -1;
+        }
+        else {
+            address[i] = val * 2;
+        }
+        std::cout << address[i] << ", ";
+    }
+    std::cout << std::endl;
+    
+    // Copy into scalar memory
     std::memcpy(scalarInitData.data() + addressPtr, address.data(), address.size() * 2);
 
     // Dump initial data to coe file
