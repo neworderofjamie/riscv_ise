@@ -37,7 +37,7 @@ private:
 class ScalarDataMemory
 {
 public:
-    ScalarDataMemory(size_t numWords);
+    ScalarDataMemory(size_t numBytes);
 
     uint32_t read32(uint32_t addr) const;
     void write32(uint32_t addr, uint32_t value);
@@ -102,7 +102,7 @@ public:
         virtual void dumpRegisters() const = 0;
     };
 
-    RISCV(size_t numInstructionWords = 1024, size_t numDataWords = 32768);
+    RISCV(size_t numInstructionWords = 1024, size_t numDataBytes = 131072);
 
     bool run();
     void dumpRegisters() const;

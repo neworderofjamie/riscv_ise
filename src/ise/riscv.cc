@@ -47,8 +47,8 @@ void InstructionMemory::setInstructions(const std::vector<uint32_t> &instruction
 //----------------------------------------------------------------------------
 // ScalarDataMemory
 //----------------------------------------------------------------------------
-ScalarDataMemory::ScalarDataMemory(size_t numWords) 
-:   m_Data(numWords)
+ScalarDataMemory::ScalarDataMemory(size_t numBytes) 
+:   m_Data(numBytes)
 {}
 //----------------------------------------------------------------------------
 uint32_t ScalarDataMemory::read32(uint32_t addr) const
@@ -146,8 +146,8 @@ void ScalarDataMemory::setData(const std::vector<uint8_t> &data)
 //----------------------------------------------------------------------------
 // RISCV
 //----------------------------------------------------------------------------
-RISCV::RISCV(size_t numInstructionWords, size_t numDataWords)
-:   m_PC(0), m_NextPC(0), m_Reg{0}, m_InstructionMemory(numInstructionWords), m_ScalarDataMemory(numDataWords)
+RISCV::RISCV(size_t numInstructionWords, size_t numDataBytes)
+:   m_PC(0), m_NextPC(0), m_Reg{0}, m_InstructionMemory(numInstructionWords), m_ScalarDataMemory(numDataBytes)
 {
     resetStats();
 }
