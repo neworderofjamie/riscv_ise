@@ -152,7 +152,7 @@ VectorProcessor::VectorProcessor(size_t vectorMemoryHalfWords, size_t laneLocalM
 }    
 //------------------------------------------------------------------------
 void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32], 
-                                         ScalarDataMemory&)
+                                         ScalarDataMemory&, uint32_t pc)
 {
     const auto opcode = static_cast<VectorOpCode>((inst & 0b1111100) >> 2);
     switch(opcode) {

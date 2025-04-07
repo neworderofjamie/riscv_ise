@@ -98,7 +98,7 @@ public:
     class ICoprocessor
     {
     public:
-        virtual void executeInstruction(uint32_t inst, uint32_t (&reg)[32], ScalarDataMemory &scalarDataMemory) = 0;
+        virtual void executeInstruction(uint32_t inst, uint32_t (&reg)[32], ScalarDataMemory &scalarDataMemory, uint32_t pc) = 0;
         virtual void dumpRegisters() const = 0;
     };
 

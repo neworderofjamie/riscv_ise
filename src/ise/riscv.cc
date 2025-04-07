@@ -964,7 +964,7 @@ void RISCV::executeInstruction(uint32_t inst)
     }
     // Otherwise, if there is a co-processor defined to handle this quadrant
     else if(m_Coprocessors[quadrant]){
-        m_Coprocessors[quadrant]->executeInstruction(inst, m_Reg, m_ScalarDataMemory);
+        m_Coprocessors[quadrant]->executeInstruction(inst, m_Reg, m_ScalarDataMemory, m_PC);
     }
     // Otherwise, throw
     else {
