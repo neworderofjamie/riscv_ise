@@ -121,7 +121,7 @@ int main(int argc, char** argv)
         "if (RefracTime > 0) {\n"
         "   RefracTime -= 1;\n"
         "}\n"
-        "if(V >= VThresh && RefracTime <= 0) {\n"
+        "else if(V >= VThresh) {\n"
         "   Spike();\n"
         "   V -= VThresh;\n"
         "   RefracTime = TauRefrac;\n"
