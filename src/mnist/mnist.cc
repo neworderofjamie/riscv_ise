@@ -242,6 +242,7 @@ int main(int argc, char** argv)
     constexpr uint32_t numOutputSpikeWords = ceilDivide(numOutput, 32);
     constexpr uint32_t numInputSpikeArrayWords = numInputSpikeWords * numTimesteps;
     constexpr uint32_t numHiddenSpikeArrayWords = numHiddenSpikeWords * numTimesteps;
+    constexpr uint32_t numOutputSpikeArrayWords = numOutputSpikeWords * numTimesteps;
 
     // Allocate vector arrays
     const uint32_t weightInHidPtr = AppUtils::loadVectors("mnist_in_hid.bin", vectorInitData);
@@ -547,6 +548,7 @@ int main(int argc, char** argv)
                         // VSum += VV
                         c.vadd_s(*VVSumNew, *VVSum, *VISyn);
 #ifdef RECORD_OUTPUT_VAR
+                        ALLOCATE_SCALAR(STmp);
                         for(int l = 0; l < numOutput; l++) {
                             c.vextract(*STmp, *VISyn, l);
                             c.sh(*STmp, *SOutputVarRecordingBuffer, l * 2);
