@@ -135,14 +135,15 @@ int main(int argc, char** argv)
     // Output neurons
     const auto outputV = Variable::create(outputShape, GeNN::Type::S9_6);
     const auto outputI = Variable::create(outputShape, GeNN::Type::S9_6);
-    const auto outputVSum = Variable::create(outputShape, GeNN::Type::S9_6);
+    const auto outputVAvg = Variable::create(outputShape, GeNN::Type::S9_6);
     const auto outputBias = Variable::create(outputShape, GeNN::Type::S9_6);
     const auto output = NeuronUpdateProcess::create(
         "V = (Alpha * V) + I + Bias;\n"
         "I = 0.0h6;\n"
-        "VSum += V;\n",
-        {{"Alpha", Parameter::create(std::exp(-1.0 / 20.0), GeNN::Type::S9_6)}},
-        {{"V", outputV}, {"VSum", outputVSum}, {"I", outputI}, {"Bias", outputBias}});
+        "VAvg += (VAvgScale * V);\n",
+        {{"Alpha", Parameter::create(std::exp(-1.0 / 20.0), GeNN::Type::S9_6)}, 
+         {"VAvgScale", Parameter::create(1.0 / (numTimesteps / 2), GeNN::Type::S9_6)}},
+        {{"V", outputV}, {"VAvg", outputVAvg}, {"I", outputI}, {"Bias", outputBias}});
     
     // Input->Hidden event propagation
     const auto inputHiddenWeight = Variable::create(inputHiddenShape, GeNN::Type::S10_5);
@@ -167,7 +168,7 @@ int main(int argc, char** argv)
     const auto code = backend.generateSimulationKernel(synapseUpdateProcesses, neuronUpdateProcesses, 
                                                        numTimesteps, true, model);
     
-    /*for(size_t i = 0; i < code.size(); i++){
+    for(size_t i = 0; i < code.size(); i++){
         try {
             std::cout << i * 4 << ": ";
             disassemble(std::cout, code[i]);
@@ -176,7 +177,7 @@ int main(int argc, char** argv)
             std::cout << "Unsupported";
         }
         std::cout << std::endl;
-    }*/
+    }
     Runtime runtime(model, backend);
 
     // Set instructions
@@ -197,7 +198,7 @@ int main(int argc, char** argv)
     zeroAndPush(hiddenRefracTime, runtime);
     zeroAndPush(outputV, runtime);
     zeroAndPush(outputI, runtime);
-    zeroAndPush(outputVSum, runtime);
+    zeroAndPush(outputVAvg, runtime);
 
     // Load data
     const auto mnistSpikes = AppUtils::loadBinaryData<uint32_t>("mnist_spikes.bin");
@@ -206,8 +207,8 @@ int main(int argc, char** argv)
     // Loop through examples
     auto *inputSpikeArray = runtime.getArray(inputSpikes);
     auto *hiddenSpikeArray = runtime.getArray(hiddenSpikes);
-    auto *outputVSumArray = runtime.getArray(outputVSum);
-    auto *outputVSumArrayHostPtr = outputVSumArray->getHostPointer<int16_t>();
+    auto *outputVAvgArray = runtime.getArray(outputVAvg);
+    auto *outputVAvgArrayHostPtr = outputVAvgArray->getHostPointer<int16_t>();
     size_t numCorrect = 0;
     for (size_t i = 0; i < numExamples; i++) {
         // Copy data to array host pointer
@@ -228,23 +229,18 @@ int main(int argc, char** argv)
         }
 
         // Copy output V sum from device
-        outputVSumArray->pullFromDevice();
+        outputVAvgArray->pullFromDevice();
 
         
         // Determine if output is correct
-        const auto classification = std::distance(outputVSumArrayHostPtr, std::max_element(outputVSumArrayHostPtr, outputVSumArrayHostPtr + 10));
+        const auto classification = std::distance(outputVAvgArrayHostPtr, std::max_element(outputVAvgArrayHostPtr, outputVAvgArrayHostPtr + 10));
         if (classification == mnistLabels[i]) {
             numCorrect++;
         }
 
-        for(size_t j = 0; j < 10; j++) {
-            std::cout << outputVSumArrayHostPtr[j] << ", ";
-        }
-        std::cout << "(" << classification << " vs " << mnistLabels[i] << ")" << std::endl;
-
         // Zero output and push
-        outputVSumArray->memsetHostPointer(0);
-        outputVSumArray->pushToDevice();
+        outputVAvgArray->memsetHostPointer(0);
+        outputVAvgArray->pushToDevice();
     }
 
     std::cout << numCorrect << " / " << numExamples << " correct (" << 100.0 * (numCorrect / double(numExamples)) << "%)" << std::endl;
