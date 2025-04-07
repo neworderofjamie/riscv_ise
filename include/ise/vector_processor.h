@@ -59,7 +59,7 @@ public:
     // ICoprocessor virtuals
     //------------------------------------------------------------------------
     virtual void executeInstruction(uint32_t inst, uint32_t (&reg)[32], 
-                                    ScalarDataMemory &scalarDataMemory) override final;
+                                    ScalarDataMemory &scalarDataMemory, uint32_t pc) override final;
     virtual void dumpRegisters() const override final;
 
     //------------------------------------------------------------------------
