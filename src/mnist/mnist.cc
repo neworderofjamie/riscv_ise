@@ -550,7 +550,7 @@ int main(int argc, char** argv)
 #ifdef RECORD_OUTPUT_VAR
                         ALLOCATE_SCALAR(STmp);
                         for(int l = 0; l < numOutput; l++) {
-                            c.vextract(*STmp, *VISyn, l);
+                            c.vextract(*STmp, *RECORD_OUTPUT_VAR, l);
                             c.sh(*STmp, *SOutputVarRecordingBuffer, l * 2);
                         }
                         c.addi(*SOutputVarRecordingBuffer, *SOutputVarRecordingBuffer, numOutput * 2);
