@@ -117,7 +117,7 @@ void disassembleVStore(std::ostream &os, uint32_t inst)
         os << "(V" << rs1 << ")";
     }
     else {
-        os << "(S" << rs1 << ")";
+        os << "(X" << rs1 << ")";
     }
 }
 
