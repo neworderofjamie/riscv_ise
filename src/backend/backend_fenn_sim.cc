@@ -36,6 +36,7 @@ public:
 
     virtual void run() override final
     {
+        m_RISCV.setPC(0);
         m_RISCV.run();
     }
 
