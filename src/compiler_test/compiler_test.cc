@@ -94,7 +94,7 @@ int main(int argc, char** argv)
 
     // Configure logging
     plog::ConsoleAppender<plog::TxtFormatter> consoleAppender;
-    plog::init(plog::debug, &consoleAppender);
+    plog::init(plog::info, &consoleAppender);
 
     bool device = false;
     bool record = false;
@@ -111,8 +111,8 @@ int main(int argc, char** argv)
     const auto inputSpikes = EventContainer::create(inputShape, numTimesteps);
 
     // Hidden neurons
-    const auto hiddenV = Variable::create(hiddenShape, GeNN::Type::S10_5);
-    const auto hiddenI = Variable::create(hiddenShape, GeNN::Type::S10_5);
+    const auto hiddenV = Variable::create(hiddenShape, GeNN::Type::S10_5Sat);
+    const auto hiddenI = Variable::create(hiddenShape, GeNN::Type::S10_5Sat);
     const auto hiddenRefracTime = Variable::create(hiddenShape, GeNN::Type::Int16);
     const auto hiddenSpikes = EventContainer::create(hiddenShape, record ? numTimesteps : 1);
     const auto hidden = NeuronUpdateProcess::create(
@@ -133,10 +133,10 @@ int main(int argc, char** argv)
         {{"Spike", hiddenSpikes}});
     
     // Output neurons
-    const auto outputV = Variable::create(outputShape, GeNN::Type::S9_6);
-    const auto outputI = Variable::create(outputShape, GeNN::Type::S9_6);
-    const auto outputVAvg = Variable::create(outputShape, GeNN::Type::S9_6);
-    const auto outputBias = Variable::create(outputShape, GeNN::Type::S9_6);
+    const auto outputV = Variable::create(outputShape, GeNN::Type::S9_6Sat);
+    const auto outputI = Variable::create(outputShape, GeNN::Type::S9_6Sat);
+    const auto outputVAvg = Variable::create(outputShape, GeNN::Type::S9_6Sat);
+    const auto outputBias = Variable::create(outputShape, GeNN::Type::S9_6Sat);
     const auto output = NeuronUpdateProcess::create(
         "V = (Alpha * V) + I + Bias;\n"
         "I = 0.0h6;\n"
