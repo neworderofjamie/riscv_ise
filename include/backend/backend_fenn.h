@@ -11,6 +11,8 @@
 #include "type.h"
 
 // Backend include
+#include "backend/backend_export.h"
+#include "backend/memory_allocator.h"
 #include "backend/memory_allocator.h"
 #include "backend/model.h"
 
@@ -56,7 +58,7 @@ private:
 //----------------------------------------------------------------------------
 //! Base class for arrays created by backend
 //! **NOTE** this is a temporary, simplified version of GeNN's ArrayBase
-class ArrayBase
+class BACKEND_EXPORT ArrayBase
 {
 public:
     virtual ~ArrayBase()
@@ -143,7 +145,7 @@ public:
 // URAMArrayBase
 //----------------------------------------------------------------------------
 //! Base class for arrays located in FeNN's URAM
-class URAMArrayBase : public ArrayBase
+class BACKEND_EXPORT URAMArrayBase : public ArrayBase
 {
 public:
     //------------------------------------------------------------------------
@@ -182,7 +184,7 @@ private:
 // BRAMArrayBase
 //----------------------------------------------------------------------------
 //! Base class for arrays located in FeNN's BRAM
-class BRAMArrayBase : public ArrayBase
+class BACKEND_EXPORT BRAMArrayBase : public ArrayBase
 {
 public:
     //------------------------------------------------------------------------
@@ -216,7 +218,7 @@ private:
 //----------------------------------------------------------------------------
 //! Base class for FeNN backends
 //! **NOTE** this is a temporary, simplified version of GeNN's BackendBase
-class BackendFeNN
+class BACKEND_EXPORT BackendFeNN
 {
 public:
     virtual ~BackendFeNN()

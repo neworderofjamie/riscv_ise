@@ -13,6 +13,9 @@
 #include <cassert>
 #include <cstdint>
 
+// Common includes
+#include "common/common_export.h"
+
 // Forward declations
 class CodeGenerator;
 class ScalarRegisterAllocator;
@@ -21,36 +24,37 @@ class VectorRegisterAllocator;
 //----------------------------------------------------------------------------
 // AppUtils
 //----------------------------------------------------------------------------
+//! Helper functions for building applications with FeNN
 namespace AppUtils
 {
 // Allocate vector-aligned memory to store halfwords and return start adddress
-uint32_t allocateVectorAndZero(size_t numHalfWords, std::vector<int16_t> &memory);
+COMMON_EXPORT uint32_t allocateVectorAndZero(size_t numHalfWords, std::vector<int16_t> &memory);
 
 // Seed RNG
-uint32_t allocateVectorSeedAndInit(std::vector<int16_t> &memory, 
-                                   const std::optional<std::array<int16_t, 64>> &seed = std::nullopt);
+COMMON_EXPORT uint32_t allocateVectorSeedAndInit(std::vector<int16_t> &memory, 
+                                                 const std::optional<std::array<int16_t, 64>> &seed = std::nullopt);
 
 // Load vector data from int16_t binary file into vector-aligned memory
-uint32_t loadVectors(const std::string &filename, std::vector<int16_t> &memory);
+COMMON_EXPORT uint32_t loadVectors(const std::string &filename, std::vector<int16_t> &memory);
 
 // Seed RNG
-uint32_t allocateScalarSeedAndInit(std::vector<uint8_t> &memory,
-                                   const std::optional<std::array<int16_t, 64>> &seed = std::nullopt);
+COMMON_EXPORT uint32_t allocateScalarSeedAndInit(std::vector<uint8_t> &memory,
+                                                 const std::optional<std::array<int16_t, 64>> &seed = std::nullopt);
 
 // Allocate word-aligned memory
-uint32_t allocateScalarAndZero(size_t numBytes, std::vector<uint8_t> &memory);
+COMMON_EXPORT uint32_t allocateScalarAndZero(size_t numBytes, std::vector<uint8_t> &memory);
 
-uint32_t loadScalars(const std::string &filename, std::vector<uint8_t> &memory);
+COMMON_EXPORT uint32_t loadScalars(const std::string &filename, std::vector<uint8_t> &memory);
 
 // Get seed data, in form suitable for bulk-copying
-std::vector<uint8_t> getSeedData(const std::optional<std::array<int16_t, 64>> &seed = std::nullopt);
+COMMON_EXPORT std::vector<uint8_t> getSeedData(const std::optional<std::array<int16_t, 64>> &seed = std::nullopt);
 
 // Write one timestep of spikes from a bitfield in CSV format
-void writeSpikes(std::ofstream &os, const volatile uint32_t *data, 
-                 float time, size_t numWords);
+COMMON_EXPORT void writeSpikes(std::ofstream &os, const volatile uint32_t *data, 
+                               float time, size_t numWords);
 
 // Dump word-based data to a Vivado-format COE file
-void dumpCOE(const std::string &filename, const std::vector<uint32_t> &code);
+COMMON_EXPORT void dumpCOE(const std::string &filename, const std::vector<uint32_t> &code);
 
 // Load binary file into vector
 template<typename T>

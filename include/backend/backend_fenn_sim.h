@@ -1,11 +1,14 @@
 #include "backend/backend_fenn.h"
 
+// Backend includes
+#include "backend/backend_export.h"
+
 //----------------------------------------------------------------------------
 // BackendFeNNSim
 //----------------------------------------------------------------------------
 //! Base class for FeNN backends
 //! **NOTE** this is a temporary, simplified version of GeNN's BackendBase
-class BackendFeNNSim : public BackendFeNN
+class BACKEND_EXPORT BackendFeNNSim : public BackendFeNN
 {
 public:
     //------------------------------------------------------------------------

@@ -4,10 +4,13 @@
 #include <string>
 #include <vector>
 
+// Compiler includes
+#include "compiler/compiler_export.h"
+
 //----------------------------------------------------------------------------
 // Shape
 //----------------------------------------------------------------------------
-class Shape
+class COMPILER_EXPORT Shape
 {
 public:
     Shape(const std::vector<size_t> &dims) : m_Dims(dims)

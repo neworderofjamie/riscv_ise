@@ -4,13 +4,16 @@
 #include <cstddef>
 #include <cstdint>
 
+// Common includes
+#include "common/common_export.h"
+
 // Forward declarations
 class DMABuffer;
 
 //----------------------------------------------------------------------------
 // DMAController
 //----------------------------------------------------------------------------
-class DMAController
+class COMMON_EXPORT DMAController
 {
 public:
     DMAController(int memory, size_t baseAddress, size_t destRegisterBaseAddress);

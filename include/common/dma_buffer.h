@@ -3,11 +3,14 @@
 // C standard includes
 #include <cstdint>
 
+// Common includes
+#include "common/common_export.h"
+
 //----------------------------------------------------------------------------
 // DMABuffer
 //----------------------------------------------------------------------------
 //! Thin wrapper around
-class DMABuffer
+class COMMON_EXPORT DMABuffer
 {
 public:
     DMABuffer(int index = 0);

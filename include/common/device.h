@@ -8,13 +8,16 @@
 // Standard C includes
 #include <cstdint>
 
+// Common includes
+#include "common/common_export.h"
+
 // Forward declarations
 class DMAController;
 
 //----------------------------------------------------------------------------
 // Device
 //----------------------------------------------------------------------------
-class Device
+class COMMON_EXPORT Device
 {
 public:
     Device();

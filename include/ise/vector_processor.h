@@ -4,15 +4,16 @@
 #include <array>
 #include <vector>
 
-// RISC-V includes
+// ISE includes
 #include "ise/riscv.h"
+#include "ise/ise_export.h"
 
 using Vector = std::array<int16_t, 32>;
 
 //----------------------------------------------------------------------------
 // VectorDataMemory
 //----------------------------------------------------------------------------
-class VectorDataMemory
+class ISE_EXPORT VectorDataMemory
 {
 public:
     VectorDataMemory(size_t numHalfWords);
@@ -32,7 +33,7 @@ private:
 //----------------------------------------------------------------------------
 // LaneLocalMemory
 //----------------------------------------------------------------------------
-class LaneLocalMemory
+class ISE_EXPORT LaneLocalMemory
 {
 public:
     explicit LaneLocalMemory(size_t numEntries);
@@ -50,7 +51,7 @@ private:
 //----------------------------------------------------------------------------
 // VectorProcessor
 //----------------------------------------------------------------------------
-class VectorProcessor : public RISCV::ICoprocessor
+class ISE_EXPORT VectorProcessor : public RISCV::ICoprocessor
 {
 public:
     VectorProcessor(size_t vectorMemoryHalfWords = 262144, size_t laneLocalMemoryHalfWords = 1024);

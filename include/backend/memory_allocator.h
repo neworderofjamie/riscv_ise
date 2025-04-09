@@ -12,6 +12,9 @@
 // Compiler includes
 #include "compiler/model_component.h"
 
+// Backend includes
+#include "backend/backend_export.h"
+
 // Forward declarations
 class DMABuffer;
 class EventContainer;
@@ -62,7 +65,7 @@ public:
 //----------------------------------------------------------------------------
 // DMABufferAllocator
 //----------------------------------------------------------------------------
-class DMABufferAllocator : public MemoryAllocator
+class BACKEND_EXPORT DMABufferAllocator : public MemoryAllocator
 {
 public:
     DMABufferAllocator(const DMABuffer &dmaBuffer);

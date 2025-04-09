@@ -28,6 +28,7 @@
   <ItemGroup>
     <ClInclude Include="..\..\include\common\app_utils.h" />
     <ClInclude Include="..\..\include\common\CLI11.hpp" />
+    <ClInclude Include="..\..\include\common\common_export.h" />
     <ClInclude Include="..\..\include\common\device.h" />
     <ClInclude Include="..\..\include\common\dma_buffer.h" />
     <ClInclude Include="..\..\include\common\dma_controller.h" />
@@ -79,6 +80,7 @@
       <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug_DLL|x64'">_DEBUG;WIN32_LEAN_AND_MEAN;NOMINMAX;_CONSOLE;BUILDING_COMMON_DLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release_DLL|x64'">NDEBUG;WIN32_LEAN_AND_MEAN;NOMINMAX;_CONSOLE;BUILDING_COMMON_DLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
+      <DisableSpecificWarnings Condition=" $(Configuration.Contains('DLL')) ">4251</DisableSpecificWarnings>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalIncludeDirectories>$(SolutionDir)include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
@@ -89,7 +91,6 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
   </ItemDefinitionGroup>
-  
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

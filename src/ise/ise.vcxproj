@@ -23,6 +23,7 @@
     <ClCompile Include="vector_processor.cc" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\include\ise\ise_export.h" />
     <ClInclude Include="..\..\include\ise\riscv.h" />
     <ClInclude Include="..\..\include\ise\vector_processor.h" />
   </ItemGroup>
@@ -68,8 +69,10 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">_DEBUG;WIN32_LEAN_AND_MEAN;NOMINMAX;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NDEBUG;WIN32_LEAN_AND_MEAN;NOMINMAX;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug_DLL|x64'">_DEBUG;WIN32_LEAN_AND_MEAN;NOMINMAX;_CONSOLE;BUILDING_ISE_DLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release_DLL|x64'">NDEBUG;WIN32_LEAN_AND_MEAN;NOMINMAX;_CONSOLE;BUILDING_ISE_DLL;%(PreprocessorDefinitions)</PreprocessorDefinitions><ConformanceMode>true</ConformanceMode>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug_DLL|x64'">_DEBUG;WIN32_LEAN_AND_MEAN;NOMINMAX;_CONSOLE;LINKING_COMMON_DLL;BUILDING_ISE_DLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release_DLL|x64'">NDEBUG;WIN32_LEAN_AND_MEAN;NOMINMAX;_CONSOLE;LINKING_COMMON_DLL;BUILDING_ISE_DLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <DisableSpecificWarnings Condition=" $(Configuration.Contains('DLL')) ">4251</DisableSpecificWarnings>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalIncludeDirectories>$(SolutionDir)include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
@@ -78,6 +81,8 @@
       <GenerateDebugInformation Condition=" $(Configuration.Contains('Release')) ">true</GenerateDebugInformation>
       <EnableCOMDATFolding Condition=" $(Configuration.Contains('Release')) ">true</EnableCOMDATFolding>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>common_$(Configuration).lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(SolutionDir)lib</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

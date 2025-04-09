@@ -10,13 +10,16 @@
 #include <cassert>
 #include <cstdint>
 
-// RISC-V includes
+// Common includes
 #include "common/isa.h"
+
+// ISE includes
+#include "ise/ise_export.h"
 
 //----------------------------------------------------------------------------
 // InstructionMemory
 //----------------------------------------------------------------------------
-class InstructionMemory
+class ISE_EXPORT InstructionMemory
 {
 public:
     InstructionMemory(size_t numWords);
@@ -34,7 +37,7 @@ private:
 //----------------------------------------------------------------------------
 // ScalarDataMemory
 //----------------------------------------------------------------------------
-class ScalarDataMemory
+class ISE_EXPORT ScalarDataMemory
 {
 public:
     ScalarDataMemory(size_t numBytes);
@@ -60,7 +63,7 @@ private:
 //----------------------------------------------------------------------------
 // Exception
 //----------------------------------------------------------------------------
-class Exception : std::exception
+class ISE_EXPORT Exception : std::exception
 {
 public:
     enum class Cause : uint32_t
@@ -89,7 +92,7 @@ private:
 //----------------------------------------------------------------------------
 // RISCV
 //----------------------------------------------------------------------------
-class RISCV
+class ISE_EXPORT RISCV
 {
 public:
     //------------------------------------------------------------------------
