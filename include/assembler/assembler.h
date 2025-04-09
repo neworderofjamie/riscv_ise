@@ -26,6 +26,9 @@
 // RISC-V common includes
 #include "common/isa.h"
 
+// Assembler includes
+#include "assembler/assembler_export.h"
+
 // Forward declarations
 class CodeGenerator;
 
@@ -52,7 +55,7 @@ enum {
 //----------------------------------------------------------------------------
 // Error
 //----------------------------------------------------------------------------
-class Error : public std::exception {
+class ASSEMBLER_EXPORT Error : public std::exception {
 public:
     explicit Error(int err);
     operator int() const { return err_; }
@@ -65,7 +68,7 @@ private:
 //----------------------------------------------------------------------------
 // Label
 //----------------------------------------------------------------------------
-class Label 
+class ASSEMBLER_EXPORT Label 
 {
 public:
     Label() : cg(nullptr), id(0) {}
@@ -94,7 +97,7 @@ private:
     mutable int id;
 };
 
-class CodeGenerator
+class ASSEMBLER_EXPORT CodeGenerator
 {
 public:
     // constructor

@@ -8,6 +8,9 @@
 // Standard C includes
 #include <cstdint>
 
+// Backend includes
+#include "backend/backend_export.h"
+
 // Forward declarations
 class Process;
 class ProcessGroup;
@@ -17,7 +20,7 @@ class State;
 // Model
 //----------------------------------------------------------------------------
 //! Backend-agnostic datastructure build from processes user wishes to deploy
-class Model
+class BACKEND_EXPORT Model
 {
 public:
     // Mapping of state objects to field offset

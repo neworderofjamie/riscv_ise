@@ -8,6 +8,9 @@
 // Standard C includes
 #include <cstdint>
 
+// Backend includes
+#include "backend/backend_export.h"
+
 // Forward declarations
 class ArrayBase;
 class BackendFeNN;
@@ -19,7 +22,7 @@ class StateBase;
 //----------------------------------------------------------------------------
 // Runtime
 //----------------------------------------------------------------------------
-class Runtime
+class BACKEND_EXPORT Runtime
 {
 public:
     Runtime(const Model &model, const BackendFeNN &backend);

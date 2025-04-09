@@ -8,12 +8,15 @@
 // GeNN includes
 #include "type.h"
 
-// Transpiler includes
+// GeNN transpiler includes
 #include "transpiler/statement.h"
 #include "transpiler/typeChecker.h"
 
 // Assembler includes
 #include "assembler/register_allocator.h"
+
+// Compiler includes
+#include "compiler/compiler_export.h"
 
 // Forward declarations
 class CodeGenerator;
@@ -60,7 +63,7 @@ public:
 //----------------------------------------------------------------------------
 // EnvironmentInternal
 //----------------------------------------------------------------------------
-class EnvironmentInternal : public EnvironmentBase
+class COMPILER_EXPORT EnvironmentInternal : public EnvironmentBase
 {
 public:
     EnvironmentInternal(EnvironmentBase &enclosing)
@@ -90,8 +93,8 @@ private:
 //---------------------------------------------------------------------------
 // Free functions
 //---------------------------------------------------------------------------
-void compile(const GeNN::Transpiler::Statement::StatementList &statements, EnvironmentInternal &environment, 
-             const GeNN::Type::TypeContext &context, const GeNN::Transpiler::TypeChecker::ResolvedTypeMap &resolvedTypes,
-             const std::unordered_map<int16_t, VectorRegisterAllocator::RegisterPtr> &literalPool,
-             ScalarRegisterAllocator::RegisterPtr maskRegister, 
-             ScalarRegisterAllocator &scalarRegisterAllocator, VectorRegisterAllocator &vectorRegisterAllocator);
+COMPILER_EXPORT void compile(const GeNN::Transpiler::Statement::StatementList &statements, EnvironmentInternal &environment, 
+                             const GeNN::Type::TypeContext &context, const GeNN::Transpiler::TypeChecker::ResolvedTypeMap &resolvedTypes,
+                             const std::unordered_map<int16_t, VectorRegisterAllocator::RegisterPtr> &literalPool,
+                             ScalarRegisterAllocator::RegisterPtr maskRegister, 
+                             ScalarRegisterAllocator &scalarRegisterAllocator, VectorRegisterAllocator &vectorRegisterAllocator);

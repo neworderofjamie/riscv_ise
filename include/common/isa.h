@@ -10,6 +10,9 @@
 // Third party includes
 #include "common/enum.h"
 
+// Common includes
+#include "common/common_export.h"
+
 inline constexpr uint32_t mask(uint32_t n)
 {
     assert (n <= 32);
@@ -257,27 +260,27 @@ inline std::tuple<int32_t, uint32_t> decodeUType(uint32_t inst)
     return std::make_tuple(imm, rd);
 }
 
-LoadType getLoadType(uint32_t funct3);
+COMMON_EXPORT LoadType getLoadType(uint32_t funct3);
 
-StoreType getStoreType(uint32_t funct3);
+COMMON_EXPORT StoreType getStoreType(uint32_t funct3);
 
-BranchType getBranchType(uint32_t funct3);
+COMMON_EXPORT BranchType getBranchType(uint32_t funct3);
 
-OpImmType getOpImmType(int32_t imm, uint32_t funct3);
+COMMON_EXPORT OpImmType getOpImmType(int32_t imm, uint32_t funct3);
 
-OpType getOpType(int32_t funct7, uint32_t funct3);
+COMMON_EXPORT OpType getOpType(int32_t funct7, uint32_t funct3);
 
-VOpType getVOpType(uint32_t funct7, uint32_t funct3);
+COMMON_EXPORT VOpType getVOpType(uint32_t funct7, uint32_t funct3);
 
-VTstType getVTstType(uint32_t funct3);
+COMMON_EXPORT VTstType getVTstType(uint32_t funct3);
 
-VMovType getVMovType(uint32_t funct3);
+COMMON_EXPORT VMovType getVMovType(uint32_t funct3);
 
-std::tuple<VLoadType, bool> getVLoadType(uint32_t funct3);
+COMMON_EXPORT std::tuple<VLoadType, bool> getVLoadType(uint32_t funct3);
 
-std::tuple<VStoreType, bool> getVStoreType(uint32_t funct3);
+COMMON_EXPORT std::tuple<VStoreType, bool> getVStoreType(uint32_t funct3);
 
-VSpcType getVSpcType(uint32_t funct3);
+COMMON_EXPORT VSpcType getVSpcType(uint32_t funct3);
 
 template<size_t N>
 class Bit {
