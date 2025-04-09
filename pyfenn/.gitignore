@@ -1,4 +1,5 @@
 *.exp
 *.so
+*.lib
 *.pyd
 *.dll
