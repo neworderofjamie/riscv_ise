@@ -7,6 +7,9 @@
 #include <plog/Severity.h>
 #include <plog/Appenders/ConsoleAppender.h>
 
+// GeNN includes
+#include "type.h"
+
 // FeNN backend includes
 #include "backend/backend_fenn_sim.h"
 #include "backend/backend_fenn_hw.h"
@@ -91,6 +94,15 @@ const CodeGenerator::ModelSpecMerged *generateCode(ModelSpecInternal &model, Cod
 PYBIND11_MODULE(_fenn, m) 
 {
     //------------------------------------------------------------------------
+    // fenn.NumericValue
+    //------------------------------------------------------------------------
+    pybind11::class_<GeNN::Type::NumericValue>(m, "NumericValue")
+        .def(pybind11::init<double>())
+        .def(pybind11::init<int64_t>())
+
+        .def_property_readonly("value", &GeNN::Type::NumericValue::get);
+        
+    //------------------------------------------------------------------------
     // fenn.Shape
     //------------------------------------------------------------------------
     pybind11::class_<Shape>(m, "Shape")
@@ -111,11 +123,6 @@ PYBIND11_MODULE(_fenn, m)
          .def_property_readonly("name", &ModelComponent::getName);
     
     //------------------------------------------------------------------------
-    // fenn.Process
-    //------------------------------------------------------------------------
-    pybind11::class_<Process, ModelComponent, std::shared_ptr<Process>>(m, "Process");
-     
-    //------------------------------------------------------------------------
     // fenn.State
     //------------------------------------------------------------------------
     pybind11::class_<State, ModelComponent, std::shared_ptr<State>>(m, "State");
@@ -130,4 +137,68 @@ PYBIND11_MODULE(_fenn, m)
         
         .def_property_readonly("shape", &EventContainer::getShape)
         .def_property_readonly("num_buffer_timesteps", &EventContainer::getNumBufferTimesteps);
+    
+    //------------------------------------------------------------------------
+    // fenn.Parameter
+    //------------------------------------------------------------------------
+    pybind11::class_<Parameter, State, std::shared_ptr<Parameter>>(m, "Parameter")
+        .def(pybind11::init(&Parameter::create),
+             pybind11::arg("value"), pybind11::arg("type"),
+             pybind11::arg("name") = "")
+        
+        .def_property_readonly("value", &Parameter::getValue)
+        .def_property_readonly("type", &Parameter::getType);
+    
+    //------------------------------------------------------------------------
+    // fenn.Variable
+    //------------------------------------------------------------------------
+    pybind11::class_<Variable, State, std::shared_ptr<Variable>>(m, "Variable")
+        .def(pybind11::init(&Variable::create),
+             pybind11::arg("shape"), pybind11::arg("type"),
+             pybind11::arg("name") = "")
+        
+        .def_property_readonly("shape", &Variable::getShape)
+        .def_property_readonly("type", &Variable::getType);
+    
+    //------------------------------------------------------------------------
+    // fenn.Process
+    //------------------------------------------------------------------------
+    pybind11::class_<Process, ModelComponent, std::shared_ptr<Process>>(m, "Process");
+    
+    //------------------------------------------------------------------------
+    // fenn.NeuronUpdateProcess
+    //------------------------------------------------------------------------
+    pybind11::class_<NeuronUpdateProcess, Process, std::shared_ptr<NeuronUpdateProcess>>(m, "NeuronUpdateProcess")
+        .def(pybind11::init(&NeuronUpdateProcess::create),
+             pybind11::arg("code"), pybind11::arg("parameters"),
+             pybind11::arg("variables"), pybind11::arg("output_events") = EventContainerMap{}, 
+             pybind11::arg("name") = "")
+        
+        .def_property_readonly("parameters", &NeuronUpdateProcess::getParameters)
+        .def_property_readonly("variables", &NeuronUpdateProcess::getVariables)
+        .def_property_readonly("output_events", &NeuronUpdateProcess::getOutputEvents)
+        .def_property_readonly("num_neurons", &NeuronUpdateProcess::getNumNeurons);
+    
+    //------------------------------------------------------------------------
+    // fenn.EventPropagationProcess
+    //------------------------------------------------------------------------
+    pybind11::class_<EventPropagationProcess, Process, std::shared_ptr<EventPropagationProcess>>(m, "EventPropagationProcess")
+        .def(pybind11::init(&EventPropagationProcess::create),
+             pybind11::arg("input_events"), pybind11::arg("weight"),
+             pybind11::arg("target"), pybind11::arg("name") = "")
+        
+        .def_property_readonly("input_events", &EventPropagationProcess::getInputEvents)
+        .def_property_readonly("weight", &EventPropagationProcess::getWeight)
+        .def_property_readonly("target", &EventPropagationProcess::getTarget)
+        .def_property_readonly("num_source_neurons", &EventPropagationProcess::getNumSourceNeurons)
+        .def_property_readonly("num_target_neurons", &EventPropagationProcess::getNumTargetNeurons);
+    
+    //------------------------------------------------------------------------
+    // fenn.ProcessGroup
+    //------------------------------------------------------------------------
+    pybind11::class_<ProcessGroup, ModelComponent, std::shared_ptr<ProcessGroup>>(m, "ProcessGroup")
+        .def(pybind11::init(&ProcessGroup::create),
+             pybind11::arg("processes"), pybind11::arg("name") = "")
+
+        .def_property_readonly("processes", &ProcessGroup::getProcesses);
 }
