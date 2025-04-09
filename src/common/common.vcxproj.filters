@@ -49,5 +49,8 @@
     <ClInclude Include="..\..\include\common\dma_controller.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\include\common\common_export.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

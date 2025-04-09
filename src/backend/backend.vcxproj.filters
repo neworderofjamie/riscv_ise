@@ -29,6 +29,9 @@
     <ClInclude Include="..\..\include\backend\runtime.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\include\backend\backend_export.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="backend_fenn_hw.cc">
