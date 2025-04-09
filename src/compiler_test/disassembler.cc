@@ -64,10 +64,14 @@ void disassembleLUI(std::ostream &os, uint32_t inst)
 void disassembleVOp(std::ostream &os, uint32_t inst)
 {
     const auto [funct7, rs2, rs1, funct3, rd] = decodeRType(inst);
+    const bool saturateResult = ((funct7 >> 4) & 0b100);
     const auto type = getVOpType(funct7, funct3);
 
     if(type == +VOpType::VMUL || type == +VOpType::VMUL_RN || type == +VOpType::VMUL_RS) {
         os << type._to_string() << " V" << rd << ", V" << rs1 << ", V" << rs2 << ", " << (funct7 & 0b1111);
+    }
+    else if(saturateResult && (type == +VOpType::VADD || type == +VOpType::VSUB)) {
+        os << type._to_string() << "_S V" << rd << ", V" << rs1 << ", V" << rs2;
     }
     else {
         os << type._to_string() << " V" << rd << ", V" << rs1 << ", V" << rs2;
