@@ -31,6 +31,11 @@ void checkConversion(const Type::ResolvedType &leftType, const Type::ResolvedTyp
     }
 }
 
+bool isSaturating(const Type::ResolvedType &aType, const Type::ResolvedType &bType)
+{
+    return (aType.getNumeric().isSaturating || bType.getNumeric().isSaturating);
+}
+
 int getConversionShift(const Type::ResolvedType &resultType, const Type::ResolvedType &leftType, const Type::ResolvedType &rightType)
 {
     const int resultFixedPoint = resultType.getNumeric().fixedPoint.value_or(0);
@@ -92,10 +97,10 @@ private:
 
         // If a mask is set
         // **TODO** only necessary when assigning to variables outside of masked scope
-        const auto opType = assignement.getOperator().type;
+        const auto &opToken = assignement.getOperator();
         if(m_MaskRegister) {
             // If we're doing plain assignement, conditionally assign from value register directly
-            if(opType == Token::Type::EQUAL) {
+            if(opToken.type == Token::Type::EQUAL) {
                 m_Environment.get().getCodeGenerator().vsel(*vecAssigneeReg, *m_MaskRegister, *vecValueReg);
             }
             // Otherwise
@@ -103,7 +108,7 @@ private:
                 // Generate assignement into temporary register
                 // **TODO** if value reg is reusable, no real need for extra register
                 const auto tempReg = m_VectorRegisterAllocator.getRegister();
-                generateAssign(opType, *tempReg, *vecAssigneeReg, *vecValueReg,
+                generateAssign(opToken, *tempReg, *vecAssigneeReg, *vecValueReg,
                                assigneeType, valueType);
 
                 // Conditionally assign back to assignee register
@@ -112,7 +117,7 @@ private:
         }
         // Otherwise, generate assignement directly into assignee register
         else {
-            generateAssign(opType, *vecAssigneeReg, *vecAssigneeReg, *vecValueReg,
+            generateAssign(opToken, *vecAssigneeReg, *vecAssigneeReg, *vecValueReg,
                            assigneeType, valueType);
         }
     }
@@ -151,14 +156,24 @@ private:
             if(opType == Token::Type::MINUS || opType == Token::Type::PLUS || opType == Token::Type::STAR) {
                 const auto resultReg = m_VectorRegisterAllocator.getRegister();
                 if(opType == Token::Type::MINUS) {
-                    // **TODO** saturation?
                     checkConversion(leftType, rightType);
-                    m_Environment.get().getCodeGenerator().vsub(*resultReg, *vecLeftReg, *vecRightReg);
+
+                    if(isSaturating(leftType, rightType)) {
+                        m_Environment.get().getCodeGenerator().vsub_s(*resultReg, *vecLeftReg, *vecRightReg);
+                    }
+                    else {
+                        m_Environment.get().getCodeGenerator().vsub(*resultReg, *vecLeftReg, *vecRightReg);
+                    }
                 }
                 else if(opType == Token::Type::PLUS) {
-                    // **TODO** saturation?
                     checkConversion(leftType, rightType);
-                    m_Environment.get().getCodeGenerator().vadd(*resultReg, *vecLeftReg, *vecRightReg);
+
+                    if(isSaturating(leftType, rightType)) {
+                        m_Environment.get().getCodeGenerator().vadd_s(*resultReg, *vecLeftReg, *vecRightReg);
+                    }
+                    else {
+                        m_Environment.get().getCodeGenerator().vadd(*resultReg, *vecLeftReg, *vecRightReg);
+                    }
                 }
                 else if(opType == Token::Type::STAR) {
                     const auto &resultType = m_ResolvedTypes.at(&binary);
@@ -203,7 +218,7 @@ private:
                 setExpressionRegister(resultReg, true);
             }
             else {
-                assert(false);
+                throw std::runtime_error("Unsupported binary operator '" + binary.getOperator().lexeme + "'");
             }
         }
     }
@@ -728,30 +743,38 @@ private:
                                                     *std::get<VectorRegisterAllocator::RegisterPtr>(m_Environment.get().getRegister("_zero")));
     }
 
-    void generateAssign(Token::Type opType, VReg destinationReg, VReg assigneeReg, VReg valueReg,
+    void generateAssign(const Token &token, VReg destinationReg, VReg assigneeReg, VReg valueReg,
                         const Type::ResolvedType &assigneeType, const Type::ResolvedType &valueType)
     {
-        if(opType == Token::Type::EQUAL) {
+        if(token.type == Token::Type::EQUAL) {
             checkConversion(assigneeType, valueType);
             generateVMOV(destinationReg, valueReg);
         }
-        else if(opType == Token::Type::STAR_EQUAL) {
+        else if(token.type == Token::Type::STAR_EQUAL) {
             // **TODO** rounding
             const int shift = getConversionShift(assigneeType, assigneeType, valueType);
             m_Environment.get().getCodeGenerator().vmul(shift, destinationReg, assigneeReg, valueReg);
         }
-        else if(opType == Token::Type::PLUS_EQUAL) {
-            // **TODO** saturation
+        else if(token.type == Token::Type::PLUS_EQUAL) {
             checkConversion(assigneeType, valueType);
-            m_Environment.get().getCodeGenerator().vadd(destinationReg, assigneeReg, valueReg);
+            if(isSaturating(assigneeType, valueType)) {
+                m_Environment.get().getCodeGenerator().vadd_s(destinationReg, assigneeReg, valueReg);
+            }
+            else {
+                m_Environment.get().getCodeGenerator().vadd(destinationReg, assigneeReg, valueReg);
+            }
         }
-        else if(opType == Token::Type::MINUS_EQUAL) {
-            // **TODO** saturation
+        else if(token.type == Token::Type::MINUS_EQUAL) {
             checkConversion(assigneeType, valueType);
-            m_Environment.get().getCodeGenerator().vsub(destinationReg, assigneeReg, valueReg);
+            if(isSaturating(assigneeType, valueType)) {
+                m_Environment.get().getCodeGenerator().vsub_s(destinationReg, assigneeReg, valueReg);
+            }
+            else {
+                m_Environment.get().getCodeGenerator().vsub(destinationReg, assigneeReg, valueReg);
+            }
         }
         else {
-            assert(false);
+            throw std::runtime_error("Unsupported assignement operator '" + token.lexeme + "'");
         }
     }
 
