@@ -217,7 +217,7 @@ int main(int argc, char** argv)
     plog::init(plog::debug, &consoleAppender);
 
     bool device = false;
-    size_t numExamples = 1;
+    size_t numExamples = 10000;
 
     CLI::App app{"Latency MNIST inference"};
     app.add_option("-n,--num-examples", numExamples, "How many examples to simulate");
