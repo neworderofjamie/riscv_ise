@@ -1,7 +1,9 @@
 /.vs/
+/pyfenn.egg-info/
 /Debug/
 /lib/
 /obj/
+/build/
 **/x64/
 *.vcxproj.user
 *.d
@@ -16,3 +18,4 @@
 /obj_debug/
 /**/__pycache__/
 *.coe
+/pyfenn.egg-info/dependency_links.txt
