@@ -9,7 +9,8 @@
 #include "transpiler/token.h"
 
 // Compiler includes
-#include "model_component.h"
+#include "compiler/compiler_export.h"
+#include "compiler/model_component.h"
 
 // Forward declarations
 class EventContainer;
@@ -23,7 +24,7 @@ using VariableMap = std::unordered_map<std::string, std::shared_ptr<const Variab
 //----------------------------------------------------------------------------
 // NeuronUpdateProcess
 //----------------------------------------------------------------------------
-class NeuronUpdateProcess : public AcceptableModelComponent<NeuronUpdateProcess, Process>
+class COMPILER_EXPORT NeuronUpdateProcess : public AcceptableModelComponent<NeuronUpdateProcess, Process>
 {
 public:
     NeuronUpdateProcess(Private, const std::string &code, const ParameterMap &parameters, 
@@ -67,7 +68,7 @@ private:
 //----------------------------------------------------------------------------
 // EventPropagationProcess
 //----------------------------------------------------------------------------
-class EventPropagationProcess : public AcceptableModelComponent<EventPropagationProcess, Process>
+class COMPILER_EXPORT EventPropagationProcess : public AcceptableModelComponent<EventPropagationProcess, Process>
 {
 public:
     EventPropagationProcess(Private, std::shared_ptr<const EventContainer> inputEvents, 
