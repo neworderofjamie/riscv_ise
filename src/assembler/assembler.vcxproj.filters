@@ -32,5 +32,8 @@
     <ClInclude Include="..\..\include\assembler\assembler_utils.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\include\assembler\assembler_export.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
