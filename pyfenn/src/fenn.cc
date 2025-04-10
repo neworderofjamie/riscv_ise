@@ -96,12 +96,20 @@ PYBIND11_MODULE(_fenn, m)
     //------------------------------------------------------------------------
     // fenn.NumericValue
     //------------------------------------------------------------------------
+    // **YUCK** actually in GeNN
     pybind11::class_<GeNN::Type::NumericValue>(m, "NumericValue")
         .def(pybind11::init<double>())
         .def(pybind11::init<int64_t>())
 
         .def_property_readonly("value", &GeNN::Type::NumericValue::get);
-        
+
+    //------------------------------------------------------------------------
+    // fenn.UnresolvedType
+    //------------------------------------------------------------------------
+    // **YUCK** actually in GeNN
+    pybind11::class_<GeNN::Type::UnresolvedType>(m, "UnresolvedType")
+        .def(pybind11::init<const std::string&>());
+    
     //------------------------------------------------------------------------
     // fenn.Shape
     //------------------------------------------------------------------------

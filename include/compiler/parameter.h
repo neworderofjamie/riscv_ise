@@ -16,8 +16,8 @@ class Parameter : public AcceptableModelComponent<Parameter, State>
 {
 public:
     Parameter(Private, const GeNN::Type::NumericValue &value,
-              const GeNN::Type::ResolvedType &type, const std::string &name)
-    :   AcceptableModelComponent<Parameter, State>(name), m_Value(value), m_Type(type)
+              const GeNN::Type::UnresolvedType &type, const std::string &name)
+    :   AcceptableModelComponent<Parameter, State>(name), m_Value(value), m_Type(type.resolve({}))
     {}
 
     //------------------------------------------------------------------------
@@ -29,7 +29,7 @@ public:
     //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------
-    static std::shared_ptr<Parameter> create(const GeNN::Type::NumericValue &value, const GeNN::Type::ResolvedType &type,
+    static std::shared_ptr<Parameter> create(const GeNN::Type::NumericValue &value, const GeNN::Type::UnresolvedType &type,
                                              const std::string &name = "")
     {
         return std::make_shared<Parameter>(Private(), value, type, name);
