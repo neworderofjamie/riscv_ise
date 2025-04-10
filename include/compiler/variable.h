@@ -17,8 +17,8 @@
 class Variable : public AcceptableModelComponent<Variable, State>
 {
 public:
-    Variable(Private, const Shape &shape, const GeNN::Type::ResolvedType &type, const std::string &name)
-    :   AcceptableModelComponent<Variable, State>(name), m_Shape(shape), m_Type(type)
+    Variable(Private, const Shape &shape, const GeNN::Type::UnresolvedType &type, const std::string &name)
+    :   AcceptableModelComponent<Variable, State>(name), m_Shape(shape), m_Type(type.resolve({}))
     {}
 
     //------------------------------------------------------------------------
@@ -30,7 +30,7 @@ public:
     //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------
-    static std::shared_ptr<Variable> create(const Shape &shape, const GeNN::Type::ResolvedType &type, const std::string &name = "")
+    static std::shared_ptr<Variable> create(const Shape &shape, const GeNN::Type::UnresolvedType &type, const std::string &name = "")
     {
         return std::make_shared<Variable>(Private(), shape, type, name);
     }
