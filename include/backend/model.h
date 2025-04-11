@@ -32,7 +32,7 @@ public:
     // Mapping of state objects to processes which reference them
     using StateProcesses = std::unordered_map<std::shared_ptr<const State>, std::vector<std::shared_ptr<const Process>>>;
 
-    Model(const std::vector<std::shared_ptr<const ProcessGroup>> processGroups);
+    Model(const std::vector<std::shared_ptr<const ProcessGroup>> &processGroups);
 
     //------------------------------------------------------------------------
     // Public API
