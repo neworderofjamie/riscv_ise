@@ -82,7 +82,7 @@ fenn_extension_kwargs = {
 if WIN:
     # Turn off warnings about dll-interface being required for stuff to be
     # used by clients and prevent windows.h exporting TOO many awful macros
-    fenn_extension_kwargs["extra_compile_args"].extend(["/wd4251", "-DWIN32_LEAN_AND_MEAN", "-DNOMINMAX"])
+    fenn_extension_kwargs["extra_compile_args"].extend(["/wd4251", "/wd4275", "-DWIN32_LEAN_AND_MEAN", "-DNOMINMAX"])
 
     # Add include directory for FFI as it's built from source
     fenn_extension_kwargs["include_dirs"].append(os.path.join(genn_third_party_include, "libffi"))

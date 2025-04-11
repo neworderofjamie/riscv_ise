@@ -3,12 +3,12 @@ import sys
 
 # pyfenn interface
 from ._fenn import (EventContainer, EventPropagationProcess, ModelComponent,
-                    NeuronUpdateProcess, Process, ProcessGroup, Shape, State,
-                    Variable)
+                    NeuronUpdateProcess, NumericValue, Parameter, Process,
+                    ProcessGroup, Shape, State, UnresolvedType, Variable)
 
 __all__ = ["EventContainer", "EventPropagationProcess", "ModelComponent",
-           "NeuronUpdateProcess", "Process", "ProcessGroup", "Shape",
-           "State", "Variable"]
+           "NeuronUpdateProcess", "NumericValue", "Parameter", "Process",
+           "ProcessGroup", "Shape", "State", "UnresolvedType", "Variable"]
 
 if sys.version_info >= (3, 8):
     from importlib import metadata
