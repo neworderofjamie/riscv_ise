@@ -39,8 +39,8 @@ def zero_and_push(state, runtime: Runtime):
     array.push_to_device()
 
 class LIF:
-    def __init__(self, shape, tau_m, tau_refrac, v_thresh,
-                 record_spikes = False, dtype = "s10_5_sat_t"):
+    def __init__(self, shape, tau_m: float, tau_refrac: int, v_thresh: float,
+                 record_spikes: bool = False, dtype = "s10_5_sat_t"):
         self.shape = Shape(shape)
         dtype = UnresolvedType(dtype)
         self.v = Variable(self.shape, dtype)
@@ -69,7 +69,8 @@ class LIF:
             {"Spike": self.out_spikes})
 
 class LI:
-    def __init__(self, shape, tau_m, num_timesteps, dtype = "s10_5_sat_t"):
+    def __init__(self, shape, tau_m: float, num_timesteps: int,
+                 dtype: str = "s10_5_sat_t"):
         self.shape = Shape(shape)
         dtype = UnresolvedType(dtype)
 
@@ -88,7 +89,8 @@ class LI:
             {"V": self.v, "VAvg": self.v_avg, "I": self.i, "Bias": self.bias})
 
 class Linear:
-    def __init__(self, source_events, target_var, weight_dtype):
+    def __init__(self, source_events: EventContainer, target_var: Variable,
+                 weight_dtype: str):
         self.shape = Shape([source_events.shape.num_neurons,
                             target_var.shape.num_neurons])
         weight_dtype = UnresolvedType(weight_dtype)
