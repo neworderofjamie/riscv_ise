@@ -209,4 +209,49 @@ PYBIND11_MODULE(_fenn, m)
              pybind11::arg("processes"), pybind11::arg("name") = "")
 
         .def_property_readonly("processes", &ProcessGroup::getProcesses);
+    
+    //------------------------------------------------------------------------
+    // fenn.Model
+    //------------------------------------------------------------------------
+    pybind11::class_<Model>(m, "Model")
+        .def(pybind11::init<std::vector<std::shared_ptr<const ProcessGroup>>&>());
+    
+    //------------------------------------------------------------------------
+    // fenn.BackendFeNN
+    //------------------------------------------------------------------------
+    pybind11::class_<BackendFeNN>(m, "BackendFeNN")
+        .def("generate_simulation_kernel", &BackendFeNN::generateSimulationKernel);
+    
+    //------------------------------------------------------------------------
+    // fenn.BackendFeNNSim
+    //------------------------------------------------------------------------
+    pybind11::class_<BackendFeNNSim, BackendFeNN>(m, "BackendFeNNSim")
+        .def(pybind11::init<>());
+    
+    //------------------------------------------------------------------------
+    // fenn.ArrayBase
+    //------------------------------------------------------------------------
+    pybind11::class_<ArrayBase>(m, "ArrayBase")
+        .def_property_readonly("host_view", 
+            [](ArrayBase &a) 
+            { 
+               return pybind11::memoryview::from_memory(a.getHostPointer(), 
+                                                        a.getSizeBytes());
+            })
+        .def_property_readonly("type", &ArrayBase::getType)
+    
+        .def("push_to_device", &ArrayBase::pushToDevice)
+        .def("pull_from_device", &ArrayBase::pullFromDevice);
+    
+    //------------------------------------------------------------------------
+    // fenn.Runtime
+    //------------------------------------------------------------------------
+    pybind11::class_<Runtime>(m, "Runtime")
+        .def(pybind11::init<const Model&, const BackendFeNN&>())
+    
+        .def("get_array", &Runtime::getArray)
+        .def("set_instructions", &Runtime::setInstructions)
+        .def("allocate", &Runtime::allocate)
+        .def("run", &Runtime::run);
+        
 }
