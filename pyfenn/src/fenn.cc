@@ -249,7 +249,7 @@ PYBIND11_MODULE(_fenn, m)
     pybind11::class_<Runtime>(m, "Runtime")
         .def(pybind11::init<const Model&, const BackendFeNN&>())
     
-        .def("get_array", &Runtime::getArray)
+        .def("get_array", &Runtime::getArray, pybind11::return_value_policy::reference)
         .def("set_instructions", &Runtime::setInstructions)
         .def("allocate", &Runtime::allocate)
         .def("run", &Runtime::run);
