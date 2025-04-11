@@ -1,8 +1,8 @@
 import numpy as np
 
 from pyfenn import (EventContainer, EventPropagationProcess,
-                    NeuronUpdateProcess, Shape, UnresolvedType, 
-                    Variable)
+                    NeuronUpdateProcess, NumericValue, Parameter, 
+                    ProcessGroup, Shape, UnresolvedType, Variable)
 
 num_timesteps = 79
 input_shape = Shape([28 * 28])
@@ -17,9 +17,9 @@ record = False
 input_spikes = EventContainer(input_shape, num_timesteps)
 
 # Hidden neurons
-hidden_v = Variable(hidden_shape, "s10_5_sat_t")
-hidden_i = Variable(hidden_shape, "s10_5_sat_t")
-hidden_refrac_time = Variable(hidden_shape, "int16_t")
+hidden_v = Variable(hidden_shape, UnresolvedType("s10_5_sat_t"))
+hidden_i = Variable(hidden_shape, UnresolvedType("s10_5_sat_t"))
+hidden_refrac_time = Variable(hidden_shape, UnresolvedType("int16_t"))
 hidden_spikes = EventContainer(hidden_shape, num_timesteps if record else 1);
 hidden = NeuronUpdateProcess(
     """
@@ -34,34 +34,34 @@ hidden = NeuronUpdateProcess(
        RefracTime = TauRefrac;
     }
     """,
-    {"Alpha": Parameter(np.exp(-1.0 / 20.0), "s10_5_sat_t"),
-     "VThresh": Parameter(0.61, "s10_5_sat_t"),
-     "TauRefrac": Parameter(5, "int16_t")},
+    {"Alpha": Parameter(NumericValue(np.exp(-1.0 / 20.0)), UnresolvedType("s10_5_sat_t")),
+     "VThresh": Parameter(NumericValue(0.61), UnresolvedType("s10_5_sat_t")),
+     "TauRefrac": Parameter(NumericValue(5), UnresolvedType("int16_t"))},
     {"V": hidden_v, "I": hidden_i, "RefracTime": hidden_refrac_time},
     {"Spike": hidden_spikes})
 
 # Output neurons
-output_v = Variable(outputShape, "s9_6_sat_t")
-output_i = Variable(outputShape, "s9_6_sat_t")
-output_v_avg = Variable(outputShape, "s9_6_sat_t")
-output_bias = Variable(outputShape, "s9_6_sat_t")
+output_v = Variable(output_shape, UnresolvedType("s9_6_sat_t"))
+output_i = Variable(output_shape, UnresolvedType("s9_6_sat_t"))
+output_v_avg = Variable(output_shape, UnresolvedType("s9_6_sat_t"))
+output_bias = Variable(output_shape, UnresolvedType("s9_6_sat_t"))
 output = NeuronUpdateProcess(
     """
     V = (Alpha * V) + I + Bias;
     I = 0.0h6;
     VAvg += (VAvgScale * V);
     """,
-    {"Alpha": Parameter(np.exp(-1.0 / 20.0), "s9_6_sat_t"), 
-     "VAvgScale": Parameter(1.0 / (numTimesteps / 2), "s9_6_sat_t")},
-    {"V": output_v, "VAvg": output_v_avg, "I": output_i, "Bias": outputBias})
+    {"Alpha": Parameter(NumericValue(np.exp(-1.0 / 20.0)), UnresolvedType("s9_6_sat_t")), 
+     "VAvgScale": Parameter(NumericValue(1.0 / (num_timesteps / 2)), UnresolvedType("s9_6_sat_t"))},
+    {"V": output_v, "VAvg": output_v_avg, "I": output_i, "Bias": output_bias})
 
 # Input->Hidden event propagation
-input_hidden_weight = Variable(input_hidden_shape, "s10_5_sat_t")
+input_hidden_weight = Variable(input_hidden_shape, UnresolvedType("s10_5_sat_t"))
 input_hidden = EventPropagationProcess(input_spikes, input_hidden_weight, hidden_i)
 
 # Hidden->Output event propagation
-hidden_output_weight = Variable(hidden_output_shape, "s9_6_sat_t", hidden_output_weight)
-hidden_output = EventPropagationProcess(hidden_spikes, hiddenOutputWeight, output_i)
+hidden_output_weight = Variable(hidden_output_shape, UnresolvedType("s9_6_sat_t"))
+hidden_output = EventPropagationProcess(hidden_spikes, hidden_output_weight, output_i)
 
 # Group processes
 neuron_update_processes = ProcessGroup([hidden, output])
