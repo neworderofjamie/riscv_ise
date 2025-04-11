@@ -159,9 +159,8 @@ for i in range(num_examples):
     input_spike_array.push_to_device();
 
     # Classify
-    print("meep")
     runtime.run()
-    print("floop")
+
     # If we're recording, write input and hidden spikes to file
     #if record:
     #    recordSpikes("mnist_input_spikes_" + std::to_string(i) + ".csv", inputSpikeArray,
@@ -171,11 +170,11 @@ for i in range(num_examples):
 
     # Copy output V sum from device
     output_v_avg_array.pull_from_device();
-    print("Roop")
+
     # Determine if output is correct
     classification = np.argmax(output_v_avg_view)
     if classification == mnist_labels[i]:
-        numCorrect += 1
+        num_correct += 1
 
     # Zero output and push
     output_v_avg_view[:] = 0
