@@ -128,7 +128,7 @@ private:
 //----------------------------------------------------------------------------
 // Model
 //----------------------------------------------------------------------------
-Model::Model(const std::vector<std::shared_ptr<const ProcessGroup>> processGroups)
+Model::Model(const std::vector<std::shared_ptr<const ProcessGroup>> &processGroups)
 :   m_ProcessGroups(processGroups)
 {
     // Use visitor to populate process fields and 
