@@ -14,9 +14,9 @@ all: $(COMPILER_TEST)
 
 -include compiler_test.d
 
-$(COMPILER_TEST): compiler_test.cc disassembler.cc compiler_test.d libise libcommon libbackend libassembler libcompiler
+$(COMPILER_TEST): compiler_test.cc compiler_test.d libise libcommon libbackend libassembler libdisassembler libcompiler
 	mkdir -p $(@D)
-	$(CXX) $(CXXFLAGS) compiler_test.cc disassembler.cc -o $@ $(LDFLAGS)
+	$(CXX) $(CXXFLAGS) compiler_test.cc -o $@ $(LDFLAGS)
 
 libbackend:
 	if [ -w $(LIBRARY_DIRECTORY) ]; then $(MAKE) -C $(RISCV_DIR)/src/backend; fi;
