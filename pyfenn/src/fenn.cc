@@ -8,10 +8,13 @@
 #include <pybind11/stl.h>
 
 // Plog includes
+#include <plog/Log.h>
 #include <plog/Severity.h>
 #include <plog/Appenders/ConsoleAppender.h>
+#include <plog/Formatters/TxtFormatter.h>
 
 // GeNN includes
+#include "logging.h"
 #include "type.h"
 
 // FeNN disassembler includes
@@ -80,19 +83,23 @@ const CodeGenerator::ModelSpecMerged *generateCode(ModelSpecInternal &model, Cod
     return modelMerged;
 }*/
 
-/*void initLogging(plog::Severity level)
+void initLogging(plog::Severity level)
 {
     auto *consoleAppender = new plog::ConsoleAppender<plog::TxtFormatter>;
     
     // If there isn't already a plog instance, initialise one
-    if(plog::get<>() == nullptr) {
-        plog::init<>(level, consoleAppender);
+    if(plog::get() == nullptr) {
+        plog::init(level, consoleAppender);
     }
     // Otherwise, set it's max severity from GeNN preferences
     else {
-        plog::get<>()->setMaxSeverity(consoleAppender);
+        plog::get()->setMaxSeverity(level);
     }
-}*/
+    
+    // **YUCK** also initialise GeNN logging
+    GeNN::Logging::init(level, level, level, level,
+                        consoleAppender, consoleAppender, consoleAppender, consoleAppender);
+}
 }
 
 //----------------------------------------------------------------------------
@@ -101,8 +108,21 @@ const CodeGenerator::ModelSpecMerged *generateCode(ModelSpecInternal &model, Cod
 PYBIND11_MODULE(_fenn, m) 
 {
     //------------------------------------------------------------------------
+    // Enumerations
+    //------------------------------------------------------------------------
+    pybind11::enum_<plog::Severity>(m, "PlogSeverity")
+        .value("NONE", plog::Severity::none)
+        .value("FATAL", plog::Severity::fatal)
+        .value("ERROR", plog::Severity::error)
+        .value("WARNING", plog::Severity::warning)
+        .value("INFO", plog::Severity::info)
+        .value("DEBUG", plog::Severity::debug)
+        .value("VERBOSE", plog::Severity::verbose);
+
+    //------------------------------------------------------------------------
     // Free functions
     //------------------------------------------------------------------------
+    m.def("init_logging", &initLogging, pybind11::arg("level") = plog::Severity::info);
     m.def("disassemble", 
         [](uint32_t instruction) -> std::optional<std::string> 
         {
