@@ -276,13 +276,19 @@ public:
     //------------------------------------------------------------------------
     std::vector<uint32_t> generateSimulationKernel(std::shared_ptr<const ProcessGroup> synapseProcessGroup, 
                                                    std::shared_ptr<const ProcessGroup> neuronProcessGroup,
-                                                   uint32_t numTimesteps, bool simulate,
-                                                   const Model &model) const;
+                                                   uint32_t numTimesteps, const Model &model) const;
 
     std::unique_ptr<ArrayBase> createArray(std::shared_ptr<const Variable> variable, 
                                            StateBase *state) const;
 
     std::unique_ptr<ArrayBase> createArray(std::shared_ptr<const EventContainer> eventContainer, 
                                            StateBase *state) const;
+
+protected:
+    //------------------------------------------------------------------------
+    // Declared virtuals
+    //------------------------------------------------------------------------
+    //! Should kernels be generated with simulation or hardware signalling
+    virtual bool shouldGenerateSimulationKernels() const = 0;
 
 };

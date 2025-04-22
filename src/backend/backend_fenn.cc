@@ -754,12 +754,11 @@ void BRAMArrayBase::serialiseDeviceObject(std::vector<std::byte> &bytes) const
 //------------------------------------------------------------------------
 std::vector<uint32_t> BackendFeNN::generateSimulationKernel(std::shared_ptr<const ProcessGroup> synapseProcessGroup, 
                                                             std::shared_ptr<const ProcessGroup> neuronProcessGroup,
-                                                            uint32_t numTimesteps, bool simulate,
-                                                            const Model &model) const
+                                                            uint32_t numTimesteps, const Model &model) const
 {
     uint32_t readyFlagPtr = 0;
     return AssemblerUtils::generateStandardKernel(
-        simulate, readyFlagPtr,
+        shouldGenerateSimulationKernels(), readyFlagPtr,
         [=, &model]
         (CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator, ScalarRegisterAllocator &scalarRegisterAllocator)
         {
