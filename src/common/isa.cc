@@ -156,18 +156,8 @@ OpType getOpType(int32_t funct7, uint32_t funct3)
     }
     
     if(funct7 == 0x1) {
-        switch(funct3) {
-        case 0:
+        if (funct3 == 0) {
             return OpType::MUL;
-
-        case 1:
-            return OpType::MULH;
-        
-        case 2:
-            return OpType::MULHSU;
-
-        case 3:
-            return OpType::MULHU;
         }
     }
     else {
