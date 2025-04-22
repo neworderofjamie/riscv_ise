@@ -243,7 +243,16 @@ PYBIND11_MODULE(_fenn, m)
         .def_property_readonly("target", &EventPropagationProcess::getTarget)
         .def_property_readonly("num_source_neurons", &EventPropagationProcess::getNumSourceNeurons)
         .def_property_readonly("num_target_neurons", &EventPropagationProcess::getNumTargetNeurons);
-    
+
+    //------------------------------------------------------------------------
+    // fenn.RNGInitProcess
+    //------------------------------------------------------------------------
+    pybind11::class_<RNGInitProcess, Process, std::shared_ptr<RNGInitProcess>>(m, "RNGInitProcess")
+        .def(pybind11::init(&RNGInitProcess::create),
+             pybind11::arg("seed"), pybind11::arg("name") = "")
+        
+        .def_property_readonly("seed", &RNGInitProcess::getSeed);
+
     //------------------------------------------------------------------------
     // fenn.ProcessGroup
     //------------------------------------------------------------------------
@@ -263,7 +272,8 @@ PYBIND11_MODULE(_fenn, m)
     // fenn.BackendFeNN
     //------------------------------------------------------------------------
     pybind11::class_<BackendFeNN>(m, "BackendFeNN")
-        .def("generate_simulation_kernel", &BackendFeNN::generateSimulationKernel);
+        .def("generate_simulation_kernel", &BackendFeNN::generateSimulationKernel)
+        .def("generate_kernel", &BackendFeNN::generateKernel);
     
     //------------------------------------------------------------------------
     // fenn.BackendFeNNSim

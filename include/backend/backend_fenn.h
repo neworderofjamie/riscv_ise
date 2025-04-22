@@ -278,6 +278,8 @@ public:
                                                    std::shared_ptr<const ProcessGroup> neuronProcessGroup,
                                                    uint32_t numTimesteps, const Model &model) const;
 
+    std::vector<uint32_t> generateKernel(std::shared_ptr<const ProcessGroup> processGroup, const Model &model) const;
+
     std::unique_ptr<ArrayBase> createArray(std::shared_ptr<const Variable> variable, 
                                            StateBase *state) const;
 

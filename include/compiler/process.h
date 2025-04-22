@@ -107,3 +107,32 @@ private:
     size_t m_NumSourceNeurons;
     size_t m_NumTargetNeurons;
 };
+
+//----------------------------------------------------------------------------
+// RNGInitProcess
+//----------------------------------------------------------------------------
+class COMPILER_EXPORT RNGInitProcess : public AcceptableModelComponent<RNGInitProcess, Process>
+{
+public:
+    RNGInitProcess(Private, std::shared_ptr<const Variable> seed, const std::string &name);
+
+    //------------------------------------------------------------------------
+    // Public API
+    //------------------------------------------------------------------------
+    const auto getSeed() const{ return m_Seed; }
+    
+    //------------------------------------------------------------------------
+    // Static API
+    //------------------------------------------------------------------------
+    static std::shared_ptr<RNGInitProcess> create(std::shared_ptr<const Variable> seed,
+                                                  const std::string &name = "")
+    {
+        return std::make_shared<RNGInitProcess>(Private(), seed, name);
+    }
+
+private:
+    //------------------------------------------------------------------------
+    // Members
+    //------------------------------------------------------------------------
+    std::shared_ptr<const Variable> m_Seed;
+};

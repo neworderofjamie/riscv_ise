@@ -10,6 +10,7 @@ class Parameter;
 class ProcessGroup;
 class NeuronUpdateProcess;
 class EventPropagationProcess;
+class RNGInitProcess;
 class Variable;
 
 //----------------------------------------------------------------------------
@@ -23,6 +24,7 @@ public:
     virtual void visit(std::shared_ptr<const ProcessGroup>){}
     virtual void visit(std::shared_ptr<const NeuronUpdateProcess>){}
     virtual void visit(std::shared_ptr<const EventPropagationProcess>){}
+    virtual void visit(std::shared_ptr<const RNGInitProcess>){};
     virtual void visit(std::shared_ptr<const Variable>){}
 };
 

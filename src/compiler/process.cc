@@ -92,3 +92,14 @@ EventPropagationProcess::EventPropagationProcess(Private, std::shared_ptr<const 
     }
     
 }
+
+//----------------------------------------------------------------------------
+// RNGInitProcess
+//----------------------------------------------------------------------------
+RNGInitProcess::RNGInitProcess(Private, std::shared_ptr<const Variable> seed, const std::string &name)
+:   AcceptableModelComponent<RNGInitProcess, Process>(name), m_Seed(seed)
+{
+    if(m_Seed == nullptr) {
+        throw std::runtime_error("RNG init process requires seed");
+    }
+}

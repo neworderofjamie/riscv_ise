@@ -27,7 +27,7 @@ int main(int argc, char** argv)
     plog::ConsoleAppender<plog::TxtFormatter> consoleAppender;
     plog::init(plog::debug, &consoleAppender);
     
-    bool device = false;
+    bool device = true;
 
     CLI::App app{"Blank example"};
     app.add_flag("-d,--device", device, "Should be run on device rather than simulator");
@@ -46,11 +46,17 @@ int main(int argc, char** argv)
         !device, readyFlagPtr,
         [=](CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator, ScalarRegisterAllocator &scalarRegisterAllocator)
         {
-           
+            ALLOCATE_SCALAR(SA);   
+            ALLOCATE_SCALAR(SB);
+            ALLOCATE_SCALAR(SC);
+
+            c.li(*SA, 173);
+            c.li(*SB, 134);
+            c.mul(*SC, *SA, *SB);
         });
 
     // Dump to coe file
-    //AppUtils::dumpCOE("lif.coe", code);
+    AppUtils::dumpCOE("mul.coe", code);
 
     
     if(device) {
@@ -78,10 +84,12 @@ int main(int argc, char** argv)
     }
     else {
         // Create RISC-V core with instruction and scalar data
-        RISCV riscV(code, scalarInitData);
+        RISCV riscV;
+        riscV.setInstructions(code);
+        riscV.getScalarDataMemory().setData(scalarInitData);
         
         // Add vector co-processor
-        riscV.addCoprocessor<VectorProcessor>(vectorQuadrant, vectorInitData);
+        riscV.addCoprocessor<VectorProcessor>(vectorQuadrant);
         
         // Run!
         if(!riscV.run()) {

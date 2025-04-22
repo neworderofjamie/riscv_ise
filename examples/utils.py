@@ -35,3 +35,15 @@ def zero_and_push(state, runtime: Runtime):
 
     # Push to device
     array.push_to_device()
+
+
+def seed_and_push(state, runtime: Runtime):
+    # Get array and view
+    array, view = get_array_view(runtime, state, np.int16)
+ 
+    # Zero
+    int16_info = np.iinfo(np.int16)
+    view[:] = np.random.randint(int16_info.min, int16_info.max, 64, dtype=np.int16)
+
+    # Push to device
+    array.push_to_device()
