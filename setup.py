@@ -55,7 +55,7 @@ genn_third_party_include = os.path.join(genn_path, "include", "genn", "third_par
 #genn_share = os.path.join(genn_path, "share", "genn")
 #pygenn_share = os.path.join(pygenn_path, "share")
 
-fenn_libraries = ["assembler", "backend", "common", "compiler", "ise"]
+fenn_libraries = ["backend", "ise", "compiler", "assembler", "common"]
 # Always package LibGeNN
 if WIN:
     package_data = [f"genn{lib_suffix}.dll",
