@@ -53,9 +53,6 @@ if disassemble_code:
 # Create runtime
 runtime = Runtime(model, backend)
 
-# Set instructions
-runtime.set_instructions(code)
-
 # Allocate memory for model
 runtime.allocate()
 
@@ -75,6 +72,9 @@ zero_and_push(output.v_avg, runtime)
 # Load data
 mnist_spikes = np.fromfile("mnist_spikes.bin", dtype=np.uint32)
 mnist_labels = np.fromfile("mnist_labels.bin", dtype=np.int16)
+
+# Set instructions
+runtime.set_instructions(code)
 
 # Loop through examples
 input_spike_array, input_spike_view = get_array_view(runtime, input_spikes,
