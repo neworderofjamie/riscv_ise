@@ -4,6 +4,12 @@ from pyfenn import (BackendFeNNSim, EventContainer, EventPropagationProcess,
                     Model, NeuronUpdateProcess, NumericValue, Parameter,
                     ProcessGroup, Runtime, Shape, UnresolvedType, Variable)
 
+def get_array_view(runtime: Runtime, state, dtype):
+    array = runtime.get_array(state)
+    view = np.asarray(array.host_view).view(dtype)
+    assert not view.flags["OWNDATA"]
+    return array, view
+
 # Divide two integers, rounding up i.e. effectively taking ceil
 def ceil_divide(numerator, denominator):
     return (numerator + denominator - 1) // denominator
@@ -12,13 +18,9 @@ def load_and_push(filename: str, state, runtime: Runtime):
     # Load data from file
     data = np.fromfile(filename, dtype=np.uint8)
     
-    # Get array
-    array = runtime.get_array(state)
-    
-    # Get dtype view of host memoryview
+    # Get array and view
+    array, view = get_array_view(runtime, state, np.uint8)
     assert array.host_view.nbytes == data.nbytes
-    view = np.asarray(array.host_view).view(np.uint8)
-    assert not view.flags["OWNDATA"]
 
     # Copy data to array host pointer
     view[:] = data
@@ -27,12 +29,10 @@ def load_and_push(filename: str, state, runtime: Runtime):
     array.push_to_device()
 
 def zero_and_push(state, runtime: Runtime):
-    # Get array
-    array = runtime.get_array(state)
+    # Get array and view
+    array, view = get_array_view(runtime, state, np.uint8)
  
     # Zero
-    view = np.asarray(array.host_view).view(np.uint8)
-    assert not view.flags["OWNDATA"]
     view[:] = 0
 
     # Push to device
@@ -164,16 +164,15 @@ mnist_spikes = np.fromfile("mnist_spikes.bin", dtype=np.uint32)
 mnist_labels = np.fromfile("mnist_labels.bin", dtype=np.int16)
 
 # Loop through examples
-input_spike_array = runtime.get_array(input_spikes)
-input_spike_view = np.asarray(input_spike_array.host_view).view(np.uint32)
-assert not input_spike_view.flags["OWNDATA"]
+input_spike_array, input_spike_view = get_array_view(runtime, input_spikes,
+                                                     np.uint32)
 hidden_spike_array = runtime.get_array(hidden.out_spikes)
-output_v_avg_array = runtime.get_array(output.v_avg)
-output_v_avg_view = np.asarray(output_v_avg_array.host_view).view(np.int16)
-assert not output_v_avg_view.flags["OWNDATA"]
+
+output_v_avg_array, output_v_avg_view = get_array_view(runtime, output.v_avg,
+                                                       np.int16)
 num_correct = 0
 for i in range(num_examples):
-    print(i)
+    #print(i)
     # Copy data to array host pointe
     start_word = i * num_input_spike_array_words
     input_spike_view[:] = mnist_spikes[start_word: start_word + num_input_spike_array_words]
