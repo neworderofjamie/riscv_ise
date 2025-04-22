@@ -4,7 +4,7 @@ from pyfenn import (BackendFeNNSim, EventContainer, Model, ProcessGroup,
                     Runtime, Shape)
 from models import LI, LIF, Linear
 
-from pyfenn import disassemble
+from pyfenn import disassemble, init_logging
 from utils import get_array_view, ceil_divide, load_and_push, zero_and_push
 
 num_examples = 10000
@@ -16,12 +16,14 @@ input_hidden_shape = [28 * 28, 128]
 hidden_output_shape = [128, 10]
 device = False
 record = False
-disassemble = False
+disassemble_code = False
 
 # **YUCK** implementation detail
 num_input_spike_words = ceil_divide(28 * 28, 32)
 num_input_spike_array_words = num_input_spike_words * num_timesteps
-    
+
+init_logging()
+
 # Input spikes
 input_spikes = EventContainer(Shape(input_shape), num_timesteps)
 
@@ -45,7 +47,7 @@ code = backend.generate_simulation_kernel(synapse_update_processes, neuron_updat
                                           num_timesteps, True, model)
 
 # Disassemble if required
-if disassemble:
+if disassemble_code:
     for i, c in enumerate(code):
         print(f"{i * 4} : {disassemble(c)}")
 
