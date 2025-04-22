@@ -190,40 +190,6 @@ public:
 private:
     SimState *m_State;
 };
-
-//------------------------------------------------------------------------
-// BRAMArray
-//------------------------------------------------------------------------
-class BRAMFieldArray : public IFieldArray, protected BRAMArray
-{
-public:
-    using BRAMArray::BRAMArray;
-
-    //------------------------------------------------------------------------
-    // IFieldArray virtuals
-    //------------------------------------------------------------------------
-    //! Sets field at offset to point to array
-    virtual void setFieldArray(uint32_t fieldOffset, const ArrayBase *array) override final
-    {
-        // Serialise array's 'device object'
-        std::vector<std::byte> bytes;
-        array->serialiseDeviceObject(bytes);
-
-        // Check serialised data is exactly 4 bytes
-        assert(bytes.size() == 4);
-
-        // Memcpy bytes into field offset
-        std::memcpy(getHostPointer() + fieldOffset, 
-                    bytes.data(), 4);
-            
-    }
-
-    //! Copy field data to device
-    virtual void pushFieldsToDevice() override final
-    {
-        pushToDevice();
-    }
-};
 }
 
 //----------------------------------------------------------------------------
@@ -243,7 +209,7 @@ std::unique_ptr<ArrayBase> BackendFeNNSim::createBRAMArray(const GeNN::Type::Res
 //------------------------------------------------------------------------
 std::unique_ptr<IFieldArray> BackendFeNNSim::createFieldArray(const Model &model, StateBase *state) const
 {
-    return std::make_unique<::BRAMFieldArray>(GeNN::Type::Uint32, model.getNumFields(), static_cast<SimState*>(state));
+    return std::make_unique<::BRAMFieldArray<BRAMArray>>(GeNN::Type::Uint32, model.getNumFields(), static_cast<SimState*>(state));
 }
 //------------------------------------------------------------------------
 std::unique_ptr<StateBase> BackendFeNNSim::createState() const

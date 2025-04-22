@@ -213,6 +213,42 @@ private:
     std::optional<uint32_t> m_BRAMPointer;
 };
 
+
+//------------------------------------------------------------------------
+// BRAMFieldArray
+//------------------------------------------------------------------------
+template<typename T>
+class BRAMFieldArray : public IFieldArray, protected T
+{
+public:
+    using T::T;
+
+    //------------------------------------------------------------------------
+    // IFieldArray virtuals
+    //------------------------------------------------------------------------
+    //! Sets field at offset to point to array
+    virtual void setFieldArray(uint32_t fieldOffset, const ArrayBase *array) override final
+    {
+        // Serialise array's 'device object'
+        std::vector<std::byte> bytes;
+        array->serialiseDeviceObject(bytes);
+
+        // Check serialised data is exactly 4 bytes
+        assert(bytes.size() == 4);
+
+        // Memcpy bytes into field offset
+        std::memcpy(this->getHostPointer() + fieldOffset, 
+                    bytes.data(), 4);
+            
+    }
+
+    //! Copy field data to device
+    virtual void pushFieldsToDevice() override final
+    {
+        this->pushToDevice();
+    }
+};
+
 //----------------------------------------------------------------------------
 // BackendFeNN
 //----------------------------------------------------------------------------

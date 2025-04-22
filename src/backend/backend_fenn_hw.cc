@@ -201,3 +201,29 @@ private:
      SimState *m_State;
 };
 }
+
+
+//----------------------------------------------------------------------------
+// BackendFeNNHW
+//------------------------------------------------------------------------
+std::unique_ptr<ArrayBase> BackendFeNNHW::createURAMArray(const GeNN::Type::ResolvedType &type, size_t count,
+                                                           StateBase *state) const
+{
+    return std::make_unique<::URAMArray>(type, count, static_cast<SimState*>(state));
+}
+//------------------------------------------------------------------------
+std::unique_ptr<ArrayBase> BackendFeNNHW::createBRAMArray(const GeNN::Type::ResolvedType &type, size_t count,
+                                                           StateBase *state) const
+{
+    return std::make_unique<::BRAMArray>(type, count, static_cast<SimState*>(state));
+}
+//------------------------------------------------------------------------
+std::unique_ptr<IFieldArray> BackendFeNNHW::createFieldArray(const Model &model, StateBase *state) const
+{
+    return std::make_unique<::BRAMFieldArray<BRAMArray>>(GeNN::Type::Uint32, model.getNumFields(), static_cast<SimState*>(state));
+}
+//------------------------------------------------------------------------
+std::unique_ptr<StateBase> BackendFeNNHW::createState() const
+{
+    return std::make_unique<SimState>();
+}

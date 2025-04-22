@@ -6,8 +6,7 @@
 //----------------------------------------------------------------------------
 // BackendFeNNSim
 //----------------------------------------------------------------------------
-//! Base class for FeNN backends
-//! **NOTE** this is a temporary, simplified version of GeNN's BackendBase
+//! Backend for FeNN Instruction Set Simulator
 class BACKEND_EXPORT BackendFeNNSim : public BackendFeNN
 {
 public:
