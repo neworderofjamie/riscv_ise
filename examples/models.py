@@ -1,0 +1,66 @@
+import numpy as np
+
+from pyfenn import (EventContainer, EventPropagationProcess,
+                    NeuronUpdateProcess, NumericValue, Parameter,
+                    Shape, UnresolvedType, Variable)
+
+class LIF:
+    def __init__(self, shape, tau_m: float, tau_refrac: int, v_thresh: float,
+                 record_spikes: bool = False, dtype = "s10_5_sat_t"):
+        self.shape = Shape(shape)
+        dtype = UnresolvedType(dtype)
+        self.v = Variable(self.shape, dtype)
+        self.i = Variable(self.shape, dtype)
+        self.refrac_time = Variable(self.shape, UnresolvedType("int16_t"))
+        self.out_spikes = EventContainer(self.shape, 
+                                         (num_timesteps if record_spikes
+                                          else 1))
+        self.process = NeuronUpdateProcess(
+            """
+            V = (Alpha * V) + I;
+            I = 0.0h5;
+            if (RefracTime > 0) {
+               RefracTime -= 1;
+            }
+            else if(V >= VThresh) {
+               Spike();
+               V -= VThresh;
+               RefracTime = TauRefrac;
+            }
+            """,
+            {"Alpha": Parameter(NumericValue(np.exp(-1.0 / tau_m)), dtype),
+             "VThresh": Parameter(NumericValue(v_thresh), dtype),
+             "TauRefrac": Parameter(NumericValue(tau_refrac), UnresolvedType("int16_t"))},
+            {"V": self.v, "I": self.i, "RefracTime": self.refrac_time},
+            {"Spike": self.out_spikes})
+
+class LI:
+    def __init__(self, shape, tau_m: float, num_timesteps: int,
+                 dtype: str = "s10_5_sat_t"):
+        self.shape = Shape(shape)
+        dtype = UnresolvedType(dtype)
+
+        self.v = Variable(self.shape, dtype)
+        self.i = Variable(self.shape, dtype)
+        self.v_avg = Variable(self.shape, dtype)
+        self.bias = Variable(self.shape, dtype)
+        self.process = NeuronUpdateProcess(
+            """
+            V = (Alpha * V) + I + Bias;
+            I = 0.0h6;
+            VAvg += (VAvgScale * V);
+            """,
+            {"Alpha": Parameter(NumericValue(np.exp(-1.0 / tau_m)), dtype), 
+             "VAvgScale": Parameter(NumericValue(1.0 / (num_timesteps / 2)), dtype)},
+            {"V": self.v, "VAvg": self.v_avg, "I": self.i, "Bias": self.bias})
+
+class Linear:
+    def __init__(self, source_events: EventContainer, target_var: Variable,
+                 weight_dtype: str):
+        self.shape = Shape([source_events.shape.num_neurons,
+                            target_var.shape.num_neurons])
+        weight_dtype = UnresolvedType(weight_dtype)
+
+        self.weight = Variable(self.shape, weight_dtype)
+        self.process = EventPropagationProcess(source_events, self.weight,
+                                               target_var)
