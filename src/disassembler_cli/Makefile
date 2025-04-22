@@ -2,7 +2,7 @@
 include ../MakefileCommon
 
 # Add compiler and linker flags to link libGeNN and correct backend; and to configure generator to use backend
-LDFLAGS			+= -L$(LIBRARY_DIRECTORY) -lcommon$(PREFIX) -ldisassembler$(PREFIX)
+LDFLAGS			+= -L$(LIBRARY_DIRECTORY) -ldisassembler$(PREFIX) -lcommon$(PREFIX)
 
 # Determine full path to test
 DISASSEMBLER_CLI	:=$(BIN_DIRECTORY)/disassembler_cli$(PREFIX)
