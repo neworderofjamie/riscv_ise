@@ -4,6 +4,8 @@ from pyfenn import (BackendFeNNSim, EventContainer, EventPropagationProcess,
                     Model, NeuronUpdateProcess, NumericValue, Parameter,
                     ProcessGroup, Runtime, Shape, UnresolvedType, Variable)
 
+from pyfenn import disassemble
+
 def get_array_view(runtime: Runtime, state, dtype):
     array = runtime.get_array(state)
     view = np.asarray(array.host_view).view(dtype)
@@ -108,6 +110,7 @@ input_hidden_shape = [28 * 28, 128]
 hidden_output_shape = [128, 10]
 device = False
 record = False
+disassemble = False
 
 # **YUCK** implementation detail
 num_input_spike_words = ceil_divide(28 * 28, 32)
@@ -135,7 +138,10 @@ backend = BackendFeNNSim()
 code = backend.generate_simulation_kernel(synapse_update_processes, neuron_update_processes, 
                                           num_timesteps, True, model)
 
-# **TODO** disassembler
+# Disassemble if required
+if disassemble:
+    for i, c in enumerate(code):
+        print(f"{i * 4} : {disassemble(c)}")
 
 # Create runtime
 runtime = Runtime(model, backend)
@@ -172,7 +178,6 @@ output_v_avg_array, output_v_avg_view = get_array_view(runtime, output.v_avg,
                                                        np.int16)
 num_correct = 0
 for i in range(num_examples):
-    #print(i)
     # Copy data to array host pointe
     start_word = i * num_input_spike_array_words
     input_spike_view[:] = mnist_spikes[start_word: start_word + num_input_spike_array_words]

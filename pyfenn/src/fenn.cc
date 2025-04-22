@@ -1,3 +1,7 @@
+// Standard C++ includes
+#include <optional>
+#include <sstream>
+
 // PyBind11 includes
 #include <pybind11/functional.h>
 #include <pybind11/pybind11.h>
@@ -9,6 +13,9 @@
 
 // GeNN includes
 #include "type.h"
+
+// FeNN disassembler includes
+#include "disassembler/disassembler.h"
 
 // FeNN backend includes
 #include "backend/backend_fenn_sim.h"
@@ -93,6 +100,22 @@ const CodeGenerator::ModelSpecMerged *generateCode(ModelSpecInternal &model, Cod
 //----------------------------------------------------------------------------
 PYBIND11_MODULE(_fenn, m) 
 {
+    //------------------------------------------------------------------------
+    // Free functions
+    //------------------------------------------------------------------------
+    m.def("disassemble", 
+        [](uint32_t instruction) -> std::optional<std::string> 
+        {
+            try {
+                std::ostringstream ss;
+                disassemble(ss, instruction);
+                return ss.str();
+            }
+            catch(const std::runtime_error&) {
+                return std::nullopt;
+            }
+        });
+    
     //------------------------------------------------------------------------
     // fenn.NumericValue
     //------------------------------------------------------------------------

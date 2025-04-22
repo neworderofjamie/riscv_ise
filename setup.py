@@ -55,7 +55,7 @@ genn_third_party_include = os.path.join(genn_path, "include", "genn", "third_par
 #genn_share = os.path.join(genn_path, "share", "genn")
 #pygenn_share = os.path.join(pygenn_path, "share")
 
-fenn_libraries = ["backend", "ise", "compiler", "assembler", "common"]
+fenn_libraries = ["backend", "ise", "compiler", "disassembler", "assembler", "common"]
 # Always package LibGeNN
 if WIN:
     package_data = [f"genn{lib_suffix}.dll",
@@ -76,7 +76,7 @@ fenn_extension_kwargs = {
     "define_macros": [("LINKING_ASSEMBLER_DLL", 1), ("LINKING_BACKEND_DLL", 1),
                       ("LINKING_COMMON_DLL", 1), ("LINKING_COMPILER_DLL", 1), 
                       ("LINKING_ISE_DLL", 1), ("LINKING_COMPILER_DLL", 1),
-                      ("LINKING_GENN_DLL", 1)]}
+                      ("LINKING_GENN_DLL", 1), ("LINKING_DISASSEMBLER_DLL", 1)]}
 
 # If this is Windows
 if WIN:
