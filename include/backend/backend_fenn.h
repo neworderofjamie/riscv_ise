@@ -6,6 +6,7 @@
 
 // Standard C includes
 #include <cstdint>
+#include <cstring>
 
 // GeNN includes
 #include "type.h"
