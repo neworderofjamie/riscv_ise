@@ -14,8 +14,5 @@
     <ClCompile Include="compiler_test.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="disassembler.cc">
-      <Filter>Source Files</Filter>
-    </ClCompile>
   </ItemGroup>
 </Project>

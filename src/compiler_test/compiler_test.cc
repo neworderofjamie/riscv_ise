@@ -18,25 +18,26 @@
 // GeNN includes
 #include "type.h"
 
-// RISC-V commo include
+// RISC-V common include
 #include "common/CLI11.hpp"
 #include "common/app_utils.h"
 #include "common/utils.h"
+
+// RISC-V disassembler include
+#include "disassembler/disassembler.h"
 
 // RISC-V backend includes
 #include "backend/backend_fenn_sim.h"
 #include "backend/model.h"
 #include "backend/runtime.h"
 
-// RISC-V assembler includes
+// RISC-V compiler includes
 #include "compiler/event_container.h"
 #include "compiler/parameter.h"
 #include "compiler/process.h"
 #include "compiler/process_group.h"
 #include "compiler/variable.h"
 
-// **HACK**
-void disassemble(std::ostream &os, uint32_t inst);
 
 void recordSpikes(const std::string &filename, ArrayBase *spikeArray,
                   size_t numNeurons, size_t numTimesteps)
@@ -231,7 +232,6 @@ int main(int argc, char** argv)
         // Copy output V sum from device
         outputVAvgArray->pullFromDevice();
 
-        
         // Determine if output is correct
         const auto classification = std::distance(outputVAvgArrayHostPtr, std::max_element(outputVAvgArrayHostPtr, outputVAvgArrayHostPtr + 10));
         if (classification == mnistLabels[i]) {
