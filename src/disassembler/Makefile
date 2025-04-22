@@ -1,26 +1,41 @@
 # Include common makefile
 include ../MakefileCommon
 
-# Add compiler and linker flags to link libGeNN and correct backend; and to configure generator to use backend
-LDFLAGS			+= -L$(LIBRARY_DIRECTORY) -lcommon$(PREFIX)
+LIBDISASSEMBLER:=$(LIBRARY_DIRECTORY)/libdisassembler$(PREFIX).$(LIBRARY_EXTENSION)
 
-# Determine full path to test_mnist
-DISASSEMBLER	:=$(BIN_DIRECTORY)/disassembler$(PREFIX)
+# Find source files
+SOURCES	:=$(wildcard *.cc)
 
-.PHONY: all clean libcommon
+# Build objecs in sub-directory
+OBJECT_DIRECTORY	:=$(OBJECT_DIRECTORY)/disassembler/
 
-all: $(DISASSEMBLER)
+# Add object directory prefix
+OBJECTS			:=$(SOURCES:%.cc=$(OBJECT_DIRECTORY)/%.o)
+DEPS			:=$(OBJECTS:.o=.d)
 
--include disassembler.d
+.PHONY: all clean
 
-$(DISASSEMBLER): disassembler.cc disassembler.d libcommon
+all: $(LIBDISASSEMBLER)
+
+ifdef DYNAMIC
+$(LIBDISASSEMBLER): $(OBJECTS)
 	mkdir -p $(@D)
-	$(CXX) $(CXXFLAGS) disassembler.cc -o $@ $(LDFLAGS)
+	$(CXX) -shared $(CXXFLAGS) -o $@ $(OBJECTS)
+else
+$(LIBDISASSEMBLER): $(OBJECTS)
+	mkdir -p $(@D)
+	$(AR) $(ARFLAGS) $@ $(OBJECTS)
+endif
 
-libcommon:
-	if [ -w $(LIBRARY_DIRECTORY) ]; then $(MAKE) -C $(RISCV_DIR)/src/common; fi;
+-include $(DEPS)
+
+$(OBJECT_DIRECTORY)/%.o: %.cc $(OBJECT_DIRECTORY)/%.d
+	mkdir -p $(@D)
+	$(CXX) -std=c++17 $(CXXFLAGS) -c -o $@ $<
 
 %.d: ;
 
 clean:
-	rm -f $(DISASSEMBLER)
+	@find $(OBJECT_DIRECTORY) -type f -name "*.o" -delete
+	@find $(OBJECT_DIRECTORY) -type f -name "*.d" -delete
+	@rm -f $(LIBDISASSEMBLER)
