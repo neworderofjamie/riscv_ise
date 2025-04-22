@@ -489,6 +489,26 @@ private:
         
     }
 
+    virtual void visit(std::shared_ptr<const RNGInitProcess> rngInitProcess)
+    {
+        auto &c = m_CodeGenerator.get();
+
+        //**TODO** check seed shape
+
+        // Get fields associated with this process
+        const auto &stateFields = m_Model.get().getProcessFields().at(rngInitProcess);
+
+        // Allocate scalar register to hold address of seed buffer
+        const auto reg = m_ScalarRegisterAllocator.get().getRegister("SeedBuffer X");
+        
+        // Generate code to load address of seed
+        c.lw(*reg, Reg::X0, stateFields.at(rngInitProcess->getSeed()));
+
+        // Load seed into RNG registers
+        c.vloadr0(*reg);
+        c.vloadr1(*reg, 64);
+    }
+
     virtual void visit(std::shared_ptr<const EventPropagationProcess> eventPropagationProcess)
     {
         // Add event propagation process to vector of processes with same input event container
@@ -787,6 +807,21 @@ std::vector<uint32_t> BackendFeNN::generateSimulationKernel(std::shared_ptr<cons
                 c.addi(*STime, *STime, 1);
                 c.bne(*STime, *STimeEnd, timeLoop);
             }
+        });
+}
+//------------------------------------------------------------------------
+std::vector<uint32_t> BackendFeNN::generateKernel(std::shared_ptr<const ProcessGroup> processGroup,
+                                                  const Model &model) const
+{
+    uint32_t readyFlagPtr = 0;
+    return AssemblerUtils::generateStandardKernel(
+        shouldGenerateSimulationKernels(), readyFlagPtr,
+        [=, &model]
+        (CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator, ScalarRegisterAllocator &scalarRegisterAllocator)
+        {
+            // Visit process group
+            CodeGeneratorVisitor visitor(processGroup, nullptr, c, vectorRegisterAllocator,
+                                         scalarRegisterAllocator, model);
         });
 }
 //------------------------------------------------------------------------

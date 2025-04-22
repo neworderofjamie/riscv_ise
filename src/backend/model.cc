@@ -103,6 +103,26 @@ private:
         m_CurrentStateFields.clear();
     }
 
+    virtual void visit(std::shared_ptr<const RNGInitProcess> rngInitProcess)
+    {
+        LOGD << "RNG init process '" << rngInitProcess->getName() << "'";
+        assert(m_CurrentStateFields.empty());
+
+        // Visit components
+        rngInitProcess->getSeed()->accept(*this);
+        
+        // Add back-references in state processes
+        m_StateProcesses.get()[rngInitProcess->getSeed()].push_back(rngInitProcess);
+
+        // Add process fields
+        if(!m_ProcessFields.get().try_emplace(rngInitProcess, m_CurrentStateFields).second) {
+            throw std::runtime_error("RNG init process '" + rngInitProcess->getName() + "' encountered multiple times in model traversal");
+        }
+
+        // Clear current state fields
+        m_CurrentStateFields.clear();
+    }
+
     virtual void visit(std::shared_ptr<const Variable> variable)
     {
         // Allocate BRAM for field pointer

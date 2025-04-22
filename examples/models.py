@@ -2,7 +2,12 @@ import numpy as np
 
 from pyfenn import (EventContainer, EventPropagationProcess,
                     NeuronUpdateProcess, NumericValue, Parameter,
-                    Shape, UnresolvedType, Variable)
+                    RNGInitProcess, Shape, UnresolvedType, Variable)
+
+class RNGInit:
+    def __init__(self):
+        self.seed = Variable(Shape([64]), UnresolvedType("int16_t"))
+        self.process = RNGInitProcess(self.seed)
 
 class LIF:
     def __init__(self, shape, tau_m: float, tau_refrac: int, v_thresh: float,
