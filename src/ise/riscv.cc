@@ -559,24 +559,6 @@ uint32_t RISCV::calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs2, uint3
         return (int32_t)((int32_t)val * (int32_t)val2);
     }
 
-    /*case OpType::MULH:
-    {
-        PLOGV << "MULH " << rs1 << " " << rs2;
-        return (int32_t)((int32_t)val * (int32_t)val2);
-    }
-
-    case OpType::MULHSU:
-    {
-        PLOGV << "MULHSU " << rs1 << " " << rs2;
-        return (int32_t)((int32_t)val * (int32_t)val2);
-    }
-
-    case OpType::MULHU:
-    {
-        PLOGV << "MULHU " << rs1 << " " << rs2;
-        return (int32_t)((int32_t)val * (int32_t)val2);
-    }*/
-
     default:
     {
         throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
