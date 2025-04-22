@@ -42,7 +42,7 @@ else:
     if debug_build:
         lib_suffix = "_dynamic_debug"
     else:
-        ib_suffix = "_dynamic"
+        lib_suffix = "_dynamic"
 
 fenn_path = os.path.dirname(os.path.abspath(__file__))
 
