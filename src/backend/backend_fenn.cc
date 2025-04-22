@@ -219,6 +219,13 @@ void updateLiteralPool(const std::vector<Token> &tokens, VectorRegisterAllocator
                 throw std::runtime_error("FeNN does not support floating point types");
             }
 
+            // Check integer value can fit within 16-bit signed type
+            if(integerResult < std::numeric_limits<int16_t>::min() 
+               || integerResult > std::numeric_limits<int16_t>::max())
+            {
+                throw std::runtime_error("Literal '" + lexeme + "' out of range for type '"
+                                         + t.numberType.value().getName() + "'");
+            }
             // Check integer is in range and insert in pool
             assert(integerResult >= std::numeric_limits<int16_t>::min());
             assert(integerResult <= std::numeric_limits<int16_t>::max());
@@ -387,9 +394,13 @@ private:
                 throw std::runtime_error("FeNN does not support floating point types");
             }
 
-            // Check integer is in range and insert in pool
-            assert(integerResult >= std::numeric_limits<int16_t>::min());
-            assert(integerResult <= std::numeric_limits<int16_t>::max());
+            // Check integer value can fit within 16-bit signed type
+            if(integerResult < std::numeric_limits<int16_t>::min() 
+               || integerResult > std::numeric_limits<int16_t>::max())
+            {
+                throw std::runtime_error("Parameter '" + p.first + "' out of range for type '"
+                                          +p.second->getType().getName() + "'");
+            }
 
             // Generate code to load parameter
             c.vlui(*reg, (uint16_t)integerResult);
