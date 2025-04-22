@@ -41,10 +41,9 @@ synapse_update_processes = ProcessGroup([input_hidden.process, hidden_output.pro
 model = Model([neuron_update_processes, synapse_update_processes])
 
 # Create backend and use to generate sim code
-# **YUCK** simulate flag
 backend = BackendFeNNSim()
 code = backend.generate_simulation_kernel(synapse_update_processes, neuron_update_processes, 
-                                          num_timesteps, True, model)
+                                          num_timesteps, model)
 
 # Disassemble if required
 if disassemble_code:
