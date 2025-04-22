@@ -407,6 +407,13 @@ private:
         }
 
         env.add(Type::S8_7, "_zero", literalPool.at(0));
+        env.add(Type::ResolvedType::createFunction(Type::S0_15, {}), "fennrand",
+                [](auto &env, auto &vectorRegisterAllocator, auto&, auto, const auto&)
+                {
+                    auto result = vectorRegisterAllocator.getRegister("fennrand = V");
+                    env.getCodeGenerator().vrng(*result);
+                    return std::make_pair(result, true);
+                });
 
         // Build vectorised neuron loop
         AssemblerUtils::unrollVectorLoopBody(
