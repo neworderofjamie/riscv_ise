@@ -151,37 +151,53 @@ OpImmType getOpImmType(int32_t imm, uint32_t funct3)
 OpType getOpType(int32_t funct7, uint32_t funct3)
 {
     // If any bits are set in funct7 aside from the one used for distinguishing ops
-    if (funct7 & ~0x20) {
+    if (funct7 & ~0x21) {
         return OpType::INVALID;
     }
-    switch(funct3) {
-    case 0:
-        return (funct7 == 0) ? OpType::ADD : OpType::SUB;
-
-    case 1:
-        return OpType::SLL;
     
-    case 2:
-        return OpType::SLT;
+    if(funct7 == 0x1) {
+        switch(funct3) {
+        case 0:
+            return OpType::MUL;
 
-    case 3:
-        return OpType::SLTU;
+        case 1:
+            return OpType::MULH;
+        
+        case 2:
+            return OpType::MULHSU;
 
-    case 4:
-        return OpType::XOR;
-
-    case 5:
-        return (funct7 == 0) ? OpType::SRL : OpType::SRA;
-
-    case 6:
-        return OpType::OR;
-
-    case 7:
-        return OpType::AND;
-
-    default:
-        return OpType::INVALID;
+        case 3:
+            return OpType::MULHU;
+        }
     }
+    else {
+        switch(funct3) {
+        case 0:
+            return (funct7 == 0) ? OpType::ADD : OpType::SUB;
+
+        case 1:
+            return OpType::SLL;
+        
+        case 2:
+            return OpType::SLT;
+
+        case 3:
+            return OpType::SLTU;
+
+        case 4:
+            return OpType::XOR;
+
+        case 5:
+            return (funct7 == 0) ? OpType::SRL : OpType::SRA;
+
+        case 6:
+            return OpType::OR;
+
+        case 7:
+            return OpType::AND;
+        }
+    }
+    return OpType::INVALID;
 }
 //----------------------------------------------------------------------------
 VOpType getVOpType(uint32_t funct7, uint32_t funct3)
@@ -257,20 +273,37 @@ VMovType getVMovType(uint32_t funct3)
     }
 }
 //----------------------------------------------------------------------------
-VLoadType getVLoadType(uint32_t funct3)
+std::tuple<VLoadType, bool> getVLoadType(uint32_t funct3)
 {
     switch(funct3){
     case 0b000:
-        return VLoadType::VLOAD;
+        return std::make_tuple(VLoadType::VLOAD, false);
         
     case 0b001:
-        return VLoadType::VLOAD_R0;
+        return std::make_tuple(VLoadType::VLOAD_R0, false);
     
     case 0b101:
-        return VLoadType::VLOAD_R1;
+        return std::make_tuple(VLoadType::VLOAD_R1, false);
     
+    case 0b010:
+        return std::make_tuple(VLoadType::VLOAD_L, true);
+
     default:
-        return VLoadType::INVALID;
+        return std::make_tuple(VLoadType::INVALID, false);
+    }
+}
+//----------------------------------------------------------------------------
+std::tuple<VStoreType, bool> getVStoreType(uint32_t funct3)
+{
+    switch(funct3){
+    case 0b000:
+        return std::make_tuple(VStoreType::VSTORE, false);
+        
+    case 0b010:
+        return std::make_tuple(VStoreType::VSTORE_L, true);
+
+    default:
+        return std::make_tuple(VStoreType::INVALID, false);
     }
 }
 //----------------------------------------------------------------------------

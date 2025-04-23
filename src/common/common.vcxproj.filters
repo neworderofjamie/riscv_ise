@@ -20,6 +20,12 @@
     <ClCompile Include="isa.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="dma_buffer.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="dma_controller.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\common\isa.h">
@@ -35,6 +41,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\common\device.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\common\dma_buffer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\common\dma_controller.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

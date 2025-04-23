@@ -234,7 +234,6 @@ public:
     void vmul_s_rn(Bit<4> shift, VReg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VSOP, 0b100, shift | 0b1010000, rd, rs1, rs2); }
     void vmul_s_rs(Bit<4> shift, VReg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VSOP, 0b100, shift | 0b1100000, rd, rs1, rs2); }
 
-
     // VTST
     void vteq(Reg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VTST, 0b000, 0x0, rd, rs1, rs2); }
     void vtne(Reg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VTST, 0b010, 0x0, rd, rs1, rs2); }
@@ -242,7 +241,7 @@ public:
     void vtge(Reg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VTST, 0b110, 0x0, rd, rs1, rs2); }
 
     // VSEL
-    void vsel(VReg rd, const Reg &rs1, VReg rs2){ Rtype(VectorOpCode::VSEL, 0x0, 0x0, rd, rs1, rs2); }
+    void vsel(VReg rd, const Reg &rs1, VReg rs2){ Rtype(VectorOpCode::VSEL, 0b000, 0b0000000, rd, rs1, rs2); }
 
     // VLUI
     void vlui(VReg rd, uint32_t imm){ Utype(VectorOpCode::VLUI, rd, imm); }
@@ -256,11 +255,13 @@ public:
 
     // VLOAD
     void vloadv(VReg rd, Reg addr, int imm = 0){ Itype(VectorOpCode::VLOAD, 0b000, rd, addr, imm); }
+    void vloadl(VReg rd, VReg addr, int imm = 0){ Itype(VectorOpCode::VLOAD, 0b010, rd, addr, imm); }
     void vloadr0(Reg addr, int imm = 0){ Itype(VectorOpCode::VLOAD, 0b001, 0, addr, imm); }
     void vloadr1(Reg addr, int imm = 0){ Itype(VectorOpCode::VLOAD, 0b101, 0, addr, imm); }
     
     // VSTORE
-    void vstore(VReg rs, Reg addr, int imm = 0){ Stype(VectorOpCode::VSTORE, 0x0, addr, rs, imm); }
+    void vstore(VReg rs, Reg addr, int imm = 0){ Stype(VectorOpCode::VSTORE, 0b000, addr, rs, imm); }
+    void vstorel(VReg rs, VReg addr, int imm = 0){ Stype(VectorOpCode::VSTORE, 0b010, addr, rs, imm); }
 
 private:
     friend Label;

@@ -36,21 +36,19 @@ void generatePerformanceCountWrite(CodeGenerator &c, ScalarRegisterAllocator &sc
                                    CSR lowCSR, CSR highCSR, uint32_t scalarPtr);
 
 // Generate an unrolled loop body
-void unrollLoopBody(CodeGenerator &c, uint32_t numIterations, uint32_t maxUnroll, 
-                    Reg testBufferReg, Reg testBufferEndReg, 
-                    std::function<void(CodeGenerator&, uint32_t)> genBodyFn, 
+void unrollLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator,
+                    uint32_t numIterations, uint32_t maxUnroll, uint32_t iterationBytes,
+                    Reg testBufferReg, bool alwaysGenerateTail,
+                    std::function<void(CodeGenerator&, uint32_t, bool)> genBodyFn, 
                     std::function<void(CodeGenerator&, uint32_t)> genTailFn);
 
 // Generate an unrolled loop body for a vectorised loop
-void unrollVectorLoopBody(CodeGenerator &c, uint32_t numIterations, uint32_t maxUnroll, 
-                          Reg testBufferReg, Reg testBufferEndReg, 
-                          std::function<void(CodeGenerator&, uint32_t)> genBodyFn, 
+void unrollVectorLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator, 
+                          uint32_t numIterations, uint32_t maxUnroll, Reg testBufferReg,
+                          std::function<void(CodeGenerator&, uint32_t, bool, ScalarRegisterAllocator::RegisterPtr)> genBodyFn, 
                           std::function<void(CodeGenerator&, uint32_t)> genTailFn);
 
 // Generate preamble and postamble for code using standard ecall instruction to terminate simulations and polling on device
 std::vector<uint32_t> generateStandardKernel(bool simulate, uint32_t readyFlagPtr, 
                                              std::function<void(CodeGenerator&, VectorRegisterAllocator&, ScalarRegisterAllocator&)> genBodyFn);
-
-// Generate an initialisation kernel which copies dynamically-sized block of data from scalar memory into vector memory
-std::vector<uint32_t> generateInitCode(bool simulate, uint32_t startVectorPtr, uint32_t numVectorsPtr, uint32_t readyFlagPtr, uint32_t scalarStartPtr);
 }

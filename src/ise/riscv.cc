@@ -16,8 +16,8 @@
 //----------------------------------------------------------------------------
 // InstructionMemory
 //----------------------------------------------------------------------------
-InstructionMemory::InstructionMemory(const std::vector<uint32_t> &instructions)
-:   m_Instructions(instructions)
+InstructionMemory::InstructionMemory(size_t numWords)
+:   m_Instructions(numWords)
 {
 }
 //----------------------------------------------------------------------------
@@ -34,12 +34,21 @@ uint32_t InstructionMemory::getInstruction(uint32_t addr) const
         return m_Instructions.at(addr / 4); 
     }
 }
+//----------------------------------------------------------------------------
+void InstructionMemory::setInstructions(const std::vector<uint32_t> &instructions)
+{ 
+    // Check we're not overflowing instruction memory
+    assert(instructions.size() <= m_Instructions.size());
+
+    // Copy instructions
+    std::copy(instructions.cbegin(), instructions.cend(), m_Instructions.begin());
+}
 
 //----------------------------------------------------------------------------
 // ScalarDataMemory
 //----------------------------------------------------------------------------
-ScalarDataMemory::ScalarDataMemory(const std::vector<uint8_t> &data) 
-:   m_Data(data)
+ScalarDataMemory::ScalarDataMemory(size_t numBytes) 
+:   m_Data(numBytes)
 {}
 //----------------------------------------------------------------------------
 uint32_t ScalarDataMemory::read32(uint32_t addr) const
@@ -124,12 +133,21 @@ void ScalarDataMemory::write8(uint32_t addr, uint8_t value)
         m_Data[addr] = value;
     }
 }
+//----------------------------------------------------------------------------
+void ScalarDataMemory::setData(const std::vector<uint8_t> &data)
+{ 
+    // Check we're not overflowing instruction memory
+    assert(data.size() <= m_Data.size());
+
+    // Copy instructions
+    std::copy(data.cbegin(), data.cend(), m_Data.begin());
+}
 
 //----------------------------------------------------------------------------
 // RISCV
 //----------------------------------------------------------------------------
-RISCV::RISCV(const std::vector<uint32_t> &instructions, const std::vector<uint8_t> &data)
-:   m_PC(0), m_NextPC(0), m_Reg{0}, m_InstructionMemory(instructions), m_ScalarDataMemory(data)
+RISCV::RISCV(size_t numInstructionWords, size_t numDataBytes)
+:   m_PC(0), m_NextPC(0), m_Reg{0}, m_InstructionMemory(numInstructionWords), m_ScalarDataMemory(numDataBytes)
 {
     resetStats();
 }
@@ -252,38 +270,6 @@ void RISCV::dumpRegisters() const
             m_Coprocessors[c]->dumpRegisters();
         }
     }
-}
-//----------------------------------------------------------------------------
-bool RISCV::runInit(const std::vector<uint8_t> &initData, uint32_t startVectorPtr, uint32_t numVectorsScalarPtr, 
-                    uint32_t scratchScalarPtr, uint32_t startVectorDestPtr)
-{
-    // Get pointers to scalar memory where start pointer and count needs setting
-    auto *scalarData = getScalarDataMemory().getData().data();
-    uint32_t *startVector = reinterpret_cast<uint32_t*>(scalarData + startVectorPtr);
-    uint32_t *numVectors = reinterpret_cast<uint32_t*>(scalarData + numVectorsScalarPtr);
-
-    // Loop through vectors to copy
-    const size_t numInitVectors = ceilDivide(initData.size(), 64);
-    LOGI << "Initialising vector memory with " << initData.size() << " bytes (" << numInitVectors << " vectors) of data";
-    const size_t maxVectorsPerBatch = (getScalarDataMemory().getData().size() - scratchScalarPtr) / 64;
-    for(size_t c = 0; c < numInitVectors; c += maxVectorsPerBatch) {
-        const size_t numBatchVectors = std::min(numInitVectors - c, maxVectorsPerBatch);
-        LOGD << "Copying " << numBatchVectors << " vectors of data from scalar to vector memory starting at " << c * 64;
-
-        // Copy block of init data into scalar memory
-        std::copy_n(initData.data() + (c * 64u), numBatchVectors * 64u, scalarData + scratchScalarPtr);
-
-        // Set start and count
-        *startVector = startVectorDestPtr + (c * 64);
-        *numVectors = numBatchVectors;
-
-        // Reset program counter and run
-        setPC(0);
-        if(!run()) {
-            return false;
-        }
-    }
-    return true;
 }
 //----------------------------------------------------------------------------
 void RISCV::setInstructions(const std::vector<uint32_t> &instructions)
@@ -505,139 +491,96 @@ uint32_t RISCV::calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs2, uint3
 {
     const uint32_t val = m_Reg[rs1];
     const uint32_t val2 = m_Reg[rs2];
-#ifdef STRICT_RV32I
-    if (imm == 1) {
-        switch(funct3) {
-        case 0: /* mul */
-#ifdef DEBUG_EXTRA
-            dprintf(">>> MUL\n");
-            stats[48]++;
-#endif
-            val = (int32_t)((int32_t)val * (int32_t)val2);
-            break;
-        case 1: /* mulh */
-#ifdef DEBUG_EXTRA
-            dprintf(">>> MULH\n");
-            stats[49]++;
-#endif
-            val = (int32_t)mulh32(val, val2);
-            break;
-        case 2:/* mulhsu */
-#ifdef DEBUG_EXTRA
-            dprintf(">>> MULHSU\n");
-            stats[50]++;
-#endif
-            val = (int32_t)mulhsu32(val, val2);
-            break;
-        case 3:/* mulhu */
-#ifdef DEBUG_EXTRA
-            dprintf(">>> MULHU\n");
-            stats[51]++;
-#endif
-            val = (int32_t)mulhu32(val, val2);
-            break;
-        case 4:/* div */
-#ifdef DEBUG_EXTRA
-            dprintf(">>> DIV\n");
-            stats[52]++;
-#endif
-            val = div32(val, val2);
-            break;
-        case 5:/* divu */
-#ifdef DEBUG_EXTRA
-            dprintf(">>> DIVU\n");
-            stats[53]++;
-#endif
-            val = (int32_t)divu32(val, val2);
-            break;
-        case 6:/* rem */
-#ifdef DEBUG_EXTRA
-            dprintf(">>> REM\n");
-            stats[54]++;
-#endif
-            val = rem32(val, val2);
-            break;
-        case 7:/* remu */
-#ifdef DEBUG_EXTRA
-            dprintf(">>> REMU\n");
-            stats[55]++;
-#endif
-            val = (int32_t)remu32(val, val2);
-            break;
-        default:
-            raise_exception(CAUSE_ILLEGAL_INSTRUCTION, insn);
-            return;
-        }
-    }
-    else
-#endif
+
+    switch(getOpType(funct7, funct3)) {
+    case OpType::ADD:
     {
-        switch(getOpType(funct7, funct3)) {
-        case OpType::ADD:
-        {
-            PLOGV << "ADD " << rs1 << " " << rs2;
-            return (int32_t)(val + val2);
-        }
-        
-        case OpType::SUB:
-        {
-            PLOGV << "SUB " << rs1 << " " << rs2;
-            return (int32_t)(val - val2);
-        }
+        PLOGV << "ADD " << rs1 << " " << rs2;
+        return (int32_t)(val + val2);
+    }
+    
+    case OpType::SUB:
+    {
+        PLOGV << "SUB " << rs1 << " " << rs2;
+        return (int32_t)(val - val2);
+    }
 
-        case OpType::SLL:
-        {
-            PLOGV << "SLL " << rs1 << " " << rs2;
-            return (int32_t)(val << (val2 & 31));
-        }
+    case OpType::SLL:
+    {
+        PLOGV << "SLL " << rs1 << " " << rs2;
+        return (int32_t)(val << (val2 & 31));
+    }
 
-        case OpType::SLT:
-        {
-            PLOGV << "SLT " << rs1 << " " << rs2;
-            return (int32_t)val < (int32_t)val2;
-        }
+    case OpType::SLT:
+    {
+        PLOGV << "SLT " << rs1 << " " << rs2;
+        return (int32_t)val < (int32_t)val2;
+    }
 
-        case OpType::SLTU:
-        {
-            PLOGV << "SLTU " << rs1 << " " << rs2;
-            return val < val2;
-        }
+    case OpType::SLTU:
+    {
+        PLOGV << "SLTU " << rs1 << " " << rs2;
+        return val < val2;
+    }
 
-        case OpType::XOR:
-        {
-            PLOGV << "XOR " << rs1 << " " << rs2;
-            return val ^ val2;
-        }
+    case OpType::XOR:
+    {
+        PLOGV << "XOR " << rs1 << " " << rs2;
+        return val ^ val2;
+    }
 
-        case OpType::SRL:
-        {
-            PLOGV << "SRL " << rs1 << " " << rs2;
-            return (int32_t)((uint32_t)val >> (val2 & 31));
-        }
+    case OpType::SRL:
+    {
+        PLOGV << "SRL " << rs1 << " " << rs2;
+        return (int32_t)((uint32_t)val >> (val2 & 31));
+    }
 
-        case OpType::SRA:
-        {
-            PLOGV << "SRA " << rs1 << " " << rs2;
-            return (int32_t)val >> (val2 & 31);
-        }
-        
-        case OpType::OR:
-        {
-            PLOGV << "OR " << rs1 << " " << rs2;
-            return val | val2;
-        }
+    case OpType::SRA:
+    {
+        PLOGV << "SRA " << rs1 << " " << rs2;
+        return (int32_t)val >> (val2 & 31);
+    }
+    
+    case OpType::OR:
+    {
+        PLOGV << "OR " << rs1 << " " << rs2;
+        return val | val2;
+    }
 
-        case OpType::AND:
-        {
-            PLOGV << "AND " << rs1 << " " << rs2;
-            return val & val2;
-        }
+    case OpType::AND:
+    {
+        PLOGV << "AND " << rs1 << " " << rs2;
+        return val & val2;
+    }
 
-        default:
-        {
-            throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
-        }
-        }
+    case OpType::MUL:
+    {
+        PLOGV << "MUL " << rs1 << " " << rs2;
+        return (int32_t)((int32_t)val * (int32_t)val2);
+    }
+
+    /*case OpType::MULH:
+    {
+        PLOGV << "MULH " << rs1 << " " << rs2;
+        return (int32_t)((int32_t)val * (int32_t)val2);
+    }
+
+    case OpType::MULHSU:
+    {
+        PLOGV << "MULHSU " << rs1 << " " << rs2;
+        return (int32_t)((int32_t)val * (int32_t)val2);
+    }
+
+    case OpType::MULHU:
+    {
+        PLOGV << "MULHU " << rs1 << " " << rs2;
+        return (int32_t)((int32_t)val * (int32_t)val2);
+    }*/
+
+    default:
+    {
+        throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
+    }
     }
 }
 //----------------------------------------------------------------------------
@@ -689,7 +632,7 @@ void RISCV::executeStandardInstruction(uint32_t inst)
     switch(opcode) {
     case StandardOpCode::LUI:
     {
-        auto [imm, rd] = decodeUType(inst);
+        const auto [imm, rd] = decodeUType(inst);
         PLOGV << "LUI " << imm;
         PLOGV << "\t"  << rd;
 #ifdef DEBUG_EXTRA
@@ -703,7 +646,7 @@ void RISCV::executeStandardInstruction(uint32_t inst)
 
     case StandardOpCode::AUIPC:
     {
-        auto [imm, rd] = decodeUType(inst);
+        const auto [imm, rd] = decodeUType(inst);
         PLOGV << "AUIPC " << imm;
         PLOGV << "\t"  << rd;
 #ifdef DEBUG_EXTRA
@@ -741,7 +684,7 @@ void RISCV::executeStandardInstruction(uint32_t inst)
 
     case StandardOpCode::JALR:
     {
-        auto [imm, rs1, funct3, rd] = decodeIType(inst);
+        const auto [imm, rs1, funct3, rd] = decodeIType(inst);
         PLOGV << "JALR " << rs1 << " " << imm;
         PLOGV << "\t"  << rd;
 #ifdef DEBUG_EXTRA
@@ -758,7 +701,7 @@ void RISCV::executeStandardInstruction(uint32_t inst)
 
     case StandardOpCode::BRANCH:
     {
-        auto [imm, rs2, rs1, funct3] = decodeBType(inst);
+        const auto [imm, rs2, rs1, funct3] = decodeBType(inst);
         if (calcBranchCondition(inst, rs2, rs1, funct3)) {
             PLOGV << "\t" << (m_PC + imm);
 
@@ -773,7 +716,7 @@ void RISCV::executeStandardInstruction(uint32_t inst)
 
     case StandardOpCode::LOAD:
     {
-        auto [imm, rs1, funct3, rd] = decodeIType(inst);
+        const auto [imm, rs1, funct3, rd] = decodeIType(inst);
         const auto value = loadValue(inst, imm, rs1, funct3);
         PLOGV << "\t" << rd;
         if (rd != 0) {
@@ -784,7 +727,7 @@ void RISCV::executeStandardInstruction(uint32_t inst)
 
     case StandardOpCode::STORE:
     {
-        auto [imm, rs2, rs1, funct3] = decodeSType(inst);
+        const auto [imm, rs2, rs1, funct3] = decodeSType(inst);
         const uint32_t addr = m_Reg[rs1] + imm;
         const uint32_t val = m_Reg[rs2];
         switch(getStoreType(funct3)) {
@@ -819,7 +762,7 @@ void RISCV::executeStandardInstruction(uint32_t inst)
 
     case StandardOpCode::OP_IMM:
     {
-        auto [imm, rs1, funct3, rd] = decodeIType(inst);
+        const auto [imm, rs1, funct3, rd] = decodeIType(inst);
         const uint32_t val = calcOpImmResult(inst, imm, rs1, funct3);
         PLOGV << "\t" << rd;
         if (rd != 0) {
@@ -830,7 +773,7 @@ void RISCV::executeStandardInstruction(uint32_t inst)
 
     case StandardOpCode::OP:
     {
-        auto [funct7, rs2, rs1, funct3, rd] = decodeRType(inst);
+        const auto [funct7, rs2, rs1, funct3, rd] = decodeRType(inst);
         const uint32_t val = calcOpResult(inst, funct7, rs2, rs1, funct3);
         PLOGV << "\t" << rd;
         if (rd != 0) {

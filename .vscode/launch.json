@@ -22,10 +22,12 @@
         "decay",
         "dump_coe",
         "init_vram",
+        "lane_local_test",
         "lif",
         "mnist",
         "poisson",
-        "shd"
+        "shd",
+        "va_benchmark"
       ],
       "default": "lif"
     }

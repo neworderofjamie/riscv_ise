@@ -8,6 +8,7 @@
 #include <plog/Appenders/ConsoleAppender.h>
 
 // RISC-V common includes
+#include "common/CLI11.hpp"
 #include "common/app_utils.h"
 #include "common/device.h"
 
@@ -144,15 +145,21 @@ void recordV(const int16_t *vRecordingData, uint32_t numTimesteps)
     }
 }
 
-int main()
+int main(int argc, char** argv)
 {
-    constexpr uint32_t numTimesteps = 100;
-    constexpr bool simulate = true;
+    uint32_t numTimesteps = 100;
+    bool device = false;
 
     // Configure logging
     plog::ConsoleAppender<plog::TxtFormatter> consoleAppender;
     plog::init(plog::debug, &consoleAppender);
     
+    CLI::App app{"LIF neuron simulation"};
+    app.add_option("-t,--timesteps", numTimesteps, "Number of timesteps to simulate");
+    app.add_flag("-d,--device", device, "Should be run on device rather than simulator");
+
+    CLI11_PARSE(app, argc, argv);
+
     // Create memory contents
     std::vector<uint8_t> scalarInitData;
     std::vector<int16_t> vectorInitData;
@@ -184,33 +191,12 @@ int main()
     const auto code = generateCode(numTimesteps, inputCurrentVectorPtr, inputCurrentScalarPtr,
                                    voltageRecordingPtr, spikeRecordingPtr, 
                                    readyFlagPtr, startInstRetPtr, endInstRetPtr, startCyclePtr, endCyclePtr, 
-                                   simulate);
+                                   !device);
 
     // Dump to coe file
     //AppUtils::dumpCOE("lif.coe", code);
 
-    if(simulate) {
-        // Create RISC-V core with instruction and scalar data
-        RISCV riscV(code, scalarInitData);
-        
-        // Add vector co-processor
-        riscV.addCoprocessor<VectorProcessor>(vectorQuadrant, vectorInitData);
-        
-        // Run!
-        riscV.run();
-        
-        // Get pointers to scalar and vector memories
-        const auto *scalarData = riscV.getScalarDataMemory().getData().data();
-        const auto *vectorData = riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getVectorDataMemory().getData().data();
-        
-        const uint32_t *spikeRecordingData = reinterpret_cast<const uint32_t*>(scalarData + spikeRecordingPtr);
-        const int16_t *vRecordingData = vectorData + (voltageRecordingPtr / 2);
-
-        // Record spikes and voltages
-        recordSpikes(spikeRecordingData, numTimesteps);
-        recordV(vRecordingData, numTimesteps);
-    }
-    else {
+    if(device) {
         LOGI << "Creating device";
         Device device;
         LOGI << "Resetting";
@@ -246,6 +232,29 @@ int main()
         // Record spikes
         recordSpikes(reinterpret_cast<const volatile uint32_t*>(device.getDataMemory() + spikeRecordingPtr), 
                      numTimesteps);
+    }
+    else {
+        // Build ISE with vector co-processor
+        RISCV riscV;
+        riscV.addCoprocessor<VectorProcessor>(vectorQuadrant);
+
+        // Set instructions and vector init data
+        riscV.setInstructions(code);
+        riscV.getScalarDataMemory().setData(scalarInitData);
+
+        // Run!
+        riscV.run();
+        
+        // Get pointers to scalar and vector memories
+        const auto *scalarData = riscV.getScalarDataMemory().getData();
+        const auto *vectorData = riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getVectorDataMemory().getData();
+        
+        const uint32_t *spikeRecordingData = reinterpret_cast<const uint32_t*>(scalarData + spikeRecordingPtr);
+        const int16_t *vRecordingData = vectorData + (voltageRecordingPtr / 2);
+
+        // Record spikes and voltages
+        recordSpikes(spikeRecordingData, numTimesteps);
+        recordV(vRecordingData, numTimesteps);
     }
    
     

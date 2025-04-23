@@ -19,6 +19,8 @@
 #include "common/CLI11.hpp"
 #include "common/app_utils.h"
 #include "common/device.h"
+#include "common/dma_buffer.h"
+#include "common/dma_controller.h"
 #include "common/utils.h"
 
 // RISC-V assembler includes
@@ -40,8 +42,8 @@ struct StaticPulseTarget
     bool debug;
 };
 
-void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAllocator,
-                    RegisterAllocator<Reg> &scalarRegisterAllocator,
+void genStaticPulse(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator,
+                    ScalarRegisterAllocator &scalarRegisterAllocator,
                     std::variant<uint32_t, ScalarRegisterAllocator::RegisterPtr> preSpikePtr, uint32_t numPre, 
                     const std::vector<StaticPulseTarget> &targets)
 {
@@ -76,20 +78,16 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
     
 
     // Loop through postsynaptic targets
-    std::vector<std::pair<std::shared_ptr<ScalarRegisterAllocator::Handle>,
-                          std::shared_ptr<ScalarRegisterAllocator::Handle>>> sISynBufferRegs;
+    std::vector<ScalarRegisterAllocator::RegisterPtr> sISynBufferRegs;
     for(const auto &t : targets) {
         // Allocate scalar registers
         auto bufferStartReg = scalarRegisterAllocator.getRegister("SISynBuffer = X");
-        auto bufferEndReg = scalarRegisterAllocator.getRegister("SISynBufferEnd = X");
 
         // Load addresses as immediates
-        // **NOTE** end address is only end of loop body not tail
         c.li(*bufferStartReg, t.postISynPtr);
-        c.li(*bufferEndReg, t.postISynPtr + (t.numPost / 32) * 64);
 
         // Add scalar registers to vector
-        sISynBufferRegs.emplace_back(bufferStartReg, bufferEndReg);
+        sISynBufferRegs.emplace_back(bufferStartReg);
     }
     
     // Load some useful constants
@@ -153,79 +151,53 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
                 }
 
                 // Reset Isyn pointer
-                c.li(*iReg.first, t.postISynPtr);
+                c.li(*iReg, t.postISynPtr);
                 
                 // Load weight and Isyn
                 if(t.debug) {
                     c.ebreak();
                 }
 
-                // Loop over postsynaptic neurons
-                if(t.numPost > 32) {
-                    ALLOCATE_VECTOR(VWeight);
-                    ALLOCATE_VECTOR(VISyn1);
-                    ALLOCATE_VECTOR(VISyn2);
+                ALLOCATE_VECTOR(VWeight);
+                ALLOCATE_VECTOR(VISyn1);
+                ALLOCATE_VECTOR(VISyn2);
+                ALLOCATE_VECTOR(VISynNew);
 
-                    // Preload first ISyn to avoid stall
-                    c.vloadv(*VISyn1, *iReg.first, 0);
+                // Preload first ISyn to avoid stall
+                c.vloadv(*VISyn1, *iReg, 0);
 
-                    AssemblerUtils::unrollVectorLoopBody(
-                        c, t.numPost, 4, *iReg.first, *iReg.second,
-                        [&iReg, SWeightBuffer, VWeight, VISyn1, VISyn2]
-                        (CodeGenerator &c, uint32_t r)
-                        {
-                            // Load vector of weights
-                            c.vloadv(*VWeight, *SWeightBuffer, r * 64);
+                AssemblerUtils::unrollVectorLoopBody(
+                    c, scalarRegisterAllocator, t.numPost, 4, *iReg,
+                    [&iReg, SWeightBuffer, VWeight, VISyn1, VISyn2, VISynNew]
+                    (CodeGenerator &c, uint32_t r, bool even, ScalarRegisterAllocator::RegisterPtr maskReg)
+                    {
+                        // Load vector of weights
+                        c.vloadv(*VWeight, *SWeightBuffer, r * 64);
 
-                            // Load NEXT vector of ISyn to avoid stall
-                            // **YUCK** in last iteration, while this may not be accessed, it may be out of bounds
-                            const bool even = ((r % 2) == 0);                            
-                            c.vloadv(even ? *VISyn2 : *VISyn1, *iReg.first, (r + 1) * 64);
-                            
-                            // Add weights to ISyn
-                            auto VISyn = even ? VISyn1 : VISyn2;
+                        // Load NEXT vector of ISyn to avoid stall
+                        // **YUCK** in last iteration, while this may not be accessed, it may be out of bounds                  
+                        c.vloadv(even ? *VISyn2 : *VISyn1, *iReg, (r + 1) * 64);
+                        
+                        // Add weights to ISyn
+                        auto VISyn = even ? VISyn1 : VISyn2;
+                        if(maskReg) {
+                            c.vadd_s(*VISynNew, *VISyn, *VWeight);
+                            c.vsel(*VISyn, *maskReg, *VISynNew);
+                        }
+                        else {
                             c.vadd_s(*VISyn, *VISyn, *VWeight);
+                        }
 
-                            // Write back ISyn and increment SISynBuffer
-                            c.vstore(*VISyn, *iReg.first, r * 64);
-                        },
-                        [&iReg, SWeightBuffer]
-                        (CodeGenerator &c, uint32_t numUnrolls)
-                        {
-                            // Increment pointers 
-                            c.addi(*iReg.first, *iReg.first, 64 * numUnrolls);
-                            c.addi(*SWeightBuffer, *SWeightBuffer, 64 * numUnrolls);
-                        });
-                }
-                // Tail if there are non-POT number of postsynaptic neurons
-                if((t.numPost % 32) != 0) {
-                    ALLOCATE_SCALAR(SMask);
-                    ALLOCATE_VECTOR(VWeight);
-                    ALLOCATE_VECTOR(VISyn);
-                    ALLOCATE_VECTOR(VISynNew);
-
-                    // Calculate mask for final iteration
-                    if(t.numPost > 32) {
-                        c.li(*SMask, (1 << (padSize(t.numPost, 32) - t.numPost)) - 1);
-                    }
-                    else {
-                        c.li(*SMask, (1 << t.numPost) - 1);
-                    }
-
-                    // Load next vector of weights and ISyns
-                    c.vloadv(*VWeight, *SWeightBuffer);
-                    c.vloadv(*VISyn, *iReg.first);
-                    
-                    // **STALL**
-                    c.nop();
-                    
-                    // Add weights to ISyn with mask
-                    c.vadd_s(*VISynNew, *VISyn, *VWeight);
-                    c.vsel(*VISyn, *SMask, *VISynNew);
-
-                    // Write back ISyn
-                    c.vstore(*VISyn, *iReg.first);
-                }
+                        // Write back ISyn and increment SISynBuffer
+                        c.vstore(*VISyn, *iReg, r * 64);
+                    },
+                    [&iReg, SWeightBuffer]
+                    (CodeGenerator &c, uint32_t numUnrolls)
+                    {
+                        // Increment pointers 
+                        c.addi(*iReg, *iReg, 64 * numUnrolls);
+                        c.addi(*SWeightBuffer, *SWeightBuffer, 64 * numUnrolls);
+                    });
             }
 
             // SN --
@@ -293,12 +265,11 @@ int main(int argc, char** argv)
     constexpr uint32_t numInputSpikeArrayWords = numInputSpikeWords * numTimesteps;
 
     // Allocate vector arrays
-    // **NOTE** these are adjacent so data can be block-copied from scalar memory
-    const uint32_t seedPtr = AppUtils::allocateVectorAndZero(32 * 2, vectorInitData);
-    const uint32_t weightInHidPtr = AppUtils::allocateVectorAndZero(numInput * numHiddenSpikeWords * 32, vectorInitData);
-    const uint32_t weightHidOutPtr = AppUtils::allocateVectorAndZero(numHidden * numOutputSpikeWords * 32, vectorInitData);
-    const uint32_t weightHidHidPtr = AppUtils::allocateVectorAndZero(numHidden * numHiddenSpikeWords * 32, vectorInitData);
-    const uint32_t outputBiasPtr = AppUtils::allocateVectorAndZero(numOutputSpikeWords * 32, vectorInitData);
+    const uint32_t seedPtr = AppUtils::allocateVectorSeedAndInit(vectorInitData);
+    const uint32_t weightInHidPtr = AppUtils::loadVectors("99-Conn_Pop0_Pop1-g.bin", vectorInitData);
+    const uint32_t weightHidOutPtr = AppUtils::loadVectors("99-Conn_Pop1_Pop2-g.bin", vectorInitData);
+    const uint32_t weightHidHidPtr = AppUtils::loadVectors("99-Conn_Pop1_Pop1-g.bin", vectorInitData);
+    const uint32_t outputBiasPtr = AppUtils::loadVectors("99-Pop2-Bias.bin", vectorInitData);
     
     const uint32_t hiddenIsynPtr = AppUtils::allocateVectorAndZero(numHidden, vectorInitData);
     const uint32_t hiddenVPtr = AppUtils::allocateVectorAndZero(numHidden, vectorInitData);
@@ -317,42 +288,12 @@ int main(int argc, char** argv)
 
     // Increase scalar memory for buffering
     assert(scalarInitData.size() <= (128 * 1024));
-    scalarInitData.resize(128 * 1024, 0);
+    assert(vectorInitData.size() <= (512 * 1024));
 
     // Load dataset (this is streamed)
     const auto shdSpikes = AppUtils::loadBinaryData<uint32_t>("shd_spikes.bin");
     const auto shdLabels = AppUtils::loadBinaryData<int16_t>("shd_labels.bin");
 
-    // Load weights
-    const auto weightInHid = AppUtils::loadBinaryData<uint8_t>("99-Conn_Pop0_Pop1-g.bin");
-    const auto weightHidOut = AppUtils::loadBinaryData<uint8_t>("99-Conn_Pop1_Pop2-g.bin");
-    const auto weightHidHid = AppUtils::loadBinaryData<uint8_t>("99-Conn_Pop1_Pop1-g.bin");
-    const auto outputBias = AppUtils::loadBinaryData<uint8_t>("99-Pop2-Bias.bin");
-
-    // Load seed
-    const auto seed = AppUtils::getSeedData();
-
-    // Check first three are correctly padded
-    assert(weightInHid.size() == numInput * numHiddenSpikeWords * 64);
-    assert(weightHidOut.size() == numHidden * numOutputSpikeWords * 64);
-    assert(weightHidHid.size() == numHidden * numHiddenSpikeWords * 64);
-    
-    // Concatenate into single vector
-    std::vector<uint8_t> copyData;
-    copyData.reserve(seed.size() + weightInHid.size() + weightHidOut.size() + weightHidHid.size() + outputBias.size());
-    std::copy(seed.cbegin(), seed.cend(), std::back_inserter(copyData));
-    std::copy(weightInHid.cbegin(), weightInHid.cend(), std::back_inserter(copyData));
-    std::copy(weightHidOut.cbegin(), weightHidOut.cend(), std::back_inserter(copyData));
-    std::copy(weightHidHid.cbegin(), weightHidHid.cend(), std::back_inserter(copyData));
-    std::copy(outputBias.cbegin(), outputBias.cend(), std::back_inserter(copyData));
-
-    // Generate code to copy blocks of data from scalar to vector memory
-    const uint32_t copyStartVectorPtr = 0;
-    const uint32_t copyNumVectorsPtr = 4;
-    const uint32_t copyReadyFlagPtr = 8;
-    const uint32_t copyScalarScratchPtr = 12;
-    const auto copyCode = AssemblerUtils::generateInitCode(!device, copyStartVectorPtr, copyNumVectorsPtr, 
-                                                           copyReadyFlagPtr, copyScalarScratchPtr);
 
     const auto initCode = AssemblerUtils::generateStandardKernel(
         !device, readyFlagPtr,
@@ -362,7 +303,7 @@ int main(int argc, char** argv)
             // RNG
             // ---------------------------------------------------------------
             {
-        	    // Register allocation
+        	// Register allocation
                 ALLOCATE_SCALAR(SSeedBuffer);
 
                 // Get seed pointer
@@ -371,71 +312,6 @@ int main(int argc, char** argv)
                 // Load RNG seed into dedicated registers
                 c.vloadr0(*SSeedBuffer);
                 c.vloadr1(*SSeedBuffer, 64);
-            }
-
-            // ---------------------------------------------------------------
-            // Hidden neurons
-            // ---------------------------------------------------------------
-            {
-                // Register allocation
-                ALLOCATE_SCALAR(SVBuffer);
-                ALLOCATE_SCALAR(SVBufferEnd);
-                ALLOCATE_SCALAR(SABuffer);
-                ALLOCATE_SCALAR(SISynBuffer);
-                ALLOCATE_SCALAR(SRefracTimeBuffer);
-                ALLOCATE_VECTOR(VZero);
-                
-                // Load constants
-                c.vlui(*VZero, 0);
-
-                // Get address of buffers
-                c.li(*SVBuffer, hiddenVPtr);
-                c.li(*SVBufferEnd, hiddenVPtr + (numHidden * 2));
-                c.li(*SABuffer, hiddenAPtr);
-                c.li(*SISynBuffer, hiddenIsynPtr);
-                c.li(*SRefracTimeBuffer, hiddenRefracTimePtr);
-
-                // Hidden neuron loop
-                AssemblerUtils::unrollVectorLoopBody(
-                    c, numHidden, 4, *SVBuffer, *SVBufferEnd,
-                    [&scalarRegisterAllocator, &vectorRegisterAllocator,
-                    hiddenAFixedPoint,
-                    SABuffer, SISynBuffer, SRefracTimeBuffer, SVBuffer, VZero]
-                    (CodeGenerator &c, uint32_t r)
-                    {
-                        c.vstore(*VZero, *SVBuffer, r * 64);
-                        c.vstore(*VZero, *SABuffer, r * 64);
-                        c.vstore(*VZero, *SISynBuffer, r * 64);
-                        c.vstore(*VZero, *SRefracTimeBuffer, r * 64);
-                    },
-                    [SABuffer, SISynBuffer, SRefracTimeBuffer, SVBuffer]
-                    (CodeGenerator &c, uint32_t numUnrolls)
-                    {
-                        c.addi(*SVBuffer, *SVBuffer, 64 * numUnrolls);
-                        c.addi(*SABuffer, *SABuffer, 64 * numUnrolls);
-                        c.addi(*SISynBuffer, *SISynBuffer, 64 * numUnrolls);
-                        c.addi(*SRefracTimeBuffer, *SRefracTimeBuffer, 64 * numUnrolls);
-                    });
-            }
-
-            // ---------------------------------------------------------------
-            // Output neurons
-            // ---------------------------------------------------------------
-            {
-                // Register allocation
-                ALLOCATE_SCALAR(SVBuffer);
-                ALLOCATE_SCALAR(SISynBuffer);
-                ALLOCATE_VECTOR(VZero);
-                
-                // Load constants
-                c.vlui(*VZero, 0);
-               
-                // Get address of voltage and Isyn buffers
-                c.li(*SVBuffer, outputVPtr);
-                c.li(*SISynBuffer, outputIsynPtr);
-
-                c.vstore(*VZero, *SVBuffer);
-                c.vstore(*VZero, *SISynBuffer);
             }
         });
 
@@ -521,7 +397,6 @@ int main(int argc, char** argv)
                 {
                     // Register allocation
                     ALLOCATE_SCALAR(SVBuffer);
-                    ALLOCATE_SCALAR(SVBufferEnd);
                     ALLOCATE_SCALAR(SABuffer);
                     ALLOCATE_SCALAR(SISynBuffer);
                     ALLOCATE_SCALAR(SRefracTimeBuffer);
@@ -548,7 +423,6 @@ int main(int argc, char** argv)
 
                     // Get address of buffers
                     c.li(*SVBuffer, hiddenVPtr);
-                    c.li(*SVBufferEnd, hiddenVPtr + (numHidden * 2));
                     c.li(*SABuffer, hiddenAPtr);
                     c.li(*SISynBuffer, hiddenIsynPtr);
                     c.li(*SRefracTimeBuffer, hiddenRefracTimePtr);
@@ -556,13 +430,15 @@ int main(int argc, char** argv)
 
                     // Hidden neuron loop
                     AssemblerUtils::unrollVectorLoopBody(
-                        c, numHidden, 4, *SVBuffer, *SVBufferEnd,
+                        c, scalarRegisterAllocator, numHidden, 4, *SVBuffer,
                         [&scalarRegisterAllocator, &vectorRegisterAllocator,
                         hiddenAFixedPoint,
                          SABuffer, SISynBuffer, SRefracTimeBuffer, SSpikeBuffer, SVBuffer,
                          VAlpha, VBeta, VDT, VOne, VRho, VTauRefrac, VVThresh, VZero]
-                        (CodeGenerator &c, uint32_t r)
+                        (CodeGenerator &c, uint32_t r, bool, ScalarRegisterAllocator::RegisterPtr maskReg)
                         {
+                            assert(!maskReg);
+
                             // Register allocation
                             ALLOCATE_VECTOR(VV);
                             ALLOCATE_VECTOR(VA);
@@ -784,16 +660,27 @@ int main(int argc, char** argv)
         LOGI << "Resetting";
         device.setEnabled(false);
 
-        // Copying
-        const auto copyStartTime = std::chrono::high_resolution_clock::now();
         {
-            LOGI << "Copying copy instructions (" << copyCode.size() * sizeof(uint32_t) << " bytes)";
-            device.uploadCode(copyCode);
+            LOGI << "DMAing vector init data to device";
+           
+            // Create DMA buffer
+            DMABuffer dmaBuffer;
 
-            // Run kernels to copy initData into vector memory
-            device.runInit(copyData, copyStartVectorPtr, copyNumVectorsPtr, copyScalarScratchPtr, seedPtr, copyReadyFlagPtr);
+            // Check there's enough space for vector init data
+            assert(dmaBuffer.getSize() > (vectorInitData.size() * 2));
+
+            // Get halfword pointer to DMA buffer
+            int16_t *bufferData = reinterpret_cast<int16_t*>(dmaBuffer.getData());
+            
+            // Copy vector init data to buffer
+            std::copy(vectorInitData.cbegin(), vectorInitData.cend(), bufferData);
+            
+            // Start DMA of data to URAM
+            device.getDMAController()->startWrite(0, dmaBuffer, 0, vectorInitData.size() * 2);
+    
+            // Wait for write to complete
+            device.getDMAController()->waitForWriteComplete();
         }
-
 
         // Initialisation seeding
         const auto initStartTime = std::chrono::high_resolution_clock::now();
@@ -806,6 +693,7 @@ int main(int argc, char** argv)
             device.waitOnNonZero(readyFlagPtr);
             device.setEnabled(false);
         }
+        
         
         // Simulation
         const auto simStartTime = std::chrono::high_resolution_clock::now();
@@ -848,44 +736,22 @@ int main(int argc, char** argv)
             const auto simEndTime = std::chrono::high_resolution_clock::now();
             std::cout << numCorrect << " / " << numExamples << " correct (" << 100.0 * (numCorrect / (double)numExamples) << "%)" << std::endl;
             std::cout << "Simulation compute time:" << duration.count() << " seconds" << std::endl;
-            std::cout << "Startup time:" << (copyStartTime - programStartTime).count() << " seconds" << std::endl;
-            std::cout << "Copy time:" << (initStartTime - copyStartTime).count() << " seconds" << std::endl;
+            std::cout << "Startup time:" << (initStartTime - programStartTime).count() << " seconds" << std::endl;
             std::cout << "Init time:" << (simStartTime - initStartTime).count() << " seconds" << std::endl;
             std::cout << "Simulation time:" << (simEndTime - simStartTime).count() << " seconds" << std::endl;
         }
     }
     else {
-        // Create RISC-V core with instruction and scalar data
-        RISCV riscV(copyCode, scalarInitData);
-    
-        // Add vector co-processor
-        riscV.addCoprocessor<VectorProcessor>(vectorQuadrant, vectorInitData);
-        
-        // Run kernels to copy initData into vector memory
-        if(!riscV.runInit(copyData, copyStartVectorPtr, copyNumVectorsPtr, copyScalarScratchPtr, seedPtr)) {
-            return 1;
-        }
+        // Build ISE with vector co-processor
+        RISCV riscV;
+        riscV.addCoprocessor<VectorProcessor>(vectorQuadrant);
 
-        // Reset stats for simulations
-        riscV.resetStats();
-
-        // Load init program
-        riscV.setInstructions(initCode);
-
-        // Run RISC-V to initialize
-        riscV.setPC(0);
-        if(!riscV.run()) {
-            return 1;
-        }
-
-        // Reset stats for simulations
-        riscV.resetStats();
-
-        // Load simulation program
+        // Set instructions and vector init data
         riscV.setInstructions(code);
+        riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getVectorDataMemory().setData(vectorInitData);
 
         // Get pointers to scalar memory
-        auto *scalarData = riscV.getScalarDataMemory().getData().data();
+        auto *scalarData = riscV.getScalarDataMemory().getData();
 
         // From this, get pointers to data structures
         const int16_t *outputVSum = reinterpret_cast<const int16_t*>(scalarData + outputVSumScalarPtr);

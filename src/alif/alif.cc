@@ -251,16 +251,18 @@ int main(int argc, char** argv)
     AppUtils::dumpCOE("alif" + filenameSuffix + ".coe", code);
 
     if(!device) {
-        // Create RISC-V core with instruction and scalar data
-        RISCV riscV(code, scalarInitData);
-    
-        // Add vector co-processor
-        riscV.addCoprocessor<VectorProcessor>(vectorQuadrant, vectorInitData);
-    
+        // Build ISE with vector co-processor
+        RISCV riscV;
+        riscV.addCoprocessor<VectorProcessor>(vectorQuadrant);
+
+        // Set instructions and vector init data
+        riscV.setInstructions(code);
+        riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getVectorDataMemory().setData(vectorInitData);
+
         // Run!
         riscV.run();
         
-        const auto *scalarData = riscV.getScalarDataMemory().getData().data();
+        const auto *scalarData = riscV.getScalarDataMemory().getData();
 
         saveData(reinterpret_cast<const int16_t*>(scalarData + vScalarPtr),
                  reinterpret_cast<const int16_t*>(scalarData + aScalarPtr),

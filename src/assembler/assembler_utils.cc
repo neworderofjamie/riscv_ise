@@ -158,46 +158,89 @@ void generatePerformanceCountWrite(CodeGenerator &c, ScalarRegisterAllocator &sc
     c.sw(*SValue, *SAddress, 4);
 }
 //----------------------------------------------------------------------------
-void unrollLoopBody(CodeGenerator &c, uint32_t numIterations, uint32_t maxUnroll, 
-                    Reg testBufferReg, Reg testBufferEndReg, 
-                    std::function<void(CodeGenerator&, uint32_t)> genBodyFn, 
+void unrollLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator, 
+                    uint32_t numIterations, uint32_t maxUnroll, uint32_t iterationBytes,
+                    Reg testBufferReg, bool alwaysGenerateTail,
+                    std::function<void(CodeGenerator&, uint32_t, bool)> genBodyFn, 
                     std::function<void(CodeGenerator&, uint32_t)> genTailFn)
 {
-    // **TODO** tail loop after unrolling
-    assert((numIterations % maxUnroll) == 0);
-    const uint32_t numUnrolls = std::min(numIterations, maxUnroll);
-    const uint32_t numUnrolledIterations = numIterations / numUnrolls;
+    // Evenness of iterations can only be determined with even numbers of unrolls
+    assert((maxUnroll % 2) == 0);
 
-    // Input postsynaptic neuron loop
-    Label loop;
-    c.L(loop);
-    {
-        // Unroll loop
-        for(uint32_t r = 0; r < numUnrolls; r++) {
-            genBodyFn(c, r);
+    // Determine number of unrolled iterations and remainder
+    const auto numUnrolls = std::div(static_cast<int64_t>(numIterations), maxUnroll);
+    
+    // If there are are complete unrolls
+    if(numUnrolls.quot != 0) {
+        // Calculate end of unrolled section of buffer
+        ALLOCATE_SCALAR(STestBufferEndReg);
+        c.addi(*STestBufferEndReg, testBufferReg, iterationBytes * numUnrolls.quot * maxUnroll);
+
+        Label loop;
+        c.L(loop);
+        {
+            // Unroll loop
+            for(uint32_t r = 0; r < maxUnroll; r++) {
+                genBodyFn(c, r, (r % 2) == 0);
+            }
+
+            // If more than 1 unroll is required or there are more iterations, generate tail
+            if(numUnrolls.quot > 1 || numUnrolls.rem != 0 || alwaysGenerateTail) {
+                genTailFn(c, maxUnroll);
+            }
+            
+            // If more than 1 unroll is required, generate loop
+            if(numUnrolls.quot > 1) {
+                c.bne(testBufferReg, *STestBufferEndReg, loop);
+            }
+        }
+    }
+
+    // If there is a remainder
+    if(numUnrolls.rem != 0) {
+        // Unroll tail
+        for(uint32_t r = 0; r < numUnrolls.rem; r++) {
+            genBodyFn(c, r, (r % 2) == 0);
         }
 
-        // If we haven't already unrolled everything, generate increment and loop
-        // **TODO** this is incorrect if there's a tail
-        if(numUnrolledIterations > 1) {
-            genTailFn(c, numUnrolls);
+        // If we should always generate a tail, do so
+        if(alwaysGenerateTail) {
+            genTailFn(c, numUnrolls.rem);
+        }
         
-            c.bne(testBufferReg, testBufferEndReg, loop);
-        }
     }
 }
 //----------------------------------------------------------------------------
-void unrollVectorLoopBody(CodeGenerator &c, uint32_t numIterations, uint32_t maxUnroll, 
-                          Reg testBufferReg, Reg testBufferEndReg, 
-                          std::function<void(CodeGenerator&, uint32_t)> genBodyFn, 
+void unrollVectorLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator, 
+                          uint32_t numIterations, uint32_t maxUnroll, Reg testBufferReg,
+                          std::function<void(CodeGenerator&, uint32_t, bool, ScalarRegisterAllocator::RegisterPtr)> genBodyFn, 
                           std::function<void(CodeGenerator&, uint32_t)> genTailFn)
 {
-    // Only loop bodies for now
-    assert((numIterations % 32) == 0);
-    unrollLoopBody(c, numIterations / 32, maxUnroll, 
-                   testBufferReg, testBufferEndReg,
-                   genBodyFn, genTailFn);
+    // Determine number of vectorised iterations and remainder
+    const auto numVectors = std::div(numIterations, 32);
+    
+    // If there are any complete vector iterations, unroll them
+    // **NOTE** always generate a tail if there will be a partial vector to follow
+    if(numVectors.quot != 0) {
+        unrollLoopBody(c, scalarRegisterAllocator, numVectors.quot, maxUnroll, 
+                       64, testBufferReg, (numVectors.rem != 0),
+                       [genBodyFn](CodeGenerator &c, uint32_t r, bool even)
+                       { 
+                           genBodyFn(c, r, even, nullptr); 
+                       }, 
+                       genTailFn);
+    }
 
+    // If there is a remainder
+    if(numVectors.rem != 0) {
+        ALLOCATE_SCALAR(SMask);
+
+        // Calculate mask for final iteration
+        c.li(*SMask, (1 << numVectors.rem) - 1);
+        
+        // Generate body with mask
+        genBodyFn(c, 0, (numVectors.quot % 2) == 0, SMask);
+    }
 }
 //----------------------------------------------------------------------------
 std::vector<uint32_t> generateStandardKernel(bool simulate, uint32_t readyFlagPtr, 
@@ -249,35 +292,5 @@ std::vector<uint32_t> generateStandardKernel(bool simulate, uint32_t readyFlagPt
     LOGI << "Max scalar registers used: " << scalarRegisterAllocator.getMaxUsedRegisters();
 
     return c.getCode();
-}
-//----------------------------------------------------------------------------
-std::vector<uint32_t> generateInitCode(bool simulate, uint32_t startVectorPtr, uint32_t numVectorsPtr, uint32_t readyFlagPtr, uint32_t scalarScratchPtr)
-{
-    return generateStandardKernel(
-        simulate, readyFlagPtr,
-        [=](CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator, ScalarRegisterAllocator &scalarRegisterAllocator)
-        {
-            // Register allocation
-            ALLOCATE_SCALAR(SNumVectorsPtr);
-            ALLOCATE_SCALAR(SStartVectorPtr);
-
-            // Load pointer to vector memory start address
-            {
-                ALLOCATE_SCALAR(STmp);
-                c.li(*STmp, startVectorPtr);
-                c.lw(*SStartVectorPtr, *STmp);
-            }
-
-            // Load count of number of vectors
-            {
-                ALLOCATE_SCALAR(STmp);
-                c.li(*STmp, numVectorsPtr);
-                c.lw(*SNumVectorsPtr, *STmp);
-            }
-
-            // Generate copying code
-            generateScalarVectorMemcpy(c, vectorRegisterAllocator, scalarRegisterAllocator,
-                                       scalarScratchPtr, SStartVectorPtr, SNumVectorsPtr);
-        });
 }
 }

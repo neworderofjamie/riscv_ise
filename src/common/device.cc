@@ -22,6 +22,7 @@
 #include <plog/Log.h>
 
 // RISC-V common includes
+#include "common/dma_controller.h"
 #include "common/utils.h"
 
 //----------------------------------------------------------------------------
@@ -37,6 +38,9 @@ constexpr size_t dataSize = 128 * 1024;
 
 constexpr off_t gpioBase = 0xA7000000;
 constexpr size_t gpioSize = 2 * 1024;
+
+constexpr off_t dmaControllerBase = 0xB0000000;
+constexpr off_t dmaDestRegisterBase = 0xB0080000;
 }
 
 //----------------------------------------------------------------------------
@@ -73,6 +77,10 @@ Device::Device()
     if(m_GPIO == MAP_FAILED) {
         throw std::runtime_error("GPIO map failed (" + std::to_string(errno) + " = " + strerror(errno) + ")");
     }
+
+    // Create DMA controller
+    m_DMAController = std::make_unique<DMAController>(m_Memory, dmaControllerBase, dmaDestRegisterBase);
+
 #else
     throw std::runtime_error("Device interface only supports Linux");
 #endif  // __linux__
@@ -94,13 +102,15 @@ Device::~Device()
 void Device::setEnabled(bool enabled)
 {
     // Channel 1 AXI GPIO Data Register
-    m_GPIO[0] = enabled ? 0xFFFFFFFF : 0x0;
+    volatile uint32_t *gpio = m_GPIO;
+    gpio[0] = enabled ? 0xFFFFFFFF : 0x0;
 }
 //----------------------------------------------------------------------------
 void Device::setILATrigger(bool enabled)
 {
     // Channel 2 AXI GPIO Data Register.
-    m_GPIO[2] = enabled ? 0xFFFFFFFF : 0x0;
+    volatile uint32_t *gpio = m_GPIO;
+    gpio[2] = enabled ? 0xFFFFFFFF : 0x0;
 }
 //----------------------------------------------------------------------------
 void Device::waitOnNonZero(uint32_t address) const
@@ -113,37 +123,10 @@ void Device::waitOnNonZero(uint32_t address) const
     }
 }
 //----------------------------------------------------------------------------
-void Device::runInit(const std::vector<uint8_t> &initData, uint32_t startVectorPtr, uint32_t numVectorsScalarPtr, 
-                     uint32_t scratchScalarPtr, uint32_t startVectorDestPtr, uint32_t readyFlagPtr)
-{
-    // Loop through vectors to copy
-    const size_t numInitVectors = ceilDivide(initData.size(), 64);
-    LOGI << "Initialising vector memory with " << initData.size() << " bytes (" << numInitVectors << " vectors) of data";
-    const size_t maxVectorsPerBatch = (dataSize - scratchScalarPtr) / 64;
-    for(size_t c = 0; c < numInitVectors; c += maxVectorsPerBatch) {
-        const uint32_t numBatchVectors = std::min(numInitVectors - c, maxVectorsPerBatch);
-        LOGI << "Copying " << numBatchVectors << " vectors of data from scalar to vector memory starting at " << c * 64;
-
-        // Copy block of init data into scalar memory
-        memcpyDataToDevice(scratchScalarPtr, initData.data() + (c * 64), numBatchVectors * 64);
-
-        // Set start and count
-        const uint32_t vectorDest = startVectorDestPtr + (c * 64);
-        memcpyDataToDevice(startVectorPtr, reinterpret_cast<const uint8_t*>(&vectorDest), 4);
-        memcpyDataToDevice(numVectorsScalarPtr, reinterpret_cast<const uint8_t*>(&numBatchVectors), 4);
-
-        // Enable device, wait for flag and disable again
-        setEnabled(true);
-
-        waitOnNonZero(readyFlagPtr);
-        setEnabled(false);
-    }
-}
-//----------------------------------------------------------------------------
 void Device::uploadCode(const std::vector<uint32_t> &code)
 {
     // Check there is space
-    if(code.size() >= (instructionSize / 4)) {
+    if(code.size() > (instructionSize / 4)) {
         throw std::runtime_error("Insufficient code memory (" + std::to_string(instructionSize) + " bytes)");
     }
 
@@ -157,7 +140,7 @@ void Device::uploadCode(const std::vector<uint32_t> &code)
 void Device::memcpyDataToDevice(size_t destinationOffset, const uint8_t *source, size_t count)
 {
     // Check destination offset is valid
-    if((destinationOffset + count) >= dataSize) {
+    if((destinationOffset + count) > dataSize) {
         throw std::runtime_error("Destination address out of range");
     }
 
@@ -171,7 +154,7 @@ void Device::memcpyDataToDevice(size_t destinationOffset, const uint8_t *source,
 void Device::memcpyDataFromDevice(uint8_t *destination, size_t sourceOffset, size_t count) const
 {
     // Check source offset is valid
-    if((sourceOffset + count) >= dataSize) {
+    if((sourceOffset + count) > dataSize) {
         throw std::runtime_error("Source address out of range");
     }
 
