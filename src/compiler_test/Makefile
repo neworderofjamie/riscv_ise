@@ -3,7 +3,7 @@ include ../MakefileCommon
 
 # Add compiler and linker flags to link libGeNN and correct backend; and to configure generator to use backend
 CXXFLAGS 		+=-I$(GENN_PATH)/include/genn/genn -I$(GENN_PATH)/include/genn/third_party $(shell pkg-config libffi --cflags)
-LDFLAGS			+= -L$(LIBRARY_DIRECTORY) -L$(GENN_PATH)/lib -lbackend$(PREFIX) -lcompiler$(PREFIX) -lise$(PREFIX) -lcommon$(PREFIX) -ldisassembler$(PREFIX) -lassembler$(PREFIX) -lgenn$(PREFIX) -ldl $(shell pkg-config libffi --libs)
+LDFLAGS			+= -L$(LIBRARY_DIRECTORY) -L$(GENN_PATH)/lib -lbackend$(PREFIX) -lcompiler$(PREFIX) -lise$(PREFIX) -ldisassembler$(PREFIX) -lcommon$(PREFIX) -lassembler$(PREFIX) -lgenn$(PREFIX) -ldl $(shell pkg-config libffi --libs)
 
 # Determine full path to test_mnist
 COMPILER_TEST	:=$(BIN_DIRECTORY)/compiler_test$(PREFIX)
