@@ -38,7 +38,7 @@ struct StaticPulseTarget
     uint32_t weightPtr;
     uint32_t postISynPtr;
     uint32_t numPost;
-    uint32_t scaleShift;
+    uint32_t stride;
     bool debug;
 };
 
@@ -140,13 +140,13 @@ void genStaticPulse(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAll
                 const auto &t = targets[i];
                 const auto &iReg = sISynBufferRegs[i];
 
-                // SWeightBuffer = weightInHidStart + (numPostVecs * 64 * SN);
-                // **TODO** multiply
+                // SWeightBuffer = weightInHidStart + (stride * SN);
                 ALLOCATE_SCALAR(SWeightBuffer);
                 c.li(*SWeightBuffer, t.weightPtr);
                 {
                     ALLOCATE_SCALAR(STemp);
-                    c.slli(*STemp, *SN, t.scaleShift);
+                    c.li(*STemp, t.stride);
+                    c.mul(*STemp, *SN, *STemp);
                     c.add(*SWeightBuffer, *SWeightBuffer, *STemp);
                 }
 
@@ -377,7 +377,7 @@ int main(int argc, char** argv)
                     // 2^9 = 2 bytes * 256 hidden neurons
                     genStaticPulse(c, vectorRegisterAllocator, scalarRegisterAllocator,
                                    SSpikeArrayBuffer, numInput,
-                                   {{weightInHidPtr, hiddenIsynPtr, numHidden, 9, false}});
+                                   {{weightInHidPtr, hiddenIsynPtr, numHidden, 512, false}});
                 }
 
                 // ---------------------------------------------------------------
@@ -387,8 +387,8 @@ int main(int argc, char** argv)
                 c.L(hiddenSpikeStart);
                 genStaticPulse(c, vectorRegisterAllocator, scalarRegisterAllocator, 
                                hiddenSpikePtr, numHidden,
-                               {{weightHidOutPtr, outputIsynPtr, numOutput, 6, false},
-                                {weightHidHidPtr, hiddenIsynPtr, numHidden, 9, false}});
+                               {{weightHidOutPtr, outputIsynPtr, numOutput, 64, false},
+                                {weightHidHidPtr, hiddenIsynPtr, numHidden, 512, false}});
 
                 // ---------------------------------------------------------------
                 // Hidden neurons
