@@ -513,6 +513,70 @@ private:
         c.vloadr1(*reg, 64);
     }
 
+    virtual void visit(std::shared_ptr<const CopyProcess> copyProcess)
+    {
+        auto &scalarRegisterAllocator = m_ScalarRegisterAllocator.get();
+        auto &vectorRegisterAllocator = m_VectorRegisterAllocator.get();
+        auto &c = m_CodeGenerator.get();
+
+        // **TODO** URAM->BRAM copy assumed
+
+        // Get fields associated with this process
+        const auto &stateFields = m_Model.get().getProcessFields().at(copyProcess);
+
+        // Register allocation
+        ALLOCATE_SCALAR(SDataBuffer);
+        ALLOCATE_SCALAR(SVectorBuffer)
+        ALLOCATE_SCALAR(SVectorBufferEnd);
+
+        // Labels
+        Label vectorLoop;
+
+        // Load source start address
+        c.lw(*SVectorBuffer, Reg::X0, stateFields.at(copyProcess->getSource()));
+        {
+            // Calculate vector-padded size in bytes and add to get end address
+            ALLOCATE_SCALAR(STemp);
+            c.li(*STemp, 2 * padSize(copyProcess->getSource()->getShape().getFlattenedSize(), 32));
+            c.add(*SVectorBufferEnd, *SVectorBuffer, *STemp);
+        }
+
+        // SDataBuffer = scalarPtr
+        c.lw(*SDataBuffer, Reg::X0, stateFields.at(copyProcess->getTarget()));
+
+        // Loop over vectors
+        c.L(vectorLoop);
+        {
+            // Register allocation
+            ALLOCATE_VECTOR(VData);
+            ALLOCATE_SCALAR(SVal);
+
+            // Load vector
+            c.vloadv(*VData, *SVectorBuffer, 0);
+
+            // **STALL**
+            c.nop();
+            
+            // Unroll lane loop
+            for(int l = 0; l < 32; l++) {
+                // Extract lane into scalar registers
+                c.vextract(*SVal, *VData, l);
+
+                // Store halfword
+                c.sh(*SVal, *SDataBuffer, l * 2);
+            }
+
+            // SVectorBuffer += 64
+            c.addi(*SVectorBuffer, *SVectorBuffer, 64);
+
+            // SDataBuffer += 64
+            c.addi(*SDataBuffer, *SDataBuffer, 64);
+        
+            // If SVectorBuffer != SVectorBufferEnd, goto vector loop
+            c.bne(*SVectorBuffer, *SVectorBufferEnd, vectorLoop);
+        }
+    }
+
     virtual void visit(std::shared_ptr<const EventPropagationProcess> eventPropagationProcess)
     {
         // Add event propagation process to vector of processes with same input event container
@@ -778,8 +842,6 @@ private:
 
     virtual void visit(std::shared_ptr<const EventPropagationProcess> eventPropagationProcess)
     {
-        LOGD << "Event propagation process '" << eventPropagationProcess->getName() << "'";
-
         // If variable is weight, it can only be located in URAM
         if(m_Variable == eventPropagationProcess->getWeight()) {
             m_LLMCompatible = false;
@@ -794,7 +856,6 @@ private:
         // Otherwise, if variable's target, it can either be located in URAM or LLM
         // **TODO** if sparse/delayed only in LLM
         else if(m_Variable == eventPropagationProcess->getTarget()) {
-            // Targets can be stored in URAM or LLM
             m_BRAMCompatible = false;
 
             if(!m_URAMCompatible && !m_LLMCompatible) {
@@ -820,6 +881,35 @@ private:
             throw std::runtime_error("RNG init process '" + rngInitProcess->getName() 
                                      + "' seed array '" + rngInitProcess->getSeed()->getName()
                                      + "' shared with incompatible processes");
+        }
+    }
+
+    virtual void visit(std::shared_ptr<const CopyProcess> copyProcess)
+    {
+        // If variable is source, it can only be located in URAM
+        if(m_Variable == copyProcess->getSource()) {
+            m_LLMCompatible = false;
+            m_BRAMCompatible = false;
+
+            if(!m_URAMCompatible) {
+                throw std::runtime_error("Copy process '" + copyProcess->getName() 
+                                        + "' source array '" + copyProcess->getSource()->getName()
+                                        + "' shared with incompatible processes");
+            }
+        }
+        // Otherwise, if variable's target, it can either be located in BRAM
+        else if(m_Variable == copyProcess->getTarget()) {
+            m_LLMCompatible = false;
+            m_URAMCompatible = false;
+
+            if(!m_BRAMCompatible) {
+                throw std::runtime_error("Copy process '" + copyProcess->getName()
+                                        + "' target array '" + copyProcess->getTarget()->getName()
+                                        + "' shared with incompatible processes");
+            }
+        }
+        else {
+            assert(false);
         }
     }
 
@@ -874,6 +964,7 @@ void BRAMArrayBase::serialiseDeviceObject(std::vector<std::byte> &bytes) const
 //------------------------------------------------------------------------
 std::vector<uint32_t> BackendFeNN::generateSimulationKernel(std::shared_ptr<const ProcessGroup> synapseProcessGroup, 
                                                             std::shared_ptr<const ProcessGroup> neuronProcessGroup,
+                                                            std::shared_ptr<const ProcessGroup> copyProcessGroup,
                                                             uint32_t numTimesteps, const Model &model) const
 {
     uint32_t readyFlagPtr = 0;
@@ -907,6 +998,11 @@ std::vector<uint32_t> BackendFeNN::generateSimulationKernel(std::shared_ptr<cons
                 c.addi(*STime, *STime, 1);
                 c.bne(*STime, *STimeEnd, timeLoop);
             }
+
+            // Visit copy process group
+            CodeGeneratorVisitor copyVisitor(copyProcessGroup, nullptr, c, vectorRegisterAllocator,
+                                             scalarRegisterAllocator, model);
+
         });
 }
 //------------------------------------------------------------------------
@@ -945,16 +1041,17 @@ std::unique_ptr<ArrayBase> BackendFeNN::createArray(std::shared_ptr<const Variab
     if(visitor.isURAMCompatible()) {
         return createURAMArray(variable->getType(), count, state);
     }
-    /*else if(visitor.isBRANCompatible()) {
-
-    }*/
+    // Otherwise, create BRAM array if variable can be implemented there
+    else if(visitor.isBRAMCompatible()) {
+        return createBRAMArray(variable->getType(), count, state);
+    }
     else {
         assert(false);
     }
 }
 //------------------------------------------------------------------------
 std::unique_ptr<ArrayBase> BackendFeNN::createArray(std::shared_ptr<const EventContainer> eventContainer,
-                                                    const Model::StateProcesses::mapped_type &processes,
+                                                    const Model::StateProcesses::mapped_type&,
                                                     StateBase *state) const
 {
     // Event containers are always implemented as BRAM bitfields

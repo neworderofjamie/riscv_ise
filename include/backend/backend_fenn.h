@@ -276,6 +276,7 @@ public:
     //------------------------------------------------------------------------
     std::vector<uint32_t> generateSimulationKernel(std::shared_ptr<const ProcessGroup> synapseProcessGroup, 
                                                    std::shared_ptr<const ProcessGroup> neuronProcessGroup,
+                                                   std::shared_ptr<const ProcessGroup> copyProcessGroup,
                                                    uint32_t numTimesteps, const Model &model) const;
 
     std::vector<uint32_t> generateKernel(std::shared_ptr<const ProcessGroup> processGroup, const Model &model) const;
