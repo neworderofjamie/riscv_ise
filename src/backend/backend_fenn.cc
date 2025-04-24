@@ -40,6 +40,9 @@
 using namespace GeNN;
 using namespace GeNN::Transpiler;
 
+//----------------------------------------------------------------------------
+// Anonymous namespace
+//----------------------------------------------------------------------------
 namespace
 {
 class EnvironmentExternal : public ::EnvironmentBase, public Transpiler::TypeChecker::EnvironmentBase
@@ -451,6 +454,7 @@ private:
                 }
 
                 // Compile tokens
+                // **TODO** pass mask register in here
                 {
                     TypeChecker::EnvironmentInternal typeCheckEnv(unrollEnv);
                     EnvironmentInternal compilerEnv(unrollEnv);
@@ -732,6 +736,102 @@ private:
     std::reference_wrapper<ScalarRegisterAllocator> m_ScalarRegisterAllocator;
     std::reference_wrapper<const Model> m_Model;
 };
+
+//----------------------------------------------------------------------------
+// VariableImplementerVisitor
+//----------------------------------------------------------------------------
+class VariableImplementerVisitor : public ModelComponentVisitor
+{
+public:
+    VariableImplementerVisitor(std::shared_ptr<const Variable> variable, const Model::StateProcesses::mapped_type &processes)
+    :   m_Variable(variable), m_LLMCompatible(true), m_URAMCompatible(true), m_BRAMCompatible(true)
+    {
+        // Visit all processes
+        for(auto p : processes) {
+            p->accept(*this);
+        }
+    }
+
+    bool isLLMCompatible() const{ return m_LLMCompatible; }
+    bool isURAMCompatible() const{ return m_URAMCompatible; }
+    bool isBRAMCompatible() const{ return m_BRAMCompatible; }
+
+private:
+    //------------------------------------------------------------------------
+    // ModelComponentVisitor virtuals
+    //------------------------------------------------------------------------
+    virtual void visit(std::shared_ptr<const NeuronUpdateProcess> neuronUpdateProcess)
+    {
+        const auto var = std::find_if(neuronUpdateProcess->getVariables().cbegin(), neuronUpdateProcess->getVariables().cend(),
+                                      [this](const auto &v){ return v.second == m_Variable; });
+        assert(var != neuronUpdateProcess->getVariables().cend());
+     
+        // Neuron variables can be located in URAM or LLM
+        m_BRAMCompatible = false;
+
+        if(!m_URAMCompatible && !m_LLMCompatible) {
+            throw std::runtime_error("Neuron update process '" + neuronUpdateProcess->getName()
+                                    + "' variable array '" + m_Variable->getName()
+                                    + "' shared with incompatible processes");
+        }
+    }
+
+    virtual void visit(std::shared_ptr<const EventPropagationProcess> eventPropagationProcess)
+    {
+        LOGD << "Event propagation process '" << eventPropagationProcess->getName() << "'";
+
+        // If variable is weight, it can only be located in URAM
+        if(m_Variable == eventPropagationProcess->getWeight()) {
+            m_LLMCompatible = false;
+            m_BRAMCompatible = false;
+
+            if(!m_URAMCompatible) {
+                throw std::runtime_error("Event propagation process '" + eventPropagationProcess->getName() 
+                                        + "' weight array '" + eventPropagationProcess->getWeight()->getName()
+                                        + "' shared with incompatible processes");
+            }
+        }
+        // Otherwise, if variable's target, it can either be located in URAM or LLM
+        // **TODO** if sparse/delayed only in LLM
+        else if(m_Variable == eventPropagationProcess->getTarget()) {
+            // Targets can be stored in URAM or LLM
+            m_BRAMCompatible = false;
+
+            if(!m_URAMCompatible && !m_LLMCompatible) {
+                throw std::runtime_error("Event propagation process '" + eventPropagationProcess->getName()
+                                        + "' target array '" + eventPropagationProcess->getTarget()->getName()
+                                        + "' shared with incompatible processes");
+            }
+        }
+        else {
+            assert(false);
+        }
+    }
+
+    virtual void visit(std::shared_ptr<const RNGInitProcess> rngInitProcess)
+    {
+        assert (m_Variable == rngInitProcess->getSeed());
+        
+        // Seeds can only be stored in URAM
+        m_LLMCompatible = false;
+        m_BRAMCompatible = false;
+
+        if(!m_URAMCompatible) {
+            throw std::runtime_error("RNG init process '" + rngInitProcess->getName() 
+                                     + "' seed array '" + rngInitProcess->getSeed()->getName()
+                                     + "' shared with incompatible processes");
+        }
+    }
+
+
+    //------------------------------------------------------------------------
+    // Members
+    //------------------------------------------------------------------------
+    std::shared_ptr<const Variable> m_Variable;
+    bool m_LLMCompatible;
+    bool m_URAMCompatible;
+    bool m_BRAMCompatible;
+};
 }
 
 //--------------------------------------------------------------------------
@@ -840,9 +940,17 @@ std::unique_ptr<ArrayBase> BackendFeNN::createArray(std::shared_ptr<const Variab
     const size_t count = std::accumulate(varDims.cbegin(), varDims.cend(), 
                                          1, std::multiplies<size_t>());
 
-    // **TODO** should also take vector of processes that access variables.
-    // **TODO** if target of sparse or delayed event propoagation process, implement in L.L.M.
-    return createURAMArray(variable->getType(), count, state);
+    // Create URAM array if variable can be implemented there
+    VariableImplementerVisitor visitor(variable, processes);
+    if(visitor.isURAMCompatible()) {
+        return createURAMArray(variable->getType(), count, state);
+    }
+    /*else if(visitor.isBRANCompatible()) {
+
+    }*/
+    else {
+        assert(false);
+    }
 }
 //------------------------------------------------------------------------
 std::unique_ptr<ArrayBase> BackendFeNN::createArray(std::shared_ptr<const EventContainer> eventContainer,

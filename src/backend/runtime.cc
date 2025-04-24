@@ -15,7 +15,7 @@ namespace
 class AllocatorVisitor : public ModelComponentVisitor
 {
 public:
-    AllocatorVisitor(const Model::StateProcesses::value_type& modelState, const BackendFeNN &backend, StateBase *state)
+    AllocatorVisitor(const Model::StateProcesses::value_type &modelState, const BackendFeNN &backend, StateBase *state)
     :   m_Backend(backend), m_Processes(modelState.second), m_State(state)
     {
         modelState.first->accept(*this);
