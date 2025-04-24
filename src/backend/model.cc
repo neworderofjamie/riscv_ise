@@ -22,7 +22,7 @@ public:
     :   m_ProcessFields(processFields), m_StateProcesses(stateProcesses), m_FieldOffset(0)
     {
         // Loop through all process groups and visit
-        for(const auto g : processGroups)  {
+        for(const auto &g : processGroups)  {
             g->accept(*this);
         }
     }

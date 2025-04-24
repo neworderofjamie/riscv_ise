@@ -282,12 +282,12 @@ public:
         m_ScalarRegisterAllocator(scalarRegisterAllocator), m_Model(model)
     {
         // Visit all the processes
-        for(const auto p : processGroup->getProcesses()) {
+        for(const auto &p : processGroup->getProcesses()) {
             p->accept(*this);
         }
 
         // Loop through all grouped event propagation processes
-        for(const auto e : m_EventPropagationProcesses) {
+        for(const auto &e : m_EventPropagationProcesses) {
             generateEventPropagationProcesses(e.second);
         }
     }
@@ -326,7 +326,7 @@ private:
         std::unordered_map<std::shared_ptr<const Variable>, ScalarRegisterAllocator::RegisterPtr> varBufferRegisters;
         {
             // Loop through neuron variables
-            for(const auto v : neuronUpdateProcess->getVariables()) {
+            for(const auto &v : neuronUpdateProcess->getVariables()) {
                 // **TODO** check data structure to determine how this variable is implemented
                 // i.e. in lane-local or vector memory and create appropriate address register
 
@@ -353,7 +353,7 @@ private:
             }   
 
             // Loop through neuron event outputs
-            for(const auto e : neuronUpdateProcess->getOutputEvents()) {
+            for(const auto &e : neuronUpdateProcess->getOutputEvents()) {
                 // Allocate scalar register to hold address of variable
                 const auto reg = m_ScalarRegisterAllocator.get().getRegister((e.first + "Buffer X").c_str());
 
@@ -377,7 +377,7 @@ private:
         EnvironmentExternal env(m_CodeGenerator.get());
 
         // Loop through neuron parameters
-        for(const auto p : neuronUpdateProcess->getParameters()) {
+        for(const auto &p : neuronUpdateProcess->getParameters()) {
             // Allocate vector register for parameter
             const auto reg = m_VectorRegisterAllocator.get().getRegister((p.first + " V").c_str());
 
@@ -429,7 +429,7 @@ private:
                 EnvironmentExternal unrollEnv(env);
 
                 // Loop through variables
-                for(const auto v : neuronUpdateProcess->getVariables()) {
+                for(const auto &v : neuronUpdateProcess->getVariables()) {
                     // Allocate vector register
                     const auto reg = m_VectorRegisterAllocator.get().getRegister((v.first + " V").c_str());
 
@@ -442,7 +442,7 @@ private:
                 }
 
                 // Loop through neuron event outputs
-                for(const auto e : neuronUpdateProcess->getOutputEvents()) {
+                for(const auto &e : neuronUpdateProcess->getOutputEvents()) {
                     // Add function to environment to store current mask (inherently which neurons are spiking) to scalar memory
                     unrollEnv.add(emitEventFunctionType, e.first, 
                                   [e, r, &eventBufferRegisters](auto &env, auto&, auto&, auto maskReg, const auto&)
@@ -465,7 +465,7 @@ private:
                 }
 
                 // Loop through variables
-                for(const auto v : neuronUpdateProcess->getVariables()) {
+                for(const auto &v : neuronUpdateProcess->getVariables()) {
                     // Get register
                     const auto reg = std::get<VectorRegisterAllocator::RegisterPtr>(unrollEnv.getRegister(v.first));
                     
@@ -479,13 +479,13 @@ private:
             {
                 // Loop through variables and increment buffers
                 // **TODO** based on data structure, determine stride
-                for(const auto v : neuronUpdateProcess->getVariables()) {        
+                for(const auto &v : neuronUpdateProcess->getVariables()) {        
                     const auto bufferReg = varBufferRegisters.at(v.second);
                     c.addi(*bufferReg, *bufferReg, 64 * numUnrolls);
                 }
 
                 // Loop through output events and increment buffers
-                for(const auto e : neuronUpdateProcess->getOutputEvents()) {
+                for(const auto &e : neuronUpdateProcess->getOutputEvents()) {
                     const auto bufferReg = eventBufferRegisters.at(e.second);
                     c.addi(*bufferReg, *bufferReg, 4 * numUnrolls);
                  }
@@ -631,7 +631,7 @@ private:
 
         // Loop through postsynaptic targets
         std::vector<std::pair<ScalarRegisterAllocator::RegisterPtr, ScalarRegisterAllocator::RegisterPtr>> sTargetStrideBufferRegs;
-        for(const auto p : processes) {
+        for(const auto &p : processes) {
             // Allocate scalar registers
             auto bufferStartReg = scalarRegisterAllocator.getRegister("STargetBuffer = X");
             auto strideReg = scalarRegisterAllocator.getRegister("SStride = X");
