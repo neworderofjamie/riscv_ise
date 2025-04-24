@@ -103,3 +103,27 @@ RNGInitProcess::RNGInitProcess(Private, std::shared_ptr<const Variable> seed, co
         throw std::runtime_error("RNG init process requires seed");
     }
 }
+
+//----------------------------------------------------------------------------
+// CopyProcess
+//----------------------------------------------------------------------------
+CopyProcess::CopyProcess(Private, std::shared_ptr<const Variable> source,
+                         std::shared_ptr<const Variable> target, const std::string &name)
+:   AcceptableModelComponent<CopyProcess, Process>(name), m_Source(source), m_Target(target)
+{
+    if(m_Source == nullptr) {
+        throw std::runtime_error("Copy process requires source");
+    }
+
+    if(m_Target == nullptr) {
+        throw std::runtime_error("Copy process requires target");
+    }
+
+    if(m_Source->getShape() != m_Target->getShape()) {
+        throw std::runtime_error("Copy process requires source and target with same shape");
+    }
+
+    if(m_Source->getType() != m_Target->getType()) {
+        throw std::runtime_error("Copy process requires source and target with same shape");
+    }
+}

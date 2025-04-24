@@ -136,3 +136,38 @@ private:
     //------------------------------------------------------------------------
     std::shared_ptr<const Variable> m_Seed;
 };
+
+//----------------------------------------------------------------------------
+// CopyProcess
+//----------------------------------------------------------------------------
+//! Temporary process for copying between variables (typically in different memory space)
+//! Full DMA controller will remove the need for this
+class COMPILER_EXPORT CopyProcess : public AcceptableModelComponent<CopyProcess, Process>
+{
+public:
+    CopyProcess(Private, std::shared_ptr<const Variable> source,
+                std::shared_ptr<const Variable> target, const std::string &name);
+
+    //------------------------------------------------------------------------
+    // Public API
+    //------------------------------------------------------------------------
+    const auto getSource() const{ return m_Source; }
+    const auto getTarget() const{ return m_Target; }
+    
+    //------------------------------------------------------------------------
+    // Static API
+    //------------------------------------------------------------------------
+    static std::shared_ptr<CopyProcess> create(std::shared_ptr<const Variable> source,
+                                               std::shared_ptr<const Variable> target,
+                                               const std::string &name = "")
+    {
+        return std::make_shared<CopyProcess>(Private(), source, target, name);
+    }
+
+private:
+    //------------------------------------------------------------------------
+    // Members
+    //------------------------------------------------------------------------
+    std::shared_ptr<const Variable> m_Source;
+    std::shared_ptr<const Variable> m_Target;
+};

@@ -11,6 +11,7 @@ class ProcessGroup;
 class NeuronUpdateProcess;
 class EventPropagationProcess;
 class RNGInitProcess;
+class CopyProcess;
 class Variable;
 
 //----------------------------------------------------------------------------
@@ -25,6 +26,7 @@ public:
     virtual void visit(std::shared_ptr<const NeuronUpdateProcess>){}
     virtual void visit(std::shared_ptr<const EventPropagationProcess>){}
     virtual void visit(std::shared_ptr<const RNGInitProcess>){};
+    virtual void visit(std::shared_ptr<const CopyProcess>){};
     virtual void visit(std::shared_ptr<const Variable>){}
 };
 
@@ -38,10 +40,14 @@ public:
     ModelComponent(const ModelComponent&) = delete;
     virtual ~ModelComponent() = default;
 
+    //------------------------------------------------------------------------
     // Declared virtuals
+    //------------------------------------------------------------------------
     virtual void accept(ModelComponentVisitor &visitor) const = 0;
 
+    //------------------------------------------------------------------------
     // Public API
+    //------------------------------------------------------------------------
     const std::string &getName() const{ return m_Name; }
 
 protected:
@@ -51,6 +57,9 @@ protected:
     {}
 
 private:
+    //------------------------------------------------------------------------
+    // Members
+    //------------------------------------------------------------------------
     std::string m_Name;
 };
 
