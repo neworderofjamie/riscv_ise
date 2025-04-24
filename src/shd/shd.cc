@@ -38,7 +38,7 @@ struct StaticPulseTarget
     uint32_t weightPtr;
     uint32_t postISynPtr;
     uint32_t numPost;
-    uint32_t scaleShift;
+    uint32_t stride;
     bool debug;
 };
 
@@ -140,13 +140,13 @@ void genStaticPulse(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAll
                 const auto &t = targets[i];
                 const auto &iReg = sISynBufferRegs[i];
 
-                // SWeightBuffer = weightInHidStart + (numPostVecs * 64 * SN);
-                // **TODO** multiply
+                // SWeightBuffer = weightInHidStart + (stride * SN);
                 ALLOCATE_SCALAR(SWeightBuffer);
                 c.li(*SWeightBuffer, t.weightPtr);
                 {
                     ALLOCATE_SCALAR(STemp);
-                    c.slli(*STemp, *SN, t.scaleShift);
+                    c.li(*STemp, t.stride);
+                    c.mul(*STemp, *SN, *STemp);
                     c.add(*SWeightBuffer, *SWeightBuffer, *STemp);
                 }
 
@@ -377,7 +377,7 @@ int main(int argc, char** argv)
                     // 2^9 = 2 bytes * 256 hidden neurons
                     genStaticPulse(c, vectorRegisterAllocator, scalarRegisterAllocator,
                                    SSpikeArrayBuffer, numInput,
-                                   {{weightInHidPtr, hiddenIsynPtr, numHidden, 9, false}});
+                                   {{weightInHidPtr, hiddenIsynPtr, numHidden, 512, false}});
                 }
 
                 // ---------------------------------------------------------------
@@ -387,8 +387,8 @@ int main(int argc, char** argv)
                 c.L(hiddenSpikeStart);
                 genStaticPulse(c, vectorRegisterAllocator, scalarRegisterAllocator, 
                                hiddenSpikePtr, numHidden,
-                               {{weightHidOutPtr, outputIsynPtr, numOutput, 6, false},
-                                {weightHidHidPtr, hiddenIsynPtr, numHidden, 9, false}});
+                               {{weightHidOutPtr, outputIsynPtr, numOutput, 64, false},
+                                {weightHidHidPtr, hiddenIsynPtr, numHidden, 512, false}});
 
                 // ---------------------------------------------------------------
                 // Hidden neurons
@@ -454,7 +454,7 @@ int main(int argc, char** argv)
                             c.vloadv(*VRefracTime, *SRefracTimeBuffer, r * 64);
 
                             // V *= Alpha
-                            c.vmul(14, *VV, *VV, *VAlpha);
+                            c.vmul_rs(14, *VV, *VV, *VAlpha);
 
                             // V += ISyn
                             c.vadd_s(*VV, *VV, *VISyn);
@@ -463,7 +463,7 @@ int main(int argc, char** argv)
                             c.vlui(*VISyn, 0);
 
                             // A *= Rho
-                            c.vmul(14, *VA, *VA, *VRho);
+                            c.vmul_rs(14, *VA, *VA, *VRho);
 
                             // Refractory = RefracTime > 0.0 (0.0 < VRefracTime)
                             c.vtlt(*SRefractory, *VZero, *VRefracTime);
@@ -479,7 +479,7 @@ int main(int argc, char** argv)
                             // SSpikeOut = VV >= (VThres + (Beta * A)) 
                             {
                                 ALLOCATE_VECTOR(VTmp);
-                                c.vmul(hiddenAFixedPoint, *VTmp, *VA, *VBeta);
+                                c.vmul_rs(hiddenAFixedPoint, *VTmp, *VA, *VBeta);
                                 c.vadd_s(*VTmp, *VTmp, *VVThresh);
                                 c.vtge(*SSpikeOut, *VV, *VTmp);
                             }
@@ -573,7 +573,7 @@ int main(int argc, char** argv)
                         c.vloadv(*VBias, *SBiasBuffer);
  
                         // VV *= VAlpha
-                        c.vmul(14, *VVNew, *VV, *VAlpha);
+                        c.vmul_rs(14, *VVNew, *VV, *VAlpha);
 
                         // VV += VISyn
                         c.vadd_s(*VVNew, *VVNew, *VISyn);
@@ -585,7 +585,7 @@ int main(int argc, char** argv)
                         {
                             // Register allocation
                             ALLOCATE_VECTOR(VTmp);
-                            c.vmul(outFixedPoint, *VTmp, *VAvgScale, *VVNew);
+                            c.vmul_rs(outFixedPoint, *VTmp, *VAvgScale, *VVNew);
                             c.vadd_s(*VVSumNew, *VVSum, *VTmp);
                         }
 
