@@ -28,6 +28,12 @@ public:
     size_t getBatchSize() const;
     size_t getFlattenedSize() const;
 
+    //------------------------------------------------------------------------
+    // Operators
+    //------------------------------------------------------------------------
+    bool operator == (const Shape &other) const{ return (other.getDims() == getDims()); }
+    bool operator != (const Shape &other) const{ return (other.getDims() != getDims()); }
+
 private:
     //------------------------------------------------------------------------
     // Members
