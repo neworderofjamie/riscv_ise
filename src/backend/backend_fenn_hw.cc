@@ -123,6 +123,13 @@ public:
         dmaController->waitForWriteComplete();
     }
 
+    virtual void memsetHostPointer(int value) final override
+    {
+        // **YUCK** memset seems to do something that doens't play
+        // nicely with mmap'd memory and causes bus error
+        std::fill_n(getHostPointer(), getSizeBytes(), value);
+    }
+
     //! Copy entire array from device
     virtual void pullFromDevice() final override
     {

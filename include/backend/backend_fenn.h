@@ -84,6 +84,9 @@ public:
     //! Serialise backend-specific device object to uint32_t
     virtual void serialiseDeviceObject(std::vector<std::byte> &bytes) const = 0;
 
+    //! Memset the host pointer
+    virtual void memsetHostPointer(int value);
+
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
@@ -96,9 +99,6 @@ public:
 
     template<typename T>
     T *getHostPointer() const{ return reinterpret_cast<T*>(m_HostPointer); }
-
-    //! Memset the host pointer
-    void memsetHostPointer(int value);
 
 protected:
     ArrayBase(const GeNN::Type::ResolvedType &type, size_t count)
