@@ -42,7 +42,7 @@
 void genStaticPulse(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator,
                     ScalarRegisterAllocator &scalarRegisterAllocator, uint32_t weightPtr, 
                     std::variant<uint32_t, ScalarRegisterAllocator::RegisterPtr> preSpikePtr, uint32_t postISynPtr, 
-                    uint32_t numPre, uint32_t numPost, uint32_t scaleShift, bool debug)
+                    uint32_t numPre, uint32_t numPost, uint32_t stride, bool debug)
 {
     // Register allocation
     ALLOCATE_SCALAR(SSpikeBufferEnd);
@@ -122,13 +122,13 @@ void genStaticPulse(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAll
             c.L(bitLoopBody);
             c.sub(*SN, *SN, *SNumLZ);
 
-            // SWeightBuffer = weightInHidStart + (numPostVecs * 64 * SN);
-            // **TODO** multiply
+            // SWeightBuffer = weightInHidStart + (stride * SN);
             ALLOCATE_SCALAR(SWeightBuffer);
             c.li(*SWeightBuffer, weightPtr);
             {
                 ALLOCATE_SCALAR(STemp);
-                c.slli(*STemp, *SN, scaleShift);
+                c.li(*STemp, stride);
+                c.mul(*STemp, *SN, *STemp);
                 c.add(*SWeightBuffer, *SWeightBuffer, *STemp);
             }
 
@@ -351,7 +351,7 @@ int main(int argc, char** argv)
                     // 2^8 = 2 bytes * 128 hidden neurons
                     genStaticPulse(c, vectorRegisterAllocator, scalarRegisterAllocator,
                                     weightInHidPtr, SSpikeArrayBuffer, 
-                                    hiddenIsynPtr, numInput, numHidden, 8, false);
+                                    hiddenIsynPtr, numInput, numHidden, 256, false);
                 }
 
                 // ---------------------------------------------------------------
@@ -360,7 +360,7 @@ int main(int argc, char** argv)
                 // 2^6 = 2 bytes * 32 output neurons (rounded up)
                 genStaticPulse(c, vectorRegisterAllocator, scalarRegisterAllocator, 
                                 weightHidOutPtr, hiddenSpikePtr, 
-                                outputIsynPtr, numHidden, numOutput, 6, false);
+                                outputIsynPtr, numHidden, numOutput, 64, false);
 
                 
                 // ---------------------------------------------------------------
