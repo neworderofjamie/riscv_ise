@@ -136,7 +136,7 @@ int main(int argc, char** argv)
     // Output neurons
     const auto outputV = Variable::create(outputShape, GeNN::Type::S9_6Sat);
     const auto outputI = Variable::create(outputShape, GeNN::Type::S9_6Sat);
-    const auto outputVAvg = Variable::create(outputShape, GeNN::Type::S9_6Sat);
+    const auto outputVAvg = Variable::create(outputShape, GeNN::Type::S9_6Sat, "output v avg");
     const auto outputBias = Variable::create(outputShape, GeNN::Type::S9_6Sat);
     const auto output = NeuronUpdateProcess::create(
         "V = (Alpha * V) + I + Bias;\n"
@@ -154,20 +154,25 @@ int main(int argc, char** argv)
     const auto hiddenOutputWeight = Variable::create(hiddenOutputShape, GeNN::Type::S9_6);
     const auto hiddenOutput = EventPropagationProcess::create(hiddenSpikes, hiddenOutputWeight, outputI);
 
+    // Output sum copy
+    const auto outputVAvgCopy = Variable::create(outputShape, GeNN::Type::S9_6Sat, "output v avg copy");
+    const auto copyOutputSum = CopyProcess::create(outputVAvg, outputVAvgCopy);
+
     // Group processes
     const auto neuronUpdateProcesses = ProcessGroup::create({hidden, output});
     const auto synapseUpdateProcesses = ProcessGroup::create({inputHidden, hiddenOutput});
+    const auto copyProcesses = ProcessGroup::create({copyOutputSum});
 
     
     // Build model from process groups we want to simulate
-    Model model({synapseUpdateProcesses, neuronUpdateProcesses});
+    Model model({synapseUpdateProcesses, neuronUpdateProcesses, copyProcesses});
     
     BackendFeNNSim backend;
 
 
     // Generate kernel
     const auto code = backend.generateSimulationKernel(synapseUpdateProcesses, neuronUpdateProcesses, 
-                                                       numTimesteps, model);
+                                                       copyProcesses, numTimesteps, model);
     
     for(size_t i = 0; i < code.size(); i++){
         try {
@@ -200,6 +205,7 @@ int main(int argc, char** argv)
     zeroAndPush(outputV, runtime);
     zeroAndPush(outputI, runtime);
     zeroAndPush(outputVAvg, runtime);
+    zeroAndPush(outputVAvgCopy, runtime);
 
     // Load data
     const auto mnistSpikes = AppUtils::loadBinaryData<uint32_t>("mnist_spikes.bin");
@@ -209,7 +215,8 @@ int main(int argc, char** argv)
     auto *inputSpikeArray = runtime.getArray(inputSpikes);
     auto *hiddenSpikeArray = runtime.getArray(hiddenSpikes);
     auto *outputVAvgArray = runtime.getArray(outputVAvg);
-    auto *outputVAvgArrayHostPtr = outputVAvgArray->getHostPointer<int16_t>();
+    auto *outputVAvgCopyArray = runtime.getArray(outputVAvgCopy);
+    auto *outputVAvgCopyArrayHostPtr = outputVAvgCopyArray->getHostPointer<int16_t>();
     size_t numCorrect = 0;
     for (size_t i = 0; i < numExamples; i++) {
         // Copy data to array host pointer
@@ -229,17 +236,18 @@ int main(int argc, char** argv)
                          hiddenShape.getNumNeurons(), numTimesteps);
         }
 
-        // Copy output V sum from device
-        outputVAvgArray->pullFromDevice();
+        // Copy copy of output V sum from device
+        // **NOTE** this has been copied to BRAM so is accessible
+        outputVAvgCopyArray->pullFromDevice();
 
         // Determine if output is correct
-        const auto classification = std::distance(outputVAvgArrayHostPtr, std::max_element(outputVAvgArrayHostPtr, outputVAvgArrayHostPtr + 10));
+        const auto classification = std::distance(outputVAvgCopyArrayHostPtr, std::max_element(outputVAvgCopyArrayHostPtr, outputVAvgCopyArrayHostPtr + 10));
         if (classification == mnistLabels[i]) {
             numCorrect++;
         }
 
-        // Zero output and push
-        outputVAvgArray->memsetHostPointer(0);
+        // Push original zeros back over VAvg
+        // **HACK** gross way of zeroing
         outputVAvgArray->pushToDevice();
     }
 
