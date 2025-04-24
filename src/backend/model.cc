@@ -48,7 +48,7 @@ private:
     virtual void visit(std::shared_ptr<const ProcessGroup> processGroup)
     {
         // Visit all the processes
-        for(const auto p : processGroup->getProcesses()) {
+        for(const auto &p : processGroup->getProcesses()) {
             p->accept(*this);
         }
     }
