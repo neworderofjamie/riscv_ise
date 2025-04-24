@@ -421,7 +421,7 @@ private:
             neuronUpdateProcess->getNumNeurons(), 4, *varBufferRegisters.begin()->second,
             [this, &env, &eventBufferRegisters, &literalPool, &neuronUpdateProcess, 
              &emitEventFunctionType, &varBufferRegisters]
-            (CodeGenerator &c, uint32_t r, bool, ScalarRegisterAllocator::RegisterPtr maskReg)
+            (CodeGenerator&, uint32_t r, bool, ScalarRegisterAllocator::RegisterPtr maskReg)
             {
                 EnvironmentExternal unrollEnv(env);
 
@@ -826,6 +826,7 @@ std::vector<uint32_t> BackendFeNN::generateKernel(std::shared_ptr<const ProcessG
 }
 //------------------------------------------------------------------------
 std::unique_ptr<ArrayBase> BackendFeNN::createArray(std::shared_ptr<const Variable> variable,
+                                                    const Model::StateProcesses::mapped_type &processes,
                                                     StateBase *state) const
 {
     // Pad last dimension to multiplies of 32
@@ -845,6 +846,7 @@ std::unique_ptr<ArrayBase> BackendFeNN::createArray(std::shared_ptr<const Variab
 }
 //------------------------------------------------------------------------
 std::unique_ptr<ArrayBase> BackendFeNN::createArray(std::shared_ptr<const EventContainer> eventContainer,
+                                                    const Model::StateProcesses::mapped_type &processes,
                                                     StateBase *state) const
 {
     // Event containers are always implemented as BRAM bitfields

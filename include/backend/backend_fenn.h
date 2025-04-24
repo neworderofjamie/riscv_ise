@@ -281,9 +281,11 @@ public:
     std::vector<uint32_t> generateKernel(std::shared_ptr<const ProcessGroup> processGroup, const Model &model) const;
 
     std::unique_ptr<ArrayBase> createArray(std::shared_ptr<const Variable> variable, 
+                                           const Model::StateProcesses::mapped_type &processes,
                                            StateBase *state) const;
 
     std::unique_ptr<ArrayBase> createArray(std::shared_ptr<const EventContainer> eventContainer, 
+                                           const Model::StateProcesses::mapped_type &processes,
                                            StateBase *state) const;
 
 protected:

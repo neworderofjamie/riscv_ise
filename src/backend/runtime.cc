@@ -15,10 +15,10 @@ namespace
 class AllocatorVisitor : public ModelComponentVisitor
 {
 public:
-    AllocatorVisitor(std::shared_ptr<const State> modelState, const BackendFeNN &backend, StateBase *state)
-    :   m_Backend(backend), m_State(state)
+    AllocatorVisitor(const Model::StateProcesses::value_type& modelState, const BackendFeNN &backend, StateBase *state)
+    :   m_Backend(backend), m_Processes(modelState.second), m_State(state)
     {
-        modelState->accept(*this);
+        modelState.first->accept(*this);
     }
 
     auto &getArray() { return m_Array; }
@@ -29,12 +29,12 @@ private:
     //------------------------------------------------------------------------
     virtual void visit(std::shared_ptr<const EventContainer> eventContainer)
     {
-        m_Array = m_Backend.get().createArray(eventContainer, m_State);
+        m_Array = m_Backend.get().createArray(eventContainer, m_Processes, m_State);
     }
 
     virtual void visit(std::shared_ptr<const Variable> variable)
     {
-        m_Array = m_Backend.get().createArray(variable, m_State);
+        m_Array = m_Backend.get().createArray(variable, m_Processes, m_State);
     }
 
     //------------------------------------------------------------------------
@@ -42,6 +42,7 @@ private:
     //------------------------------------------------------------------------
     std::reference_wrapper<const BackendFeNN> m_Backend;
     std::unique_ptr<ArrayBase> m_Array;
+    Model::StateProcesses::mapped_type m_Processes;
     StateBase *m_State;
 };
 }
@@ -68,7 +69,7 @@ void Runtime::allocate()
     // Loop through state objects used by model
     for (const auto &s : m_Model.get().getStateProcesses()) {
         // Visit state process to allocate appropriate type of array
-        AllocatorVisitor visitor(s.first, m_Backend.get(), m_State.get());
+        AllocatorVisitor visitor(s, m_Backend.get(), m_State.get());
 
         // Take ownership of array and add to arrays map
         if (!m_Arrays.try_emplace(s.first, std::move(visitor.getArray())).second) {
