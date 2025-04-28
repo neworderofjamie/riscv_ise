@@ -6,7 +6,7 @@ from pyfenn import (BackendFeNNSim, EventContainer, Model, ProcessGroup,
 from models import LI, LIF, Linear
 
 from pyfenn import disassemble, init_logging
-from pyfenn.utils import get_array_view, get_latency_spikes, ceil_divide, load_and_push, zero_and_push
+from pyfenn.utils import get_array_view, get_latency_spikes, load_and_push, zero_and_push
 
 num_examples = 10000
 num_timesteps = 79
@@ -23,10 +23,6 @@ disassemble_code = False
 mnist.datasets_url = "https://storage.googleapis.com/cvdf-datasets/mnist/"
 mnist_spikes = get_latency_spikes(mnist.test_images())
 mnist_labels = mnist.test_labels().astype(np.int16)
-
-# **YUCK** implementation detail
-num_input_spike_words = ceil_divide(28 * 28, 32)
-num_input_spike_array_words = num_input_spike_words * num_timesteps
 
 init_logging()
 
@@ -89,7 +85,6 @@ output_v_avg_array, output_v_avg_view = get_array_view(runtime, output.v_avg,
 num_correct = 0
 for i in range(num_examples):
     # Copy data to array host pointe
-    start_word = i * num_input_spike_array_words
     input_spike_view[:] = mnist_spikes[i]
     input_spike_array.push_to_device();
 
