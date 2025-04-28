@@ -274,12 +274,11 @@ public:
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
-    std::vector<uint32_t> generateSimulationKernel(std::shared_ptr<const ProcessGroup> synapseProcessGroup, 
-                                                   std::shared_ptr<const ProcessGroup> neuronProcessGroup,
-                                                   std::shared_ptr<const ProcessGroup> copyProcessGroup,
+    std::vector<uint32_t> generateSimulationKernel(const std::vector<std::shared_ptr<const ProcessGroup>> &timestepProcessGroups, 
+                                                   const std::vector <std::shared_ptr<const ProcessGroup>> &endProcessGroups,
                                                    uint32_t numTimesteps, const Model &model) const;
 
-    std::vector<uint32_t> generateKernel(std::shared_ptr<const ProcessGroup> processGroup, const Model &model) const;
+    std::vector<uint32_t> generateKernel(const std::vector <std::shared_ptr<const ProcessGroup>> &processGroups, const Model &model) const;
 
     std::unique_ptr<ArrayBase> createArray(std::shared_ptr<const Variable> variable, 
                                            const Model::StateProcesses::mapped_type &processes,

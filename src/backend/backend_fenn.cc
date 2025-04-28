@@ -962,9 +962,8 @@ void BRAMArrayBase::serialiseDeviceObject(std::vector<std::byte> &bytes) const
 //----------------------------------------------------------------------------
 // BackendFeNN
 //------------------------------------------------------------------------
-std::vector<uint32_t> BackendFeNN::generateSimulationKernel(std::shared_ptr<const ProcessGroup> synapseProcessGroup, 
-                                                            std::shared_ptr<const ProcessGroup> neuronProcessGroup,
-                                                            std::shared_ptr<const ProcessGroup> copyProcessGroup,
+std::vector<uint32_t> BackendFeNN::generateSimulationKernel(const std::vector<std::shared_ptr<const ProcessGroup>> &timestepProcessGroups,
+                                                            const std::vector <std::shared_ptr<const ProcessGroup>> &endProcessGroups,
                                                             uint32_t numTimesteps, const Model &model) const
 {
     uint32_t readyFlagPtr = 0;
@@ -987,26 +986,25 @@ std::vector<uint32_t> BackendFeNN::generateSimulationKernel(std::shared_ptr<cons
             // Loop over time
             c.L(timeLoop);
             {
-                // Visit synapse process group
-                CodeGeneratorVisitor synapseVisitor(synapseProcessGroup, STime, c, vectorRegisterAllocator,
-                                                    scalarRegisterAllocator, model);
-
-                // Visit neuron process group
-                CodeGeneratorVisitor neuronVisitor(neuronProcessGroup, STime, c, vectorRegisterAllocator,
-                                                   scalarRegisterAllocator, model);
-
+                // Visit timestep process group
+                for (const auto &p : timestepProcessGroups) {
+                    CodeGeneratorVisitor visitor(p, STime, c, vectorRegisterAllocator,
+                                                 scalarRegisterAllocator, model);
+                }
+                
                 c.addi(*STime, *STime, 1);
                 c.bne(*STime, *STimeEnd, timeLoop);
             }
 
-            // Visit copy process group
-            CodeGeneratorVisitor copyVisitor(copyProcessGroup, nullptr, c, vectorRegisterAllocator,
+            // Visit end process group
+            for (const auto &p : endProcessGroups) {
+                CodeGeneratorVisitor visitor(p, nullptr, c, vectorRegisterAllocator,
                                              scalarRegisterAllocator, model);
-
+            }
         });
 }
 //------------------------------------------------------------------------
-std::vector<uint32_t> BackendFeNN::generateKernel(std::shared_ptr<const ProcessGroup> processGroup,
+std::vector<uint32_t> BackendFeNN::generateKernel(const std::vector <std::shared_ptr<const ProcessGroup>> &processGroups,
                                                   const Model &model) const
 {
     uint32_t readyFlagPtr = 0;
@@ -1015,9 +1013,11 @@ std::vector<uint32_t> BackendFeNN::generateKernel(std::shared_ptr<const ProcessG
         [=, &model]
         (CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator, ScalarRegisterAllocator &scalarRegisterAllocator)
         {
-            // Visit process group
-            CodeGeneratorVisitor visitor(processGroup, nullptr, c, vectorRegisterAllocator,
-                                         scalarRegisterAllocator, model);
+            // Visit process groups
+            for (const auto &p : processGroups) {
+                CodeGeneratorVisitor visitor(p, nullptr, c, vectorRegisterAllocator,
+                                             scalarRegisterAllocator, model);
+            }
         });
 }
 //------------------------------------------------------------------------

@@ -171,8 +171,8 @@ int main(int argc, char** argv)
 
 
     // Generate kernel
-    const auto code = backend.generateSimulationKernel(synapseUpdateProcesses, neuronUpdateProcesses, 
-                                                       copyProcesses, numTimesteps, model);
+    const auto code = backend.generateSimulationKernel({synapseUpdateProcesses, neuronUpdateProcesses},
+                                                       {copyProcesses}, numTimesteps, model);
     
     for(size_t i = 0; i < code.size(); i++){
         try {
