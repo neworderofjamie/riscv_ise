@@ -6,7 +6,7 @@ from pyfenn import (BackendFeNNSim, EventContainer, Model, ProcessGroup,
 from models import LI, LIF, Linear
 
 from pyfenn import disassemble, init_logging
-from utils import get_array_view, get_latency_spikes, ceil_divide, load_and_push, zero_and_push
+from pyfenn.utils import get_array_view, get_latency_spikes, ceil_divide, load_and_push, zero_and_push
 
 num_examples = 10000
 num_timesteps = 79
