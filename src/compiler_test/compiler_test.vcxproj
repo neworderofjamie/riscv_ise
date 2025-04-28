@@ -69,8 +69,8 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>backend_$(Configuration).lib;compiler_$(Configuration).lib;assembler_$(Configuration).lib;disassembler_$(Configuration).lib;ise_$(Configuration).lib;common_$(Configuration).lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(SolutionDir)lib</AdditionalLibraryDirectories>
+      <AdditionalDependencies>backend_$(Configuration).lib;compiler_$(Configuration).lib;assembler_$(Configuration).lib;disassembler_$(Configuration).lib;ise_$(Configuration).lib;common_$(Configuration).lib;genn_$(Configuration).lib;libffi_$(Configuration).lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(SolutionDir)lib;$(GENN_PATH)/lib</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -89,8 +89,8 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>backend_$(Configuration).lib;compiler_$(Configuration).lib;assembler_$(Configuration).lib;disassembler_$(Configuration).lib;ise_$(Configuration).lib;common_$(Configuration).lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(SolutionDir)lib</AdditionalLibraryDirectories>
+      <AdditionalDependencies>backend_$(Configuration).lib;compiler_$(Configuration).lib;assembler_$(Configuration).lib;disassembler_$(Configuration).lib;ise_$(Configuration).lib;common_$(Configuration).lib;genn_$(Configuration).lib;libffi_$(Configuration).lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(SolutionDir)lib;$(GENN_PATH)/lib</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

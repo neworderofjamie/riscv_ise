@@ -90,7 +90,8 @@
       <EnableCOMDATFolding Condition=" $(Configuration.Contains('Release')) ">true</EnableCOMDATFolding>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalDependencies>assembler_$(Configuration).lib;common_$(Configuration).lib;compiler_$(Configuration).lib;common_$(Configuration).lib;ise_$(Configuration).lib;genn_$(Configuration).lib;libffi_$(Configuration).lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(SolutionDir)lib;$(GENN_PATH)/lib</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories Condition=" !$(Configuration.Contains('DLL')) ">$(OutDir);$(GENN_PATH)/lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories Condition=" $(Configuration.Contains('DLL')) ">$(OutDir);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
