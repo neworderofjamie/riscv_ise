@@ -1,11 +1,12 @@
 import numpy as np
+import mnist
 
 from pyfenn import (BackendFeNNSim, EventContainer, Model, ProcessGroup,
                     Runtime, Shape)
 from models import LI, LIF, Linear
 
 from pyfenn import disassemble, init_logging
-from utils import get_array_view, ceil_divide, load_and_push, zero_and_push
+from utils import get_array_view, get_latency_spikes, ceil_divide, load_and_push, zero_and_push
 
 num_examples = 10000
 num_timesteps = 79
@@ -17,6 +18,11 @@ hidden_output_shape = [128, 10]
 device = False
 record = False
 disassemble_code = False
+
+# Load and preprocess MNIST
+mnist.datasets_url = "https://storage.googleapis.com/cvdf-datasets/mnist/"
+mnist_spikes = get_latency_spikes(mnist.test_images())
+mnist_labels = mnist.test_labels().astype(np.int16)
 
 # **YUCK** implementation detail
 num_input_spike_words = ceil_divide(28 * 28, 32)
@@ -42,7 +48,8 @@ model = Model([neuron_update_processes, synapse_update_processes])
 
 # Create backend and use to generate sim code
 backend = BackendFeNNSim()
-code = backend.generate_simulation_kernel(synapse_update_processes, neuron_update_processes, 
+code = backend.generate_simulation_kernel([synapse_update_processes, neuron_update_processes],  # Update synapses and then neurons every timestep
+                                          [],
                                           num_timesteps, model)
 
 # Disassemble if required
@@ -69,10 +76,6 @@ zero_and_push(output.v, runtime)
 zero_and_push(output.i, runtime)
 zero_and_push(output.v_avg, runtime)
 
-# Load data
-mnist_spikes = np.fromfile("mnist_spikes.bin", dtype=np.uint32)
-mnist_labels = np.fromfile("mnist_labels.bin", dtype=np.int16)
-
 # Set instructions
 runtime.set_instructions(code)
 
@@ -87,7 +90,7 @@ num_correct = 0
 for i in range(num_examples):
     # Copy data to array host pointe
     start_word = i * num_input_spike_array_words
-    input_spike_view[:] = mnist_spikes[start_word: start_word + num_input_spike_array_words]
+    input_spike_view[:] = mnist_spikes[i]
     input_spike_array.push_to_device();
 
     # Classify

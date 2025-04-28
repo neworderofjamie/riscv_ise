@@ -47,3 +47,22 @@ def seed_and_push(state, runtime: Runtime):
 
     # Push to device
     array.push_to_device()
+    
+def get_latency_spikes(images, tau=20.0, num_timesteps=79, threshold=51):
+    # Flatten images and convert intensity to time
+    images = np.reshape(images, (images.shape[0], -1))
+
+    padded_size = int(np.ceil(images.shape[1] / 32)) * 32
+
+    spikes = []
+    for i in images:
+        times = np.round(tau * np.log(i / (i - threshold))).astype(int)
+        times_in_range = (i > threshold) & (times < num_timesteps)
+
+        spike_event_histogram = np.zeros((num_timesteps, images.shape[1]), dtype=bool)
+        spike_event_histogram[times[times_in_range], times_in_range] = 1
+        spike_event_histogram = np.pad(spike_event_histogram, ((0, 0), (0, (padded_size - images.shape[1]))))
+        spikes.append(np.packbits(spike_event_histogram, axis=1, bitorder="little").flatten())
+
+    # Stack spikes and view as uint32
+    return np.stack(spikes).view(np.uint32)
