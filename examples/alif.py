@@ -23,7 +23,7 @@ class ALIF:
         decay_dtype = UnresolvedType("s0_15_sat_t")
         self.v = Variable(self.shape, v_dtype)
         self.a = Variable(self.shape, a_dtype)
-        self.i = Variable(self.shape, v_dtype, num_timesteps)
+        self.i = Variable(self.shape, UnresolvedType("int16_t"), num_timesteps)
         self.refrac_time = Variable(self.shape, UnresolvedType("int16_t"))
         self.process = NeuronUpdateProcess(
             """
@@ -72,14 +72,14 @@ copy_a = Copy(neurons.a, num_timesteps)
 
 # Group processes
 neuron_update_processes = ProcessGroup([neurons.process])
-copy_process = ProcessGroup([copy_v.process, copy_a.process])
+copy_processes = ProcessGroup([copy_v.process, copy_a.process])
 
 # Create model
-model = Model([neuron_update_processes, copy_process])
+model = Model([neuron_update_processes, copy_processes])
 
 # Create backend and use to generate sim code
 backend = BackendFeNNSim()
-code = backend.generate_simulation_kernel([neuron_update_processes, copy_process],
+code = backend.generate_simulation_kernel([neuron_update_processes, copy_processes],
                                           [],
                                           num_timesteps, model)
 
