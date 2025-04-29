@@ -147,11 +147,17 @@ PYBIND11_MODULE(_fenn, m)
         .def_property_readonly("value", &GeNN::Type::NumericValue::get);
 
     //------------------------------------------------------------------------
+    // fenn.ResolvedType
+    //------------------------------------------------------------------------
+    pybind11::class_<GeNN::Type::ResolvedType>(m, "ResolvedType");
+        
+    //------------------------------------------------------------------------
     // fenn.UnresolvedType
     //------------------------------------------------------------------------
     // **YUCK** actually in GeNN
     pybind11::class_<GeNN::Type::UnresolvedType>(m, "UnresolvedType")
-        .def(pybind11::init<const std::string&>());
+        .def(pybind11::init<const std::string&>())
+        .def(pybind11::init<const GeNN::Type::ResolvedType&>());
     
     //------------------------------------------------------------------------
     // fenn.Shape
@@ -252,6 +258,16 @@ PYBIND11_MODULE(_fenn, m)
              pybind11::arg("seed"), pybind11::arg("name") = "")
         
         .def_property_readonly("seed", &RNGInitProcess::getSeed);
+
+    //------------------------------------------------------------------------
+    // fenn.CopyProcess
+    //------------------------------------------------------------------------
+    pybind11::class_<CopyProcess, Process, std::shared_ptr<CopyProcess>>(m, "CopyProcess")
+        .def(pybind11::init(&CopyProcess::create),
+             pybind11::arg("source"), pybind11::arg("target"), pybind11::arg("name") = "")
+        
+        .def_property_readonly("source", &CopyProcess::getSource)
+        .def_property_readonly("target", &CopyProcess::getTarget);
 
     //------------------------------------------------------------------------
     // fenn.ProcessGroup
