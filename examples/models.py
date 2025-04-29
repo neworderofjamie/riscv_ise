@@ -1,6 +1,6 @@
 import numpy as np
 
-from pyfenn import (EventContainer, EventPropagationProcess,
+from pyfenn import (CopyProcess, EventContainer, EventPropagationProcess,
                     NeuronUpdateProcess, NumericValue, Parameter,
                     RNGInitProcess, Shape, UnresolvedType, Variable)
 
@@ -9,6 +9,13 @@ class RNGInit:
         self.seed = Variable(Shape([64]), UnresolvedType("int16_t"))
         self.process = RNGInitProcess(self.seed)
 
+class Copy:
+    def __init__(self, source: Variable):
+        self.target = Variable(source.shape, 
+                               UnresolvedType(source.type),
+                               f"{source.name}_copy")
+        self.process = CopyProcess(source, self.target)
+        
 class LIF:
     def __init__(self, shape, tau_m: float, tau_refrac: int, v_thresh: float,
                  record_spikes: bool = False, dtype = "s10_5_sat_t"):
@@ -69,3 +76,4 @@ class Linear:
         self.weight = Variable(self.shape, weight_dtype)
         self.process = EventPropagationProcess(source_events, self.weight,
                                                target_var)
+

@@ -3,7 +3,7 @@ import mnist
 
 from pyfenn import (BackendFeNNSim, EventContainer, Model, ProcessGroup,
                     Runtime, Shape)
-from models import LI, LIF, Linear
+from models import Copy, LI, LIF, Linear
 
 from pyfenn import disassemble, init_logging
 from pyfenn.utils import get_array_view, get_latency_spikes, load_and_push, zero_and_push
@@ -35,17 +35,20 @@ output = LI(output_shape, 20.0, num_timesteps, "s9_6_sat_t")
 input_hidden = Linear(input_spikes, hidden.i, "s10_5_sat_t")
 hidden_output = Linear(hidden.out_spikes, output.i, "s9_6_sat_t")
 
+output_copy = Copy(output.v_avg)
+
 # Group processes
 neuron_update_processes = ProcessGroup([hidden.process, output.process])
 synapse_update_processes = ProcessGroup([input_hidden.process, hidden_output.process])
+copy_processes = ProcessGroup([output_copy.process])
 
 # Create model
-model = Model([neuron_update_processes, synapse_update_processes])
+model = Model([neuron_update_processes, synapse_update_processes, copy_processes])
 
 # Create backend and use to generate sim code
 backend = BackendFeNNSim()
 code = backend.generate_simulation_kernel([synapse_update_processes, neuron_update_processes],  # Update synapses and then neurons every timestep
-                                          [],
+                                          [copy_processes],
                                           num_timesteps, model)
 
 # Disassemble if required
@@ -80,7 +83,8 @@ input_spike_array, input_spike_view = get_array_view(runtime, input_spikes,
                                                      np.uint32)
 hidden_spike_array = runtime.get_array(hidden.out_spikes)
 
-output_v_avg_array, output_v_avg_view = get_array_view(runtime, output.v_avg,
+output_v_avg_array, _ = get_array_view(runtime, output.v_avg, np.int16)
+output_v_avg_copy_array, output_v_avg_copy_view = get_array_view(runtime, output_copy.target,
                                                        np.int16)
 num_correct = 0
 for i in range(num_examples):
@@ -99,15 +103,14 @@ for i in range(num_examples):
     #                 hiddenShape.getNumNeurons(), numTimesteps);
 
     # Copy output V sum from device
-    output_v_avg_array.pull_from_device();
+    output_v_avg_copy_array.pull_from_device();
 
     # Determine if output is correct
-    classification = np.argmax(output_v_avg_view)
+    classification = np.argmax(output_v_avg_copy_view)
     if classification == mnist_labels[i]:
         num_correct += 1
 
-    # Zero output and push
-    output_v_avg_view[:] = 0
+    # Push ORIGINAL output back to device (zeroing)
     output_v_avg_array.push_to_device()
 
 print(f"{num_correct} / {num_examples} correct {100.0 * (num_correct / num_examples)}%")
