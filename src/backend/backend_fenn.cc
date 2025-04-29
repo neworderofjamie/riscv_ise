@@ -303,6 +303,8 @@ private:
 
     virtual void visit(std::shared_ptr<const NeuronUpdateProcess> neuronUpdateProcess)
     {
+        auto &scalarRegisterAllocator = m_ScalarRegisterAllocator.get();
+        auto &vectorRegisterAllocator = m_VectorRegisterAllocator.get();
         auto &c = m_CodeGenerator.get();
 
         // Get fields associated with this process
@@ -325,6 +327,15 @@ private:
 
         std::unordered_map<std::shared_ptr<const Variable>, ScalarRegisterAllocator::RegisterPtr> varBufferRegisters;
         {
+            // If any variables have buffering, calculate stride in bytes
+            // **TODO** make set of non-1 bufferings and pre-multiply time by this
+            ALLOCATE_SCALAR(SNumVariableBytes);
+            if (std::any_of(neuronUpdateProcess->getVariables().cbegin(), neuronUpdateProcess->getVariables().cend(),
+                            [](const auto e) { return e.second->getNumBufferTimesteps() != 1; }))
+            {
+                c.li(*SNumVariableBytes, ceilDivide(neuronUpdateProcess->getNumNeurons(), 32) * 64);
+            }
+
             // Loop through neuron variables
             for(const auto &v : neuronUpdateProcess->getVariables()) {
                 // **TODO** check data structure to determine how this variable is implemented
@@ -338,6 +349,15 @@ private:
 
                 // Generate code to load address
                 c.lw(*reg, Reg::X0, stateFields.at(v.second));
+
+                // If there are multiple timesteps, multiply timestep by stride and add to register
+                // **TODO** modulus number of buffer timesteps/whatever else for delays
+                if (v.second->getNumBufferTimesteps() != 1) {
+                    ALLOCATE_SCALAR(STmp);
+
+                    c.mul(*STmp, *m_TimeRegister, *SNumVariableBytes);
+                    c.add(*reg, *reg, *STmp);
+                }
             }
         }
 
@@ -345,12 +365,12 @@ private:
         {
             // If any output events have buffering, calculate stride in bytes
             // **TODO** make set of non-1 bufferings and pre-multiply time by this
-            const auto SNumEventBytes = m_ScalarRegisterAllocator.get().getRegister("SNumEventBytes X");;
+            ALLOCATE_SCALAR(SNumEventBytes);
             if(std::any_of(neuronUpdateProcess->getOutputEvents().cbegin(), neuronUpdateProcess->getOutputEvents().cend(),
                            [](const auto e){ return e.second->getNumBufferTimesteps() != 1; }))
             {
                 c.li(*SNumEventBytes, ceilDivide(neuronUpdateProcess->getNumNeurons(), 32) * 4);
-            }   
+            }
 
             // Loop through neuron event outputs
             for(const auto &e : neuronUpdateProcess->getOutputEvents()) {
@@ -366,7 +386,7 @@ private:
                 // If there are multiple timesteps, multiply timestep by stride and add to register
                 // **TODO** modulus number of buffer timesteps/whatever else for delays
                 if (e.second->getNumBufferTimesteps() != 1) {
-                    const auto STmp = m_ScalarRegisterAllocator.get().getRegister("STmp X");
+                    ALLOCATE_SCALAR(STmp);
                     
                     c.mul(*STmp, *m_TimeRegister, *SNumEventBytes);
                     c.add(*reg, *reg, *STmp);
@@ -495,6 +515,7 @@ private:
 
     virtual void visit(std::shared_ptr<const RNGInitProcess> rngInitProcess)
     {
+        auto &scalarRegisterAllocator = m_ScalarRegisterAllocator.get();
         auto &c = m_CodeGenerator.get();
 
         //**TODO** check seed shape
@@ -503,14 +524,14 @@ private:
         const auto &stateFields = m_Model.get().getProcessFields().at(rngInitProcess);
 
         // Allocate scalar register to hold address of seed buffer
-        const auto reg = m_ScalarRegisterAllocator.get().getRegister("SeedBuffer X");
-        
+        ALLOCATE_SCALAR(SReg);
+
         // Generate code to load address of seed
-        c.lw(*reg, Reg::X0, stateFields.at(rngInitProcess->getSeed()));
+        c.lw(*SReg, Reg::X0, stateFields.at(rngInitProcess->getSeed()));
 
         // Load seed into RNG registers
-        c.vloadr0(*reg);
-        c.vloadr1(*reg, 64);
+        c.vloadr0(*SReg);
+        c.vloadr1(*SReg, 64);
     }
 
     virtual void visit(std::shared_ptr<const CopyProcess> copyProcess)
@@ -532,18 +553,24 @@ private:
         // Labels
         Label vectorLoop;
 
-        // Load source start address
+        // Load source and target start address
         c.lw(*SVectorBuffer, Reg::X0, stateFields.at(copyProcess->getSource()));
+        c.lw(*SDataBuffer, Reg::X0, stateFields.at(copyProcess->getTarget()));
+
         {
             // Calculate vector-padded size in bytes and add to get end address
             ALLOCATE_SCALAR(STemp);
             c.li(*STemp, 2 * padSize(copyProcess->getSource()->getShape().getFlattenedSize(), 32));
             c.add(*SVectorBufferEnd, *SVectorBuffer, *STemp);
+
+            // If target has buffering, multiply timestep by stride and add to target buffer pointer
+            if (copyProcess->getTarget()->getNumBufferTimesteps() != 1) {
+                ALLOCATE_SCALAR(STmp2);
+                c.mul(*STmp2, *m_TimeRegister, *STemp);
+                c.add(*SDataBuffer, *SDataBuffer, *STmp2);
+            }
         }
-
-        // SDataBuffer = scalarPtr
-        c.lw(*SDataBuffer, Reg::X0, stateFields.at(copyProcess->getTarget()));
-
+        
         // Loop over vectors
         c.L(vectorLoop);
         {
@@ -1034,7 +1061,7 @@ std::unique_ptr<ArrayBase> BackendFeNN::createArray(std::shared_ptr<const Variab
 
     // Multiple padded dimensions together
     const size_t count = std::accumulate(varDims.cbegin(), varDims.cend(), 
-                                         1, std::multiplies<size_t>());
+                                         1, std::multiplies<size_t>()) * variable->getNumBufferTimesteps();
 
     // Create URAM array if variable can be implemented there
     VariableImplementerVisitor visitor(variable, processes);

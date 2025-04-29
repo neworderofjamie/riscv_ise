@@ -90,6 +90,16 @@ EventPropagationProcess::EventPropagationProcess(Private, std::shared_ptr<const 
                                  + " is not compatible with event propagation process with " 
                                  + std::to_string(m_NumTargetNeurons) + " target neurons");
     }
+
+    if (m_Weight->getNumBufferTimesteps() != 1) {
+        throw std::runtime_error("Weight has more than 1 buffer timestep which isn't "
+                                 "currently supported by event propagation processes");
+    }
+
+    if (m_Target->getNumBufferTimesteps() != 1) {
+        throw std::runtime_error("Target has more than 1 buffer timestep which isn't "
+                                 "currently supported by event propagation processes");
+    }
     
 }
 
@@ -123,7 +133,12 @@ CopyProcess::CopyProcess(Private, std::shared_ptr<const Variable> source,
         throw std::runtime_error("Copy process requires source and target with same shape");
     }
 
-    if(m_Source->getType() != m_Target->getType()) {
+    if (m_Source->getType() != m_Target->getType()) {
         throw std::runtime_error("Copy process requires source and target with same shape");
+    }
+
+    if (m_Source->getNumBufferTimesteps() != 1) {
+        throw std::runtime_error("Source has more than 1 buffer timestep which "
+                                 "isn't currently supported by copy processes");
     }
 }

@@ -212,7 +212,7 @@ PYBIND11_MODULE(_fenn, m)
     pybind11::class_<Variable, State, std::shared_ptr<Variable>>(m, "Variable")
         .def(pybind11::init(&Variable::create),
              pybind11::arg("shape"), pybind11::arg("type"),
-             pybind11::arg("name") = "")
+             pybind11::arg("num_buffer_timesteps") = 1, pybind11::arg("name") = "")
         
         .def_property_readonly("shape", &Variable::getShape)
         .def_property_readonly("type", &Variable::getType);

@@ -10,9 +10,10 @@ class RNGInit:
         self.process = RNGInitProcess(self.seed)
 
 class Copy:
-    def __init__(self, source: Variable):
+    def __init__(self, source: Variable, num_timesteps: int = 1):
         self.target = Variable(source.shape, 
                                UnresolvedType(source.type),
+                               num_timesteps,
                                f"{source.name}_copy")
         self.process = CopyProcess(source, self.target)
         

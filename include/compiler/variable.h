@@ -17,8 +17,10 @@
 class Variable : public AcceptableModelComponent<Variable, State>
 {
 public:
-    Variable(Private, const Shape &shape, const GeNN::Type::UnresolvedType &type, const std::string &name)
-    :   AcceptableModelComponent<Variable, State>(name), m_Shape(shape), m_Type(type.resolve({}))
+    Variable(Private, const Shape &shape, const GeNN::Type::UnresolvedType &type, 
+             size_t numBufferTimesteps, const std::string &name)
+    :   AcceptableModelComponent<Variable, State>(name), m_Shape(shape), 
+        m_Type(type.resolve({})), m_NumBufferTimesteps(numBufferTimesteps)
     {}
 
     //------------------------------------------------------------------------
@@ -26,13 +28,15 @@ public:
     //------------------------------------------------------------------------
     const auto &getShape() const{ return m_Shape; }
     const auto &getType() const{ return m_Type; }
+    size_t getNumBufferTimesteps() const { return m_NumBufferTimesteps; }
 
     //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------
-    static std::shared_ptr<Variable> create(const Shape &shape, const GeNN::Type::UnresolvedType &type, const std::string &name = "")
+    static std::shared_ptr<Variable> create(const Shape &shape, const GeNN::Type::UnresolvedType &type, 
+                                            size_t numBufferTimesteps = 1, const std::string &name = "")
     {
-        return std::make_shared<Variable>(Private(), shape, type, name);
+        return std::make_shared<Variable>(Private(), shape, type, numBufferTimesteps, name);
     }
 
 private:
@@ -41,4 +45,5 @@ private:
     //------------------------------------------------------------------------
     Shape m_Shape;
     GeNN::Type::ResolvedType m_Type;
+    size_t m_NumBufferTimesteps;
 };
