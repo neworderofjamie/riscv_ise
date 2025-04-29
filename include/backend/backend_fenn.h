@@ -27,7 +27,7 @@ class ProcessGroup;
 class StateBase
 {
 public:
-    StateBase() = default;
+    StateBase();
     virtual ~StateBase() = default;
     StateBase(const StateBase &) = delete;
 
@@ -46,12 +46,15 @@ public:
     const auto &getURAMAllocator() const{ return m_URAMAllocator; }
     auto &getURAMAllocator(){ return m_URAMAllocator; }
 
+    size_t getReadyFlagPointer() const { return m_ReadyFlagPointer; }
+
 private:
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
     BRAMAllocator m_BRAMAllocator;
     URAMAllocator m_URAMAllocator;
+    size_t m_ReadyFlagPointer;
 };
 
 //----------------------------------------------------------------------------

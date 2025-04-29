@@ -952,6 +952,14 @@ private:
 }
 
 //--------------------------------------------------------------------------
+// StateBase
+//--------------------------------------------------------------------------
+StateBase::StateBase()
+:   m_ReadyFlagPointer(m_BRAMAllocator.allocate(4))
+{
+}
+
+//--------------------------------------------------------------------------
 // ArrayBase
 //--------------------------------------------------------------------------
 void ArrayBase::memsetHostPointer(int value)
@@ -993,6 +1001,7 @@ std::vector<uint32_t> BackendFeNN::generateSimulationKernel(const std::vector<st
                                                             const std::vector <std::shared_ptr<const ProcessGroup>> &endProcessGroups,
                                                             uint32_t numTimesteps, const Model &model) const
 {
+    // **YUCK** first 4 bytes of BRAM always reserved for ready flag in StateBase constructor
     uint32_t readyFlagPtr = 0;
     return AssemblerUtils::generateStandardKernel(
         shouldGenerateSimulationKernels(), readyFlagPtr,

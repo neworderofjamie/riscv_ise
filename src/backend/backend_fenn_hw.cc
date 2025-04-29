@@ -20,10 +20,10 @@
 //------------------------------------------------------------------------
 namespace
 {
-class SimState : public StateBase
+class HWState : public StateBase
 {
 public:
-    SimState() : m_DMABufferAllocator(m_DMABuffer)
+    HWState() : m_DMABufferAllocator(m_DMABuffer)
     {}
 
     //------------------------------------------------------------------------
@@ -41,12 +41,11 @@ public:
         LOGD << "Running";
         
         // Wait until ready flag
-        // **TODO** ready flag pointer
         m_Device.waitOnNonZero(0);
         LOGD << "Done";
 
         // Disable core
-        m_Device.setEnabled(true);
+        m_Device.setEnabled(false);
     }
 
     //------------------------------------------------------------------------
@@ -78,7 +77,7 @@ private:
 class URAMArray : public URAMArrayBase
 {
 public:
-     URAMArray(const GeNN::Type::ResolvedType &type, size_t count, SimState *state)
+     URAMArray(const GeNN::Type::ResolvedType &type, size_t count, HWState *state)
     :   URAMArrayBase(type, count), m_State(state)
     {
         // Allocate if count is specified
@@ -138,7 +137,7 @@ public:
 
 private:
     std::optional<size_t> m_DMABufferOffset;
-    SimState *m_State;
+    HWState *m_State;
 };
 
 //------------------------------------------------------------------------
@@ -149,7 +148,7 @@ private:
 class BRAMArray : public BRAMArrayBase
 {
 public:
-     BRAMArray(const GeNN::Type::ResolvedType &type, size_t count, SimState *state)
+     BRAMArray(const GeNN::Type::ResolvedType &type, size_t count, HWState *state)
     :   BRAMArrayBase(type, count), m_State(state)
     {
         // Allocate if count is specified
@@ -205,7 +204,7 @@ public:
     }
 
 private:
-     SimState *m_State;
+     HWState *m_State;
 };
 }
 
@@ -216,21 +215,21 @@ private:
 std::unique_ptr<ArrayBase> BackendFeNNHW::createURAMArray(const GeNN::Type::ResolvedType &type, size_t count,
                                                            StateBase *state) const
 {
-    return std::make_unique<::URAMArray>(type, count, static_cast<SimState*>(state));
+    return std::make_unique<::URAMArray>(type, count, static_cast<HWState*>(state));
 }
 //------------------------------------------------------------------------
 std::unique_ptr<ArrayBase> BackendFeNNHW::createBRAMArray(const GeNN::Type::ResolvedType &type, size_t count,
                                                            StateBase *state) const
 {
-    return std::make_unique<::BRAMArray>(type, count, static_cast<SimState*>(state));
+    return std::make_unique<::BRAMArray>(type, count, static_cast<HWState*>(state));
 }
 //------------------------------------------------------------------------
 std::unique_ptr<IFieldArray> BackendFeNNHW::createFieldArray(const Model &model, StateBase *state) const
 {
-    return std::make_unique<::BRAMFieldArray<BRAMArray>>(GeNN::Type::Uint32, model.getNumFields(), static_cast<SimState*>(state));
+    return std::make_unique<::BRAMFieldArray<BRAMArray>>(GeNN::Type::Uint32, model.getNumFields(), static_cast<HWState*>(state));
 }
 //------------------------------------------------------------------------
 std::unique_ptr<StateBase> BackendFeNNHW::createState() const
 {
-    return std::make_unique<SimState>();
+    return std::make_unique<HWState>();
 }
