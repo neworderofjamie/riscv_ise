@@ -739,9 +739,8 @@ private:
             generateVMOV(destinationReg, valueReg);
         }
         else if(token.type == Token::Type::STAR_EQUAL) {
-            // **TODO** rounding
-            const int shift = getConversionShift(assigneeType, assigneeType, valueType);
-            m_Environment.get().getCodeGenerator().vmul(shift, destinationReg, assigneeReg, valueReg);
+            m_Environment.get().getCodeGenerator().vmul(valueType.getNumeric().fixedPoint.value_or(0),
+                                                        destinationReg, assigneeReg, valueReg);
         }
         else if(token.type == Token::Type::PLUS_EQUAL) {
             checkConversion(assigneeType, valueType);
