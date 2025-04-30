@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-from pyfenn import (BackendFeNNSim, EventContainer, Model, NeuronUpdateProcess,
+from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer, Model, NeuronUpdateProcess,
                     NumericValue, Parameter, PlogSeverity, ProcessGroup, 
                     Runtime, Shape, UnresolvedType, Variable)
 from models import Copy
@@ -9,10 +9,11 @@ from models import Copy
 from pyfenn import disassemble, init_logging
 from pyfenn.utils import get_array_view, zero_and_push
 
+device = False
 num_timesteps = 1000
 background_rate = 0.5
 rate = 7846 / 1370
-disassemble_code = True
+disassemble_code = False
 
 class ALIF:
     def __init__(self, shape, tau_m: float, tau_a: float, tau_refrac: int,
@@ -29,7 +30,7 @@ class ALIF:
             """
             V = (Alpha * V) + (Weight * I);
             A *= Rho;
-            
+
             if (RefracTime > 0) {
                RefracTime -= 1;
             }
@@ -46,7 +47,7 @@ class ALIF:
              "Weight": Parameter(NumericValue(weight), v_dtype),
              "TauRefrac": Parameter(NumericValue(tau_refrac), UnresolvedType("int16_t"))},
             {"V": self.v, "A": self.a, "I": self.i, "RefracTime": self.refrac_time})
-            
+
 # Generate poisson data with two periods of average firing interspersed by background
 data = np.zeros(num_timesteps)
 data[0:] = np.random.poisson(rate, num_timesteps)
@@ -63,7 +64,7 @@ data_bad[4000:5000] = np.random.poisson(rate * 1.7, 1000)
 repeated_data = np.repeat(data[:,None], 32, axis=1).astype(np.int16)
 #repeated_data_bad = np.repeat(data_bad[:,None], 32, axis=1).astype(np.int16)
 
-init_logging(PlogSeverity.DEBUG)
+init_logging()
 
 # Model
 neurons = ALIF([32], 20.0, 2000, 5, 0.6, 0.0174, 0.01, num_timesteps)
@@ -78,7 +79,7 @@ copy_processes = ProcessGroup([copy_v.process, copy_a.process])
 model = Model([neuron_update_processes, copy_processes])
 
 # Create backend and use to generate sim code
-backend = BackendFeNNSim()
+backend = BackendFeNNHW() if device else BackendFeNNSim()
 code = backend.generate_simulation_kernel([neuron_update_processes, copy_processes],
                                           [],
                                           num_timesteps, model)

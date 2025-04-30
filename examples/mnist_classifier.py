@@ -1,7 +1,7 @@
 import numpy as np
 import mnist
 
-from pyfenn import (BackendFeNNSim, EventContainer, Model, ProcessGroup,
+from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer, Model, ProcessGroup,
                     Runtime, Shape)
 from models import Copy, LI, LIF, Linear
 
@@ -46,7 +46,7 @@ copy_processes = ProcessGroup([output_copy.process])
 model = Model([neuron_update_processes, synapse_update_processes, copy_processes])
 
 # Create backend and use to generate sim code
-backend = BackendFeNNSim()
+backend = BackendFeNNHW() if device else BackendFeNNSim()
 code = backend.generate_simulation_kernel([synapse_update_processes, neuron_update_processes],  # Update synapses and then neurons every timestep
                                           [copy_processes],
                                           num_timesteps, model)
