@@ -19,7 +19,7 @@ class Visitor : public ModelComponentVisitor
 public:
     Visitor(const std::vector<std::shared_ptr<const ProcessGroup>> processGroups, 
             Model::ProcessFields &processFields, Model::StateProcesses &stateProcesses)
-    :   m_ProcessFields(processFields), m_StateProcesses(stateProcesses), m_FieldOffset(0)
+    :   m_ProcessFields(processFields), m_StateProcesses(stateProcesses), m_FieldOffset(4)
     {
         // Loop through all process groups and visit
         for(const auto &g : processGroups)  {
