@@ -136,7 +136,7 @@ int main(int argc, char** argv)
     // Output neurons
     const auto outputV = Variable::create(outputShape, GeNN::Type::S9_6Sat);
     const auto outputI = Variable::create(outputShape, GeNN::Type::S9_6Sat);
-    const auto outputVAvg = Variable::create(outputShape, GeNN::Type::S9_6Sat, "output v avg");
+    const auto outputVAvg = Variable::create(outputShape, GeNN::Type::S9_6Sat, 1, "output v avg");
     const auto outputBias = Variable::create(outputShape, GeNN::Type::S9_6Sat);
     const auto output = NeuronUpdateProcess::create(
         "V = (Alpha * V) + I + Bias;\n"
@@ -155,7 +155,7 @@ int main(int argc, char** argv)
     const auto hiddenOutput = EventPropagationProcess::create(hiddenSpikes, hiddenOutputWeight, outputI);
 
     // Output sum copy
-    const auto outputVAvgCopy = Variable::create(outputShape, GeNN::Type::S9_6Sat, "output v avg copy");
+    const auto outputVAvgCopy = Variable::create(outputShape, GeNN::Type::S9_6Sat, 1, "output v avg copy");
     const auto copyOutputSum = CopyProcess::create(outputVAvg, outputVAvgCopy);
 
     // Group processes
