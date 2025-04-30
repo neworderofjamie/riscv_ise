@@ -126,7 +126,9 @@ public:
     {
         // **YUCK** memset seems to do something that doens't play
         // nicely with mmap'd memory and causes bus error
-        std::fill_n(getHostPointer(), getSizeBytes(), value);
+        for (size_t i = 0; i < getSizeBytes(); i++) {
+            getHostPointer()[i] = value;
+        }
     }
 
     //! Copy entire array from device
