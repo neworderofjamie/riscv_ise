@@ -360,25 +360,19 @@ private:
         const auto copyReg = m_VectorRegisterAllocator.getRegister();
         generateVMOV(*copyReg, *vecTargetReg);
         
-        // If target is integer, load integer 1
-        const auto oneReg = m_VectorRegisterAllocator.getRegister();
-        if(targetType.isNumeric() && targetType.getNumeric().isIntegral) {
-            m_Environment.get().getCodeGenerator().vlui(*oneReg, 1);
-        }
-        // Otherwise, if target is fixed point, load fixed-point 1
-        else if(targetType.isNumeric() && targetType.getNumeric().fixedPoint) {
-            m_Environment.get().getCodeGenerator().vlui(*oneReg, 1u << targetType.getNumeric().fixedPoint.value());
-        }
-        else {
-            throw std::runtime_error("Unsupported PostfixIncDec target");
-        }
+        const auto &opToken = postfixIncDec.getOperator();
+        if (m_MaskRegister) {
+            // Generate increment/decrement into temporary register
+            // **TODO** if value reg is reusable, no real need for extra register
+            const auto tempReg = m_VectorRegisterAllocator.getRegister();
+            generateIncDec(opToken, *tempReg, *vecTargetReg, targetType);
 
-        // Add one to target register
-        if(postfixIncDec.getOperator().type == Token::Type::PLUS_PLUS) {
-            m_Environment.get().getCodeGenerator().vadd(*vecTargetReg, *vecTargetReg, *oneReg);
+            // Conditionally assign back to assignee register
+            m_Environment.get().getCodeGenerator().vsel(*vecTargetReg, *m_MaskRegister, *tempReg);
         }
+        // Otherwise, generate assignement directly into assignee register
         else {
-            m_Environment.get().getCodeGenerator().vsub(*vecTargetReg, *vecTargetReg, *oneReg);
+            generateIncDec(opToken, *vecTargetReg, *vecTargetReg, targetType);
         }
 
         // Return copy of initial value
@@ -391,27 +385,21 @@ private:
         const auto vecTargetReg = getExpressionVectorRegister(prefixIncDec.getTarget());
         const auto &targetType = m_ResolvedTypes.at(prefixIncDec.getTarget());
 
-        // If target is integer, load integer 1
-        const auto oneReg = m_VectorRegisterAllocator.getRegister();
-        if(targetType.isNumeric() && targetType.getNumeric().isIntegral) {
-            m_Environment.get().getCodeGenerator().vlui(*oneReg, 1);
+        const auto &opToken = prefixIncDec.getOperator();
+        if (m_MaskRegister) {
+            // Generate increment/decrement into temporary register
+            // **TODO** if value reg is reusable, no real need for extra register
+            const auto tempReg = m_VectorRegisterAllocator.getRegister();
+            generateIncDec(opToken, *tempReg, *vecTargetReg, targetType);
+
+            // Conditionally assign back to assignee register
+            m_Environment.get().getCodeGenerator().vsel(*vecTargetReg, *m_MaskRegister, *tempReg);
         }
-        // Otherwise, if target is fixed point, load fixed-point 1
-        else if(targetType.isNumeric() && targetType.getNumeric().fixedPoint) {
-            m_Environment.get().getCodeGenerator().vlui(*oneReg, 1u << targetType.getNumeric().fixedPoint.value());
-        }
+        // Otherwise, generate assignement directly into assignee register
         else {
-            throw std::runtime_error("Unsupported PrefixIncDec target");
+            generateIncDec(opToken, *vecTargetReg, *vecTargetReg, targetType);
         }
 
-        // Add one to target register and set as non-reusable result
-        // **NOTE** because this directly modifies a variable, we don't want its register being reused
-        if(prefixIncDec.getOperator().type == Token::Type::PLUS_PLUS) {
-            m_Environment.get().getCodeGenerator().vadd(*vecTargetReg, *vecTargetReg, *oneReg);
-        }
-        else {
-            m_Environment.get().getCodeGenerator().vsub(*vecTargetReg, *vecTargetReg, *oneReg);
-        }
         setExpressionRegister(vecTargetReg, false);
     }
 
@@ -775,6 +763,42 @@ private:
         }
         else {
             throw std::runtime_error("Unsupported assignement operator '" + token.lexeme + "'");
+        }
+    }
+
+    void generateIncDec(const Token &token, VReg destinationReg, VReg targetReg, const Type::ResolvedType &targetType)
+    {
+        // If target is integer, load integer 1
+        const auto oneReg = m_VectorRegisterAllocator.getRegister();
+        if (targetType.isNumeric() && targetType.getNumeric().isIntegral) {
+            m_Environment.get().getCodeGenerator().vlui(*oneReg, 1);
+        }
+        // Otherwise, if target is fixed point, load fixed-point 1
+        else if (targetType.isNumeric() && targetType.getNumeric().fixedPoint) {
+            m_Environment.get().getCodeGenerator().vlui(*oneReg, 1u << targetType.getNumeric().fixedPoint.value());
+        }
+        else {
+            throw std::runtime_error("Unsupported increment/decrement target type");
+        }
+
+        if (token.type == Token::Type::PLUS_PLUS) {
+            if (targetType.getNumeric().isSaturating) {
+                m_Environment.get().getCodeGenerator().vadd_s(destinationReg, targetReg, *oneReg);
+            }
+            else {
+                m_Environment.get().getCodeGenerator().vadd(destinationReg, targetReg, *oneReg);
+            }
+        }
+        else if (token.type == Token::Type::MINUS_MINUS) {
+            if (targetType.getNumeric().isSaturating) {
+                m_Environment.get().getCodeGenerator().vsub_s(destinationReg, targetReg, *oneReg);
+            }
+            else {
+                m_Environment.get().getCodeGenerator().vsub(destinationReg, targetReg, *oneReg);
+            }
+        }
+        else {
+            throw std::runtime_error("Unsupported increment/decrement operator '" + token.lexeme + "'");
         }
     }
 
