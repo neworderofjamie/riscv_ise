@@ -15,7 +15,7 @@ def ceil_divide(numerator, denominator):
 def load_and_push(filename: str, state, runtime: Runtime):
     # Load data from file
     data = np.fromfile(filename, dtype=np.uint8)
-    
+
     # Get array and view
     array, view = get_array_view(runtime, state, np.uint8)
     assert array.host_view.nbytes == data.nbytes
@@ -29,9 +29,12 @@ def load_and_push(filename: str, state, runtime: Runtime):
 def zero_and_push(state, runtime: Runtime):
     # Get array and view
     array, view = get_array_view(runtime, state, np.uint8)
- 
+
     # Zero
-    view[:] = 0
+    # **HACK** assigning to the slice causes bus errors with DMA buffer
+    for i in range(len(view)):
+        view[i] = 0
+    #view[:] = 0
 
     # Push to device
     array.push_to_device()
@@ -40,14 +43,14 @@ def zero_and_push(state, runtime: Runtime):
 def seed_and_push(state, runtime: Runtime):
     # Get array and view
     array, view = get_array_view(runtime, state, np.int16)
- 
+
     # Zero
     int16_info = np.iinfo(np.int16)
     view[:] = np.random.randint(int16_info.min, int16_info.max, 64, dtype=np.int16)
 
     # Push to device
     array.push_to_device()
-    
+
 def get_latency_spikes(images, tau=20.0, num_timesteps=79, threshold=51):
     # Flatten images and convert intensity to time
     images = np.reshape(images, (images.shape[0], -1))
