@@ -45,7 +45,7 @@ void recordSpikes(const std::string &filename, ArrayBase *spikeArray,
 {
     spikeArray->pullFromDevice();
     const uint32_t *spikeRecording = spikeArray->getHostPointer<uint32_t>();
-            
+
     const size_t numSpikeWords = ceilDivide(numNeurons, 32);
     std::ofstream spikeFile(filename);
     for(size_t t = 0; t < numTimesteps; t++) {
@@ -99,14 +99,16 @@ int main(int argc, char** argv)
     plog::init(plog::info, &consoleAppender);
 
     bool device = false;
+    bool shouldDisassemble = false;
     bool record = false;
     size_t numExamples = 10000;
 
     CLI::App app{"Latency MNIST inference"};
     app.add_option("-n,--num-examples", numExamples, "How many examples to simulate");
     app.add_flag("-d,--device", device, "Whether model is run on device rather than simulator");
+    app.add_flag("-a,--disassemble", shouldDisassemble, "Whether model disassembled code is printed");
     app.add_flag("-r,--record", record, "Whether spikes should be recorded?");
-    
+
     CLI11_PARSE(app, argc, argv);
 
     // Input spikes
@@ -133,7 +135,7 @@ int main(int argc, char** argv)
          {"TauRefrac", Parameter::create(5, GeNN::Type::Int16)}},
         {{"V", hiddenV}, {"I", hiddenI}, {"RefracTime", hiddenRefracTime}},
         {{"Spike", hiddenSpikes}});
-    
+
     // Output neurons
     const auto outputV = Variable::create(outputShape, GeNN::Type::S9_6Sat);
     const auto outputI = Variable::create(outputShape, GeNN::Type::S9_6Sat);
@@ -146,7 +148,7 @@ int main(int argc, char** argv)
         {{"Alpha", Parameter::create(std::exp(-1.0 / 20.0), GeNN::Type::S9_6)}, 
          {"VAvgScale", Parameter::create(1.0 / (numTimesteps / 2), GeNN::Type::S9_6)}},
         {{"V", outputV}, {"VAvg", outputVAvg}, {"I", outputI}, {"Bias", outputBias}});
-    
+
     // Input->Hidden event propagation
     const auto inputHiddenWeight = Variable::create(inputHiddenShape, GeNN::Type::S10_5);
     const auto inputHidden = EventPropagationProcess::create(inputSpikes, inputHiddenWeight, hiddenI);
@@ -164,10 +166,10 @@ int main(int argc, char** argv)
     const auto synapseUpdateProcesses = ProcessGroup::create({inputHidden, hiddenOutput});
     const auto copyProcesses = ProcessGroup::create({copyOutputSum});
 
-    
+
     // Build model from process groups we want to simulate
     Model model({synapseUpdateProcesses, neuronUpdateProcesses, copyProcesses});
-    
+
     std::unique_ptr<BackendFeNN> backend;
     if (device) {
         backend = std::make_unique<BackendFeNNHW>();
@@ -179,16 +181,17 @@ int main(int argc, char** argv)
     // Generate kernel
     const auto code = backend->generateSimulationKernel({synapseUpdateProcesses, neuronUpdateProcesses},
                                                         {copyProcesses}, numTimesteps, model);
-    
-    for(size_t i = 0; i < code.size(); i++){
-        try {
-            std::cout << i * 4 << ": ";
-            disassemble(std::cout, code[i]);
+    if(shouldDisassemble) {
+        for(size_t i = 0; i < code.size(); i++){
+            try {
+                std::cout << i * 4 << ": ";
+                disassemble(std::cout, code[i]);
+            }
+            catch(const std::runtime_error&) {
+                std::cout << "Unsupported";
+            }
+            std::cout << std::endl;
         }
-        catch(const std::runtime_error&) {
-            std::cout << "Unsupported";
-        }
-        std::cout << std::endl;
     }
     Runtime runtime(model, *backend);
 
@@ -230,7 +233,7 @@ int main(int argc, char** argv)
                     numInputSpikeArrayWords,
                     inputSpikeArray->getHostPointer<uint32_t>());
         inputSpikeArray->pushToDevice();
-    
+
         // Classify
         runtime.run();
 
@@ -259,6 +262,6 @@ int main(int argc, char** argv)
 
     std::cout << numCorrect << " / " << numExamples << " correct (" << 100.0 * (numCorrect / double(numExamples)) << "%)" << std::endl;
     //std::cout << duration.count() << " seconds" << std::endl;
-    
+
     return 0;
 }

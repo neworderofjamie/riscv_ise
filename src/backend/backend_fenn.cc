@@ -473,6 +473,9 @@ private:
                                   });
                 }
 
+                // **HACK** if you're unlucky, there can be a RAW hazard between last load and first instruction so nop
+                env.getCodeGenerator().nop();
+
                 // Compile tokens
                 // **TODO** pass mask register in here
                 {
