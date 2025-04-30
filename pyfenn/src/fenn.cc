@@ -230,12 +230,12 @@ PYBIND11_MODULE(_fenn, m)
              pybind11::arg("code"), pybind11::arg("parameters"),
              pybind11::arg("variables"), pybind11::arg("output_events") = EventContainerMap{}, 
              pybind11::arg("name") = "")
-        
+
         .def_property_readonly("parameters", &NeuronUpdateProcess::getParameters)
         .def_property_readonly("variables", &NeuronUpdateProcess::getVariables)
         .def_property_readonly("output_events", &NeuronUpdateProcess::getOutputEvents)
         .def_property_readonly("num_neurons", &NeuronUpdateProcess::getNumNeurons);
-    
+
     //------------------------------------------------------------------------
     // fenn.EventPropagationProcess
     //------------------------------------------------------------------------
@@ -243,7 +243,7 @@ PYBIND11_MODULE(_fenn, m)
         .def(pybind11::init(&EventPropagationProcess::create),
              pybind11::arg("input_events"), pybind11::arg("weight"),
              pybind11::arg("target"), pybind11::arg("name") = "")
-        
+
         .def_property_readonly("input_events", &EventPropagationProcess::getInputEvents)
         .def_property_readonly("weight", &EventPropagationProcess::getWeight)
         .def_property_readonly("target", &EventPropagationProcess::getTarget)
@@ -256,7 +256,7 @@ PYBIND11_MODULE(_fenn, m)
     pybind11::class_<RNGInitProcess, Process, std::shared_ptr<RNGInitProcess>>(m, "RNGInitProcess")
         .def(pybind11::init(&RNGInitProcess::create),
              pybind11::arg("seed"), pybind11::arg("name") = "")
-        
+
         .def_property_readonly("seed", &RNGInitProcess::getSeed);
 
     //------------------------------------------------------------------------
@@ -265,7 +265,7 @@ PYBIND11_MODULE(_fenn, m)
     pybind11::class_<CopyProcess, Process, std::shared_ptr<CopyProcess>>(m, "CopyProcess")
         .def(pybind11::init(&CopyProcess::create),
              pybind11::arg("source"), pybind11::arg("target"), pybind11::arg("name") = "")
-        
+
         .def_property_readonly("source", &CopyProcess::getSource)
         .def_property_readonly("target", &CopyProcess::getTarget);
 
@@ -277,41 +277,47 @@ PYBIND11_MODULE(_fenn, m)
              pybind11::arg("processes"), pybind11::arg("name") = "")
 
         .def_property_readonly("processes", &ProcessGroup::getProcesses);
-    
+
     //------------------------------------------------------------------------
     // fenn.Model
     //------------------------------------------------------------------------
     pybind11::class_<Model>(m, "Model")
         .def(pybind11::init<std::vector<std::shared_ptr<const ProcessGroup>>&>());
-    
+
     //------------------------------------------------------------------------
     // fenn.BackendFeNN
     //------------------------------------------------------------------------
     pybind11::class_<BackendFeNN>(m, "BackendFeNN")
         .def("generate_simulation_kernel", &BackendFeNN::generateSimulationKernel)
         .def("generate_kernel", &BackendFeNN::generateKernel);
-    
+
     //------------------------------------------------------------------------
     // fenn.BackendFeNNSim
     //------------------------------------------------------------------------
     pybind11::class_<BackendFeNNSim, BackendFeNN>(m, "BackendFeNNSim")
         .def(pybind11::init<>());
-    
+
+    //------------------------------------------------------------------------
+    // fenn.BackendFeNNHW
+    //------------------------------------------------------------------------
+    pybind11::class_<BackendFeNNHW, BackendFeNN>(m, "BackendFeNNHW")
+        .def(pybind11::init<>());
+
     //------------------------------------------------------------------------
     // fenn.ArrayBase
     //------------------------------------------------------------------------
     pybind11::class_<ArrayBase>(m, "ArrayBase")
-        .def_property_readonly("host_view", 
-            [](ArrayBase &a) 
-            { 
-               return pybind11::memoryview::from_memory(a.getHostPointer(), 
+        .def_property_readonly("host_view",
+            [](ArrayBase &a)
+            {
+               return pybind11::memoryview::from_memory(a.getHostPointer(),
                                                         a.getSizeBytes());
             })
         .def_property_readonly("type", &ArrayBase::getType)
-    
+
         .def("push_to_device", &ArrayBase::pushToDevice)
         .def("pull_from_device", &ArrayBase::pullFromDevice);
-    
+
     //------------------------------------------------------------------------
     // fenn.Runtime
     //------------------------------------------------------------------------
