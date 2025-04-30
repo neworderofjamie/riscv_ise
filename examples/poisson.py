@@ -1,12 +1,14 @@
 import numpy as np
+import matplotlib.pyplot as plt
 
-from pyfenn import (BackendFeNNSim, EventContainer, Model,
+from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer, Model,
                     NeuronUpdateProcess, NumericValue, Parameter,
                     ProcessGroup, Runtime, Shape, UnresolvedType, Variable)
-from models import RNGInit
+from models import Copy, RNGInit
 
 from pyfenn import disassemble, init_logging
-from utils import get_array_view, seed_and_push, zero_and_push
+from pyfenn.utils import get_array_view, seed_and_push, zero_and_push
+from scipy.stats import poisson
 
 class Poisson:
     def __init__(self, shape, rate: float):
@@ -19,7 +21,7 @@ class Poisson:
             NumSpikes = 0;
             do
             {
-                NumSpikes++;
+                ++NumSpikes;
                 p *= fennrand();
             } while (p > ExpMinusLambda);
             """,
@@ -28,30 +30,34 @@ class Poisson:
             {"NumSpikes": self.num_spikes},
             {})
 
-
+device = False
 num_samples = 100
 shape = [32]
 rate = 5000.0
-disassemble_code = True
+disassemble_code = False
 
 init_logging()
 
 # Model
 rng_init = RNGInit()
-poisson = Poisson(shape, rate)
+poisson_process = Poisson(shape, rate)
+copy_num_spikes = Copy(poisson_process.num_spikes, num_samples)
 
 # Group processes
 init_processes = ProcessGroup([rng_init.process])
-update_processes = ProcessGroup([poisson.process])
+update_processes = ProcessGroup([poisson_process.process])
+copy_processes = ProcessGroup([copy_num_spikes.process])
 
 # Create model
-model = Model([init_processes, update_processes])
+model = Model([init_processes, update_processes, copy_processes])
 
 # Create backend and use to generate sim code
-backend = BackendFeNNSim()
-init_code = backend.generate_kernel(init_processes, model)
+backend = BackendFeNNHW() if device else BackendFeNNSim()
+init_code = backend.generate_kernel([init_processes], model)
 
-code = backend.generate_kernel(update_processes, model)
+code = backend.generate_simulation_kernel([update_processes, copy_processes],
+                                          [],
+                                          num_samples, model)
 
 # Disassemble if required
 if disassemble_code:
@@ -71,7 +77,6 @@ runtime.allocate()
 
 # Get array and view
 seed_and_push(rng_init.seed, runtime)
-zero_and_push(poisson.num_spikes, runtime)
 
 # Set init instructions and run
 runtime.set_instructions(init_code)
@@ -80,13 +85,19 @@ runtime.run()
 # Set simulation instruction
 runtime.set_instructions(code)
 
-num_spikes_array, num_spikes_view = get_array_view(runtime, poisson.num_spikes,
-                                                   np.int16)
-                                                       
-for i in range(num_samples):
-    runtime.run()
-    
-    # Copy output V sum from device
-    num_spikes_array.pull_from_device();
-    print(num_spikes_view)
+runtime.run()
+
+num_spikes_copy_array, num_spikes_copy_view = get_array_view(runtime, copy_num_spikes.target,
+                                                             np.int16)
+num_spikes_copy_array.pull_from_device()
+
+x = np.arange(np.amin(num_spikes_copy_view), 1 + np.amax(num_spikes_copy_view))
+
+fig, axis = plt.subplots()
+axis.hist(num_spikes_copy_view, bins=x - 0.5, density=True)
+axis.plot(x, poisson.pmf(x, 5.0))
+axis.set_xlabel("k")
+axis.set_ylabel("P(x=k)")
+plt.show()
+
 
