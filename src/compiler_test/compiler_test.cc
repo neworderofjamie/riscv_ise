@@ -27,6 +27,7 @@
 #include "disassembler/disassembler.h"
 
 // RISC-V backend includes
+#include "backend/backend_fenn_hw.h"
 #include "backend/backend_fenn_sim.h"
 #include "backend/model.h"
 #include "backend/runtime.h"
@@ -167,12 +168,17 @@ int main(int argc, char** argv)
     // Build model from process groups we want to simulate
     Model model({synapseUpdateProcesses, neuronUpdateProcesses, copyProcesses});
     
-    BackendFeNNSim backend;
-
+    std::unique_ptr<BackendFeNN> backend;
+    if (device) {
+        backend = std::make_unique<BackendFeNNHW>();
+    }
+    else {
+        backend = std::make_unique<BackendFeNNSim>();
+    }
 
     // Generate kernel
-    const auto code = backend.generateSimulationKernel({synapseUpdateProcesses, neuronUpdateProcesses},
-                                                       {copyProcesses}, numTimesteps, model);
+    const auto code = backend->generateSimulationKernel({synapseUpdateProcesses, neuronUpdateProcesses},
+                                                        {copyProcesses}, numTimesteps, model);
     
     for(size_t i = 0; i < code.size(); i++){
         try {
@@ -184,7 +190,7 @@ int main(int argc, char** argv)
         }
         std::cout << std::endl;
     }
-    Runtime runtime(model, backend);
+    Runtime runtime(model, *backend);
 
     // Set instructions
     runtime.setInstructions(code);
