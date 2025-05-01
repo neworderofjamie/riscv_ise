@@ -24,6 +24,7 @@ class Poisson:
                 ++NumSpikes;
                 p *= fennrand();
             } while (p > ExpMinusLambda);
+            --NumSpikes;
             """,
             {"ExpMinusLambda": Parameter(NumericValue(np.exp(-(rate / 1000))),
                                          UnresolvedType("s1_14_t"))},
