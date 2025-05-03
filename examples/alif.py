@@ -4,10 +4,10 @@ import matplotlib.pyplot as plt
 from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer, Model, NeuronUpdateProcess,
                     NumericValue, Parameter, PlogSeverity, ProcessGroup, 
                     Runtime, Shape, UnresolvedType, Variable)
-from models import Copy
+from models import Copy, RNGInit
 
 from pyfenn import disassemble, init_logging
-from pyfenn.utils import get_array_view, zero_and_push
+from pyfenn.utils import get_array_view, seed_and_push, zero_and_push
 
 device = False
 num_timesteps = 1000
@@ -67,19 +67,22 @@ repeated_data = np.repeat(data[:,None], 32, axis=1).astype(np.int16)
 init_logging()
 
 # Model
+rng_init = RNGInit()
 neurons = ALIF([32], 20.0, 2000, 5, 0.6, 0.0174, 0.01, num_timesteps)
 copy_v = Copy(neurons.v, num_timesteps)
 copy_a = Copy(neurons.a, num_timesteps)
 
 # Group processes
+init_processes = ProcessGroup([rng_init.process])
 neuron_update_processes = ProcessGroup([neurons.process])
 copy_processes = ProcessGroup([copy_v.process, copy_a.process])
 
 # Create model
-model = Model([neuron_update_processes, copy_processes])
+model = Model([init_processes, neuron_update_processes, copy_processes])
 
 # Create backend and use to generate sim code
 backend = BackendFeNNHW() if device else BackendFeNNSim()
+init_code = backend.generate_kernel([init_processes], model)
 code = backend.generate_simulation_kernel([neuron_update_processes, copy_processes],
                                           [],
                                           num_timesteps, model)
@@ -104,6 +107,13 @@ zero_and_push(neurons.refrac_time, runtime)
 input_i_array, input_i_view = get_array_view(runtime, neurons.i, np.int16)
 input_i_view[:] = repeated_data.flatten()
 input_i_array.push_to_device()
+
+# Get array and view
+seed_and_push(rng_init.seed, runtime)
+
+# Set init instructions and run
+runtime.set_instructions(init_code)
+runtime.run()
 
 # Set instructions
 runtime.set_instructions(code)
