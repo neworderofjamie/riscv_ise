@@ -45,48 +45,142 @@ using namespace GeNN::Transpiler;
 //----------------------------------------------------------------------------
 namespace
 {
-class EnvironmentExternal : public ::EnvironmentBase, public Transpiler::TypeChecker::EnvironmentBase
+class EnvironmentExternalBase : public ::EnvironmentBase, public Transpiler::TypeChecker::EnvironmentBase
 {
 public:
-    explicit EnvironmentExternal(EnvironmentExternal &enclosing)
+    explicit EnvironmentExternalBase(EnvironmentExternalBase &enclosing)
     :   m_Context{&enclosing, &enclosing, nullptr}
     {
     }
 
-    explicit EnvironmentExternal(::EnvironmentBase &enclosing)
+    explicit EnvironmentExternalBase(::EnvironmentBase &enclosing)
     :   m_Context{nullptr, &enclosing, nullptr}
     {
     }
 
-    explicit EnvironmentExternal(CodeGenerator &os)
+    explicit EnvironmentExternalBase(CodeGenerator &os)
     :   m_Context{nullptr, nullptr, &os}
     {
     }
 
+    //------------------------------------------------------------------------
+    // Assembler::EnvironmentBase virtuals
+    //------------------------------------------------------------------------
+    virtual void define(const std::string &, RegisterPtr) override
+    {
+        throw std::runtime_error("Cannot declare variable in external environment");
+    }
+
+    //! Get stream to write code within this environment to
+    virtual CodeGenerator &getCodeGenerator() final
+    {
+        // If context includes a code stream
+        if (std::get<2>(m_Context)) {
+            return *std::get<2>(m_Context);
+        }
+        // Otherwise
+        else {
+            // Assert that there is a pretty printing environment
+            assert(std::get<1>(m_Context));
+
+            // Return its stream
+            return std::get<1>(m_Context)->getCodeGenerator();
+        }
+    }
+
+
+protected:
+    //------------------------------------------------------------------------
+    // Protected API
+    //------------------------------------------------------------------------
+    //! Get code generator exposed by context
+    CodeGenerator &getContextCodeGenerator()
+    {
+    }
+
+    RegisterPtr getContextRegister(const std::string &name) const
+    {
+        // If context includes a pretty-printing environment, get name from it
+        if (std::get<1>(m_Context)) {
+            return std::get<1>(m_Context)->getRegister(name);
+        }
+        // Otherwise, give error
+        else {
+            throw std::runtime_error("Identifier '" + name + "' undefined");
+        }
+    }
+
+    FunctionGenerator getContextFunctionGenerator(const std::string &name) const
+    {
+        // If context includes a pretty-printing environment, get name from it
+        if (std::get<1>(m_Context)) {
+            return std::get<1>(m_Context)->getFunctionGenerator(name);
+        }
+        // Otherwise, give error
+        else {
+            throw std::runtime_error("Identifier '" + name + "' undefined");
+        }
+    }
+
+    //! Get vector of types from context if it provides this functionality
+    std::vector<Type::ResolvedType> getContextTypes(const Transpiler::Token &name, Transpiler::ErrorHandlerBase &errorHandler)  const
+    {
+        // If context includes a type-checking environment, get type from it
+        if (std::get<0>(m_Context)) {
+            return std::get<0>(m_Context)->getTypes(name, errorHandler);
+        }
+        // Otherwise, give error
+        else {
+            errorHandler.error(name, "Undefined identifier");
+            throw TypeChecker::TypeCheckError();
+        }
+    }
+
+
+private:
+    //------------------------------------------------------------------------
+    // Members
+    //------------------------------------------------------------------------
+    std::tuple<Transpiler::TypeChecker::EnvironmentBase*, ::EnvironmentBase*, CodeGenerator*> m_Context;
+};
+
+//----------------------------------------------------------------------------
+// EnvironmentExternal
+//----------------------------------------------------------------------------
+class EnvironmentExternal : public EnvironmentExternalBase
+{
+public:
+    explicit EnvironmentExternal(EnvironmentExternalBase &enclosing)
+    :   EnvironmentExternalBase(enclosing)
+    {
+    }
+
+    explicit EnvironmentExternal(EnvironmentExternal &enclosing)
+        : EnvironmentExternalBase(enclosing)
+    {
+    }
+
+    explicit EnvironmentExternal(::EnvironmentBase &enclosing)
+    :   EnvironmentExternalBase(enclosing)
+    {
+    }
+
+    explicit EnvironmentExternal(CodeGenerator &os)
+    :   EnvironmentExternalBase(os)
+    {
+    }
 
     EnvironmentExternal(const EnvironmentExternal&) = delete;
 
     //------------------------------------------------------------------------
     // Assembler::EnvironmentBase virtuals
     //------------------------------------------------------------------------
-    virtual void define(const std::string&, RegisterPtr) override
-    {
-        throw std::runtime_error("Cannot declare variable in external environment");
-    }
-
     virtual RegisterPtr getRegister(const std::string &name) final
     {
         // If name isn't found in environment
         auto env = m_Environment.find(name);
         if (env == m_Environment.end()) {
-            // If context includes a pretty-printing environment, get name from it
-            if(std::get<1>(m_Context)) {
-                return std::get<1>(m_Context)->getRegister(name);
-            }
-            // Otherwise, give error
-            else {
-                throw std::runtime_error("Identifier '" + name + "' undefined"); 
-            }
+            return getContextRegister(name);
         }
         // Otherwise, get name from payload
         else {
@@ -99,14 +193,7 @@ public:
         // If name isn't found in environment
         auto env = m_Environment.find(name);
         if (env == m_Environment.end()) {
-            // If context includes a pretty-printing environment, get name from it
-            if(std::get<1>(m_Context)) {
-                return std::get<1>(m_Context)->getFunctionGenerator(name);
-            }
-            // Otherwise, give error
-            else {
-                throw std::runtime_error("Identifier '" + name + "' undefined"); 
-            }
+            return getContextFunctionGenerator(name);
         }
         // Otherwise, get name from payload
         else {
@@ -114,24 +201,6 @@ public:
         }
     }
 
-
-    //! Get stream to write code within this environment to
-    virtual CodeGenerator &getCodeGenerator() final
-    {
-        // If context includes a code stream
-        if(std::get<2>(m_Context)) {
-            return *std::get<2>(m_Context);
-        }
-        // Otherwise
-        else {
-            // Assert that there is a pretty printing environment
-            assert(std::get<1>(m_Context));
-
-            // Return its stream
-            return std::get<1>(m_Context)->getCodeGenerator();
-        }
-    }
-   
     //------------------------------------------------------------------------
     // TypeChecker::EnvironmentBase virtuals
     //------------------------------------------------------------------------
@@ -146,15 +215,7 @@ public:
         // If name isn't found in environment
         auto env = m_Environment.find(name.lexeme);
         if (env == m_Environment.end()) {
-            // If context includes a type-checking environment, get type from it
-            if(std::get<0>(m_Context)) {
-                return std::get<0>(m_Context)->getTypes(name, errorHandler); 
-            }
-            // Otherwise, give error
-            else {
-                errorHandler.error(name, "Undefined identifier");
-                throw TypeChecker::TypeCheckError();
-            }
+            return getContextTypes(name, errorHandler);
         }
         // Otherwise, return type of variables
         else {
@@ -172,16 +233,112 @@ public:
             throw std::runtime_error("Redeclaration of '" + std::string{name} + "'");
         }
     }
-  
 
 private:
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
-    std::tuple<Transpiler::TypeChecker::EnvironmentBase*, ::EnvironmentBase*, CodeGenerator*> m_Context;
     std::unordered_map<std::string, std::tuple<Type::ResolvedType, std::variant<RegisterPtr, FunctionGenerator>>> m_Environment;
 };
 
+
+//----------------------------------------------------------------------------
+// EnvironmentLibrary
+//----------------------------------------------------------------------------
+/*class EnvironmentLibrary : public ::EnvironmentBase, public Transpiler::TypeChecker::EnvironmentBase
+{
+public:
+    using Library = std::unordered_multimap<std::string, std::pair<Type::ResolvedType, FunctionGenerator>>;
+
+    explicit EnvironmentLibrary(EnvironmentExternalBase &enclosing, const Library &library)
+        : EnvironmentExternalBase(enclosing), m_Library(library)
+    {}
+
+    explicit EnvironmentLibrary(Transpiler::PrettyPrinter::EnvironmentBase &enclosing, const Library &library)
+        : EnvironmentExternalBase(enclosing), m_Library(library)
+    {
+    }
+
+    explicit EnvironmentLibrary(CodeStream &os, const Library &library)
+        : EnvironmentExternalBase(os), m_Library(library)
+    {}
+
+    EnvironmentLibrary(EnvironmentExternalBase &enclosing, CodeStream &os, const Library &library)
+        : EnvironmentExternalBase(enclosing, os), m_Library(library)
+    {
+    }
+
+    //------------------------------------------------------------------------
+    // TypeChecker::EnvironmentBase virtuals
+    //------------------------------------------------------------------------
+    virtual std::vector<Type::ResolvedType> getTypes(const Transpiler::Token &name, Transpiler::ErrorHandlerBase &errorHandler) final;
+
+    //------------------------------------------------------------------------
+    // PrettyPrinter::EnvironmentBase virtuals
+    //------------------------------------------------------------------------
+    virtual std::string getName(const std::string &name, std::optional<Type::ResolvedType> type = std::nullopt) final;
+    virtual CodeGenerator::CodeStream &getStream() final;
+
+private:
+    std::reference_wrapper<const Library> m_Library;
+};*/
+
+
+Type::ResolvedType createFixedPointType(int numInt, bool saturating)
+{
+    const int numFrac = 15 - numInt;
+    std::ostringstream name;
+    name << "s" << numInt << "_" << numFrac;
+    if(saturating) {
+        name << "_sat_t";
+    }
+    else {
+        name << "_t";
+    }
+    return Type::ResolvedType::createFixedPointNumeric<int16_t>(name.str(), 50 + numInt, saturating,
+                                                                numFrac, &ffi_type_sint16, "");
+}
+void addStochMulFunctions(EnvironmentExternal &env) 
+{
+    // Loop through possible number of integer bits for operand a
+    for(int aInt = 0; aInt < 16; aInt++) {
+        // Create saturating and non-saturating fixed-point types 
+        const auto aType = createFixedPointType(aInt, false);
+        const auto aTypeSat = createFixedPointType(aInt, true);
+
+        // Loop through possible number of integer bits for operand b
+        for(int bInt = 0; bInt < 16; bInt++) {
+            // Create saturating and non-saturating fixed-point types
+            const auto bType = createFixedPointType(bInt, false);
+            const auto bTypeSat = createFixedPointType(bInt, true);
+    
+            // Determine result type (HIGHEST ranked type)
+            const auto &resultType = (aInt > bInt) ? aType : bType;
+            const auto &resultTypeSat = (aInt > bInt) ? aTypeSat : bTypeSat;
+
+            // Shift by number of fraction bits of LOWEST ranked type
+            const int shift = 15 - ((aInt > bInt) ? bInt : aInt);
+
+            env.add(Type::ResolvedType::createFunction(resultType, {aType, bType}), "mul_s",
+                    [shift](auto &env, auto &vectorRegisterAllocator, auto &, auto, const auto &args)
+                    {
+                        auto result = vectorRegisterAllocator.getRegister();
+                        env.getCodeGenerator().vmul_s(shift, *result, *std::get<VectorRegisterAllocator::RegisterPtr>(args[0]), 
+                                                      *std::get<VectorRegisterAllocator::RegisterPtr>(args[1]));
+                        return std::make_pair(result, true);
+                    });
+            env.add(Type::ResolvedType::createFunction(resultTypeSat, {aTypeSat, bTypeSat}), "mul_s",
+                    [shift](auto &env, auto &vectorRegisterAllocator, auto &, auto, const auto &args)
+                    {
+                        auto result = vectorRegisterAllocator.getRegister();
+                        env.getCodeGenerator().vmul_s(shift, *result, *std::get<VectorRegisterAllocator::RegisterPtr>(args[0]),
+                                                      *std::get<VectorRegisterAllocator::RegisterPtr>(args[1]));
+                        return std::make_pair(result, true);
+                    });
+        }
+    }
+
+}
 void updateLiteralPool(const std::vector<Token> &tokens, VectorRegisterAllocator &vectorRegisterAllocator, 
                        std::unordered_map<int16_t, VectorRegisterAllocator::RegisterPtr> &literalPool)
 {
@@ -437,6 +594,7 @@ private:
                     env.getCodeGenerator().vrng(*result);
                     return std::make_pair(result, true);
                 });
+        //addStochMulFunctions(env);
 
         // Build vectorised neuron loop
         AssemblerUtils::unrollVectorLoopBody(
