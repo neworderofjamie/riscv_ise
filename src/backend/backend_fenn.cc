@@ -88,6 +88,14 @@ public:
         }
     }
 
+    //------------------------------------------------------------------------
+    // TypeChecker::EnvironmentBase virtuals
+    //------------------------------------------------------------------------
+    virtual void define(const Transpiler::Token &, const GeNN::Type::ResolvedType &,
+                        Transpiler::ErrorHandlerBase &) override
+    {
+        throw std::runtime_error("Cannot declare variable in external environment");
+    }
 
 protected:
     //------------------------------------------------------------------------
@@ -110,11 +118,11 @@ protected:
         }
     }
 
-    FunctionGenerator getContextFunctionGenerator(const std::string &name) const
+    FunctionGenerator getContextFunctionGenerator(const std::string &name, std::optional<Type::ResolvedType> type = std::nullopt) const
     {
         // If context includes a pretty-printing environment, get name from it
         if (std::get<1>(m_Context)) {
-            return std::get<1>(m_Context)->getFunctionGenerator(name);
+            return std::get<1>(m_Context)->getFunctionGenerator(name, type);
         }
         // Otherwise, give error
         else {
@@ -188,12 +196,12 @@ public:
         }
     }
 
-    virtual FunctionGenerator getFunctionGenerator(const std::string &name) final
+    virtual FunctionGenerator getFunctionGenerator(const std::string &name, std::optional<Type::ResolvedType> type = std::nullopt) final
     {
         // If name isn't found in environment
         auto env = m_Environment.find(name);
         if (env == m_Environment.end()) {
-            return getContextFunctionGenerator(name);
+            return getContextFunctionGenerator(name, type);
         }
         // Otherwise, get name from payload
         else {
@@ -204,12 +212,6 @@ public:
     //------------------------------------------------------------------------
     // TypeChecker::EnvironmentBase virtuals
     //------------------------------------------------------------------------
-    virtual void define(const Transpiler::Token&, const GeNN::Type::ResolvedType&, 
-                        Transpiler::ErrorHandlerBase&) override
-    {
-        throw std::runtime_error("Cannot declare variable in external environment");
-    }
-
     virtual std::vector<Type::ResolvedType> getTypes(const Transpiler::Token &name, Transpiler::ErrorHandlerBase &errorHandler) final
     {
         // If name isn't found in environment
@@ -245,28 +247,32 @@ private:
 //----------------------------------------------------------------------------
 // EnvironmentLibrary
 //----------------------------------------------------------------------------
-/*class EnvironmentLibrary : public ::EnvironmentBase, public Transpiler::TypeChecker::EnvironmentBase
+/*class EnvironmentLibrary : public EnvironmentExternalBase
 {
 public:
     using Library = std::unordered_multimap<std::string, std::pair<Type::ResolvedType, FunctionGenerator>>;
 
     explicit EnvironmentLibrary(EnvironmentExternalBase &enclosing, const Library &library)
-        : EnvironmentExternalBase(enclosing), m_Library(library)
-    {}
-
-    explicit EnvironmentLibrary(Transpiler::PrettyPrinter::EnvironmentBase &enclosing, const Library &library)
-        : EnvironmentExternalBase(enclosing), m_Library(library)
+    :   EnvironmentExternalBase(enclosing), m_Library(library)
     {
     }
 
-    explicit EnvironmentLibrary(CodeStream &os, const Library &library)
-        : EnvironmentExternalBase(os), m_Library(library)
-    {}
-
-    EnvironmentLibrary(EnvironmentExternalBase &enclosing, CodeStream &os, const Library &library)
-        : EnvironmentExternalBase(enclosing, os), m_Library(library)
+    explicit EnvironmentLibrary(EnvironmentExternal &enclosing, const Library &library)
+    :   EnvironmentExternalBase(enclosing), m_Library(library)
     {
     }
+
+    explicit EnvironmentLibrary(::EnvironmentBase &enclosing, const Library &library)
+    :   EnvironmentExternalBase(enclosing), m_Library(library)
+    {
+    }
+
+    explicit EnvironmentLibrary(CodeGenerator &os, const Library &library)
+    :   EnvironmentExternalBase(os), m_Library(library)
+    {
+    }
+
+    EnvironmentExternal(const EnvironmentExternal &) = delete;
 
     //------------------------------------------------------------------------
     // TypeChecker::EnvironmentBase virtuals

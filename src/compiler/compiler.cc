@@ -418,9 +418,9 @@ private:
                    || m_CallArguments.top().size() == type.getFunction().argTypes.size());
 
             // Get function generator
-            const auto functionGenerator = m_Environment.get().getFunctionGenerator(identifier.getName().lexeme);
+            const auto functionGenerator = m_Environment.get().getFunctionGenerator(identifier.getName().lexeme,
+                                                                                    type);
 
-            
             // Cache reference to current reference
             std::reference_wrapper<EnvironmentBase> oldEnvironment = m_Environment; 
             {
@@ -839,9 +839,9 @@ RegisterPtr EnvironmentInternal::getRegister(const std::string &name)
     }
 }
 //----------------------------------------------------------------------------
-FunctionGenerator EnvironmentInternal::getFunctionGenerator(const std::string &name)
+FunctionGenerator EnvironmentInternal::getFunctionGenerator(const std::string &name, std::optional<Type::ResolvedType> type)
 {
-    return m_Enclosing.getFunctionGenerator(name);
+    return m_Enclosing.getFunctionGenerator(name, type);
 }
 //----------------------------------------------------------------------------
 CodeGenerator &EnvironmentInternal::getCodeGenerator()

@@ -46,7 +46,7 @@ public:
     virtual RegisterPtr getRegister(const std::string &name) = 0;
     
     //! Get the function generator to use for the named identifier
-    virtual FunctionGenerator getFunctionGenerator(const std::string &name) = 0;
+    virtual FunctionGenerator getFunctionGenerator(const std::string &name, std::optional<GeNN::Type::ResolvedType> type = std::nullopt) = 0;
 
     //! Get stream to write code within this environment to
     virtual CodeGenerator &getCodeGenerator() = 0;
@@ -78,7 +78,7 @@ public:
 
     virtual RegisterPtr getRegister(const std::string &name) final;
 
-    virtual FunctionGenerator getFunctionGenerator(const std::string &name) final;
+    virtual FunctionGenerator getFunctionGenerator(const std::string &name, std::optional<GeNN::Type::ResolvedType> type = std::nullopt) final;
 
     virtual CodeGenerator &getCodeGenerator() final;
 
