@@ -247,17 +247,12 @@ private:
 //----------------------------------------------------------------------------
 // EnvironmentLibrary
 //----------------------------------------------------------------------------
-/*class EnvironmentLibrary : public EnvironmentExternalBase
+class EnvironmentLibrary : public EnvironmentExternalBase
 {
 public:
     using Library = std::unordered_multimap<std::string, std::pair<Type::ResolvedType, FunctionGenerator>>;
 
     explicit EnvironmentLibrary(EnvironmentExternalBase &enclosing, const Library &library)
-    :   EnvironmentExternalBase(enclosing), m_Library(library)
-    {
-    }
-
-    explicit EnvironmentLibrary(EnvironmentExternal &enclosing, const Library &library)
     :   EnvironmentExternalBase(enclosing), m_Library(library)
     {
     }
@@ -272,22 +267,54 @@ public:
     {
     }
 
-    EnvironmentExternal(const EnvironmentExternal &) = delete;
+    EnvironmentLibrary(const EnvironmentLibrary &) = delete;
+
+    //------------------------------------------------------------------------
+    // Assembler::EnvironmentBase virtuals
+    //------------------------------------------------------------------------
+    virtual RegisterPtr getRegister(const std::string &name) final
+    {
+        return getContextRegister(name);
+    }
+
+    virtual FunctionGenerator getFunctionGenerator(const std::string &name, std::optional<Type::ResolvedType> type = std::nullopt) final
+    {
+        const auto [libTypeBegin, libTypeEnd] = m_Library.get().equal_range(name);
+        if (libTypeBegin == libTypeEnd) {
+            return getContextFunctionGenerator(name, type);
+        }
+        else {
+            if (!type) {
+                throw std::runtime_error("Ambiguous reference to '" + name + "' but no type provided to disambiguate");
+            }
+            const auto libType = std::find_if(libTypeBegin, libTypeEnd,
+                                              [type](const auto &t) { return t.second.first == type; });
+            assert(libType != libTypeEnd);
+            return libType->second.second;
+        }
+    }
 
     //------------------------------------------------------------------------
     // TypeChecker::EnvironmentBase virtuals
     //------------------------------------------------------------------------
-    virtual std::vector<Type::ResolvedType> getTypes(const Transpiler::Token &name, Transpiler::ErrorHandlerBase &errorHandler) final;
-
-    //------------------------------------------------------------------------
-    // PrettyPrinter::EnvironmentBase virtuals
-    //------------------------------------------------------------------------
-    virtual std::string getName(const std::string &name, std::optional<Type::ResolvedType> type = std::nullopt) final;
-    virtual CodeGenerator::CodeStream &getStream() final;
+    virtual std::vector<Type::ResolvedType> getTypes(const Transpiler::Token &name, Transpiler::ErrorHandlerBase &errorHandler) final
+    {
+        const auto [typeBegin, typeEnd] = m_Library.get().equal_range(name.lexeme);
+        if (typeBegin == typeEnd) {
+            return getContextTypes(name, errorHandler);
+        }
+        else {
+            std::vector<Type::ResolvedType> types;
+            types.reserve(std::distance(typeBegin, typeEnd));
+            std::transform(typeBegin, typeEnd, std::back_inserter(types),
+                           [](const auto &t) { return t.second.first; });
+            return types;
+        }
+    }
 
 private:
     std::reference_wrapper<const Library> m_Library;
-};*/
+};
 
 
 Type::ResolvedType createFixedPointType(int numInt, bool saturating)
@@ -304,7 +331,7 @@ Type::ResolvedType createFixedPointType(int numInt, bool saturating)
     return Type::ResolvedType::createFixedPointNumeric<int16_t>(name.str(), 50 + numInt, saturating,
                                                                 numFrac, &ffi_type_sint16, "");
 }
-void addStochMulFunctions(EnvironmentExternal &env) 
+void addStochMulFunctions(EnvironmentLibrary::Library &library) 
 {
     // Loop through possible number of integer bits for operand a
     for(int aInt = 0; aInt < 16; aInt++) {
@@ -325,22 +352,26 @@ void addStochMulFunctions(EnvironmentExternal &env)
             // Shift by number of fraction bits of LOWEST ranked type
             const int shift = 15 - ((aInt > bInt) ? bInt : aInt);
 
-            env.add(Type::ResolvedType::createFunction(resultType, {aType, bType}), "mul_s",
-                    [shift](auto &env, auto &vectorRegisterAllocator, auto &, auto, const auto &args)
-                    {
-                        auto result = vectorRegisterAllocator.getRegister();
-                        env.getCodeGenerator().vmul_s(shift, *result, *std::get<VectorRegisterAllocator::RegisterPtr>(args[0]), 
-                                                      *std::get<VectorRegisterAllocator::RegisterPtr>(args[1]));
-                        return std::make_pair(result, true);
-                    });
-            env.add(Type::ResolvedType::createFunction(resultTypeSat, {aTypeSat, bTypeSat}), "mul_s",
-                    [shift](auto &env, auto &vectorRegisterAllocator, auto &, auto, const auto &args)
-                    {
-                        auto result = vectorRegisterAllocator.getRegister();
-                        env.getCodeGenerator().vmul_s(shift, *result, *std::get<VectorRegisterAllocator::RegisterPtr>(args[0]),
-                                                      *std::get<VectorRegisterAllocator::RegisterPtr>(args[1]));
-                        return std::make_pair(result, true);
-                    });
+            library.emplace(
+                "mul_rs",
+                std::make_pair(Type::ResolvedType::createFunction(resultType, {aType, bType}),
+                               [shift](auto &env, auto &vectorRegisterAllocator, auto &, auto, const auto &args)
+                               {
+                                   auto result = vectorRegisterAllocator.getRegister();
+                                   env.getCodeGenerator().vmul_rs(shift, *result, *std::get<VectorRegisterAllocator::RegisterPtr>(args[0]),
+                                                                  *std::get<VectorRegisterAllocator::RegisterPtr>(args[1]));
+                                   return std::make_pair(result, true);
+                               }));
+            library.emplace(
+                "mul_rs",
+                std::make_pair(Type::ResolvedType::createFunction(resultTypeSat, {aTypeSat, bTypeSat}),
+                               [shift](auto &env, auto &vectorRegisterAllocator, auto &, auto, const auto &args)
+                               {
+                                   auto result = vectorRegisterAllocator.getRegister();
+                                   env.getCodeGenerator().vmul_rs(shift, *result, *std::get<VectorRegisterAllocator::RegisterPtr>(args[0]),
+                                                                  *std::get<VectorRegisterAllocator::RegisterPtr>(args[1]));
+                                   return std::make_pair(result, true);
+                               }));
         }
     }
 
@@ -593,24 +624,32 @@ private:
         }
 
         env.add(Type::S8_7, "_zero", literalPool.at(0));
-        env.add(Type::ResolvedType::createFunction(Type::S0_15, {}), "fennrand",
-                [](auto &env, auto &vectorRegisterAllocator, auto&, auto, const auto&)
-                {
-                    auto result = vectorRegisterAllocator.getRegister("fennrand = V");
-                    env.getCodeGenerator().vrng(*result);
-                    return std::make_pair(result, true);
-                });
-        //addStochMulFunctions(env);
+
+        // Build library with fennrand function and stochastic multiplication
+        EnvironmentLibrary::Library functionLibrary;
+        functionLibrary.emplace(
+            "fennrand",
+            std::make_pair(Type::ResolvedType::createFunction(Type::S0_15, {}),
+                           [](auto &env, auto &vectorRegisterAllocator, auto&, auto, const auto&)
+                           {
+                               auto result = vectorRegisterAllocator.getRegister("fennrand = V");
+                               env.getCodeGenerator().vrng(*result);
+                               return std::make_pair(result, true);
+                           }));
+        addStochMulFunctions(functionLibrary);
+
+        // Insert environment with this library
+        EnvironmentLibrary envLibrary(env, functionLibrary);
 
         // Build vectorised neuron loop
         AssemblerUtils::unrollVectorLoopBody(
-            env.getCodeGenerator(), m_ScalarRegisterAllocator.get(), 
+            envLibrary.getCodeGenerator(), m_ScalarRegisterAllocator.get(),
             neuronUpdateProcess->getNumNeurons(), 4, *varBufferRegisters.begin()->second,
-            [this, &env, &eventBufferRegisters, &literalPool, &neuronUpdateProcess, 
+            [this, &envLibrary, &eventBufferRegisters, &literalPool, &neuronUpdateProcess,
              &emitEventFunctionType, &varBufferRegisters]
             (CodeGenerator&, uint32_t r, bool, ScalarRegisterAllocator::RegisterPtr maskReg)
             {
-                EnvironmentExternal unrollEnv(env);
+                EnvironmentExternal unrollEnv(envLibrary);
 
                 // Loop through variables
                 for(const auto &v : neuronUpdateProcess->getVariables()) {
@@ -638,7 +677,9 @@ private:
                 }
 
                 // **HACK** if you're unlucky, there can be a RAW hazard between last load and first instruction so nop
-                env.getCodeGenerator().nop();
+                if(neuronUpdateProcess->getOutputEvents().empty()) {
+                    unrollEnv.getCodeGenerator().nop();
+                }
 
                 // Compile tokens
                 // **TODO** pass mask register in here
