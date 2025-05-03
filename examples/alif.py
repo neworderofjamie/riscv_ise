@@ -28,8 +28,8 @@ class ALIF:
         self.refrac_time = Variable(self.shape, UnresolvedType("int16_t"))
         self.process = NeuronUpdateProcess(
             """
-            V = (Alpha * V) + (Weight * I);
-            A *= Rho;
+            V = mul_rs(Alpha, V) + (Weight * I);
+            A = mul_rs(A, Rho);
 
             if (RefracTime > 0) {
                RefracTime -= 1;
@@ -133,6 +133,14 @@ fig, axis = plt.subplots()
 
 a_axis = axis.twinx()
 
-axis.plot(neurons_v_mean)
-a_axis.plot(neurons_a_mean)
+timesteps = np.arange(num_timesteps)
+axis.plot(timesteps, neurons_v_mean, color="red")
+axis.fill_between(timesteps, (neurons_v_mean - neurons_v_std), 
+                  (neurons_v_mean + neurons_v_std),
+                  alpha=0.5, color="red")
+
+a_axis.plot(timesteps, neurons_a_mean, color="blue")
+a_axis.fill_between(timesteps, (neurons_a_mean - neurons_a_std), 
+                    (neurons_a_mean + neurons_a_std),
+                    alpha=0.5, color="blue")
 plt.show()
