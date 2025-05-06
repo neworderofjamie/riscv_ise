@@ -462,16 +462,19 @@ int main()
 
     
     if(simulate) {
-        RISCV riscV(simCode, scalarInitData);
+        RISCV riscV;
+        riscV.setInstructions(simCode);
+        riscV.getScalarDataMemory().setData(scalarInitData);
         
         // Add vector co-processor
-        riscV.addCoprocessor<VectorProcessor>(vectorQuadrant, vectorInitData);
+        riscV.addCoprocessor<VectorProcessor>(vectorQuadrant);
+        riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getVectorDataMemory().setData(vectorInitData);
         
         if(!riscV.run()) {
             return 1;
         }
 
-        auto *scalarData = riscV.getScalarDataMemory().getData().data();
+        auto *scalarData = riscV.getScalarDataMemory().getData();
         const int16_t *hiddenIsyn = reinterpret_cast<const int16_t*>(scalarData + hiddenIsynScalarPtr);
         check(hiddenIsyn, numInput, numHidden);
 
