@@ -1,0 +1,236 @@
+import math
+import nir
+import numpy as np
+
+from numbers import Number
+
+from collections import defaultdict
+
+from . import (EventContainer, EventPropagationProcess,
+               NeuronUpdateProcess, NumericValue, Parameter,
+               Shape, UnresolvedType, Variable)
+
+# **TODO** should operate in terms of fixed point
+def _find_signed_scale(data, num_bits: int, percentile: float):
+    # Calculate desired percentile
+    if isinstance(data, Number):
+        max_val = data
+    else:
+        # Split data into positive and negative
+        positive_mask = (data > 0)
+        positive_data = data[positive_mask]
+        negative_data = data[np.logical_not(positive_mask)]
+
+        # Calculate desired percentile
+        positive_perc = np.percentile(positive_data, percentile)
+        negative_perc = np.percentile(-negative_data, percentile)
+
+        # Calculate the largest of these
+        max_val = max(positive_perc, negative_perc)
+    
+    # Calculate high bit and low bit
+    # **NOTE** we floor so max is 2**(high_bit + 1) - 1
+    # **NOTE** one bit is used for sign
+    high_bit =  math.floor(math.log(max_val, 2))
+    low_bit = high_bit - (num_bits - 2)
+    
+    # We scale to multiples of the low bit
+    scale = (2.0 ** low_bit)
+    
+    # Calculate min and max
+    min_quant = (-2.0 ** (high_bit + 1))
+    max_quant = (2.0 ** (high_bit + 1)) - scale
+
+    # Return range and scale
+    return min_quant, max_quant, scale
+
+class CubaLIF:
+    def __init__(self, name: str, node: nir.CubaLIF, fixed_point: int):
+        self.shape = Shape(node.output_type["output"])
+        dtype = UnresolvedType(f"s{15 - fixed_point}_{fixed_point}_sat_t")
+        decay_dtype = UnresolvedType("s1_14_sat_t")
+        self.v = Variable(self.shape, dtype)
+        self.i = Variable(self.shape, dtype)
+        self.out_spikes = EventContainer(self.shape)
+ 
+        # If all thresholds are the same, implement as parameter
+        assert np.all(node.v_threshold == node.v_threshold[0])
+        assert np.all(node.tau_mem == node.tau_mem[0])
+        assert np.all(node.tau_syn == node.tau_syn[0])
+        assert np.all(node.r == node.r[0])
+        assert np.all(node.w_in == node.w_in[0])
+        
+        alpha = np.exp(-1.0 / node.tau_mem[0])
+        self.process = NeuronUpdateProcess(
+            f"""
+            V = (Alpha * V) + (IScale * I);
+            I *= Beta;
+            
+            if(V >= VThresh) {{
+               Spike();
+               V -= VThresh;
+            }}
+            """,
+            {"Alpha": Parameter(NumericValue(alpha), decay_dtype),
+             "IScale": Parameter(NumericValue((1.0 - alpha) * node.r[0] 
+                                              * node.w_in[0]), dtype),
+             "Beta": Parameter(NumericValue(np.exp(-1.0 / node.tau_syn[0])), decay_dtype),
+             "VThresh": Parameter(NumericValue(node.v_threshold[0]), dtype)},
+            {"V": self.v, "I": self.i}, {"Spike": self.out_spikes}, name)
+
+class Linear:
+    def __init__(self, name: str, node: nir.Linear, 
+                 source_process, target_process,
+                 fixed_point: int):
+        self.shape = Shape([source_process.shape.num_neurons,
+                            target_process.shape.num_neurons])
+        weight_dtype = UnresolvedType(f"s{15 - fixed_point}_{fixed_point}_t")
+
+        self.weight = Variable(self.shape, weight_dtype)
+        self.process = EventPropagationProcess(source_events, self.weight,
+                                               target_var)
+
+
+def validate_graph(graph: nir.NIRGraph, neuron_update_nodes, 
+                   event_prop_nodes):
+    # Build tuple of all supported node types
+    supported_nodes = (tuple(neuron_update_nodes.keys())
+                       + tuple(event_prop_nodes.keys())
+                       + (nir.Input, nir.Output))
+    
+    # Loop through nodes
+    for node in graph.nodes.values():
+        # If node is sub-graph, recurse
+        if isinstance(node, nir.NIRGraph):
+            # **TODO** implement
+            assert False
+            validate_graph(node, neuron_update_nodes,
+                           event_prop_nodes)
+        elif not isinstance(node, supported_nodes):
+            raise NotImplementedError(f"Node {node} not supported.")
+
+def build_neuron_update_processes(graph: nir.NIRGraph, neuron_update_nodes,
+                                  event_prop_nodes, target_node_quant: dict,
+                                  dt: float):
+    # Loop through nodes
+    node_processes = {}
+    neuron_nodes_tuple = tuple(neuron_update_nodes.keys())
+    event_prop_nodes_tuple = tuple(event_prop_nodes.keys())
+    for name, node in graph.nodes.items():
+        # If node is sub-graph, recurse
+        if isinstance(node, nir.NIRGraph):
+            # **TODO** implement
+            assert False
+            node_processes.update(
+                build_neuron_update_processes(node, target_node_quant,
+                                              event_prop_nodes,
+                                              node_processes))
+        elif isinstance(node, neuron_nodes_tuple):
+            process_type = neuron_update_nodes[type(node)]
+            node_processes[name] = process_type(name, node, 8)
+        elif not isinstance(node, event_prop_nodes_tuple
+                            + (nir.Input, nir.Output)):
+            assert False
+
+    return node_processes
+
+def build_event_prop_processes(graph: nir.NIRGraph, neuron_update_nodes,
+                               event_prop_nodes, target_node_quant: dict,
+                               event_prop_source_target, 
+                               neuron_node_processes: dict):
+    # Loop through nodes
+    neuron_nodes_tuple = tuple(neuron_update_nodes.keys())
+    event_prop_nodes_tuple = tuple(event_prop_nodes.keys())
+    for name, node in graph.nodes.items():
+        # If node is sub-graph, recurse
+        if isinstance(node, nir.NIRGraph):
+            # **TODO** implement
+            assert False
+            build_event_prop_processes(node, target_node_quant,
+                                       event_prop_nodes,
+                                       neuron_node_processes)
+        elif isinstance(node, event_prop_nodes_tuple):
+            # Get source and target node names
+            source_node, target_node = event_prop_source_target[name]
+            process_type = event_prop_nodes[type(node)]
+            process_type(name, node, neuron_node_processes[source_node], 
+                         neuron_node_processes[target_node], 8)
+        elif not isinstance(node, neuron_nodes_tuple
+                            + (nir.Input, nir.Output)):
+            assert False
+    
+def build_mappings(graph: nir.NIRGraph, neuron_update_nodes,
+                   event_prop_nodes):
+    neuron_nodes_tuple = tuple(neuron_update_nodes.keys())
+    event_prop_nodes_tuple = tuple(event_prop_nodes.keys())
+    
+    # Loop through edges to determine which edges target same neuron process
+    # **THINK** does this work with sub-networks?
+    node_inputs = defaultdict(list)
+    event_prop_source_target = defaultdict(lambda: [None, None])
+    for edge in graph.edges:
+        source = graph.nodes[edge[0]]
+        target = graph.nodes[edge[1]]
+        
+        # If source is an event propagation node and target is a neuron node
+        # i.e. the POSTSYNAPTIC end of a connection
+        if (isinstance(source, event_prop_nodes_tuple)
+                and isinstance(target, neuron_nodes_tuple)):
+            node_inputs[edge[1]].append(edge[0])
+            event_prop_source_target[edge[0]][1] = edge[1]
+        # Otherwise, if source is a neuron update node and target is an`
+        # event propagation node i.e the PRESYNAPTIC end of a connection
+        elif (isinstance(source, neuron_nodes_tuple)
+                and isinstance(target, event_prop_nodes_tuple)):
+            event_prop_source_target[edge[1]][0] = edge[0]
+        elif (not isinstance(source, nir.Input)
+                and not isinstance(target, nir.Output)):
+            raise NotImplementedError(f"Node {source} cannot be "
+                                      f"directly connected to "
+                                      f"node {target}")
+
+    return node_inputs, event_prop_source_target
+
+# **TODO** return neuron and synapse update groups, input and output variables
+def parse_graph(graph: nir.NIRGraph, dt: float = 1.0,
+                quant_percentile: float = 99.0, num_bits: int = 8):
+    neuron_update_nodes = {nir.CubaLIF: CubaLIF}
+    event_prop_nodes = {nir.Linear: Linear}
+
+    # Validate graph
+    validate_graph(graph, neuron_update_nodes, event_prop_nodes)
+    
+    # Build additional data structures
+    node_inputs, event_prop_source_target =\
+        build_mappings(graph, neuron_update_nodes, event_prop_nodes)
+    
+    print(f"Node inputs: {node_inputs}")
+    print(f"Event propagation source and target nodes: {event_prop_source_target}")
+    # Loop through edges, sorted by target to quantize weights together
+    target_node_quant = {}
+    for target_node, source_nodes in node_inputs.items():
+        # Flatten and concatenate weights and find scaling factors
+        weights_concat = np.concatenate([graph.nodes[s].weight.flatten()
+                                         for s in source_nodes])
+        target_node_quant[target_node] = _find_signed_scale(weights_concat, num_bits,
+                                                            quant_percentile)
+    
+    # Create neuron update processes from nodes
+    # **NOTE** we need the target_node_quant to build these nodes with the right fixed point format
+    neuron_node_processes = build_neuron_update_processes(
+        graph, neuron_update_nodes, event_prop_nodes,
+        target_node_quant, dt)
+        
+    print(f"Neuron node processes: {neuron_node_processes}")
+    
+    build_event_prop_processes(graph, neuron_update_nodes,
+                               event_prop_nodes, target_node_quant,
+                               event_prop_source_target, 
+                               neuron_node_processes)
+    
+    
+    return nodes
+
+def parse(filename, dt: float = 1.0, quant_percentile: float = 99.0,
+          num_bits: int = 8):
+    return parse_graph(nir.read(filename), dt, quant_percentile, num_bits)

@@ -9,14 +9,14 @@ from ._fenn import (BackendFeNNHW, BackendFeNNSim, CopyProcess, EventContainer,
                     Runtime, Shape, State, UnresolvedType, Variable,
                     disassemble, init_logging)
 
-from . import utils
+from . import nir_import, utils
 
 __all__ = ["CopyProcess", "BackendFeNNHW", "BackendFeNNSim", "EventContainer",
            "EventPropagationProcess", "Model", "ModelComponent",
            "NeuronUpdateProcess", "NumericValue", "Parameter", "PlogSeverity",
            "Process", "ProcessGroup", "RNGInitProcess", "Runtime", "Shape",
            "State", "UnresolvedType", "Variable", 
-           "disassemble", "init_logging", "utils"]
+           "disassemble", "init_logging", "nir_import", "utils"]
 
 if sys.version_info >= (3, 8):
     from importlib import metadata
