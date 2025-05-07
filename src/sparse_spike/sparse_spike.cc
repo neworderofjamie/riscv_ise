@@ -29,15 +29,17 @@
 #include "ise/vector_processor.h"
 
 void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAllocator,
-                    RegisterAllocator<Reg> &scalarRegisterAllocator, uint32_t weightPtr, 
-                    std::variant<uint32_t, ScalarRegisterAllocator::RegisterPtr> preSpikePtr, uint32_t postISynPtr, 
-                    uint32_t numPre, uint32_t numPost, uint32_t scaleShift, bool debug)
+                    RegisterAllocator<Reg> &scalarRegisterAllocator, uint32_t indPtr, 
+                    std::variant<uint32_t, ScalarRegisterAllocator::RegisterPtr> preSpikePtr,
+                    uint32_t numPre, uint32_t numPost, int16_t weight, bool debug)
 {
     // Register allocation
     ALLOCATE_SCALAR(SWordNStart);
     ALLOCATE_SCALAR(SConst1);
+    ALLOCATE_SCALAR(SByteStride);
     ALLOCATE_SCALAR(SSpikeWord);
     ALLOCATE_SCALAR(SISynBuffer);
+    ALLOCATE_VECTOR(VWeight);
 
     assert(numPre == 32);
     assert(numPost == 32);
@@ -59,14 +61,17 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
         SSpikeBuffer = std::get<ScalarRegisterAllocator::RegisterPtr>(preSpikePtr);
     }
     
-    // SISynBuffer = hiddenIsyn;
-    c.li(*SISynBuffer, postISynPtr);
-    
     // Load some useful constants
     c.li(*SConst1, 1);
 
     // SWordNStart = 31
     c.li(*SWordNStart, 31);
+
+    // Calculate stride
+    c.li(*SByteStride, numPost * 4);
+
+    // Load weight vector
+    c.vlui(*VWeight, weight);
         
     // Register allocation
     ALLOCATE_SCALAR(SN);
@@ -104,37 +109,40 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
         c.sub(*SN, *SN, *SNumLZ);
 
         // SWeightBuffer = weightInHidStart + (numPostVecs * 64 * SN);
-        // **TODO** multiply
-        ALLOCATE_SCALAR(SWeightBuffer);
-        c.li(*SWeightBuffer, weightPtr);
+        ALLOCATE_SCALAR(SIndBuffer);
+        c.li(*SIndBuffer, indPtr);
         {
             ALLOCATE_SCALAR(STemp);
-            c.slli(*STemp, *SN, scaleShift);
-            c.add(*SWeightBuffer, *SWeightBuffer, *STemp);
+            c.mul(*STemp, *SN, *SByteStride);
+            c.add(*SIndBuffer, *SIndBuffer, *STemp);
         }
 
-            
         // Load weight and Isyn
         if(debug) {
             c.ebreak();
         }
 
         {
-            ALLOCATE_VECTOR(VWeight);
+            ALLOCATE_VECTOR(VInd);
             ALLOCATE_VECTOR(VISyn);
          
-            // Load next vector of weights and ISyns
-            c.vloadv(*VWeight, *SWeightBuffer);
-            c.vloadv(*VISyn, *SISynBuffer);
+            // Load vector of postsynaptic indices for next iteration
+            c.vloadv(*VInd, *SIndBuffer);
 
+            // Stall
+            c.nop();
+
+            // Using postsynaptic indices, load accumulator for next iteration
+            c.vloadl(*VISyn, *VInd);
+            
             // **STALL**
             c.nop();
 
-            // Add weights to ISyn with mask
-            c.vadd(*VISyn, *VISyn, *VWeight);
-            
-            // Write back ISyn
-            c.vstore(*VISyn, *SISynBuffer);
+            // Add weights to accumulator loaded in previous iteration
+            c.vadd_s(*VISyn, *VISyn, *VWeight);
+
+            // Write back accumulator
+            c.vstorel(*VISyn, *VInd);
         }
 
 
@@ -374,9 +382,8 @@ void check(const int16_t *hiddenIsyn, size_t numInput, size_t numHidden)
     std::cout << numCorrect << " correct" << std::endl;
 }
 
-std::vector<uint32_t> generateSimCode(bool simulate, uint32_t numInput, uint32_t numHidden, uint32_t numInputSpikeWords, uint32_t numHiddenSpikeWords, 
-                                      uint32_t inputSpikePtr, uint32_t weightInHidPtr, uint32_t weightInHidScalarPtr, uint32_t hiddenIsynPtr, uint32_t hiddenIsynScalarPtr, 
-                                      uint32_t readyFlagPtr)
+std::vector<uint32_t> generateSimCode(bool simulate, uint32_t numInput, uint32_t numHidden, uint32_t numIndVectors,
+                                      uint32_t inputSpikePtr, uint32_t indPtr, uint32_t indScalarPtr, uint32_t readyFlagPtr)
 {
     return AssemblerUtils::generateStandardKernel(
         simulate, readyFlagPtr,
@@ -384,16 +391,15 @@ std::vector<uint32_t> generateSimCode(bool simulate, uint32_t numInput, uint32_t
         {
             // Generate code to copy weights and in syn from scalar memory to vector memory
             AssemblerUtils::generateScalarVectorMemcpy(c, vectorRegisterAllocator, scalarRegisterAllocator,
-                                                       weightInHidScalarPtr, weightInHidPtr, 
-                                                       (numInput * numHiddenSpikeWords) + numHiddenSpikeWords);
+                                                       indScalarPtr, indPtr, 
+                                                       numInput * numIndVectors);
             
             
-            // 2^6 = 2 bytes * 32 hidden neurons
             genStaticPulse(c, vectorRegisterAllocator, scalarRegisterAllocator,
-                           weightInHidPtr, inputSpikePtr, hiddenIsynPtr, 
-                           numInput, numHidden, 6, false);
+                           indPtr, inputSpikePtr,
+                           numInput, numHidden, 1, false);
 
-            // Copy Isyn to BRAM
+            // Copy L.L.M. to BRAM
             AssemblerUtils::generateVectorScalarMemcpy(c, vectorRegisterAllocator, scalarRegisterAllocator,
                                                        hiddenIsynPtr, hiddenIsynScalarPtr, numHiddenSpikeWords);
         });
@@ -412,7 +418,7 @@ int main()
     // Constants
     constexpr bool simulate = true;
     constexpr uint32_t numInput = 32;
-    constexpr uint32_t numHidden = 32;
+    constexpr uint32_t numHidden = 64;
     constexpr uint32_t numInputSpikeWords = ceilDivide(numInput, 32);
     constexpr uint32_t numHiddenSpikeWords = ceilDivide(numHidden, 32);
     
