@@ -9,6 +9,7 @@ from models import Copy
 from pyfenn import disassemble, init_logging
 from pyfenn.utils import get_array_view, load_and_push, zero_and_push
 
+from time import perf_counter
 from pyfenn.nir_import import parse
 
 DT = 1e-4
@@ -84,6 +85,7 @@ output_spike_array, output_spike_view = get_array_view(runtime,
                                                        np.uint8)
 output_spike_view = np.reshape(output_spike_view, (num_timesteps, -1))
 num_correct = 0
+time = 0
 for i, (spikes, label) in enumerate(zip(test_spikes, test_labels)):
     # Copy data to array host pointer
     assert input_spike_view.nbytes == spikes.nbytes
@@ -91,7 +93,9 @@ for i, (spikes, label) in enumerate(zip(test_spikes, test_labels)):
     input_spike_array.push_to_device();
 
     # Classify
+    start = perf_counter()
     runtime.run()
+    time += (perf_counter() - start)
 
     # Copy output V sum from device
     output_spike_array.pull_from_device()
@@ -104,3 +108,4 @@ for i, (spikes, label) in enumerate(zip(test_spikes, test_labels)):
         num_correct += 1
 
 print(f"{num_correct} / {len(test_labels)} correct {100.0 * (num_correct / len(test_labels))}%")
+print(f"{time / len(test_labels)}s/classification")
