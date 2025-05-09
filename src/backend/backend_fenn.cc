@@ -434,6 +434,10 @@ void updateLiteralPool(const std::vector<Token> &tokens, VectorRegisterAllocator
             }
         }
     }
+
+    // Always add zero to literal pool
+    // **THINK** why not hardcode V0 
+    literalPool.try_emplace(0, vectorRegisterAllocator.getRegister("0 V"));
 }
 
 void compileStatements(const std::vector<Token> &tokens, const Type::TypeContext &typeContext,
