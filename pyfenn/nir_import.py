@@ -10,40 +10,6 @@ from . import (EventContainer, EventPropagationProcess,
                NeuronUpdateProcess, NumericValue, Parameter,
                Shape, UnresolvedType, Variable)
 
-# **TODO** should operate in terms of fixed point
-def _find_signed_scale(data, num_bits: int, percentile: float):
-    # Calculate desired percentile
-    if isinstance(data, Number):
-        max_val = data
-    else:
-        # Split data into positive and negative
-        positive_mask = (data > 0)
-        positive_data = data[positive_mask]
-        negative_data = data[np.logical_not(positive_mask)]
-
-        # Calculate desired percentile
-        positive_perc = np.percentile(positive_data, percentile)
-        negative_perc = np.percentile(-negative_data, percentile)
-
-        # Calculate the largest of these
-        max_val = max(positive_perc, negative_perc)
-    
-    # Calculate high bit and low bit
-    # **NOTE** we floor so max is 2**(high_bit + 1) - 1
-    # **NOTE** one bit is used for sign
-    high_bit =  math.floor(math.log(max_val, 2))
-    low_bit = high_bit - (num_bits - 2)
-    
-    # We scale to multiples of the low bit
-    scale = (2.0 ** low_bit)
-    
-    # Calculate min and max
-    min_quant = (-2.0 ** (high_bit + 1))
-    max_quant = (2.0 ** (high_bit + 1)) - scale
-
-    # Return range and scale
-    return min_quant, max_quant, scale
-
 class InputSpikes:
     def __init__(self, name: str, node: nir.Input, fixed_point: int):
         num_timesteps = 79 # **TODO**
@@ -97,9 +63,44 @@ class Linear:
         self.process = EventPropagationProcess(source_event_container,
                                                self.weight, target_variable)
 
+
+# **TODO** should operate in terms of fixed point
+def _find_signed_scale(data, num_bits: int, percentile: float):
+    # Calculate desired percentile
+    if isinstance(data, Number):
+        max_val = data
+    else:
+        # Split data into positive and negative
+        positive_mask = (data > 0)
+        positive_data = data[positive_mask]
+        negative_data = data[np.logical_not(positive_mask)]
+
+        # Calculate desired percentile
+        positive_perc = np.percentile(positive_data, percentile)
+        negative_perc = np.percentile(-negative_data, percentile)
+
+        # Calculate the largest of these
+        max_val = max(positive_perc, negative_perc)
+    
+    # Calculate high bit and low bit
+    # **NOTE** we floor so max is 2**(high_bit + 1) - 1
+    # **NOTE** one bit is used for sign
+    high_bit =  math.floor(math.log(max_val, 2))
+    low_bit = high_bit - (num_bits - 2)
+    
+    # We scale to multiples of the low bit
+    scale = (2.0 ** low_bit)
+    
+    # Calculate min and max
+    min_quant = (-2.0 ** (high_bit + 1))
+    max_quant = (2.0 ** (high_bit + 1)) - scale
+
+    # Return range and scale
+    return min_quant, max_quant, scale
+
 # Check graph only contains supported node types
-def validate_graph(graph: nir.NIRGraph, neuron_update_nodes, 
-                   event_prop_nodes) -> nir.Input:
+def _validate_graph(graph: nir.NIRGraph, neuron_update_nodes, 
+                    event_prop_nodes) -> str:
     # Build tuple of all supported node types
     supported_nodes = (tuple(neuron_update_nodes.keys())
                        + tuple(event_prop_nodes.keys())
@@ -126,9 +127,9 @@ def validate_graph(graph: nir.NIRGraph, neuron_update_nodes,
     return input_name
 
 # Build neuron update processes from nodes in graph
-def build_neuron_update_processes(graph: nir.NIRGraph, neuron_update_nodes,
-                                  event_prop_nodes, target_node_quant: dict,
-                                  dt: float):
+def _build_neuron_update_processes(graph: nir.NIRGraph, neuron_update_nodes,
+                                   event_prop_nodes, target_node_quant: dict,
+                                   dt: float) -> dict:
     # Loop through nodes
     node_processes = {}
     neuron_nodes_tuple = tuple(neuron_update_nodes.keys())
@@ -152,10 +153,10 @@ def build_neuron_update_processes(graph: nir.NIRGraph, neuron_update_nodes,
     return node_processes
 
 # Build event propagation processes from nodes in graph
-def build_event_prop_processes(graph: nir.NIRGraph, neuron_update_nodes,
-                               event_prop_nodes, target_node_quant: dict,
-                               event_prop_source_target,
-                               neuron_node_processes: dict):
+def _build_event_prop_processes(graph: nir.NIRGraph, neuron_update_nodes,
+                                event_prop_nodes, target_node_quant: dict,
+                                event_prop_source_target,
+                                neuron_node_processes: dict):
     # Loop through nodes
     neuron_nodes_tuple = tuple(neuron_update_nodes.keys())
     event_prop_nodes_tuple = tuple(event_prop_nodes.keys())
@@ -181,8 +182,8 @@ def build_event_prop_processes(graph: nir.NIRGraph, neuron_update_nodes,
             assert False
 
 # Build data structures required for building FeNN model
-def build_mappings(graph: nir.NIRGraph, neuron_update_nodes,
-                   event_prop_nodes):
+def _build_mappings(graph: nir.NIRGraph, neuron_update_nodes,
+                    event_prop_nodes):
     neuron_nodes_tuple = tuple(neuron_update_nodes.keys())
     event_prop_nodes_tuple = tuple(event_prop_nodes.keys())
     
@@ -231,11 +232,11 @@ def parse_graph(graph: nir.NIRGraph, dt: float = 1.0,
     event_prop_nodes = {nir.Linear: Linear}
 
     # Validate graph
-    input_name = validate_graph(graph, neuron_update_nodes, event_prop_nodes) 
+    input_name = _validate_graph(graph, neuron_update_nodes, event_prop_nodes)
     
     # Build additional data structures
     node_inputs, event_prop_source_target, output_name =\
-        build_mappings(graph, neuron_update_nodes, event_prop_nodes)
+        _build_mappings(graph, neuron_update_nodes, event_prop_nodes)
     
     print(f"Node inputs: {node_inputs}")
     print(f"Event propagation source and target nodes: {event_prop_source_target}")
@@ -250,19 +251,18 @@ def parse_graph(graph: nir.NIRGraph, dt: float = 1.0,
 
     # Create neuron update processes from nodes
     # **NOTE** we need the target_node_quant to build these nodes with the right fixed point format
-    neuron_node_processes = build_neuron_update_processes(
+    neuron_node_processes = _build_neuron_update_processes(
         graph, neuron_update_nodes, event_prop_nodes,
         target_node_quant, dt)
-        
+
     print(f"Neuron node processes: {neuron_node_processes}")
     print(f"Input neuron node: '{input_name}', "
           f"output neuron node: '{output_name}'")
-    
-    
-    build_event_prop_processes(graph, neuron_update_nodes,
-                               event_prop_nodes, target_node_quant,
-                               event_prop_source_target, 
-                               neuron_node_processes)
+
+    _build_event_prop_processes(graph, neuron_update_nodes,
+                                event_prop_nodes, target_node_quant,
+                                event_prop_source_target, 
+                                neuron_node_processes)
 
     return (neuron_node_processes[input_name],
             neuron_node_processes[output_name])
