@@ -14,16 +14,18 @@ class InputSpikes:
     def __init__(self, name: str, node: nir.Input, fixed_point: int):
         num_timesteps = 79 # **TODO**
         self.shape = Shape(node.output_type["output"])
-        self.out_spikes = EventContainer(self.shape, num_timesteps)
+        self.out_spikes = EventContainer(self.shape, num_timesteps,
+                                         f"{name}_out_spikes")
 
 class CubaLIF:
     def __init__(self, name: str, node: nir.CubaLIF, fixed_point: int):
         self.shape = Shape(node.output_type["output"])
-        dtype = UnresolvedType(f"s{15 - fixed_point}_{fixed_point}_sat_t")
+        dtype = _get_type(fixed_point, True)
         decay_dtype = UnresolvedType("s1_14_sat_t")
-        self.v = Variable(self.shape, dtype)
-        self.i = Variable(self.shape, dtype)
-        self.out_spikes = EventContainer(self.shape)
+        self.v = Variable(self.shape, dtype, 1, f"{name}_v")
+        self.i = Variable(self.shape, dtype, 1, f"{name}_i")
+        self.out_spikes = EventContainer(self.shape, 1,
+                                         f"{name}_out_spikes")
  
         # If all thresholds are the same, implement as parameter
         assert np.all(node.v_threshold == node.v_threshold[0])
@@ -57,13 +59,20 @@ class Linear:
                  fixed_point: int):
         self.shape = Shape([source_event_container.shape.num_neurons,
                             target_variable.shape.num_neurons])
-        weight_dtype = UnresolvedType(f"s{15 - fixed_point}_{fixed_point}_t")
+        weight_dtype = _get_type(fixed_point, False)
 
-        self.weight = Variable(self.shape, weight_dtype)
+        self.weight = Variable(self.shape, weight_dtype, 1,
+                               f"{name}_weight")
         self.process = EventPropagationProcess(source_event_container,
-                                               self.weight, target_variable)
+                                               self.weight, target_variable,
+                                               name)
 
 
+def _get_type(frac_bits: int, saturation: bool):
+     int_bits = 15 - frac_bits
+     return UnresolvedType(f"s{int_bits}_{frac_bits}_sat_t" if saturation
+                           else f"s{int_bits}_{frac_bits}_t")
+     
 # **TODO** should operate in terms of fixed point
 def _find_signed_scale(data, num_bits: int, percentile: float):
     # Calculate desired percentile
@@ -87,7 +96,7 @@ def _find_signed_scale(data, num_bits: int, percentile: float):
     # **NOTE** one bit is used for sign
     high_bit =  math.floor(math.log(max_val, 2))
     low_bit = high_bit - (num_bits - 2)
-    
+
     # We scale to multiples of the low bit
     scale = (2.0 ** low_bit)
     
@@ -95,8 +104,8 @@ def _find_signed_scale(data, num_bits: int, percentile: float):
     min_quant = (-2.0 ** (high_bit + 1))
     max_quant = (2.0 ** (high_bit + 1)) - scale
 
-    # Return range and scale
-    return min_quant, max_quant, scale
+    # Return range and number of fractional bits
+    return min_quant, max_quant, -low_bit
 
 # Check graph only contains supported node types
 def _validate_graph(graph: nir.NIRGraph, neuron_update_nodes, 
@@ -145,7 +154,9 @@ def _build_neuron_update_processes(graph: nir.NIRGraph, neuron_update_nodes,
                                               node_processes))
         elif isinstance(node, neuron_nodes_tuple):
             process_type = neuron_update_nodes[type(node)]
-            node_processes[name] = process_type(name, node, 8)
+            fixed_point = (target_node_quant[name][2]
+                           if name in target_node_quant else None)
+            node_processes[name] = process_type(name, node, fixed_point)
         elif not isinstance(node, event_prop_nodes_tuple
                             + (nir.Input, nir.Output)):
             assert False
@@ -160,6 +171,7 @@ def _build_event_prop_processes(graph: nir.NIRGraph, neuron_update_nodes,
     # Loop through nodes
     neuron_nodes_tuple = tuple(neuron_update_nodes.keys())
     event_prop_nodes_tuple = tuple(event_prop_nodes.keys())
+    variable_values = {}
     for name, node in graph.nodes.items():
         # If node is sub-graph, recurse
         if isinstance(node, nir.NIRGraph):
@@ -175,11 +187,20 @@ def _build_event_prop_processes(graph: nir.NIRGraph, neuron_update_nodes,
 
             # Get process type and create
             process_type = event_prop_nodes[type(node)]
-            process_type(name, node, 
-                         neuron_node_processes[source_node].out_spikes, 
-                         neuron_node_processes[target_node].i, 8)
+            quantisation = target_node_quant[target_node]
+            process = process_type(
+                name, node, neuron_node_processes[source_node].out_spikes,
+                neuron_node_processes[target_node].i, quantisation[2])
+            
+            # Quantise weights
+            scale = 2.0 ** -quantisation[2]
+            quant_weights = np.clip(scale * np.round(node.weight / scale),
+                             quantisation[0], quantisation[1]) / scale
+            variable_values[process.weight] = quant_weights
         elif not isinstance(node, neuron_nodes_tuple + (nir.Output,)):
             assert False
+
+    return variable_values
 
 # Build data structures required for building FeNN model
 def _build_mappings(graph: nir.NIRGraph, neuron_update_nodes,
@@ -226,12 +247,13 @@ def _build_mappings(graph: nir.NIRGraph, neuron_update_nodes,
     return node_inputs, event_prop_source_target, output_name
 
 # **TODO** return neuron and synapse update groups, input and output variables
-def parse_graph(graph: nir.NIRGraph, dt: float = 1.0,
-                quant_percentile: float = 99.0, num_bits: int = 8):
+def parse(filename, num_timesteps: int, dt: float = 1.0, 
+          quant_percentile: float = 99.0, num_weight_bits: int = 8):
     neuron_update_nodes = {nir.CubaLIF: CubaLIF, nir.Input: InputSpikes}
     event_prop_nodes = {nir.Linear: Linear}
 
     # Validate graph
+    graph = nir.read(filename)
     input_name = _validate_graph(graph, neuron_update_nodes, event_prop_nodes)
     
     # Build additional data structures
@@ -246,8 +268,10 @@ def parse_graph(graph: nir.NIRGraph, dt: float = 1.0,
         # Flatten and concatenate weights and find scaling factors
         weights_concat = np.concatenate([graph.nodes[s].weight.flatten()
                                          for s in source_nodes])
-        target_node_quant[target_node] = _find_signed_scale(weights_concat, num_bits,
+        target_node_quant[target_node] = _find_signed_scale(weights_concat,
+                                                            num_weight_bits,
                                                             quant_percentile)
+    print(f"Target node quantisation: {target_node_quant}")
 
     # Create neuron update processes from nodes
     # **NOTE** we need the target_node_quant to build these nodes with the right fixed point format
@@ -259,14 +283,13 @@ def parse_graph(graph: nir.NIRGraph, dt: float = 1.0,
     print(f"Input neuron node: '{input_name}', "
           f"output neuron node: '{output_name}'")
 
-    _build_event_prop_processes(graph, neuron_update_nodes,
-                                event_prop_nodes, target_node_quant,
-                                event_prop_source_target, 
-                                neuron_node_processes)
+    variable_values = _build_event_prop_processes(graph, neuron_update_nodes,
+                                                  event_prop_nodes,
+                                                  target_node_quant,
+                                                  event_prop_source_target,
+                                                  neuron_node_processes)
+    print(f"Variable values: {variable_values}")
 
     return (neuron_node_processes[input_name],
-            neuron_node_processes[output_name])
-
-def parse(filename, dt: float = 1.0, quant_percentile: float = 99.0,
-          num_bits: int = 8):
-    return parse_graph(nir.read(filename), dt, quant_percentile, num_bits)
+            neuron_node_processes[output_name],
+            variable_values)
