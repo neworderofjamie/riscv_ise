@@ -12,14 +12,14 @@ from .utils import ceil_divide
 
 class InputSpikes:
     def __init__(self, name: str, node: nir.Input,
-                 fixed_point: int, num_timesteps: int):
+                 fixed_point: int, num_timesteps: int, dt: float):
         self.shape = Shape(node.output_type["output"])
         self.out_spikes = EventContainer(self.shape, num_timesteps,
                                          f"{name}_out_spikes")
 
 class CubaLIF:
     def __init__(self, name: str, node: nir.CubaLIF,
-                 fixed_point: int, num_timesteps: int):
+                 fixed_point: int, num_timesteps: int, dt: float):
         self.shape = Shape(node.output_type["output"])
         dtype = _get_type(fixed_point, True)
         decay_dtype = UnresolvedType("s1_14_sat_t")
@@ -35,7 +35,7 @@ class CubaLIF:
         assert np.all(node.r == node.r[0])
         assert np.all(node.w_in == node.w_in[0])
         
-        alpha = np.exp(-1.0 / node.tau_mem[0])
+        alpha = np.exp(-dt / node.tau_mem[0])
         self.process = NeuronUpdateProcess(
             f"""
             V = (Alpha * V) + (IScale * I);
@@ -49,7 +49,7 @@ class CubaLIF:
             {"Alpha": Parameter(NumericValue(alpha), decay_dtype),
              "IScale": Parameter(NumericValue((1.0 - alpha) * node.r[0] 
                                               * node.w_in[0]), dtype),
-             "Beta": Parameter(NumericValue(np.exp(-1.0 / node.tau_syn[0])), decay_dtype),
+             "Beta": Parameter(NumericValue(np.exp(-dt / node.tau_syn[0])), decay_dtype),
              "VThresh": Parameter(NumericValue(node.v_threshold[0]), dtype)},
             {"V": self.v, "I": self.i}, {"Spike": self.out_spikes}, name)
 
@@ -163,7 +163,7 @@ def _build_neuron_update_processes(graph: nir.NIRGraph, neuron_update_nodes,
                                       or name == output_name)
                                   else 1)
             node_processes[name] = process_type(name, node, fixed_point,
-                                                num_proc_timesteps)
+                                                num_proc_timesteps, dt)
         elif not isinstance(node, event_prop_nodes_tuple
                             + (nir.Output,)):
             assert False
@@ -318,4 +318,4 @@ def parse(filename, num_timesteps: int, dt: float = 1.0,
     return (neuron_node_processes[input_name],
             neuron_node_processes[output_name],
             neuron_update_process_group, event_prop_process_group,
-            variable_values)
+            variable_values, neuron_node_processes)

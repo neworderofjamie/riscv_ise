@@ -11,7 +11,7 @@ from pyfenn.utils import get_array_view, load_and_push, zero_and_push
 
 from pyfenn.nir_import import parse
 
-DT = 1.0
+DT = 1e-4
 DEVICE = False
 DISASSEMBLE_CODE = False
 
@@ -32,8 +32,8 @@ num_timesteps = test_spikes[0].shape[0]
 print(f"{num_timesteps} timesteps")
 
 # Load model
-(in_proc, out_proc, neuron_proc_group, syn_proc_group, var_vals) =\
-    parse("braille_noDelay_noBias_subtract.nir", num_timesteps, 5.0)
+(in_proc, out_proc, neuron_proc_group, syn_proc_group, var_vals, neuron_proc) =\
+    parse("braille_noDelay_noBias_subtract.nir", num_timesteps, DT)
 
 # Create model
 model = Model([neuron_proc_group, syn_proc_group])
