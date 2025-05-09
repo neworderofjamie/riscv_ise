@@ -11,20 +11,21 @@ from . import (EventContainer, EventPropagationProcess,
 from .utils import ceil_divide
 
 class InputSpikes:
-    def __init__(self, name: str, node: nir.Input, fixed_point: int):
-        num_timesteps = 79 # **TODO**
+    def __init__(self, name: str, node: nir.Input,
+                 fixed_point: int, num_timesteps: int):
         self.shape = Shape(node.output_type["output"])
         self.out_spikes = EventContainer(self.shape, num_timesteps,
                                          f"{name}_out_spikes")
 
 class CubaLIF:
-    def __init__(self, name: str, node: nir.CubaLIF, fixed_point: int):
+    def __init__(self, name: str, node: nir.CubaLIF,
+                 fixed_point: int, num_timesteps: int):
         self.shape = Shape(node.output_type["output"])
         dtype = _get_type(fixed_point, True)
         decay_dtype = UnresolvedType("s1_14_sat_t")
         self.v = Variable(self.shape, dtype, 1, f"{name}_v")
         self.i = Variable(self.shape, dtype, 1, f"{name}_i")
-        self.out_spikes = EventContainer(self.shape, 1,
+        self.out_spikes = EventContainer(self.shape, num_timesteps,
                                          f"{name}_out_spikes")
  
         # If all thresholds are the same, implement as parameter
@@ -138,7 +139,8 @@ def _validate_graph(graph: nir.NIRGraph, neuron_update_nodes,
 # Build neuron update processes from nodes in graph
 def _build_neuron_update_processes(graph: nir.NIRGraph, neuron_update_nodes,
                                    event_prop_nodes, target_node_quant: dict,
-                                   dt: float) -> dict:
+                                   num_timesteps: int, dt: float,
+                                   output_name: str) -> dict:
     # Loop through nodes
     node_processes = {}
     neuron_nodes_tuple = tuple(neuron_update_nodes.keys())
@@ -156,9 +158,14 @@ def _build_neuron_update_processes(graph: nir.NIRGraph, neuron_update_nodes,
             process_type = neuron_update_nodes[type(node)]
             fixed_point = (target_node_quant[name][2]
                            if name in target_node_quant else None)
-            node_processes[name] = process_type(name, node, fixed_point)
+            num_proc_timesteps = (num_timesteps 
+                                  if (isinstance(node, nir.Input)
+                                      or name == output_name)
+                                  else 1)
+            node_processes[name] = process_type(name, node, fixed_point,
+                                                num_proc_timesteps)
         elif not isinstance(node, event_prop_nodes_tuple
-                            + (nir.Input, nir.Output)):
+                            + (nir.Output,)):
             assert False
 
     return node_processes
@@ -288,7 +295,7 @@ def parse(filename, num_timesteps: int, dt: float = 1.0,
     # **NOTE** we need the target_node_quant to build these nodes with the right fixed point format
     neuron_node_processes = _build_neuron_update_processes(
         graph, neuron_update_nodes, event_prop_nodes,
-        target_node_quant, dt)
+        target_node_quant, num_timesteps, dt, output_name)
 
     print(f"Neuron node processes: {neuron_node_processes}")
     print(f"Input neuron node: '{input_name}', "
