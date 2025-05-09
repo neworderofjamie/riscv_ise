@@ -8,7 +8,7 @@ from collections import defaultdict
 
 from . import (EventContainer, EventPropagationProcess,
                NeuronUpdateProcess, NumericValue, Parameter,
-               Shape, UnresolvedType, Variable)
+               ProcessGroup, Shape, UnresolvedType, Variable)
 
 class InputSpikes:
     def __init__(self, name: str, node: nir.Input, fixed_point: int):
@@ -172,6 +172,7 @@ def _build_event_prop_processes(graph: nir.NIRGraph, neuron_update_nodes,
     neuron_nodes_tuple = tuple(neuron_update_nodes.keys())
     event_prop_nodes_tuple = tuple(event_prop_nodes.keys())
     variable_values = {}
+    node_processes = {}
     for name, node in graph.nodes.items():
         # If node is sub-graph, recurse
         if isinstance(node, nir.NIRGraph):
@@ -188,19 +189,21 @@ def _build_event_prop_processes(graph: nir.NIRGraph, neuron_update_nodes,
             # Get process type and create
             process_type = event_prop_nodes[type(node)]
             quantisation = target_node_quant[target_node]
-            process = process_type(
+            node_processes[name] = process_type(
                 name, node, neuron_node_processes[source_node].out_spikes,
                 neuron_node_processes[target_node].i, quantisation[2])
             
             # Quantise weights
             scale = 2.0 ** -quantisation[2]
-            quant_weights = np.clip(scale * np.round(node.weight / scale),
-                             quantisation[0], quantisation[1]) / scale
-            variable_values[process.weight] = quant_weights
+            quant_weights = np.clip(
+                scale * np.round(node.weight / scale),
+                quantisation[0], quantisation[1]) / scale
+            variable_values[node_processes[name].weight] =\
+                quant_weights.astype(np.int16)
         elif not isinstance(node, neuron_nodes_tuple + (nir.Output,)):
             assert False
 
-    return variable_values
+    return node_processes, variable_values
 
 # Build data structures required for building FeNN model
 def _build_mappings(graph: nir.NIRGraph, neuron_update_nodes,
@@ -283,13 +286,21 @@ def parse(filename, num_timesteps: int, dt: float = 1.0,
     print(f"Input neuron node: '{input_name}', "
           f"output neuron node: '{output_name}'")
 
-    variable_values = _build_event_prop_processes(graph, neuron_update_nodes,
-                                                  event_prop_nodes,
-                                                  target_node_quant,
-                                                  event_prop_source_target,
-                                                  neuron_node_processes)
-    print(f"Variable values: {variable_values}")
+    # Create event propagation processes from nodes
+    event_prop_node_processes, variable_values =\
+        _build_event_prop_processes(graph, neuron_update_nodes,
+                                    event_prop_nodes, target_node_quant,
+                                    event_prop_source_target,
+                                    neuron_node_processes)
+
+    # Group processes
+    neuron_update_process_group = ProcessGroup(
+        [p.process for p in neuron_node_processes.values()
+         if hasattr(p, "process")])
+    event_prop_process_group = ProcessGroup(
+        [p.process for p in event_prop_node_processes.values()])
 
     return (neuron_node_processes[input_name],
             neuron_node_processes[output_name],
+            neuron_update_process_group, event_prop_process_group,
             variable_values)
