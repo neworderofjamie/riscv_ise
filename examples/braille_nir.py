@@ -13,6 +13,7 @@ from pyfenn.nir_import import parse
 NUM_TIMESTEPS = 100
 DT = 1.0
 DEVICE = False
+DISASSEMBLE_CODE = True
 
 init_logging()
 
@@ -29,7 +30,7 @@ code = backend.generate_simulation_kernel([syn_proc_group, neuron_proc_group],
                                           [], NUM_TIMESTEPS, model)
 
 # Disassemble if required
-if disassemble_code:
+if DISASSEMBLE_CODE:
     for i, c in enumerate(code):
         print(f"{i * 4} : {disassemble(c)}")
 
