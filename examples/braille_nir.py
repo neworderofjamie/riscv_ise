@@ -108,4 +108,4 @@ for i, (spikes, label) in enumerate(zip(test_spikes, test_labels)):
         num_correct += 1
 
 print(f"{num_correct} / {len(test_labels)} correct {100.0 * (num_correct / len(test_labels))}%")
-print(f"{time / len(test_labels)}s/classification")
+print(f"{time * 1000 / len(test_labels)}ms/classification")
