@@ -67,14 +67,11 @@ for var, vals in var_vals.items():
     array.push_to_device()
 
 # Zero remaining state
-"""
-zero_and_push(hidden.v, runtime)
-zero_and_push(hidden.i, runtime)
-zero_and_push(hidden.refrac_time, runtime)
-zero_and_push(output.v, runtime)
-zero_and_push(output.i, runtime)
-zero_and_push(output.v_avg, runtime)
-"""
+zero_and_push(neuron_proc["lif1.lif"].v, runtime)
+zero_and_push(neuron_proc["lif1.lif"].i, runtime)
+zero_and_push(neuron_proc["lif2"].v, runtime)
+zero_and_push(neuron_proc["lif2"].i, runtime)
+
 # Set instructions
 runtime.set_instructions(code)
 
