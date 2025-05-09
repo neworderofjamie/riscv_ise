@@ -13,7 +13,7 @@ from pyfenn.nir_import import parse
 NUM_TIMESTEPS = 100
 DT = 1.0
 DEVICE = False
-DISASSEMBLE_CODE = True
+DISASSEMBLE_CODE = False
 
 init_logging()
 
@@ -43,7 +43,7 @@ runtime.allocate()
 # Load weights
 for var, vals in var_vals.items():
     # Get array and view
-    array, view = get_array_view(runtime, var, np.uint8)
+    array, view = get_array_view(runtime, var, np.int16)
     assert array.host_view.nbytes == vals.nbytes
 
     # Copy data to array host pointer

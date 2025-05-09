@@ -3,12 +3,12 @@ import nir
 import numpy as np
 
 from numbers import Number
-
 from collections import defaultdict
-
 from . import (EventContainer, EventPropagationProcess,
                NeuronUpdateProcess, NumericValue, Parameter,
                ProcessGroup, Shape, UnresolvedType, Variable)
+
+from .utils import ceil_divide
 
 class InputSpikes:
     def __init__(self, name: str, node: nir.Input, fixed_point: int):
@@ -196,10 +196,18 @@ def _build_event_prop_processes(graph: nir.NIRGraph, neuron_update_nodes,
             # Quantise weights
             scale = 2.0 ** -quantisation[2]
             quant_weights = np.clip(
-                scale * np.round(node.weight / scale),
+                scale * np.round(np.transpose(node.weight) / scale),
                 quantisation[0], quantisation[1]) / scale
-            variable_values[node_processes[name].weight] =\
-                quant_weights.astype(np.int16)
+
+            # Pad to multiple of 32 postsynaptic neurons
+            padded_num_post = ceil_divide(quant_weights.shape[1], 32) * 32
+            quant_weights = np.pad(
+                quant_weights, 
+                ((0, 0), (0, padded_num_post - quant_weights.shape[1])))
+            
+            # Convert to int16, flatten and add to dictionary
+            quant_weights = quant_weights.astype(np.int16).flatten()
+            variable_values[node_processes[name].weight] = quant_weights
         elif not isinstance(node, neuron_nodes_tuple + (nir.Output,)):
             assert False
 
