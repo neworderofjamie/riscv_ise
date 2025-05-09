@@ -1,5 +1,6 @@
 import numpy as np
 import mnist
+import torch
 
 from pyfenn import (BackendFeNNHW, BackendFeNNSim, Model,
                     ProcessGroup, Runtime)
@@ -10,16 +11,29 @@ from pyfenn.utils import get_array_view, load_and_push, zero_and_push
 
 from pyfenn.nir_import import parse
 
-NUM_TIMESTEPS = 100
 DT = 1.0
 DEVICE = False
 DISASSEMBLE_CODE = False
 
 init_logging()
 
+# Load test set tensor
+test_spikes, test_labels = torch.load("ds_test.pt", weights_only=False).tensors
+
+# Pack 1s and 0s into bits
+test_spikes = [np.packbits(test_spikes[i].to(int), axis=1, bitorder="little") 
+               for i in range(test_spikes.shape[0])]
+
+# Pad to 32-bit and view as uint32
+test_spikes = [np.pad(s, ((0, 0), (0, 2))).view(np.uint32)
+               for s in test_spikes]
+
+num_timesteps = test_spikes[0].shape[0]
+print(f"{num_timesteps} timesteps")
+
 # Load model
 (in_proc, out_proc, neuron_proc_group, syn_proc_group, var_vals) =\
-    parse("braille_noDelay_noBias_subtract.nir", NUM_TIMESTEPS)
+    parse("braille_noDelay_noBias_subtract.nir", num_timesteps, 5.0)
 
 # Create model
 model = Model([neuron_proc_group, syn_proc_group])
@@ -27,7 +41,7 @@ model = Model([neuron_proc_group, syn_proc_group])
 # Create backend and use to generate sim code
 backend = BackendFeNNHW() if DEVICE else BackendFeNNSim()
 code = backend.generate_simulation_kernel([syn_proc_group, neuron_proc_group],
-                                          [], NUM_TIMESTEPS, model)
+                                          [], num_timesteps, model)
 
 # Disassemble if required
 if DISASSEMBLE_CODE:
@@ -52,7 +66,6 @@ for var, vals in var_vals.items():
     # Push to device
     array.push_to_device()
 
-assert False
 # Zero remaining state
 """
 zero_and_push(hidden.v, runtime)
@@ -69,31 +82,28 @@ runtime.set_instructions(code)
 input_spike_array, input_spike_view = get_array_view(runtime, 
                                                      in_proc.out_spikes,
                                                      np.uint32)
+output_spike_array, output_spike_view = get_array_view(runtime,
+                                                       out_proc.out_spikes,
+                                                       np.uint8)
+output_spike_view = np.reshape(output_spike_view, (num_timesteps, -1))
 num_correct = 0
-for i in range(num_examples):
-    # Copy data to array host pointe
-    input_spike_view[:] = mnist_spikes[i]
+for i, (spikes, label) in enumerate(zip(test_spikes, test_labels)):
+    # Copy data to array host pointer
+    assert input_spike_view.nbytes == spikes.nbytes
+    input_spike_view[:] = spikes.flatten()
     input_spike_array.push_to_device();
 
     # Classify
     runtime.run()
 
-    # If we're recording, write input and hidden spikes to file
-    #if record:
-    #    recordSpikes("mnist_input_spikes_" + std::to_string(i) + ".csv", inputSpikeArray,
-    #                 inputShape.getNumNeurons(), numTimesteps);
-    #    recordSpikes("mnist_hidden_spikes_" + std::to_string(i) + ".csv", hiddenSpikeArray,
-    #                 hiddenShape.getNumNeurons(), numTimesteps);
-
     # Copy output V sum from device
-    output_v_avg_copy_array.pull_from_device();
+    output_spike_array.pull_from_device()
+    
+    # Unpack spikes
+    output_spikes = np.unpackbits(output_spike_view, axis=1, bitorder="little")[:,:7]
+    classification = np.argmax(np.sum(output_spikes, axis=0))
 
-    # Determine if output is correct
-    classification = np.argmax(output_v_avg_copy_view)
-    if classification == mnist_labels[i]:
+    if classification == label:
         num_correct += 1
 
-    # Push ORIGINAL output back to device (zeroing)
-    output_v_avg_array.push_to_device()
-
-print(f"{num_correct} / {num_examples} correct {100.0 * (num_correct / num_examples)}%")
+print(f"{num_correct} / {len(test_labels)} correct {100.0 * (num_correct / len(test_labels))}%")
