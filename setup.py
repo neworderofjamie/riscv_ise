@@ -94,11 +94,20 @@ if WIN:
     # Add GeNN and FFI libraries to dependencies
     fenn_extension_kwargs["depends"] = [os.path.join(pyfenn_path, "genn" + lib_suffix + ".dll"),
                                         os.path.join(pyfenn_path, "libffi" + lib_suffix + ".dll")]
+    # Add FeNN libraries to extension
+    fenn_extension_kwargs["depends"].extend(
+        os.path.join(pyfenn_path, f"{l}{lib_suffix}.dll") 
+        for l in fenn_libraries)
 # Otherwise
 else:
     # Add GeNN library to dependencies
     fenn_extension_kwargs["depends"] = [os.path.join(pyfenn_path, "libgenn" + lib_suffix + ".so"),
                                         os.path.join(pyfenn_path, "docStrings.h")]
+    
+    # Add FeNN libraries to extension
+    fenn_extension_kwargs["depends"].extend(
+        os.path.join(pyfenn_path, f"lib{l}{lib_suffix}.so") 
+        for l in fenn_libraries)
 
     # If this is Linux, we want to add extension directory i.e. $ORIGIN to runtime
     # directories so libGeNN and backends can be found wherever package is installed
