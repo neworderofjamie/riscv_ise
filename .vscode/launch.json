@@ -10,6 +10,9 @@
         "environment": [],
         "externalConsole": false,
         "MIMode": "gdb",
+        "setupCommands": [
+            { "text": "-enable-pretty-printing", "description": "enable pretty printing", "ignoreFailures": true },
+        ]
     }
     ],
     "inputs": [
@@ -28,6 +31,7 @@
         "mnist",
         "poisson",
         "shd",
+        "sparse_spike",
         "va_benchmark"
       ],
       "default": "lif"
