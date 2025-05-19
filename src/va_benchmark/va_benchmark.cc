@@ -188,13 +188,13 @@ void genStaticPulse(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAll
                         c.vloadv(even ? *VPostInd2 : *VPostInd1,
                                  *SPostIndBuffer, (r + 1) * 64);
 
-                        // Using postsynaptic indices, load accumulator for next iteration
-                        c.vloadl(even ? *VAccum2 : *VAccum1, even ? *VPostInd2 : *VPostInd1,
-                                 t.laneLocalImm);
-
                         // Add weights to accumulator loaded in previous iteration
                         auto VAccum = even ? VAccum1 : VAccum2;
                         c.vadd_s(*VAccum, *VAccum, *VWeight);
+                        
+                        // Using postsynaptic indices, load accumulator for next iteration
+                        c.vloadl(even ? *VAccum2 : *VAccum1, even ? *VPostInd2 : *VPostInd1,
+                                 t.laneLocalImm);
 
                         // Write back accumulator
                         c.vstorel(*VAccum, even ? *VPostInd1 : *VPostInd2, t.laneLocalImm);
