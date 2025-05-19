@@ -175,7 +175,7 @@ void check(const int16_t *hiddenIsyn, size_t numInput, size_t numHidden)
     assert(numInput == 32);
 
     // Loop over half of hidden neurons
-    int16_t correctISyn[64] = {0};
+    int16_t correctISyn[65] = {0};
     for(size_t j = 0; j < 32; j++) {
         // Loop over input neurons
         int16_t val = 0;
