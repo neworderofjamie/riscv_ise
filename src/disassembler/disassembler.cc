@@ -49,7 +49,11 @@ void disassembleOPImm(std::ostream &os, uint32_t inst)
 {
     const auto [imm, rs1, funct3, rd] = decodeIType(inst);
     const auto type = getOpImmType(imm, funct3);
-    os << type._to_string() << " X" << rd << ", X" << rs1 << ", " << imm;
+
+    os << type._to_string() << " X" << rd << ", X" << rs1;
+    if(type != +OpImmType::CLZ && type != +OpImmType::CTZ && type != +OpImmType::CPOP) {
+        os << ", " << imm;
+    }
 }
 
 void disassembleLUI(std::ostream &os, uint32_t inst)
