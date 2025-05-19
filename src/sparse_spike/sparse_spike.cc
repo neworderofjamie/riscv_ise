@@ -171,21 +171,35 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
 
 void check(const int16_t *hiddenIsyn, size_t numInput, size_t numHidden)
 {
+    assert(numHidden == 64);
+    assert(numInput == 32);
+
+    // Loop over half of hidden neurons
+    int16_t correctISyn[64] = {0};
+    for(size_t j = 0; j < 32; j++) {
+        // Loop over input neurons
+        int16_t val = 0;
+        for(size_t i = 0; i < 28; i++) {
+            if(0xDEADBEEF & (1u << i)) {
+                if((j % (i + 2)) == 0) {
+                    val++;
+                }
+            }
+        }
+
+        correctISyn[j] = val;
+        correctISyn[j + 33] = val;
+    }
+
     int numCorrect = 0;
     for(size_t i = 0; i < numHidden; i++) {
-        /*int16_t val = 0;
-        for(size_t j = 0; j < numInput; j++) {
-            if(0xDEADBEEF & (1u << j)) {
-                val += ((32 * j) + i); 
-            }
-        }*/
-        std::cout << hiddenIsyn[i] /*<< "(" << val */<< "), ";
-        /*if(val == hiddenIsyn[i]) {
+        std::cout << hiddenIsyn[i] << "(" << correctISyn[i] << "), ";
+        if(correctISyn[i] == hiddenIsyn[i]) {
             numCorrect++;
-        }*/
+        }
     }
     std::cout << std::endl;
-    //std::cout << numCorrect << " correct" << std::endl;
+    std::cout << numCorrect << "/64 correct" << std::endl;
 }
 
 std::vector<uint32_t> generateSimCode(bool simulate, uint32_t numInput, uint32_t numHidden, uint32_t numIndVectors,
@@ -257,10 +271,10 @@ int main()
                 const auto j_high = std::div(j + 33, 32);
                 
                 assert(row[j_low.rem] == -1);
-                row[j_low.rem] = j_low.quot;
+                row[j_low.rem] = j_low.quot * 2;
 
                 assert(row[j_high.rem] == -1);
-                row[j_high.rem] = j_high.quot;
+                row[j_high.rem] = j_high.quot * 2;
             }
         }
         std::memcpy(scalarInitData.data() + indInHidScalarPtr, test.data(), test.size() * 2);
@@ -272,18 +286,18 @@ int main()
         for(size_t i = 0; i < numInputSpikeWords; i++) {
             test[i] = 0xDEADBEEF;
         }
-        std::memcpy(scalarInitData.data() + indInHidScalarPtr, test.data(), test.size() * 4);
+        std::memcpy(scalarInitData.data() + inputSpikePtr, test.data(), test.size() * 4);
     }
     
     std::vector<uint32_t> wordData(scalarInitData.size() / 4);
     std::memcpy(wordData.data(), scalarInitData.data(), scalarInitData.size());
-    AppUtils::dumpCOE("spike_data.coe", wordData);
+    AppUtils::dumpCOE("sparse_spike_data.coe", wordData);
     
     // Generate sim code
     const auto simCode = generateSimCode(simulate, numInput, numHidden, 1, inputSpikePtr, indInHidPtr,
                                          indInHidScalarPtr, hiddenIsynScalarPtr, readyFlagPtr);
     // Dump to coe file
-    AppUtils::dumpCOE("spike.coe", simCode);
+    AppUtils::dumpCOE("sparse_spike.coe", simCode);
     LOGI << simCode.size() << " simulation instructions";
     LOGI << scalarInitData.size() << " bytes of scalar memory required";
     LOGI << vectorInitData.size() * 2 << " bytes of vector memory required (" << ceilDivide(vectorInitData.size() / 32, 4096) << " URAM cascade)";
