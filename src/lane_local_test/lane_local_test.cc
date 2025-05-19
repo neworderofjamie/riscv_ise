@@ -161,47 +161,10 @@ int main(int argc, char** argv)
                 // Store back to lane local memory
                 c.vstorel(*VDest, *VAddress);
             }
-
-            {
-                ALLOCATE_SCALAR(SOutputBuffer);
-                ALLOCATE_SCALAR(SOutputBufferEnd);
-                ALLOCATE_VECTOR(VAddress);
-                ALLOCATE_VECTOR(VTwo);
-
-                c.vlui(*VAddress, 0);
-                c.vlui(*VTwo, 2);
-
-                // SDataBuffer = scalarPtr
-                c.li(*SOutputBuffer, outputPtr);
-                c.li(*SOutputBufferEnd, outputPtr + (64 * 32));
-
-                // Loop over time
-                c.L(loop);
-                {
-                    // Register allocation
-                    ALLOCATE_VECTOR(VData);
-                    ALLOCATE_SCALAR(SVal);
-
-                    // Load from lane-local memory into vector and increment address
-                    c.vloadl(*VData, *VAddress, 0);
-                    c.vadd(*VAddress, *VAddress, *VTwo);
-
-                    // Extract lanes and write to scalar memory
-                    for(int l = 0; l < 32; l++) {
-                        // Extract lane into scalar registers
-                        c.vextract(*SVal, *VData, l);
-
-                        // Store halfword
-                        c.sh(*SVal, *SOutputBuffer, l * 2);
-                    }
-
-                    // SOutputBuffer += 64
-                    c.addi(*SOutputBuffer, *SOutputBuffer, 64);
-
-                    // If SOutputBuffer != SOutputBufferEnd, goto vector loop
-                    c.bne(*SOutputBuffer, *SOutputBufferEnd, loop);
-                }
-            }
+            
+            // Copy lane-local data to output pointer
+            AssemblerUtils::generateLaneLocalScalarMemcpy(c, vectorRegisterAllocator, scalarRegisterAllocator,
+                                                          0, outputPtr, 32);
 
         });
 
@@ -252,7 +215,7 @@ int main(int argc, char** argv)
         const int16_t *scalarOutputData = reinterpret_cast<const int16_t*>(scalarData + outputPtr);
         checkData(address, scalarOutputData);
     }
-   
+    LOGI << "Success!";
     
     return 0;
 }

@@ -145,6 +145,54 @@ void generateVectorScalarMemcpy(CodeGenerator &c, VectorRegisterAllocator &vecto
     }
 }
 //----------------------------------------------------------------------------
+void generateLaneLocalScalarMemcpy(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator,
+                                   ScalarRegisterAllocator &scalarRegisterAllocator,
+                                   uint32_t laneLocalPtr, uint32_t scalarPtr, uint32_t numVectors)
+{
+    // Register allocation
+    ALLOCATE_SCALAR(SDataBuffer);
+    ALLOCATE_SCALAR(SDataBufferEnd);
+    ALLOCATE_VECTOR(VAddress)
+    ALLOCATE_VECTOR(VTwo);
+
+    // Labels
+    Label vectorLoop;
+
+    c.vlui(*VAddress, laneLocalPtr);
+    c.vlui(*VTwo, 2);
+
+    // SDataBuffer = scalarPtr
+    c.li(*SDataBuffer, scalarPtr);
+    c.li(*SDataBufferEnd, scalarPtr + (64 * numVectors));
+
+    // Loop over vectors
+    c.L(vectorLoop);
+    {
+        // Register allocation
+        ALLOCATE_VECTOR(VData);
+        ALLOCATE_SCALAR(SVal);
+
+        // Load from lane-local memory into vector and increment address
+        c.vloadl(*VData, *VAddress, 0);
+        c.vadd(*VAddress, *VAddress, *VTwo);
+        
+        // Unroll lane loop
+        for(int l = 0; l < 32; l++) {
+            // Extract lane into scalar registers
+            c.vextract(*SVal, *VData, l);
+
+            // Store halfword
+            c.sh(*SVal, *SDataBuffer, l * 2);
+        }
+
+        // SDataBuffer += 64
+        c.addi(*SDataBuffer, *SDataBuffer, 64);
+      
+        // If SDataBuffer != SDataBufferEnd, goto vector loop
+        c.bne(*SDataBuffer, *SDataBufferEnd, vectorLoop);
+    }
+}
+//----------------------------------------------------------------------------
 void generatePerformanceCountWrite(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator,
                                    CSR lowCSR, CSR highCSR, uint32_t scalarPtr)
 {

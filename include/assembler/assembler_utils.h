@@ -34,6 +34,10 @@ ASSEMBLER_EXPORT void generateVectorScalarMemcpy(CodeGenerator &c, VectorRegiste
                                                  ScalarRegisterAllocator &scalarRegisterAllocator,
                                                  uint32_t vectorPtr, uint32_t scalarPtr, uint32_t numVectors);
 
+ASSEMBLER_EXPORT void generateLaneLocalScalarMemcpy(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator,
+                                                    ScalarRegisterAllocator &scalarRegisterAllocator,
+                                                    uint32_t laneLocalPtr, uint32_t scalarPtr, uint32_t numVectors);
+
 // Generate code to copy 64-bit performance counter value from pair of CSR registers to scalar memory
 ASSEMBLER_EXPORT void generatePerformanceCountWrite(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator,
                                                     CSR lowCSR, CSR highCSR, uint32_t scalarPtr);
