@@ -541,7 +541,7 @@ int main(int argc, char** argv)
                 AssemblerUtils::unrollVectorLoopBody(
                     c, scalarRegisterAllocator, numExcWords * 32, 4, *SVBuffer,
                     [&scalarRegisterAllocator, &vectorRegisterAllocator,
-                    fixedPoint, eeLLAddr, eiLLAddr,
+                    fixedPoint, eeLLAddr, ieLLAddr,
                     SRefracTimeBuffer, SVBuffer, SSpikeArrayBuffer, VRandom, VScale, VSynLLOffset, VZero]
                     (CodeGenerator &c, uint32_t r, uint32_t, ScalarRegisterAllocator::RegisterPtr)
                     {
@@ -550,7 +550,7 @@ int main(int argc, char** argv)
                         c.vmul(15, *VRandom, *VRandom, *VScale);
 
                         c.vstorel(*VZero, *VSynLLOffset, eeLLAddr + (r * 2));
-                        c.vstorel(*VZero, *VSynLLOffset, eiLLAddr + (r * 2));
+                        c.vstorel(*VZero, *VSynLLOffset, ieLLAddr + (r * 2));
                         c.vstore(*VRandom, *SVBuffer, r * 64);
                         c.vstore(*VZero, *SRefracTimeBuffer, r * 64);
                         c.sw(Reg::X0, *SSpikeArrayBuffer, r * 4);
@@ -723,6 +723,7 @@ int main(int argc, char** argv)
     LOGI << scalarInitData.size() << " bytes of scalar memory required";
     LOGI << vectorInitData.size() * 2 << " bytes of vector memory required (" << ceilDivide(vectorInitData.size() / 32, 4096) << " URAM cascade)";
 
+    AppUtils::dumpCOE("va_benchmark_sim.coe", simCode);
     if(device) {
         LOGI << "Creating device";
         Device device;
