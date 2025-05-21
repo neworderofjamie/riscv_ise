@@ -57,7 +57,7 @@ uint32_t maskOp(const Vector &val, const Vector &val2, F func)
 // VectorDataMemory
 //----------------------------------------------------------------------------
 VectorDataMemory::VectorDataMemory(size_t numHalfWords)
-:   m_Data(numHalfWords)
+:   m_Data(numHalfWords, static_cast<int16_t>(0xDEAD))
 {
 }
 //----------------------------------------------------------------------------
@@ -108,7 +108,7 @@ void VectorDataMemory::setData(const std::vector<int16_t> &data)
 // LaneLocalMemory
 //----------------------------------------------------------------------------
 LaneLocalMemory::LaneLocalMemory(size_t numEntries)
-:   m_Data(numEntries)
+:   m_Data(numEntries, static_cast<int16_t>(0xDEAD))
 {}
 //----------------------------------------------------------------------------
 int16_t LaneLocalMemory::read(uint32_t addr) const

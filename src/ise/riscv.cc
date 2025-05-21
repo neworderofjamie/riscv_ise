@@ -17,7 +17,7 @@
 // InstructionMemory
 //----------------------------------------------------------------------------
 InstructionMemory::InstructionMemory(size_t numWords)
-:   m_Instructions(numWords)
+:   m_Instructions(numWords, 0xDEADBEEF)
 {
 }
 //----------------------------------------------------------------------------
@@ -48,7 +48,7 @@ void InstructionMemory::setInstructions(const std::vector<uint32_t> &instruction
 // ScalarDataMemory
 //----------------------------------------------------------------------------
 ScalarDataMemory::ScalarDataMemory(size_t numBytes) 
-:   m_Data(numBytes)
+:   m_Data(numBytes, 0xDE)
 {}
 //----------------------------------------------------------------------------
 uint32_t ScalarDataMemory::read32(uint32_t addr) const
