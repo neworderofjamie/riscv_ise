@@ -2,6 +2,7 @@
 
 // Standard C++ includes
 #include <array>
+#include <optional>
 #include <vector>
 
 // ISE includes
@@ -59,6 +60,7 @@ public:
     //------------------------------------------------------------------------
     // ICoprocessor virtuals
     //------------------------------------------------------------------------
+    virtual void tick();
     virtual void executeInstruction(uint32_t inst, uint32_t (&reg)[32], 
                                     ScalarDataMemory &scalarDataMemory, uint32_t pc) override final;
     virtual void dumpRegisters() const override final;
@@ -83,13 +85,16 @@ private:
 
     Vector calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs2, uint32_t rs1, uint32_t funct3);
     uint32_t calcTestResult(uint32_t inst, uint32_t rs2, uint32_t rs1, uint32_t funct3) const;
-
+    void writeVReg(size_t reg, const Vector &vector, uint32_t delay = 1);
+    const Vector &readVReg(size_t reg) const;
+    
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
     VectorDataMemory m_VectorDataMemory;
     std::vector<LaneLocalMemory> m_LaneLocalMemories;
     Vector m_VReg[32];
+    uint32_t m_VRegDelay[32];
 
     // Xoroshiro32++ state
     Vector m_S0;

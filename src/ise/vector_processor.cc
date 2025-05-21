@@ -149,7 +149,17 @@ VectorProcessor::VectorProcessor(size_t vectorMemoryHalfWords, size_t laneLocalM
     for(size_t i = 0; i < 32; i++) {
         m_LaneLocalMemories.emplace_back(laneLocalMemoryHalfWords);
     }
-}    
+}
+//------------------------------------------------------------------------
+void VectorProcessor::tick()
+{
+    // Decrement delay counters
+    for(auto &v : m_VRegDelay) {
+        if(v > 0) {
+            v--;
+        }
+    }
+}
 //------------------------------------------------------------------------
 void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32], 
                                          ScalarDataMemory&, uint32_t pc)
@@ -167,11 +177,14 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
                 PLOGV << "\t" << rd;
 
                 // Read from each lane local memory into lane
+                const auto &rs1Vec = readVReg(rs1);
+                Vector rdVec = readVReg(rd);
                 for(size_t i = 0; i < 32; i++) {
-                    if(m_VReg[rs1][i] >= 0) {
-                        m_VReg[rd][i] = m_LaneLocalMemories[i].read((uint32_t)(m_VReg[rs1][i] + imm));
+                    if(rs1Vec[i] >= 0) {
+                        rdVec[i] = m_LaneLocalMemories[i].read((uint32_t)(rs1Vec[i] + imm));
                     }
                 }
+                writeVReg(rd, rdVec, 2);
             }
             else {
                 throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
@@ -183,7 +196,7 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
             if(type == +VLoadType::VLOAD) {
                 PLOGV << "VLOADV " << rs1 << " " << imm;
                 PLOGV << "\t" << rd;
-                m_VReg[rd] = m_VectorDataMemory.readVector(addr); 
+                writeVReg(rd, m_VectorDataMemory.readVector(addr), 2); 
             }
             // VLOADR0
             else if(type == +VLoadType::VLOAD_R0) {
@@ -210,7 +223,10 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
         const auto [imm, rd] = decodeUType(inst);
         PLOGV << "VLUI " << imm;
         PLOGV << "\t" << rd;
-        std::fill(m_VReg[rd].begin(), m_VReg[rd].end(), imm);
+
+        Vector rdVec;
+        std::fill(rdVec.begin(), rdVec.end(), imm);
+        writeVReg(rd, rdVec);
         break;
     }
 
@@ -222,8 +238,10 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
             PLOGV << "VFILL " << rs1;
             PLOGV << "\t" << rd;
             const uint32_t val = reg[rs1];
-            std::fill(m_VReg[rd].begin(), m_VReg[rd].end(), 
+            Vector rdVec;
+            std::fill(rdVec.begin(), rdVec.end(), 
                       (int16_t)((val & 0x80000000) >> 16 | (val & 0x7FFF)));
+            writeVReg(rd, rdVec);
         }
         // VEXTRACT
         else if(type == +VMovType::VEXTRACT) {
@@ -233,7 +251,7 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
                 throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
             }
             // Sign extend to 32-bit
-            const int32_t val = m_VReg[rs1][imm];
+            const int32_t val = readVReg(rs1)[imm];
             reg[rd] = (uint32_t)val;
         }
         else {
@@ -262,8 +280,10 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
             // lowest bits of our generator has low linear complexity
             // **THINK** could barrel shift here. If there's time to barrel
             // shift after stochastic multiply, there is time here
-            std::transform(r.cbegin(), r.cend(), m_VReg[rd].begin(), 
+            Vector rdVec;
+            std::transform(r.cbegin(), r.cend(), rdVec.begin(), 
                            [](uint16_t a){ return (int16_t)(a >> 1); });
+            writeVReg(rd, rdVec);
         }
         else {
             throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
@@ -274,7 +294,7 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
     case VectorOpCode::VSOP:
     {
         const auto [funct7, rs2, rs1, funct3, rd] = decodeRType(inst);
-        m_VReg[rd] = calcOpResult(inst, funct7, rs2, rs1, funct3);
+        writeVReg(rd, calcOpResult(inst, funct7, rs2, rs1, funct3));
         PLOGV << "\t" << rd;
         break;
     }
@@ -290,9 +310,11 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
                 PLOGV << "VSTOREL " << rs2 << " " << rs1 << " " << imm;
 
                 // Write contents of rs2 to lane local address
+                const auto &rs1Vec = readVReg(rs1);
+                const auto &rs2Vec = readVReg(rs2);
                 for(size_t i = 0; i < 32; i++) {
-                    if(m_VReg[rs1][i] >= 0) {
-                        m_LaneLocalMemories[i].write((uint32_t)(m_VReg[rs1][i] + imm), m_VReg[rs2][i]);
+                    if(rs1Vec[i] >= 0) {
+                        m_LaneLocalMemories[i].write((uint32_t)(rs1Vec[i] + imm), rs2Vec[i]);
                     }
                 }
             }
@@ -307,7 +329,7 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
 
                 PLOGV << "VSTORE " << rs2 << " " << rs1 << " " << imm;
                 
-                m_VectorDataMemory.writeVector(addr, m_VReg[rs2]);
+                m_VectorDataMemory.writeVector(addr, readVReg(rs2));
             }
             else {
                 throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
@@ -322,11 +344,13 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
         PLOGV << "VSEL " << rs1 << " " << rs2;
         PLOGV << "\t" << rd;
         const uint32_t mask = reg[rs1];
-        auto &val = m_VReg[rd];
-        const auto &val2 = m_VReg[rs2];        
+        auto &oldRdVec = readVReg(rd);
+        const auto &rs2Vec = readVReg(rs2);
+        Vector newRdVec;
         for(size_t i = 0; i < 32; i++) {
-            val[i] = (mask & (1 << i)) ? val2[i] : val[i];
+            newRdVec[i] = (mask & (1 << i)) ? rs2Vec[i] : oldRdVec[i];
         }
+        writeVReg(rd, newRdVec);
         break;
     }
     
@@ -399,8 +423,8 @@ std::array<uint16_t, 32> VectorProcessor::sampleRNG()
 //------------------------------------------------------------------------
 Vector VectorProcessor::calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs2, uint32_t rs1, uint32_t funct3)
 {
-    const auto &val = m_VReg[rs1];
-    const auto &val2 = m_VReg[rs2];
+    const auto &val = readVReg(rs1);
+    const auto &val2 = readVReg(rs2);
 
     // Split funct7 into mode and fixed point position
     const uint32_t fixedPoint = (funct7 & 0b1111);
@@ -481,8 +505,8 @@ Vector VectorProcessor::calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs
 //------------------------------------------------------------------------
 uint32_t VectorProcessor::calcTestResult(uint32_t inst, uint32_t rs2, uint32_t rs1, uint32_t funct3) const
 {
-    const auto &val = m_VReg[rs1];
-    const auto &val2 = m_VReg[rs2];
+    const auto &val = readVReg(rs1);
+    const auto &val2 = readVReg(rs2);
     
     switch(getVTstType(funct3))
     {
@@ -512,4 +536,19 @@ uint32_t VectorProcessor::calcTestResult(uint32_t inst, uint32_t rs2, uint32_t r
         throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
     }
     }
+}
+//------------------------------------------------------------------------
+void VectorProcessor::writeVReg(size_t reg, const Vector &vector, uint32_t delay)
+{
+    m_VReg[reg] = vector;
+    m_VRegDelay[reg] = delay;
+}
+//------------------------------------------------------------------------
+const Vector &VectorProcessor::readVReg(size_t reg) const
+{
+    if(m_VRegDelay[reg] > 0) {
+        throw Exception(Exception::Cause::RAW_HAZARD, 0);
+    }
+
+    return m_VReg[reg];
 }

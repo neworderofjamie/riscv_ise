@@ -937,6 +937,13 @@ void RISCV::executeStandardInstruction(uint32_t inst)
 //----------------------------------------------------------------------------
 void RISCV::executeInstruction(uint32_t inst)
 {
+    // Tick co-processors
+    for(auto &c : m_Coprocessors) {
+        if(c) {
+            c->tick();
+        }
+    }
+
     // Extract 2-bit quadrant
     const uint32_t quadrant = inst & 0b11;
 

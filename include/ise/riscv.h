@@ -75,6 +75,7 @@ public:
         FAULT_LOAD,
         MISALIGNED_STORE,
         FAULT_STORE,
+        RAW_HAZARD,
         ECALL
     };
 
@@ -101,6 +102,7 @@ public:
     class ICoprocessor
     {
     public:
+        virtual void tick() = 0;
         virtual void executeInstruction(uint32_t inst, uint32_t (&reg)[32], ScalarDataMemory &scalarDataMemory, uint32_t pc) = 0;
         virtual void dumpRegisters() const = 0;
     };
