@@ -232,6 +232,12 @@ bool RISCV::run()
             break;
         }
 
+        case Exception::Cause::RAW_HAZARD:
+        {
+            PLOGE << "RAW hazard at " << ex.getContext();
+            break;
+        }
+
         case Exception::Cause::ECALL:
         {
             return true;
@@ -259,6 +265,7 @@ void RISCV::dumpRegisters() const
 {
     // Dump standard register file
     std::cout << "Standard RISC-V register file:" << std::endl;
+    std::cout << "\tPC = " << std::hex << std::setw(8) << std::setfill('0') << m_PC << std::endl;
     for(int i = 0; i < 32; i++) {
         std::cout << "\tx" << i << " = " << std::hex << std::setw(8) << std::setfill('0') << m_Reg[i] << std::endl;
     }
