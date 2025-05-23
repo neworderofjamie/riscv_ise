@@ -39,8 +39,7 @@ constexpr size_t dataSize = 128 * 1024;
 constexpr off_t gpioBase = 0xA7000000;
 constexpr size_t gpioSize = 2 * 1024;
 
-constexpr off_t dmaControllerBase = 0xB0000000;
-constexpr off_t dmaDestRegisterBase = 0xB0080000;
+constexpr off_t dmaControllerBase = 0xA0000000;
 }
 
 //----------------------------------------------------------------------------
@@ -79,7 +78,7 @@ Device::Device()
     }
 
     // Create DMA controller
-    m_DMAController = std::make_unique<DMAController>(m_Memory, dmaControllerBase, dmaDestRegisterBase);
+    m_DMAController = std::make_unique<DMAController>(m_Memory, dmaControllerBase);
 
 #else
     throw std::runtime_error("Device interface only supports Linux");

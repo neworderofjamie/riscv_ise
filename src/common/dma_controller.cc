@@ -24,7 +24,7 @@
 //----------------------------------------------------------------------------
 // DMAController
 //----------------------------------------------------------------------------
-DMAController::DMAController(int memory, size_t baseAddress, size_t destRegisterBaseAddress)
+DMAController::DMAController(int memory, size_t baseAddress)
 {
 #ifdef __linux__ 
     LOGI << "Creating DMA at  " << baseAddress;
@@ -35,16 +35,6 @@ DMAController::DMAController(int memory, size_t baseAddress, size_t destRegister
     if(m_Registers == MAP_FAILED) {
         throw std::runtime_error("DMA register map failed (" + std::to_string(errno) + " = " + strerror(errno) + ")");
     }
-
-    // Memory map destination address register
-    m_DestAddressRegister = reinterpret_cast<uint32_t*>(mmap(nullptr, 65535, PROT_READ | PROT_WRITE, MAP_SHARED, 
-                                                             memory, destRegisterBaseAddress));
-    if(m_DestAddressRegister == MAP_FAILED) {
-        throw std::runtime_error("DMA destination address register map failed (" + std::to_string(errno) + " = " + strerror(errno) + ")");
-    }
-
-    // Reset DMA controller into known state
-    reset();
 #else
     throw std::runtime_error("DMA controller interface only supports Linux");
 #endif  // __linux__
@@ -60,23 +50,28 @@ void DMAController::startWrite(uint32_t destination, const DMABuffer &sourceBuff
     if((destination & 63) != 0) {
         throw std::runtime_error("DMA writes to URAM must be 64 byte aligned");
     }
+
+    if((sourceAddress & 63) != 0) {
+        throw std::runtime_error("DMA reads from mapped memory must be 64 byte aligned");
+    }
+
+    if(sourceAddress > std::numeric_limits<uint32_t>::max()) {
+        throw std::runtime_error("DMA controller can only access 32-bit address space");
+    }
     
     if(size > ((1 << 19) - 1)) {
         throw std::runtime_error("Maximum size of DMA exceeded");
     }
 
-    // Set destination address
-    writeURAMDestinationAddress(destination);
+    // Write source and destination addresses to registers
+    writeReg(Register::MM2S_SRC_ADDR, static_cast<uint32_t>(sourceOffset & 0xFFFFFFFF));
+    writeReg(Register::MM2S_DST_ADDR, destination);
 
-    // Split into low and high words and write to registers
-    writeReg(Register::MM2S_SA, static_cast<uint32_t>(sourceAddress & 0xFFFFFFFF));
-    writeReg(Register::MM2S_SA_MSB, static_cast<uint32_t>(sourceAddress >> 32));
+    // Write count to registers
+    writeReg(Register::MM2S_COUNT, size);
 
     // Run
-    writeReg(Register::MM2S_DMACR, 1);
-    // Set number of bytes
-    writeReg(Register::MM2S_LENGTH, size);
-
+    writeReg(Register::MM2S_CONTROL, 1);
 }
 //----------------------------------------------------------------------------
 /*void DMAController::startRead(DMABuffer &destBuffer, size_t destOffset, uint32_t source, size_t size)
@@ -98,32 +93,30 @@ void DMAController::startWrite(uint32_t destination, const DMABuffer &sourceBuff
     writeReg(Register::S2MM_DMACR, 1);
 }*/
 //----------------------------------------------------------------------------
-void DMAController::reset()
-{
-    // Set reset flag for both channels
-    // **NOTE** pretty sure this is unecessary
-    writeReg(Register::MM2S_DMACR, 0b100);
-    writeReg(Register::S2MM_DMACR, 0b100);
-
-    // Clear reset flag again to re-enable normal operation
-    writeReg(Register::MM2S_DMACR, 0);
-    writeReg(Register::S2MM_DMACR, 0);
-}
-//----------------------------------------------------------------------------
-bool DMAController::isWriteIdle() const
-{
-    return (readReg(Register::MM2S_DMASR) & 0b10);
-}
-//----------------------------------------------------------------------------
-/*bool DMAController::isReadIdle() const
-{
-    return (readReg(Register::S2MM_DMASR) & 0b10);
-}*/
-//----------------------------------------------------------------------------
 void DMAController::waitForWriteComplete() const
 {
-    while(!isWriteIdle()) {
+    // Loop while DMA controller isn't idle
+    uint32_t status;
+    do {
+        status = readReg(Register::MM2S_STATUS);
         //std::this_thread::sleep_for(std::chrono::microseconds{10});
+    } while(!(status & static_cast<uint32_t>(StatusBits::STATE_IDLE)));
+    
+    // If decode error bit is set
+    if(status & static_cast<uint32_t>(StatusBits::ERROR_DECODE)) {
+        throw std::runtime_error("DMA transfer failed with decode error");
+    }
+    // Otherwise, if internal error bit is set
+    else if(status & static_cast<uint32_t>(StatusBits::ERROR_INTERNAL)) {
+        throw std::runtime_error("DMA transfer failed with internal error");
+    }
+    // Otherwise, if slave error bit is set
+    else if(status & static_cast<uint32_t>(StatusBits::ERROR_SLAVE)) {
+        throw std::runtime_error("DMA transfer failed with slave error");
+    }
+    // Otherwise, check transfer ok bit is set
+    else {
+        assert(status & static_cast<uint32_t>(StatusBits::TRANSFER_OK));
     }
 }
 //----------------------------------------------------------------------------
@@ -145,10 +138,3 @@ uint32_t DMAController::readReg(Register reg) const
     volatile const uint32_t *registers = m_Registers;
     return registers[static_cast<int>(reg) / 4]; 
 }
-//----------------------------------------------------------------------------
-void DMAController::writeURAMDestinationAddress(uint32_t val)
-{
-    volatile uint32_t *destAddressRegister = m_DestAddressRegister;
-    destAddressRegister[0] = val; 
-}
-    
