@@ -16,7 +16,7 @@ class DMABuffer;
 class COMMON_EXPORT DMAController
 {
 public:
-    DMAController(int memory, size_t baseAddress, size_t destRegisterBaseAddress);
+    DMAController(int memory, size_t baseAddress);
 
     //------------------------------------------------------------------------
     // Public API
@@ -26,15 +26,6 @@ public:
     
     //! Start read (from URAM to DMA buffer)
     //void startRead(DMABuffer &destBuffer, size_t destOffset, uint32_t source, size_t size);
-
-    //! Reset DMA controller
-    void reset();
-    
-    // Is write channel idle?
-    bool isWriteIdle() const;
-
-    // Is read channel idle?
-    //bool isReadIdle() const;
 
     // Wait for write channel to goto idle
     void waitForWriteComplete() const;
@@ -46,20 +37,27 @@ private:
     //------------------------------------------------------------------------
     // Enumerations
     //------------------------------------------------------------------------
-    // Xilinx DMA controller registers
+    // DMA controller registers
     enum class Register : int
     {
-        MM2S_DMACR = 0x0,       // Write control register
-        MM2S_DMASR = 0x4,       // Write status register
-        MM2S_SA = 0x18,         // Lower 32-bits of write source address
-        MM2S_SA_MSB = 0x1C,    // Upper 32-bits of write source address
-        MM2S_LENGTH = 0x28,     // Write length (bytes)
+        MM2S_SRC_ADDR   = 0x0,  // MM2S source address (memory mapped domain)
+        MM2S_DST_ADDR   = 0x4,  // MM2S destination address (URAM)
+        MM2S_COUNT      = 0x8,  // MM2S transfer size (bytes)
+        MM2S_STATUS     = 0xC,  // MM2S status register
+        MM2S_CONTROL    = 0x10, // MM2S control register
+    };
 
-        S2MM_DMACR = 0x30,      // Read control register
-        S2MM_DMASR = 0x34,      // Read status register
-        S2MM_DA = 0x48,         // Lower 32-bits of read source address
-        S2MM_DA_MSB = 0x4C,    // Upper 32-bits of read source address
-        S2MM_LENGTH = 0x58,     // Read length (bytes)
+    // Status register bits
+    enum class StatusBits : uint32_t
+    {
+        RUNNING         = (1 << 0),    // **TODO** remove
+        STATE_IDLE      = (1 << 1), // DMA controller is in idle state
+        STATE_START     = (1 << 2), // DMA controller is in start state
+        STATE_TRANSFER  = (1 << 3), // DMA controller is transferring data
+        ERROR_INTERNAL  = (1 << 4), // Data mover encountered an internal error
+        ERROR_DECODE    = (1 << 5), // Data mover encountered an address decoding error
+        ERROR_SLAVE     = (1 << 6), // Data mover received an error from slave
+        TRANSFER_OK     = (1 << 7), // Data mover transfer succeeded
     };
 
     //------------------------------------------------------------------------
@@ -68,11 +66,8 @@ private:
     void writeReg(Register reg, uint32_t val);
     uint32_t readReg(Register reg) const;
 
-    void writeURAMDestinationAddress(uint32_t val);
-
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
     uint32_t *m_Registers;
-    uint32_t *m_DestAddressRegister;
 };
