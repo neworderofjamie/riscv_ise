@@ -52,17 +52,17 @@ int main()
     LOGI << "First element:" << bufferData[0];
 
     // Create memory contents
-    std::vector<uint8_t> scalarInitData;
+    /*std::vector<uint8_t> scalarInitData;
     
     // Allocate scalar arrays
     const uint32_t readyFlagPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
-    const uint32_t outputPtr = AppUtils::allocateScalarAndZero(64 * 5, scalarInitData);
+    const uint32_t outputPtr = AppUtils::allocateScalarAndZero(64 * 5, scalarInitData);*/
 
     const uint32_t vectorOnePtr = 0;
     const uint32_t vectorTwoPtr = 400 * 1024;
 
     // Generate code to copy 2 vectors from pointer one and 3 vectors from pointer 2 into output area
-    const auto code = AssemblerUtils::generateStandardKernel(
+    /*const auto code = AssemblerUtils::generateStandardKernel(
         false, readyFlagPtr,
         [=](CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator, ScalarRegisterAllocator &scalarRegisterAllocator)
         {
@@ -72,7 +72,7 @@ int main()
                                                        vectorTwoPtr, outputPtr + (64 * 2), 3);                                                       
         });
 
-    LOGI << "Creating device";
+    LOGI << "Creating device"
     Device device;
     LOGI << "Resetting";
 
@@ -83,21 +83,26 @@ int main()
     device.uploadCode(code);
     
     LOGI << "Copying data (" << scalarInitData.size() << " bytes);";
-    device.memcpyDataToDevice(0, scalarInitData.data(), scalarInitData.size());
+    device.memcpyDataToDevice(0, scalarInitData.data(), scalarInitData.size());*/
+    
+    
+    // Create DMA controller
+    DMAController dmaController(memory, 0xA0000000);
+
     
     // Write 2 vectors from DMA buffer to vectorOnePtr
-    device.getDMAController()->startWrite(vectorOnePtr, dmaBuffer, 0, 64 * 2);
+    dmaController.startWrite(vectorOnePtr, dmaBuffer, 0, 64 * 2);
     
     // Wait for write to complete
-    device.getDMAController()->waitForWriteComplete();
+    dmaController.waitForWriteComplete();
     
     // Write 3 vectors from DMA buffer to URAM address 
-    device.getDMAController()->startWrite(vectorTwoPtr, dmaBuffer, 64 * 2, 64 * 3);
+    dmaController.startWrite(vectorTwoPtr, dmaBuffer, 64 * 2, 64 * 3);
 
     // Wait for write to complete
-    device.getDMAController()->waitForWriteComplete();
+    dmaController.waitForWriteComplete();
  
-    LOGI << "Enabling";
+    /*LOGI << "Enabling";
     // Put core into running state
     device.setEnabled(true);
     LOGI << "Running";
@@ -115,5 +120,5 @@ int main()
         for(int i = 0; i < (32 * 5); i++) {
             LOGI << i << ":" << output[i] << " vs " << bufferData[i];
         }
-    }
+    }*/
 }
