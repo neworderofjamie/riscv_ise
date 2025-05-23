@@ -85,7 +85,13 @@ int main()
     LOGI << "Copying data (" << scalarInitData.size() << " bytes);";
     device.memcpyDataToDevice(0, scalarInitData.data(), scalarInitData.size());*/
     
-    
+    // Open memory
+    // **NOTE** O_SYNC turns of caching
+    int memory = open("/dev/mem", O_RDWR | O_SYNC);
+    if(memory == -1) {
+        throw std::runtime_error("/dev/mem open failure (" + std::to_string(errno) + " = " + strerror(errno) + ")");
+    }
+
     // Create DMA controller
     DMAController dmaController(memory, 0xA0000000);
 
@@ -101,7 +107,8 @@ int main()
 
     // Wait for write to complete
     dmaController.waitForWriteComplete();
- 
+    
+    close(memory);
     /*LOGI << "Enabling";
     // Put core into running state
     device.setEnabled(true);
