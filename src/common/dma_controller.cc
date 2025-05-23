@@ -1,6 +1,7 @@
 #include "common/dma_controller.h"
 
 // Standard C++ includes
+#include <limits>
 #include <stdexcept>
 
 // Standard C includes
