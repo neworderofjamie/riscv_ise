@@ -7,8 +7,8 @@ from models import Copy, LI, LIF, Linear
 
 from pyfenn import disassemble, init_logging
 from pyfenn.utils import get_array_view, get_latency_spikes, load_and_push, zero_and_push
+from tqdm.auto import tqdm
 
-num_examples = 10000
 num_timesteps = 79
 input_shape = [28 * 28]
 hidden_shape = [128]
@@ -87,7 +87,7 @@ output_v_avg_array, _ = get_array_view(runtime, output.v_avg, np.int16)
 output_v_avg_copy_array, output_v_avg_copy_view = get_array_view(runtime, output_copy.target,
                                                        np.int16)
 num_correct = 0
-for i in range(num_examples):
+for i in tqdm(range(len(mnist_labels))):
     # Copy data to array host pointe
     input_spike_view[:] = mnist_spikes[i]
     input_spike_array.push_to_device();
