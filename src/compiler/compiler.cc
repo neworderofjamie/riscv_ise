@@ -6,6 +6,9 @@
 // Third-party includes
 #include <fast_float/fast_float.h>
 
+// GeNN includes
+#include "transpiler/errorHandler.h"
+
 // FeNN backend includes
 #include "assembler/assembler.h"
 
@@ -17,7 +20,20 @@ using namespace GeNN::Transpiler;
 //---------------------------------------------------------------------------
 namespace
 {
-void checkConversion(const Type::ResolvedType &leftType, const Type::ResolvedType &rightType)
+
+//---------------------------------------------------------------------------
+// CompilerError
+//---------------------------------------------------------------------------
+class CompilerError : public std::runtime_error
+{
+public:
+    CompilerError() : std::runtime_error("")
+    {
+    }
+};
+
+void checkConversion(const Type::ResolvedType &leftType, const Type::ResolvedType &rightType, 
+                     const Token &token, ErrorHandlerBase &errorHandler)
 {
     const auto &leftNumeric = leftType.getNumeric();
     const auto &rightNumeric = rightType.getNumeric();
@@ -26,8 +42,9 @@ void checkConversion(const Type::ResolvedType &leftType, const Type::ResolvedTyp
     if((!leftNumeric.isIntegral || !rightNumeric.isIntegral)
         && (!leftNumeric.fixedPoint || leftNumeric.fixedPoint != rightNumeric.fixedPoint))
     {
-        throw std::runtime_error("FeNN only currently supports assignement, addition and subtraction "
-                                 "of numbers in same fixed point/integer format");
+        errorHandler.error(token, "FeNN only currently supports assignement, addition and subtraction "
+                                  "of numbers in same fixed point/integer format");
+        throw CompilerError();
     }
 }
 
@@ -36,7 +53,8 @@ bool isSaturating(const Type::ResolvedType &aType, const Type::ResolvedType &bTy
     return (aType.getNumeric().isSaturating || bType.getNumeric().isSaturating);
 }
 
-int getConversionShift(const Type::ResolvedType &resultType, const Type::ResolvedType &leftType, const Type::ResolvedType &rightType)
+int getConversionShift(const Type::ResolvedType &resultType, const Type::ResolvedType &leftType, const Type::ResolvedType &rightType,
+                       const Token &token, ErrorHandlerBase &errorHandler)
 {
     const int resultFixedPoint = resultType.getNumeric().fixedPoint.value_or(0);
     const int leftFixedPoint = leftType.getNumeric().fixedPoint.value_or(0);
@@ -49,9 +67,11 @@ int getConversionShift(const Type::ResolvedType &resultType, const Type::Resolve
         return leftFixedPoint;
     }
     else {
-        throw std::runtime_error("Invalid fixed point types for conversion shift");
+        errorHandler.error(token, "Invalid fixed point types for conversion shift");
+        throw CompilerError();
     }
 }
+
 //---------------------------------------------------------------------------
 // Visitor
 //---------------------------------------------------------------------------
@@ -60,11 +80,12 @@ class Visitor : public Expression::Visitor, public Statement::Visitor
 public:
     Visitor(const Statement::StatementList &statements, EnvironmentInternal &environment,
             const Type::TypeContext &context, const TypeChecker::ResolvedTypeMap &resolvedTypes,
-            const std::unordered_map<int16_t, VectorRegisterAllocator::RegisterPtr> &literalPool,
+            ErrorHandlerBase &errorHandler, const std::unordered_map<int16_t, VectorRegisterAllocator::RegisterPtr> &literalPool,
             ScalarRegisterAllocator::RegisterPtr maskRegister,
             ScalarRegisterAllocator &scalarRegisterAllocator, VectorRegisterAllocator &vectorRegisterAllocator)
     :   m_Environment(environment), m_Context(context), m_MaskRegister(maskRegister), m_ResolvedTypes(resolvedTypes),
-        m_LiteralPool(literalPool), m_ScalarRegisterAllocator(scalarRegisterAllocator), m_VectorRegisterAllocator(vectorRegisterAllocator)
+        m_ErrorHandler(errorHandler), m_LiteralPool(literalPool), m_ScalarRegisterAllocator(scalarRegisterAllocator), 
+        m_VectorRegisterAllocator(vectorRegisterAllocator)
     {
          for(auto &s : statements) {
             s.get()->accept(*this);
@@ -156,7 +177,7 @@ private:
             if(opType == Token::Type::MINUS || opType == Token::Type::PLUS || opType == Token::Type::STAR) {
                 const auto resultReg = m_VectorRegisterAllocator.getRegister();
                 if(opType == Token::Type::MINUS) {
-                    checkConversion(leftType, rightType);
+                    checkConversion(leftType, rightType, binary.getOperator(), m_ErrorHandler.get());
 
                     if(isSaturating(leftType, rightType)) {
                         m_Environment.get().getCodeGenerator().vsub_s(*resultReg, *vecLeftReg, *vecRightReg);
@@ -166,7 +187,7 @@ private:
                     }
                 }
                 else if(opType == Token::Type::PLUS) {
-                    checkConversion(leftType, rightType);
+                    checkConversion(leftType, rightType, binary.getOperator(), m_ErrorHandler.get());
 
                     if(isSaturating(leftType, rightType)) {
                         m_Environment.get().getCodeGenerator().vadd_s(*resultReg, *vecLeftReg, *vecRightReg);
@@ -179,7 +200,8 @@ private:
                     const auto &resultType = m_ResolvedTypes.at(&binary);
 
                     // **TODO** rounding
-                    const int shift = getConversionShift(resultType, leftType, rightType);
+                    const int shift = getConversionShift(resultType, leftType, rightType, 
+                                                         binary.getOperator(), m_ErrorHandler.get());
                     m_Environment.get().getCodeGenerator().vmul(shift, *resultReg, *vecLeftReg, *vecRightReg);
                 }
             
@@ -192,7 +214,7 @@ private:
                     || opType == Token::Type::LESS_EQUAL || opType == Token::Type::NOT_EQUAL || opType == Token::Type::EQUAL_EQUAL) 
             {
                 const auto resultReg = m_ScalarRegisterAllocator.getRegister();
-                checkConversion(leftType, rightType);
+                checkConversion(leftType, rightType, binary.getOperator(), m_ErrorHandler.get());
 
                 if(opType == Token::Type::GREATER) {
                     m_Environment.get().getCodeGenerator().vtlt(*resultReg, *vecRightReg, *vecLeftReg);
@@ -218,7 +240,8 @@ private:
                 setExpressionRegister(resultReg, true);
             }
             else {
-                throw std::runtime_error("Unsupported binary operator '" + binary.getOperator().lexeme + "'");
+                m_ErrorHandler.get().error(binary.getOperator(), "Unsupported binary operator");
+                throw CompilerError();
             }
         }
     }
@@ -314,11 +337,13 @@ private:
                 integerResult = static_cast<int64_t>(std::round(result * (1u << numericType.fixedPoint.value())));
             }
             else {
-                throw std::runtime_error("FeNN does not support floating point types");
+                m_ErrorHandler.get().error(literal.getValue(), "FeNN does not support floating point types");
+                throw CompilerError();
             }
         }
         else {
-            throw std::runtime_error("Unsupported literal type");
+            m_ErrorHandler.get().error(literal.getValue(), "Unsupported literal type");
+            throw CompilerError();
         }
 
         assert(integerResult >= std::numeric_limits<int16_t>::min());
@@ -735,7 +760,7 @@ private:
                         const Type::ResolvedType &assigneeType, const Type::ResolvedType &valueType)
     {
         if(token.type == Token::Type::EQUAL) {
-            checkConversion(assigneeType, valueType);
+            checkConversion(assigneeType, valueType, token, m_ErrorHandler.get());
             generateVMOV(destinationReg, valueReg);
         }
         else if(token.type == Token::Type::STAR_EQUAL) {
@@ -743,7 +768,7 @@ private:
                                                         destinationReg, assigneeReg, valueReg);
         }
         else if(token.type == Token::Type::PLUS_EQUAL) {
-            checkConversion(assigneeType, valueType);
+            checkConversion(assigneeType, valueType, token, m_ErrorHandler.get());
             if(isSaturating(assigneeType, valueType)) {
                 m_Environment.get().getCodeGenerator().vadd_s(destinationReg, assigneeReg, valueReg);
             }
@@ -752,7 +777,7 @@ private:
             }
         }
         else if(token.type == Token::Type::MINUS_EQUAL) {
-            checkConversion(assigneeType, valueType);
+            checkConversion(assigneeType, valueType, token, m_ErrorHandler.get());
             if(isSaturating(assigneeType, valueType)) {
                 m_Environment.get().getCodeGenerator().vsub_s(destinationReg, assigneeReg, valueReg);
             }
@@ -761,7 +786,8 @@ private:
             }
         }
         else {
-            throw std::runtime_error("Unsupported assignement operator '" + token.lexeme + "'");
+            m_ErrorHandler.get().error(token, "Unsupported assignement operator");
+            throw CompilerError();
         }
     }
 
@@ -777,7 +803,8 @@ private:
             m_Environment.get().getCodeGenerator().vlui(*oneReg, 1u << targetType.getNumeric().fixedPoint.value());
         }
         else {
-            throw std::runtime_error("Unsupported increment/decrement target type");
+            m_ErrorHandler.get().error(token, "Unsupported increment/decrement target type");
+            throw CompilerError();
         }
 
         if (token.type == Token::Type::PLUS_PLUS) {
@@ -797,7 +824,8 @@ private:
             }
         }
         else {
-            throw std::runtime_error("Unsupported increment/decrement operator '" + token.lexeme + "'");
+            m_ErrorHandler.get().error(token, "Unsupported increment/decrement operator");
+            throw CompilerError();
         }
     }
 
@@ -812,6 +840,7 @@ private:
 
     ScalarRegisterAllocator::RegisterPtr m_MaskRegister;
     const TypeChecker::ResolvedTypeMap &m_ResolvedTypes;
+    std::reference_wrapper<ErrorHandlerBase> m_ErrorHandler;
     const std::unordered_map<int16_t, VectorRegisterAllocator::RegisterPtr> &m_LiteralPool;
     ScalarRegisterAllocator &m_ScalarRegisterAllocator;
     VectorRegisterAllocator &m_VectorRegisterAllocator;
@@ -851,10 +880,10 @@ CodeGenerator &EnvironmentInternal::getCodeGenerator()
 //----------------------------------------------------------------------------
 void compile(const Statement::StatementList &statements, EnvironmentInternal &environment, 
              const Type::TypeContext &context, const TypeChecker::ResolvedTypeMap &resolvedTypes,
-             const std::unordered_map<int16_t, VectorRegisterAllocator::RegisterPtr> &literalPool,
+             ErrorHandlerBase &errorHandler, const std::unordered_map<int16_t, VectorRegisterAllocator::RegisterPtr> &literalPool,
              ScalarRegisterAllocator::RegisterPtr maskRegister, 
              ScalarRegisterAllocator &scalarRegisterAllocator, VectorRegisterAllocator &vectorRegisterAllocator)
 {
-    Visitor visitor(statements, environment, context, resolvedTypes, literalPool, maskRegister,
+    Visitor visitor(statements, environment, context, resolvedTypes, errorHandler, literalPool, maskRegister,
                     scalarRegisterAllocator, vectorRegisterAllocator);
 }

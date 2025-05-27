@@ -464,7 +464,10 @@ void compileStatements(const std::vector<Token> &tokens, const Type::TypeContext
 
     // Compile
     compile(updateStatements, compilerEnv, typeContext, resolvedTypes,
-            literalPool, maskRegister, scalarRegisterAllocator, vectorRegisterAllocator);
+            errorHandler, literalPool, maskRegister, scalarRegisterAllocator, vectorRegisterAllocator);
+    if(errorHandler.hasError()) {
+        throw std::runtime_error("Compiler error " + errorHandler.getContext());
+    }
 }
 
 class CodeGeneratorVisitor : public ModelComponentVisitor

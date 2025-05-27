@@ -95,6 +95,6 @@ private:
 //---------------------------------------------------------------------------
 COMPILER_EXPORT void compile(const GeNN::Transpiler::Statement::StatementList &statements, EnvironmentInternal &environment, 
                              const GeNN::Type::TypeContext &context, const GeNN::Transpiler::TypeChecker::ResolvedTypeMap &resolvedTypes,
-                             const std::unordered_map<int16_t, VectorRegisterAllocator::RegisterPtr> &literalPool,
+                             GeNN::Transpiler::ErrorHandlerBase &errorHandler, const std::unordered_map<int16_t, VectorRegisterAllocator::RegisterPtr> &literalPool,
                              ScalarRegisterAllocator::RegisterPtr maskRegister, 
                              ScalarRegisterAllocator &scalarRegisterAllocator, VectorRegisterAllocator &vectorRegisterAllocator);
