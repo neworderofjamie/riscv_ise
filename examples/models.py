@@ -16,10 +16,11 @@ class Copy:
                                num_timesteps,
                                f"{source.name}_copy")
         self.process = CopyProcess(source, self.target)
-        
+
 class LIF:
     def __init__(self, shape, tau_m: float, tau_refrac: int, v_thresh: float,
-                 record_spikes: bool = False, dtype = "s10_5_sat_t"):
+                 record_spikes: bool = False, dtype = "s10_5_sat_t",
+                 name: str = ""):
         self.shape = Shape(shape)
         dtype = UnresolvedType(dtype)
         self.v = Variable(self.shape, dtype)
@@ -45,11 +46,51 @@ class LIF:
              "VThresh": Parameter(NumericValue(v_thresh), dtype),
              "TauRefrac": Parameter(NumericValue(tau_refrac), UnresolvedType("int16_t"))},
             {"V": self.v, "I": self.i, "RefracTime": self.refrac_time},
-            {"Spike": self.out_spikes})
+            {"Spike": self.out_spikes},
+            name)
+
+class ALIF:
+    def __init__(self, shape, tau_m: float, tau_a: float, tau_refrac: int,
+                 v_thresh: float, beta: float = 0.0174,
+                 record_spikes: bool = False, dtype = "s6_9_sat_t",
+                 name: str = ""):
+        self.shape = Shape(shape)
+        dtype = UnresolvedType(dtype)
+        decay_dtype = UnresolvedType("s0_15_sat_t")
+        self.v = Variable(self.shape, dtype)
+        self.a = Variable(self.shape, dtype)
+        self.i = Variable(self.shape, dtype)
+        self.refrac_time = Variable(self.shape, UnresolvedType("int16_t"))
+        self.out_spikes = EventContainer(self.shape, 
+                                         (num_timesteps if record_spikes
+                                          else 1))
+        self.process = NeuronUpdateProcess(
+            """
+            V = mul_rs(Alpha, V) + I;
+            A = mul_rs(A, Rho);
+            I = 0.0h7;
+            if (RefracTime > 0) {
+               RefracTime -= 1;
+            }
+            else if(V >= (VThresh + (Beta * A))) {
+               Spike();
+               V -= VThresh;
+               A += 1.0h7;
+               RefracTime = TauRefrac;
+            }
+            """,
+            {"Alpha": Parameter(NumericValue(np.exp(-1.0 / tau_m)), decay_dtype),
+             "Rho": Parameter(NumericValue(np.exp(-1.0 / tau_a)), decay_dtype),
+             "Beta": Parameter(NumericValue(beta), dtype),
+             "VThresh": Parameter(NumericValue(v_thresh), dtype),
+             "TauRefrac": Parameter(NumericValue(tau_refrac), UnresolvedType("int16_t"))},
+            {"V": self.v, "A": self.a, "I": self.i, "RefracTime": self.refrac_time},
+            {"Spike": self.out_spikes},
+            name)
 
 class LI:
     def __init__(self, shape, tau_m: float, num_timesteps: int,
-                 dtype: str = "s10_5_sat_t"):
+                 dtype: str = "s10_5_sat_t", name: str = ""):
         self.shape = Shape(shape)
         dtype = UnresolvedType(dtype)
 
@@ -65,16 +106,17 @@ class LI:
             """,
             {"Alpha": Parameter(NumericValue(np.exp(-1.0 / tau_m)), dtype), 
              "VAvgScale": Parameter(NumericValue(1.0 / (num_timesteps / 2)), dtype)},
-            {"V": self.v, "VAvg": self.v_avg, "I": self.i, "Bias": self.bias})
+            {"V": self.v, "VAvg": self.v_avg, "I": self.i, "Bias": self.bias},
+            {}, name)
 
 class Linear:
     def __init__(self, source_events: EventContainer, target_var: Variable,
-                 weight_dtype: str):
+                 weight_dtype: str, name: str = ""):
         self.shape = Shape([source_events.shape.num_neurons,
                             target_var.shape.num_neurons])
         weight_dtype = UnresolvedType(weight_dtype)
 
         self.weight = Variable(self.shape, weight_dtype)
         self.process = EventPropagationProcess(source_events, self.weight,
-                                               target_var)
+                                               target_var, name)
 
