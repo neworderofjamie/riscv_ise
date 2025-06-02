@@ -29,6 +29,9 @@ public:
     // Mapping of processes to their fields
     using ProcessFields = std::unordered_map<std::shared_ptr<const Process>, StateFields>;
 
+    // Mapping of process groups to their fields
+    using ProcessGroupFields = std::unordered_map<std::shared_ptr<const ProcessGroup>, StateFields>;
+
     // Mapping of state objects to processes which reference them
     using StateProcesses = std::unordered_map<std::shared_ptr<const State>, std::vector<std::shared_ptr<const Process>>>;
 
@@ -39,6 +42,7 @@ public:
     //------------------------------------------------------------------------
     const auto &getProcessGroups() const{ return m_ProcessGroups; }
     const auto &getProcessFields() const{ return m_ProcessFields; }
+    const auto &getProcessGroupFields() const{ return m_ProcessGroupFields; }
     const auto &getStateProcesses() const{ return m_StateProcesses; }
 
     uint32_t getNumFields() const { return m_NumFields; }
@@ -46,6 +50,7 @@ public:
 private:
     std::vector<std::shared_ptr<const ProcessGroup>> m_ProcessGroups;
     ProcessFields m_ProcessFields;
+    ProcessGroupFields m_ProcessGroupFields;
     StateProcesses m_StateProcesses;
     uint32_t m_NumFields;
 };

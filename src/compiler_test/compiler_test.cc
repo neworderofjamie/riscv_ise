@@ -35,6 +35,7 @@
 // RISC-V compiler includes
 #include "compiler/event_container.h"
 #include "compiler/parameter.h"
+#include "compiler/performance_counter.h"
 #include "compiler/process.h"
 #include "compiler/process_group.h"
 #include "compiler/variable.h"
@@ -96,17 +97,19 @@ int main(int argc, char** argv)
 
     // Configure logging
     plog::ConsoleAppender<plog::TxtFormatter> consoleAppender;
-    plog::init(plog::info, &consoleAppender);
+    plog::init(plog::debug, &consoleAppender);
 
     bool device = false;
     bool shouldDisassemble = false;
     bool record = false;
+    bool time = false;
     size_t numExamples = 10000;
 
     CLI::App app{"Latency MNIST inference"};
     app.add_option("-n,--num-examples", numExamples, "How many examples to simulate");
     app.add_flag("-d,--device", device, "Whether model is run on device rather than simulator");
     app.add_flag("-a,--disassemble", shouldDisassemble, "Whether model disassembled code is printed");
+    app.add_flag("-t,--time", time, "Whether performance counters are inserted");
     app.add_flag("-r,--record", record, "Whether spikes should be recorded?");
 
     CLI11_PARSE(app, argc, argv);
@@ -161,10 +164,15 @@ int main(int argc, char** argv)
     const auto outputVAvgCopy = Variable::create(outputShape, GeNN::Type::S9_6Sat, 1, "output v avg copy");
     const auto copyOutputSum = CopyProcess::create(outputVAvg, outputVAvgCopy);
 
+    // Performance counters
+    const auto neuronUpdatePerfCounter = PerformanceCounter::create();
+    const auto synapseUpdatePerfCounter = PerformanceCounter::create();
+    const auto copyPerfCounter = PerformanceCounter::create();
+
     // Group processes
-    const auto neuronUpdateProcesses = ProcessGroup::create({hidden, output});
-    const auto synapseUpdateProcesses = ProcessGroup::create({inputHidden, hiddenOutput});
-    const auto copyProcesses = ProcessGroup::create({copyOutputSum});
+    const auto neuronUpdateProcesses = ProcessGroup::create({hidden, output}, time ? neuronUpdatePerfCounter : nullptr);
+    const auto synapseUpdateProcesses = ProcessGroup::create({inputHidden, hiddenOutput}, time ? synapseUpdatePerfCounter : nullptr);
+    const auto copyProcesses = ProcessGroup::create({copyOutputSum}, time ? copyPerfCounter : nullptr);
 
 
     // Build model from process groups we want to simulate

@@ -6,6 +6,7 @@
 
 // Compiler includes
 #include "compiler/model_component.h"
+#include "compiler/performance_counter.h"
 
 // Forward declarations
 class Process;
@@ -16,21 +17,28 @@ class Process;
 class ProcessGroup : public AcceptableModelComponent<ProcessGroup>
 {
 public:
-    ProcessGroup(Private, const std::vector<std::shared_ptr<const Process>> &processes, const std::string &name)
-    :   AcceptableModelComponent<ProcessGroup>(name), m_Processes(processes)
-    {}
+    ProcessGroup(Private, const std::vector<std::shared_ptr<const Process>> &processes, 
+                 std::shared_ptr<const PerformanceCounter> performanceCounter, 
+                 const std::string &name)
+    :   AcceptableModelComponent<ProcessGroup>(name), m_Processes(processes),
+        m_PerformanceCounter(performanceCounter)
+    {
+    }
 
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
     const auto &getProcesses() const{ return m_Processes; }
+    auto getPerformanceCounter() const{ return m_PerformanceCounter; }
 
     //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------
-    static std::shared_ptr<ProcessGroup> create(const std::vector<std::shared_ptr<const Process>> &processes, const std::string &name = "")
+    static std::shared_ptr<ProcessGroup> create(const std::vector<std::shared_ptr<const Process>> &processes,
+                                                std::shared_ptr<const PerformanceCounter> performanceCounter = nullptr,
+                                                const std::string &name = "")
     {
-        return std::make_shared<ProcessGroup>(Private(), processes, name);
+        return std::make_shared<ProcessGroup>(Private(), processes, performanceCounter, name);
     }
 
 private:
@@ -38,4 +46,5 @@ private:
     // Members
     //------------------------------------------------------------------------
     std::vector<std::shared_ptr<const Process>> m_Processes;
+    std::shared_ptr<const PerformanceCounter> m_PerformanceCounter;
 };

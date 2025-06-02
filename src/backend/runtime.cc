@@ -29,12 +29,17 @@ private:
     //------------------------------------------------------------------------
     virtual void visit(std::shared_ptr<const EventContainer> eventContainer)
     {
-        m_Array = m_Backend.get().createArray(eventContainer, m_Processes, m_State);
+        m_Array = m_Backend.get().createArray(eventContainer, m_Processes.get(), m_State);
     }
 
     virtual void visit(std::shared_ptr<const Variable> variable)
     {
-        m_Array = m_Backend.get().createArray(variable, m_Processes, m_State);
+        m_Array = m_Backend.get().createArray(variable, m_Processes.get(), m_State);
+    }
+
+    virtual void visit(std::shared_ptr<const PerformanceCounter> performanceCounter)
+    {
+        m_Array = m_Backend.get().createArray(performanceCounter, m_Processes.get(), m_State);
     }
 
     //------------------------------------------------------------------------
@@ -42,7 +47,7 @@ private:
     //------------------------------------------------------------------------
     std::reference_wrapper<const BackendFeNN> m_Backend;
     std::unique_ptr<ArrayBase> m_Array;
-    Model::StateProcesses::mapped_type m_Processes;
+    std::reference_wrapper<const Model::StateProcesses::mapped_type> m_Processes;
     StateBase *m_State;
 };
 }
@@ -79,6 +84,14 @@ void Runtime::allocate()
     
     // Loop through all the processes with fields that require population
     for(const auto &p : m_Model.get().getProcessFields()) {
+        // Loop through all fields associated with process and assign corresponding arrays to file
+        for(const auto &s : p.second) {
+            m_FieldArray->setFieldArray(s.second, getArray(s.first));
+        }
+    }
+
+    // Loop through all the process groups with fields that require population
+    for(const auto &p : m_Model.get().getProcessGroupFields()) {
         // Loop through all fields associated with process and assign corresponding arrays to file
         for(const auto &s : p.second) {
             m_FieldArray->setFieldArray(s.second, getArray(s.first));

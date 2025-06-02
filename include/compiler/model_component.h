@@ -7,6 +7,7 @@
 // Forward declarations
 class EventContainer;
 class Parameter;
+class PerformanceCounter;
 class ProcessGroup;
 class NeuronUpdateProcess;
 class EventPropagationProcess;
@@ -22,6 +23,7 @@ class ModelComponentVisitor
 public:
     virtual void visit(std::shared_ptr<const EventContainer>){}
     virtual void visit(std::shared_ptr<const Parameter>){}
+    virtual void visit(std::shared_ptr<const PerformanceCounter>){}
     virtual void visit(std::shared_ptr<const ProcessGroup>){}
     virtual void visit(std::shared_ptr<const NeuronUpdateProcess>){}
     virtual void visit(std::shared_ptr<const EventPropagationProcess>){}

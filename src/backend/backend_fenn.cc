@@ -311,6 +311,32 @@ private:
     std::reference_wrapper<const Library> m_Library;
 };
 
+//! Generate code to calculate dest -= subtract in Uint64
+void genSubtractUint64(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator,
+                       Reg destLow, Reg destHigh, Reg subtractLow, Reg subtractHigh)
+{
+    ALLOCATE_SCALAR(STemp);
+
+    c.mv(*STemp, destLow);
+    c.sub(destLow, destLow, subtractLow);
+    c.sltu(*STemp, *STemp, destLow);
+    c.sub(destHigh, destHigh, subtractHigh);
+    c.sub(destHigh, destHigh, *STemp);
+}
+
+//! Generate code to calculate dest += subtract in Uint64
+void genAddUint64(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator,
+                  Reg destLow, Reg destHigh, Reg addLow, Reg addHigh)
+{
+    ALLOCATE_SCALAR(STemp);
+
+    c.mv(*STemp, destLow);
+    c.add(destLow, destLow, addLow);
+    c.sltu(*STemp, destLow, *STemp);
+    c.add(destHigh, destHigh, addHigh);
+    c.add(destHigh, *STemp, destHigh);
+}
+
 
 Type::ResolvedType createFixedPointType(int numInt, bool saturating)
 {
@@ -477,6 +503,27 @@ public:
     :   m_TimeRegister(timeRegister), m_CodeGenerator(codeGenerator), m_VectorRegisterAllocator(vectorRegisterAllocator),
         m_ScalarRegisterAllocator(scalarRegisterAllocator), m_Model(model)
     {
+        auto &c = m_CodeGenerator.get();
+
+        // If this process group has performance counters
+        ScalarRegisterAllocator::RegisterPtr startCyclesReg;
+        ScalarRegisterAllocator::RegisterPtr startCyclesHighReg;
+        ScalarRegisterAllocator::RegisterPtr startInstructsReg;
+        ScalarRegisterAllocator::RegisterPtr startInstructsHighReg;
+        if(processGroup->getPerformanceCounter()) {
+            // Allocate perf counter registers
+            startCyclesReg = scalarRegisterAllocator.getRegister("StartCycles X");
+            startCyclesHighReg = scalarRegisterAllocator.getRegister("StartCyclesH X");
+            startInstructsReg = scalarRegisterAllocator.getRegister("StartInstructs X");
+            startInstructsHighReg = scalarRegisterAllocator.getRegister("StartInstructsH X");
+
+            // Read performance counters
+            c.csrr(*startCyclesReg, CSR::MCYCLE);
+            c.csrr(*startCyclesHighReg, CSR::MCYCLEH);
+            c.csrr(*startInstructsReg, CSR::MINSTRET);
+            c.csrr(*startInstructsHighReg, CSR::MINSTRETH);
+        }
+
         // Visit all the processes
         for(const auto &p : processGroup->getProcesses()) {
             p->accept(*this);
@@ -485,6 +532,51 @@ public:
         // Loop through all grouped event propagation processes
         for(const auto &e : m_EventPropagationProcesses) {
             generateEventPropagationProcesses(e.second);
+        }
+
+        // If this process group has performance counters
+        if(processGroup->getPerformanceCounter()) {
+            ALLOCATE_SCALAR(SPerfBase);
+            ALLOCATE_SCALAR(SCountCycles);
+            ALLOCATE_SCALAR(SCountCyclesH);
+            ALLOCATE_SCALAR(SCountInstructs);
+            ALLOCATE_SCALAR(SCountInstructsH);
+
+            // Read performance counters
+            c.csrr(*SCountCycles, CSR::MCYCLE);
+            c.csrr(*SCountCyclesH, CSR::MCYCLEH);
+            c.csrr(*SCountInstructs, CSR::MINSTRET);
+            c.csrr(*SCountInstructsH, CSR::MINSTRETH);
+            
+            // Subtract previous performance counter values
+            genSubtractUint64(c, scalarRegisterAllocator, *SCountCycles, *SCountCyclesH,
+                              *startCyclesReg, *startCyclesHighReg);
+            genSubtractUint64(c, scalarRegisterAllocator, *SCountInstructs, *SCountInstructsH,
+                              *startInstructsReg, *startInstructsHighReg);
+ 
+            // Get fields associated with this process group
+            const auto &stateFields = m_Model.get().getProcessGroupFields().at(processGroup);
+
+            // Load performance counter base address into registers
+            c.lw(*SPerfBase, Reg::X0, stateFields.at(processGroup->getPerformanceCounter()));
+            
+            // Load previous performance counter values
+            c.lw(*startCyclesReg, *SPerfBase, 0);
+            c.lw(*startCyclesHighReg, *SPerfBase, 4);
+            c.lw(*startInstructsReg, *SPerfBase, 8);
+            c.lw(*startInstructsHighReg, *SPerfBase, 12);
+
+            // Add new performance counter values
+            genAddUint64(c, scalarRegisterAllocator, *startCyclesReg, *startCyclesHighReg,
+                         *SCountCycles, *SCountCyclesH);
+            genAddUint64(c, scalarRegisterAllocator, *startInstructsReg, *startInstructsHighReg,
+                         *SCountInstructs, *SCountInstructsH);
+
+            // Store updated values
+            c.sw(*startCyclesReg, *SPerfBase, 0);
+            c.sw(*startCyclesHighReg, *SPerfBase, 4);
+            c.sw(*startInstructsReg, *SPerfBase, 8);
+            c.sw(*startInstructsHighReg, *SPerfBase, 12);
         }
     }
 
@@ -1292,4 +1384,13 @@ std::unique_ptr<ArrayBase> BackendFeNN::createArray(std::shared_ptr<const EventC
     // Event containers are always implemented as BRAM bitfields
     const size_t numSpikeWords = ceilDivide(eventContainer->getShape().getFlattenedSize(), 32) * eventContainer->getNumBufferTimesteps();
     return createBRAMArray(GeNN::Type::Uint32, numSpikeWords, state);
+}
+//------------------------------------------------------------------------
+std::unique_ptr<ArrayBase> BackendFeNN::createArray(std::shared_ptr<const PerformanceCounter>,
+                                                    const Model::StateProcesses::mapped_type&,
+                                                    StateBase *state) const
+{
+    // Performance counter contains a 64-bit number for 
+    // instructions retired and one for number of cycles 
+    return createBRAMArray(GeNN::Type::Uint64, 2, state);
 }

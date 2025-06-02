@@ -288,6 +288,9 @@ public:
                                            const Model::StateProcesses::mapped_type &processes,
                                            StateBase *state) const;
 
+    std::unique_ptr<ArrayBase> createArray(std::shared_ptr<const PerformanceCounter> performanceCounter, 
+                                           const Model::StateProcesses::mapped_type &processes,
+                                           StateBase *state) const;
 protected:
     //------------------------------------------------------------------------
     // Declared virtuals
