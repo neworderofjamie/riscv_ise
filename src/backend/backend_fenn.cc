@@ -101,11 +101,6 @@ protected:
     //------------------------------------------------------------------------
     // Protected API
     //------------------------------------------------------------------------
-    //! Get code generator exposed by context
-    CodeGenerator &getContextCodeGenerator()
-    {
-    }
-
     RegisterPtr getContextRegister(const std::string &name) const
     {
         // If context includes a pretty-printing environment, get name from it
@@ -684,9 +679,7 @@ private:
                 }
 
                 // **HACK** if you're unlucky, there can be a RAW hazard between last load and first instruction so nop
-                if(neuronUpdateProcess->getOutputEvents().empty()) {
-                    unrollEnv.getCodeGenerator().nop();
-                }
+                unrollEnv.getCodeGenerator().nop();
 
                 // Compile tokens
                 // **TODO** pass mask register in here
