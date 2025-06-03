@@ -190,6 +190,45 @@ OpType getOpType(int32_t funct7, uint32_t funct3)
     return OpType::INVALID;
 }
 //----------------------------------------------------------------------------
+SystemType getSystemType(int32_t imm, uint32_t funct3)
+{
+    switch(funct3)
+    {
+    case 0:
+    {
+        if(imm == 0x000) {
+            return SystemType::ECALL;
+        }
+        else if(imm == 0x001) {
+            return SystemType::EBREAK;
+        }
+        else {
+            return SystemType::INVALID;
+        }
+    }
+
+    case 1:
+        return SystemType::CSRRW;
+
+    case 2: 
+        return SystemType::CSRRS;
+
+    case 3:
+        return SystemType::CSRRC;
+
+    case 5:
+        return SystemType::CSRRWI;
+    
+    case 6: 
+        return SystemType::CSRRSI;
+
+    case 7:
+        return SystemType::CSRRCI;
+    }
+  
+    return SystemType::INVALID;
+}
+//----------------------------------------------------------------------------
 VOpType getVOpType(uint32_t funct7, uint32_t funct3)
 {
     const uint32_t roundMode = ((funct7 >> 4) & 0b011);

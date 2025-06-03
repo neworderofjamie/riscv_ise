@@ -78,6 +78,8 @@ BETTER_ENUM(OpImmType, uint32_t, ADDI, SLLI, CLZ, CTZ, CPOP, SEXT_B, SEXT_H, SLT
             SLTIU, XORI, SRLI, SRAI, ORI, ANDI, INVALID)
 BETTER_ENUM(OpType, uint32_t, ADD, SUB, SLL, SLT, SLTU, XOR, SRL, SRA, OR, AND, 
             MUL, INVALID)
+BETTER_ENUM(SystemType, uint32_t, ECALL, EBREAK, CSRRW, CSRRWI, CSRRS, 
+            CSRRSI, CSRRC, CSRRCI, INVALID)
 
 BETTER_ENUM(VOpType, uint32_t, VADD, VSUB, VMUL, VMUL_RS, VMUL_RN, INVALID)
 BETTER_ENUM(VTstType, uint32_t, VTEQ, VTNE, VTLT, VTGE, INVALID)
@@ -218,9 +220,10 @@ inline std::tuple<uint32_t, uint32_t, uint32_t, uint32_t, uint32_t> decodeRType(
 }
 
 // imm[11:0] rs1 funct3 rd
-inline std::tuple<int32_t, uint32_t, uint32_t, uint32_t> decodeIType(uint32_t inst)
+template<typename I = int32_t>
+inline std::tuple<I, uint32_t, uint32_t, uint32_t> decodeIType(uint32_t inst)
 {
-    const int32_t imm = (int32_t)inst >> 20;
+    const I imm = (I)inst >> 20;
     const uint32_t rs1 = (inst >> 15) & 0x1f;
     const uint32_t funct3 = (inst >> 12) & 7;
     const uint32_t rd = (inst >> 7) & 0x1f;
@@ -269,6 +272,8 @@ COMMON_EXPORT BranchType getBranchType(uint32_t funct3);
 COMMON_EXPORT OpImmType getOpImmType(int32_t imm, uint32_t funct3);
 
 COMMON_EXPORT OpType getOpType(int32_t funct7, uint32_t funct3);
+
+COMMON_EXPORT SystemType getSystemType(int32_t imm, uint32_t funct3);
 
 COMMON_EXPORT VOpType getVOpType(uint32_t funct7, uint32_t funct3);
 
