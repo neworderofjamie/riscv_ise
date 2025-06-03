@@ -1,12 +1,13 @@
 import numpy as np
 import mnist
 
-from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer, Model, ProcessGroup,
-                    Runtime, Shape)
+from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer, Model, 
+                    PerformanceCounter, ProcessGroup, Runtime, Shape)
 from models import Copy, LI, LIF, Linear
 
 from pyfenn import disassemble, init_logging
-from pyfenn.utils import get_array_view, get_latency_spikes, load_and_push, zero_and_push
+from pyfenn.utils import (get_array_view, get_latency_spikes, load_and_push,
+                          read_perf_counter, zero_and_push)
 from tqdm.auto import tqdm
 
 num_timesteps = 79
@@ -17,6 +18,7 @@ input_hidden_shape = [28 * 28, 128]
 hidden_output_shape = [128, 10]
 device = False
 record = False
+time = True
 disassemble_code = False
 
 # Load and preprocess MNIST
@@ -38,9 +40,9 @@ hidden_output = Linear(hidden.out_spikes, output.i, "s9_6_sat_t")
 output_copy = Copy(output.v_avg)
 
 # Group processes
-neuron_update_processes = ProcessGroup([hidden.process, output.process])
-synapse_update_processes = ProcessGroup([input_hidden.process, hidden_output.process])
-copy_processes = ProcessGroup([output_copy.process])
+neuron_update_processes = ProcessGroup([hidden.process, output.process], PerformanceCounter() if time else None)
+synapse_update_processes = ProcessGroup([input_hidden.process, hidden_output.process], PerformanceCounter() if time else None)
+copy_processes = ProcessGroup([output_copy.process], PerformanceCounter() if time else None)
 
 # Create model
 model = Model([neuron_update_processes, synapse_update_processes, copy_processes])
@@ -74,6 +76,11 @@ zero_and_push(hidden.refrac_time, runtime)
 zero_and_push(output.v, runtime)
 zero_and_push(output.i, runtime)
 zero_and_push(output.v_avg, runtime)
+
+if time:
+    zero_and_push(neuron_update_processes.performance_counter, runtime)
+    zero_and_push(synapse_update_processes.performance_counter, runtime)
+    zero_and_push(copy_processes.performance_counter, runtime)
 
 # Set instructions
 runtime.set_instructions(code)
@@ -113,4 +120,16 @@ for i in tqdm(range(len(mnist_labels))):
     # Push ORIGINAL output back to device (zeroing)
     output_v_avg_array.push_to_device()
 
-print(f"{num_correct} / {num_examples} correct {100.0 * (num_correct / num_examples)}%")
+print(f"{num_correct} / {len(mnist_labels)} correct {100.0 * (num_correct / len(mnist_labels))}%")
+
+if time:
+    neuron_update_cycles, neuron_update_instructions = read_perf_counter(
+        neuron_update_processes.performance_counter, runtime)
+    synapse_update_cycles, synapse_update_instructions = read_perf_counter(
+        synapse_update_processes.performance_counter, runtime)
+    copy_cycles, copy_instructions = read_perf_counter(
+        copy_processes.performance_counter, runtime)
+    
+    print(f"Neuron update {neuron_update_cycles} cycles, {neuron_update_instructions} instruction ({neuron_update_instructions / neuron_update_cycles})")
+    print(f"Synapse update {synapse_update_cycles} cycles, {synapse_update_instructions} instruction ({synapse_update_instructions / synapse_update_cycles})")
+    print(f"Copy {copy_cycles} cycles, {copy_instructions} instruction ({copy_instructions / copy_cycles})")

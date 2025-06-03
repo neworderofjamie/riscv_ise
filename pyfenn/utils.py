@@ -39,6 +39,14 @@ def zero_and_push(state, runtime: Runtime):
     # Push to device
     array.push_to_device()
 
+def read_perf_counter(perf_counter, runtime: Runtime):
+    # Get array and view
+    array, view = get_array_view(runtime, perf_counter, np.uint64)
+
+    # Pull
+    array.pull_from_device()
+    
+    return view[0], view[1]
 
 def seed_and_push(state, runtime: Runtime):
     # Get array and view

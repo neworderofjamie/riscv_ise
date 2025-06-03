@@ -218,6 +218,13 @@ PYBIND11_MODULE(_fenn, m)
         .def_property_readonly("type", &Variable::getType);
     
     //------------------------------------------------------------------------
+    // fenn.PerformanceCounter
+    //------------------------------------------------------------------------
+    pybind11::class_<PerformanceCounter, State, std::shared_ptr<PerformanceCounter>>(m, "PerformanceCounter")
+        .def(pybind11::init(&PerformanceCounter::create),
+             pybind11::arg("name") = "");
+        
+    //------------------------------------------------------------------------
     // fenn.Process
     //------------------------------------------------------------------------
     pybind11::class_<Process, ModelComponent, std::shared_ptr<Process>>(m, "Process");
@@ -274,9 +281,11 @@ PYBIND11_MODULE(_fenn, m)
     //------------------------------------------------------------------------
     pybind11::class_<ProcessGroup, ModelComponent, std::shared_ptr<ProcessGroup>>(m, "ProcessGroup")
         .def(pybind11::init(&ProcessGroup::create),
-             pybind11::arg("processes"), pybind11::arg("name") = "")
+             pybind11::arg("processes"), pybind11::arg("performance_counter") = nullptr,
+             pybind11::arg("name") = "")
 
-        .def_property_readonly("processes", &ProcessGroup::getProcesses);
+        .def_property_readonly("processes", &ProcessGroup::getProcesses)
+        .def_property_readonly("performance_counter", &ProcessGroup::getPerformanceCounter);
 
     //------------------------------------------------------------------------
     // fenn.Model
