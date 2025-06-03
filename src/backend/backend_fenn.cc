@@ -464,31 +464,25 @@ void compileStatements(const std::vector<Token> &tokens, const Type::TypeContext
     }
 }
 
-class CodeGeneratorVisitor : public ModelComponentVisitor
+class PerformanceCounterScope
 {
 public:
-    CodeGeneratorVisitor(std::shared_ptr<const ProcessGroup> processGroup, 
-                         ScalarRegisterAllocator::RegisterPtr timeRegister,
-                         CodeGenerator &codeGenerator, 
-                         VectorRegisterAllocator &vectorRegisterAllocator, 
-                         ScalarRegisterAllocator &scalarRegisterAllocator, 
-                         const Model &model)
-    :   m_TimeRegister(timeRegister), m_CodeGenerator(codeGenerator), m_VectorRegisterAllocator(vectorRegisterAllocator),
+    PerformanceCounterScope(std::shared_ptr<const ProcessGroup> processGroup,
+                            CodeGenerator &codeGenerator,
+                            ScalarRegisterAllocator &scalarRegisterAllocator,
+                            const Model &model)
+    :   m_ProcessGroup(processGroup), m_CodeGenerator(codeGenerator),
         m_ScalarRegisterAllocator(scalarRegisterAllocator), m_Model(model)
     {
-        auto &c = m_CodeGenerator.get();
-
-        // If this process group has performance counters
-        ScalarRegisterAllocator::RegisterPtr startCyclesReg;
-        ScalarRegisterAllocator::RegisterPtr startCyclesHighReg;
-        ScalarRegisterAllocator::RegisterPtr startInstructsReg;
-        ScalarRegisterAllocator::RegisterPtr startInstructsHighReg;
-        if(processGroup->getPerformanceCounter()) {
+        // If process group has an associated performance counter
+        if(m_ProcessGroup->getPerformanceCounter()) {
             // Allocate perf counter registers
-            startCyclesReg = scalarRegisterAllocator.getRegister("StartCycles X");
-            startCyclesHighReg = scalarRegisterAllocator.getRegister("StartCyclesH X");
-            startInstructsReg = scalarRegisterAllocator.getRegister("StartInstructs X");
-            startInstructsHighReg = scalarRegisterAllocator.getRegister("StartInstructsH X");
+            // **TODO** this is rather wasteful of 4 registers! Probably better to store
+            auto &c = m_CodeGenerator.get();
+            startCyclesReg = m_ScalarRegisterAllocator.get().getRegister("StartCycles X");
+            startCyclesHighReg = m_ScalarRegisterAllocator.get().getRegister("StartCyclesH X");
+            startInstructsReg = m_ScalarRegisterAllocator.get().getRegister("StartInstructs X");
+            startInstructsHighReg = m_ScalarRegisterAllocator.get().getRegister("StartInstructsH X");
 
             // Read performance counters
             c.csrr(*startCyclesReg, CSR::MCYCLE);
@@ -496,19 +490,15 @@ public:
             c.csrr(*startInstructsReg, CSR::MINSTRET);
             c.csrr(*startInstructsHighReg, CSR::MINSTRETH);
         }
+    }
 
-        // Visit all the processes
-        for(const auto &p : processGroup->getProcesses()) {
-            p->accept(*this);
-        }
-
-        // Loop through all grouped event propagation processes
-        for(const auto &e : m_EventPropagationProcesses) {
-            generateEventPropagationProcesses(e.second);
-        }
-
-        // If this process group has performance counters
-        if(processGroup->getPerformanceCounter()) {
+    ~PerformanceCounterScope()
+    {
+        // If process group has an associated performance counter
+        if(m_ProcessGroup->getPerformanceCounter()) {
+            auto &c = m_CodeGenerator.get();
+            ScalarRegisterAllocator &scalarRegisterAllocator = m_ScalarRegisterAllocator.get();
+            
             ALLOCATE_SCALAR(SPerfBase);
             ALLOCATE_SCALAR(SCountCycles);
             ALLOCATE_SCALAR(SCountCyclesH);
@@ -530,10 +520,10 @@ public:
                                                    *startInstructsReg, *startInstructsHighReg);
  
             // Get fields associated with this process group
-            const auto &stateFields = m_Model.get().getProcessGroupFields().at(processGroup);
+            const auto &stateFields = m_Model.get().getProcessGroupFields().at(m_ProcessGroup);
 
             // Load performance counter base address into registers
-            c.lw(*SPerfBase, Reg::X0, stateFields.at(processGroup->getPerformanceCounter()));
+            c.lw(*SPerfBase, Reg::X0, stateFields.at(m_ProcessGroup->getPerformanceCounter()));
             
             // Load previous performance counter values
             c.lw(*startCyclesReg, *SPerfBase, 0);
@@ -554,6 +544,42 @@ public:
             c.sw(*startCyclesHighReg, *SPerfBase, 4);
             c.sw(*startInstructsReg, *SPerfBase, 8);
             c.sw(*startInstructsHighReg, *SPerfBase, 12);
+        }
+    }
+private:
+    std::shared_ptr<const ProcessGroup> m_ProcessGroup;
+    std::reference_wrapper<CodeGenerator> m_CodeGenerator;
+    std::reference_wrapper<ScalarRegisterAllocator> m_ScalarRegisterAllocator;
+    std::reference_wrapper<const Model> m_Model;
+
+    ScalarRegisterAllocator::RegisterPtr startCyclesReg;
+    ScalarRegisterAllocator::RegisterPtr startCyclesHighReg;
+    ScalarRegisterAllocator::RegisterPtr startInstructsReg;
+    ScalarRegisterAllocator::RegisterPtr startInstructsHighReg;
+};
+class CodeGeneratorVisitor : public ModelComponentVisitor
+{
+public:
+    CodeGeneratorVisitor(std::shared_ptr<const ProcessGroup> processGroup, 
+                         ScalarRegisterAllocator::RegisterPtr timeRegister,
+                         CodeGenerator &codeGenerator, 
+                         VectorRegisterAllocator &vectorRegisterAllocator, 
+                         ScalarRegisterAllocator &scalarRegisterAllocator, 
+                         const Model &model)
+    :   m_TimeRegister(timeRegister), m_CodeGenerator(codeGenerator), m_VectorRegisterAllocator(vectorRegisterAllocator),
+        m_ScalarRegisterAllocator(scalarRegisterAllocator), m_Model(model)
+    {
+        PerformanceCounterScope p(processGroup, codeGenerator, 
+                                  scalarRegisterAllocator, model);
+
+        // Visit all the processes
+        for(const auto &p : processGroup->getProcesses()) {
+            p->accept(*this);
+        }
+
+        // Loop through all grouped event propagation processes
+        for(const auto &e : m_EventPropagationProcesses) {
+            generateEventPropagationProcesses(e.second);
         }
     }
 
