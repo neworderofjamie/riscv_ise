@@ -83,6 +83,18 @@ void zeroAndPush(std::shared_ptr<const State> state, Runtime &runtime)
     array->pushToDevice();
 }
 
+std::pair<uint64_t, uint64_t> readPerfCounter(std::shared_ptr<const PerformanceCounter> perfCounter, Runtime &runtime)
+{
+    // Get array
+    auto *array = runtime.getArray(perfCounter);
+
+    // Pull
+    array->pullFromDevice();
+
+    const uint64_t *hostData = array->getHostPointer<uint64_t>();
+    return std::make_pair(hostData[0], hostData[1]);
+}
+
 int main(int argc, char** argv)
 {
     constexpr size_t numTimesteps = 79;
@@ -269,6 +281,19 @@ int main(int argc, char** argv)
     }
 
     std::cout << numCorrect << " / " << numExamples << " correct (" << 100.0 * (numCorrect / double(numExamples)) << "%)" << std::endl;
+
+    // If timing is enabled
+    if(time) {
+        // Read performance counters
+        auto [neuronUpdateCycles, neuronUpdateInstructions] = readPerfCounter(neuronUpdatePerfCounter, runtime);
+        auto [synapseUpdateCycles, synapseUpdateInstructions] = readPerfCounter(synapseUpdatePerfCounter, runtime);
+        auto [copyCycles, copyInstructions] = readPerfCounter(copyPerfCounter, runtime);
+
+        // Print
+        std::cout << "Neuron update " << neuronUpdateCycles << " cycles, " << neuronUpdateInstructions << " instruction (" << (double)neuronUpdateInstructions / neuronUpdateCycles << ")" << std::endl;
+        std::cout << "Synapse update " << synapseUpdateCycles << " cycles, " << synapseUpdateInstructions << " instruction (" << (double)synapseUpdateInstructions / synapseUpdateCycles << ")" << std::endl;
+        std::cout << "Copy " << copyCycles << " cycles, " << copyInstructions << " instruction (" << (double)copyInstructions / copyCycles << ")" << std::endl;
+    }
     //std::cout << duration.count() << " seconds" << std::endl;
 
     return 0;
