@@ -52,13 +52,11 @@ std::vector<uint32_t> generateCode(uint32_t numTimesteps, uint32_t inputCurrentV
             // Labels
             Label loop;
 
-            // On device write instructions retired and cycle counts to memory
-            if(!simulate) {
-                AssemblerUtils::generatePerformanceCountWrite(c, scalarRegisterAllocator,
-                                                              CSR::MCYCLE, CSR::MCYCLEH, startCyclePtr);
-                AssemblerUtils::generatePerformanceCountWrite(c, scalarRegisterAllocator,
-                                                              CSR::MINSTRET, CSR::MINSTRETH, startInstRetPtr);
-            }
+            // Write instructions retired and cycle counts to memory
+            AssemblerUtils::generatePerformanceCountWrite(c, scalarRegisterAllocator,
+                                                            CSR::MCYCLE, CSR::MCYCLEH, startCyclePtr);
+            AssemblerUtils::generatePerformanceCountWrite(c, scalarRegisterAllocator,
+                                                            CSR::MINSTRET, CSR::MINSTRETH, startInstRetPtr);
 
             // Load pointers
             c.li(*SIBuffer, inputCurrentVectorPtr);
@@ -111,13 +109,11 @@ std::vector<uint32_t> generateCode(uint32_t numTimesteps, uint32_t inputCurrentV
                 c.bne(*SVBuffer, *SVBufferEnd, loop);
             }
 
-            // On device write instructions retired and cycle counts to memory
-            if(!simulate) {
-                AssemblerUtils::generatePerformanceCountWrite(c, scalarRegisterAllocator,
-                                                              CSR::MCYCLE, CSR::MCYCLEH, endCyclePtr);
-                AssemblerUtils::generatePerformanceCountWrite(c, scalarRegisterAllocator,
-                                                              CSR::MINSTRET, CSR::MINSTRETH, endInstRetPtr);
-            }
+            // Write instructions retired and cycle counts to memory
+            AssemblerUtils::generatePerformanceCountWrite(c, scalarRegisterAllocator,
+                                                            CSR::MCYCLE, CSR::MCYCLEH, endCyclePtr);
+            AssemblerUtils::generatePerformanceCountWrite(c, scalarRegisterAllocator,
+                                                            CSR::MINSTRET, CSR::MINSTRETH, endInstRetPtr);
         });
 }
 
@@ -249,10 +245,16 @@ int main(int argc, char** argv)
         const auto *scalarData = riscV.getScalarDataMemory().getData();
         const auto *vectorData = riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getVectorDataMemory().getData();
         
+        // Read performance counters
+        const uint64_t *startInstRetData = reinterpret_cast<const uint64_t*>(scalarData + startInstRetPtr);
+        const uint64_t *endInstRetData = reinterpret_cast<const uint64_t*>(scalarData + endInstRetPtr);
+        const uint64_t *startCyclesData = reinterpret_cast<const uint64_t*>(scalarData + startCyclePtr);
+        const uint64_t *endCyclesData = reinterpret_cast<const uint64_t*>(scalarData + endCyclePtr);
+        LOGI << (endInstRetData[0] - startInstRetData[0]) << " instructions retired in " << (endCyclesData[0] - startCyclesData[0]) << " cycles" << std::endl;
+        
+        // Record spikes and voltages
         const uint32_t *spikeRecordingData = reinterpret_cast<const uint32_t*>(scalarData + spikeRecordingPtr);
         const int16_t *vRecordingData = vectorData + (voltageRecordingPtr / 2);
-
-        // Record spikes and voltages
         recordSpikes(spikeRecordingData, numTimesteps);
         recordV(vRecordingData, numTimesteps);
     }
