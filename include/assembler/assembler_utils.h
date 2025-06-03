@@ -58,4 +58,13 @@ ASSEMBLER_EXPORT void unrollVectorLoopBody(CodeGenerator &c, ScalarRegisterAlloc
 // Generate preamble and postamble for code using standard ecall instruction to terminate simulations and polling on device
 ASSEMBLER_EXPORT std::vector<uint32_t> generateStandardKernel(bool simulate, uint32_t readyFlagPtr, 
                                                               std::function<void(CodeGenerator&, VectorRegisterAllocator&, ScalarRegisterAllocator&)> genBodyFn);
+
+
+//! Generate code to calculate dest -= subtract in Uint64
+ASSEMBLER_EXPORT void generateSubtractUint64(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator,
+                                             Reg destLow, Reg destHigh, Reg subtractLow, Reg subtractHigh);
+
+//! Generate code to calculate dest += subtract in Uint64
+ASSEMBLER_EXPORT void generateAddUint64(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator,
+                                        Reg destLow, Reg destHigh, Reg addLow, Reg addHigh);
 }

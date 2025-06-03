@@ -341,4 +341,28 @@ std::vector<uint32_t> generateStandardKernel(bool simulate, uint32_t readyFlagPt
 
     return c.getCode();
 }
+//----------------------------------------------------------------------------
+void generateSubtractUint64(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator,
+                            Reg destLow, Reg destHigh, Reg subtractLow, Reg subtractHigh)
+{
+    ALLOCATE_SCALAR(STemp);
+
+    c.mv(*STemp, destLow);
+    c.sub(destLow, destLow, subtractLow);
+    c.sltu(*STemp, *STemp, destLow);
+    c.sub(destHigh, destHigh, subtractHigh);
+    c.sub(destHigh, destHigh, *STemp);
+}
+//----------------------------------------------------------------------------
+void generateAddUint64(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator,
+                       Reg destLow, Reg destHigh, Reg addLow, Reg addHigh)
+{
+    ALLOCATE_SCALAR(STemp);
+
+    c.mv(*STemp, destLow);
+    c.add(destLow, destLow, addLow);
+    c.sltu(*STemp, destLow, *STemp);
+    c.add(destHigh, destHigh, addHigh);
+    c.add(destHigh, *STemp, destHigh);
+}
 }

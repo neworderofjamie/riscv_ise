@@ -311,33 +311,6 @@ private:
     std::reference_wrapper<const Library> m_Library;
 };
 
-//! Generate code to calculate dest -= subtract in Uint64
-void genSubtractUint64(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator,
-                       Reg destLow, Reg destHigh, Reg subtractLow, Reg subtractHigh)
-{
-    ALLOCATE_SCALAR(STemp);
-
-    c.mv(*STemp, destLow);
-    c.sub(destLow, destLow, subtractLow);
-    c.sltu(*STemp, *STemp, destLow);
-    c.sub(destHigh, destHigh, subtractHigh);
-    c.sub(destHigh, destHigh, *STemp);
-}
-
-//! Generate code to calculate dest += subtract in Uint64
-void genAddUint64(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator,
-                  Reg destLow, Reg destHigh, Reg addLow, Reg addHigh)
-{
-    ALLOCATE_SCALAR(STemp);
-
-    c.mv(*STemp, destLow);
-    c.add(destLow, destLow, addLow);
-    c.sltu(*STemp, destLow, *STemp);
-    c.add(destHigh, destHigh, addHigh);
-    c.add(destHigh, *STemp, destHigh);
-}
-
-
 Type::ResolvedType createFixedPointType(int numInt, bool saturating)
 {
     const int numFrac = 15 - numInt;
@@ -549,10 +522,12 @@ public:
             c.csrr(*SCountInstructsH, CSR::MINSTRETH);
             
             // Subtract previous performance counter values
-            genSubtractUint64(c, scalarRegisterAllocator, *SCountCycles, *SCountCyclesH,
-                              *startCyclesReg, *startCyclesHighReg);
-            genSubtractUint64(c, scalarRegisterAllocator, *SCountInstructs, *SCountInstructsH,
-                              *startInstructsReg, *startInstructsHighReg);
+            AssemblerUtils::generateSubtractUint64(c, scalarRegisterAllocator,
+                                                   *SCountCycles, *SCountCyclesH,
+                                                   *startCyclesReg, *startCyclesHighReg);
+            AssemblerUtils::generateSubtractUint64(c, scalarRegisterAllocator,
+                                                   *SCountInstructs, *SCountInstructsH,
+                                                   *startInstructsReg, *startInstructsHighReg);
  
             // Get fields associated with this process group
             const auto &stateFields = m_Model.get().getProcessGroupFields().at(processGroup);
@@ -567,10 +542,12 @@ public:
             c.lw(*startInstructsHighReg, *SPerfBase, 12);
 
             // Add new performance counter values
-            genAddUint64(c, scalarRegisterAllocator, *startCyclesReg, *startCyclesHighReg,
-                         *SCountCycles, *SCountCyclesH);
-            genAddUint64(c, scalarRegisterAllocator, *startInstructsReg, *startInstructsHighReg,
-                         *SCountInstructs, *SCountInstructsH);
+            AssemblerUtils::generateAddUint64(c, scalarRegisterAllocator,
+                                              *startCyclesReg, *startCyclesHighReg,
+                                              *SCountCycles, *SCountCyclesH);
+            AssemblerUtils::generateAddUint64(c, scalarRegisterAllocator,
+                                              *startInstructsReg, *startInstructsHighReg,
+                                              *SCountInstructs, *SCountInstructsH);
 
             // Store updated values
             c.sw(*startCyclesReg, *SPerfBase, 0);
