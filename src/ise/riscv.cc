@@ -291,6 +291,7 @@ void RISCV::resetStats()
 {
     // Reset standard stats
     std::fill(m_NumInstructionsExecuted.begin(), m_NumInstructionsExecuted.end(), 0);
+    m_InstructionCounter = 0;
     m_NumTrueBranches = 0;
     m_NumFalseBranches = 0;
 
@@ -615,6 +616,87 @@ uint32_t RISCV::loadValue(uint32_t inst, int32_t imm, uint32_t rs1, uint32_t fun
     }
 }
 //----------------------------------------------------------------------------
+std::optional<uint32_t> RISCV::readCSR(uint32_t csr, bool willWrite) const
+{
+#ifdef DEBUG_EXTRA
+    printf("csr_read: csr=0x%03x %i\n", csr, willWrite);
+#endif
+
+    // Read-only CSR 
+    if (((csr & 0xc00) == 0xc00) && willWrite) {
+        return std::nullopt; 
+    }
+
+    switch(static_cast<CSR>(csr)) {
+    /*case CSR::MSTATUS:
+        return getMStatus((uint32_t)-1);
+    case CSR::MISA:
+        uint32_t val = misa;
+        val |= (uint32_t)mxl << (XLEN - 2);
+        return val;
+    case CSR::MIE:
+        return mie;
+    case CSR::MTVEC:
+        return mtvec;
+    case CSR::MSCRATCH:
+        return mscratch;
+    case CSR::MEPC:
+        return mepc;
+    case CSR::MCAUSE:
+        return mcause;
+    case CSR::MTVAL:
+        return mtval;
+    case CSR::MIP:
+        return mip;*/
+    case CSR::MCYCLE:
+    case CSR::MINSTRET:
+        return (int64_t)m_InstructionCounter;
+    case CSR::MCYCLEH:
+    case CSR::MINSTRETH:
+        return m_InstructionCounter >> 32;
+    /*case CSR::MHARTID:
+        return mhartid;*/
+    default:
+        return std::nullopt;
+    }
+}
+//----------------------------------------------------------------------------
+bool RISCV::writeCSR(uint32_t csr, uint32_t val)
+{
+    switch(csr) {
+    /*case CSR::MSTATUS:
+        setMStatus(val);
+        break;
+    case CSR::MISA:
+        break;
+    case CSR::MIE:
+        const uint32_t mask = MIP_MSIP | MIP_MTIP | MIP_SSIP | MIP_STIP | MIP_SEIP;
+        mie = (mie & ~mask) | (val & mask);
+        break;
+    case CSR::MTVEC:
+        mtvec = val & ~3;
+        break;
+    case CSR::MSCRATCH:
+        mscratch = val;
+        break;
+    case CSR::MEPC:
+        mepc = val & ~1;
+        break;
+    case CSR::MCAUSE:
+        mcause = val;
+        break;
+    case CSR::MTVAL:
+        mtval = val;
+        break;
+    case CSR::MIP:
+        const uint32_t mask = MIP_SSIP | MIP_STIP;
+        mip = (mip & ~mask) | (val & mask);
+        break;*/
+    }
+
+    return true;
+}
+//----------------------------------------------------------------------------
 void RISCV::executeStandardInstruction(uint32_t inst)
 {
     const auto opcode = static_cast<StandardOpCode>((inst & 0b1111100) >> 2);
@@ -773,15 +855,14 @@ void RISCV::executeStandardInstruction(uint32_t inst)
 
     case StandardOpCode::SYSTEM:
     {
-        const uint32_t funct12 = inst >> 20;
-        //const uint32_t rs1 = (inst >> 15) & 0x1f;
-        const uint32_t funct3 = (inst >> 12) & 3;
-        //const uint32_t rd = (inst >> 7) & 0x1f;
-        
-        switch(funct3) {
+        const auto [imm, rs1, funct3, rd] = decodeIType<uint32_t>(inst);
 
-        /*case 1: //csrrw & csrrwi
-#ifdef DEBUG_EXTRA
+        const uint32_t val = (funct3 & 4) ? rs1 : m_Reg[rs1];
+        switch(getSystemType(imm, funct3)) {
+        case SystemType::CSRRW:
+        case SystemType::CSRRWI:
+        {
+/*#ifdef DEBUG_EXTRA
             if ((insn >> 12) & 4)
             {
                dprintf(">>> CSRRWI\n");
@@ -792,146 +873,127 @@ void RISCV::executeStandardInstruction(uint32_t inst)
                dprintf(">>> CSRRW\n");
                stats[41]++;
             }
-#endif
-            if (csr_read(&val2, imm, TRUE)) {
-                raise_exception(CAUSE_ILLEGAL_INSTRUCTION, insn);
-                return;
-            }
-            val2 = (int32_t)val2;
-            err = csr_write(imm, val);
-            if (err < 0) {
-                raise_exception(CAUSE_ILLEGAL_INSTRUCTION, insn);
-                return;
-            }
-            if (rd != 0)
-                reg[rd] = val2;
-            if (err > 0) {
-                //pc = pc + 4;
-            }
-            break;
-
-        case 2: //csrrs & csrrsi 
-        case 3: // csrrc & csrrci 
-            if (csr_read(&val2, imm, (rs1 != 0))) {
-                raise_exception(CAUSE_ILLEGAL_INSTRUCTION, insn);
-                return;
-            }
-            val2 = (int32_t)val2;
-#ifdef DEBUG_EXTRA
-            switch((insn >> 12) & 7)
-            {
-               case 2: dprintf(">>> CSRRS\n"); stats[42]++; break;
-               case 3: dprintf(">>> CSRRC\n"); stats[43]++; break;
-               case 6: dprintf(">>> CSRRSI\n"); stats[45]++; break;
-               case 7: dprintf(">>> CSRRCI\n"); stats[46]++; break;
-            }
-#endif
-            if (rs1 != 0)
-            {
-                if (funct3 == 2)
-                {
-                    val = val2 | val;
-                }
-                else
-                {
-                    val = val2 & ~val;
-                }
-                err = csr_write(imm, val);
-                if (err < 0) {
-                    raise_exception(CAUSE_ILLEGAL_INSTRUCTION, insn);
-                    return;
-                }
-            }
-            else
-            {
-                err = 0;
-            }
-            if (rd != 0)
-                reg[rd] = val2;
-            break;*/
-
-        case 0:
-        {
-            switch(funct12) {
-            case 0x000: // ecall 
-            {
-                PLOGV << "ECALL";
-#ifdef DEBUG_EXTRA
-                stats[39]++;
-#endif
-                if (inst & 0x000fff80) {
+#endif*/
+            const auto newVal = readCSR(imm, true);
+            if (newVal) {
+                if(!writeCSR(imm, val)) {
                     throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
                 }
-                else {
-                    throw Exception(Exception::Cause::ECALL, inst);
+                if (rd != 0) {
+                    m_Reg[rd] = newVal.value();
                 }
             }
-            case 0x001: // EBREAK
-            {
-                PLOGV << "EBREAK";
-#ifdef DEBUG_EXTRA
-                stats[40]++;
-#endif
-                if (inst & 0x000fff80) {
-                    throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
-                }
-                else {
-                    breakPoint();
-                }
-                break;
-            }
-
-            /*case 0x102: //sret
-            {
-#ifdef DEBUG_EXTRA
-                dprintf(">>> SRET\n");
-                stats[59]++;
-#endif
-                if ((insn & 0x000fff80) || (priv < PRV_S)) {
-                    raise_exception(CAUSE_ILLEGAL_INSTRUCTION, insn);
-                    return;
-                }
-                handle_sret();
-                return;
-            }
-            break;
-
-            case 0x105: // wfi 
-#ifdef DEBUG_EXTRA
-                dprintf(">>> WFI\n");
-                stats[61]++;
-#endif
-                //wait for interrupt: it is allowed to execute it as nop 
-                break;
-
-            case 0x302: // mret 
-            {
-#ifdef DEBUG_EXTRA
-                dprintf(">>> MRET\n");
-                stats[60]++;
-#endif
-                if ((insn & 0x000fff80) || (priv < PRV_M)) {
-                    raise_exception(CAUSE_ILLEGAL_INSTRUCTION, insn);
-                    return;
-                }
-                handle_mret();
-                return;
-            }
-            break;*/
-
-            default:
-            {
+            else {
                 throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
             }
+            
+            break;
+        }
+
+        case SystemType::CSRRS:
+        case SystemType::CSRRSI:
+        case SystemType::CSRRC:
+        case SystemType::CSRRCI:
+        {
+            const auto newVal = readCSR(imm, rs1 != 0);
+            if(newVal) {
+    #ifdef DEBUG_EXTRA
+                switch((insn >> 12) & 7)
+                {
+                   case 2: dprintf(">>> CSRRS\n"); stats[42]++; break;
+                   case 3: dprintf(">>> CSRRC\n"); stats[43]++; break;
+                   case 6: dprintf(">>> CSRRSI\n"); stats[45]++; break;
+                   case 7: dprintf(">>> CSRRCI\n"); stats[46]++; break;
+                }
+    #endif
+                if (rs1 != 0)
+                {
+                    // CSRRSI or CSRRS
+                    const uint32_t writeVal = ((funct3 & 3) == 2) ? (newVal.value() | val) :  (newVal.value() & ~val);
+                    
+                    if (!writeCSR(imm, writeVal)) {
+                        throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
+                    }
+                }
+                
+                if (rd != 0) {
+                    m_Reg[rd] = newVal.value();
+                }
+            }
+            else {
+                throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
             }
             break;
         }
+
+        case SystemType::ECALL:
+        {
+            PLOGV << "ECALL";
+
+            if (inst & 0x000fff80) {
+                throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
+            }
+            else {
+                throw Exception(Exception::Cause::ECALL, inst);
+            }
+        }
         
+        case SystemType::EBREAK:
+        {
+            PLOGV << "EBREAK";
+            if (inst & 0x000fff80) {
+                throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
+            }
+            else {
+                breakPoint();
+            }
+            break;
+        }
+
+        /*case 0x102: //sret
+        {
+#ifdef DEBUG_EXTRA
+            dprintf(">>> SRET\n");
+            stats[59]++;
+#endif
+            if ((insn & 0x000fff80) || (priv < PRV_S)) {
+                raise_exception(CAUSE_ILLEGAL_INSTRUCTION, insn);
+                return;
+            }
+            handle_sret();
+            return;
+        }
+        break;
+
+        case 0x105: // wfi 
+#ifdef DEBUG_EXTRA
+            dprintf(">>> WFI\n");
+            stats[61]++;
+#endif
+            //wait for interrupt: it is allowed to execute it as nop 
+            break;
+
+        case 0x302: // mret 
+        {
+#ifdef DEBUG_EXTRA
+            dprintf(">>> MRET\n");
+            stats[60]++;
+#endif
+            if ((insn & 0x000fff80) || (priv < PRV_M)) {
+                raise_exception(CAUSE_ILLEGAL_INSTRUCTION, insn);
+                return;
+            }
+            handle_mret();
+            return;
+        }
+        break;*/
+
         default:
         {
             throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
         }
         }
+        
         break;
     }
 
@@ -966,4 +1028,7 @@ void RISCV::executeInstruction(uint32_t inst)
     else {
         throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
     }
+
+    // Increment counter
+    m_InstructionCounter++;
 }

@@ -158,8 +158,10 @@ private:
     uint32_t calcOpImmResult(uint32_t inst, int32_t imm, uint32_t rs1, uint32_t funct3) const;
     uint32_t calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs2, uint32_t rs1, uint32_t funct3) const;
     uint32_t loadValue(uint32_t inst, int32_t imm, uint32_t rs1, uint32_t funct3) const;
-    void executeStandardInstruction(uint32_t inst);
+    std::optional<uint32_t> readCSR(uint32_t csr, bool will_write) const;
+    bool writeCSR(uint32_t csr, uint32_t val);
 
+    void executeStandardInstruction(uint32_t inst);
     void executeInstruction(uint32_t inst);
 
     // -----------------------------------------------------------------------
@@ -176,6 +178,7 @@ private:
     std::unique_ptr<ICoprocessor> m_Coprocessors[3];
 
     // Stats
+    uint64_t m_InstructionCounter;
     std::array<size_t, 128> m_NumInstructionsExecuted;
     std::vector<size_t> m_InstructionHeatmap;
     size_t m_NumTrueBranches;
