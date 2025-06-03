@@ -79,6 +79,32 @@ void disassembleVOp(std::ostream &os, uint32_t inst)
     }
 }
 
+void disassembleSystem(std::ostream &os, uint32_t inst)
+{
+    const auto [imm, rs1, funct3, rd] = decodeIType(inst);
+    const auto type = getSystemType(imm, funct3);
+
+    os << type._to_string();
+
+    switch(type) {
+    case SystemType::CSRRC:
+    case SystemType::CSRRS:
+    case SystemType::CSRRW:
+    {
+        os << " X" << rd << ", " << imm << ", X" << rs1;
+        break;
+    }
+
+    case SystemType::CSRRCI:
+    case SystemType::CSRRSI:
+    case SystemType::CSRRWI:
+    {
+        os << " X" << rd << ", " << imm <<  ", " << rs1;
+        break;
+    }
+    }
+}
+
 void disassembleVLUI(std::ostream &os, uint32_t inst)
 {
     const auto [imm, rd] = decodeUType(inst);
@@ -153,6 +179,7 @@ const std::unordered_map<StandardOpCode, DisassembleFunc> standardInstructionDec
     {StandardOpCode::OP, &disassembleOP},
     {StandardOpCode::OP_IMM, &disassembleOPImm},
     {StandardOpCode::LUI, &disassembleLUI},
+    {StandardOpCode::SYSTEM, &disassembleSystem},
 };
 
 const std::unordered_map<VectorOpCode, DisassembleFunc> vectorInstructionDecoders{
