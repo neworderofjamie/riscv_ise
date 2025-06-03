@@ -236,6 +236,12 @@ int main(int argc, char** argv)
     zeroAndPush(outputVAvg, runtime);
     zeroAndPush(outputVAvgCopy, runtime);
 
+    if(time) {
+        zeroAndPush(neuronUpdatePerfCounter, runtime);
+        zeroAndPush(synapseUpdatePerfCounter, runtime);
+        zeroAndPush(copyPerfCounter, runtime);
+    }
+
     // Load data
     const auto mnistSpikes = AppUtils::loadBinaryData<uint32_t>("mnist_spikes.bin");
     const auto mnistLabels = AppUtils::loadBinaryData<int16_t>("mnist_labels.bin");
