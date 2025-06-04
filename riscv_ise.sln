@@ -157,6 +157,13 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "spike_dma", "src\spike_dma\
 		{695590D3-FA1D-4CD7-9B12-B03F15FC98E6} = {695590D3-FA1D-4CD7-9B12-B03F15FC98E6}
 	EndProjectSection
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "special_function_test", "src\special_function_test\special_function_test.vcxproj", "{DD4C947C-5379-444C-B24D-21AB0579A50F}"
+	ProjectSection(ProjectDependencies) = postProject
+		{CD770F05-BCE1-4550-BDB0-87C804610716} = {CD770F05-BCE1-4550-BDB0-87C804610716}
+		{EF52D22C-C128-4A30-ABE2-C00ADDA02440} = {EF52D22C-C128-4A30-ABE2-C00ADDA02440}
+		{695590D3-FA1D-4CD7-9B12-B03F15FC98E6} = {695590D3-FA1D-4CD7-9B12-B03F15FC98E6}
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug_DLL|x64 = Debug_DLL|x64
@@ -325,6 +332,14 @@ Global
 		{D658B9CA-8A92-4FF5-AB9B-51513309BE4A}.Release_DLL|x64.Build.0 = Release|x64
 		{D658B9CA-8A92-4FF5-AB9B-51513309BE4A}.Release|x64.ActiveCfg = Release|x64
 		{D658B9CA-8A92-4FF5-AB9B-51513309BE4A}.Release|x64.Build.0 = Release|x64
+		{DD4C947C-5379-444C-B24D-21AB0579A50F}.Debug_DLL|x64.ActiveCfg = Debug|x64
+		{DD4C947C-5379-444C-B24D-21AB0579A50F}.Debug_DLL|x64.Build.0 = Debug|x64
+		{DD4C947C-5379-444C-B24D-21AB0579A50F}.Debug|x64.ActiveCfg = Debug|x64
+		{DD4C947C-5379-444C-B24D-21AB0579A50F}.Debug|x64.Build.0 = Debug|x64
+		{DD4C947C-5379-444C-B24D-21AB0579A50F}.Release_DLL|x64.ActiveCfg = Release|x64
+		{DD4C947C-5379-444C-B24D-21AB0579A50F}.Release_DLL|x64.Build.0 = Release|x64
+		{DD4C947C-5379-444C-B24D-21AB0579A50F}.Release|x64.ActiveCfg = Release|x64
+		{DD4C947C-5379-444C-B24D-21AB0579A50F}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
