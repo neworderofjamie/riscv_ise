@@ -434,6 +434,11 @@ void updateLiteralPool(const std::vector<Token> &tokens, VectorRegisterAllocator
     literalPool.try_emplace(0, vectorRegisterAllocator.getRegister("0 V"));
 }
 
+bool arePerformanceCountersRequired(const std::vector<std::shared_ptr<const ProcessGroup>> &processGroups)
+{
+    return std::any_of(processGroups.cbegin(), processGroups.cend(),
+                       [](const auto &p){ return p->getPerformanceCounter(); });
+}
 void compileStatements(const std::vector<Token> &tokens, const Type::TypeContext &typeContext,
                        const std::unordered_map<int16_t, VectorRegisterAllocator::RegisterPtr> &literalPool,
                        TypeChecker::EnvironmentInternal &typeCheckEnv, EnvironmentInternal &compilerEnv,
@@ -1299,7 +1304,7 @@ std::vector<uint32_t> BackendFeNN::generateSimulationKernel(const std::vector<st
     uint32_t readyFlagPtr = 0;
     return AssemblerUtils::generateStandardKernel(
         shouldGenerateSimulationKernels(), readyFlagPtr,
-        [=, &model]
+        [=, &endProcessGroups, &model, &timestepProcessGroups]
         (CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator, ScalarRegisterAllocator &scalarRegisterAllocator)
         {
             // Register allocation
@@ -1308,7 +1313,15 @@ std::vector<uint32_t> BackendFeNN::generateSimulationKernel(const std::vector<st
 
             // Labels
             Label timeLoop;
-         
+            
+            // If performance counters are enabled, disinhibit them
+            // **NOTE** on device, this takes a few cycles to make it through the pipeline so we do it well before we try and access counters
+            if(arePerformanceCountersRequired(timestepProcessGroups) 
+               || arePerformanceCountersRequired(endProcessGroups)) 
+            {
+                c.csrw(CSR::MCOUNTINHIBIT, Reg::X0);
+            }
+
             // Set timestep range and load ready flag pointer
             c.li(*STime, 0);
             c.li(*STimeEnd, numTimesteps);
@@ -1340,9 +1353,15 @@ std::vector<uint32_t> BackendFeNN::generateKernel(const std::vector <std::shared
     uint32_t readyFlagPtr = 0;
     return AssemblerUtils::generateStandardKernel(
         shouldGenerateSimulationKernels(), readyFlagPtr,
-        [=, &model]
+        [=, &model, &processGroups]
         (CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator, ScalarRegisterAllocator &scalarRegisterAllocator)
         {
+            // If performance counters are enabled, disinhibit them
+            // **NOTE** on device, this takes a few cycles to make it through the pipeline so we do it well before we try and access counters
+            if(arePerformanceCountersRequired(processGroups)) {
+                c.csrw(CSR::MCOUNTINHIBIT, Reg::X0);
+            }
+
             // Visit process groups
             for (const auto &p : processGroups) {
                 CodeGeneratorVisitor visitor(p, nullptr, c, vectorRegisterAllocator,
