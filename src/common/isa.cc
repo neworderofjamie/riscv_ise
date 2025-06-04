@@ -234,11 +234,17 @@ VOpType getVOpType(uint32_t funct7, uint32_t funct3)
     const uint32_t roundMode = ((funct7 >> 4) & 0b011);
     switch(funct3)
     {
+    // VADD
     case 0b000:
         return (roundMode == 0) ? VOpType::VADD : VOpType::INVALID;
 
+    // VSUB
     case 0b010:
         return (roundMode == 0) ? VOpType::VSUB : VOpType::INVALID;
+
+    // VAND
+    case 0b011:
+        return (roundMode == 0) ? VOpType::VAND : VOpType::INVALID;
 
     // VMUL
     case 0b100:
@@ -258,12 +264,44 @@ VOpType getVOpType(uint32_t funct7, uint32_t funct3)
         else {
             return VOpType::INVALID;
         }
-        
     }
+
     default:
-    {
         return VOpType::INVALID;
     }
+}
+//----------------------------------------------------------------------------
+VOpImmType getVOpImmType(int32_t imm, uint32_t funct3)
+{
+    const uint32_t roundMode = ((imm >> 4) & 0b011);
+    switch(funct3)
+    {
+    // VSLLI
+    case 0b000:
+        return (roundMode == 0) ? VOpImmType::VSLLI : VOpImmType::INVALID;
+
+    // VSRAI
+    case 0b001:
+    {
+        // Round-to-zero
+        if(roundMode == 0b00) {
+            return VOpImmType::VSRAI;
+        }
+        // Round-to-nearest (half up)
+        else if(roundMode == 0b01) {
+            return VOpImmType::VSRAI_RN;
+        }
+        // Stochastic round
+        else if (roundMode == 0b10) {
+            return VOpImmType::VSRAI_RS;
+        }
+        else {
+            return VOpImmType::INVALID;
+        }
+    }
+
+    default:
+        return VOpImmType::INVALID;
     }
 }
 //----------------------------------------------------------------------------

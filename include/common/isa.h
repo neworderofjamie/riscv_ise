@@ -59,14 +59,15 @@ enum class StandardOpCode : uint32_t
 // FeNN opcodes
 enum class VectorOpCode : uint32_t
 {
-    VSOP    = 0b00000,
-    VLUI    = 0b00001,
-    VTST    = 0b00010,
-    VSEL    = 0b00011,
-    VLOAD   = 0b00100,
-    VSTORE  = 0b00101,
-    VMOV    = 0b00110,
-    VSPC    = 0b01000, 
+    VSOP        = 0b00000,
+    VLUI        = 0b00001,
+    VTST        = 0b00010,
+    VSEL        = 0b00011,
+    VLOAD       = 0b00100,
+    VSTORE      = 0b00101,
+    VMOV        = 0b00110,
+    VSPC        = 0b01000,
+    VSOP_IMM    = 0b01001,
 };
 
 // Types of operations in each op-code
@@ -81,7 +82,8 @@ BETTER_ENUM(OpType, uint32_t, ADD, SUB, SLL, SLT, SLTU, XOR, SRL, SRA, OR, AND,
 BETTER_ENUM(SystemType, uint32_t, ECALL, EBREAK, CSRRW, CSRRWI, CSRRS, 
             CSRRSI, CSRRC, CSRRCI, INVALID)
 
-BETTER_ENUM(VOpType, uint32_t, VADD, VSUB, VMUL, VMUL_RS, VMUL_RN, INVALID)
+BETTER_ENUM(VOpType, uint32_t, VADD, VSUB, VAND, VMUL, VMUL_RS, VMUL_RN, INVALID)
+BETTER_ENUM(VOpImmType, uint32_t, VSLLI, VSRAI, VSRAI_RS, VSRAI_RN, INVALID)
 BETTER_ENUM(VTstType, uint32_t, VTEQ, VTNE, VTLT, VTGE, INVALID)
 BETTER_ENUM(VMovType, uint32_t, VFILL, VEXTRACT, INVALID)
 BETTER_ENUM(VLoadType, uint32_t, VLOAD, VLOAD_L, VLOAD_R0, VLOAD_R1, INVALID)
@@ -289,6 +291,8 @@ COMMON_EXPORT OpType getOpType(int32_t funct7, uint32_t funct3);
 COMMON_EXPORT SystemType getSystemType(int32_t imm, uint32_t funct3);
 
 COMMON_EXPORT VOpType getVOpType(uint32_t funct7, uint32_t funct3);
+
+COMMON_EXPORT VOpImmType getVOpImmType(int32_t imm, uint32_t funct3);
 
 COMMON_EXPORT VTstType getVTstType(uint32_t funct3);
 
