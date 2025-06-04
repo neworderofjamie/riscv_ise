@@ -230,12 +230,19 @@ public:
     void vadd_s(VReg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VSOP, 0b000, 0b1000000, rd, rs1, rs2); }
     void vsub(VReg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VSOP, 0b010, 0b0000000, rd, rs1, rs2); }
     void vsub_s(VReg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VSOP, 0b010, 0b1000000, rd, rs1, rs2); }
+    void vand(VReg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VSOP, 0b011, 0b0000000, rd, rs1, rs2); }
     void vmul(Bit<4> shift, VReg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VSOP, 0b100, shift, rd, rs1, rs2); }
     void vmul_rn(Bit<4> shift, VReg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VSOP, 0b100, shift | 0b0010000, rd, rs1, rs2); }
     void vmul_rs(Bit<4> shift, VReg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VSOP, 0b100, shift | 0b0100000, rd, rs1, rs2); }
     void vmul_s(Bit<4> shift, VReg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VSOP, 0b100, shift | 0b1000000, rd, rs1, rs2); }
     void vmul_s_rn(Bit<4> shift, VReg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VSOP, 0b100, shift | 0b1010000, rd, rs1, rs2); }
     void vmul_s_rs(Bit<4> shift, VReg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VSOP, 0b100, shift | 0b1100000, rd, rs1, rs2); }
+    
+    // VSOP-IMM
+    void vslli(Bit<4> shift, VReg rd, VReg rs1){ Itype(VectorOpCode::VSOP_IMM, 0b000, rd, rs1, shift); }
+    void vsrai(Bit<4> shift, VReg rd, VReg rs1){ Itype(VectorOpCode::VSOP_IMM, 0b001, rd, rs1, shift); }
+    void vsrai_rn(Bit<4> shift, VReg rd, VReg rs1){ Itype(VectorOpCode::VSOP_IMM, 0b001, rd, rs1, shift | 0b000000010000); }
+    void vsrai_rs(Bit<4> shift, VReg rd, VReg rs1){ Itype(VectorOpCode::VSOP_IMM, 0b001, rd, rs1, shift | 0b000000100000); }
 
     // VTST
     void vteq(Reg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VTST, 0b000, 0x0, rd, rs1, rs2); }
