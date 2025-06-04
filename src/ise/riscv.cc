@@ -653,16 +653,12 @@ std::optional<uint32_t> RISCV::readCSR(uint32_t csr, bool willWrite) const
         return mip;*/
     case CSR::MCYCLE:
         return (int64_t)m_NumCycles;
-
     case CSR::MINSTRET:
         return (int64_t)m_NumInstructionsExecuted;
-
     case CSR::MCYCLEH:
         return m_NumCycles >> 32;
-
     case CSR::MINSTRETH:
         return m_NumInstructionsExecuted >> 32;
-
     /*case CSR::MHARTID:
         return mhartid;*/
     default:
@@ -687,7 +683,7 @@ bool RISCV::writeCSR(uint32_t csr, uint32_t val)
         break;*/
     case CSR::MCOUNTINHIBIT:
         m_CountInhibit = val & 0b101;
-        break;
+        return true;
     /*case CSR::MSCRATCH:
         mscratch = val;
         break;
@@ -704,9 +700,9 @@ bool RISCV::writeCSR(uint32_t csr, uint32_t val)
         const uint32_t mask = MIP_SSIP | MIP_STIP;
         mip = (mip & ~mask) | (val & mask);
         break;*/
+    default:
+        return true;
     }
-
-    return true;
 }
 //----------------------------------------------------------------------------
 void RISCV::executeStandardInstruction(uint32_t inst)
