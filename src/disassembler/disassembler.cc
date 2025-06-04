@@ -62,23 +62,6 @@ void disassembleLUI(std::ostream &os, uint32_t inst)
     os << "LUI X" << rd << ", " << imm;
 }
 
-void disassembleVOp(std::ostream &os, uint32_t inst)
-{
-    const auto [funct7, rs2, rs1, funct3, rd] = decodeRType(inst);
-    const bool saturateResult = ((funct7 >> 4) & 0b100);
-    const auto type = getVOpType(funct7, funct3);
-
-    if(type == +VOpType::VMUL || type == +VOpType::VMUL_RN || type == +VOpType::VMUL_RS) {
-        os << type._to_string() << " V" << rd << ", V" << rs1 << ", V" << rs2 << ", " << (funct7 & 0b1111);
-    }
-    else if(saturateResult && (type == +VOpType::VADD || type == +VOpType::VSUB)) {
-        os << type._to_string() << "_S V" << rd << ", V" << rs1 << ", V" << rs2;
-    }
-    else {
-        os << type._to_string() << " V" << rd << ", V" << rs1 << ", V" << rs2;
-    }
-}
-
 void disassembleSystem(std::ostream &os, uint32_t inst)
 {
     const auto [imm, rs1, funct3, rd] = decodeIType<uint32_t>(inst);
@@ -106,6 +89,30 @@ void disassembleSystem(std::ostream &os, uint32_t inst)
     default:
         break;
     }
+}
+
+void disassembleVOp(std::ostream &os, uint32_t inst)
+{
+    const auto [funct7, rs2, rs1, funct3, rd] = decodeRType(inst);
+    const bool saturateResult = ((funct7 >> 4) & 0b100);
+    const auto type = getVOpType(funct7, funct3);
+
+    if(type == +VOpType::VMUL || type == +VOpType::VMUL_RN || type == +VOpType::VMUL_RS) {
+        os << type._to_string() << " V" << rd << ", V" << rs1 << ", V" << rs2 << ", " << (funct7 & 0b1111);
+    }
+    else if(saturateResult && (type == +VOpType::VADD || type == +VOpType::VSUB)) {
+        os << type._to_string() << "_S V" << rd << ", V" << rs1 << ", V" << rs2;
+    }
+    else {
+        os << type._to_string() << " V" << rd << ", V" << rs1 << ", V" << rs2;
+    }
+}
+
+void disassembleVOpImm(std::ostream &os, uint32_t inst)
+{
+    const auto [imm, rs1, funct3, rd] = decodeIType(inst);
+    const auto type = getVOpImmType(imm, funct3);
+    os << type._to_string() << " V" << rd << ", V" << rs1 << ", " << (imm & 0b1111);
 }
 
 void disassembleVLUI(std::ostream &os, uint32_t inst)
@@ -187,6 +194,7 @@ const std::unordered_map<StandardOpCode, DisassembleFunc> standardInstructionDec
 
 const std::unordered_map<VectorOpCode, DisassembleFunc> vectorInstructionDecoders{
     {VectorOpCode::VSOP, &disassembleVOp},
+    {VectorOpCode::VSOP_IMM, &disassembleVOpImm},
     {VectorOpCode::VLUI, &disassembleVLUI},
     {VectorOpCode::VTST, &disassembleVTst},
     {VectorOpCode::VSEL, &disassembleVSel},
