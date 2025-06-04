@@ -147,7 +147,7 @@ void ScalarDataMemory::setData(const std::vector<uint8_t> &data)
 // RISCV
 //----------------------------------------------------------------------------
 RISCV::RISCV(size_t numInstructionWords, size_t numDataBytes)
-:   m_PC(0), m_NextPC(0), m_Reg{0}, m_InstructionMemory(numInstructionWords), m_ScalarDataMemory(numDataBytes)
+:   m_PC(0), m_NextPC(0), m_Reg{0}, m_InstructionMemory(numInstructionWords), m_ScalarDataMemory(numDataBytes), m_CountInhibit(0b101)
 {
     resetStats();
 }
@@ -170,7 +170,7 @@ bool RISCV::run()
             } else {*/
                 // normal instruction execution
                 const uint32_t inst = m_InstructionMemory.getInstruction(m_PC);
-                m_NumInstructionsExecuted[inst & 0b1111111]++;
+                m_NumOpCodesExecuted[inst & 0b1111111]++;
                 m_InstructionHeatmap[m_PC / 4]++;
 #ifdef DEBUG_OUTPUT
                 printf("[%08x]=%08x, mtime: %lx, mtimecmp: %lx\n", pc, insn, mtime, mtimecmp);
@@ -290,8 +290,9 @@ void RISCV::setInstructions(const std::vector<uint32_t> &instructions)
 void RISCV::resetStats()
 {
     // Reset standard stats
-    std::fill(m_NumInstructionsExecuted.begin(), m_NumInstructionsExecuted.end(), 0);
-    m_InstructionCounter = 0;
+    std::fill(m_NumOpCodesExecuted.begin(), m_NumOpCodesExecuted.end(), 0);
+    m_NumCycles = 0;
+    m_NumInstructionsExecuted = 0;
     m_NumTrueBranches = 0;
     m_NumFalseBranches = 0;
 
@@ -301,7 +302,7 @@ void RISCV::resetStats()
 //----------------------------------------------------------------------------
 size_t RISCV::getTotalNumInstructionsExecuted() const
 {
-    return std::accumulate(m_NumInstructionsExecuted.cbegin(), m_NumInstructionsExecuted.cend(), size_t{0});
+    return std::accumulate(m_NumOpCodesExecuted.cbegin(), m_NumOpCodesExecuted.cend(), size_t{0});
 }
 //----------------------------------------------------------------------------
 size_t RISCV::getTotalNumCoprocessorInstructionsExecuted(uint32_t quadrant) const
@@ -314,14 +315,14 @@ std::array<size_t, 32> RISCV::getNumCoprocessorInstructionsExecuted(uint32_t qua
 {
     std::array<size_t, 32> num;
     for(size_t i = 0; i < 32; i++) {
-        num[i] = m_NumInstructionsExecuted[(i << 2) | quadrant];
+        num[i] = m_NumOpCodesExecuted[(i << 2) | quadrant];
     }
     return num;
 }
 //----------------------------------------------------------------------------
 size_t RISCV::getNumInstructionsExecuted(StandardOpCode opCode) const
 {
-    return m_NumInstructionsExecuted[(static_cast<uint32_t>(opCode) << 2) | standardQuadrant];
+    return m_NumOpCodesExecuted[(static_cast<uint32_t>(opCode) << 2) | standardQuadrant];
 }
 //----------------------------------------------------------------------------
 size_t RISCV::getNumJumps() const
@@ -637,8 +638,10 @@ std::optional<uint32_t> RISCV::readCSR(uint32_t csr, bool willWrite) const
     case CSR::MIE:
         return mie;
     case CSR::MTVEC:
-        return mtvec;
-    case CSR::MSCRATCH:
+        return mtvec;*/
+    case CSR::MCOUNTINHIBIT:
+        return m_CountInhibit;
+    /*case CSR::MSCRATCH:
         return mscratch;
     case CSR::MEPC:
         return mepc;
@@ -649,11 +652,17 @@ std::optional<uint32_t> RISCV::readCSR(uint32_t csr, bool willWrite) const
     case CSR::MIP:
         return mip;*/
     case CSR::MCYCLE:
+        return (int64_t)m_NumCycles;
+
     case CSR::MINSTRET:
-        return (int64_t)m_InstructionCounter;
+        return (int64_t)m_NumInstructionsExecuted;
+
     case CSR::MCYCLEH:
+        return m_NumCycles >> 32;
+
     case CSR::MINSTRETH:
-        return m_InstructionCounter >> 32;
+        return m_NumInstructionsExecuted >> 32;
+
     /*case CSR::MHARTID:
         return mhartid;*/
     default:
@@ -663,7 +672,7 @@ std::optional<uint32_t> RISCV::readCSR(uint32_t csr, bool willWrite) const
 //----------------------------------------------------------------------------
 bool RISCV::writeCSR(uint32_t csr, uint32_t val)
 {
-    switch(csr) {
+    switch(static_cast<CSR>(csr)) {
     /*case CSR::MSTATUS:
         setMStatus(val);
         break;
@@ -675,8 +684,11 @@ bool RISCV::writeCSR(uint32_t csr, uint32_t val)
         break;
     case CSR::MTVEC:
         mtvec = val & ~3;
+        break;*/
+    case CSR::MCOUNTINHIBIT:
+        m_CountInhibit = val & 0b101;
         break;
-    case CSR::MSCRATCH:
+    /*case CSR::MSCRATCH:
         mscratch = val;
         break;
     case CSR::MEPC:
@@ -1029,6 +1041,13 @@ void RISCV::executeInstruction(uint32_t inst)
         throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
     }
 
-    // Increment counter
-    m_InstructionCounter++;
+    // Increment counters if not inhibited
+    // **NOTE** no difference between instruction and cycle count in 
+    // simulation, distinction is just for CVC32E40X
+    if(!(m_CountInhibit & 0b001)) {
+        m_NumCycles++;
+    }
+    if(!(m_CountInhibit & 0b100)) {
+        m_NumInstructionsExecuted++;
+    }
 }

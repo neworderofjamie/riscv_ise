@@ -29,11 +29,10 @@ std::vector<uint32_t> generateCode(uint32_t numTimesteps, uint32_t inputCurrentV
         simulate, readyFlagPtr,
         [=](CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator, ScalarRegisterAllocator &scalarRegisterAllocator)
         {
-            // On device, enable perforamnce counters
-            // **NOTE** this takes a few cycles to make it through the pipeline so we do it well before we try and access counters
-            if(!simulate) {
-                c.csrw(CSR::MCOUNTINHIBIT, Reg::X0);
-            }
+            // Enable performance counters
+            // **NOTE** on device, this takes a few cycles to make it through the pipeline so we do it well before we try and access counters
+            c.csrw(CSR::MCOUNTINHIBIT, Reg::X0);
+            
             // Generate code to copy vector of currents from scalar memory to vector memory
             AssemblerUtils::generateScalarVectorMemcpy(c, vectorRegisterAllocator, scalarRegisterAllocator,
                                                        inputCurrentScalarPtr, inputCurrentVectorPtr, 1u);
