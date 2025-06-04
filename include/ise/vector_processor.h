@@ -84,6 +84,7 @@ private:
     std::array<uint16_t, 32> sampleRNG();
 
     Vector calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs2, uint32_t rs1, uint32_t funct3);
+    Vector calcOpImmResult(uint32_t inst, int32_t imm, uint32_t rs1, uint32_t funct3);
     uint32_t calcTestResult(uint32_t inst, uint32_t rs2, uint32_t rs1, uint32_t funct3) const;
     void writeVReg(size_t reg, const Vector &vector, uint32_t delay = 1);
     const Vector &readVReg(size_t reg) const;

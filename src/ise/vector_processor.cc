@@ -39,6 +39,21 @@ Vector binaryOp(const Vector &val, const Vector &val2, bool saturateResult, F fu
 }
 
 template<typename F>
+Vector unaryOp(const Vector &val, bool saturateResult, F func)
+{
+    Vector result;
+    if(saturateResult) {
+        std::transform(val.cbegin(), val.cend(), result.begin(), 
+                       [func](int16_t a){ return saturate(func(a)); });
+    }
+    else {
+        std::transform(val.cbegin(), val.cend(), result.begin(), 
+                       func);
+    }
+    return result;
+}
+
+template<typename F>
 uint32_t maskOp(const Vector &val, const Vector &val2, F func)
 {
     uint32_t mask = 0;
@@ -299,6 +314,14 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
         break;
     }
 
+    case VectorOpCode::VSOP_IMM:
+    {
+        const auto [imm, rs1, funct3, rd] = decodeIType(inst);
+        writeVReg(rd, calcOpImmResult(inst, imm, rs1, funct3));
+        PLOGV << "\t" << rd;
+        break;
+    }
+
     case VectorOpCode::VSTORE:
     {
         const auto [imm, rs2, rs1, funct3] = decodeSType(inst);
@@ -444,6 +467,13 @@ Vector VectorProcessor::calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs
         return binaryOp(val, val2, saturateResult,
                         [](int16_t a, int16_t b){ return a - b; });
     }
+
+    case VOpType::VAND:
+    {
+        PLOGV << "VAND " << rs1 << " " << rs2;
+        return binaryOp(val, val2, saturateResult,
+                        [](int16_t a, int16_t b){ return a & b; });
+    }
     
     case VOpType::VMUL:
     {
@@ -494,6 +524,71 @@ Vector VectorProcessor::calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs
             }
         }
         return result;
+    }
+     
+    default:
+    {
+        throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
+    }
+    }
+}
+//------------------------------------------------------------------------
+Vector VectorProcessor::calcOpImmResult(uint32_t inst, int32_t imm, uint32_t rs1, uint32_t funct3)
+{
+    const auto &val = readVReg(rs1);
+
+    // Extract shift from immediate
+    const uint32_t shamt = imm & 0b11111;
+    switch(getVOpImmType(imm, funct3))
+    {
+    case VOpImmType::VSLLI:
+    {
+        PLOGV << "VSLLI " << rs1;
+        return unaryOp(val, false,
+                       [shamt](int16_t a)
+                       {
+                           return a << shamt; 
+                       });
+    }
+    
+    case VOpImmType::VSRAI:
+    {
+        PLOGV << "VSRAI " << rs1;
+        return unaryOp(val, false,
+                        [shamt](int16_t a)
+                        {
+                            return a >> shamt; 
+                        });
+    }
+
+    case VOpImmType::VSRAI_RN:
+    {
+        PLOGV << "VSRAI_RN " << rs1;
+        const int16_t half = 1 << (shamt - 1);
+        return unaryOp(val, false,
+                       [half, shamt](int16_t a)
+                       {
+                           return (a + half) >> shamt; 
+                       });
+    }
+
+    case VOpImmType::VSRAI_RS:
+    {
+        PLOGV << "VSRAI_RS " << rs1;
+        // Sample from RNG
+        const auto r = sampleRNG();
+
+        // Mask out bits corresponding to fractional bits in our format
+        Vector maskedStoch;
+        const uint16_t mask = (1 << shamt) - 1;
+        std::transform(r.cbegin(), r.cend(), maskedStoch.begin(), 
+                        [mask](uint16_t a){ return (int16_t)(a & mask); });
+
+        return binaryOp(val, maskedStoch, false,
+                        [shamt](int16_t a, int16_t r)
+                        {
+                            return (a + r) >> shamt;
+                        });
     }
      
     default:
