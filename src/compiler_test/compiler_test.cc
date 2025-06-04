@@ -107,24 +107,30 @@ int main(int argc, char** argv)
     const size_t numInputSpikeWords = ceilDivide(inputShape.getNumNeurons(), 32);
     const size_t numInputSpikeArrayWords = numInputSpikeWords * numTimesteps;
 
-    // Configure logging
-    plog::ConsoleAppender<plog::TxtFormatter> consoleAppender;
-    plog::init(plog::debug, &consoleAppender);
-
     bool device = false;
     bool shouldDisassemble = false;
     bool record = false;
     bool time = false;
+    plog::Severity logSeverity = plog::info;
     size_t numExamples = 10000;
 
     CLI::App app{"Latency MNIST inference"};
     app.add_option("-n,--num-examples", numExamples, "How many examples to simulate");
+    app.add_option_function<std::string>("-l,--log-level", 
+                                         [&logSeverity](const std::string &l)
+                                         {
+                                             logSeverity = plog::severityFromString(l.c_str());
+                                         });
     app.add_flag("-d,--device", device, "Whether model is run on device rather than simulator");
     app.add_flag("-a,--disassemble", shouldDisassemble, "Whether model disassembled code is printed");
     app.add_flag("-t,--time", time, "Whether performance counters are inserted");
     app.add_flag("-r,--record", record, "Whether spikes should be recorded?");
 
     CLI11_PARSE(app, argc, argv);
+
+    // Configure logging
+    plog::ConsoleAppender<plog::TxtFormatter> consoleAppender;
+    plog::init(logSeverity, &consoleAppender);
 
     // Input spikes
     const auto inputSpikes = EventContainer::create(inputShape, numTimesteps);
