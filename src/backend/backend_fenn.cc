@@ -600,7 +600,6 @@ private:
     virtual void visit(std::shared_ptr<const NeuronUpdateProcess> neuronUpdateProcess)
     {
         auto &scalarRegisterAllocator = m_ScalarRegisterAllocator.get();
-        auto &vectorRegisterAllocator = m_VectorRegisterAllocator.get();
         auto &c = m_CodeGenerator.get();
 
         // Get fields associated with this process
