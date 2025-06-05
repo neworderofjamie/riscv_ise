@@ -474,6 +474,13 @@ Vector VectorProcessor::calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs
         return binaryOp(val, val2, saturateResult,
                         [](int16_t a, int16_t b){ return a & b; });
     }
+
+    case VOpType::VSLL:
+    {
+        PLOGV << "VSLL " << rs1 << " " << rs2;
+        return binaryOp(val, val2, saturateResult,
+                        [](int16_t a, int16_t b){ return a << b; });
+    }
     
     case VOpType::VMUL:
     {
