@@ -22,11 +22,11 @@
 #include "ise/riscv.h"
 #include "ise/vector_processor.h"
 
-void writeData(const volatile int16_t *scalarOutputData)
+void writeData(const volatile int16_t *scalarOutputData, size_t numTestVectors)
 {
     std::ofstream output("special_function_output.csv");
     
-    for(uint32_t n = 0; n < (32 * 32); n++) {
+    for(uint32_t n = 0; n < (32 * numTestVectors); n++) {
         output << *scalarOutputData++ << std::endl;
     }
 }
@@ -39,10 +39,12 @@ int main(int argc, char** argv)
 
     bool device = false;
     bool dumpCoe = false;
+    size_t numTestVectors = 1024;
 
     CLI::App app{"Special function test"};
     app.add_flag("-d,--device", device, "Should be run on device rather than simulator");
     app.add_flag("-c,--dump-coe", dumpCoe, "Should a .coe file for simulation in the Xilinx simulator be dumped");
+    app.add_option("-n,--num-vectors", numTestVectors, "Number of vectors to test");
 
     CLI11_PARSE(app, argc, argv);
 
@@ -51,12 +53,12 @@ int main(int argc, char** argv)
     std::vector<int16_t> vectorInitData;
 
     // Allocate vector arrays
-    const uint32_t inputDataPtr = AppUtils::allocateVectorAndZero(32 * 32, vectorInitData);
-    const uint32_t outputDataPtr = AppUtils::allocateVectorAndZero(32 * 32, vectorInitData);
+    const uint32_t inputDataPtr = AppUtils::allocateVectorAndZero(32 * numTestVectors, vectorInitData);
+    const uint32_t outputDataPtr = AppUtils::allocateVectorAndZero(32 * numTestVectors, vectorInitData);
 
     // Allocate scalar arrays
     const uint32_t readyFlagPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
-    const uint32_t outputScalarDataPtr = AppUtils::allocateScalarAndZero(32 * 32 * 2, scalarInitData);
+    const uint32_t outputScalarDataPtr = AppUtils::allocateScalarAndZero(32 * numTestVectors * 2, scalarInitData);
     const uint32_t lutScalarDataPtr = AppUtils::allocateScalarAndZero(65 * 2, scalarInitData);
     
     // Build LUT
@@ -81,7 +83,7 @@ int main(int argc, char** argv)
 
     // Write test vector to vector memory
     std::iota(vectorInitData.begin() + (inputDataPtr / 2),
-              vectorInitData.begin() + (inputDataPtr / 2) + (32 * 32), 0);
+              vectorInitData.begin() + (inputDataPtr / 2) + (32 * numTestVectors), 0);
 
     // Dump initial data to coe file
     if(dumpCoe) {
@@ -110,7 +112,7 @@ int main(int argc, char** argv)
 
             // Load addresses
             c.li(*SInputBuffer, inputDataPtr);
-            c.li(*SInputBufferEnd, inputDataPtr + (32 * 32 * 2));
+            c.li(*SInputBufferEnd, inputDataPtr + (32 * numTestVectors * 2));
             c.li(*SOutputBuffer, outputDataPtr);
 
             // Load constants
@@ -130,6 +132,7 @@ int main(int argc, char** argv)
                 c.vloadv(*VInput, *SInputBuffer);
                 c.addi(*SInputBuffer, *SInputBuffer, 64);       
 
+                // Start
                 // VLUTAddress = VInput >> fracBits
                 c.vsrai(fracBits, *VLUTAddress, *VInput);
 
@@ -152,9 +155,12 @@ int main(int argc, char** argv)
                 c.vsub(*VLUTDiff, *VLUTDiff, *VLUTLower);
            
                 // VOutput *= VLUTDiff
+                // **TODO** round
                 c.vmul(fracBits, *VOutput, *VOutput, *VLUTDiff);
 
                 c.vadd(*VOutput, *VOutput, *VLUTLower);
+
+                // End
 
                 // Write to output buffer
                 c.vstore(*VOutput, *SOutputBuffer);
@@ -167,7 +173,7 @@ int main(int argc, char** argv)
 
             // Copy output vector memory to BRAM
             AssemblerUtils::generateVectorScalarMemcpy(c, vectorRegisterAllocator, scalarRegisterAllocator,
-                                                       outputDataPtr, outputScalarDataPtr, 32);
+                                                       outputDataPtr, outputScalarDataPtr, numTestVectors);
 
         });
 
@@ -182,6 +188,8 @@ int main(int argc, char** argv)
         LOGI << "Resetting";
         // Put core into reset state
         device.setEnabled(false);
+
+        // **TODO** DMA
         
         LOGI << "Copying instructions (" << code.size() * sizeof(uint32_t) << " bytes)";
         device.uploadCode(code);
@@ -217,7 +225,7 @@ int main(int argc, char** argv)
         // Get pointers to output data in scalar memory and validate
         const auto *scalarData = riscV.getScalarDataMemory().getData();
         const int16_t *scalarOutputData = reinterpret_cast<const int16_t*>(scalarData + outputScalarDataPtr);
-        writeData(scalarOutputData);
+        writeData(scalarOutputData, numTestVectors);
     }
     LOGI << "Success!";
     
