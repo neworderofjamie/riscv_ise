@@ -193,6 +193,54 @@ void generateLaneLocalScalarMemcpy(CodeGenerator &c, VectorRegisterAllocator &ve
     }
 }
 //----------------------------------------------------------------------------
+void generateScalarLaneLocalBroadcast(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator,
+                                      ScalarRegisterAllocator &scalarRegisterAllocator,
+                                      uint32_t scalarPtr, uint32_t laneLocalPtr, uint32_t numHalfWords)
+{
+    assert(numHalfWords > 0);
+
+    // Register allocation
+    ALLOCATE_SCALAR(SDataBuffer);
+    ALLOCATE_SCALAR(SDataBufferEnd);
+    ALLOCATE_VECTOR(VAddress)
+    ALLOCATE_VECTOR(VTwo);
+
+    // Labels
+    Label halfWordLoop;
+
+    // Load lane local memory address and increment
+    c.vlui(*VAddress, laneLocalPtr);
+    c.vlui(*VTwo, 2);
+
+    // SDataBuffer = scalarPtr
+    c.li(*SDataBuffer, scalarPtr);
+    c.li(*SDataBufferEnd, scalarPtr + (2 * numHalfWords));
+
+    // Loop over vectors
+    c.L(halfWordLoop);
+    {
+        // Register allocation
+        ALLOCATE_VECTOR(VVector);
+        ALLOCATE_SCALAR(SVal);
+
+        // Load halfword
+        c.lh(*SVal, *SDataBuffer);
+
+        // Increment pointer
+        c.addi(*SDataBuffer, *SDataBuffer, 2);
+    
+        // Fill vector register
+        c.vfill(*VVector, *SVal);
+
+        // Write to all lane local memories and increment address
+        c.vstorel(*VVector, *VAddress);
+        c.vadd(*VAddress, *VAddress, *VTwo);
+
+        // Loop
+        c.bne(*SDataBuffer, *SDataBufferEnd, halfWordLoop);
+    }
+}
+//----------------------------------------------------------------------------
 void generatePerformanceCountWrite(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator,
                                    CSR lowCSR, CSR highCSR, uint32_t scalarPtr)
 {
