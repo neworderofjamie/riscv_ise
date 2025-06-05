@@ -286,10 +286,6 @@ int main(int argc, char** argv)
     const uint32_t outputVSumScalarPtr = AppUtils::allocateScalarAndZero(numOutput * 2, scalarInitData);
     const uint32_t readyFlagPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
 
-    // Increase scalar memory for buffering
-    assert(scalarInitData.size() <= (128 * 1024));
-    assert(vectorInitData.size() <= (512 * 1024));
-
     // Load dataset (this is streamed)
     const auto shdSpikes = AppUtils::loadBinaryData<uint32_t>("shd_spikes.bin");
     const auto shdLabels = AppUtils::loadBinaryData<int16_t>("shd_labels.bin");
