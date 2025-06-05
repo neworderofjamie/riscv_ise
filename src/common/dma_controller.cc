@@ -65,7 +65,7 @@ void DMAController::startWrite(uint32_t destination, const DMABuffer &sourceBuff
     }
 
     // Write source and destination addresses to registers
-    writeReg(Register::MM2S_SRC_ADDR, static_cast<uint32_t>(sourceOffset & 0xFFFFFFFF));
+    writeReg(Register::MM2S_SRC_ADDR, static_cast<uint32_t>(sourceAddress & 0xFFFFFFFF));
     writeReg(Register::MM2S_DST_ADDR, destination);
 
     // Write count to registers
