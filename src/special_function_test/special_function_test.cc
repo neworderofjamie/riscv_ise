@@ -68,6 +68,7 @@ int main(int argc, char** argv)
     constexpr size_t tableBits = (numBits - 3) / 2;
     constexpr size_t fracBits = tableBits + 3;
     constexpr size_t lutSize = (1 << tableBits) + 1;
+    constexpr size_t valueFixedPoint = 9;
 
     // Build LUT
     std::vector<int16_t> lut;
@@ -109,6 +110,10 @@ int main(int argc, char** argv)
             ALLOCATE_SCALAR(SOutputBuffer);
             ALLOCATE_VECTOR(VTwo);
             ALLOCATE_VECTOR(VFracMask);
+            ALLOCATE_VECTOR(VInvLog);
+            ALLOCATE_VECTOR(VLog2);
+            ALLOCATE_VECTOR(VExpMax);
+            ALLOCATE_VECTOR(VExpMaxScale);
 
             // Labels
             Label vectorLoop;
@@ -121,6 +126,10 @@ int main(int argc, char** argv)
             // Load constants
             c.vlui(*VTwo, 2);
             c.vlui(*VFracMask, (1 << fracBits) - 1);
+            c.vlui(*VLog2, convertFixedPoint(log2, 15));
+            c.vlui(*VInvLog, convertFixedPoint(1.0 / log2, 14));
+            c.vlui(*VExpMax, convertFixedPoint(expMax, 15));
+            c.vlui(*VExpMaxScale, convertFixedPoint(1.0 / (2.0 * expMax), 14));
 
             // Loop over vectors
             c.L(vectorLoop);
@@ -129,13 +138,18 @@ int main(int argc, char** argv)
                 ALLOCATE_VECTOR(VLUTLower);
                 ALLOCATE_VECTOR(VLUTDiff);
                 ALLOCATE_VECTOR(VInput);
+                ALLOCATE_VECTOR(VK);
+                ALLOCATE_VECTOR(VR);
                 ALLOCATE_VECTOR(VOutput);
 
                 // Load input and increment buffer
                 c.vloadv(*VInput, *SInputBuffer);
                 c.addi(*SInputBuffer, *SInputBuffer, 64);       
+                
+                // Start range-reduce
+                c.vmul(14, *VK, *VInput, *VInvLog);
 
-                // Start
+                // Start LUT
                 // VLUTAddress = VInput >> fracBits
                 c.vsrai(fracBits, *VLUTAddress, *VInput);
 
@@ -163,7 +177,7 @@ int main(int argc, char** argv)
 
                 c.vadd(*VOutput, *VOutput, *VLUTLower);
 
-                // End
+                // End LUT
 
                 // Write to output buffer
                 c.vstore(*VOutput, *SOutputBuffer);
