@@ -22,6 +22,15 @@
 #include "ise/riscv.h"
 #include "ise/vector_processor.h"
 
+void writeData(const volatile int16_t *scalarOutputData)
+{
+    std::ofstream output("special_function_output.csv");
+    
+    for(uint32_t n = 0; n < (32 * 32); n++) {
+        output << *scalarOutputData++ << std::endl;
+    }
+}
+
 int main(int argc, char** argv)
 {
     // Configure logging
@@ -54,9 +63,10 @@ int main(int argc, char** argv)
     constexpr size_t numBits = 15;
     constexpr size_t tableBits = (numBits - 3) / 2;
     constexpr size_t fracBits = tableBits + 3;
+    constexpr size_t lutSize = (1 << tableBits) + 1;
 
     std::vector<int16_t> lut;
-    lut.reserve(65);
+    lut.reserve(lutSize);
     const double log2 = std::log(2.0);
     const double expMax = 0.5 * log2;
     const double step = (2.0 * expMax) / (1 << tableBits);
@@ -64,7 +74,7 @@ int main(int argc, char** argv)
     for(double x = -expMax; x < expMax; x += step) {
         lut.push_back(convertFixedPoint(std::exp(x), 14));
     }
-    assert(lut.size() == ((1 << tableBits) + 1));
+    assert(lut.size() == lutSize);
     
     // Copy into scalar memory
     std::memcpy(scalarInitData.data() + lutScalarDataPtr, lut.data(), lut.size() * 2);
@@ -81,61 +91,83 @@ int main(int argc, char** argv)
     }
 
     // Generate code
-    /*const auto code = AssemblerUtils::generateStandardKernel(
+    const auto code = AssemblerUtils::generateStandardKernel(
         !device, readyFlagPtr,
         [=](CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator, ScalarRegisterAllocator &scalarRegisterAllocator)
         {
-            // Generate code to copy address vector from scalar memory to vector memory
-            AssemblerUtils::generateScalarVectorMemcpy(c, vectorRegisterAllocator, scalarRegisterAllocator,
-                                                       addressPtr, addressVectorPtr, 1u);
+            // Generate code to broadcast LUT to start of all lane-local memories
+            AssemblerUtils::generateScalarLaneLocalBroadcast(c, vectorRegisterAllocator, scalarRegisterAllocator,
+                                                             lutScalarDataPtr, 0, lutSize);
+            // Register allocation
+            ALLOCATE_SCALAR(SInputBuffer);
+            ALLOCATE_SCALAR(SInputBufferEnd);
+            ALLOCATE_SCALAR(SOutputBuffer);
+            ALLOCATE_VECTOR(VTwo);
+            ALLOCATE_VECTOR(VFracMask);
 
             // Labels
-            Label loop;
+            Label vectorLoop;
 
+            // Load addresses
+            c.li(*SInputBuffer, inputDataPtr);
+            c.li(*SInputBufferEnd, inputDataPtr + (32 * 32 * 2));
+            c.li(*SOutputBuffer, outputDataPtr);
+
+            // Load constants
+            c.vlui(*VTwo, 2);
+            c.vlui(*VFracMask, (1 << fracBits) - 1);
+
+            // Loop over vectors
+            c.L(vectorLoop);
             {
-                // Register allocation
-                ALLOCATE_VECTOR(VZero);
-                ALLOCATE_VECTOR(VOne);
-                
-                c.vlui(*VZero, 0);
-                c.vlui(*VOne, 1);
+                ALLOCATE_VECTOR(VLUTAddress);
+                ALLOCATE_VECTOR(VLUTLower);
+                ALLOCATE_VECTOR(VLUTDiff);
+                ALLOCATE_VECTOR(VInput);
+                ALLOCATE_VECTOR(VOutput);
 
-                // Set first 32 addresses of lane local memory to 1
-                for(int i = 0; i < 32; i++) {
-                    c.vstorel(*VOne, *VZero, i * 2);
-                }
+                // Load input and increment buffer
+                c.vloadv(*VInput, *SInputBuffer);
+                c.addi(*SInputBuffer, *SInputBuffer, 64);       
+
+                // VLUTAddress = VInput >> fracBits
+                c.vsrai(fracBits, *VLUTAddress, *VInput);
+
+                // VLUTAddress *= 2 (to convert to bytes)
+                c.vslli(1, *VLUTAddress, *VLUTAddress);
+
+                // Load lower LUT entry
+                c.vloadl(*VLUTLower, *VLUTAddress, 0);
+
+                // VLUTAddress+=2
+                c.vadd(*VLUTAddress, *VLUTAddress, *VTwo);
+
+                // Load higher LUT value
+                c.vloadl(*VLUTDiff, *VLUTAddress, 0);
+
+                // VOutput = VInput & VFracMask
+                c.vand(*VOutput, *VInput, *VFracMask);
+
+                // Calculate difference
+                c.vsub(*VLUTDiff, *VLUTDiff, *VLUTLower);
+           
+                // VOutput *= VLUTDiff
+                c.vmul(fracBits, *VOutput, *VOutput, *VLUTDiff);
+
+                c.vadd(*VOutput, *VOutput, *VLUTLower);
+
+                // Write to output buffer
+                c.vstore(*VOutput, *SOutputBuffer);
+                c.addi(*SOutputBuffer, *SOutputBuffer, 64);
+
+                // Loop
+                c.bne(*SInputBuffer, *SInputBufferEnd, vectorLoop);
             }
-            
-            {
-                // Register allocation
-                ALLOCATE_SCALAR(SAddressBuffer);
-                ALLOCATE_VECTOR(VAddress);
-                ALLOCATE_VECTOR(VTwo);
-                ALLOCATE_VECTOR(VDest);
 
-                // Load addresses
-                c.li(*SAddressBuffer, addressVectorPtr);
-                c.vloadv(*VAddress, *SAddressBuffer);
 
-                // Load 2
-                c.vlui(*VTwo, 2);
-
-                // Load from lane-local addresses into vector (should be 1)
-                c.vloadl(*VDest, *VAddress);
-
-                // Stall
-                c.nop();
-
-                // Add two
-                c.vadd(*VDest, *VDest, *VTwo);
-
-                // Store back to lane local memory
-                c.vstorel(*VDest, *VAddress);
-            }
-            
-            // Copy lane-local data to output pointer
-            AssemblerUtils::generateLaneLocalScalarMemcpy(c, vectorRegisterAllocator, scalarRegisterAllocator,
-                                                          0, outputPtr, 32);
+            // Copy output vector memory to BRAM
+            AssemblerUtils::generateVectorScalarMemcpy(c, vectorRegisterAllocator, scalarRegisterAllocator,
+                                                       outputDataPtr, outputScalarDataPtr, 32);
 
         });
 
@@ -167,12 +199,13 @@ int main(int argc, char** argv)
         LOGI << "Done";
 
         // Check data
-        checkData(address, reinterpret_cast<const volatile int16_t*>(device.getDataMemory() + outputPtr));
+       // checkData(address, reinterpret_cast<const volatile int16_t*>(device.getDataMemory() + outputPtr));
     }
     else {
         // Build ISE with vector co-processor
         RISCV riscV;
         riscV.addCoprocessor<VectorProcessor>(vectorQuadrant);
+        riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getVectorDataMemory().setData(vectorInitData);
 
         // Set instructions and vector init data
         riscV.setInstructions(code);
@@ -183,9 +216,9 @@ int main(int argc, char** argv)
         
         // Get pointers to output data in scalar memory and validate
         const auto *scalarData = riscV.getScalarDataMemory().getData();
-        const int16_t *scalarOutputData = reinterpret_cast<const int16_t*>(scalarData + outputPtr);
-        checkData(address, scalarOutputData);
-    }*/
+        const int16_t *scalarOutputData = reinterpret_cast<const int16_t*>(scalarData + outputScalarDataPtr);
+        writeData(scalarOutputData);
+    }
     LOGI << "Success!";
     
     return 0;
