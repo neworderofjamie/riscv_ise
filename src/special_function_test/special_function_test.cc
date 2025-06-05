@@ -12,6 +12,8 @@
 #include "common/CLI11.hpp"
 #include "common/app_utils.h"
 #include "common/device.h"
+#include "common/dma_buffer.h"
+#include "common/dma_controller.h"
 
 // RISC-V assembler includes
 #include "assembler/assembler.h"
@@ -67,6 +69,7 @@ int main(int argc, char** argv)
     constexpr size_t fracBits = tableBits + 3;
     constexpr size_t lutSize = (1 << tableBits) + 1;
 
+    // Build LUT
     std::vector<int16_t> lut;
     lut.reserve(lutSize);
     const double log2 = std::log(2.0);
@@ -189,7 +192,27 @@ int main(int argc, char** argv)
         // Put core into reset state
         device.setEnabled(false);
 
-        // **TODO** DMA
+        {
+            LOGI << "DMAing vector init data to device";
+           
+            // Create DMA buffer
+            DMABuffer dmaBuffer;
+
+            // Check there's enough space for vector init data
+            assert(dmaBuffer.getSize() > (vectorInitData.size() * 2));
+
+            // Get halfword pointer to DMA buffer
+            int16_t *bufferData = reinterpret_cast<int16_t*>(dmaBuffer.getData());
+            
+            // Copy vector init data to buffer
+            std::copy(vectorInitData.cbegin(), vectorInitData.cend(), bufferData);
+            
+            // Start DMA of data to URAM
+            device.getDMAController()->startWrite(0, dmaBuffer, 0, vectorInitData.size() * 2);
+    
+            // Wait for write to complete
+            device.getDMAController()->waitForWriteComplete();
+        }
         
         LOGI << "Copying instructions (" << code.size() * sizeof(uint32_t) << " bytes)";
         device.uploadCode(code);
@@ -206,8 +229,8 @@ int main(int argc, char** argv)
         device.waitOnNonZero(readyFlagPtr);
         LOGI << "Done";
 
-        // Check data
-       // checkData(address, reinterpret_cast<const volatile int16_t*>(device.getDataMemory() + outputPtr));
+        // Write data to text file
+        writeData(reinterpret_cast<const volatile int16_t*>(device.getDataMemory() + outputScalarDataPtr), numTestVectors);
     }
     else {
         // Build ISE with vector co-processor
@@ -222,7 +245,7 @@ int main(int argc, char** argv)
         // Run!
         riscV.run();
         
-        // Get pointers to output data in scalar memory and validate
+        // Write data to text file
         const auto *scalarData = riscV.getScalarDataMemory().getData();
         const int16_t *scalarOutputData = reinterpret_cast<const int16_t*>(scalarData + outputScalarDataPtr);
         writeData(scalarOutputData, numTestVectors);
