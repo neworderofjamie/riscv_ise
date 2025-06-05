@@ -488,10 +488,6 @@ int main(int argc, char** argv)
     const uint32_t excVRecordingPtr = AppUtils::allocateScalarAndZero(2 * numTimesteps, scalarInitData);
 #endif
 
-    // Increase scalar memory for buffering
-    assert(scalarInitData.size() <= (128 * 1024));
-    scalarInitData.resize(128 * 1024, 0);
-
     const auto initCode = AssemblerUtils::generateStandardKernel(
         !device, readyFlagPtr,
         [=](CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator, ScalarRegisterAllocator &scalarRegisterAllocator)
