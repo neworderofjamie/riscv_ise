@@ -164,6 +164,13 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "special_function_test", "sr
 		{695590D3-FA1D-4CD7-9B12-B03F15FC98E6} = {695590D3-FA1D-4CD7-9B12-B03F15FC98E6}
 	EndProjectSection
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "lane_local_test", "src\lane_local_test\lane_local_test.vcxproj", "{ED588943-3025-4D3F-B520-A0591661AEDF}"
+	ProjectSection(ProjectDependencies) = postProject
+		{CD770F05-BCE1-4550-BDB0-87C804610716} = {CD770F05-BCE1-4550-BDB0-87C804610716}
+		{EF52D22C-C128-4A30-ABE2-C00ADDA02440} = {EF52D22C-C128-4A30-ABE2-C00ADDA02440}
+		{695590D3-FA1D-4CD7-9B12-B03F15FC98E6} = {695590D3-FA1D-4CD7-9B12-B03F15FC98E6}
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug_DLL|x64 = Debug_DLL|x64
@@ -340,6 +347,14 @@ Global
 		{DD4C947C-5379-444C-B24D-21AB0579A50F}.Release_DLL|x64.Build.0 = Release|x64
 		{DD4C947C-5379-444C-B24D-21AB0579A50F}.Release|x64.ActiveCfg = Release|x64
 		{DD4C947C-5379-444C-B24D-21AB0579A50F}.Release|x64.Build.0 = Release|x64
+		{ED588943-3025-4D3F-B520-A0591661AEDF}.Debug_DLL|x64.ActiveCfg = Debug|x64
+		{ED588943-3025-4D3F-B520-A0591661AEDF}.Debug_DLL|x64.Build.0 = Debug|x64
+		{ED588943-3025-4D3F-B520-A0591661AEDF}.Debug|x64.ActiveCfg = Debug|x64
+		{ED588943-3025-4D3F-B520-A0591661AEDF}.Debug|x64.Build.0 = Debug|x64
+		{ED588943-3025-4D3F-B520-A0591661AEDF}.Release_DLL|x64.ActiveCfg = Release|x64
+		{ED588943-3025-4D3F-B520-A0591661AEDF}.Release_DLL|x64.Build.0 = Release|x64
+		{ED588943-3025-4D3F-B520-A0591661AEDF}.Release|x64.ActiveCfg = Release|x64
+		{ED588943-3025-4D3F-B520-A0591661AEDF}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
