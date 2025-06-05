@@ -246,6 +246,31 @@ VOpType getVOpType(uint32_t funct7, uint32_t funct3)
     case 0b011:
         return (roundMode == 0) ? VOpType::VAND : VOpType::INVALID;
 
+    // VSLL
+    case 0b001:
+        return (roundMode == 0) ? VOpType::VSLL : VOpType::INVALID;
+    
+    
+    // VSRA
+    case 0b101:
+    {
+        // Round-to-zero
+        if(roundMode == 0b00) {
+            return VOpType::VSRA;
+        }
+        // Round-to-nearest (half up)
+        else if(roundMode == 0b01) {
+            return VOpType::VSRA_RN;
+        }
+        // Stochastic round
+        else if (roundMode == 0b10) {
+            return VOpType::VSRA_RS;
+        }
+        else {
+            return VOpType::INVALID;
+        }
+    }
+
     // VMUL
     case 0b100:
     {
