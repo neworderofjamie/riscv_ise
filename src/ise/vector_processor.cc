@@ -545,7 +545,7 @@ Vector VectorProcessor::calcOpImmResult(uint32_t inst, int32_t imm, uint32_t rs1
     const auto &val = readVReg(rs1);
 
     // Extract shift from immediate
-    const uint32_t shamt = imm & 0b11111;
+    const uint32_t shamt = imm & 0b1111;
     switch(getVOpImmType(imm, funct3))
     {
     case VOpImmType::VSLLI:
