@@ -136,7 +136,7 @@ int main(int argc, char** argv)
             c.vlui(*VLog2, convertFixedPoint(log2, 15));
             c.vlui(*VInvLog, convertFixedPoint(1.0 / log2, 14));
             c.vlui(*VExpMax, convertFixedPoint(expMax, valueFixedPoint));
-            c.vlui(*VExpMaxScale, convertFixedPoint(1.0 / (2.0 * expMax), valueFixedPoint));
+            c.vlui(*VExpMaxScale, convertFixedPoint(1.0 / (2.0 * expMax), 14));
 
             // Loop over vectors
             c.L(vectorLoop);
@@ -161,8 +161,10 @@ int main(int argc, char** argv)
                 // VR = VInput - (VK * VLog2)
                 c.vmul(15 - valueFixedPoint, *VR, *VK, *VLog2);
                 c.vsub(*VR, *VInput, *VR);
+
+                // VR = (VR - VExpMax) / (VExpMax - -VExpMax)
                 c.vadd(*VR, *VR, *VExpMax);
-                c.vmul(valueFixedPoint, *VR, *VR, *VExpMaxScale);
+                c.vmul(valueFixedPoint - 1, *VR, *VR, *VExpMaxScale);
 
                 // START FAITHFUL INTERPOLATION
                 // VLUTAddress = VInput >> fracBits
