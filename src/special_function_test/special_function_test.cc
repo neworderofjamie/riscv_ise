@@ -41,14 +41,26 @@ int main(int argc, char** argv)
 
     bool device = false;
     bool dumpCoe = false;
-    size_t numTestVectors = 1024;
 
     CLI::App app{"Special function test"};
     app.add_flag("-d,--device", device, "Should be run on device rather than simulator");
     app.add_flag("-c,--dump-coe", dumpCoe, "Should a .coe file for simulation in the Xilinx simulator be dumped");
-    app.add_option("-n,--num-vectors", numTestVectors, "Number of vectors to test");
 
     CLI11_PARSE(app, argc, argv);
+
+      // Build LUT
+    constexpr size_t numBits = 15;
+    constexpr size_t tableBits = (numBits - 3) / 2;
+    constexpr size_t fracBits = tableBits + 3;
+    constexpr size_t lutSize = (1 << tableBits) + 1;
+    constexpr size_t valueFixedPoint = 9;
+    const double min = -3.4;
+    const double max = 3.4;
+    const int16_t minFixed = convertFixedPoint(min, valueFixedPoint);
+    const int16_t maxFixed = convertFixedPoint(max, valueFixedPoint);
+
+    const size_t count = maxFixed - minFixed;
+    const size_t numTestVectors = ceilDivide(count, 32);
 
     // Create memory contents
     std::vector<uint8_t> scalarInitData;
@@ -63,12 +75,7 @@ int main(int argc, char** argv)
     const uint32_t outputScalarDataPtr = AppUtils::allocateScalarAndZero(32 * numTestVectors * 2, scalarInitData);
     const uint32_t lutScalarDataPtr = AppUtils::allocateScalarAndZero(65 * 2, scalarInitData);
     
-    // Build LUT
-    constexpr size_t numBits = 15;
-    constexpr size_t tableBits = (numBits - 3) / 2;
-    constexpr size_t fracBits = tableBits + 3;
-    constexpr size_t lutSize = (1 << tableBits) + 1;
-    constexpr size_t valueFixedPoint = 9;
+  
 
     // Build LUT
     std::vector<int16_t> lut;
@@ -87,7 +94,7 @@ int main(int argc, char** argv)
 
     // Write test vector to vector memory
     std::iota(vectorInitData.begin() + (inputDataPtr / 2),
-              vectorInitData.begin() + (inputDataPtr / 2) + (32 * numTestVectors), 0);
+              vectorInitData.begin() + (inputDataPtr / 2) + (32 * numTestVectors), minFixed);
 
     // Dump initial data to coe file
     if(dumpCoe) {
@@ -128,8 +135,8 @@ int main(int argc, char** argv)
             c.vlui(*VFracMask, (1 << fracBits) - 1);
             c.vlui(*VLog2, convertFixedPoint(log2, 15));
             c.vlui(*VInvLog, convertFixedPoint(1.0 / log2, 14));
-            c.vlui(*VExpMax, convertFixedPoint(expMax, 15));
-            c.vlui(*VExpMaxScale, convertFixedPoint(1.0 / (2.0 * expMax), 14));
+            c.vlui(*VExpMax, convertFixedPoint(expMax, valueFixedPoint));
+            c.vlui(*VExpMaxScale, convertFixedPoint(1.0 / (2.0 * expMax), valueFixedPoint));
 
             // Loop over vectors
             c.L(vectorLoop);
@@ -146,12 +153,20 @@ int main(int argc, char** argv)
                 c.vloadv(*VInput, *SInputBuffer);
                 c.addi(*SInputBuffer, *SInputBuffer, 64);       
                 
-                // Start range-reduce
+                // START RANGE-REDUCTION
+                // VK = floor((VInput * VInvLog) + 0.5).
                 c.vmul(14, *VK, *VInput, *VInvLog);
+                c.vsrai_rn(valueFixedPoint, *VK, *VK);
 
-                // Start LUT
+                // VR = VInput - (VK * VLog2)
+                c.vmul(15 - valueFixedPoint, *VR, *VK, *VLog2);
+                c.vsub(*VR, *VInput, *VR);
+                c.vadd(*VR, *VR, *VExpMax);
+                c.vmul(valueFixedPoint, *VR, *VR, *VExpMaxScale);
+
+                // START FAITHFUL INTERPOLATION
                 // VLUTAddress = VInput >> fracBits
-                c.vsrai(fracBits, *VLUTAddress, *VInput);
+                c.vsrai(fracBits, *VLUTAddress, *VR);
 
                 // VLUTAddress *= 2 (to convert to bytes)
                 c.vslli(1, *VLUTAddress, *VLUTAddress);
@@ -166,7 +181,7 @@ int main(int argc, char** argv)
                 c.vloadl(*VLUTDiff, *VLUTAddress, 0);
 
                 // VOutput = VInput & VFracMask
-                c.vand(*VOutput, *VInput, *VFracMask);
+                c.vand(*VOutput, *VR, *VFracMask);
 
                 // Calculate difference
                 c.vsub(*VLUTDiff, *VLUTDiff, *VLUTLower);
@@ -177,8 +192,10 @@ int main(int argc, char** argv)
 
                 c.vadd(*VOutput, *VOutput, *VLUTLower);
 
-                // End LUT
+                // END FAITHFUL INTERPOLATION
+                c.vsll(*VOutput, *VOutput, *VK);
 
+                // END RANGE-REDUCTION
                 // Write to output buffer
                 c.vstore(*VOutput, *SOutputBuffer);
                 c.addi(*SOutputBuffer, *SOutputBuffer, 64);
