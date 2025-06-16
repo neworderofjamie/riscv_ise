@@ -25,13 +25,13 @@ public:
     void startWrite(uint32_t destination, const DMABuffer &sourceBuffer, size_t sourceOffset, size_t size);
     
     //! Start read (from URAM to DMA buffer)
-    //void startRead(DMABuffer &destBuffer, size_t destOffset, uint32_t source, size_t size);
+    void startRead(DMABuffer &destBuffer, size_t destOffset, uint32_t source, size_t size);
 
     // Wait for write channel to goto idle
     void waitForWriteComplete() const;
 
     // Wait for read channel to goto idle
-    //void waitForReadComplete() const;
+    void waitForReadComplete() const;
 
 private:
     //------------------------------------------------------------------------
@@ -45,6 +45,12 @@ private:
         MM2S_COUNT      = 0x8,  // MM2S transfer size (bytes)
         MM2S_STATUS     = 0xC,  // MM2S status register
         MM2S_CONTROL    = 0x10, // MM2S control register
+
+        S2MM_SRC_ADDR   = 0x14, // S2MM source address (URAM)
+        S2MM_DST_ADDR   = 0x18, // S2MM destination address (memory mapped domain)
+        S2MM_COUNT      = 0x1C, // S2MM transfer size (bytes)
+        S2MM_STATUS     = 0x20, // S2MM status register
+        S2MM_CONTROL    = 0x24, // S2MM control register
     };
 
     // Status register bits

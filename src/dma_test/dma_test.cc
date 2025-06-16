@@ -1,5 +1,6 @@
 // Standard C++ includes
 #include <algorithm>
+#include <iostream>
 #include <numeric>
 #include <random>
 
@@ -43,14 +44,19 @@ int main()
     // Get halfword pointer to DMA buffer
     int16_t *bufferData = reinterpret_cast<int16_t*>(dmaBuffer.getData());
     
-    // Write five vectors of random data words to DMA buffer
+    // Write vector of random data words to DMA buffer
     std::random_device rng;
     std::uniform_int_distribution<int16_t> dist(std::numeric_limits<int16_t>::min(),
                                                 std::numeric_limits<int16_t>::max());
-    std::generate_n(bufferData, 32 * 5, 
+    std::generate_n(bufferData, 64, 
                     [&rng, &dist](){ return dist(rng); });
-    LOGI << "First element:" << bufferData[0];
-
+    
+    std::cout << "Data:";
+    for(size_t i = 0; i < 64; i++) {
+        std::cout << bufferData[i];
+    }
+    std::cout << std::endl;
+                    
     // Create memory contents
     /*std::vector<uint8_t> scalarInitData;
     
@@ -58,7 +64,6 @@ int main()
     const uint32_t readyFlagPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
     const uint32_t outputPtr = AppUtils::allocateScalarAndZero(64 * 5, scalarInitData);*/
 
-    const uint32_t vectorOnePtr = 0;
     const uint32_t vectorTwoPtr = 400 * 1024;
 
     // Generate code to copy 2 vectors from pointer one and 3 vectors from pointer 2 into output area
@@ -95,19 +100,25 @@ int main()
     // Create DMA controller
     DMAController dmaController(memory, 0xA0000000);
 
-    
-    // Write 2 vectors from DMA buffer to vectorOnePtr
-    dmaController.startWrite(vectorOnePtr, dmaBuffer, 0, 64 * 2);
+    // Write 64 elements from DMA buffer to vectorTwoPtr
+    dmaController.startWrite(vectorTwoPtr, dmaBuffer, 0, 64 * 2);
     
     // Wait for write to complete
     dmaController.waitForWriteComplete();
-    
-    // Write 3 vectors from DMA buffer to URAM address 
-    dmaController.startWrite(vectorTwoPtr, dmaBuffer, 64 * 2, 64 * 3);
+   
+    // Read 64 elements back from vectorTwoPtr to DMA buffer
+    dmaController.startRead(dmaBuffer, 64 * 2, vectorTwoPtr, 64 * 2);
 
-    // Wait for write to complete
-    dmaController.waitForWriteComplete();
-    
+    // Wait for read to complete
+    dmaController.waitForReadComplete();
+
+    if(!std::equal(bufferData, bufferData + 64, bufferData + 64)) {
+        LOGE << "ERROR: copy incorrect";
+        for(size_t i = 64; i < 128; i++) {
+            std::cout << bufferData[i];
+        }
+        std::cout << std::endl;
+    }
     close(memory);
     /*LOGI << "Enabling";
     // Put core into running state

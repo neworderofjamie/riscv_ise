@@ -75,28 +75,43 @@ void DMAController::startWrite(uint32_t destination, const DMABuffer &sourceBuff
     writeReg(Register::MM2S_CONTROL, 1);
 }
 //----------------------------------------------------------------------------
-/*void DMAController::startRead(DMABuffer &destBuffer, size_t destOffset, uint32_t source, size_t size)
+void DMAController::startRead(DMABuffer &destBuffer, size_t destOffset, uint32_t source, size_t size)
 {
     // Build 64-bit destination address
     const uint64_t destAddress = destBuffer.getPhysicalAddress() + destOffset;
     assert((destOffset + size) < destBuffer.getSize());
 
     LOGD << "Starting " << size << " byte DMA read to " << destAddress;
+    if((source & 63) != 0) {
+        throw std::runtime_error("DMA reads from URAM must be 64 byte aligned");
+    }
 
-    // Split into low and high words and write to registers
-    writeReg(Register::S2MM_DA, static_cast<uint32_t>(destAddress & 0xFFFFFFFF));
-    writeReg(Register::S2MM_DA_MSB, static_cast<uint32_t>(destAddress >> 32));
+    if((destAddress & 63) != 0) {
+        throw std::runtime_error("DMA writes to mapped memory must be 64 byte aligned");
+    }
 
-    // Set number of bytes
-    writeReg(Register::S2MM_LENGTH, size);
+    if(destAddress > std::numeric_limits<uint32_t>::max()) {
+        throw std::runtime_error("DMA controller can only access 32-bit address space");
+    }
+    
+    if(size > ((1 << 19) - 1)) {
+        throw std::runtime_error("Maximum size of DMA exceeded");
+    }
+
+    // Write source and destination addresses to registers
+    writeReg(Register::S2MM_SRC_ADDR, source);
+    writeReg(Register::S2MM_DST_ADDR, static_cast<uint32_t>(destAddress & 0xFFFFFFFF));
+
+    // Write count to registers
+    writeReg(Register::S2MM_COUNT, size);
 
     // Run
-    writeReg(Register::S2MM_DMACR, 1);
-}*/
+    writeReg(Register::S2MM_CONTROL, 1);
+}
 //----------------------------------------------------------------------------
 void DMAController::waitForWriteComplete() const
 {
-    // Loop while DMA controller isn't idle
+    // Loop while DMA controller MM2S channel isn't idle
     uint32_t status;
     do {
         status = readReg(Register::MM2S_STATUS);
@@ -105,15 +120,15 @@ void DMAController::waitForWriteComplete() const
     
     // If decode error bit is set
     if(status & static_cast<uint32_t>(StatusBits::ERROR_DECODE)) {
-        throw std::runtime_error("DMA transfer failed with decode error");
+        throw std::runtime_error("DMA write failed with decode error");
     }
     // Otherwise, if internal error bit is set
     else if(status & static_cast<uint32_t>(StatusBits::ERROR_INTERNAL)) {
-        throw std::runtime_error("DMA transfer failed with internal error");
+        throw std::runtime_error("DMA write failed with internal error");
     }
     // Otherwise, if slave error bit is set
     else if(status & static_cast<uint32_t>(StatusBits::ERROR_SLAVE)) {
-        throw std::runtime_error("DMA transfer failed with slave error");
+        throw std::runtime_error("DMA write failed with slave error");
     }
     // Otherwise, check transfer ok bit is set
     else {
@@ -121,12 +136,32 @@ void DMAController::waitForWriteComplete() const
     }
 }
 //----------------------------------------------------------------------------
-/*void DMAController::waitForReadComplete() const
+void DMAController::waitForReadComplete() const
 {
-    while(!isReadIdle()) {
+    // Loop while DMA controller S2MM channel isn't idle
+    uint32_t status;
+    do {
+        status = readReg(Register::S2MM_STATUS);
         //std::this_thread::sleep_for(std::chrono::microseconds{10});
+    } while(!(status & static_cast<uint32_t>(StatusBits::STATE_IDLE)));
+    
+    // If decode error bit is set
+    if(status & static_cast<uint32_t>(StatusBits::ERROR_DECODE)) {
+        throw std::runtime_error("DMA read failed with decode error");
     }
-}*/
+    // Otherwise, if internal error bit is set
+    else if(status & static_cast<uint32_t>(StatusBits::ERROR_INTERNAL)) {
+        throw std::runtime_error("DMA read failed with internal error");
+    }
+    // Otherwise, if slave error bit is set
+    else if(status & static_cast<uint32_t>(StatusBits::ERROR_SLAVE)) {
+        throw std::runtime_error("DMA read failed with slave error");
+    }
+    // Otherwise, check transfer ok bit is set
+    else {
+        assert(status & static_cast<uint32_t>(StatusBits::TRANSFER_OK));
+    }
+}
 //----------------------------------------------------------------------------
 void DMAController::writeReg(Register reg, uint32_t val)
 { 
