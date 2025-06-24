@@ -232,7 +232,7 @@ public:
     void vsub_s(VReg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VSOP, 0b010, 0b1000000, rd, rs1, rs2); }
     void vand(VReg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VSOP, 0b011, 0b0000000, rd, rs1, rs2); }
     void vsll(VReg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VSOP, 0b001, 0b0000000, rd, rs1, rs2); }
-    void vsra(Bit<4> shift, VReg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VSOP, 0b101, shift, rd, rs1, rs2); }
+    void vsra(VReg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VSOP, 0b101, 0b0000000, rd, rs1, rs2); }
     void vsra_rn(Bit<4> shift, VReg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VSOP, 0b101, shift | 0b0010000, rd, rs1, rs2); }
     void vsra_rs(Bit<4> shift, VReg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VSOP, 0b101, shift | 0b0100000, rd, rs1, rs2); }
     void vmul(Bit<4> shift, VReg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VSOP, 0b100, shift, rd, rs1, rs2); }
