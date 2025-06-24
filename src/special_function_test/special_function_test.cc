@@ -161,12 +161,12 @@ int main(int argc, char** argv)
                 c.vsrai_rn(valueFixedPoint, *VK, *VK);
 
                 // VR = VX - (VK * VLog2)
-                c.vmul(15 - valueFixedPoint, *VR, *VK, *VLog2);
+                c.vmul_rn(15 - valueFixedPoint, *VR, *VK, *VLog2);
                 c.vsub(*VR, *VX, *VR);
 
                 // VR = (VR - VExpMax) / (VExpMax - -VExpMax)
                 c.vadd(*VR, *VR, *VExpMax);
-                c.vmul(valueFixedPoint - 1, *VR, *VR, *VExpMaxScale);
+                c.vmul_rn(valueFixedPoint - 1, *VR, *VR, *VExpMaxScale);
 
                 // START FAITHFUL INTERPOLATION
                 // VLUTAddress = VX >> fracBits
@@ -190,9 +190,8 @@ int main(int argc, char** argv)
                 // Calculate difference
                 c.vsub(*VLUTDiff, *VLUTDiff, *VLUTLower);
            
-                // VOutput *= VLUTDiff
-                // **TODO** round
-                c.vmul(fracBits, *VOutput, *VOutput, *VLUTDiff);
+                // VOutput *= 
+                c.vmul_rn(fracBits, *VOutput, *VOutput, *VLUTDiff);
 
                 c.vadd(*VOutput, *VOutput, *VLUTLower);
 
