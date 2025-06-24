@@ -487,35 +487,6 @@ Vector VectorProcessor::calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs
         return binaryOp(val, val2, saturateResult,
                         [](int16_t a, int16_t b){ return a >> b; });
     }
-
-    case VOpType::VSRA_RN:
-    {
-        PLOGV << "VSRA_RN " << rs1 << " " << rs2;
-        const int16_t half = 1 << (fixedPoint - 1);
-        return binaryOp(val, val2, false,
-                        [half](int16_t a, int16_t b){ return (a + half) >> b; });
-    }
-
-    case VOpType::VSRA_RS:
-    {
-        PLOGV << "VSRA_RS " << rs1 << " " << rs2;
-        
-        // Sample from RNG
-        const auto r = sampleRNG();
-
-        // Mask out bits corresponding to fractional bits in our format
-        Vector maskedStoch;
-        const uint16_t mask = (1 << fixedPoint) - 1;
-        std::transform(r.cbegin(), r.cend(), maskedStoch.begin(), 
-                       [mask](uint16_t a){ return (int16_t)(a & mask); });
-
-        Vector result;
-        for(size_t i = 0; i < 32; i++) {
-            result[i] = (val[i] + maskedStoch[i]) >> val2[i];
-        }
-        return result;
-    }
-
     
     case VOpType::VMUL:
     {
