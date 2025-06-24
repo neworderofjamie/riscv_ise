@@ -116,6 +116,7 @@ int main(int argc, char** argv)
             ALLOCATE_SCALAR(SInputBufferEnd);
             ALLOCATE_SCALAR(SOutputBuffer);
             ALLOCATE_VECTOR(VTwo);
+            ALLOCATE_VECTOR(VShiftScale);
             ALLOCATE_VECTOR(VFracMask);
             ALLOCATE_VECTOR(VInvLog);
             ALLOCATE_VECTOR(VLog2);
@@ -132,6 +133,7 @@ int main(int argc, char** argv)
 
             // Load constants
             c.vlui(*VTwo, 2);
+            c.vlui(*VShiftScale, 14 - valueFixedPoint);
             c.vlui(*VFracMask, (1 << fracBits) - 1);
             c.vlui(*VLog2, convertFixedPoint(log2, 15));
             c.vlui(*VInvLog, convertFixedPoint(1.0 / log2, 14));
@@ -144,30 +146,30 @@ int main(int argc, char** argv)
                 ALLOCATE_VECTOR(VLUTAddress);
                 ALLOCATE_VECTOR(VLUTLower);
                 ALLOCATE_VECTOR(VLUTDiff);
-                ALLOCATE_VECTOR(VInput);
+                ALLOCATE_VECTOR(VX);
                 ALLOCATE_VECTOR(VK);
                 ALLOCATE_VECTOR(VR);
                 ALLOCATE_VECTOR(VOutput);
 
                 // Load input and increment buffer
-                c.vloadv(*VInput, *SInputBuffer);
+                c.vloadv(*VX, *SInputBuffer);
                 c.addi(*SInputBuffer, *SInputBuffer, 64);       
                 
                 // START RANGE-REDUCTION
-                // VK = floor((VInput * VInvLog) + 0.5).
-                c.vmul(14, *VK, *VInput, *VInvLog);
+                // VK = floor((VX * VInvLog) + 0.5).
+                c.vmul(14, *VK, *VX, *VInvLog);
                 c.vsrai_rn(valueFixedPoint, *VK, *VK);
 
-                // VR = VInput - (VK * VLog2)
+                // VR = VX - (VK * VLog2)
                 c.vmul(15 - valueFixedPoint, *VR, *VK, *VLog2);
-                c.vsub(*VR, *VInput, *VR);
+                c.vsub(*VR, *VX, *VR);
 
                 // VR = (VR - VExpMax) / (VExpMax - -VExpMax)
                 c.vadd(*VR, *VR, *VExpMax);
                 c.vmul(valueFixedPoint - 1, *VR, *VR, *VExpMaxScale);
 
                 // START FAITHFUL INTERPOLATION
-                // VLUTAddress = VInput >> fracBits
+                // VLUTAddress = VX >> fracBits
                 c.vsrai(fracBits, *VLUTAddress, *VR);
 
                 // VLUTAddress *= 2 (to convert to bytes)
@@ -182,7 +184,7 @@ int main(int argc, char** argv)
                 // Load higher LUT value
                 c.vloadl(*VLUTDiff, *VLUTAddress, 0);
 
-                // VOutput = VInput & VFracMask
+                // VOutput = VX & VFracMask
                 c.vand(*VOutput, *VR, *VFracMask);
 
                 // Calculate difference
@@ -194,8 +196,12 @@ int main(int argc, char** argv)
 
                 c.vadd(*VOutput, *VOutput, *VLUTLower);
 
+                // K = shiftScale - K to include shift to 
+                // convert from S1.14 to output forma
+                c.vsub(*VK, *VShiftScale, *VK);
+
                 // END FAITHFUL INTERPOLATION
-                c.vsll(*VOutput, *VOutput, *VK);
+                c.vsra(*VOutput, *VOutput, *VK);
 
                 // END RANGE-REDUCTION
                 // Write to output buffer
