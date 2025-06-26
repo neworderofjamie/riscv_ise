@@ -63,6 +63,16 @@ public:
 };
 
 //----------------------------------------------------------------------------
+// LLMAllocator
+//----------------------------------------------------------------------------
+class LLMAllocator : public MemoryAllocator
+{
+public:
+    LLMAllocator() : MemoryAllocator(32 * 1024 * 2, 64, "LLM")
+    {}
+};
+
+//----------------------------------------------------------------------------
 // DMABufferAllocator
 //----------------------------------------------------------------------------
 class BACKEND_EXPORT DMABufferAllocator : public MemoryAllocator

@@ -226,6 +226,12 @@ std::unique_ptr<ArrayBase> BackendFeNNHW::createBRAMArray(const GeNN::Type::Reso
     return std::make_unique<::BRAMArray>(type, count, static_cast<HWState*>(state));
 }
 //------------------------------------------------------------------------
+std::unique_ptr<ArrayBase> BackendFeNNHW::createLLMArray(const GeNN::Type::ResolvedType &type, size_t count,
+                                                         StateBase *state) const
+{
+
+}
+//------------------------------------------------------------------------
 std::unique_ptr<IFieldArray> BackendFeNNHW::createFieldArray(const Model &model, StateBase *state) const
 {
     return std::make_unique<::BRAMFieldArray<BRAMArray>>(GeNN::Type::Uint32, model.getNumFields(), static_cast<HWState*>(state));

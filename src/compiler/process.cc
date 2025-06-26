@@ -55,9 +55,9 @@ NeuronUpdateProcess::NeuronUpdateProcess(Private, const std::string &code, const
 //----------------------------------------------------------------------------
 EventPropagationProcess::EventPropagationProcess(Private, std::shared_ptr<const EventContainer> inputEvents, 
                                                  std::shared_ptr<const Variable> weight, std::shared_ptr<const Variable> target,
-                                                 const std::string &name)
+                                                 size_t numSparseConnectivityBits, const std::string &name)
 :   AcceptableModelComponent<EventPropagationProcess, Process>(name), m_InputEvents(inputEvents), 
-    m_Weight(weight), m_Target(target)
+    m_Weight(weight), m_Target(target), m_NumSparseConnectivityBits(numSparseConnectivityBits);
 {
     if(m_InputEvents == nullptr) {
         throw std::runtime_error("Event propagation process requires input events");
@@ -77,6 +77,9 @@ EventPropagationProcess::EventPropagationProcess(Private, std::shared_ptr<const 
     // Get number of target neurons from target variable
     m_NumTargetNeurons = m_Target->getShape().getNumNeurons();
 
+    // Get maximum row length from weight variable shape
+    m_MaxRowLength = m_Weight->getShape().getNumTargetNeurons();
+
     // Check weight number of source neurons matches
     if(m_Weight->getShape().getNumSourceNeurons() != m_NumSourceNeurons) {
         throw std::runtime_error("Weight with shape: " + weight->getShape().toString() 
@@ -84,10 +87,15 @@ EventPropagationProcess::EventPropagationProcess(Private, std::shared_ptr<const 
                                  + std::to_string(m_NumSourceNeurons) + " source neurons");
     }
 
-    // Check weight number of target neurons matches
-    if(m_Weight->getShape().getNumTargetNeurons() != m_NumTargetNeurons) {
+    // Check weight number of target neurons matches if no sparsity
+    if(m_NumSparseConnectivityBits == 0 && m_MaxRowLength != m_NumTargetNeurons) {
         throw std::runtime_error("Weight with shape: " + weight->getShape().toString() 
-                                 + " is not compatible with event propagation process with " 
+                                 + " is not compatible with dense event propagation process with " 
+                                 + std::to_string(m_NumTargetNeurons) + " target neurons");
+    }
+    else if(m_NumSparseConnectivityBits > 0 && m_MaxRowLength >= m_NumTargetNeurons) {
+        throw std::runtime_error("Weight with shape: " + weight->getShape().toString() 
+                                 + " is not compatible with sparse event propagation process with " 
                                  + std::to_string(m_NumTargetNeurons) + " target neurons");
     }
 

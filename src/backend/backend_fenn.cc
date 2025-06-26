@@ -1038,7 +1038,6 @@ private:
                     c.lw(*targetReg, Reg::X0, stateFields.at(p->getTarget()));
 
                     // SWeightBuffer = weightInHidStart + (numPostVecs * 64 * SN);
-                    // **TODO** multiply
                     ALLOCATE_SCALAR(SWeightBuffer);
                     c.lw(*SWeightBuffer, Reg::X0, stateFields.at(p->getWeight()));
                     {
@@ -1187,11 +1186,16 @@ private:
                                         + "' shared with incompatible processes");
             }
         }
-        // Otherwise, if variable's target, it can either be located in URAM or LLM
-        // **TODO** if sparse/delayed only in LLM
+        // Otherwise, if variable's target
         else if(m_Variable == eventPropagationProcess->getTarget()) {
+            // It can't be located in BRAM
             m_BRAMCompatible = false;
 
+            // If it's sparse, it also can't be located in URAM
+            if(eventPropagationProcess->getNumSparseConnectivityBits() > 0) {
+                m_URAMCompatible = false;
+            }
+            
             if(!m_URAMCompatible && !m_LLMCompatible) {
                 throw std::runtime_error("Event propagation process '" + eventPropagationProcess->getName()
                                         + "' target array '" + eventPropagationProcess->getTarget()->getName()
@@ -1279,7 +1283,6 @@ void URAMArrayBase::serialiseDeviceObject(std::vector<std::byte> &bytes) const
     std::memcpy(bytes.data(), &uramPointer, 4);
 }
 
-
 //------------------------------------------------------------------------
 // BRAMArrayBase
 //------------------------------------------------------------------------
@@ -1290,6 +1293,19 @@ void BRAMArrayBase::serialiseDeviceObject(std::vector<std::byte> &bytes) const
 
     // Memcpy BRAM pointer into bytes
     const uint32_t bramPointer = m_BRAMPointer.value();
+    std::memcpy(bytes.data(), &bramPointer, 4);
+}
+
+//------------------------------------------------------------------------
+// LLMArrayBase
+//------------------------------------------------------------------------
+void LLMArrayBase::serialiseDeviceObject(std::vector<std::byte> &bytes) const
+{
+    // Allocate 4 bytes of space
+    bytes.resize(4);
+
+    // Memcpy LLM pointer into bytes
+    const uint32_t llmPointer = m_LLMPointer.value();
     std::memcpy(bytes.data(), &bramPointer, 4);
 }
 
@@ -1388,6 +1404,10 @@ std::unique_ptr<ArrayBase> BackendFeNN::createArray(std::shared_ptr<const Variab
     VariableImplementerVisitor visitor(variable, processes);
     if(visitor.isURAMCompatible()) {
         return createURAMArray(variable->getType(), count, state);
+    }
+    // Otherwise, create LLM array if variable can be implemented there
+    else if(visitor.isLLMCompatible()) {
+
     }
     // Otherwise, create BRAM array if variable can be implemented there
     else if(visitor.isBRAMCompatible()) {

@@ -46,12 +46,16 @@ public:
     const auto &getURAMAllocator() const{ return m_URAMAllocator; }
     auto &getURAMAllocator(){ return m_URAMAllocator; }
 
+    const auto &getLLMAllocator() const{ return m_LLMAllocator; }
+    auto &getLLMAllocator(){ return m_LLMAllocator; }
+
 private:
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
     BRAMAllocator m_BRAMAllocator;
     URAMAllocator m_URAMAllocator;
+    LLMAllocator m_LLMAllocator;
 };
 
 //----------------------------------------------------------------------------
@@ -205,7 +209,7 @@ protected:
     //------------------------------------------------------------------------
     // Protected API
     //------------------------------------------------------------------------
-    void setBRAMPointer(std::optional<uint32_t> uramPointer){ m_BRAMPointer = uramPointer; }
+    void setBRAMPointer(std::optional<uint32_t> bramPointer){ m_BRAMPointer = bramPointer; }
 
 private:
     //------------------------------------------------------------------------
@@ -213,6 +217,47 @@ private:
     //------------------------------------------------------------------------
     std::optional<uint32_t> m_BRAMPointer;
 };
+
+
+//----------------------------------------------------------------------------
+// LLMArrayBase
+//----------------------------------------------------------------------------
+//! Base class for arrays located in FeNN's lane-local memories
+class BACKEND_EXPORT LLMArrayBase : public ArrayBase
+{
+public:
+    //------------------------------------------------------------------------
+    // ArrayBase virtuals
+    //------------------------------------------------------------------------
+    //! Serialise backend-specific device object to uint32_t
+    virtual void serialiseDeviceObject(std::vector<std::byte> &bytes) const override final;
+
+    //------------------------------------------------------------------------
+    // Public API
+    //------------------------------------------------------------------------
+    uint32_t getLLMPointer() const{ return m_LLMPointer.value(); }
+
+protected:
+    LLMArrayBase(const GeNN::Type::ResolvedType &type, size_t count)
+    :   ArrayBase(type, count)
+    {
+        if(type.getSize(0) != 2) {
+            throw std::runtime_error("Only 16-bit types can be stored in LLM arrays");
+        }
+    }
+
+    //------------------------------------------------------------------------
+    // Protected API
+    //------------------------------------------------------------------------
+    void setLLMPointer(std::optional<uint32_t> llmPointer){ m_LLMPointer = llmPointer; }
+
+private:
+    //------------------------------------------------------------------------
+    // Members
+    //------------------------------------------------------------------------
+    std::optional<uint32_t> m_LLMPointer;
+};
+
 
 
 //------------------------------------------------------------------------
@@ -268,6 +313,9 @@ public:
                                                        StateBase *state) const = 0;
     virtual std::unique_ptr<ArrayBase> createBRAMArray(const GeNN::Type::ResolvedType &type, size_t count,
                                                        StateBase *state) const = 0;
+    virtual std::unique_ptr<ArrayBase> createLLMArray(const GeNN::Type::ResolvedType &type, size_t count,
+                                                      StateBase *state) const = 0;                                                       
+
     virtual std::unique_ptr<IFieldArray> createFieldArray(const Model &model, StateBase *state) const = 0;
     virtual std::unique_ptr<StateBase> createState() const = 0;
 

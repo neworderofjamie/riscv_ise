@@ -190,6 +190,73 @@ public:
 private:
     SimState *m_State;
 };
+
+//------------------------------------------------------------------------
+// LLMArray
+//------------------------------------------------------------------------
+//! Class for managing arrays in lane-local memory.
+class LLMArray : public LLMArrayBase
+{
+public:
+     LLMArray(const GeNN::Type::ResolvedType &type, size_t count, SimState *state)
+    :   LLMArrayBase(type, count), m_State(state)
+    {
+        // Allocate if count is specified
+        if(count > 0) {
+            allocate(count);
+        }
+    }
+
+    //------------------------------------------------------------------------
+    // ArrayBase virtuals
+    //------------------------------------------------------------------------
+    //! Allocate array
+    virtual void allocate(size_t count) final override
+    {
+        // Set count
+        setCount(count);
+
+        // Allocate memory for host pointer
+        setHostPointer(new uint8_t[getSizeBytes()]);
+
+        // Allocate LLM
+        setLLMPointer(m_State->getLLMAllocator().allocate(getSizeBytes()));
+    }
+
+    //! Free array
+    virtual void free() final override
+    {
+        delete [] getHostPointer();
+        setHostPointer(nullptr);
+        setLLMPointer(std::nullopt);
+        setCount(0);
+    }
+
+    //! Copy entire array to device
+    virtual void pushToDevice() final override
+    {
+        LOGW << "Copying LLM buffers is implemented in simulation for convenience but currently doens't work on device";
+        
+        // Copy correct number of int16_t from host pointer to vector data memory
+        auto &laneLocalMemory = m_State->getRISCV().getCoprocessor<VectorProcessor>(vectorQuadrant)->getLaneLocalMemory();
+        std::copy_n(getHostPointer<int16_t>(), getCount(), 
+                    vectorDataMemory.getData() + (getURAMPointer() / 2));
+    }
+
+    //! Copy entire array from device
+    virtual void pullFromDevice() final override
+    {
+        LOGW << "Copying URAM buffers is implemented in simulation for convenience but currently doens't work on device";
+        
+        // Copy correct number of int16_t from vector data memory to host pointer
+        auto &laneLocalMemory = m_State->getRISCV().getCoprocessor<VectorProcessor>(vectorQuadrant)->getLaneLocalMemory();
+        std::copy_n(vectorDataMemory.getData() + (getURAMPointer() / 2), getCount(), 
+                    getHostPointer<int16_t>());
+    }
+
+private:
+    SimState *m_State;
+};
 }
 
 //----------------------------------------------------------------------------
@@ -205,6 +272,12 @@ std::unique_ptr<ArrayBase> BackendFeNNSim::createBRAMArray(const GeNN::Type::Res
                                                            StateBase *state) const
 {
     return std::make_unique<::BRAMArray>(type, count, static_cast<SimState*>(state));
+}
+//------------------------------------------------------------------------
+std::unique_ptr<ArrayBase> BackendFeNNSim::createLLMArray(const GeNN::Type::ResolvedType &type, size_t count,
+                                                         StateBase *state) const
+{
+
 }
 //------------------------------------------------------------------------
 std::unique_ptr<IFieldArray> BackendFeNNSim::createFieldArray(const Model &model, StateBase *state) const
