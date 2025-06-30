@@ -919,7 +919,7 @@ private:
                     unrollEnv.add(v.second->getType(), v.first, reg);
 
                     // Load vector from correct memory space depending on type of address register
-                    return std::visit(
+                    std::visit(
                         Utils::Overload{
                             [&unrollEnv, reg, r](ScalarRegisterAllocator::RegisterPtr bufferReg)
                             {
@@ -964,7 +964,7 @@ private:
                     const auto reg = std::get<VectorRegisterAllocator::RegisterPtr>(unrollEnv.getRegister(v.first));
                     
                     // Store updated vector back to buffer
-                    return std::visit(
+                    std::visit(
                         Utils::Overload{
                             [&unrollEnv, reg, r](ScalarRegisterAllocator::RegisterPtr bufferReg)
                             {
@@ -992,7 +992,7 @@ private:
                 // Loop through variables and increment buffers
                 // **TODO** based on data structure, determine stride
                 for(const auto &v : neuronUpdateProcess->getVariables()) {
-                    return std::visit(
+                    std::visit(
                         Utils::Overload{
                             [&c, numUnrolls](ScalarRegisterAllocator::RegisterPtr bufferReg)
                             {
