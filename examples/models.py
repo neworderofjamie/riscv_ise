@@ -1,5 +1,7 @@
 import numpy as np
 
+from typing import Optional
+
 from pyfenn import (CopyProcess, EventContainer, EventPropagationProcess,
                     NeuronUpdateProcess, NumericValue, Parameter,
                     RNGInitProcess, Shape, UnresolvedType, Variable)
@@ -111,12 +113,19 @@ class LI:
 
 class Linear:
     def __init__(self, source_events: EventContainer, target_var: Variable,
-                 weight_dtype: str, name: str = ""):
+                 weight_dtype: str, max_row_length: Optional[int] = None, 
+                 num_sparse_connectivity_bits: int = 0, name: str = ""):
         self.shape = Shape([source_events.shape.num_neurons,
                             target_var.shape.num_neurons])
+        weight_shape = Shape(
+            [source_events.shape.num_neurons,
+             (target_var.shape.num_neurons 
+              if num_sparse_connectivity_bits > 0 
+              else max_row_length)])
         weight_dtype = UnresolvedType(weight_dtype)
 
-        self.weight = Variable(self.shape, weight_dtype)
+        self.weight = Variable(weight_shape, weight_dtype)
         self.process = EventPropagationProcess(source_events, self.weight,
-                                               target_var, name)
-
+                                               target_var, 
+                                               num_sparse_connectivity_bits,
+                                               name)

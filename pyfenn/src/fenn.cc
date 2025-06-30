@@ -249,7 +249,8 @@ PYBIND11_MODULE(_fenn, m)
     pybind11::class_<EventPropagationProcess, Process, std::shared_ptr<EventPropagationProcess>>(m, "EventPropagationProcess")
         .def(pybind11::init(&EventPropagationProcess::create),
              pybind11::arg("input_events"), pybind11::arg("weight"),
-             pybind11::arg("target"), pybind11::arg("name") = "")
+             pybind11::arg("target"), pybind11::arg("num_sparse_connectivity_bits") = 0,
+             pybind11::arg("name") = "")
 
         .def_property_readonly("input_events", &EventPropagationProcess::getInputEvents)
         .def_property_readonly("weight", &EventPropagationProcess::getWeight)
