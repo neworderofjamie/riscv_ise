@@ -10,6 +10,10 @@
 // Standard C includes
 #include <cstdint>
 
+// PLOG includes
+#include <plog/Log.h>
+
+// FastFloat includes
 #include <fast_float/fast_float.h>
 
 // GeNN includes
@@ -1306,7 +1310,7 @@ void LLMArrayBase::serialiseDeviceObject(std::vector<std::byte> &bytes) const
 
     // Memcpy LLM pointer into bytes
     const uint32_t llmPointer = m_LLMPointer.value();
-    std::memcpy(bytes.data(), &bramPointer, 4);
+    std::memcpy(bytes.data(), &llmPointer, 4);
 }
 
 //----------------------------------------------------------------------------
@@ -1403,14 +1407,17 @@ std::unique_ptr<ArrayBase> BackendFeNN::createArray(std::shared_ptr<const Variab
     // Create URAM array if variable can be implemented there
     VariableImplementerVisitor visitor(variable, processes);
     if(visitor.isURAMCompatible()) {
+        LOGI << "Creating variable '" << variable->getName() << "' array in URAM";
         return createURAMArray(variable->getType(), count, state);
     }
     // Otherwise, create LLM array if variable can be implemented there
     else if(visitor.isLLMCompatible()) {
-
+        LOGI << "Creating variable '" << variable->getName() << "' array in LLM";
+        return createLLMArray(variable->getType(), count, state);
     }
     // Otherwise, create BRAM array if variable can be implemented there
     else if(visitor.isBRAMCompatible()) {
+        LOGI << "Creating variable '" << variable->getName() << "' array in BRAM";
         return createBRAMArray(variable->getType(), count, state);
     }
     else {
@@ -1422,15 +1429,19 @@ std::unique_ptr<ArrayBase> BackendFeNN::createArray(std::shared_ptr<const EventC
                                                     const Model::StateProcesses::mapped_type&,
                                                     StateBase *state) const
 {
+    LOGI << "Creating event container '" << eventContainer->getName() << "' array in BRAM";
+
     // Event containers are always implemented as BRAM bitfields
     const size_t numSpikeWords = ceilDivide(eventContainer->getShape().getFlattenedSize(), 32) * eventContainer->getNumBufferTimesteps();
     return createBRAMArray(GeNN::Type::Uint32, numSpikeWords, state);
 }
 //------------------------------------------------------------------------
-std::unique_ptr<ArrayBase> BackendFeNN::createArray(std::shared_ptr<const PerformanceCounter>,
+std::unique_ptr<ArrayBase> BackendFeNN::createArray(std::shared_ptr<const PerformanceCounter> performanceCounter,
                                                     const Model::StateProcesses::mapped_type&,
                                                     StateBase *state) const
 {
+    LOGI << "Creating performance counter '" << performanceCounter->getName() << "' array in BRAM";
+
     // Performance counter contains a 64-bit number for 
     // instructions retired and one for number of cycles 
     return createBRAMArray(GeNN::Type::Uint64, 2, state);

@@ -71,7 +71,8 @@ public:
     //! Access vector data memory
     auto &getVectorDataMemory(){ return m_VectorDataMemory; }
     const auto &getVectorDataMemory() const{ return m_VectorDataMemory; }
-    const auto &getLaneLocalMemory(size_t lane) const{ return m_LaneLocalMemories.at(lane); }
+    auto &getLaneLocalMemory(size_t lane) { return m_LaneLocalMemories.at(lane); }
+    const auto &getLaneLocalMemory(size_t lane) const { return m_LaneLocalMemories.at(lane); }
     
     size_t getNumInstructionsExecuted(const std::array<size_t, 32> &counts, VectorOpCode opCode) const;
     size_t getNumMemory(const std::array<size_t, 32> &counts) const;

@@ -66,9 +66,7 @@ private:
 class BACKEND_EXPORT ArrayBase
 {
 public:
-    virtual ~ArrayBase()
-    {
-    }
+    virtual ~ArrayBase() = default;
 
     //------------------------------------------------------------------------
     // Declared virtuals

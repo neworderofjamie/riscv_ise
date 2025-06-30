@@ -86,6 +86,13 @@ public:
         }
     }
 
+    virtual ~URAMArray()
+    {
+        if(getCount() > 0) {
+            free();
+        }
+    }
+
     //------------------------------------------------------------------------
     // ArrayBase virtuals
     //------------------------------------------------------------------------
@@ -208,6 +215,68 @@ public:
 private:
      HWState *m_State;
 };
+
+//------------------------------------------------------------------------
+// LLMArray
+//------------------------------------------------------------------------
+//! Class for managing arrays in lane-local memory.
+class LLMArray : public LLMArrayBase
+{
+public:
+    LLMArray(const GeNN::Type::ResolvedType &type, size_t count, HWState *state)
+    :   LLMArrayBase(type, count), m_State(state)
+    {
+        // Allocate if count is specified
+        if(count > 0) {
+            allocate(count);
+        }
+    }
+
+    virtual ~LLMArray()
+    {
+        if(getCount() > 0) {
+            free();
+        }
+    }
+
+    //------------------------------------------------------------------------
+    // ArrayBase virtuals
+    //------------------------------------------------------------------------
+    //! Allocate array
+    virtual void allocate(size_t count) final override
+    {
+        // Set count
+        setCount(count);
+
+        // Don't allocate memory for host pointer
+        setHostPointer(nullptr);
+
+        // Allocate LLM
+        setLLMPointer(m_State->getLLMAllocator().allocate(getSizeBytes()));
+    }
+
+    //! Free array
+    virtual void free() final override
+    {
+        setLLMPointer(std::nullopt);
+        setCount(0);
+    }
+
+    //! Copy entire array to device
+    virtual void pushToDevice() final override
+    {
+        throw std::runtime_error("LLM arrays cannot be pushed to device on FeNN");
+    }
+
+    //! Copy entire array from device
+    virtual void pullFromDevice() final override
+    {
+        throw std::runtime_error("LLM arrays cannot be pulled from device on FeNN");
+    }
+
+private:
+    HWState *m_State;
+};
 }
 
 
@@ -229,7 +298,7 @@ std::unique_ptr<ArrayBase> BackendFeNNHW::createBRAMArray(const GeNN::Type::Reso
 std::unique_ptr<ArrayBase> BackendFeNNHW::createLLMArray(const GeNN::Type::ResolvedType &type, size_t count,
                                                          StateBase *state) const
 {
-
+    return std::make_unique<::LLMArray>(type, count, static_cast<HWState*>(state));
 }
 //------------------------------------------------------------------------
 std::unique_ptr<IFieldArray> BackendFeNNHW::createFieldArray(const Model &model, StateBase *state) const

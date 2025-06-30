@@ -57,7 +57,7 @@ EventPropagationProcess::EventPropagationProcess(Private, std::shared_ptr<const 
                                                  std::shared_ptr<const Variable> weight, std::shared_ptr<const Variable> target,
                                                  size_t numSparseConnectivityBits, const std::string &name)
 :   AcceptableModelComponent<EventPropagationProcess, Process>(name), m_InputEvents(inputEvents), 
-    m_Weight(weight), m_Target(target), m_NumSparseConnectivityBits(numSparseConnectivityBits);
+    m_Weight(weight), m_Target(target), m_NumSparseConnectivityBits(numSparseConnectivityBits)
 {
     if(m_InputEvents == nullptr) {
         throw std::runtime_error("Event propagation process requires input events");
@@ -91,11 +91,6 @@ EventPropagationProcess::EventPropagationProcess(Private, std::shared_ptr<const 
     if(m_NumSparseConnectivityBits == 0 && m_MaxRowLength != m_NumTargetNeurons) {
         throw std::runtime_error("Weight with shape: " + weight->getShape().toString() 
                                  + " is not compatible with dense event propagation process with " 
-                                 + std::to_string(m_NumTargetNeurons) + " target neurons");
-    }
-    else if(m_NumSparseConnectivityBits > 0 && m_MaxRowLength >= m_NumTargetNeurons) {
-        throw std::runtime_error("Weight with shape: " + weight->getShape().toString() 
-                                 + " is not compatible with sparse event propagation process with " 
                                  + std::to_string(m_NumTargetNeurons) + " target neurons");
     }
 

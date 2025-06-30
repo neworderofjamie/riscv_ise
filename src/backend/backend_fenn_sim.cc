@@ -7,6 +7,9 @@
 #include <plog/Log.h>
 
 // Common includes
+#include "common/utils.h"
+
+// ISE includes
 #include "ise/riscv.h"
 #include "ise/vector_processor.h"
 
@@ -62,12 +65,19 @@ private:
 class URAMArray : public URAMArrayBase
 {
 public:
-     URAMArray(const GeNN::Type::ResolvedType &type, size_t count, SimState *state)
+    URAMArray(const GeNN::Type::ResolvedType &type, size_t count, SimState *state)
     :   URAMArrayBase(type, count), m_State(state)
     {
         // Allocate if count is specified
         if(count > 0) {
             allocate(count);
+        }
+    }
+
+    virtual ~URAMArray()
+    {
+        if(getCount() > 0) {
+            free();
         }
     }
 
@@ -198,12 +208,19 @@ private:
 class LLMArray : public LLMArrayBase
 {
 public:
-     LLMArray(const GeNN::Type::ResolvedType &type, size_t count, SimState *state)
+    LLMArray(const GeNN::Type::ResolvedType &type, size_t count, SimState *state)
     :   LLMArrayBase(type, count), m_State(state)
     {
         // Allocate if count is specified
         if(count > 0) {
             allocate(count);
+        }
+    }
+
+    virtual ~LLMArray()
+    {
+        if(getCount() > 0) {
+            free();
         }
     }
 
@@ -217,7 +234,7 @@ public:
         setCount(count);
 
         // Allocate memory for host pointer
-        setHostPointer(new uint8_t[getSizeBytes()]);
+        setHostPointer(nullptr);
 
         // Allocate LLM
         setLLMPointer(m_State->getLLMAllocator().allocate(getSizeBytes()));
@@ -235,23 +252,30 @@ public:
     //! Copy entire array to device
     virtual void pushToDevice() final override
     {
-        LOGW << "Copying LLM buffers is implemented in simulation for convenience but currently doens't work on device";
-        
-        // Copy correct number of int16_t from host pointer to vector data memory
-        auto &laneLocalMemory = m_State->getRISCV().getCoprocessor<VectorProcessor>(vectorQuadrant)->getLaneLocalMemory();
-        std::copy_n(getHostPointer<int16_t>(), getCount(), 
-                    vectorDataMemory.getData() + (getURAMPointer() / 2));
+        LOGW << "Copying LLM buffers is implemented in simulation for convenience but is not possible on device";
+        const size_t numRows = ceilDivide(getCount(), 32);
+        for(size_t l = 0; l < 32; l++) {
+            auto &laneLocalMemory = m_State->getRISCV().getCoprocessor<VectorProcessor>(vectorQuadrant)->getLaneLocalMemory(l);    
+            int16_t *llmPointer = laneLocalMemory.getData() + (getLLMPointer() / 2);
+            for(size_t r = 0; r < numRows; r++) {
+                *llmPointer++ = getHostPointer<int16_t>()[(r * 32) + l];
+            }
+        }
     }
 
     //! Copy entire array from device
     virtual void pullFromDevice() final override
     {
-        LOGW << "Copying URAM buffers is implemented in simulation for convenience but currently doens't work on device";
+        LOGW << "Copying LLM buffers is implemented in simulation for convenience but is not possible on device";
         
-        // Copy correct number of int16_t from vector data memory to host pointer
-        auto &laneLocalMemory = m_State->getRISCV().getCoprocessor<VectorProcessor>(vectorQuadrant)->getLaneLocalMemory();
-        std::copy_n(vectorDataMemory.getData() + (getURAMPointer() / 2), getCount(), 
-                    getHostPointer<int16_t>());
+        const size_t numRows = ceilDivide(getCount(), 32);
+        for(size_t l = 0; l < 32; l++) {
+            const auto &laneLocalMemory = m_State->getRISCV().getCoprocessor<VectorProcessor>(vectorQuadrant)->getLaneLocalMemory(l);    
+            const int16_t *llmPointer = laneLocalMemory.getData() + (getLLMPointer() / 2);
+            for(size_t r = 0; r < numRows; r++) {
+                getHostPointer<int16_t>()[(r * 32) + l] = *llmPointer++;
+            }
+        }
     }
 
 private:
@@ -277,7 +301,7 @@ std::unique_ptr<ArrayBase> BackendFeNNSim::createBRAMArray(const GeNN::Type::Res
 std::unique_ptr<ArrayBase> BackendFeNNSim::createLLMArray(const GeNN::Type::ResolvedType &type, size_t count,
                                                          StateBase *state) const
 {
-
+    return std::make_unique<::LLMArray>(type, count, static_cast<SimState*>(state));
 }
 //------------------------------------------------------------------------
 std::unique_ptr<IFieldArray> BackendFeNNSim::createFieldArray(const Model &model, StateBase *state) const
