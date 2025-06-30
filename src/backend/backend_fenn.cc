@@ -18,6 +18,7 @@
 
 // GeNN includes
 #include "type.h"
+#include "gennUtils.h"
 
 // GeNN transpiler includes
 #include "transpiler/errorHandler.h"
@@ -473,6 +474,133 @@ void compileStatements(const std::vector<Token> &tokens, const Type::TypeContext
     }
 }
 
+//----------------------------------------------------------------------------
+// VariableImplementerVisitor
+//----------------------------------------------------------------------------
+class VariableImplementerVisitor : public ModelComponentVisitor
+{
+public:
+    VariableImplementerVisitor(std::shared_ptr<const Variable> variable, const Model::StateProcesses::mapped_type &processes)
+    :   m_Variable(variable), m_LLMCompatible(true), m_URAMCompatible(true), m_BRAMCompatible(true)
+    {
+        // Visit all processes
+        for(auto p : processes) {
+            p->accept(*this);
+        }
+    }
+
+    bool isLLMCompatible() const{ return m_LLMCompatible; }
+    bool isURAMCompatible() const{ return m_URAMCompatible; }
+    bool isBRAMCompatible() const{ return m_BRAMCompatible; }
+
+private:
+    //------------------------------------------------------------------------
+    // ModelComponentVisitor virtuals
+    //------------------------------------------------------------------------
+    virtual void visit(std::shared_ptr<const NeuronUpdateProcess> neuronUpdateProcess)
+    {
+        const auto var = std::find_if(neuronUpdateProcess->getVariables().cbegin(), neuronUpdateProcess->getVariables().cend(),
+                                      [this](const auto &v){ return v.second == m_Variable; });
+        assert(var != neuronUpdateProcess->getVariables().cend());
+     
+        // Neuron variables can be located in URAM or LLM
+        m_BRAMCompatible = false;
+
+        if(!m_URAMCompatible && !m_LLMCompatible) {
+            throw std::runtime_error("Neuron update process '" + neuronUpdateProcess->getName()
+                                    + "' variable array '" + m_Variable->getName()
+                                    + "' shared with incompatible processes");
+        }
+    }
+
+    virtual void visit(std::shared_ptr<const EventPropagationProcess> eventPropagationProcess)
+    {
+        // If variable is weight, it can only be located in URAM
+        if(m_Variable == eventPropagationProcess->getWeight()) {
+            m_LLMCompatible = false;
+            m_BRAMCompatible = false;
+
+            if(!m_URAMCompatible) {
+                throw std::runtime_error("Event propagation process '" + eventPropagationProcess->getName() 
+                                        + "' weight array '" + eventPropagationProcess->getWeight()->getName()
+                                        + "' shared with incompatible processes");
+            }
+        }
+        // Otherwise, if variable's target
+        else if(m_Variable == eventPropagationProcess->getTarget()) {
+            // It can't be located in BRAM
+            m_BRAMCompatible = false;
+
+            // If it's sparse, it also can't be located in URAM
+            if(eventPropagationProcess->getNumSparseConnectivityBits() > 0) {
+                m_URAMCompatible = false;
+            }
+            
+            if(!m_URAMCompatible && !m_LLMCompatible) {
+                throw std::runtime_error("Event propagation process '" + eventPropagationProcess->getName()
+                                        + "' target array '" + eventPropagationProcess->getTarget()->getName()
+                                        + "' shared with incompatible processes");
+            }
+        }
+        else {
+            assert(false);
+        }
+    }
+
+    virtual void visit(std::shared_ptr<const RNGInitProcess> rngInitProcess)
+    {
+        assert (m_Variable == rngInitProcess->getSeed());
+        
+        // Seeds can only be stored in URAM
+        m_LLMCompatible = false;
+        m_BRAMCompatible = false;
+
+        if(!m_URAMCompatible) {
+            throw std::runtime_error("RNG init process '" + rngInitProcess->getName() 
+                                     + "' seed array '" + rngInitProcess->getSeed()->getName()
+                                     + "' shared with incompatible processes");
+        }
+    }
+
+    virtual void visit(std::shared_ptr<const CopyProcess> copyProcess)
+    {
+        // If variable is source, it can only be located in URAM
+        if(m_Variable == copyProcess->getSource()) {
+            m_LLMCompatible = false;
+            m_BRAMCompatible = false;
+
+            if(!m_URAMCompatible) {
+                throw std::runtime_error("Copy process '" + copyProcess->getName() 
+                                        + "' source array '" + copyProcess->getSource()->getName()
+                                        + "' shared with incompatible processes");
+            }
+        }
+        // Otherwise, if variable's target, it can either be located in BRAM
+        else if(m_Variable == copyProcess->getTarget()) {
+            m_LLMCompatible = false;
+            m_URAMCompatible = false;
+
+            if(!m_BRAMCompatible) {
+                throw std::runtime_error("Copy process '" + copyProcess->getName()
+                                        + "' target array '" + copyProcess->getTarget()->getName()
+                                        + "' shared with incompatible processes");
+            }
+        }
+        else {
+            assert(false);
+        }
+    }
+
+
+    //------------------------------------------------------------------------
+    // Members
+    //------------------------------------------------------------------------
+    std::shared_ptr<const Variable> m_Variable;
+    bool m_LLMCompatible;
+    bool m_URAMCompatible;
+    bool m_BRAMCompatible;
+};
+
 class PerformanceCounterScope
 {
 public:
@@ -624,7 +752,7 @@ private:
          // For now, unrollVectorLoopBody requires SOME buffers
         assert(!neuronUpdateProcess->getVariables().empty());
 
-        std::unordered_map<std::shared_ptr<const Variable>, ScalarRegisterAllocator::RegisterPtr> varBufferRegisters;
+        std::unordered_map<std::shared_ptr<const Variable>, RegisterPtr> varBufferRegisters;
         {
             // If any variables have buffering, calculate stride in bytes
             // **TODO** make set of non-1 bufferings and pre-multiply time by this
@@ -637,25 +765,46 @@ private:
 
             // Loop through neuron variables
             for(const auto &v : neuronUpdateProcess->getVariables()) {
-                // **TODO** check data structure to determine how this variable is implemented
-                // i.e. in lane-local or vector memory and create appropriate address register
+                // Visit all users of this variable to determine how it should be implemented
+                VariableImplementerVisitor visitor(v.second, m_Model.get().getStateProcesses().at(v.second));
 
-                // Allocate scalar register to hold address of variable
-                const auto reg = m_ScalarRegisterAllocator.get().getRegister((v.first + "Buffer X").c_str());
+                // If variable can be implemented in URAM
+                if(visitor.isURAMCompatible()) {
+                    // Allocate scalar register to hold address of variable
+                    const auto reg = m_ScalarRegisterAllocator.get().getRegister((v.first + "Buffer X").c_str());
 
-                // Add register to map
-                varBufferRegisters.try_emplace(v.second, reg);
+                    // Add register to map
+                    varBufferRegisters.try_emplace(v.second, reg);
 
-                // Generate code to load address
-                c.lw(*reg, Reg::X0, stateFields.at(v.second));
+                    // Generate code to load address
+                    c.lw(*reg, Reg::X0, stateFields.at(v.second));
 
-                // If there are multiple timesteps, multiply timestep by stride and add to register
-                // **TODO** modulus number of buffer timesteps/whatever else for delays
-                if (v.second->getNumBufferTimesteps() != 1) {
+                    // If there are multiple timesteps, multiply timestep by stride and add to register
+                    // **TODO** modulus number of buffer timesteps/whatever else for delays
+                    if (v.second->getNumBufferTimesteps() != 1) {
+                        ALLOCATE_SCALAR(STmp);
+
+                        c.mul(*STmp, *m_TimeRegister, *SNumVariableBytes);
+                        c.add(*reg, *reg, *STmp);
+                    }
+                }
+                // Otherwise, if it can be implemented in LLM
+                else if(visitor.isLLMCompatible()){
+                    // Allocate vector register to hold address of variable
+                    const auto reg = m_VectorRegisterAllocator.get().getRegister((v.first + "Buffer V").c_str());
+
+                    // Add register to map
+                    varBufferRegisters.try_emplace(v.second, reg);
+
+                    // Generate code to load address
                     ALLOCATE_SCALAR(STmp);
+                    c.lw(*STmp, Reg::X0, stateFields.at(v.second));
+                    c.vfill(*reg, *STmp);
 
-                    c.mul(*STmp, *m_TimeRegister, *SNumVariableBytes);
-                    c.add(*reg, *reg, *STmp);
+                    assert(v.second->getNumBufferTimesteps() == 1);
+                }
+                else {
+                    assert(false);
                 }
             }
         }
@@ -745,11 +894,16 @@ private:
 
         // Insert environment with this library
         EnvironmentLibrary envLibrary(env, functionLibrary);
+        
+        // **YUCK** find first scalar-addressed variable to use for loop check
+        auto firstScalarAddressRegister = std::find_if(varBufferRegisters.cbegin(), varBufferRegisters.cend(),
+                                                       [](const auto &v){ return std::holds_alternative<ScalarRegisterAllocator::RegisterPtr>(v.second); });
+        assert(firstScalarAddressRegister != varBufferRegisters.cend());
 
         // Build vectorised neuron loop
         AssemblerUtils::unrollVectorLoopBody(
             envLibrary.getCodeGenerator(), m_ScalarRegisterAllocator.get(),
-            neuronUpdateProcess->getNumNeurons(), 4, *varBufferRegisters.begin()->second,
+            neuronUpdateProcess->getNumNeurons(), 4, *std::get<ScalarRegisterAllocator::RegisterPtr>(firstScalarAddressRegister->second),
             [this, &envLibrary, &eventBufferRegisters, &literalPool, &neuronUpdateProcess,
              &emitEventFunctionType, &varBufferRegisters]
             (CodeGenerator&, uint32_t r, bool, ScalarRegisterAllocator::RegisterPtr maskReg)
@@ -763,10 +917,19 @@ private:
 
                     // Add to environment
                     unrollEnv.add(v.second->getType(), v.first, reg);
-                        
-                    // Load vector from buffer
-                    // **TODO** based on data structure, determine if this variable should be loaded from vector or lane local memory
-                    unrollEnv.getCodeGenerator().vloadv(*reg, *varBufferRegisters.at(v.second), 64 * r);
+
+                    // Load vector from correct memory space depending on type of address register
+                    return std::visit(
+                        Utils::Overload{
+                            [&unrollEnv, reg, r](ScalarRegisterAllocator::RegisterPtr bufferReg)
+                            {
+                                unrollEnv.getCodeGenerator().vloadv(*reg, *bufferReg, 64 * r);            
+                            },
+                            [&unrollEnv, reg, r](VectorRegisterAllocator::RegisterPtr bufferReg)
+                            {
+                                unrollEnv.getCodeGenerator().vloadl(*reg, *bufferReg, 2 * r);    
+                            }},
+                        varBufferRegisters.at(v.second));
                 }
 
                 // Loop through neuron event outputs
@@ -801,18 +964,45 @@ private:
                     const auto reg = std::get<VectorRegisterAllocator::RegisterPtr>(unrollEnv.getRegister(v.first));
                     
                     // Store updated vector back to buffer
-                    // **TODO** based on data structure, determine if this variable should be stored to vector or lane local memory
-                    unrollEnv.getCodeGenerator().vstore(*reg, *varBufferRegisters.at(v.second), 64 * r);
+                    return std::visit(
+                        Utils::Overload{
+                            [&unrollEnv, reg, r](ScalarRegisterAllocator::RegisterPtr bufferReg)
+                            {
+                                unrollEnv.getCodeGenerator().vstore(*reg, *bufferReg, 64 * r);          
+                            },
+                            [&unrollEnv, reg, r](VectorRegisterAllocator::RegisterPtr bufferReg)
+                            {
+                                unrollEnv.getCodeGenerator().vstorel(*reg, *bufferReg, 2 * r);    
+                            }},
+                        varBufferRegisters.at(v.second));
                 }
             },
             [this, &eventBufferRegisters, &neuronUpdateProcess, &varBufferRegisters]
             (CodeGenerator &c, uint32_t numUnrolls)
             {
+                // If any variables have vector addresses i.e. are stored in LLM, load number of bytes to unroll
+                VectorRegisterAllocator::RegisterPtr numUnrollBytesReg;
+                if(std::any_of(varBufferRegisters.cbegin(), varBufferRegisters.cend(),
+                               [](const auto &v){ return std::holds_alternative<VectorRegisterAllocator::RegisterPtr>(v.second); }))
+                {
+                    numUnrollBytesReg = m_VectorRegisterAllocator.get().getRegister("NumUnrollBytes V");
+                    c.vlui(*numUnrollBytesReg, numUnrolls * 2);
+                }
+            
                 // Loop through variables and increment buffers
                 // **TODO** based on data structure, determine stride
-                for(const auto &v : neuronUpdateProcess->getVariables()) {        
-                    const auto bufferReg = varBufferRegisters.at(v.second);
-                    c.addi(*bufferReg, *bufferReg, 64 * numUnrolls);
+                for(const auto &v : neuronUpdateProcess->getVariables()) {
+                    return std::visit(
+                        Utils::Overload{
+                            [&c, numUnrolls](ScalarRegisterAllocator::RegisterPtr bufferReg)
+                            {
+                                c.addi(*bufferReg, *bufferReg, 64 * numUnrolls);
+                            },
+                            [&c, numUnrollBytesReg](VectorRegisterAllocator::RegisterPtr bufferReg)
+                            {
+                                c.vadd(*bufferReg, *bufferReg, *numUnrollBytesReg);
+                            }},
+                        varBufferRegisters.at(v.second));
                 }
 
                 // Loop through output events and increment buffers
@@ -1136,133 +1326,6 @@ private:
     std::reference_wrapper<VectorRegisterAllocator> m_VectorRegisterAllocator;
     std::reference_wrapper<ScalarRegisterAllocator> m_ScalarRegisterAllocator;
     std::reference_wrapper<const Model> m_Model;
-};
-
-//----------------------------------------------------------------------------
-// VariableImplementerVisitor
-//----------------------------------------------------------------------------
-class VariableImplementerVisitor : public ModelComponentVisitor
-{
-public:
-    VariableImplementerVisitor(std::shared_ptr<const Variable> variable, const Model::StateProcesses::mapped_type &processes)
-    :   m_Variable(variable), m_LLMCompatible(true), m_URAMCompatible(true), m_BRAMCompatible(true)
-    {
-        // Visit all processes
-        for(auto p : processes) {
-            p->accept(*this);
-        }
-    }
-
-    bool isLLMCompatible() const{ return m_LLMCompatible; }
-    bool isURAMCompatible() const{ return m_URAMCompatible; }
-    bool isBRAMCompatible() const{ return m_BRAMCompatible; }
-
-private:
-    //------------------------------------------------------------------------
-    // ModelComponentVisitor virtuals
-    //------------------------------------------------------------------------
-    virtual void visit(std::shared_ptr<const NeuronUpdateProcess> neuronUpdateProcess)
-    {
-        const auto var = std::find_if(neuronUpdateProcess->getVariables().cbegin(), neuronUpdateProcess->getVariables().cend(),
-                                      [this](const auto &v){ return v.second == m_Variable; });
-        assert(var != neuronUpdateProcess->getVariables().cend());
-     
-        // Neuron variables can be located in URAM or LLM
-        m_BRAMCompatible = false;
-
-        if(!m_URAMCompatible && !m_LLMCompatible) {
-            throw std::runtime_error("Neuron update process '" + neuronUpdateProcess->getName()
-                                    + "' variable array '" + m_Variable->getName()
-                                    + "' shared with incompatible processes");
-        }
-    }
-
-    virtual void visit(std::shared_ptr<const EventPropagationProcess> eventPropagationProcess)
-    {
-        // If variable is weight, it can only be located in URAM
-        if(m_Variable == eventPropagationProcess->getWeight()) {
-            m_LLMCompatible = false;
-            m_BRAMCompatible = false;
-
-            if(!m_URAMCompatible) {
-                throw std::runtime_error("Event propagation process '" + eventPropagationProcess->getName() 
-                                        + "' weight array '" + eventPropagationProcess->getWeight()->getName()
-                                        + "' shared with incompatible processes");
-            }
-        }
-        // Otherwise, if variable's target
-        else if(m_Variable == eventPropagationProcess->getTarget()) {
-            // It can't be located in BRAM
-            m_BRAMCompatible = false;
-
-            // If it's sparse, it also can't be located in URAM
-            if(eventPropagationProcess->getNumSparseConnectivityBits() > 0) {
-                m_URAMCompatible = false;
-            }
-            
-            if(!m_URAMCompatible && !m_LLMCompatible) {
-                throw std::runtime_error("Event propagation process '" + eventPropagationProcess->getName()
-                                        + "' target array '" + eventPropagationProcess->getTarget()->getName()
-                                        + "' shared with incompatible processes");
-            }
-        }
-        else {
-            assert(false);
-        }
-    }
-
-    virtual void visit(std::shared_ptr<const RNGInitProcess> rngInitProcess)
-    {
-        assert (m_Variable == rngInitProcess->getSeed());
-        
-        // Seeds can only be stored in URAM
-        m_LLMCompatible = false;
-        m_BRAMCompatible = false;
-
-        if(!m_URAMCompatible) {
-            throw std::runtime_error("RNG init process '" + rngInitProcess->getName() 
-                                     + "' seed array '" + rngInitProcess->getSeed()->getName()
-                                     + "' shared with incompatible processes");
-        }
-    }
-
-    virtual void visit(std::shared_ptr<const CopyProcess> copyProcess)
-    {
-        // If variable is source, it can only be located in URAM
-        if(m_Variable == copyProcess->getSource()) {
-            m_LLMCompatible = false;
-            m_BRAMCompatible = false;
-
-            if(!m_URAMCompatible) {
-                throw std::runtime_error("Copy process '" + copyProcess->getName() 
-                                        + "' source array '" + copyProcess->getSource()->getName()
-                                        + "' shared with incompatible processes");
-            }
-        }
-        // Otherwise, if variable's target, it can either be located in BRAM
-        else if(m_Variable == copyProcess->getTarget()) {
-            m_LLMCompatible = false;
-            m_URAMCompatible = false;
-
-            if(!m_BRAMCompatible) {
-                throw std::runtime_error("Copy process '" + copyProcess->getName()
-                                        + "' target array '" + copyProcess->getTarget()->getName()
-                                        + "' shared with incompatible processes");
-            }
-        }
-        else {
-            assert(false);
-        }
-    }
-
-
-    //------------------------------------------------------------------------
-    // Members
-    //------------------------------------------------------------------------
-    std::shared_ptr<const Variable> m_Variable;
-    bool m_LLMCompatible;
-    bool m_URAMCompatible;
-    bool m_BRAMCompatible;
 };
 }
 

@@ -120,7 +120,7 @@ class Linear:
         weight_shape = Shape(
             [source_events.shape.num_neurons,
              (target_var.shape.num_neurons 
-              if num_sparse_connectivity_bits > 0 
+              if num_sparse_connectivity_bits == 0 
               else max_row_length)])
         weight_dtype = UnresolvedType(weight_dtype)
 
