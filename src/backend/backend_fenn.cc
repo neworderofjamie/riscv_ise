@@ -1114,11 +1114,115 @@ private:
     //------------------------------------------------------------------------
     // Private methods
     //------------------------------------------------------------------------
-    void generateEventPropagationProcesses(const std::vector<std::shared_ptr<const EventPropagationProcess>> &processes)
+    void generateDenseRow(std::shared_ptr<const EventPropagationProcess> process,
+                          ScalarRegisterAllocator::RegisterPtr targetReg,
+                          ScalarRegisterAllocator::RegisterPtr weightBufferReg)
     {
         // Make some friendlier-named references
         auto &scalarRegisterAllocator = m_ScalarRegisterAllocator.get();
         auto &vectorRegisterAllocator = m_VectorRegisterAllocator.get();
+        auto &c = m_CodeGenerator.get();
+
+        ALLOCATE_VECTOR(VWeight);
+        ALLOCATE_VECTOR(VTarget1);
+        ALLOCATE_VECTOR(VTarget2);
+        ALLOCATE_VECTOR(VTargetNew);
+
+        // Preload first ISyn to avoid stall
+        c.vloadv(*VTarget1, *targetReg, 0);
+
+        AssemblerUtils::unrollVectorLoopBody(
+            c, scalarRegisterAllocator, process->getNumTargetNeurons(), 4, *targetReg,
+            [&targetReg, weightBufferReg, VWeight, VTarget1, VTarget2, VTargetNew]
+            (CodeGenerator &c, uint32_t r, bool even, ScalarRegisterAllocator::RegisterPtr maskReg)
+            {
+                // Load vector of weights
+                c.vloadv(*VWeight, *weightBufferReg, r * 64);
+
+                // Load NEXT vector of target to avoid stall
+                // **YUCK** in last iteration, while this may not be accessed, it may be out of bounds                  
+                c.vloadv(even ? *VTarget2 : *VTarget1, *targetReg, (r + 1) * 64);
+            
+                // Add weights to ISyn
+                auto VTarget = even ? VTarget1 : VTarget2;
+                if(maskReg) {
+                    c.vadd_s(*VTargetNew, *VTarget, *VWeight);
+                    c.vsel(*VTarget, *maskReg, *VTargetNew);
+                }
+                else {
+                    c.vadd_s(*VTarget, *VTarget, *VWeight);
+                }
+
+                // Write back target
+                c.vstore(*VTarget, *targetReg, r * 64);
+            },
+            [&targetReg, weightBufferReg]
+            (CodeGenerator &c, uint32_t numUnrolls)
+            {
+                // Increment pointers 
+                c.addi(*targetReg, *targetReg, 64 * numUnrolls);
+                c.addi(*weightBufferReg, *weightBufferReg, 64 * numUnrolls);
+            });
+    }
+
+    void generateSparseRow(std::shared_ptr<const EventPropagationProcess> process,
+                          ScalarRegisterAllocator::RegisterPtr weightBufferReg)
+    {
+        // Make some friendlier-named references
+        auto &scalarRegisterAllocator = m_ScalarRegisterAllocator.get();
+        auto &vectorRegisterAllocator = m_VectorRegisterAllocator.get();
+        auto &c = m_CodeGenerator.get();
+
+        // Loop over postsynaptic neurons
+        ALLOCATE_SCALAR(SMask);
+        ALLOCATE_VECTOR(VWeightPostInd)
+        ALLOCATE_VECTOR(VWeight);
+        ALLOCATE_VECTOR(VPostAddr);
+        ALLOCATE_VECTOR(VConnMask);
+        ALLOCATE_VECTOR(VAccum);
+        //ALLOCATE_VECTOR(VAccum1);
+        //ALLOCATE_VECTOR(VAccum2);
+        //ALLOCATE_VECTOR(VWeight);
+
+        c.vlui(*VConnMask, (1 << process->getNumSparseConnectivityBits()) - 1);
+        
+        // Preload first weight (contains postind)
+       
+        AssemblerUtils::unrollVectorLoopBody(
+            c, scalarRegisterAllocator, t.maxRowLength, 4, *SPostIndBuffer,
+            [&t, SMask, SPostIndBuffer, VPostInd1, VPostInd2, VAccum1, VAccum2, VWeight, VZero]
+            (CodeGenerator &c, uint32_t r, bool even, ScalarRegisterAllocator::RegisterPtr maskReg)
+            {
+                // Load vector of weights and indices
+                c.vloadv(*VWeightPostInd, *weightBufferReg);
+                
+                // Extract postsynaptic index
+                c.vand(*VPostInd, *VWeightPostInd, *VConnMask);
+                
+                // **TODO** add address register
+                c.vloadl(*VAccum, *VPostAddr);
+                
+                // Extract weight
+                c.vsrai(process->getNumSparseConnectivityBits(), *VWeight, *VWeightPostInd);
+
+                // Add weights to accumulator loaded in previous iteration
+                c.vadd_s(*VAccum, *VAccum, *VWeight);
+
+                // Write back accumulator
+                c.vstorel(*VAccum, *VPostAddr);
+            },
+            [SPostIndBuffer]
+            (CodeGenerator &c, uint32_t numUnrolls)
+            {
+                // Increment pointers 
+                c.addi(*SPostIndBuffer, *SPostIndBuffer, 64 * numUnrolls);
+            });
+    }
+
+    void generateEventPropagationProcesses(const std::vector<std::shared_ptr<const EventPropagationProcess>> &processes)
+    {
+        // Make some friendlier-named references
+        auto &scalarRegisterAllocator = m_ScalarRegisterAllocator.get();
         auto &c = m_CodeGenerator.get();
 
         // Register allocation
@@ -1158,20 +1262,14 @@ private:
         }
 
         // Loop through postsynaptic targets
-        std::vector<std::pair<ScalarRegisterAllocator::RegisterPtr, ScalarRegisterAllocator::RegisterPtr>> sTargetStrideBufferRegs;
+        std::vector<ScalarRegisterAllocator::RegisterPtr> sStrideBufferRegs;
         for(const auto &p : processes) {
-            // Allocate scalar registers
-            auto bufferStartReg = scalarRegisterAllocator.getRegister("STargetBuffer = X");
+            // Allocate register for stride, calculate and load as immediate
             auto strideReg = scalarRegisterAllocator.getRegister("SStride = X");
+            c.li(*strideReg, ceilDivide(p->getMaxRowLength(), 32) * 64);
 
-            // Load addresses of targets
-            c.lw(*bufferStartReg, Reg::X0, processFields.at(p).at(p->getTarget()));
-
-            // Calculate stride and load as immediate
-            c.li(*strideReg, ceilDivide(p->getNumTargetNeurons(), 32) * 64);
-
-            // Add scalar registers to vector
-            sTargetStrideBufferRegs.emplace_back(bufferStartReg, strideReg);
+            // Add scalar register to vector
+            sStrideBufferRegs.emplace_back(strideReg);
         }
     
         // Load some useful constants
@@ -1224,12 +1322,16 @@ private:
                     const auto p = processes[i];
                     const auto &stateFields = processFields.at(p);
 
-                    ScalarRegisterAllocator::RegisterPtr targetReg;
-                    ScalarRegisterAllocator::RegisterPtr strideReg;
-                    std::tie(targetReg, strideReg) = sTargetStrideBufferRegs[i];
+                    ScalarRegisterAllocator::RegisterPtr strideReg = sStrideBufferRegs[i];
 
-                    // Reset target pointer
-                    c.lw(*targetReg, Reg::X0, stateFields.at(p->getTarget()));
+                    // If process is dense, allocate target register and load
+                    // **YUCK** it would be nice to put this at the start of generateDenseRow
+                    // but first instruction requires targetReg so this would stall
+                    ScalarRegisterAllocator::RegisterPtr targetReg;
+                    if(p->getNumSparseConnectivityBits() == 0) {
+                        targetReg = scalarRegisterAllocator.getRegister("STargetBuffer = X");
+                        c.lw(*targetReg, Reg::X0, stateFields.at(p->getTarget()));
+                    }
 
                     // SWeightBuffer = weightInHidStart + (numPostVecs * 64 * SN);
                     ALLOCATE_SCALAR(SWeightBuffer);
@@ -1245,46 +1347,12 @@ private:
                     //    c.ebreak();
                     //}
 
-                    ALLOCATE_VECTOR(VWeight);
-                    ALLOCATE_VECTOR(VTarget1);
-                    ALLOCATE_VECTOR(VTarget2);
-                    ALLOCATE_VECTOR(VTargetNew);
-
-                    // Preload first ISyn to avoid stall
-                    c.vloadv(*VTarget1, *targetReg, 0);
-
-                    AssemblerUtils::unrollVectorLoopBody(
-                        c, scalarRegisterAllocator, p->getNumTargetNeurons(), 4, *targetReg,
-                        [&targetReg, SWeightBuffer, VWeight, VTarget1, VTarget2, VTargetNew]
-                        (CodeGenerator &c, uint32_t r, bool even, ScalarRegisterAllocator::RegisterPtr maskReg)
-                        {
-                            // Load vector of weights
-                            c.vloadv(*VWeight, *SWeightBuffer, r * 64);
-
-                            // Load NEXT vector of target to avoid stall
-                            // **YUCK** in last iteration, while this may not be accessed, it may be out of bounds                  
-                            c.vloadv(even ? *VTarget2 : *VTarget1, *targetReg, (r + 1) * 64);
-                        
-                            // Add weights to ISyn
-                            auto VTarget = even ? VTarget1 : VTarget2;
-                            if(maskReg) {
-                                c.vadd_s(*VTargetNew, *VTarget, *VWeight);
-                                c.vsel(*VTarget, *maskReg, *VTargetNew);
-                            }
-                            else {
-                                c.vadd_s(*VTarget, *VTarget, *VWeight);
-                            }
-
-                            // Write back target
-                            c.vstore(*VTarget, *targetReg, r * 64);
-                        },
-                        [&targetReg, SWeightBuffer]
-                        (CodeGenerator &c, uint32_t numUnrolls)
-                        {
-                            // Increment pointers 
-                            c.addi(*targetReg, *targetReg, 64 * numUnrolls);
-                            c.addi(*SWeightBuffer, *SWeightBuffer, 64 * numUnrolls);
-                        });
+                    if(p->getNumSparseConnectivityBits() == 0) {
+                        generateDenseRow(p, targetReg, SWeightBuffer);
+                    }
+                    else {
+                        generateSparseRow(p, SWeightBuffer);
+                    }
                 }
 
                 // SN --
