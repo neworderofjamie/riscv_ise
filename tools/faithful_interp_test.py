@@ -32,17 +32,17 @@ class FaithfulInterpolator:
         assert np.all((self.lut >= 0) & (self.lut < (2**NUM_BITS)))
 
 
-    def __call__(self, x: float):
+    def __call__(self, r: float):
         # Check in range
-        assert np.all((x >= self.range_start) & (x < self.range_end))
-        x_trunc = (x - self.range_start) / (self.range_end - self.range_start)
+        assert np.all((r >= self.range_start) & (r < self.range_end))
+        r_trunc = (r - self.range_start) / (self.range_end - self.range_start)
 
         # Convert to fixed point in fraction format
-        x_fix = np.floor(x_trunc * (2**NUM_BITS)).astype(int)
+        r_fix = np.floor(r_trunc * (2**NUM_BITS)).astype(int)
 
         # Split
-        ind = x_fix >> FRAC_BITS      # VSRLI
-        frac = x_fix & FRAC_MASK      # VAND
+        ind = r_fix >> FRAC_BITS      # VSRLI
+        frac = r_fix & FRAC_MASK      # VAND
 
         # Get LUT values to interpolate
         lut_start = self.lut[ind]
@@ -108,7 +108,7 @@ class Reciprocal(FaithfulInterpolator):
         # Range reduce
         # 31 - CLZ
         k = np.floor(np.log2(abs_x))
-        
+
         # (x << FixedPoint) >> k
         r = abs_x / np.power(2.0, k)
         
