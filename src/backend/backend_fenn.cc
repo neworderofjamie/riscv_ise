@@ -1189,6 +1189,9 @@ private:
                 // Load vector of weights and indices
                 c.vloadv(*VWeightPostInd, *weightBufferReg);
                 
+                // **TODO** stripe
+                c.nop();
+
                 // Extract postsynaptic index and add base address
                 c.vand(*VPostAddr, *VWeightPostInd, *sparseMaskReg);
                 c.vadd(*VPostAddr, *VPostAddr, *targetAddrReg); 
