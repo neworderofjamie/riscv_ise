@@ -90,6 +90,7 @@ print(f"{num_excitatory} excitatory neurons, {num_inhibitory} inhibitory neurons
 init_logging(PlogSeverity.INFO)
 
 # Generate connectivity matrices
+np.random.seed(1234)
 ie_conn = generate_fixed_prob(num_inhibitory, num_excitatory, probability_connection)
 ii_conn = generate_fixed_prob(num_inhibitory, num_inhibitory, probability_connection)
 ee_conn = generate_fixed_prob(num_excitatory, num_excitatory, probability_connection)
@@ -100,7 +101,7 @@ ie_conn = build_sparse_connectivity(ie_conn, int(round(inh_weight * 2**10)), num
 ii_conn = build_sparse_connectivity(ii_conn, int(round(inh_weight * 2**10)), num_sparse_connectivity_bits)
 ee_conn = build_sparse_connectivity(ee_conn, int(round(exc_weight * 2**10)), num_sparse_connectivity_bits)
 ei_conn = build_sparse_connectivity(ei_conn, int(round(exc_weight * 2**10)), num_sparse_connectivity_bits)
-print(ee_conn.shape)
+
 # Neurons
 e_pop = CUBALIF([num_excitatory], tau_m=20.0, tau_syn_exc=5.0, tau_syn_inh=10.0,
                 tau_refrac=5, v_thresh=10, i_offset=0.55,
