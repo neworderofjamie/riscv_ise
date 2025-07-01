@@ -1,7 +1,8 @@
 import numpy as np
 
+from numbers import Number
 from pyfenn import Runtime
-from typing import Sequence
+from typing import Sequence, Union
 
 def get_array_view(runtime: Runtime, state, dtype):
     array = runtime.get_array(state)
@@ -36,6 +37,16 @@ def zero_and_push(state, runtime: Runtime):
     for i in range(len(view)):
         view[i] = 0
     #view[:] = 0
+
+    # Push to device
+    array.push_to_device()
+
+def copy_and_push(data: np.ndarray, state, runtime: Runtime):
+    # Get array and view
+    array, view = get_array_view(runtime, state, data.dtype)
+
+    # Copy data to array host pointer
+    view[:] = data
 
     # Push to device
     array.push_to_device()
@@ -80,7 +91,8 @@ def get_latency_spikes(images, tau=20.0, num_timesteps=79, threshold=51):
     return np.stack(spikes).view(np.uint32)
 
 
-def pad_connectivity(row_ind: Sequence[np.ndarray]) -> np.ndarray:
+def build_sparse_connectivity(row_ind: Sequence[np.ndarray], weight: Number,
+                              sparse_connectivity_bits: int) -> np.ndarray:
     num_pre = len(row_ind)
 
     # Determine which lane each postsynaptic index belongs in
@@ -96,15 +108,34 @@ def pad_connectivity(row_ind: Sequence[np.ndarray]) -> np.ndarray:
     num_vectors = max(np.amax(c) for c in row_conns_per_lane)
 
     # Calculate cumulative sum of bin count to determine where to split per-bank
-    row_conn_lane_ind = [np.cumsum(c) for c in row_conns_per_lane]
+    row_conn_lane_sections = [np.cumsum(c) for c in row_conns_per_lane]
+
+    # Convert row indices into addresses
+    row_data_sorted = [((r // 32) * 2).astype(np.int16) for r in row_ind_sorted]
+
+    # Check largest address fits without sparse connectivity bits
+    max_address = max(np.amax(r) for r in row_data_sorted)
+    if max_address >= 2**sparse_connectivity_bits:
+        raise RuntimeError("Not enough bits to represent connectivity")
+
+    # Check weight fits within remaining bits
+    weight_bits = 15 - sparse_connectivity_bits
+    max_weight = (2**weight_bits) - 1
+    min_weight = -max_weight - 1
+    if weight < min_weight or weight > max_weight:
+        raise RuntimeError("Not enough bits for weight")
+
+    # Combine weight and indices
+    row_data_sorted = [r | (weight << sparse_connectivity_bits)
+                       for r in row_data_sorted]
 
     padded_rows = []
-    for i, l in zip(row_ind_sorted, row_conn_lane_ind):
+    for d, s in zip(row_data_sorted, row_conn_lane_sections):
         # Split, pad list of connections with  
         # **NOTE** we only care about which L.L.M. address of target in bytes
-        conn_id_banked = np.transpose(np.vstack([np.pad((a // 32) * 2, (0, num_vectors - len(a)), 
+        conn_id_banked = np.transpose(np.vstack([np.pad(a, (0, num_vectors - len(a)), 
                                                         constant_values=-2)
-                                                for a in np.split(i, l[:-1])]))
+                                                for a in np.split(d, s[:-1])]))
         conn_id_banked = np.pad(conn_id_banked, ((0, 0), (0, 32 - conn_id_banked.shape[1])),
                                 constant_values=-2)
         

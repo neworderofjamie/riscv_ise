@@ -8,9 +8,10 @@ from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer, Model,
 from models import Linear
 
 from pyfenn import disassemble, init_logging
-from pyfenn.utils import (ceil_divide, generate_fixed_prob, get_array_view, 
-                          get_latency_spikes, load_and_push,
-                          pad_connectivity, read_perf_counter, zero_and_push)
+from pyfenn.utils import (build_sparse_connectivity, ceil_divide, 
+                          copy_and_push, generate_fixed_prob, 
+                          get_array_view, get_latency_spikes, 
+                          read_perf_counter, zero_and_push)
 
 from tqdm.auto import tqdm
 
@@ -75,14 +76,17 @@ num_timesteps = 1000
 num_neurons = 512
 probability_connection = 0.1
 excitatory_inhibitory_ratio = 4.0
+inh_weight = -0.07968749999999998
+exc_weight = 0.0062499999999999995
 
 num_excitatory = int(round((num_neurons * excitatory_inhibitory_ratio) / (1.0 + excitatory_inhibitory_ratio)))
 num_inhibitory = num_neurons - num_excitatory
-num_sparse_connectivity_bits = ceil_divide(num_excitatory, 32)
+num_sparse_connectivity_bits = 5
 device = False
 time = True
-disassemble_code = True
+disassemble_code = False
 
+print(f"{num_excitatory} excitatory neurons, {num_inhibitory} inhibitory neurons")
 init_logging(PlogSeverity.INFO)
 
 # Generate connectivity matrices
@@ -92,11 +96,11 @@ ee_conn = generate_fixed_prob(num_excitatory, num_excitatory, probability_connec
 ei_conn = generate_fixed_prob(num_excitatory, num_inhibitory, probability_connection)
 
 # Pad
-ie_conn = pad_connectivity(ie_conn).astype(np.int16)
-ii_conn = pad_connectivity(ii_conn).astype(np.int16)
-ee_conn = pad_connectivity(ee_conn).astype(np.int16)
-ei_conn = pad_connectivity(ei_conn).astype(np.int16)
-
+ie_conn = build_sparse_connectivity(ie_conn, int(round(inh_weight * 2**10)), num_sparse_connectivity_bits)
+ii_conn = build_sparse_connectivity(ii_conn, int(round(inh_weight * 2**10)), num_sparse_connectivity_bits)
+ee_conn = build_sparse_connectivity(ee_conn, int(round(exc_weight * 2**10)), num_sparse_connectivity_bits)
+ei_conn = build_sparse_connectivity(ei_conn, int(round(exc_weight * 2**10)), num_sparse_connectivity_bits)
+print(ee_conn.shape)
 # Neurons
 e_pop = CUBALIF([num_excitatory], tau_m=20.0, tau_syn_exc=5.0, tau_syn_inh=10.0,
                 tau_refrac=5, v_thresh=10, i_offset=0.55,
@@ -136,7 +140,7 @@ model = Model([neuron_update_processes, synapse_update_processes])
 
 # Create backend and use to generate sim code
 backend = BackendFeNNHW() if device else BackendFeNNSim()
-code = backend.generate_simulation_kernel([synapse_update_processes, neuron_update_processes],  # Update synapses and then neurons every timestep
+code = backend.generate_simulation_kernel([synapse_update_processes, neuron_update_processes],
                                           [],
                                           num_timesteps, model)
 
@@ -145,79 +149,41 @@ if disassemble_code:
     for i, c in enumerate(code):
         print(f"{i * 4} : {disassemble(c)}")
 
-assert False
 # Create runtime
 runtime = Runtime(model, backend)
 
 # Allocate memory for model
 runtime.allocate()
 
-# Load weights
-load_and_push("mnist_in_hid.bin", input_hidden.weight, runtime)
-load_and_push("mnist_hid_out.bin", hidden_output.weight, runtime)
-load_and_push("mnist_bias.bin", output.bias, runtime)
+# Copy connectivity
+copy_and_push(ee_conn.flatten(), ee_pop.weight, runtime)
+copy_and_push(ei_conn.flatten(), ei_pop.weight, runtime)
+copy_and_push(ii_conn.flatten(), ii_pop.weight, runtime)
+copy_and_push(ie_conn.flatten(), ie_pop.weight, runtime)
 
 # Zero remaining state
-zero_and_push(hidden.v, runtime)
-zero_and_push(hidden.i, runtime)
-zero_and_push(hidden.refrac_time, runtime)
-zero_and_push(output.v, runtime)
-zero_and_push(output.i, runtime)
-zero_and_push(output.v_avg, runtime)
+zero_and_push(e_pop.v, runtime)
+zero_and_push(e_pop.refrac_time, runtime)
+zero_and_push(i_pop.v, runtime)
+zero_and_push(i_pop.refrac_time, runtime)
+
+# **TODO** zero LLM
 
 if time:
     zero_and_push(neuron_update_processes.performance_counter, runtime)
     zero_and_push(synapse_update_processes.performance_counter, runtime)
-    zero_and_push(copy_processes.performance_counter, runtime)
 
 # Set instructions
 runtime.set_instructions(code)
 
-# Loop through examples
-input_spike_array, input_spike_view = get_array_view(runtime, input_spikes,
-                                                     np.uint32)
-hidden_spike_array = runtime.get_array(hidden.out_spikes)
-
-output_v_avg_array, _ = get_array_view(runtime, output.v_avg, np.int16)
-output_v_avg_copy_array, output_v_avg_copy_view = get_array_view(runtime, output_copy.target,
-                                                       np.int16)
-num_correct = 0
-for i in tqdm(range(len(mnist_labels))):
-    # Copy data to array host pointe
-    input_spike_view[:] = mnist_spikes[i]
-    input_spike_array.push_to_device();
-
-    # Classify
-    runtime.run()
-
-    # If we're recording, write input and hidden spikes to file
-    #if record:
-    #    recordSpikes("mnist_input_spikes_" + std::to_string(i) + ".csv", inputSpikeArray,
-    #                 inputShape.getNumNeurons(), numTimesteps);
-    #    recordSpikes("mnist_hidden_spikes_" + std::to_string(i) + ".csv", hiddenSpikeArray,
-    #                 hiddenShape.getNumNeurons(), numTimesteps);
-
-    # Copy output V sum from device
-    output_v_avg_copy_array.pull_from_device();
-
-    # Determine if output is correct
-    classification = np.argmax(output_v_avg_copy_view)
-    if classification == mnist_labels[i]:
-        num_correct += 1
-
-    # Push ORIGINAL output back to device (zeroing)
-    output_v_avg_array.push_to_device()
-
-print(f"{num_correct} / {len(mnist_labels)} correct {100.0 * (num_correct / len(mnist_labels))}%")
+# Simulate
+runtime.run()
 
 if time:
     neuron_update_cycles, neuron_update_instructions = read_perf_counter(
         neuron_update_processes.performance_counter, runtime)
     synapse_update_cycles, synapse_update_instructions = read_perf_counter(
         synapse_update_processes.performance_counter, runtime)
-    copy_cycles, copy_instructions = read_perf_counter(
-        copy_processes.performance_counter, runtime)
-    
+   
     print(f"Neuron update {neuron_update_cycles} cycles, {neuron_update_instructions} instruction ({neuron_update_instructions / neuron_update_cycles})")
     print(f"Synapse update {synapse_update_cycles} cycles, {synapse_update_instructions} instruction ({synapse_update_instructions / synapse_update_cycles})")
-    print(f"Copy {copy_cycles} cycles, {copy_instructions} instruction ({copy_instructions / copy_cycles})")
