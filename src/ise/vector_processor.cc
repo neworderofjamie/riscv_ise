@@ -143,7 +143,7 @@ int16_t LaneLocalMemory::read(uint32_t addr) const
 void LaneLocalMemory::write(uint32_t addr, int16_t data)
 {
     if (addr & 1) {
-        throw Exception(Exception::Cause::MISALIGNED_LOAD, addr);
+        throw Exception(Exception::Cause::MISALIGNED_STORE, addr);
     }
 
     const size_t halfWordAddr = addr / 2;
