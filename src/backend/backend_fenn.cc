@@ -591,6 +591,14 @@ private:
         }
     }
 
+    virtual void visit(std::shared_ptr<const MemsetProcess> memsetProcess)
+    {
+        // As long as variable is our target, can memset anything!
+        if(m_Variable != memsetProcess->getTarget()) {
+            assert(false);
+        }
+    }
+
 
     //------------------------------------------------------------------------
     // Members
@@ -1102,6 +1110,67 @@ private:
         
             // If SVectorBuffer != SVectorBufferEnd, goto vector loop
             c.bne(*SVectorBuffer, *SVectorBufferEnd, vectorLoop);
+        }
+    }
+
+    virtual void visit(std::shared_ptr<const MemsetProcess> memsetProcess)
+    {
+        auto &scalarRegisterAllocator = m_ScalarRegisterAllocator.get();
+        auto &vectorRegisterAllocator = m_VectorRegisterAllocator.get();
+        auto &c = m_CodeGenerator.get();
+
+        // Get fields associated with this process
+        const auto &stateFields = m_Model.get().getProcessFields().at(memsetProcess);
+        
+        // Visit all users of this variable to determine how it should be implemented
+        VariableImplementerVisitor visitor(memsetProcess->getTarget(), m_Model.get().getStateProcesses().at(memsetProcess->getTarget()));
+
+        {
+            // Load target address
+            ALLOCATE_SCALAR(STargetBuffer);
+            c.lw(*STargetBuffer, Reg::X0, stateFields.at(memsetProcess->getTarget()));
+
+            /*if(visitor.isURAMCompatible()) {
+            
+            }
+            else */if(visitor.isLLMCompatible()) {
+                ALLOCATE_VECTOR(VValue);
+                ALLOCATE_VECTOR(VLLMAddress);
+                ALLOCATE_VECTOR(VNumUnrollBytes);
+                
+                // Determine how many vectors we're memsetting
+                const size_t numVectors = ceilDivide(memsetProcess->getTarget()->getShape().getFlattenedSize(), 32);
+
+                // Load value to memset and calculate unroll bytes
+                // **TODO** parameterise
+                c.vlui(*VValue, 0);
+                c.vlui(*VNumUnrollBytes, 2 * std::min(numVectors, size_t{4}));
+
+                // Broadcast address
+                c.vfill(*VLLMAddress, *STargetBuffer);
+
+                // Generate unrolled loop 
+                AssemblerUtils::unrollVectorLoopBody(
+                    c, scalarRegisterAllocator, numVectors * 32, 4, *STargetBuffer,
+                    [&scalarRegisterAllocator, &vectorRegisterAllocator,
+                     VLLMAddress, VValue]
+                    (CodeGenerator &c, uint32_t r, uint32_t, ScalarRegisterAllocator::RegisterPtr)
+                    {
+                        c.vstorel(*VValue, *VLLMAddress, r * 2);                  
+                    },
+                    [STargetBuffer, VLLMAddress, VNumUnrollBytes]
+                    (CodeGenerator &c, uint32_t numUnrolls)
+                    {
+                        c.vadd(*VLLMAddress, *VLLMAddress, *VNumUnrollBytes);
+                        c.addi(*STargetBuffer, *STargetBuffer, 64 * numUnrolls);
+                    });
+                
+            }
+            /*else if(visitor.isBRAMCompatible()) {
+            }*/
+            else {
+                assert(false);
+            }
         }
     }
 

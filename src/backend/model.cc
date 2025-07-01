@@ -176,6 +176,27 @@ private:
         m_CurrentProcessFields.clear();
     }
 
+    virtual void visit(std::shared_ptr<const MemsetProcess> memsetProcess)
+    {
+        LOGD << "\tMemset process '" << memsetProcess->getName() << "'";
+        assert(m_CurrentProcessFields.empty());
+
+        // Visit 
+        memsetProcess->getTarget()->accept(*this);
+        
+        // Add back-references in state 
+        m_StateProcesses.get()[memsetProcess->getTarget()].push_back(memsetProcess);
+
+        // Add process fields
+        if(!m_ProcessFields.get().try_emplace(memsetProcess, m_CurrentProcessFields).second) {
+            throw std::runtime_error("Memset process '" + memsetProcess->getName() + "' encountered multiple times in model traversal");
+        }
+
+        // Clear current state fields
+        m_CurrentProcessFields.clear();
+    }
+
+
     virtual void visit(std::shared_ptr<const Variable> variable)
     {
         // Allocate BRAM for field pointer

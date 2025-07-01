@@ -145,3 +145,22 @@ CopyProcess::CopyProcess(Private, std::shared_ptr<const Variable> source,
                                  "isn't currently supported by copy processes");
     }
 }
+
+
+//----------------------------------------------------------------------------
+// MemsetProcess
+//----------------------------------------------------------------------------
+MemsetProcess::MemsetProcess(Private, std::shared_ptr<const Variable> target,
+                             const std::string &name)
+:   AcceptableModelComponent<MemsetProcess, Process>(name), m_Target(target)
+{
+    if(m_Target == nullptr) {
+        throw std::runtime_error("Memset process requires target");
+    }
+
+   
+    if (m_Target->getNumBufferTimesteps() != 1) {
+        throw std::runtime_error("Target has more than 1 buffer timestep which "
+                                 "isn't currently supported by memset processes");
+    }
+}

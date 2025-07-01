@@ -179,3 +179,34 @@ private:
     std::shared_ptr<const Variable> m_Source;
     std::shared_ptr<const Variable> m_Target;
 };
+
+//----------------------------------------------------------------------------
+// MemsetProcess
+//----------------------------------------------------------------------------
+//! Process for memsetting variables
+class COMPILER_EXPORT MemsetProcess : public AcceptableModelComponent<MemsetProcess, Process>
+{
+public:
+    MemsetProcess(Private, std::shared_ptr<const Variable> target,
+                  const std::string &name);
+
+    //------------------------------------------------------------------------
+    // Public API
+    //------------------------------------------------------------------------
+    const auto getTarget() const{ return m_Target; }
+
+    //------------------------------------------------------------------------
+    // Static API
+    //------------------------------------------------------------------------
+    static std::shared_ptr<MemsetProcess> create(std::shared_ptr<const Variable> target,
+                                                 const std::string &name = "")
+    {
+        return std::make_shared<MemsetProcess>(Private(), target, name);
+    }
+
+private:
+    //------------------------------------------------------------------------
+    // Members
+    //------------------------------------------------------------------------
+    std::shared_ptr<const Variable> m_Target;
+};
