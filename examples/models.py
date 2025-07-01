@@ -123,8 +123,7 @@ class Linear:
               if num_sparse_connectivity_bits == 0 
               else max_row_length)])
         weight_dtype = UnresolvedType(weight_dtype)
-
-        self.weight = Variable(weight_shape, weight_dtype)
+        self.weight = Variable(weight_shape, weight_dtype, 1, f"{name}_weight")
         self.process = EventPropagationProcess(source_events, self.weight,
                                                target_var, 
                                                num_sparse_connectivity_bits,
