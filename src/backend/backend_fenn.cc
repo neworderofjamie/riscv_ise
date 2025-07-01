@@ -1166,6 +1166,8 @@ private:
     }
 
     void generateSparseRow(std::shared_ptr<const EventPropagationProcess> process,
+                          VectorRegisterAllocator::RegisterPtr sparseMaskReg, 
+                          VectorRegisterAllocator::RegisterPtr targetAddrReg,
                           ScalarRegisterAllocator::RegisterPtr weightBufferReg)
     {
         // Make some friendlier-named references
@@ -1174,32 +1176,24 @@ private:
         auto &c = m_CodeGenerator.get();
 
         // Loop over postsynaptic neurons
-        ALLOCATE_SCALAR(SMask);
+        ALLOCATE_VECTOR(VAccum)
         ALLOCATE_VECTOR(VWeightPostInd)
         ALLOCATE_VECTOR(VWeight);
         ALLOCATE_VECTOR(VPostAddr);
-        ALLOCATE_VECTOR(VConnMask);
-        ALLOCATE_VECTOR(VAccum);
-        //ALLOCATE_VECTOR(VAccum1);
-        //ALLOCATE_VECTOR(VAccum2);
-        //ALLOCATE_VECTOR(VWeight);
 
-        c.vlui(*VConnMask, (1 << process->getNumSparseConnectivityBits()) - 1);
-        
-        // Preload first weight (contains postind)
-       
         AssemblerUtils::unrollVectorLoopBody(
-            c, scalarRegisterAllocator, t.maxRowLength, 4, *SPostIndBuffer,
-            [&t, SMask, SPostIndBuffer, VPostInd1, VPostInd2, VAccum1, VAccum2, VWeight, VZero]
-            (CodeGenerator &c, uint32_t r, bool even, ScalarRegisterAllocator::RegisterPtr maskReg)
+            c, scalarRegisterAllocator, process->getMaxRowLength(), 4, *weightBufferReg,
+            [process, sparseMaskReg, targetAddrReg, weightBufferReg, VAccum, VPostAddr, VWeight, VWeightPostInd]
+            (CodeGenerator &c, uint32_t, bool, ScalarRegisterAllocator::RegisterPtr)
             {
                 // Load vector of weights and indices
                 c.vloadv(*VWeightPostInd, *weightBufferReg);
                 
-                // Extract postsynaptic index
-                c.vand(*VPostInd, *VWeightPostInd, *VConnMask);
+                // Extract postsynaptic index and add base address
+                c.vand(*VPostAddr, *VWeightPostInd, *sparseMaskReg);
+                c.vadd(*VPostAddr, *VPostAddr, *targetAddrReg); 
                 
-                // **TODO** add address register
+                // Load accumulator
                 c.vloadl(*VAccum, *VPostAddr);
                 
                 // Extract weight
@@ -1211,11 +1205,11 @@ private:
                 // Write back accumulator
                 c.vstorel(*VAccum, *VPostAddr);
             },
-            [SPostIndBuffer]
+            [weightBufferReg]
             (CodeGenerator &c, uint32_t numUnrolls)
             {
                 // Increment pointers 
-                c.addi(*SPostIndBuffer, *SPostIndBuffer, 64 * numUnrolls);
+                c.addi(*weightBufferReg, *weightBufferReg, 64 * numUnrolls);
             });
     }
 
@@ -1223,6 +1217,7 @@ private:
     {
         // Make some friendlier-named references
         auto &scalarRegisterAllocator = m_ScalarRegisterAllocator.get();
+        auto &vectorRegisterAllocator = m_VectorRegisterAllocator.get();
         auto &c = m_CodeGenerator.get();
 
         // Register allocation
@@ -1262,14 +1257,32 @@ private:
         }
 
         // Loop through postsynaptic targets
-        std::vector<ScalarRegisterAllocator::RegisterPtr> sStrideBufferRegs;
+        std::vector<std::tuple<ScalarRegisterAllocator::RegisterPtr, 
+                               VectorRegisterAllocator::RegisterPtr, 
+                               VectorRegisterAllocator::RegisterPtr>> sProcessRegs;
         for(const auto &p : processes) {
             // Allocate register for stride, calculate and load as immediate
             auto strideReg = scalarRegisterAllocator.getRegister("SStride = X");
             c.li(*strideReg, ceilDivide(p->getMaxRowLength(), 32) * 64);
 
-            // Add scalar register to vector
-            sStrideBufferRegs.emplace_back(strideReg);
+            // If process has sparse connectivity
+            VectorRegisterAllocator::RegisterPtr sparseMaskReg;
+            VectorRegisterAllocator::RegisterPtr targetAddrReg;
+            if(p->getNumSparseConnectivityBits() > 0) {
+                // Allocate register for sparse mask and calculate
+                sparseMaskReg = vectorRegisterAllocator.getRegister("VSparseMask V");
+                c.vlui(*sparseMaskReg, (1 << p->getNumSparseConnectivityBits()) - 1);
+
+                // Allocate register for target address
+                // Generate code to load address
+                ALLOCATE_SCALAR(STmp);
+                targetAddrReg = vectorRegisterAllocator.getRegister("VTargetAddr V");
+                c.lw(*STmp, Reg::X0, processFields.at(p).at(p->getTarget()));
+                c.vfill(*targetAddrReg, *STmp);
+            }
+
+            // Add register pointers to vector
+            sProcessRegs.emplace_back(strideReg, sparseMaskReg, targetAddrReg);
         }
     
         // Load some useful constants
@@ -1322,7 +1335,8 @@ private:
                     const auto p = processes[i];
                     const auto &stateFields = processFields.at(p);
 
-                    ScalarRegisterAllocator::RegisterPtr strideReg = sStrideBufferRegs[i];
+                    // Get previously allocated registers
+                    auto [strideReg, sparseMaskReg, targetAddrReg] = sProcessRegs[i];
 
                     // If process is dense, allocate target register and load
                     // **YUCK** it would be nice to put this at the start of generateDenseRow
@@ -1351,7 +1365,7 @@ private:
                         generateDenseRow(p, targetReg, SWeightBuffer);
                     }
                     else {
-                        generateSparseRow(p, SWeightBuffer);
+                        generateSparseRow(p, sparseMaskReg, targetAddrReg, SWeightBuffer);
                     }
                 }
 
