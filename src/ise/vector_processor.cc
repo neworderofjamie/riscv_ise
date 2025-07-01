@@ -158,7 +158,7 @@ void LaneLocalMemory::write(uint32_t addr, int16_t data)
 // VectorProcessor
 //----------------------------------------------------------------------------
 VectorProcessor::VectorProcessor(size_t vectorMemoryHalfWords, size_t laneLocalMemoryHalfWords)
-:   m_VectorDataMemory(vectorMemoryHalfWords)
+:   m_VectorDataMemory(vectorMemoryHalfWords), m_VRegDelay{0}
 {
     m_LaneLocalMemories.reserve(32);
     for(size_t i = 0; i < 32; i++) {
