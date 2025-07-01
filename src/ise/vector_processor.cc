@@ -655,7 +655,7 @@ void VectorProcessor::writeVReg(size_t reg, const Vector &vector, uint32_t delay
 const Vector &VectorProcessor::readVReg(size_t reg) const
 {
     if(m_VRegDelay[reg] > 0) {
-        throw Exception(Exception::Cause::RAW_HAZARD, 0);
+        throw Exception(Exception::Cause::RAW_HAZARD, reg);
     }
 
     return m_VReg[reg];
