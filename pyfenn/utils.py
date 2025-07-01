@@ -134,10 +134,10 @@ def build_sparse_connectivity(row_ind: Sequence[np.ndarray], weight: Number,
         # Split, pad list of connections with  
         # **NOTE** we only care about which L.L.M. address of target in bytes
         conn_id_banked = np.transpose(np.vstack([np.pad(a, (0, num_vectors - len(a)), 
-                                                        constant_values=-2)
+                                                        constant_values=0)
                                                 for a in np.split(d, s[:-1])]))
         conn_id_banked = np.pad(conn_id_banked, ((0, 0), (0, 32 - conn_id_banked.shape[1])),
-                                constant_values=-2)
+                                constant_values=0)
         
         padded_rows.append(np.reshape(conn_id_banked, 32 * num_vectors))
     
