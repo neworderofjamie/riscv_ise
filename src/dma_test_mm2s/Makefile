@@ -5,17 +5,17 @@ include ../MakefileCommon
 LDFLAGS		+= -L$(LIBRARY_DIRECTORY) -lcommon$(PREFIX) -lassembler$(PREFIX)
 
 # Determine full path to test
-DMA_TEST	:=$(BIN_DIRECTORY)/dma_test$(PREFIX)
+DMA_TEST	:=$(BIN_DIRECTORY)/dma_test_mm2s$(PREFIX)
 
 .PHONY: all clean libcommon libassembler
 
 all: $(DMA_TEST)
 
--include dma_test.d
+-include dma_test_mm2s.d
 
-$(DMA_TEST): dma_test.cc dma_test.d libcommon
+$(DMA_TEST): dma_test_mm2s.cc dma_test_mm2s.d libcommon
 	mkdir -p $(@D)
-	$(CXX) $(CXXFLAGS) dma_test.cc -o $@ $(LDFLAGS)
+	$(CXX) $(CXXFLAGS) dma_test_mm2s.cc -o $@ $(LDFLAGS)
 
 libassembler:
 	if [ -w $(LIBRARY_DIRECTORY) ]; then $(MAKE) -C $(RISCV_DIR)/src/assembler; fi;
