@@ -43,7 +43,10 @@ int main()
 
     // Get halfword pointer to DMA buffer
     volatile int16_t *bufferData = reinterpret_cast<volatile int16_t*>(dmaBuffer.getData());
-                 
+
+    // Write -1 to destination buffer                 
+    std::fill_n(bufferData + 64, 64, -1);
+
     // Create memory contents
     /*std::vector<uint8_t> scalarInitData;
     
