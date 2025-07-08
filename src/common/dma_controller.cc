@@ -28,7 +28,7 @@
 DMAController::DMAController(int memory, size_t baseAddress)
 {
 #ifdef __linux__ 
-    LOGI << "Creating DMA at  " << baseAddress;
+    LOGI << "Creating DMA at  " << std::hex << baseAddress;
 
     // Memory map DMA controller registers
     m_Registers = reinterpret_cast<uint32_t*>(mmap(nullptr, 65535, PROT_READ | PROT_WRITE, MAP_SHARED, 
@@ -47,7 +47,7 @@ void DMAController::startWrite(uint32_t destination, const DMABuffer &sourceBuff
     const uint64_t sourceAddress = sourceBuffer.getPhysicalAddress() + sourceOffset;
     assert((sourceOffset + size) < sourceBuffer.getSize());
 
-    LOGD << "Starting " << size << " byte DMA write from " << sourceAddress;
+    LOGD << "Starting " << size << " byte DMA write from " << std::hex << sourceAddress;
     if((destination & 63) != 0) {
         throw std::runtime_error("DMA writes to URAM must be 64 byte aligned");
     }
@@ -60,7 +60,7 @@ void DMAController::startWrite(uint32_t destination, const DMABuffer &sourceBuff
         throw std::runtime_error("DMA controller can only access 32-bit address space");
     }
     
-    if(size > ((1 << 19) - 1)) {
+    if(size >= ((1 << 19) - 1)) {
         throw std::runtime_error("Maximum size of DMA exceeded");
     }
 
@@ -81,7 +81,7 @@ void DMAController::startRead(DMABuffer &destBuffer, size_t destOffset, uint32_t
     const uint64_t destAddress = destBuffer.getPhysicalAddress() + destOffset;
     assert((destOffset + size) < destBuffer.getSize());
 
-    LOGD << "Starting " << size << " byte DMA read to " << destAddress;
+    LOGD << "Starting " << size << " byte DMA read to " << std::hex << destAddress;
     if((source & 63) != 0) {
         throw std::runtime_error("DMA reads from URAM must be 64 byte aligned");
     }
@@ -94,7 +94,7 @@ void DMAController::startRead(DMABuffer &destBuffer, size_t destOffset, uint32_t
         throw std::runtime_error("DMA controller can only access 32-bit address space");
     }
     
-    if(size > ((1 << 19) - 1)) {
+    if(size >= ((1 << 19) - 1)) {
         throw std::runtime_error("Maximum size of DMA exceeded");
     }
 

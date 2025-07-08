@@ -31,6 +31,10 @@
 
 int main()
 {
+    constexpr size_t numTransfers = 10;
+    constexpr size_t transferSizeHalfWords = 1024;
+    constexpr size_t transferHalfWords = numTransfers * transferSizeHalfWords;
+
     // Configure logging
     plog::ConsoleAppender<plog::TxtFormatter> consoleAppender;
     plog::init(plog::debug, &consoleAppender);
@@ -38,25 +42,26 @@ int main()
     // Create DMA buffer
     DMABuffer dmaBuffer;
 
-    // Check there's enough space for 5 vectors
-    assert(dmaBuffer.getSize() > (32 * 2 * 5));
+    // Check there's enough space for 2 copies of transfers
+    assert(dmaBuffer.getSize() >= (2 * 2 * transferHalfWords));
 
     // Get halfword pointer to DMA buffer
     int16_t *bufferData = reinterpret_cast<int16_t*>(dmaBuffer.getData());
     
-    // Write vector of random data words to DMA buffer
+    // Write vector of random data words to first half of DMA buffer
     std::random_device rng;
     std::uniform_int_distribution<int16_t> dist(std::numeric_limits<int16_t>::min(),
                                                 std::numeric_limits<int16_t>::max());
-    std::generate_n(bufferData, 64, 
+    std::generate_n(bufferData, transferHalfWords, 
                     [&rng, &dist](){ return dist(rng); });
     
-    // Write -1 to remainder of buffer                 
-    std::fill_n(bufferData + 64, 64, -1);
+    // Write -1 to second half of buffer                 
+    std::fill_n(bufferData + transferHalfWords, 
+                transferHalfWords, -1);
     
-    std::cout << "Data:";
-    for(size_t i = 0; i < 64; i++) {
-        std::cout << bufferData[i];
+    std::cout << "Data:" << std::endl;
+    for(size_t i = 0; i < std::min(transferHalfWords, size_t{2048}); i++) {
+        std::cout << bufferData[i] << ", ";
     }
     std::cout << std::endl;
                     
@@ -67,7 +72,7 @@ int main()
     const uint32_t readyFlagPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
     const uint32_t outputPtr = AppUtils::allocateScalarAndZero(64 * 5, scalarInitData);*/
 
-    const uint32_t vectorTwoPtr = 400 * 1024;
+    //const uint32_t vectorTwoPtr = 400 * 1024;
 
     // Generate code to copy 2 vectors from pointer one and 3 vectors from pointer 2 into output area
     /*const auto code = AssemblerUtils::generateStandardKernel(
@@ -102,25 +107,31 @@ int main()
 
     // Create DMA controller
     DMAController dmaController(memory, 0xA0000000);
-
-    // Write 64 elements from DMA buffer to vectorTwoPtr
-    dmaController.startWrite(vectorTwoPtr, dmaBuffer, 0, 64 * 2);
     
-    // Wait for write to complete
-    dmaController.waitForWriteComplete();
-   
-    // Read 64 elements back from vectorTwoPtr to DMA buffer
-    dmaController.startRead(dmaBuffer, 64 * 2, vectorTwoPtr, 64 * 2);
+    // Issue interleaved reads and writes
+    for(size_t offsetBytes = 0; offsetBytes < (2 * transferHalfWords); offsetBytes+=(transferSizeHalfWords * 2)) {
+        // Make write
+        dmaController.startWrite(offsetBytes, dmaBuffer, offsetBytes, transferSizeHalfWords * 2);
 
-    // Wait for read to complete
-    dmaController.waitForReadComplete();
+        // Wait for write to complete
+        dmaController.waitForWriteComplete();
+        
+        // Make read
+        dmaController.startRead(dmaBuffer, (transferHalfWords * 2) + offsetBytes, offsetBytes, transferSizeHalfWords * 2);
 
-    if(!std::equal(bufferData, bufferData + 64, bufferData + 64)) {
+        // Wait for read to complete
+        dmaController.waitForReadComplete();
+    }
+    
+    if(!std::equal(bufferData, bufferData + transferHalfWords, bufferData + transferHalfWords)) {
         LOGE << "ERROR: copy incorrect";
-        for(size_t i = 64; i < 128; i++) {
-            std::cout << bufferData[i];
+        for(size_t i = 0; i < transferHalfWords; i++) {
+            std::cout << bufferData[transferHalfWords + i] << ", ";
         }
         std::cout << std::endl;
+    }
+    else {
+        LOGI << "Copy successful!";
     }
     close(memory);
     /*LOGI << "Enabling";
