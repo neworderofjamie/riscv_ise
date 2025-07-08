@@ -42,8 +42,21 @@ int main()
     assert(dmaBuffer.getSize() > (32 * 2 * 5));
 
     // Get halfword pointer to DMA buffer
-    volatile int16_t *bufferData = reinterpret_cast<volatile int16_t*>(dmaBuffer.getData());
-                 
+    int16_t *bufferData = reinterpret_cast<int16_t*>(dmaBuffer.getData());
+    
+    // Write vector of random data words to DMA buffer
+    std::random_device rng;
+    std::uniform_int_distribution<int16_t> dist(std::numeric_limits<int16_t>::min(),
+                                                std::numeric_limits<int16_t>::max());
+    std::generate_n(bufferData, 64, 
+                    [&rng, &dist](){ return dist(rng); });
+    
+    std::cout << "Data:";
+    for(size_t i = 0; i < 64; i++) {
+        std::cout << bufferData[i];
+    }
+    std::cout << std::endl;
+                    
     // Create memory contents
     /*std::vector<uint8_t> scalarInitData;
     
@@ -87,17 +100,25 @@ int main()
     // Create DMA controller
     DMAController dmaController(memory, 0xA0000000);
 
+    // Write 64 elements from DMA buffer to vectorTwoPtr
+    dmaController.startWrite(vectorTwoPtr, dmaBuffer, 0, 64 * 2);
+    
+    // Wait for write to complete
+    dmaController.waitForWriteComplete();
+   
     // Read 64 elements back from vectorTwoPtr to DMA buffer
     dmaController.startRead(dmaBuffer, 64 * 2, vectorTwoPtr, 64 * 2);
 
     // Wait for read to complete
     dmaController.waitForReadComplete();
-    
-    for(size_t i = 64; i < 128; i++) {
-        std::cout << bufferData[i] << ", ";
+
+    if(!std::equal(bufferData, bufferData + 64, bufferData + 64)) {
+        LOGE << "ERROR: copy incorrect";
+        for(size_t i = 64; i < 128; i++) {
+            std::cout << bufferData[i];
+        }
+        std::cout << std::endl;
     }
-    std::cout << std::endl;
-    
     close(memory);
     /*LOGI << "Enabling";
     // Put core into running state
