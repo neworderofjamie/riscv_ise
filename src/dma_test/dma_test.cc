@@ -51,6 +51,9 @@ int main()
     std::generate_n(bufferData, 64, 
                     [&rng, &dist](){ return dist(rng); });
     
+    // Write -1 to remainder of buffer                 
+    std::fill_n(bufferData + 64, 64, -1);
+    
     std::cout << "Data:";
     for(size_t i = 0; i < 64; i++) {
         std::cout << bufferData[i];
