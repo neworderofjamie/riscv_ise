@@ -179,4 +179,86 @@ void DMAControllerSim::tick()
                 }
             }
         });
+    
+    // Tick S2MM FSM
+    m_S2MMFSM.tick(
+        // Enter
+        [this](auto state)
+        {
+            // Get reference to status register
+            uint32_t &statusRegister = m_Registers[static_cast<int>(Register::S2MM_STATUS)];
+
+            // OR together all bits used to indicate state
+            constexpr uint32_t stateMask = (static_cast<uint32_t>(StatusBits::STATE_IDLE)
+                                            | static_cast<uint32_t>(StatusBits::STATE_START)
+                                            | static_cast<uint32_t>(StatusBits::STATE_TRANSFER));
+            if(state == FSMState::IDLE) {
+                // Clear state bits and set idle
+                statusRegister &= ~stateMask;
+                statusRegister |= static_cast<uint32_t>(StatusBits::STATE_IDLE);
+            }
+            else if(state == FSMState::TRANSFERRING) {
+                // Clear state bits and set transferring
+                statusRegister &= ~stateMask;
+                statusRegister |= static_cast<uint32_t>(StatusBits::STATE_TRANSFER);
+    
+                // Calculate delay
+                assert(m_ActiveS2MM);
+                m_S2MMDelay = 10 + (4 * (m_ActiveS2MM->count / 64));
+            }
+        },
+        // Tick
+        [this](auto state, auto transition)
+        {
+            // Get reference to status register
+            uint32_t &statusRegister = m_Registers[static_cast<int>(Register::S2MM_STATUS)];
+
+            // OR together all bits used to indicate transfer status
+            constexpr uint32_t transferMask = (static_cast<uint32_t>(StatusBits::ERROR_INTERNAL)
+                                               | static_cast<uint32_t>(StatusBits::ERROR_DECODE)
+                                               | static_cast<uint32_t>(StatusBits::ERROR_SLAVE)
+                                               | static_cast<uint32_t>(StatusBits::TRANSFER_OK));
+            // Idling
+            if(state == FSMState::IDLE) {
+                // If we should start write
+                if(readReg(Register::S2MM_CONTROL) & 1) {
+                    // **TODO** verify register values
+
+                    // Create active transfer
+                    assert(!m_ActiveS2MM);
+                    m_ActiveS2MM = Transfer{readReg(Register::S2MM_SRC_ADDR),
+                                            readReg(Register::S2MM_DST_ADDR),
+                                            readReg(Register::S2MM_COUNT)};
+                    
+                    // Zero control register
+                    writeReg(Register::S2MM_CONTROL, 0);
+
+                    // Transition to transferring
+                    transition(FSMState::TRANSFERRING);
+                }
+            }
+            // Transferring
+            else if(state == FSMState::TRANSFERRING) {
+                assert(m_ActiveS2MM);
+
+                // Tick down delay
+                m_S2MMDelay--;
+                
+                // If data is ready
+                if(m_S2MMDelay <= 0) {
+                    // Copy bytes from vector data memory into buffer
+                    std::copy_n(m_VectorDataMemory.get().getData() + (m_ActiveS2MM->destination / 2),
+                                m_ActiveS2MM->count,
+                                m_Data.data() + m_ActiveS2MM->source);
+                    
+                    // Clear transfer bits and set transfer ok
+                    statusRegister &= ~transferMask;
+                    statusRegister |= static_cast<uint32_t>(StatusBits::TRANSFER_OK);
+    
+
+                    // Transition to idle
+                    transition(FSMState::IDLE);
+                }
+            }
+        });
 }
