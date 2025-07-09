@@ -206,6 +206,19 @@ enum class CSR : uint32_t
     MIMPID          = 0xF13,
     MHARTID         = 0xF14,
     MCONFIGPTRID    = 0xF15,
+
+    // DMA controller CSRs
+    MM2S_SRC_ADDR   = 0xBC0,
+    MM2S_DST_ADDR   = 0xBC1,
+    MM2S_COUNT      = 0xBC2,
+    MM2S_CONTROL    = 0xBC3,
+    S2MM_SRC_ADDR   = 0xBD0,
+    S2MM_DST_ADDR   = 0xBD1,
+    S2MM_COUNT      = 0xBD2,
+    S2MM_CONTROL    = 0xBD3,
+
+    MM2S_STATUS     = 0xFC0,
+    S2MM_STATUS     = 0xFD0,
 };
 
 // funct7 rs2 rs1 funct3 rd
