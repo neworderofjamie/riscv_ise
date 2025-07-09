@@ -19,10 +19,13 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="dma_controller_sim.cc" />
     <ClCompile Include="riscv.cc" />
     <ClCompile Include="vector_processor.cc" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\include\ise\dma_controller_sim.h" />
+    <ClInclude Include="..\..\include\ise\fsm.h" />
     <ClInclude Include="..\..\include\ise\ise_export.h" />
     <ClInclude Include="..\..\include\ise\riscv.h" />
     <ClInclude Include="..\..\include\ise\vector_processor.h" />

@@ -17,6 +17,9 @@
     <ClCompile Include="vector_processor.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="dma_controller_sim.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\ise\riscv.h">
@@ -26,6 +29,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\ise\ise_export.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\ise\fsm.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\ise\dma_controller_sim.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
