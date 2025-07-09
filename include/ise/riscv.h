@@ -16,6 +16,9 @@
 // ISE includes
 #include "ise/ise_export.h"
 
+// Forward declarations
+class DMAControllerSim;
+
 //----------------------------------------------------------------------------
 // InstructionMemory
 //----------------------------------------------------------------------------
@@ -107,7 +110,8 @@ public:
         virtual void dumpRegisters() const = 0;
     };
 
-    RISCV(size_t numInstructionWords = 1024, size_t numDataBytes = 131072);
+    RISCV(DMAControllerSim *dmaController = nullptr, size_t numInstructionWords = 1024, 
+          size_t numDataBytes = 131072);
 
     bool run();
     void dumpRegisters() const;
@@ -176,6 +180,8 @@ private:
     ScalarDataMemory m_ScalarDataMemory;
 
     std::unique_ptr<ICoprocessor> m_Coprocessors[3];
+
+    DMAControllerSim *m_DMAController;
 
     // Stats
     uint64_t m_NumCycles;

@@ -10,6 +10,9 @@
 #include <plog/Log.h>
 #include <plog/Severity.h>
 
+// RISC-V ISE include
+#include "ise/dma_controller_sim.h"
+
 // RISC-V utils include
 #include "common/utils.h"
 
@@ -146,8 +149,9 @@ void ScalarDataMemory::setData(const std::vector<uint8_t> &data)
 //----------------------------------------------------------------------------
 // RISCV
 //----------------------------------------------------------------------------
-RISCV::RISCV(size_t numInstructionWords, size_t numDataBytes)
-:   m_PC(0), m_NextPC(0), m_Reg{0}, m_InstructionMemory(numInstructionWords), m_ScalarDataMemory(numDataBytes), m_CountInhibit(0b101)
+RISCV::RISCV(DMAControllerSim *dmaController, size_t numInstructionWords, size_t numDataBytes)
+:   m_PC(0), m_NextPC(0), m_Reg{0}, m_InstructionMemory(numInstructionWords), 
+    m_ScalarDataMemory(numDataBytes), m_DMAController(dmaController), m_CountInhibit(0b101)
 {
     resetStats();
 }
@@ -627,6 +631,16 @@ std::optional<uint32_t> RISCV::readCSR(uint32_t csr, bool willWrite) const
     if (((csr & 0xc00) == 0xc00) && willWrite) {
         return std::nullopt; 
     }
+    #define IMPLEMENT_READ_DMA_REG(REG)                                             \
+        case CSR::REG:                                                              \
+        {                                                                           \
+            if(m_DMAController) {                                                   \
+                return m_DMAController->readReg(DMAControllerSim::Register::REG);   \
+            }                                                                       \
+            else {                                                                  \
+                return std::nullopt;                                                \
+            }                                                                       \
+        }
 
     switch(static_cast<CSR>(csr)) {
     /*case CSR::MSTATUS:
@@ -661,13 +675,34 @@ std::optional<uint32_t> RISCV::readCSR(uint32_t csr, bool willWrite) const
         return m_NumInstructionsExecuted >> 32;
     /*case CSR::MHARTID:
         return mhartid;*/
+    
+    IMPLEMENT_READ_DMA_REG(MM2S_SRC_ADDR)
+    IMPLEMENT_READ_DMA_REG(MM2S_DST_ADDR)
+    IMPLEMENT_READ_DMA_REG(MM2S_COUNT)
+    IMPLEMENT_READ_DMA_REG(MM2S_STATUS)
+    IMPLEMENT_READ_DMA_REG(S2MM_SRC_ADDR)
+    IMPLEMENT_READ_DMA_REG(S2MM_DST_ADDR)
+    IMPLEMENT_READ_DMA_REG(S2MM_COUNT)
+    IMPLEMENT_READ_DMA_REG(S2MM_STATUS)
+
     default:
         return std::nullopt;
     }
+
+    #undef IMPLEMENT_READ_DMA_REG
 }
 //----------------------------------------------------------------------------
 bool RISCV::writeCSR(uint32_t csr, uint32_t val)
 {
+    #define IMPLEMENT_WRITE_DMA_REG(REG)                                            \
+        case CSR::REG:                                                              \
+        {                                                                           \
+            if(m_DMAController) {                                                   \
+                m_DMAController->writeReg(DMAControllerSim::Register::REG, val);    \
+            }                                                                       \
+            return true;                                                            \
+        }
+
     switch(static_cast<CSR>(csr)) {
     /*case CSR::MSTATUS:
         setMStatus(val);
@@ -700,9 +735,20 @@ bool RISCV::writeCSR(uint32_t csr, uint32_t val)
         const uint32_t mask = MIP_SSIP | MIP_STIP;
         mip = (mip & ~mask) | (val & mask);
         break;*/
+    IMPLEMENT_WRITE_DMA_REG(MM2S_SRC_ADDR)
+    IMPLEMENT_WRITE_DMA_REG(MM2S_DST_ADDR)
+    IMPLEMENT_WRITE_DMA_REG(MM2S_COUNT)
+    IMPLEMENT_WRITE_DMA_REG(MM2S_CONTROL)
+    IMPLEMENT_WRITE_DMA_REG(S2MM_SRC_ADDR)
+    IMPLEMENT_WRITE_DMA_REG(S2MM_DST_ADDR)
+    IMPLEMENT_WRITE_DMA_REG(S2MM_COUNT)
+    IMPLEMENT_WRITE_DMA_REG(S2MM_CONTROL)
+
     default:
         return true;
     }
+
+    #undef IMPLEMENT_WRITE_DMA_REG
 }
 //----------------------------------------------------------------------------
 void RISCV::executeStandardInstruction(uint32_t inst)
@@ -1019,6 +1065,11 @@ void RISCV::executeInstruction(uint32_t inst)
         if(c) {
             c->tick();
         }
+    }
+
+    // Tick DMA controller
+    if(m_DMAController) {
+        m_DMAController->tick();
     }
 
     // Extract 2-bit quadrant
