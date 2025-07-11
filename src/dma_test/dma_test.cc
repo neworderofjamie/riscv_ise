@@ -19,15 +19,9 @@
 #include <plog/Appenders/ConsoleAppender.h>
 
 // RISC-V common includes
-#include "common/app_utils.h"
-#include "common/device.h"
 #include "common/dma_buffer.h"
 #include "common/dma_controller.h"
 
-// RISC-V assembler includes
-#include "assembler/assembler.h"
-#include "assembler/assembler_utils.h"
-#include "assembler/register_allocator.h"
 
 int main()
 {
@@ -65,39 +59,7 @@ int main()
     }
     std::cout << std::endl;
                     
-    // Create memory contents
-    /*std::vector<uint8_t> scalarInitData;
-    
-    // Allocate scalar arrays
-    const uint32_t readyFlagPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
-    const uint32_t outputPtr = AppUtils::allocateScalarAndZero(64 * 5, scalarInitData);*/
-
-    //const uint32_t vectorTwoPtr = 400 * 1024;
-
-    // Generate code to copy 2 vectors from pointer one and 3 vectors from pointer 2 into output area
-    /*const auto code = AssemblerUtils::generateStandardKernel(
-        false, readyFlagPtr,
-        [=](CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator, ScalarRegisterAllocator &scalarRegisterAllocator)
-        {
-            AssemblerUtils::generateVectorScalarMemcpy(c, vectorRegisterAllocator, scalarRegisterAllocator,
-                                                       vectorOnePtr, outputPtr, 2);
-            AssemblerUtils::generateVectorScalarMemcpy(c, vectorRegisterAllocator, scalarRegisterAllocator,
-                                                       vectorTwoPtr, outputPtr + (64 * 2), 3);                                                       
-        });
-
-    LOGI << "Creating device"
-    Device device;
-    LOGI << "Resetting";
-
-    // Put core into reset state
-    device.setEnabled(false);
-    
-    LOGI << "Copying instructions (" << code.size() * sizeof(uint32_t) << " bytes)";
-    device.uploadCode(code);
-    
-    LOGI << "Copying data (" << scalarInitData.size() << " bytes);";
-    device.memcpyDataToDevice(0, scalarInitData.data(), scalarInitData.size());*/
-    
+  
     // Open memory
     // **NOTE** O_SYNC turns of caching
     int memory = open("/dev/mem", O_RDWR | O_SYNC);
@@ -134,23 +96,4 @@ int main()
         LOGI << "Copy successful!";
     }
     close(memory);
-    /*LOGI << "Enabling";
-    // Put core into running state
-    device.setEnabled(true);
-    LOGI << "Running";
-    
-    // Wait until ready flag
-    device.waitOnNonZero(readyFlagPtr);
-
-    LOGI << "Done";
-
-    // Get pointer to output
-    const volatile int16_t *output = reinterpret_cast<const volatile int16_t*>(device.getDataMemory() + outputPtr);
-
-    if(!std::equal(bufferData, bufferData + (32 * 5), output)) {
-        LOGE << "ERROR: copy incorrect";
-        for(int i = 0; i < (32 * 5); i++) {
-            LOGI << i << ":" << output[i] << " vs " << bufferData[i];
-        }
-    }*/
 }

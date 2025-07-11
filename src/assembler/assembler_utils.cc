@@ -365,4 +365,76 @@ void generateAddUint64(CodeGenerator &c, ScalarRegisterAllocator &scalarRegister
     c.add(destHigh, destHigh, addHigh);
     c.add(destHigh, *STemp, destHigh);
 }
+//----------------------------------------------------------------------------
+void generateDMAStartWrite(CodeGenerator &c, Reg destination, Reg source, Reg size)
+{
+    // Write source and destination addresses to CSRs
+    c.csrw(CSR::MM2S_SRC_ADDR, source);
+    c.csrw(CSR::MM2S_DST_ADDR, destination);
+
+    // Write count to CSR
+    c.csrw(CSR::MM2S_COUNT, size);
+
+    // Run
+    // **THINK** fancier CSR instruction could be used here
+    c.csrwi(CSR::MM2S_CONTROL, 1);
+}
+//----------------------------------------------------------------------------
+void generateDMAStartRead(CodeGenerator &c, Reg destination, Reg source, Reg size)
+{
+    // Write source and destination addresses to CSRs
+    c.csrw(CSR::S2MM_SRC_ADDR, source);
+    c.csrw(CSR::S2MM_DST_ADDR, destination);
+
+    // Write count to CSR
+    c.csrw(CSR::S2MM_COUNT, size);
+
+    // Run
+    // **THINK** fancier CSR instruction could be used here
+    c.csrwi(CSR::S2MM_CONTROL, 1);
+}
+//----------------------------------------------------------------------------
+ScalarRegisterAllocator::RegisterPtr generateDMAWaitForWriteComplete(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator)
+{
+    ALLOCATE_SCALAR(SStatus);
+    ALLOCATE_SCALAR(SIdle);
+
+    Label loop;
+    c.L(loop);
+    {
+        // Read status register
+        c.csrr(*SStatus, CSR::MM2S_STATUS);
+
+        // Extract idle bit
+        c.andi(*SIdle, *SStatus, 1 << 1);// static_cast<uint32_t>(StatusBits::STATE_IDLE))
+
+        // Loop while not idle
+        c.beq(*SIdle, Reg::X0, loop);
+    }
+
+    // Return status register
+    return SStatus;
+}
+//----------------------------------------------------------------------------
+ScalarRegisterAllocator::RegisterPtr generateDMAWaitForReadComplete(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator)
+{
+    ALLOCATE_SCALAR(SStatus);
+    ALLOCATE_SCALAR(SIdle);
+
+    Label loop;
+    c.L(loop);
+    {
+        // Read status register
+        c.csrr(*SStatus, CSR::S2MM_STATUS);
+
+        // Extract idle bit
+        c.andi(*SIdle, *SStatus, 1 << 1);// static_cast<uint32_t>(StatusBits::STATE_IDLE))
+
+        // Loop while not idle
+        c.beq(*SIdle, Reg::X0, loop);
+    }
+
+    // Return status register
+    return SStatus;
+}
 }

@@ -16,7 +16,7 @@ DMAControllerSim::DMAControllerSim(VectorDataMemory &vectorDataMemory, size_t bu
 
 }
 //----------------------------------------------------------------------------
-void DMAControllerSim::startWrite(uint32_t destination, uint32_t source, uint32_t size)
+/*void DMAControllerSim::startWrite(uint32_t destination, uint32_t source, uint32_t size)
 {
     LOGD << "Starting " << size << " byte DMA write from " << std::hex << source;
     if((destination & 63) != 0) {
@@ -84,7 +84,7 @@ void DMAControllerSim::waitForWriteComplete() const
 void DMAControllerSim::waitForReadComplete() const
 {
 
-}
+}*/
 //----------------------------------------------------------------------------
 void DMAControllerSim::writeReg(Register reg, uint32_t val)
 {
