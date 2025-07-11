@@ -70,20 +70,20 @@ int main()
             c.li(*SOutputBuffer, outputPtr);
 
             // Read CSRs into registers and write to memory
-            c.csrr(*SData, CSR::MM2S_SRC_ADDR
-            c.sw(*SData, *SOutoutBuffer, 0);
+            c.csrr(*SData, CSR::MM2S_SRC_ADDR);
+            c.sw(*SData, *SOutputBuffer, 0);
             
-            c.csrr(*SData, CSR::MM2S_DST_ADDR
-            c.sw(*SData, *SOutoutBuffer, 4);
-            
-            c.csrr(*SData, CSR::MM2S_COUNT
-            c.sw(*SData, *SOutoutBuffer, 8);
-            
-            c.csrr(*SData, CSR::MM2S_STATUS
-            c.sw(*SData, *SOutoutBuffer, 12);
+            c.csrr(*SData, CSR::MM2S_DST_ADDR);
+            c.sw(*SData, *SOutputBuffer, 4);
+           
+            c.csrr(*SData, CSR::MM2S_COUNT);
+            c.sw(*SData, *SOutputBuffer, 8);
+
+            c.csrr(*SData, CSR::MM2S_STATUS);
+            c.sw(*SData, *SOutputBuffer, 12);
         });
 
-    LOGI << "Creating device"
+    LOGI << "Creating device";
     Device device;
     LOGI << "Resetting";
 
@@ -97,10 +97,10 @@ int main()
     device.memcpyDataToDevice(0, scalarInitData.data(), scalarInitData.size());
 
     // Make write
-    dmaController.startWrite(0, dmaBuffer, 64, 1024 * 2);
+    device.getDMAController()->startWrite(0, dmaBuffer, 64, 1024 * 2);
 
     // Wait for write to complete
-    dmaController.waitForWriteComplete();
+    device.getDMAController()->waitForWriteComplete();
    
     LOGI << "Enabling";
     
@@ -117,8 +117,9 @@ int main()
     const volatile uint32_t *output = reinterpret_cast<const volatile uint32_t*>(device.getDataMemory() + outputPtr);
 
     // **TODO** check value
-    if(output[0] != static_cast<uint32_t>(sourceAddress & 0xFFFFFFFF)) {
-        LOGE << "MM2S_SRC_ADDR incorrect: " << output[0] << " vs " << static_cast<uint32_t>(sourceAddress & 0xFFFFFFFF);
+    const uint32_t sourceAddress = static_cast<uint32_t>(dmaBuffer.getPhysicalAddress() & 0xFFFFFFFF);
+    if(output[0] != sourceAddress) {
+        LOGE << "MM2S_SRC_ADDR incorrect: " << output[0] << " vs " << sourceAddress;
     }
     
     if(output[1] != 64) {
