@@ -44,7 +44,7 @@ public:
     // Public API
     //------------------------------------------------------------------------
     //! Start write (from source DMA buffer to URAM)
-    void startWrite(uint32_t destination, uint32_t source, uint32_t size);
+    /*void startWrite(uint32_t destination, uint32_t source, uint32_t size);
     
     //! Start read (from URAM to DMA buffer)
     void startRead(uint32_t destination, uint32_t source, uint32_t size);
@@ -53,7 +53,7 @@ public:
     void waitForWriteComplete() const;
 
     //! Wait for read channel to goto idle
-    void waitForReadComplete() const;
+    void waitForReadComplete() const;*/
 
     //! Write to register
     void writeReg(Register reg, uint32_t val);
@@ -63,6 +63,8 @@ public:
 
     //! Update state
     void tick();
+
+    size_t getDataSize() const{ return m_Data.size(); }
 
     //! Get buffer data
     const uint8_t *getData() const{ return m_Data.data(); }

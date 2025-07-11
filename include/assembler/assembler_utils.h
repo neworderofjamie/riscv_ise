@@ -67,4 +67,18 @@ ASSEMBLER_EXPORT void generateSubtractUint64(CodeGenerator &c, ScalarRegisterAll
 //! Generate code to calculate dest += subtract in Uint64
 ASSEMBLER_EXPORT void generateAddUint64(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator,
                                         Reg destLow, Reg destHigh, Reg addLow, Reg addHigh);
+
+//! Generate code to initiate a DMA write
+ASSEMBLER_EXPORT void generateDMAStartWrite(CodeGenerator &c, Reg destination, Reg source, Reg size);
+
+//! Generate code to initiate a DMA read
+ASSEMBLER_EXPORT void generateDMAStartRead(CodeGenerator &c, Reg destination, Reg source, Reg size);
+
+//! Generate code to (busy) wait until DMA write completes. Returns resulting status value
+ASSEMBLER_EXPORT ScalarRegisterAllocator::RegisterPtr generateDMAWaitForWriteComplete(
+    CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator);
+
+//! Generate code to (busy) wait until DMA read completes. Returns resulting status value
+ASSEMBLER_EXPORT ScalarRegisterAllocator::RegisterPtr generateDMAWaitForReadComplete(
+    CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator);
 }
