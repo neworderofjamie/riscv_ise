@@ -165,9 +165,9 @@ void DMAControllerSim::tick()
                 // If data is ready
                 if(m_MM2SDelay <= 0) {
                     // Copy bytes from buffer into vector data memory
-                    std::copy_n(m_Data.data() + m_ActiveMM2S->source,
-                                m_ActiveMM2S->count,
-                                m_VectorDataMemory.get().getData() + (m_ActiveMM2S->destination / 2));
+                    std::memcpy(m_VectorDataMemory.get().getData() + (m_ActiveMM2S->destination / 2),
+                                m_Data.data() + m_ActiveMM2S->source,
+                                m_ActiveMM2S->count);
                     
                     // Clear transfer bits and set transfer ok
                     statusRegister &= ~transferMask;
@@ -249,9 +249,9 @@ void DMAControllerSim::tick()
                 // If data is ready
                 if(m_S2MMDelay <= 0) {
                     // Copy bytes from vector data memory into buffer
-                    std::copy_n(m_VectorDataMemory.get().getData() + (m_ActiveS2MM->destination / 2),
-                                m_ActiveS2MM->count,
-                                m_Data.data() + m_ActiveS2MM->source);
+                    std::memcpy(m_Data.data() + m_ActiveS2MM->destination,
+                                m_VectorDataMemory.get().getData() + (m_ActiveS2MM->source / 2),
+                                m_ActiveS2MM->count);
                     
                     // Clear transfer bits and set transfer ok
                     statusRegister &= ~transferMask;
