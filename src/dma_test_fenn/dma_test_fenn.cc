@@ -69,7 +69,7 @@ int main(int argc, char** argv)
     plog::ConsoleAppender<plog::TxtFormatter> consoleAppender;
     plog::init(plog::debug, &consoleAppender);
     
-    bool device = true;
+    bool device = false;
     size_t numTransfers = 10;
     size_t transferSizeHalfWords = 1024;
 
@@ -123,7 +123,7 @@ int main(int argc, char** argv)
                 c.add(*SReadDestinationOffsetBytes, *SOffsetBytes, *SWriteEndBytes);
 
                 // Make read
-                AssemblerUtils::generateDMAStartWrite(c, *SReadDestinationOffsetBytes, *SOffsetBytes, *STransferSizeBytes);
+                AssemblerUtils::generateDMAStartRead(c, *SReadDestinationOffsetBytes, *SOffsetBytes, *STransferSizeBytes);
 
                 // Wait for read to complete
                 auto SReadStatus = AssemblerUtils::generateDMAWaitForReadComplete(c, scalarRegisterAllocator);
@@ -175,6 +175,7 @@ int main(int argc, char** argv)
         
         // Create simulated DMA controller
         DMAControllerSim dmaController(riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getVectorDataMemory());
+        riscV.setDMAController(&dmaController);
 
         // Check there's enough space for 2 copies of transfers
         assert(dmaController.getDataSize() >= (2 * 2 * transferHalfWords));

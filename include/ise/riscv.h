@@ -110,8 +110,7 @@ public:
         virtual void dumpRegisters() const = 0;
     };
 
-    RISCV(DMAControllerSim *dmaController = nullptr, size_t numInstructionWords = 1024, 
-          size_t numDataBytes = 131072);
+    RISCV(size_t numInstructionWords = 1024, size_t numDataBytes = 131072);
 
     bool run();
     void dumpRegisters() const;
@@ -133,6 +132,8 @@ public:
     {
         return dynamic_cast<const T*>(m_Coprocessors[quadrant].get());
     }
+
+    void setDMAController(DMAControllerSim *dmaController){ m_DMAController = dmaController; };
     
     auto &getScalarDataMemory(){ return m_ScalarDataMemory; }
     const auto &getScalarDataMemory() const{ return m_ScalarDataMemory; }

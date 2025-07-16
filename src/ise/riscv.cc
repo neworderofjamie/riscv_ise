@@ -149,9 +149,9 @@ void ScalarDataMemory::setData(const std::vector<uint8_t> &data)
 //----------------------------------------------------------------------------
 // RISCV
 //----------------------------------------------------------------------------
-RISCV::RISCV(DMAControllerSim *dmaController, size_t numInstructionWords, size_t numDataBytes)
+RISCV::RISCV(size_t numInstructionWords, size_t numDataBytes)
 :   m_PC(0), m_NextPC(0), m_Reg{0}, m_InstructionMemory(numInstructionWords), 
-    m_ScalarDataMemory(numDataBytes), m_DMAController(dmaController), m_CountInhibit(0b101)
+    m_ScalarDataMemory(numDataBytes), m_DMAController(nullptr), m_CountInhibit(0b101)
 {
     resetStats();
 }
@@ -679,10 +679,12 @@ std::optional<uint32_t> RISCV::readCSR(uint32_t csr, bool willWrite) const
     IMPLEMENT_READ_DMA_REG(MM2S_SRC_ADDR)
     IMPLEMENT_READ_DMA_REG(MM2S_DST_ADDR)
     IMPLEMENT_READ_DMA_REG(MM2S_COUNT)
+    IMPLEMENT_READ_DMA_REG(MM2S_CONTROL)
     IMPLEMENT_READ_DMA_REG(MM2S_STATUS)
     IMPLEMENT_READ_DMA_REG(S2MM_SRC_ADDR)
     IMPLEMENT_READ_DMA_REG(S2MM_DST_ADDR)
     IMPLEMENT_READ_DMA_REG(S2MM_COUNT)
+    IMPLEMENT_READ_DMA_REG(S2MM_CONTROL)
     IMPLEMENT_READ_DMA_REG(S2MM_STATUS)
 
     default:
