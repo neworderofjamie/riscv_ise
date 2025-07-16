@@ -172,7 +172,9 @@ void DMAControllerSim::tick()
                     // Clear transfer bits and set transfer ok
                     statusRegister &= ~transferMask;
                     statusRegister |= static_cast<uint32_t>(StatusBits::TRANSFER_OK);
-    
+
+                    // Clear active transfer
+                    m_ActiveMM2S = std::nullopt;
 
                     // Transition to idle
                     transition(FSMState::IDLE);
@@ -254,7 +256,9 @@ void DMAControllerSim::tick()
                     // Clear transfer bits and set transfer ok
                     statusRegister &= ~transferMask;
                     statusRegister |= static_cast<uint32_t>(StatusBits::TRANSFER_OK);
-    
+
+                    // Clear active transfer
+                    m_ActiveS2MM = std::nullopt;
 
                     // Transition to idle
                     transition(FSMState::IDLE);
