@@ -24,6 +24,7 @@
         "alif",
         "compiler_test",
         "decay",
+        "dma_test_fenn",
         "dump_coe",
         "init_vram",
         "lane_local_test",
