@@ -144,6 +144,17 @@ int main(int argc, char** argv)
     if(device) {
         LOGI << "Creating device";
         Device device;
+
+        // Create DMA buffer
+        DMABuffer dmaBuffer;
+
+        // Check there's enough space for 2 copies of transfers
+        assert(dmaBuffer.getSize() >= (2 * 2 * transferHalfWords));
+
+        // Get pointer to simulated DMA controller buffer and populate
+        int16_t *bufferData = reinterpret_cast<int16_t*>(dmaBuffer.getData());
+        populateBuffer(bufferData, transferHalfWords);
+        
         LOGI << "Resetting";
         // Put core into reset state
         device.setEnabled(false);
@@ -163,6 +174,8 @@ int main(int argc, char** argv)
         device.waitOnNonZero(readyFlagPtr);
         LOGI << "Done";
 
+        // Check results
+        checkBuffer(bufferData, transferHalfWords);
     }
     else {
         // Create RISC-V core with instruction and scalar data
