@@ -33,8 +33,9 @@
 #include "ise/vector_processor.h"
 
 void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAllocator,
-                    RegisterAllocator<Reg> &scalarRegisterAllocator, uint32_t weightPtr, 
-                    std::variant<uint32_t, ScalarRegisterAllocator::RegisterPtr> preSpikePtr, uint32_t postISynPtr, 
+                    ScalarRegisterAllocator &scalarRegisterAllocator, uint32_t weightPtr, 
+                    std::variant<uint32_t, ScalarRegisterAllocator::RegisterPtr> preSpikePtr, 
+                    uint32_t postISynPtr, uint32_t rowBufferAPtr, uint32_t rowBufferBPtr,
                     uint32_t numPre, uint32_t numPost, uint32_t stride, bool debug)
 {
     // Register allocation
@@ -42,6 +43,9 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
     ALLOCATE_SCALAR(SConst1);
     ALLOCATE_SCALAR(SSpikeWord);
     ALLOCATE_SCALAR(SISynBuffer);
+    ALLOCATE_SCALAR(SStride);
+    ALLOCATE_SCALAR(SRowBufferA);
+    ALLOCATE_SCALAR(SRowBufferB);
 
     assert(numPre == 32);
     assert(numPost == 32);
@@ -49,8 +53,11 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
     // Labels
     Label bitLoopStart;
     Label bitLoopBody;
+    Label prefetchBody;
     Label zeroSpikeWord;
+    Label zeroSpikePrefetchWord;
     Label wordEnd;
+    Label waitOnDMA;
 
     // If literal is provided for start of presynapric spike buffer, allocate register and load immediate into it
     ScalarRegisterAllocator::RegisterPtr SSpikeBuffer;
@@ -65,15 +72,30 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
     
     // SISynBuffer = hiddenIsyn;
     c.li(*SISynBuffer, postISynPtr);
+
+    // Load row buffer pointers
+    c.li(*SRowBufferA, rowBufferAPtr);
+    c.li(*SRowBufferB, rowBufferBPtr);
     
     // Load some useful constants
     c.li(*SConst1, 1);
 
     // SWordNStart = 31
     c.li(*SWordNStart, 31);
+
+    c.li(*SStride, stride);
+
+    // Zero isyn
+    {
+        ALLOCATE_VECTOR(VTmp);
+        c.vlui(*VTmp, 0);
+        c.vstore(*VTmp, *SISynBuffer);
+    }
         
     // Register allocation
     ALLOCATE_SCALAR(SN);
+    ALLOCATE_SCALAR(SNumLZ);
+    ALLOCATE_SCALAR(SWeightBuffer);
 
     // SSpikeWord = *SSpikeBuffer++
     c.lw(*SSpikeWord, *SSpikeBuffer);
@@ -84,24 +106,60 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
     // SN = SWordNStart
     c.mv(*SN, *SWordNStart);
 
+    // CNumLZ = clz(SSpikeWord);
+    c.clz(*SNumLZ, *SSpikeWord);
+
+    // If SSpikeWord == 1  i.e. CNumLZ == 31, goto zeroSpikeWord
+    c.beq(*SSpikeWord, *SConst1, zeroSpikePrefetchWord);
+        
+    {
+        // STmp = CNumLZ + 1
+        ALLOCATE_SCALAR(STmp);
+        c.addi(*STmp, *SNumLZ, 1);
+
+        // SSpikeWord <<= CNumLZPlusOne
+        c.sll(*SSpikeWord, *SSpikeWord, *STmp);
+    }
+
+    // SN -= SNumLZ
+    c.L(prefetchBody);
+    c.sub(*SN, *SN, *SNumLZ);
+
+    // SWeightBuffer = weightInHidStart + (numPostVecs * 64 * SN);
+    // **TODO** multiply
+    c.li(*SWeightBuffer, weightPtr);
+    {
+        ALLOCATE_SCALAR(STemp);
+        c.mul(*STemp, *SN, *SStride);
+        c.add(*SWeightBuffer, *SWeightBuffer, *STemp);
+    }
+    
+    // Start DMA write into RowBufferA
+    AssemblerUtils::generateDMAStartWrite(c, *SRowBufferA, *SWeightBuffer, *SStride);
+
+    // SN --
+    c.addi(*SN, *SN, -1);
+       
+    // If we've now got no spikes to process skip next DMA
+    c.beq(*SSpikeWord, Reg::X0, waitOnDMA);
+
     // Inner bit loop
     c.L(bitLoopStart);
     {
-        // Register allocation
-        ALLOCATE_SCALAR(SNumLZ);
-        ALLOCATE_SCALAR(SNumLZPlusOne);
-
         // CNumLZ = clz(SSpikeWord);
         c.clz(*SNumLZ, *SSpikeWord);
 
         // If SSpikeWord == 1  i.e. CNumLZ == 31, goto zeroSpikeWord
         c.beq(*SSpikeWord, *SConst1, zeroSpikeWord);
             
-        // CNumLZPlusOne = CNumLZ + 1
-        c.addi(*SNumLZPlusOne, *SNumLZ, 1);
+        {
+            // STmp = CNumLZ + 1
+            ALLOCATE_SCALAR(STmp);
+            c.addi(*STmp, *SNumLZ, 1);
 
-        // SSpikeWord <<= CNumLZPlusOne
-        c.sll(*SSpikeWord, *SSpikeWord, *SNumLZPlusOne);
+            // SSpikeWord <<= CNumLZPlusOne
+            c.sll(*SSpikeWord, *SSpikeWord, *STmp);
+        }
 
         // SN -= SNumLZ
         c.L(bitLoopBody);
@@ -118,6 +176,17 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
             c.add(*SWeightBuffer, *SWeightBuffer, *STemp);
         }
 
+        // waitOnDMA
+        c.L(waitOnDMA);
+
+        // Wait for previous DMA write to completet
+        AssemblerUtils::generateDMAWaitForWriteComplete(c, scalarRegisterAllocator);
+
+        // Start DMA write into RowBufferB
+        AssemblerUtils::generateDMAStartWrite(c, *SRowBufferB, *SWeightBuffer, *SStride);
+        
+        // SN --
+        c.addi(*SN, *SN, -1);
             
         // Load weight and Isyn
         if(debug) {
@@ -128,8 +197,8 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
             ALLOCATE_VECTOR(VWeight);
             ALLOCATE_VECTOR(VISyn);
          
-            // Load next vector of weights and ISyns
-            c.vloadv(*VWeight, *SWeightBuffer);
+            // Load next vector of weights from row buffer
+            c.vloadv(*VWeight, *SRowBufferA);
             c.vloadv(*VISyn, *SISynBuffer);
 
             // **STALL**
@@ -142,9 +211,13 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
             c.vstore(*VISyn, *SISynBuffer);
         }
 
-
-        // SN --
-        c.addi(*SN, *SN, -1);
+        // Swap buffers
+        {
+            ALLOCATE_SCALAR(STmp);
+            c.mv(*STmp, *SRowBufferA);
+            c.mv(*SRowBufferA, *SRowBufferB);
+            c.mv(*SRowBufferB, *STmp);
+        }
             
         // If SSpikeWord != 0, goto bitLoopStart
         c.bne(*SSpikeWord, Reg::X0, bitLoopStart);
@@ -156,12 +229,21 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
 
     // Zero spike word
     {
+        c.L(zeroSpikePrefetchWord);
+        c.li(*SSpikeWord, 0);
+        //c.j_(bitLoopBody);
+        c.beq(Reg::X0, Reg::X0, prefetchBody);
+    }
+    
+
+    // Zero spike word
+    {
         c.L(zeroSpikeWord);
         c.li(*SSpikeWord, 0);
         //c.j_(bitLoopBody);
         c.beq(Reg::X0, Reg::X0, bitLoopBody);
     }
-    
+
     c.L(wordEnd);
 }
 
@@ -184,7 +266,7 @@ void check(const int16_t *hiddenIsyn, size_t numInput, size_t numHidden)
     std::cout << numCorrect << " correct" << std::endl;
 }
 
-int main()
+int main(int argc, char** argv)
 {
     // Configure logging
     plog::ConsoleAppender<plog::TxtFormatter> consoleAppender;
@@ -202,15 +284,15 @@ int main()
     std::vector<int16_t> vectorInitData;
 
     // Constants
-    constexpr bool simulate = true;
     constexpr uint32_t numInput = 32;
     constexpr uint32_t numHidden = 32;
     constexpr uint32_t numInputSpikeWords = ceilDivide(numInput, 32);
     constexpr uint32_t numHiddenSpikeWords = ceilDivide(numHidden, 32);
     
     // Allocate vector arrays
-    // **NOTE** adjacent so can be block copied from scalar
     const uint32_t hiddenIsynPtr = AppUtils::allocateVectorAndZero(numHidden, vectorInitData);
+    const uint32_t rowBufferAPtr = AppUtils::allocateVectorAndZero(numHidden, vectorInitData);
+    const uint32_t rowBufferBPtr = AppUtils::allocateVectorAndZero(numHidden, vectorInitData);
     
     // Allocate scalar arrays
     const uint32_t inputSpikePtr = AppUtils::allocateScalarAndZero(numInputSpikeWords * 4, scalarInitData);
@@ -237,12 +319,10 @@ int main()
     const auto simCode = AssemblerUtils::generateStandardKernel(
         !device, readyFlagPtr,
         [=](CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator, ScalarRegisterAllocator &scalarRegisterAllocator)
-        {
-            // **TODO** zero Isyn
-            
+        {            
             // 2^6 = 2 bytes * 32 hidden neurons
             genStaticPulse(c, vectorRegisterAllocator, scalarRegisterAllocator,
-                           weightInHidPtr, inputSpikePtr, hiddenIsynPtr, 
+                           0, inputSpikePtr, hiddenIsynPtr, rowBufferAPtr, rowBufferBPtr,
                            numInput, numHidden, numHiddenSpikeWords * 64, false);
 
         });
