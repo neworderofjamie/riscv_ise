@@ -31,13 +31,14 @@
 void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAllocator,
                     RegisterAllocator<Reg> &scalarRegisterAllocator, uint32_t weightPtr, 
                     std::variant<uint32_t, ScalarRegisterAllocator::RegisterPtr> preSpikePtr, uint32_t postISynPtr, 
-                    uint32_t numPre, uint32_t numPost, uint32_t scaleShift, bool debug)
+                    uint32_t numPre, uint32_t numPost, uint32_t stride, bool debug)
 {
     // Register allocation
     ALLOCATE_SCALAR(SWordNStart);
     ALLOCATE_SCALAR(SConst1);
     ALLOCATE_SCALAR(SSpikeWord);
     ALLOCATE_SCALAR(SISynBuffer);
+    ALLOCATE_SCALAR(SStride);
 
     assert(numPre == 32);
     assert(numPost == 32);
@@ -68,6 +69,8 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
     // SWordNStart = 31
     c.li(*SWordNStart, 31);
         
+    c.li(*SStride, stride);
+
     // Register allocation
     ALLOCATE_SCALAR(SN);
 
@@ -85,31 +88,32 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
     {
         // Register allocation
         ALLOCATE_SCALAR(SNumLZ);
-        ALLOCATE_SCALAR(SNumLZPlusOne);
 
         // CNumLZ = clz(SSpikeWord);
         c.clz(*SNumLZ, *SSpikeWord);
 
         // If SSpikeWord == 1  i.e. CNumLZ == 31, goto zeroSpikeWord
         c.beq(*SSpikeWord, *SConst1, zeroSpikeWord);
-            
-        // CNumLZPlusOne = CNumLZ + 1
-        c.addi(*SNumLZPlusOne, *SNumLZ, 1);
 
-        // SSpikeWord <<= CNumLZPlusOne
-        c.sll(*SSpikeWord, *SSpikeWord, *SNumLZPlusOne);
+        {
+            // STmp = CNumLZ + 1
+            ALLOCATE_SCALAR(STmp);
+            c.addi(*STmp, *SNumLZ, 1);
+
+            // SSpikeWord <<= CNumLZPlusOne
+            c.sll(*SSpikeWord, *SSpikeWord, *STmp);
+        }
 
         // SN -= SNumLZ
         c.L(bitLoopBody);
         c.sub(*SN, *SN, *SNumLZ);
 
         // SWeightBuffer = weightInHidStart + (numPostVecs * 64 * SN);
-        // **TODO** multiply
         ALLOCATE_SCALAR(SWeightBuffer);
         c.li(*SWeightBuffer, weightPtr);
         {
             ALLOCATE_SCALAR(STemp);
-            c.slli(*STemp, *SN, scaleShift);
+            c.mul(*STemp, *SN, *SStride);
             c.add(*SWeightBuffer, *SWeightBuffer, *STemp);
         }
 
@@ -160,201 +164,6 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
     c.L(wordEnd);
 }
 
-/*void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAllocator,
-                    RegisterAllocator<Reg> &scalarRegisterAllocator, uint32_t weightPtr, 
-                    std::variant<uint32_t, ScalarRegisterAllocator::RegisterPtr> preSpikePtr, uint32_t postISynPtr, 
-                    uint32_t numPre, uint32_t numPost, uint32_t scaleShift, bool debug)
-{
-    // Register allocation
-    ALLOCATE_SCALAR(SSpikeBufferEnd);
-    ALLOCATE_SCALAR(SWordNStart);
-    ALLOCATE_SCALAR(SConst1);
-    ALLOCATE_SCALAR(SSpikeWord);
-    ALLOCATE_SCALAR(SISynBuffer);
-    ALLOCATE_SCALAR(SISynBufferEnd);
-
-    // Labels
-    Label wordLoop;
-    Label bitLoopStart;
-    Label bitLoopBody;
-    Label bitLoopEnd;
-    Label zeroSpikeWord;
-    Label wordEnd;
-
-    // If literal is provided for start of presynapric spike buffer, allocate register and load immediate into it
-    ScalarRegisterAllocator::RegisterPtr SSpikeBuffer;
-    if(std::holds_alternative<uint32_t>(preSpikePtr)) {
-        SSpikeBuffer = scalarRegisterAllocator.getRegister("SSpikeBuffer = X");
-        c.li(*SSpikeBuffer, std::get<uint32_t>(preSpikePtr));
-    }
-    // Otherwise, use pointer register directly
-    else {
-        SSpikeBuffer = std::get<ScalarRegisterAllocator::RegisterPtr>(preSpikePtr);
-    }
-    
-    // Get address of end of presynaptic spike buffer
-    c.li(*SSpikeBufferEnd, (ceilDivide(numPre, 32) * 4));
-    c.add(*SSpikeBufferEnd, *SSpikeBufferEnd, *SSpikeBuffer);
-    
-    // SISynBuffer = hiddenIsyn;
-    // **NOTE** is only the end of the vectorised region
-    c.li(*SISynBuffer, postISynPtr);
-    c.li(*SISynBufferEnd, postISynPtr + ((numPost / 32) * 64));
-
-    // Load some useful constants
-    c.li(*SConst1, 1);
-
-    // SWordNStart = 31
-    c.li(*SWordNStart, 31);
-        
-    // Outer word loop
-    c.L(wordLoop);
-    {
-        // Register allocation
-        ALLOCATE_SCALAR(SN);
-
-        // SSpikeWord = *SSpikeBuffer++
-        c.lw(*SSpikeWord, *SSpikeBuffer);
-        c.addi(*SSpikeBuffer, *SSpikeBuffer, 4);
-
-        // If SSpikeWord == 0, goto bitloop end
-        c.beq(*SSpikeWord, Reg::X0, bitLoopEnd);
-
-        // SN = SWordNStart
-        c.mv(*SN, *SWordNStart);
-
-        // Inner bit loop
-        c.L(bitLoopStart);
-        {
-            // Register allocation
-            ALLOCATE_SCALAR(SNumLZ);
-            ALLOCATE_SCALAR(SNumLZPlusOne);
-
-            // CNumLZ = clz(SSpikeWord);
-            c.clz(*SNumLZ, *SSpikeWord);
-
-            // If SSpikeWord == 1  i.e. CNumLZ == 31, goto zeroSpikeWord
-            c.beq(*SSpikeWord, *SConst1, zeroSpikeWord);
-            
-            // CNumLZPlusOne = CNumLZ + 1
-            c.addi(*SNumLZPlusOne, *SNumLZ, 1);
-
-            // SSpikeWord <<= CNumLZPlusOne
-            c.sll(*SSpikeWord, *SSpikeWord, *SNumLZPlusOne);
-
-            // SN -= SNumLZ
-            c.L(bitLoopBody);
-            c.sub(*SN, *SN, *SNumLZ);
-
-            // SWeightBuffer = weightInHidStart + (numPostVecs * 64 * SN);
-            // **TODO** multiply
-            ALLOCATE_SCALAR(SWeightBuffer);
-            c.li(*SWeightBuffer, weightPtr);
-            {
-                ALLOCATE_SCALAR(STemp);
-                c.slli(*STemp, *SN, scaleShift);
-                c.add(*SWeightBuffer, *SWeightBuffer, *STemp);
-            }
-
-            // Reset Isyn pointer
-            c.li(*SISynBuffer, postISynPtr);
-            
-            // Load weight and Isyn
-            if(debug) {
-                c.ebreak();
-            }
-
-            // Loop over postsynaptic neurons
-            if(numPost > 32) {
-                ALLOCATE_VECTOR(VWeight);
-                ALLOCATE_VECTOR(VISyn1);
-                ALLOCATE_VECTOR(VISyn2);
-
-                // Preload first ISyn to avoid stall
-                c.vloadv(*VISyn1, *SISynBuffer, 0);
-
-                AssemblerUtils::unrollVectorLoopBody(
-                    c, numPost, 4, *SISynBuffer, *SISynBufferEnd,
-                    [SWeightBuffer, SISynBuffer, VWeight, VISyn1, VISyn2]
-                    (CodeGenerator &c, uint32_t r)
-                    {
-                        // Load vector of weights
-                        c.vloadv(*VWeight, *SWeightBuffer, r * 64);
-
-                        // Unless this is last unroll, load NEXT vector of ISyn to avoid stall
-                        // **YUCK** in last iteration, while this may not be accessed, it may be out of bounds
-                        const bool even = ((r % 2) == 0);
-                        c.vloadv(even ? *VISyn2 : *VISyn1, *SISynBuffer, (r + 1) * 64);
-                        
-                        // Add weights to ISyn
-                        auto VISyn = even ? VISyn1 : VISyn2;
-                        c.vadd(*VISyn, *VISyn, *VWeight);
-
-                        // Write back ISyn and increment SISynBuffer
-                        c.vstore(*VISyn, *SISynBuffer, r * 64);
-                    },
-                    [SWeightBuffer, SISynBuffer]
-                    (CodeGenerator &c, uint32_t numUnrolls)
-                    {
-                        // Increment pointers 
-                        c.addi(*SISynBuffer, *SISynBuffer, 64 * numUnrolls);
-                        c.addi(*SWeightBuffer, *SWeightBuffer, 64 * numUnrolls);
-                    });
-            }
-            // Tail if there are non-POT number of postsynaptic neurons
-            if((numPost % 32) != 0) {
-                ALLOCATE_SCALAR(SMask);
-                ALLOCATE_VECTOR(VWeight);
-                ALLOCATE_VECTOR(VISyn);
-                ALLOCATE_VECTOR(VISynNew);
-
-                // Calculate mask for final iteration
-                c.li(*SMask, (1 << (padSize(numPost, 32) - numPost)) - 1);
-
-                // Load next vector of weights and ISyns
-                c.vloadv(*VWeight, *SWeightBuffer);
-                c.vloadv(*VISyn, *SISynBuffer);
-
-                // **STALL**
-                c.nop();
-
-                // Add weights to ISyn with mask
-                c.vadd(*VISynNew, *VISyn, *VWeight);
-                c.vsel(*VISyn, *SMask, *VISynNew);
-
-                // Write back ISyn
-                c.vstore(*VISyn, *SISynBuffer);
-            }
-
-
-            // SN --
-            c.addi(*SN, *SN, -1);
-            
-            // If SSpikeWord != 0, goto bitLoopStart
-            c.bne(*SSpikeWord, Reg::X0, bitLoopStart);
-        }
-
-        // SWordNStart += 32
-        c.L(bitLoopEnd);
-        c.addi(*SWordNStart, *SWordNStart, 32);
-        
-        // If SSpikeBuffer != SSpikeBufferEnd, goto wordloop
-        c.bne(*SSpikeBuffer, *SSpikeBufferEnd, wordLoop);
-
-        // Goto wordEnd
-        c.j_(wordEnd);
-    }
-
-    // Zero spike word
-    {
-        c.L(zeroSpikeWord);
-        c.li(*SSpikeWord, 0);
-        c.j_(bitLoopBody);
-    }
-    
-    c.L(wordEnd);
-}*/
-
 void check(const int16_t *hiddenIsyn, size_t numInput, size_t numHidden)
 {
     int numCorrect = 0;
@@ -391,7 +200,7 @@ std::vector<uint32_t> generateSimCode(bool simulate, uint32_t numInput, uint32_t
             // 2^6 = 2 bytes * 32 hidden neurons
             genStaticPulse(c, vectorRegisterAllocator, scalarRegisterAllocator,
                            weightInHidPtr, inputSpikePtr, hiddenIsynPtr, 
-                           numInput, numHidden, 6, false);
+                           numInput, numHidden, 64, false);
 
             // Copy Isyn to BRAM
             AssemblerUtils::generateVectorScalarMemcpy(c, vectorRegisterAllocator, scalarRegisterAllocator,
