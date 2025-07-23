@@ -95,7 +95,6 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
     // Register allocation
     ALLOCATE_SCALAR(SN);
     ALLOCATE_SCALAR(SNumLZ);
-    ALLOCATE_SCALAR(SWeightBuffer);
 
     // SSpikeWord = *SSpikeBuffer++
     c.lw(*SSpikeWord, *SSpikeBuffer);
@@ -126,16 +125,16 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
     c.sub(*SN, *SN, *SNumLZ);
 
     // SWeightBuffer = weightInHidStart + (numPostVecs * 64 * SN);
-    // **TODO** multiply
-    c.li(*SWeightBuffer, weightPtr);
     {
+        ALLOCATE_SCALAR(SWeightBuffer);
         ALLOCATE_SCALAR(STemp);
+        c.li(*SWeightBuffer, weightPtr);
         c.mul(*STemp, *SN, *SStride);
         c.add(*SWeightBuffer, *SWeightBuffer, *STemp);
+
+        // Start DMA write into RowBufferA
+        AssemblerUtils::generateDMAStartWrite(c, *SRowBufferA, *SWeightBuffer, *SStride);
     }
-    
-    // Start DMA write into RowBufferA
-    AssemblerUtils::generateDMAStartWrite(c, *SRowBufferA, *SWeightBuffer, *SStride);
 
     // SN --
     c.addi(*SN, *SN, -1);
@@ -166,25 +165,24 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
         c.sub(*SN, *SN, *SNumLZ);
 
         // SWeightBuffer = weightInHidStart + (numPostVecs * 64 * SN);
-        // **TODO** multiply
-        ALLOCATE_SCALAR(SWeightBuffer);
-        c.li(*SWeightBuffer, weightPtr);
         {
+            ALLOCATE_SCALAR(SWeightBuffer);
             ALLOCATE_SCALAR(STemp);
-            c.li(*STemp, stride);
-            c.mul(*STemp, *SN, *STemp);
+
+            c.li(*SWeightBuffer, weightPtr);
+            c.mul(*STemp, *SN, *SStride);
             c.add(*SWeightBuffer, *SWeightBuffer, *STemp);
+            
+            // waitOnDMA
+            c.L(waitOnDMA);
+
+            // Wait for previous DMA write to completet
+            AssemblerUtils::generateDMAWaitForWriteComplete(c, scalarRegisterAllocator);
+
+            // Start DMA write into RowBufferB
+            AssemblerUtils::generateDMAStartWrite(c, *SRowBufferB, *SWeightBuffer, *SStride);
         }
 
-        // waitOnDMA
-        c.L(waitOnDMA);
-
-        // Wait for previous DMA write to completet
-        AssemblerUtils::generateDMAWaitForWriteComplete(c, scalarRegisterAllocator);
-
-        // Start DMA write into RowBufferB
-        AssemblerUtils::generateDMAStartWrite(c, *SRowBufferB, *SWeightBuffer, *SStride);
-        
         // SN --
         c.addi(*SN, *SN, -1);
             
@@ -376,8 +374,7 @@ int main(int argc, char** argv)
         
         // Add vector co-processor
         riscV.addCoprocessor<VectorProcessor>(vectorQuadrant);
-        riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getVectorDataMemory().setData(vectorInitData);
-        
+
         // Create simulated DMA controller
         DMAControllerSim dmaController(riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getVectorDataMemory());
         riscV.setDMAController(&dmaController);
@@ -388,7 +385,6 @@ int main(int argc, char** argv)
         // Get pointer to simulated DMA controller buffer and copy in weights
         int16_t *bufferData = reinterpret_cast<int16_t*>(dmaController.getData());
         std::copy(weights.cbegin(), weights.cend(), bufferData);
-
 
         if(!riscV.run()) {
             return 1;
