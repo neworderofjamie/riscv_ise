@@ -33,6 +33,7 @@
         "poisson",
         "shd",
         "sparse_spike",
+        "spike_dma",
         "va_benchmark"
       ],
       "default": "lif"
