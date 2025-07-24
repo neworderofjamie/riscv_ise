@@ -243,6 +243,27 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
     }
 
     c.L(wordEnd);
+
+    // Wait for final DMA write to completet
+    AssemblerUtils::generateDMAWaitForWriteComplete(c, scalarRegisterAllocator);
+
+    {
+        ALLOCATE_VECTOR(VWeight);
+        ALLOCATE_VECTOR(VISyn);
+         
+        // Load next vector of weights from row buffer
+        c.vloadv(*VWeight, *SRowBufferA);
+        c.vloadv(*VISyn, *SISynBuffer);
+
+        // **STALL**
+        c.nop();
+
+        // Add weights to ISyn with mask
+        c.vadd(*VISyn, *VISyn, *VWeight);
+            
+        // Write back ISyn
+        c.vstore(*VISyn, *SISynBuffer);
+    }
 }
 
 void check(const int16_t *hiddenIsyn, size_t numInput, size_t numHidden)
