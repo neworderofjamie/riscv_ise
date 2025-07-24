@@ -46,6 +46,7 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
     ALLOCATE_SCALAR(SStride);
     ALLOCATE_SCALAR(SRowBufferA);
     ALLOCATE_SCALAR(SRowBufferB);
+    ALLOCATE_SCALAR(SWeightBuffer);
 
     assert(numPre == 32);
     assert(numPost == 32);
@@ -76,6 +77,7 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
     // Load row buffer pointers
     c.li(*SRowBufferA, rowBufferAPtr);
     c.li(*SRowBufferB, rowBufferBPtr);
+    c.li(*SWeightBuffer, weightPtr);
     
     // Load some useful constants
     c.li(*SConst1, 1);
@@ -96,44 +98,47 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
     ALLOCATE_SCALAR(SN);
     ALLOCATE_SCALAR(SNumLZ);
 
-    // SSpikeWord = *SSpikeBuffer++
-    c.lw(*SSpikeWord, *SSpikeBuffer);
-
-    // If SSpikeWord == 0, goto bitloop end
-    c.beq(*SSpikeWord, Reg::X0, wordEnd);
-
-    // SN = SWordNStart
-    c.mv(*SN, *SWordNStart);
-
-    // CNumLZ = clz(SSpikeWord);
-    c.clz(*SNumLZ, *SSpikeWord);
-
-    // If SSpikeWord == 1  i.e. CNumLZ == 31, goto zeroSpikeWord
-    c.beq(*SSpikeWord, *SConst1, zeroSpikePrefetchWord);
-        
     {
-        // STmp = CNumLZ + 1
-        ALLOCATE_SCALAR(STmp);
-        c.addi(*STmp, *SNumLZ, 1);
+        ALLOCATE_SCALAR(SSpikeWordTemp);
 
-        // SSpikeWord <<= CNumLZPlusOne
-        c.sll(*SSpikeWord, *SSpikeWord, *STmp);
+        // SSpikeWord = *SSpikeBuffer++
+        c.lw(*SSpikeWordTemp, *SSpikeBuffer);
+
+        // If SSpikeWord == 0, goto bitloop end
+        c.beq(*SSpikeWordTemp, Reg::X0, wordEnd);
+
+        // SN = SWordNStart
+        c.mv(*SN, *SWordNStart);
+
+        // CNumLZ = clz(SSpikeWord);
+        c.clz(*SNumLZ, *SSpikeWordTemp);
+
+        // If SSpikeWord == 1  i.e. CNumLZ == 31, goto prefetch body, using zero as new spike word
+        c.li(*SSpikeWord, 0);
+        c.beq(*SSpikeWordTemp, *SConst1, prefetchBody);
+        
+        {
+            // STmp = CNumLZ + 1
+            ALLOCATE_SCALAR(STmp);
+            c.addi(*STmp, *SNumLZ, 1);
+
+            // SSpikeWord <<= CNumLZPlusOne
+            c.sll(*SSpikeWord, *SSpikeWordTemp, *STmp);
+        }
+
     }
-
     // SN -= SNumLZ
     c.L(prefetchBody);
     c.sub(*SN, *SN, *SNumLZ);
 
     // SWeightBuffer = weightInHidStart + (numPostVecs * 64 * SN);
     {
-        ALLOCATE_SCALAR(SWeightBuffer);
         ALLOCATE_SCALAR(STemp);
-        c.li(*SWeightBuffer, weightPtr);
         c.mul(*STemp, *SN, *SStride);
-        c.add(*SWeightBuffer, *SWeightBuffer, *STemp);
+        c.add(*STemp, *SWeightBuffer, *STemp);
 
         // Start DMA write into RowBufferA
-        AssemblerUtils::generateDMAStartWrite(c, *SRowBufferA, *SWeightBuffer, *SStride);
+        AssemblerUtils::generateDMAStartWrite(c, *SRowBufferA, *STemp, *SStride);
     }
 
     // SN --
@@ -166,12 +171,10 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
 
         // SWeightBuffer = weightInHidStart + (numPostVecs * 64 * SN);
         {
-            ALLOCATE_SCALAR(SWeightBuffer);
             ALLOCATE_SCALAR(STemp);
 
-            c.li(*SWeightBuffer, weightPtr);
             c.mul(*STemp, *SN, *SStride);
-            c.add(*SWeightBuffer, *SWeightBuffer, *STemp);
+            c.add(*STemp, *SWeightBuffer, *STemp);
             
             // waitOnDMA
             c.L(waitOnDMA);
@@ -180,7 +183,7 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
             AssemblerUtils::generateDMAWaitForWriteComplete(c, scalarRegisterAllocator);
 
             // Start DMA write into RowBufferB
-            AssemblerUtils::generateDMAStartWrite(c, *SRowBufferB, *SWeightBuffer, *SStride);
+            AssemblerUtils::generateDMAStartWrite(c, *SRowBufferB, *STemp, *SStride);
         }
 
         // SN --
@@ -224,15 +227,6 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
         //c.j_(wordEnd);
         c.beq(Reg::X0, Reg::X0, wordEnd);
     }
-
-    // Zero spike word
-    {
-        c.L(zeroSpikePrefetchWord);
-        c.li(*SSpikeWord, 0);
-        //c.j_(bitLoopBody);
-        c.beq(Reg::X0, Reg::X0, prefetchBody);
-    }
-    
 
     // Zero spike word
     {
