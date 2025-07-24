@@ -128,17 +128,17 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
 
     // SWeightBuffer = weightInHidStart + (numPostVecs * 64 * SN);
     {
-        ALLOCATE_SCALAR(SNTmp);
+        ALLOCATE_SCALAR(STemp);
 
-        // NTmp = 31 - NumLZ
-        c.sub(*SNTmp, *SConst31, *SNumLZ);
+        // Tmp = 31 - NumLZ
+        c.sub(*STemp, *SConst31, *SNumLZ);
 
         // NTmp *= Stride
-        c.mul(*SNTmp, *SNTmp, *SStride);
-        c.add(*SNTmp, *SWeightBuffer, *SNTmp);
+        c.mul(*STemp, *STemp, *SStride);
+        c.add(*STemp, *SWeightBuffer, *STemp);
 
         // Start DMA write into RowBufferA
-        AssemblerUtils::generateDMAStartWrite(c, *SRowBufferA, *SNTmp, *SStride);
+        AssemblerUtils::generateDMAStartWrite(c, *SRowBufferA, *STemp, *SStride);
     }
 
     {
@@ -146,39 +146,10 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
         
         // N = 30 - NumLZ
         c.sub(*SN, *SConst30, *SNumLZ);
-       
-        // Tail of bit loop
-        c.L(bitLoopTail);
-        {
-            // Go to bitloop start unless we just started writing last spike
-            c.bne(*SSpikeWord, Reg::X0, bitLoopStart);
 
-            // Wait for final DMA write to completet
-            AssemblerUtils::generateDMAWaitForWriteComplete(c, scalarRegisterAllocator);
-
-            {
-                ALLOCATE_VECTOR(VWeight);
-                ALLOCATE_VECTOR(VISyn);
-         
-                // Load next vector of weights from row buffer
-                c.vloadv(*VWeight, *SRowBufferA);
-                c.vloadv(*VISyn, *SISynBuffer);
-
-                // **STALL**
-                c.nop();
-
-                // Add weights to ISyn with mask
-                c.vadd(*VISyn, *VISyn, *VWeight);
-            
-                // Write back ISyn
-                c.vstore(*VISyn, *SISynBuffer);
-            }
-
-            // Goto wordEnd
-            //c.j_(wordEnd);
-            c.beq(Reg::X0, Reg::X0, wordEnd);
-        }
-
+        // Go straight to the tail if there's no more spikes to process
+        c.beq(*SSpikeWord, Reg::X0, bitLoopTail);
+        
         c.L(bitLoopStart);
         {
             // CNumLZ = clz(SSpikeWord);
@@ -247,9 +218,37 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
                 c.mv(*SRowBufferB, *STmp);
             }
             
-            // Goto bitLoopTail
-            //c.j_(bitLoopTail);
-            c.beq(Reg::X0, Reg::X0, bitLoopTail);
+            // If there are more spikes, repeat loop
+            c.bne(*SSpikeWord, Reg::X0, bitLoopStart);
+
+             // Tail of bit loop
+            c.L(bitLoopTail);
+      
+            // Wait for final DMA write to completet
+            AssemblerUtils::generateDMAWaitForWriteComplete(c, scalarRegisterAllocator);
+
+            {
+                ALLOCATE_VECTOR(VWeight);
+                ALLOCATE_VECTOR(VISyn);
+         
+                // Load next vector of weights from row buffer
+                c.vloadv(*VWeight, *SRowBufferA);
+                c.vloadv(*VISyn, *SISynBuffer);
+
+                // **STALL**
+                c.nop();
+
+                // Add weights to ISyn with mask
+                c.vadd(*VISyn, *VISyn, *VWeight);
+            
+                // Write back ISyn
+                c.vstore(*VISyn, *SISynBuffer);
+            }
+
+            // Goto wordEnd
+            // **TODO** could move zero spike word away and drop into this
+            //c.j_(wordEnd);
+            c.beq(Reg::X0, Reg::X0, wordEnd);
         }
     }
 
@@ -415,6 +414,11 @@ int main(int argc, char** argv)
         // Check hidden ISyn directly in vector memory
         const int16_t *vectorData = riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getVectorDataMemory().getData();
         check(vectorData + hiddenIsynPtr, numInput, numHidden);
+
+        std::cout << "Stats:" << std::endl;
+        std::cout << "\t" << riscV.getTotalNumInstructionsExecuted() << " instructions executed" << std::endl;
+        std::cout << "\t\t" << riscV.getTotalNumCoprocessorInstructionsExecuted(vectorQuadrant) << " vector instructions executed" << std::endl;
+        std::cout << "\t\t" << riscV.getNumJumps() << " jumps" << std::endl;
     }
  
     return 0;
