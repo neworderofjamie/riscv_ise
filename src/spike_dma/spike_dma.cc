@@ -38,26 +38,27 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
                     uint32_t postISynPtr, uint32_t rowBufferAPtr, uint32_t rowBufferBPtr,
                     uint32_t numPre, uint32_t numPost, uint32_t stride, bool debug)
 {
-    // Register allocation
-    ALLOCATE_SCALAR(SWordNStart);
+    // Register allocation    
     ALLOCATE_SCALAR(SConst1);
+    ALLOCATE_SCALAR(SConst30);
+    ALLOCATE_SCALAR(SConst31);
     ALLOCATE_SCALAR(SSpikeWord);
     ALLOCATE_SCALAR(SISynBuffer);
     ALLOCATE_SCALAR(SStride);
     ALLOCATE_SCALAR(SRowBufferA);
     ALLOCATE_SCALAR(SRowBufferB);
+    ALLOCATE_SCALAR(SWeightBuffer);
 
     assert(numPre == 32);
     assert(numPost == 32);
 
     // Labels
+    Label bitLoopPrefetch;
+    Label bitLoopTail;
     Label bitLoopStart;
     Label bitLoopBody;
-    Label prefetchBody;
     Label zeroSpikeWord;
-    Label zeroSpikePrefetchWord;
     Label wordEnd;
-    Label waitOnDMA;
 
     // If literal is provided for start of presynapric spike buffer, allocate register and load immediate into it
     ScalarRegisterAllocator::RegisterPtr SSpikeBuffer;
@@ -77,11 +78,13 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
     c.li(*SRowBufferA, rowBufferAPtr);
     c.li(*SRowBufferB, rowBufferBPtr);
     
+    // Load weight base address
+    c.li(*SWeightBuffer, weightPtr);
+
     // Load some useful constants
     c.li(*SConst1, 1);
-
-    // SWordNStart = 31
-    c.li(*SWordNStart, 31);
+    c.li(*SConst30, 30);
+    c.li(*SConst31, 31);
 
     c.li(*SStride, stride);
 
@@ -93,146 +96,163 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
     }
         
     // Register allocation
-    ALLOCATE_SCALAR(SN);
     ALLOCATE_SCALAR(SNumLZ);
 
-    // SSpikeWord = *SSpikeBuffer++
-    c.lw(*SSpikeWord, *SSpikeBuffer);
-
-    // If SSpikeWord == 0, goto bitloop end
-    c.beq(*SSpikeWord, Reg::X0, wordEnd);
-
-    // SN = SWordNStart
-    c.mv(*SN, *SWordNStart);
-
-    // CNumLZ = clz(SSpikeWord);
-    c.clz(*SNumLZ, *SSpikeWord);
-
-    // If SSpikeWord == 1  i.e. CNumLZ == 31, goto zeroSpikeWord
-    c.beq(*SSpikeWord, *SConst1, zeroSpikePrefetchWord);
-        
     {
-        // STmp = CNumLZ + 1
-        ALLOCATE_SCALAR(STmp);
-        c.addi(*STmp, *SNumLZ, 1);
+        ALLOCATE_SCALAR(SSpikeWordTemp);
+        ALLOCATE_SCALAR(SNumLZTemp);
 
-        // SSpikeWord <<= CNumLZPlusOne
-        c.sll(*SSpikeWord, *SSpikeWord, *STmp);
+        // SSpikeWord = *SSpikeBuffer++
+        c.lw(*SSpikeWordTemp, *SSpikeBuffer);
+
+        // Zero spike word in case we're on last bit
+        c.li(*SSpikeWord, 0);
+
+        // If SSpikeWord == 0, goto bitloop end
+        c.beq(*SSpikeWordTemp, Reg::X0, wordEnd);
+       
+        // NumLZ = clz(SSpikeWord);
+        c.clz(*SNumLZ, *SSpikeWordTemp);
+
+         // If SSpikeWord == 1  i.e. NumLZ == 31, go straight to prefetch
+        c.beq(*SSpikeWordTemp, *SConst1, bitLoopPrefetch);
+
+        // Tmp = NumLZ + 1
+        c.addi(*SNumLZTemp, *SNumLZ, 1);
+
+        // SSpikeWord = SSpikeWordTemp << CNumLZPlusOne
+        c.sll(*SSpikeWord, *SSpikeWordTemp, *SNumLZTemp);
     }
 
-    // SN -= SNumLZ
-    c.L(prefetchBody);
-    c.sub(*SN, *SN, *SNumLZ);
+    c.L(bitLoopPrefetch);
 
     // SWeightBuffer = weightInHidStart + (numPostVecs * 64 * SN);
     {
-        ALLOCATE_SCALAR(SWeightBuffer);
-        ALLOCATE_SCALAR(STemp);
-        c.li(*SWeightBuffer, weightPtr);
-        c.mul(*STemp, *SN, *SStride);
-        c.add(*SWeightBuffer, *SWeightBuffer, *STemp);
+        ALLOCATE_SCALAR(SNTmp);
+
+        // NTmp = 31 - NumLZ
+        c.sub(*SNTmp, *SConst31, *SNumLZ);
+
+        // NTmp *= Stride
+        c.mul(*SNTmp, *SNTmp, *SStride);
+        c.add(*SNTmp, *SWeightBuffer, *SNTmp);
 
         // Start DMA write into RowBufferA
-        AssemblerUtils::generateDMAStartWrite(c, *SRowBufferA, *SWeightBuffer, *SStride);
+        AssemblerUtils::generateDMAStartWrite(c, *SRowBufferA, *SNTmp, *SStride);
     }
 
-    // SN --
-    c.addi(*SN, *SN, -1);
-       
-    // If we've now got no spikes to process skip next DMA
-    c.beq(*SSpikeWord, Reg::X0, waitOnDMA);
-
-    // Inner bit loop
-    c.L(bitLoopStart);
     {
-        // CNumLZ = clz(SSpikeWord);
-        c.clz(*SNumLZ, *SSpikeWord);
-
-        // If SSpikeWord == 1  i.e. CNumLZ == 31, goto zeroSpikeWord
-        c.beq(*SSpikeWord, *SConst1, zeroSpikeWord);
-            
+        ALLOCATE_SCALAR(SN);
+        
+        // N = 30 - NumLZ
+        c.sub(*SN, *SConst30, *SNumLZ);
+       
+        // Tail of bit loop
+        c.L(bitLoopTail);
         {
-            // STmp = CNumLZ + 1
-            ALLOCATE_SCALAR(STmp);
-            c.addi(*STmp, *SNumLZ, 1);
+            // Go to bitloop start unless we just started writing last spike
+            c.bne(*SSpikeWord, Reg::X0, bitLoopStart);
 
-            // SSpikeWord <<= CNumLZPlusOne
-            c.sll(*SSpikeWord, *SSpikeWord, *STmp);
-        }
-
-        // SN -= SNumLZ
-        c.L(bitLoopBody);
-        c.sub(*SN, *SN, *SNumLZ);
-
-        // SWeightBuffer = weightInHidStart + (numPostVecs * 64 * SN);
-        {
-            ALLOCATE_SCALAR(SWeightBuffer);
-            ALLOCATE_SCALAR(STemp);
-
-            c.li(*SWeightBuffer, weightPtr);
-            c.mul(*STemp, *SN, *SStride);
-            c.add(*SWeightBuffer, *SWeightBuffer, *STemp);
-            
-            // waitOnDMA
-            c.L(waitOnDMA);
-
-            // Wait for previous DMA write to completet
+            // Wait for final DMA write to completet
             AssemblerUtils::generateDMAWaitForWriteComplete(c, scalarRegisterAllocator);
 
-            // Start DMA write into RowBufferB
-            AssemblerUtils::generateDMAStartWrite(c, *SRowBufferB, *SWeightBuffer, *SStride);
-        }
-
-        // SN --
-        c.addi(*SN, *SN, -1);
-            
-        // Load weight and Isyn
-        if(debug) {
-            c.ebreak();
-        }
-
-        {
-            ALLOCATE_VECTOR(VWeight);
-            ALLOCATE_VECTOR(VISyn);
+            {
+                ALLOCATE_VECTOR(VWeight);
+                ALLOCATE_VECTOR(VISyn);
          
-            // Load next vector of weights from row buffer
-            c.vloadv(*VWeight, *SRowBufferA);
-            c.vloadv(*VISyn, *SISynBuffer);
+                // Load next vector of weights from row buffer
+                c.vloadv(*VWeight, *SRowBufferA);
+                c.vloadv(*VISyn, *SISynBuffer);
 
-            // **STALL**
-            c.nop();
+                // **STALL**
+                c.nop();
 
-            // Add weights to ISyn with mask
-            c.vadd(*VISyn, *VISyn, *VWeight);
+                // Add weights to ISyn with mask
+                c.vadd(*VISyn, *VISyn, *VWeight);
             
-            // Write back ISyn
-            c.vstore(*VISyn, *SISynBuffer);
+                // Write back ISyn
+                c.vstore(*VISyn, *SISynBuffer);
+            }
+
+            // Goto wordEnd
+            //c.j_(wordEnd);
+            c.beq(Reg::X0, Reg::X0, wordEnd);
         }
 
-        // Swap buffers
+        c.L(bitLoopStart);
         {
-            ALLOCATE_SCALAR(STmp);
-            c.mv(*STmp, *SRowBufferA);
-            c.mv(*SRowBufferA, *SRowBufferB);
-            c.mv(*SRowBufferB, *STmp);
-        }
+            // CNumLZ = clz(SSpikeWord);
+            c.clz(*SNumLZ, *SSpikeWord);
+
+            // If SSpikeWord == 1  i.e. CNumLZ == 31, goto zeroSpikeWord
+            c.beq(*SSpikeWord, *SConst1, zeroSpikeWord);
             
-        // If SSpikeWord != 0, goto bitLoopStart
-        c.bne(*SSpikeWord, Reg::X0, bitLoopStart);
+            {
+                // STmp = CNumLZ + 1
+                ALLOCATE_SCALAR(STmp);
+                c.addi(*STmp, *SNumLZ, 1);
 
-        // Goto wordEnd
-        //c.j_(wordEnd);
-        c.beq(Reg::X0, Reg::X0, wordEnd);
+                // SSpikeWord <<= CNumLZPlusOne
+                c.sll(*SSpikeWord, *SSpikeWord, *STmp);
+            }
+
+            // SN -= SNumLZ
+            c.L(bitLoopBody);
+            c.sub(*SN, *SN, *SNumLZ);
+
+            // STemp = SWeightBuffer + (Stride * SN);
+            {
+                ALLOCATE_SCALAR(STemp);
+                c.mul(*STemp, *SN, *SStride);
+                c.add(*STemp, *SWeightBuffer, *STemp);
+            
+                // Wait for previous DMA write to completet
+                AssemblerUtils::generateDMAWaitForWriteComplete(c, scalarRegisterAllocator);
+
+                // Start DMA write into RowBufferB
+                AssemblerUtils::generateDMAStartWrite(c, *SRowBufferB, *STemp, *SStride);
+            }
+
+            // SN --
+            c.addi(*SN, *SN, -1);
+            
+            // Load weight and Isyn
+            if(debug) {
+                c.ebreak();
+            }
+
+            {
+                ALLOCATE_VECTOR(VWeight);
+                ALLOCATE_VECTOR(VISyn);
+         
+                // Load next vector of weights from row buffer
+                c.vloadv(*VWeight, *SRowBufferA);
+                c.vloadv(*VISyn, *SISynBuffer);
+
+                // **STALL**
+                c.nop();
+
+                // Add weights to ISyn with mask
+                c.vadd(*VISyn, *VISyn, *VWeight);
+            
+                // Write back ISyn
+                c.vstore(*VISyn, *SISynBuffer);
+            }
+
+            // Swap buffers
+            {
+                ALLOCATE_SCALAR(STmp);
+                c.mv(*STmp, *SRowBufferA);
+                c.mv(*SRowBufferA, *SRowBufferB);
+                c.mv(*SRowBufferB, *STmp);
+            }
+            
+            // Goto bitLoopTail
+            //c.j_(bitLoopTail);
+            c.beq(Reg::X0, Reg::X0, bitLoopTail);
+        }
     }
 
-    // Zero spike word
-    {
-        c.L(zeroSpikePrefetchWord);
-        c.li(*SSpikeWord, 0);
-        //c.j_(bitLoopBody);
-        c.beq(Reg::X0, Reg::X0, prefetchBody);
-    }
-    
 
     // Zero spike word
     {
@@ -243,27 +263,6 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
     }
 
     c.L(wordEnd);
-
-    // Wait for final DMA write to completet
-    AssemblerUtils::generateDMAWaitForWriteComplete(c, scalarRegisterAllocator);
-
-    {
-        ALLOCATE_VECTOR(VWeight);
-        ALLOCATE_VECTOR(VISyn);
-         
-        // Load next vector of weights from row buffer
-        c.vloadv(*VWeight, *SRowBufferA);
-        c.vloadv(*VISyn, *SISynBuffer);
-
-        // **STALL**
-        c.nop();
-
-        // Add weights to ISyn with mask
-        c.vadd(*VISyn, *VISyn, *VWeight);
-            
-        // Write back ISyn
-        c.vstore(*VISyn, *SISynBuffer);
-    }
 }
 
 void check(const int16_t *hiddenIsyn, size_t numInput, size_t numHidden)
@@ -345,7 +344,9 @@ int main(int argc, char** argv)
                            numInput, numHidden, numHiddenSpikeWords * 64, false);
 
         });
-    
+
+    LOGI << simCode.size() << " instructions (" << simCode.size() * 4 << " bytes)";
+
     if(device) {
         LOGI << "Creating device";
         Device device;
