@@ -56,9 +56,7 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
     Label bitLoopBody;
     Label prefetchBody;
     Label zeroSpikeWord;
-    Label zeroSpikePrefetchWord;
     Label wordEnd;
-    Label waitOnDMA;
 
     // If literal is provided for start of presynapric spike buffer, allocate register and load immediate into it
     ScalarRegisterAllocator::RegisterPtr SSpikeBuffer;
@@ -144,8 +142,8 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
     // SN --
     c.addi(*SN, *SN, -1);
        
-    // If we've now got no spikes to process skip next DMA
-    c.beq(*SSpikeWord, Reg::X0, waitOnDMA);
+    // If we've now got no spikes to process skip to tail
+    c.beq(*SSpikeWord, Reg::X0, wordEnd);
 
     // Inner bit loop
     c.L(bitLoopStart);
@@ -175,9 +173,6 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
 
             c.mul(*STemp, *SN, *SStride);
             c.add(*STemp, *SWeightBuffer, *STemp);
-            
-            // waitOnDMA
-            c.L(waitOnDMA);
 
             // Wait for previous DMA write to completet
             AssemblerUtils::generateDMAWaitForWriteComplete(c, scalarRegisterAllocator);
@@ -197,7 +192,7 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
         {
             ALLOCATE_VECTOR(VWeight);
             ALLOCATE_VECTOR(VISyn);
-         
+
             // Load next vector of weights from row buffer
             c.vloadv(*VWeight, *SRowBufferA);
             c.vloadv(*VISyn, *SISynBuffer);
