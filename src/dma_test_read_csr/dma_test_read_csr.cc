@@ -110,6 +110,7 @@ int main()
     
     // Wait until ready flag
     device.waitOnNonZero(readyFlagPtr);
+    device.setEnabled(false);
 
     LOGI << "Done";
 
@@ -126,7 +127,9 @@ int main()
         LOGE << "MM2S_DST_ADDR incorrect: " << output[1] << " vs " << 64;
     }
     
-    if(output[2] != 1024) {
-        LOGE << "MM2S_DST_ADDR incorrect: " << output[2] << " vs " << 1024;
+    if(output[2] != 2048) {
+        LOGE << "MM2S_COUNT incorrect: " << output[2] << " vs " << 2048;
     }
+    
+    LOGI << "MM2S_STATUS:" << output[3];
 }
