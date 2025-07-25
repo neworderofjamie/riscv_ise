@@ -97,7 +97,7 @@ int main()
     device.memcpyDataToDevice(0, scalarInitData.data(), scalarInitData.size());
 
     // Make write
-    device.getDMAController()->startWrite(0, dmaBuffer, 64, 1024 * 2);
+    device.getDMAController()->startWrite(64, dmaBuffer, 0, 1024 * 2);
 
     // Wait for write to complete
     device.getDMAController()->waitForWriteComplete();
