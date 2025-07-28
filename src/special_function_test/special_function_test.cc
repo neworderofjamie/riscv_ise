@@ -265,6 +265,7 @@ int main(int argc, char** argv)
         
         // Wait until ready flag
         device.waitOnNonZero(readyFlagPtr);
+        device.setEnabled(false);
         LOGI << "Done";
 
         // Write data to text file

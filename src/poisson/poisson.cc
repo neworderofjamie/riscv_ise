@@ -184,6 +184,7 @@ int main(int argc, char** argv)
         
         // Wait until ready flag
         device.waitOnNonZero(readyFlagPtr);
+        device.setEnabled(false);
         LOGI << "Done";
 
         const volatile int16_t *scalarRecordingData = reinterpret_cast<const volatile int16_t*>(device.getDataMemory() + scalarRecordingPtr);
