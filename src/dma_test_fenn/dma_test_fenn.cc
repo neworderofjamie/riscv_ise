@@ -126,6 +126,9 @@ int main(int argc, char** argv)
                 // Make write
                 AssemblerUtils::generateDMAStartWrite(c, *SOffsetBytes, *SDRAMAddress, *STransferSizeBytes);
 
+                // **YUCK** MM2S_STATUS write takes a cycle to propagate
+                c.nop();
+
                 // Wait for write to complete
                 auto SWriteStatus = AssemblerUtils::generateDMAWaitForWriteComplete(c, scalarRegisterAllocator);
 
@@ -136,6 +139,9 @@ int main(int argc, char** argv)
 
                 // Make read
                 AssemblerUtils::generateDMAStartRead(c, *SDRAMAddress, *SOffsetBytes, *STransferSizeBytes);
+
+                // **YUCK** S2MM_STATUS write takes a cycle to propagate
+                c.nop();
 
                 // Wait for read to complete
                 auto SReadStatus = AssemblerUtils::generateDMAWaitForReadComplete(c, scalarRegisterAllocator);
