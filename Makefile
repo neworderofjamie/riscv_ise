@@ -1,7 +1,7 @@
 # Include common makefile
 include src/MakefileCommon
 
-.PHONY: all assembler common compiler disassembler ise backend
+.PHONY: all assembler common compiler disassembler ise backend assembly_examples
 
 all: backend
 
@@ -22,3 +22,19 @@ ise: common
 
 backend: assembler common compiler disassembler ise
 	$(MAKE) -C src/backend
+
+assembly_examples:
+	$(MAKE) -C src/alif
+	$(MAKE) -C src/dma_test
+	$(MAKE) -C src/dma_test_fenn
+	$(MAKE) -C src/dma_test_read_csr
+	$(MAKE) -C src/lif
+	$(MAKE) -C src/mnist
+	$(MAKE) -C src/poisson
+	$(MAKE) -C src/shd
+	$(MAKE) -C src/sparse_spike
+	$(MAKE) -C src/spike_dma
+	$(MAKE) -C src/special_function_test
+	$(MAKE) -C src/spike
+	$(MAKE) -C src/dma
+	$(MAKE) -C src/va_benchmark
