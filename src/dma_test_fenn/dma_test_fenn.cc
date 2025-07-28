@@ -109,11 +109,8 @@ int main(int argc, char** argv)
             c.li(*STransferSizeBytes, transferSizeHalfWords * 2);
             
             // Load base address
-            {
-                ALLOCATE_SCALAR(SBaseAddressPtr)
-                c.li(*SBaseAddressPtr, baseAddressPtr);
-                c.lw(*SBaseAddress, *SBaseAddressPtr);
-            }
+            c.li(*SBaseAddress, baseAddressPtr);
+            c.lw(*SBaseAddress, *SBaseAddress);
 
             // Issue interleaved reads and writes in a loop
             c.L(loop);

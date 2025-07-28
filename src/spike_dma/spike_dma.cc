@@ -33,7 +33,8 @@
 #include "ise/vector_processor.h"
 
 void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAllocator,
-                    ScalarRegisterAllocator &scalarRegisterAllocator, uint32_t weightPtr, 
+                    ScalarRegisterAllocator &scalarRegisterAllocator, 
+                    ScalarRegisterAllocator::RegisterPtr weightBaseAddress, 
                     std::variant<uint32_t, ScalarRegisterAllocator::RegisterPtr> preSpikePtr, 
                     uint32_t postISynPtr, uint32_t rowBufferAPtr, uint32_t rowBufferBPtr,
                     uint32_t numPre, uint32_t numPost, uint32_t stride, bool debug)
@@ -46,7 +47,6 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
     ALLOCATE_SCALAR(SStride);
     ALLOCATE_SCALAR(SRowBufferA);
     ALLOCATE_SCALAR(SRowBufferB);
-    ALLOCATE_SCALAR(SWeightBuffer);
 
     assert(numPre == 32);
     assert(numPost == 32);
@@ -75,7 +75,6 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
     // Load row buffer pointers
     c.li(*SRowBufferA, rowBufferAPtr);
     c.li(*SRowBufferB, rowBufferBPtr);
-    c.li(*SWeightBuffer, weightPtr);
     
     // Load some useful constants
     c.li(*SConst1, 1);
@@ -133,7 +132,7 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
     {
         ALLOCATE_SCALAR(STemp);
         c.mul(*STemp, *SN, *SStride);
-        c.add(*STemp, *SWeightBuffer, *STemp);
+        c.add(*STemp, *weightBaseAddress, *STemp);
 
         // Start DMA write into RowBufferA
         AssemblerUtils::generateDMAStartWrite(c, *SRowBufferA, *STemp, *SStride);
@@ -172,7 +171,7 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
             ALLOCATE_SCALAR(STemp);
 
             c.mul(*STemp, *SN, *SStride);
-            c.add(*STemp, *SWeightBuffer, *STemp);
+            c.add(*STemp, *weightBaseAddress, *STemp);
 
             // Wait for previous DMA write to completet
             AssemblerUtils::generateDMAWaitForWriteComplete(c, scalarRegisterAllocator);
@@ -304,6 +303,7 @@ int main(int argc, char** argv)
     
     // Allocate scalar arrays
     const uint32_t inputSpikePtr = AppUtils::allocateScalarAndZero(numInputSpikeWords * 4, scalarInitData);
+    const uint32_t baseAddressPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
     const uint32_t readyFlagPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
 
     // Generate weight data pattern
@@ -327,10 +327,15 @@ int main(int argc, char** argv)
     const auto simCode = AssemblerUtils::generateStandardKernel(
         !device, readyFlagPtr,
         [=](CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator, ScalarRegisterAllocator &scalarRegisterAllocator)
-        {            
+        {         
+            // Load weight pointer!
+            ALLOCATE_SCALAR(SWeightPtr)
+            c.li(*SWeightPtr, baseAddressPtr);
+            c.lw(*SWeightPtr, *SWeightPtr);   
+            
             // 2^6 = 2 bytes * 32 hidden neurons
             genStaticPulse(c, vectorRegisterAllocator, scalarRegisterAllocator,
-                           0, inputSpikePtr, hiddenIsynPtr, rowBufferAPtr, rowBufferBPtr,
+                           SWeightPtr, inputSpikePtr, hiddenIsynPtr, rowBufferAPtr, rowBufferBPtr,
                            numInput, numHidden, numHiddenSpikeWords * 64, false);
 
         });
@@ -350,6 +355,10 @@ int main(int argc, char** argv)
         // Get pointer to DMA buffer and copy in weights
         int16_t *bufferData = reinterpret_cast<int16_t*>(dmaBuffer.getData());
         std::copy(weights.cbegin(), weights.cend(), bufferData);
+
+        // Write physical address of DMA buffer to scalar init
+        uint32_t *scalarInitWords = reinterpret_cast<uint32_t*>(scalarInitData.data());
+        scalarInitWords[baseAddressPtr / 4] = dmaBuffer.getPhysicalAddress();
 
         LOGI << "Resetting";
         // Put core into reset state
