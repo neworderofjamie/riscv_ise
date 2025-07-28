@@ -90,6 +90,7 @@ int main(int argc, char** argv)
 
     // Allocate scalar arrays
     const uint32_t readyFlagPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
+    const uint32_t baseAddressPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
 
     // Generate code
     const auto code = AssemblerUtils::generateStandardKernel(
@@ -99,20 +100,31 @@ int main(int argc, char** argv)
             ALLOCATE_SCALAR(SOffsetBytes);
             ALLOCATE_SCALAR(SWriteEndBytes);
             ALLOCATE_SCALAR(STransferSizeBytes);
+            ALLOCATE_SCALAR(SBaseAddress);
 
             Label loop;
 
             c.li(*SOffsetBytes, 0);
             c.li(*SWriteEndBytes, transferHalfWords * 2);
             c.li(*STransferSizeBytes, transferSizeHalfWords * 2);
+            
+            // Load base address
+            {
+                ALLOCATE_SCALAR(SBaseAddressPtr)
+                c.li(*SBaseAddressPtr, baseAddressPtr);
+                c.lw(*SBaseAddress, *SBaseAddressPtr);
+            }
 
             // Issue interleaved reads and writes in a loop
             c.L(loop);
             {
-                ALLOCATE_SCALAR(SReadDestinationOffsetBytes);
+                ALLOCATE_SCALAR(SDRAMAddress);
+
+                // Calculate read address in SDRAM
+                c.add(*SDRAMAddress, *SBaseAddress, *SOffsetBytes);
 
                 // Make write
-                AssemblerUtils::generateDMAStartWrite(c, *SOffsetBytes, *SOffsetBytes, *STransferSizeBytes);
+                AssemblerUtils::generateDMAStartWrite(c, *SOffsetBytes, *SDRAMAddress, *STransferSizeBytes);
 
                 // Wait for write to complete
                 auto SWriteStatus = AssemblerUtils::generateDMAWaitForWriteComplete(c, scalarRegisterAllocator);
@@ -120,10 +132,10 @@ int main(int argc, char** argv)
                 // **THINK** what to do with this information
                 
                 // Calculate address at end of buffer to read data back into
-                c.add(*SReadDestinationOffsetBytes, *SOffsetBytes, *SWriteEndBytes);
+                c.add(*SDRAMAddress, *SDRAMAddress, *SWriteEndBytes);
 
                 // Make read
-                AssemblerUtils::generateDMAStartRead(c, *SReadDestinationOffsetBytes, *SOffsetBytes, *STransferSizeBytes);
+                AssemblerUtils::generateDMAStartRead(c, *SDRAMAddress, *SOffsetBytes, *STransferSizeBytes);
 
                 // Wait for read to complete
                 auto SReadStatus = AssemblerUtils::generateDMAWaitForReadComplete(c, scalarRegisterAllocator);
@@ -150,6 +162,10 @@ int main(int argc, char** argv)
 
         // Check there's enough space for 2 copies of transfers
         assert(dmaBuffer.getSize() >= (2 * 2 * transferHalfWords));
+
+        // Write physical address of DMA buffer to scalar init
+        uint32_t *scalarInitWords = reinterpret_cast<uint32_t*>(scalarInitData.data());
+        scalarInitWords[baseAddressPtr / 4] = dmaBuffer.getPhysicalAddress();
 
         // Get pointer to simulated DMA controller buffer and populate
         int16_t *bufferData = reinterpret_cast<int16_t*>(dmaBuffer.getData());
