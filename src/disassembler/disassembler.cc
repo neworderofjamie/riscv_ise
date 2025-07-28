@@ -81,7 +81,7 @@ void disassembleVOp(std::ostream &os, uint32_t inst)
 
 void disassembleSystem(std::ostream &os, uint32_t inst)
 {
-    const auto [imm, rs1, funct3, rd] = decodeIType(inst);
+    const auto [imm, rs1, funct3, rd] = decodeIType<uint32_t>(inst);
     const auto type = getSystemType(imm, funct3);
 
     os << type._to_string();
@@ -91,7 +91,7 @@ void disassembleSystem(std::ostream &os, uint32_t inst)
     case SystemType::CSRRS:
     case SystemType::CSRRW:
     {
-        os << " X" << rd << ", " << imm << ", X" << rs1;
+        os << " X" << rd << ", 0x" << std::hex << imm << std::dec << ", X" << rs1;
         break;
     }
 
@@ -99,9 +99,12 @@ void disassembleSystem(std::ostream &os, uint32_t inst)
     case SystemType::CSRRSI:
     case SystemType::CSRRWI:
     {
-        os << " X" << rd << ", " << imm <<  ", " << rs1;
+        os << " X" << rd << ", 0x" << std::hex << imm << std::dec << ", " << rs1;
         break;
     }
+
+    default:
+        break;
     }
 }
 
