@@ -6,6 +6,9 @@
 #include <optional>
 #include <vector>
 
+// Standard C includes
+#include <cstdint>
+
 // ISE includes
 #include "ise/fsm.h"
 
