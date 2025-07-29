@@ -2,21 +2,22 @@
 import sys
 
 # pyfenn interface
-from ._fenn import (BackendFeNNHW, BackendFeNNSim, CopyProcess, EventContainer,
-                    EventPropagationProcess, Model, ModelComponent,
-                    NeuronUpdateProcess, NumericValue, Parameter, 
-                    PerformanceCounter, PlogSeverity, Process, ProcessGroup,
-                    RNGInitProcess, Runtime, Shape, State, UnresolvedType,
-                    Variable, disassemble, init_logging)
+from ._fenn import (BackendFeNNHW, BackendFeNNSim, CopyProcess, 
+                    EventContainer, EventPropagationProcess, MemsetProcess,
+                    Model, ModelComponent, NeuronUpdateProcess, NumericValue,
+                    Parameter, PerformanceCounter, PlogSeverity, Process,
+                    ProcessGroup, RNGInitProcess, Runtime, Shape, State,
+                    UnresolvedType, Variable, disassemble, init_logging)
 
 from . import nir_import, utils
 
 __all__ = ["CopyProcess", "BackendFeNNHW", "BackendFeNNSim", "EventContainer",
-           "EventPropagationProcess", "Model", "ModelComponent",
-           "NeuronUpdateProcess", "NumericValue", "Parameter",
-           "PerformanceCounter", "PlogSeverity", "Process", "ProcessGroup",
-           "RNGInitProcess", "Runtime", "Shape", "State", "UnresolvedType",
-           "Variable", "disassemble", "init_logging", "nir_import", "utils"]
+           "EventPropagationProcess", "MemsetProcess", "Model",
+           "ModelComponent", "NeuronUpdateProcess", "NumericValue",
+           "Parameter", "PerformanceCounter", "PlogSeverity", "Process",
+           "ProcessGroup", "RNGInitProcess", "Runtime", "Shape", "State",
+           "UnresolvedType", "Variable", "disassemble", "init_logging",
+           "nir_import", "utils"]
 
 if sys.version_info >= (3, 8):
     from importlib import metadata

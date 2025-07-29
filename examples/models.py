@@ -3,8 +3,9 @@ import numpy as np
 from typing import Optional
 
 from pyfenn import (CopyProcess, EventContainer, EventPropagationProcess,
-                    NeuronUpdateProcess, NumericValue, Parameter,
-                    RNGInitProcess, Shape, UnresolvedType, Variable)
+                    MemsetProcess, NeuronUpdateProcess, NumericValue,
+                    Parameter, RNGInitProcess, Shape, UnresolvedType,
+                    Variable)
 
 class RNGInit:
     def __init__(self):
@@ -19,6 +20,10 @@ class Copy:
                                f"{source.name}_copy")
         self.process = CopyProcess(source, self.target)
 
+class Memset:
+    def __init__(self, target: Variable, name: str = ""):
+        self.process = MemsetProcess(target, name)
+        
 class LIF:
     def __init__(self, shape, tau_m: float, tau_refrac: int, v_thresh: float,
                  record_spikes: bool = False, dtype = "s10_5_sat_t",

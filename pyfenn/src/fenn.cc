@@ -276,6 +276,15 @@ PYBIND11_MODULE(_fenn, m)
 
         .def_property_readonly("source", &CopyProcess::getSource)
         .def_property_readonly("target", &CopyProcess::getTarget);
+    
+    //------------------------------------------------------------------------
+    // fenn.MemsetProcess
+    //------------------------------------------------------------------------
+    pybind11::class_<MemsetProcess, Process, std::shared_ptr<MemsetProcess>>(m, "MemsetProcess")
+        .def(pybind11::init(&MemsetProcess::create),
+             pybind11::arg("target"), pybind11::arg("name") = "")
+
+        .def_property_readonly("target", &MemsetProcess::getTarget);
 
     //------------------------------------------------------------------------
     // fenn.ProcessGroup
