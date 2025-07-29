@@ -1253,10 +1253,10 @@ private:
         AssemblerUtils::unrollVectorLoopBody(
             c, scalarRegisterAllocator, process->getMaxRowLength(), 4, *weightBufferReg,
             [process, sparseMaskReg, targetAddrReg, weightBufferReg, VAccum, VPostAddr, VWeight, VWeightPostInd]
-            (CodeGenerator &c, uint32_t, bool, ScalarRegisterAllocator::RegisterPtr)
+            (CodeGenerator &c, uint32_t r, bool, ScalarRegisterAllocator::RegisterPtr)
             {
                 // Load vector of weights and indices
-                c.vloadv(*VWeightPostInd, *weightBufferReg);
+                c.vloadv(*VWeightPostInd, *weightBufferReg, r * 64);
                 
                 // **TODO** stripe
                 c.nop();
@@ -1526,7 +1526,9 @@ void LLMArrayBase::serialiseDeviceObject(std::vector<std::byte> &bytes) const
     bytes.resize(4);
 
     // Memcpy LLM pointer into bytes
-    const uint32_t llmPointer = m_LLMPointer.value();
+    // **NOTE** the code wants lane addresses not array addresses
+    // **THINK** would it be better to allocate 2 byte aligned?
+    const uint32_t llmPointer = m_LLMPointer.value() / 32;
     std::memcpy(bytes.data(), &llmPointer, 4);
 }
 
