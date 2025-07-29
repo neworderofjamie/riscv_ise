@@ -944,10 +944,19 @@ private:
                 for(const auto &e : neuronUpdateProcess->getOutputEvents()) {
                     // Add function to environment to store current mask (inherently which neurons are spiking) to scalar memory
                     unrollEnv.add(emitEventFunctionType, e.first, 
-                                  [e, r, &eventBufferRegisters](auto &env, auto&, auto&, auto maskReg, const auto&)
+                                  [e, maskReg, r, &eventBufferRegisters](auto &env, auto&, auto &scalarRegisterAllocator, auto spikeMaskReg, const auto&)
                                   {
-                                      // Store buffer
-                                      env.getCodeGenerator().sw(*maskReg, *eventBufferRegisters.at(e.second), 4 * r);
+                                      // If this loop iteration has a mask, AND it with spike mask and store word
+                                      if(maskReg) {
+                                          ALLOCATE_SCALAR(STmp);
+                                          env.getCodeGenerator().and_(*STmp, *spikeMaskReg, *maskReg);
+                                          env.getCodeGenerator().sw(*STmp, *eventBufferRegisters.at(e.second), 4 * r);
+                                      }
+                                      // Otherwise, just store spike mask register
+                                      else {
+                                          env.getCodeGenerator().sw(*spikeMaskReg, *eventBufferRegisters.at(e.second), 4 * r);
+                                      }
+                                      
                                       return std::make_pair(RegisterPtr{}, false);
                                   });
                 }
@@ -956,7 +965,8 @@ private:
                 unrollEnv.getCodeGenerator().nop();
 
                 // Compile tokens
-                // **TODO** pass mask register in here
+                // **NOTE** we don't pass mask register through here - aside from blocking 
+                // spike generation, there's no need to mask EVERY assignement etc
                 {
                     TypeChecker::EnvironmentInternal typeCheckEnv(unrollEnv);
                     EnvironmentInternal compilerEnv(unrollEnv);
