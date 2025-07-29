@@ -1,11 +1,10 @@
 import numpy as np
-import mnist
 
-from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer, Model,
-                    NeuronUpdateProcess, NumericValue, Parameter,
-                    PerformanceCounter, PlogSeverity, ProcessGroup, Runtime,
-                    Shape, UnresolvedType, Variable)
-from models import Linear
+from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer,
+                    Model, NeuronUpdateProcess, NumericValue, Parameter,
+                    PerformanceCounter, PlogSeverity, ProcessGroup,
+                    Runtime, Shape, UnresolvedType, Variable)
+from models import Linear, Memset
 
 from pyfenn import disassemble, init_logging
 from pyfenn.utils import (build_sparse_connectivity, ceil_divide, 
@@ -129,7 +128,15 @@ ie_pop = Linear(i_pop.out_spikes, e_pop.i_inh,
                 num_sparse_connectivity_bits=num_sparse_connectivity_bits, 
                 name="IE")
 
+# Initialisation
+ee_zero = Memset(e_pop.i_exc)
+ei_zero = Memset(e_pop.i_inh)
+ie_zero = Memset(i_pop.i_exc)
+ii_zero = Memset(i_pop.i_inh)
+
 # Group processes
+i_zero_processes = ProcessGroup([ee_zero.process, ei_zero.process,
+                                 ie_zero.process, ii_zero.process])
 neuron_update_processes = ProcessGroup([e_pop.process, i_pop.process],
                                        PerformanceCounter() if time else None)
 synapse_update_processes = ProcessGroup([ee_pop.process, ei_pop.process,
@@ -137,16 +144,22 @@ synapse_update_processes = ProcessGroup([ee_pop.process, ei_pop.process,
                                         PerformanceCounter() if time else None)
 
 # Create model
-model = Model([neuron_update_processes, synapse_update_processes])
+model = Model([i_zero_processes, neuron_update_processes, synapse_update_processes])
 
-# Create backend and use to generate sim code
+# Create backend and use to generate init and sim code
 backend = BackendFeNNHW() if device else BackendFeNNSim()
+init_code = backend.generate_kernel([i_zero_processes], model)
 code = backend.generate_simulation_kernel([synapse_update_processes, neuron_update_processes],
                                           [],
                                           num_timesteps, model)
 
 # Disassemble if required
 if disassemble_code:
+    print("Init:")
+    for i, c in enumerate(init_code):
+        print(f"{i * 4} : {disassemble(c)}")
+
+    print("Simulation:")
     for i, c in enumerate(code):
         print(f"{i * 4} : {disassemble(c)}")
 
@@ -163,18 +176,27 @@ copy_and_push(ii_conn.flatten(), ii_pop.weight, runtime)
 copy_and_push(ie_conn.flatten(), ie_pop.weight, runtime)
 
 # Zero remaining state
+# **TODO** use memset
 zero_and_push(e_pop.v, runtime)
 zero_and_push(e_pop.refrac_time, runtime)
 zero_and_push(i_pop.v, runtime)
 zero_and_push(i_pop.refrac_time, runtime)
-
-# **TODO** zero LLM
+zero_and_push(e_pop.out_spikes, runtime)
+zero_and_push(i_pop.out_spikes, runtime)
 
 if time:
     zero_and_push(neuron_update_processes.performance_counter, runtime)
     zero_and_push(synapse_update_processes.performance_counter, runtime)
 
-# Set instructions
+# Set init instructions
+print("Initialising")
+runtime.set_instructions(init_code)
+
+# Initialise
+runtime.run()
+
+# Set sim instructions
+print("Simulating")
 runtime.set_instructions(code)
 
 # Simulate
