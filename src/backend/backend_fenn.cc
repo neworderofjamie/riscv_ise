@@ -1318,9 +1318,24 @@ private:
 
             // If there are multiple timesteps, multiply timestep by stride and add to event start pointer
             // **TODO** modulus number of buffer timesteps/whatever else for delays
-            if (processes.front()->getInputEvents()->getNumBufferTimesteps() != 1) {
+            const size_t numBufferTimesteps = processes.front()->getInputEvents()->getNumBufferTimesteps();
+            if (numBufferTimesteps != 1) {
+                // Check number of buffer timesteps is P.O.T.
+                if((numBufferTimesteps & (numBufferTimesteps - 1)) != 0) {
+                    throw std::runtime_error("When used for spike propagation, event containers "
+                                             "need to have a power-of-two number of buffer timesteps");
+                }
+
                 ALLOCATE_SCALAR(STmp2);
-                c.mul(*STmp2, *m_TimeRegister, *STmp);
+
+                // Calculate (t + numBufferTimesteps - 1) % numBufferTimesteps
+                // **TODO** delay
+                // **THINK** using immediates limits to 12 bit delay - more than enough
+                c.addi(*STmp2, *m_TimeRegister, numBufferTimesteps - 1);
+                c.andi(*STmp2, *STmp2, numBufferTimesteps - 1);
+
+                // Multiply by stride and add to address
+                c.mul(*STmp2, *STmp2, *STmp);
                 c.add(*SEventBuffer, *SEventBuffer, *STmp2);
             }
 
