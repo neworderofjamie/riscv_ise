@@ -1,3 +1,4 @@
+import matplotlib.pyplot as plt
 import numpy as np
 
 from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer,
@@ -7,17 +8,16 @@ from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer,
 from models import Linear, Memset
 
 from pyfenn import disassemble, init_logging
-from pyfenn.utils import (build_sparse_connectivity, ceil_divide, 
-                          copy_and_push, generate_fixed_prob, 
-                          get_array_view, get_latency_spikes, 
-                          read_perf_counter, zero_and_push)
+from pyfenn.utils import (build_sparse_connectivity, copy_and_push, 
+                          generate_fixed_prob, pull_spikes, read_perf_counter,
+                          zero_and_push)
 
 from tqdm.auto import tqdm
 
 class CUBALIF:
     def __init__(self, shape, tau_m: float, tau_syn_exc: float, tau_syn_inh, 
                  tau_refrac: int, v_thresh: float, i_offset: float = 0.0,
-                 record_spikes: bool = False, name: str = ""):
+                 num_timesteps: int = 1, name: str = ""):
         self.shape = Shape(shape)
         dtype = UnresolvedType("s5_10_sat_t")
         decay_dtype = UnresolvedType("s0_15_sat_t")
@@ -26,9 +26,7 @@ class CUBALIF:
         self.i_inh = Variable(self.shape, dtype, name=f"{name}_IInh")
         self.refrac_time = Variable(self.shape, UnresolvedType("int16_t"), 
                                     name=f"{name}_RefracTime")
-        self.out_spikes = EventContainer(self.shape, 
-                                         (num_timesteps if record_spikes
-                                          else 1))
+        self.out_spikes = EventContainer(self.shape, num_timesteps)
         self.process = NeuronUpdateProcess(
             """
             s5_10_sat_t inSyn;
@@ -104,11 +102,11 @@ ei_conn = build_sparse_connectivity(ei_conn, int(round(exc_weight * 2**10)), num
 # Neurons
 e_pop = CUBALIF([num_excitatory], tau_m=20.0, tau_syn_exc=5.0, tau_syn_inh=10.0,
                 tau_refrac=5, v_thresh=10, i_offset=0.55,
-                record_spikes=True, name="E")
+                num_timesteps=num_timesteps, name="E")
 
 i_pop = CUBALIF([num_inhibitory], tau_m=20.0, tau_syn_exc=5.0, tau_syn_inh=10.0,
                 tau_refrac=5, v_thresh=10, i_offset=0.55,
-                record_spikes=True, name="I")
+                num_timesteps=num_timesteps, name="I")
 
 # Synapses
 ee_pop = Linear(e_pop.out_spikes, e_pop.i_exc,
@@ -210,3 +208,15 @@ if time:
    
     print(f"Neuron update {neuron_update_cycles} cycles, {neuron_update_instructions} instruction ({neuron_update_instructions / neuron_update_cycles})")
     print(f"Synapse update {synapse_update_cycles} cycles, {synapse_update_instructions} instruction ({synapse_update_instructions / synapse_update_cycles})")
+
+# Pull spikes
+e_spikes = pull_spikes(num_timesteps, e_pop.out_spikes, runtime)
+i_spikes = pull_spikes(num_timesteps, i_pop.out_spikes, runtime)
+
+# Plot
+fig, axis = plt.subplots()
+
+axis.scatter(e_spikes[0], e_spikes[1], s=1)
+axis.scatter(i_spikes[0], i_spikes[1] + num_excitatory, s=1)
+
+plt.show()

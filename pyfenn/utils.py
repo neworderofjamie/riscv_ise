@@ -51,6 +51,15 @@ def copy_and_push(data: np.ndarray, state, runtime: Runtime):
     # Push to device
     array.push_to_device()
 
+def pull_spikes(num_timesteps: int, state, runtime: Runtime):
+    spike_array, spike_view = get_array_view(runtime,
+                                             state,
+                                             np.uint8)
+    spike_array.pull_from_device()
+    spike_view = np.reshape(spike_view, (num_timesteps, -1))
+
+    return np.where(np.unpackbits(spike_view, axis=1, bitorder="little"))
+
 def read_perf_counter(perf_counter, runtime: Runtime):
     # Get array and view
     array, view = get_array_view(runtime, perf_counter, np.uint64)
