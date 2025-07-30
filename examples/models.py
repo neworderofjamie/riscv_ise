@@ -30,9 +30,10 @@ class LIF:
                  name: str = ""):
         self.shape = Shape(shape)
         dtype = UnresolvedType(f"s{15 - fixed_point}_{fixed_point}_sat_t")
-        self.v = Variable(self.shape, dtype)
-        self.i = Variable(self.shape, dtype)
-        self.refrac_time = Variable(self.shape, UnresolvedType("int16_t"))
+        self.v = Variable(self.shape, dtype, name=f"{name}_v")
+        self.i = Variable(self.shape, dtype, name=f"{name}_i")
+        self.refrac_time = Variable(self.shape, UnresolvedType("int16_t"),
+                                    name=f"{name}_refrac_time")
         self.out_spikes = EventContainer(self.shape, 
                                          (num_timesteps if record_spikes
                                           else 1))
@@ -64,10 +65,11 @@ class ALIF:
         self.shape = Shape(shape)
         dtype = UnresolvedType(f"s{15 - fixed_point}_{fixed_point}_sat_t")
         decay_dtype = UnresolvedType("s0_15_sat_t")
-        self.v = Variable(self.shape, dtype)
-        self.a = Variable(self.shape, dtype)
-        self.i = Variable(self.shape, dtype)
-        self.refrac_time = Variable(self.shape, UnresolvedType("int16_t"))
+        self.v = Variable(self.shape, dtype, name=f"{name}_v")
+        self.a = Variable(self.shape, dtype, name=f"{name}_a")
+        self.i = Variable(self.shape, dtype, name=f"{name}_i")
+        self.refrac_time = Variable(self.shape, UnresolvedType("int16_t"),
+                                    name=f"{name}_refrac_time")
         self.out_spikes = EventContainer(self.shape, 
                                          (num_timesteps if record_spikes
                                           else 1))
@@ -101,10 +103,10 @@ class LI:
         self.shape = Shape(shape)
         dtype = UnresolvedType(f"s{15 - fixed_point}_{fixed_point}_sat_t")
 
-        self.v = Variable(self.shape, dtype)
-        self.i = Variable(self.shape, dtype)
-        self.v_avg = Variable(self.shape, dtype)
-        self.bias = Variable(self.shape, dtype)
+        self.v = Variable(self.shape, dtype, name=f"{name}_v")
+        self.i = Variable(self.shape, dtype, name=f"{name}_i")
+        self.v_avg = Variable(self.shape, dtype, name=f"{name}_v_avg")
+        self.bias = Variable(self.shape, dtype, name=f"{name}_bias")
         self.process = NeuronUpdateProcess(
             f"""
             V = (Alpha * V) + I + Bias;
