@@ -88,13 +88,17 @@ runtime.set_instructions(code)
 # Loop through examples
 input_spike_array, input_spike_view = get_array_view(runtime, input_spikes,
                                                      np.uint32, (128, -1))
+
+# Zero end of input spike buffer
+input_spike_view[num_timesteps:,:] = 0
+
 hidden_spike_array = runtime.get_array(hidden.out_spikes)
 
 output_v_avg_array, _ = get_array_view(runtime, output.v_avg, np.int16)
 output_v_avg_copy_array, output_v_avg_copy_view = get_array_view(runtime, output_copy.target,
                                                                  np.int16)
 num_correct = 0
-for i in tqdm(range(100)):#len(mnist_labels))):
+for i in tqdm(range(len(mnist_labels))):
     # Copy data to array host pointe
     input_spike_view[:num_timesteps,:] = mnist_spikes[i]
     input_spike_array.push_to_device()
