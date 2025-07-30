@@ -5,13 +5,6 @@ RISCV_DIR:=$(abspath $(dir $(lastword $(MAKEFILE_LIST)))../)
 CXXFLAGS+=-std=c++17 -march=native -Wall -Wpedantic -Wextra -MMD -MP -I$(RISCV_DIR)/include
 ARFLAGS:=-rcs
 
-ifdef DEBUG
-    PREFIX:=$(PREFIX)_debug
-    CXXFLAGS+=-g -O0 -DDEBUG
-else
-    CXXFLAGS+=-Ofast
-endif 
-
 ifdef DYNAMIC
     PREFIX			:=$(PREFIX)_dynamic
     CXXFLAGS			+=-fPIC
@@ -19,6 +12,13 @@ ifdef DYNAMIC
 else
     LIBRARY_EXTENSION		:=a
 endif
+
+ifdef DEBUG
+    PREFIX:=$(PREFIX)_debug
+    CXXFLAGS+=-g -O0 -DDEBUG
+else
+    CXXFLAGS+=-Ofast
+endif 
 
 
 # Add prefix to object directory and library name
