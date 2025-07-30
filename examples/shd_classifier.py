@@ -11,7 +11,7 @@ from pyfenn.utils import (ceil_divide, get_array_view, load_and_push,
                           seed_and_push, zero_and_push)
 from tqdm.auto import tqdm
 
-num_timesteps = 1170
+num_timesteps = 1024
 input_shape = [700]
 hidden_shape = [256]
 output_shape = [20]
@@ -46,8 +46,8 @@ input_spikes = EventContainer(Shape(input_shape), num_timesteps)
 # Model
 rng_init = RNGInit()
 hidden = ALIF(hidden_shape, 20.0, 2000.0, 4, 0.6, 0.0174,
-              record, "s8_7_sat_t", "hidden")
-output = LI(output_shape, 20.0, num_timesteps, "s4_11_sat_t", "output")
+              record, 7, "hidden")
+output = LI(output_shape, 20.0, num_timesteps, 11, "output")
 
 input_hidden = Linear(input_spikes, hidden.i, "s8_7_sat_t", "input_hidden")
 hidden_hidden = Linear(hidden.out_spikes, hidden.i, "s8_7_sat_t", "hidden_hidden")

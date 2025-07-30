@@ -26,10 +26,10 @@ class Memset:
         
 class LIF:
     def __init__(self, shape, tau_m: float, tau_refrac: int, v_thresh: float,
-                 record_spikes: bool = False, dtype = "s10_5_sat_t",
+                 record_spikes: bool = False, fixed_point: int = 5,
                  name: str = ""):
         self.shape = Shape(shape)
-        dtype = UnresolvedType(dtype)
+        dtype = UnresolvedType(f"s{15 - fixed_point}_{fixed_point}_sat_t")
         self.v = Variable(self.shape, dtype)
         self.i = Variable(self.shape, dtype)
         self.refrac_time = Variable(self.shape, UnresolvedType("int16_t"))
@@ -37,17 +37,17 @@ class LIF:
                                          (num_timesteps if record_spikes
                                           else 1))
         self.process = NeuronUpdateProcess(
-            """
+            f"""
             V = (Alpha * V) + I;
-            I = 0.0h5;
-            if (RefracTime > 0) {
+            I = 0.0h{fixed_point};
+            if (RefracTime > 0) {{
                RefracTime -= 1;
-            }
-            else if(V >= VThresh) {
+            }}
+            else if(V >= VThresh) {{
                Spike();
                V -= VThresh;
                RefracTime = TauRefrac;
-            }
+            }}
             """,
             {"Alpha": Parameter(NumericValue(np.exp(-1.0 / tau_m)), dtype),
              "VThresh": Parameter(NumericValue(v_thresh), dtype),
@@ -59,10 +59,10 @@ class LIF:
 class ALIF:
     def __init__(self, shape, tau_m: float, tau_a: float, tau_refrac: int,
                  v_thresh: float, beta: float = 0.0174,
-                 record_spikes: bool = False, dtype = "s6_9_sat_t",
+                 record_spikes: bool = False, fixed_point: int = 9,
                  name: str = ""):
         self.shape = Shape(shape)
-        dtype = UnresolvedType(dtype)
+        dtype = UnresolvedType(f"s{15 - fixed_point}_{fixed_point}_sat_t")
         decay_dtype = UnresolvedType("s0_15_sat_t")
         self.v = Variable(self.shape, dtype)
         self.a = Variable(self.shape, dtype)
@@ -72,19 +72,19 @@ class ALIF:
                                          (num_timesteps if record_spikes
                                           else 1))
         self.process = NeuronUpdateProcess(
-            """
+            f"""
             V = mul_rs(Alpha, V) + I;
             A = mul_rs(A, Rho);
-            I = 0.0h7;
-            if (RefracTime > 0) {
+            I = 0.0h{fixed_point};
+            if (RefracTime > 0) {{
                RefracTime -= 1;
-            }
-            else if(V >= (VThresh + (Beta * A))) {
+            }}
+            else if(V >= (VThresh + (Beta * A))) {{
                Spike();
                V -= VThresh;
-               A += 1.0h7;
+               A += 1.0h{fixed_point};
                RefracTime = TauRefrac;
-            }
+            }}
             """,
             {"Alpha": Parameter(NumericValue(np.exp(-1.0 / tau_m)), decay_dtype),
              "Rho": Parameter(NumericValue(np.exp(-1.0 / tau_a)), decay_dtype),
@@ -97,18 +97,18 @@ class ALIF:
 
 class LI:
     def __init__(self, shape, tau_m: float, num_timesteps: int,
-                 dtype: str = "s10_5_sat_t", name: str = ""):
+                 fixed_point: int = 5, name: str = ""):
         self.shape = Shape(shape)
-        dtype = UnresolvedType(dtype)
+        dtype = UnresolvedType(f"s{15 - fixed_point}_{fixed_point}_sat_t")
 
         self.v = Variable(self.shape, dtype)
         self.i = Variable(self.shape, dtype)
         self.v_avg = Variable(self.shape, dtype)
         self.bias = Variable(self.shape, dtype)
         self.process = NeuronUpdateProcess(
-            """
+            f"""
             V = (Alpha * V) + I + Bias;
-            I = 0.0h6;
+            I = 0.0h{fixed_point};
             VAvg += (VAvgScale * V);
             """,
             {"Alpha": Parameter(NumericValue(np.exp(-1.0 / tau_m)), dtype), 
