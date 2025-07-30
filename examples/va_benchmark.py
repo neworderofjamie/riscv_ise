@@ -8,9 +8,9 @@ from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer,
 from models import Linear, Memset
 
 from pyfenn import disassemble, init_logging
-from pyfenn.utils import (build_sparse_connectivity, copy_and_push, 
-                          generate_fixed_prob, pull_spikes, read_perf_counter,
-                          zero_and_push)
+from pyfenn.utils import (build_sparse_connectivity, ceil_divide,
+                          copy_and_push, generate_fixed_prob, pull_spikes,
+                          read_perf_counter, zero_and_push)
 
 from tqdm.auto import tqdm
 
@@ -173,11 +173,21 @@ copy_and_push(ei_conn.flatten(), ei_pop.weight, runtime)
 copy_and_push(ii_conn.flatten(), ii_pop.weight, runtime)
 copy_and_push(ie_conn.flatten(), ie_pop.weight, runtime)
 
+# Initialise membrane voltages
+# **TODO** use init kernel
+v_thresh_fixed = int(round(10.0 * 2**10))
+num_excitatory_padded = ceil_divide(num_excitatory, 32) * 32
+num_inhibitory_padded = ceil_divide(num_inhibitory, 32) * 32
+copy_and_push(np.random.randint(0, v_thresh_fixed, num_excitatory_padded,
+                                dtype=np.int16),
+              e_pop.v, runtime)
+copy_and_push(np.random.randint(0, v_thresh_fixed, num_inhibitory_padded,
+                                dtype=np.int16),
+              i_pop.v, runtime)
+
 # Zero remaining state
-# **TODO** use memset
-zero_and_push(e_pop.v, runtime)
+# **TODO** use init kernel
 zero_and_push(e_pop.refrac_time, runtime)
-zero_and_push(i_pop.v, runtime)
 zero_and_push(i_pop.refrac_time, runtime)
 zero_and_push(e_pop.out_spikes, runtime)
 zero_and_push(i_pop.out_spikes, runtime)
