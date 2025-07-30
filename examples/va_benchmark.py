@@ -87,7 +87,6 @@ print(f"{num_excitatory} excitatory neurons, {num_inhibitory} inhibitory neurons
 init_logging(PlogSeverity.INFO)
 
 # Generate connectivity matrices
-np.random.seed(1234)
 ie_conn = generate_fixed_prob(num_inhibitory, num_excitatory, probability_connection)
 ii_conn = generate_fixed_prob(num_inhibitory, num_inhibitory, probability_connection)
 ee_conn = generate_fixed_prob(num_excitatory, num_excitatory, probability_connection)
@@ -229,4 +228,5 @@ fig, axis = plt.subplots()
 axis.scatter(e_spikes[0], e_spikes[1], s=1)
 axis.scatter(i_spikes[0], i_spikes[1] + num_excitatory, s=1)
 
+print(f"{(len(e_spikes[0]) + len(i_spikes[0])) / num_neurons} spikes/second")
 plt.show()
