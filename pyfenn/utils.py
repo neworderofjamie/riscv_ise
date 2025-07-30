@@ -4,9 +4,11 @@ from numbers import Number
 from pyfenn import Runtime
 from typing import Sequence, Union
 
-def get_array_view(runtime: Runtime, state, dtype):
+def get_array_view(runtime: Runtime, state, dtype, shape=None):
     array = runtime.get_array(state)
     view = np.asarray(array.host_view).view(dtype)
+    if shape is not None:
+        view = np.reshape(view, shape)
     assert not view.flags["OWNDATA"]
     return array, view
 
@@ -41,9 +43,9 @@ def zero_and_push(state, runtime: Runtime):
     # Push to device
     array.push_to_device()
 
-def copy_and_push(data: np.ndarray, state, runtime: Runtime):
+def copy_and_push(data: np.ndarray, state, runtime: Runtime, shape=None):
     # Get array and view
-    array, view = get_array_view(runtime, state, data.dtype)
+    array, view = get_array_view(runtime, state, data.dtype, shape)
 
     # Copy data to array host pointer
     view[:] = data

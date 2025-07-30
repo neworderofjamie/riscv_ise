@@ -25,17 +25,17 @@ disassemble_code = False
 mnist.datasets_url = "https://storage.googleapis.com/cvdf-datasets/mnist/"
 mnist_spikes = get_latency_spikes(mnist.test_images())
 mnist_labels = mnist.test_labels().astype(np.int16)
-
+mnist_spikes = np.reshape(mnist_spikes, (mnist_spikes.shape[0], num_timesteps, -1))
 init_logging()
 
 # Input spikes
-input_spikes = EventContainer(Shape(input_shape), num_timesteps)
+input_spikes = EventContainer(Shape(input_shape), 128)
 
 # Model
-hidden = LIF(hidden_shape, 20.0, 5, 0.61, record, "s10_5_sat_t")
-output = LI(output_shape, 20.0, num_timesteps, "s9_6_sat_t")
-input_hidden = Linear(input_spikes, hidden.i, "s10_5_sat_t")
-hidden_output = Linear(hidden.out_spikes, output.i, "s9_6_sat_t")
+hidden = LIF(hidden_shape, 20.0, 5, 0.61, record, "s10_5_sat_t", "hidden")
+output = LI(output_shape, 20.0, num_timesteps, "s9_6_sat_t", "output")
+input_hidden = Linear(input_spikes, hidden.i, "s10_5_sat_t", name="input_hidden")
+hidden_output = Linear(hidden.out_spikes, output.i, "s9_6_sat_t", name="hidden_output")
 
 output_copy = Copy(output.v_avg)
 
@@ -87,17 +87,17 @@ runtime.set_instructions(code)
 
 # Loop through examples
 input_spike_array, input_spike_view = get_array_view(runtime, input_spikes,
-                                                     np.uint32)
+                                                     np.uint32, (128, -1))
 hidden_spike_array = runtime.get_array(hidden.out_spikes)
 
 output_v_avg_array, _ = get_array_view(runtime, output.v_avg, np.int16)
 output_v_avg_copy_array, output_v_avg_copy_view = get_array_view(runtime, output_copy.target,
-                                                       np.int16)
+                                                                 np.int16)
 num_correct = 0
-for i in tqdm(range(len(mnist_labels))):
+for i in tqdm(range(100)):#len(mnist_labels))):
     # Copy data to array host pointe
-    input_spike_view[:] = mnist_spikes[i]
-    input_spike_array.push_to_device();
+    input_spike_view[:num_timesteps,:] = mnist_spikes[i]
+    input_spike_array.push_to_device()
 
     # Classify
     runtime.run()
@@ -110,7 +110,7 @@ for i in tqdm(range(len(mnist_labels))):
     #                 hiddenShape.getNumNeurons(), numTimesteps);
 
     # Copy output V sum from device
-    output_v_avg_copy_array.pull_from_device();
+    output_v_avg_copy_array.pull_from_device()
 
     # Determine if output is correct
     classification = np.argmax(output_v_avg_copy_view)
