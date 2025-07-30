@@ -13,7 +13,23 @@
         "setupCommands": [
             { "text": "-enable-pretty-printing", "description": "enable pretty printing", "ignoreFailures": true },
         ]
+    },
+    {
+        "name": "Launch python",
+        "type": "cppdbg",
+        "request": "launch",
+        "program": "${userHome}/virtualenv/genn_5/bin/python",
+        "args": ["${file}"],
+        "stopAtEntry": false,
+        "cwd": "${fileDirname}",
+        "environment": [],
+        "externalConsole": false,
+        "MIMode": "gdb",
+        "setupCommands": [
+            { "text": "-enable-pretty-printing", "description": "enable pretty printing", "ignoreFailures": true },
+        ]
     }
+
     ],
     "inputs": [
     {
