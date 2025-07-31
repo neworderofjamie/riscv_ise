@@ -16,19 +16,18 @@ def get_array_view(runtime: Runtime, state, dtype, shape=None):
 def ceil_divide(numerator, denominator):
     return (numerator + denominator - 1) // denominator
 
-def load_and_push(filename: str, state, runtime: Runtime):
-    # Load data from file
-    data = np.fromfile(filename, dtype=np.uint8)
+def quantise(data, fractional_bits: int, num_pre: int = None,
+             pad_post: bool = False):
+    if pad_post:
+        assert num_pre is not None
+        
+        data = np.reshape(data, (num_pre, -1))
+        pad_num_post = ceil_divide(data.shape[1], 32) * 32
+        data = np.pad(data, ((0, 0), (0, pad_num_post - data.shape[1])))    
 
-    # Get array and view
-    array, view = get_array_view(runtime, state, np.uint8)
-    assert array.host_view.nbytes == data.nbytes
-
-    # Copy data to array host pointer
-    view[:] = data
-
-    # Push to device
-    array.push_to_device()
+    # Scale, round and convert to int16
+    fp_one = 2.0 ** fractional_bits
+    return np.round(data * fp_one).astype(np.int16).flatten()
 
 def zero_and_push(state, runtime: Runtime):
     # Get array and view
@@ -52,6 +51,18 @@ def copy_and_push(data: np.ndarray, state, runtime: Runtime, shape=None):
 
     # Push to device
     array.push_to_device()
+
+def load_and_push(filename: str, state, runtime: Runtime):
+    copy_and_push(np.fromfile(filename, dtype=np.uint8), state, runtime)
+
+def load_quantise_and_push(filename: str, fractional_bits: int,
+                           state, runtime: Runtime, num_pre: int = None,
+                           pad_post: bool = False):
+    # Load data from file and quantise
+    data = quantise(np.load(filename), fractional_bits, num_pre, pad_post)
+
+    # Copy and push
+    copy_and_push(data, state, runtime)
 
 def pull_spikes(num_timesteps: int, state, runtime: Runtime):
     spike_array, spike_view = get_array_view(runtime,
@@ -100,7 +111,6 @@ def get_latency_spikes(images, tau=20.0, num_timesteps=79, threshold=51):
 
     # Stack spikes and view as uint32
     return np.stack(spikes).view(np.uint32)
-
 
 def build_delay_weights(weights: np.ndarray, delays: np.ndarray,
                         delay_bits: int) -> np.ndarray:

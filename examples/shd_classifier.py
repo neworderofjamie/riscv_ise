@@ -7,7 +7,7 @@ from models import ALIF, Copy, LI, Linear, RNGInit
 from tonic.datasets import SHD
 
 from pyfenn import disassemble, init_logging
-from pyfenn.utils import (ceil_divide, get_array_view, load_and_push, 
+from pyfenn.utils import (ceil_divide, get_array_view, load_quantise_and_push,
                           seed_and_push, zero_and_push)
 from tqdm.auto import tqdm
 
@@ -83,11 +83,14 @@ runtime = Runtime(model, backend)
 # Allocate memory for model
 runtime.allocate()
 
-# Load weights
-load_and_push("99-Conn_Pop0_Pop1-g.bin", input_hidden.weight, runtime)
-load_and_push("99-Conn_Pop1_Pop1-g.bin", hidden_hidden.weight, runtime)
-load_and_push("99-Conn_Pop1_Pop2-g.bin", hidden_output.weight, runtime)
-load_and_push("99-Pop2-Bias.bin", output.bias, runtime)
+# Load weights, quantise and pusn to FeNN
+load_quantise_and_push("99-Conn_Pop0_Pop1-g.npy", 7, 
+                       input_hidden.weight, runtime)
+load_quantise_and_push("99-Conn_Pop1_Pop1-g.npy", 7,
+                       hidden_hidden.weight, runtime)
+load_quantise_and_push("99-Conn_Pop1_Pop2-g.npy", 11, hidden_output.weight,
+                       runtime, hidden_shape[0], True)
+load_quantise_and_push("99-Pop2-Bias.npy", 11, output.bias, runtime, 1, True)
 
 # Zero remaining state
 zero_and_push(hidden.v, runtime)
@@ -125,13 +128,6 @@ for spikes, label in tqdm(zip(shd_spikes, shd_labels),
 
     # Classify
     runtime.run()
-
-    # If we're recording, write input and hidden spikes to file
-    #if record:
-    #    recordSpikes("mnist_input_spikes_" + std::to_string(i) + ".csv", inputSpikeArray,
-    #                 inputShape.getNumNeurons(), numTimesteps);
-    #    recordSpikes("mnist_hidden_spikes_" + std::to_string(i) + ".csv", hiddenSpikeArray,
-    #                 hiddenShape.getNumNeurons(), numTimesteps);
 
     # Copy output V sum from device
     output_v_avg_copy_array.pull_from_device();
