@@ -66,7 +66,7 @@ class Linear:
                                f"{name}_weight")
         self.process = EventPropagationProcess(source_event_container,
                                                self.weight, target_variable,
-                                               name)
+                                               name=name)
 
 
 def _get_type(frac_bits: int, saturation: bool):
