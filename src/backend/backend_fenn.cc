@@ -531,8 +531,10 @@ private:
             // It can't be located in BRAM
             m_BRAMCompatible = false;
 
-            // If it's sparse, it also can't be located in URAM
-            if(eventPropagationProcess->getNumSparseConnectivityBits() > 0) {
+            // If it's sparse or delayed, it also can't be located in URAM
+            if(eventPropagationProcess->getNumSparseConnectivityBits() > 0
+               || eventPropagationProcess->getNumDelayBits() > 0) 
+            {
                 m_URAMCompatible = false;
             }
             
@@ -1244,10 +1246,11 @@ private:
             });
     }
 
-    void generateSparseRow(std::shared_ptr<const EventPropagationProcess> process,
-                          VectorRegisterAllocator::RegisterPtr targetDelayMaskReg, 
-                          VectorRegisterAllocator::RegisterPtr targetAddrReg,
-                          ScalarRegisterAllocator::RegisterPtr weightBufferReg)
+    void generateSparseDelayRow(std::shared_ptr<const EventPropagationProcess> process,
+                                VectorRegisterAllocator::RegisterPtr targetDelayMaskReg, 
+                                VectorRegisterAllocator::RegisterPtr targetAddrReg,
+                                VectorRegisterAllocator::RegisterPtr vectorTimeReg,
+                                ScalarRegisterAllocator::RegisterPtr weightBufferReg)
     {
         // Make some friendlier-named references
         auto &scalarRegisterAllocator = m_ScalarRegisterAllocator.get();
@@ -1263,26 +1266,40 @@ private:
 
         // Preload first weights and indices to avoid stall
         c.vloadv(*VWeightInd1, *weightBufferReg, 0);
-
+        
         AssemblerUtils::unrollVectorLoopBody(
             c, scalarRegisterAllocator, process->getMaxRowLength(), 4, *weightBufferReg,
-            [process, targetDelayMaskReg, targetAddrReg, weightBufferReg, VAccum, VPostAddr, 
-             VWeight, VWeightInd1, VWeightInd2]
+            [process, targetDelayMaskReg, targetAddrReg, vectorTimeReg, weightBufferReg, 
+             VAccum, VPostAddr, VWeight, VWeightInd1, VWeightInd2]
             (CodeGenerator &c, uint32_t r, bool even, ScalarRegisterAllocator::RegisterPtr)
             {
                 // Load NEXT vector of weights and indices
                 c.vloadv(even ? *VWeightInd2 : *VWeightInd1, *weightBufferReg, (r + 1) * 64);
 
-                // Extract postsynaptic index and add base address
+                // Extract postsynaptic index/delay
                 auto VWeightInd = even ? VWeightInd1 : VWeightInd2;
                 c.vand(*VPostAddr, *VWeightInd, *targetDelayMaskReg);
+                
+                // If process has delays
+                if(process->getNumDelayBits() > 0) {
+                    // Add time to delay
+                    c.vadd(*VPostAddr, *VPostAddr, *vectorTimeReg);
+
+                    // Take modulo max delay
+                    c.vand(*VPostAddr, *VPostAddr, *targetDelayMaskReg);
+                }
+
+                // Add base address
                 c.vadd(*VPostAddr, *VPostAddr, *targetAddrReg); 
                 
                 // Load accumulator
                 c.vloadl(*VAccum, *VPostAddr);
                 
                 // Extract weight
-                c.vsrai(process->getNumSparseConnectivityBits(), *VWeight, *VWeightInd);
+                const size_t numBits = ((process->getNumSparseConnectivityBits() > 0) 
+                                        ? process->getNumSparseConnectivityBits()
+                                        : process->getNumDelayBits());
+                c.vsrai(numBits, *VWeight, *VWeightInd);
 
                 // Add weights to accumulator loaded in previous iteration
                 c.vadd_s(*VAccum, *VAccum, *VWeight);
@@ -1354,6 +1371,15 @@ private:
 
             // Get address of end of input event buffer        
             c.add(*SEventBufferEnd, *STmp, *SEventBuffer);
+        }
+
+        // If any processes have delay, load lower 16-bits of time into vector register
+        VectorRegisterAllocator::RegisterPtr vectorTimeReg;
+        if(std::any_of(processes.cbegin(), processes.cend(), 
+           [](const auto &p){ return (p->getNumDelayBits() > 0); }))
+        {
+            vectorTimeReg = vectorRegisterAllocator.getRegister("VTime V");
+            c.vfill(*vectorTimeReg, *m_TimeRegister);
         }
 
         // Loop through postsynaptic targets
@@ -1467,7 +1493,8 @@ private:
                     //}
 
                     if(sparseOrDelay) {
-                        generateSparseRow(p, sparseMaskReg, targetAddrReg, SWeightBuffer);
+                        generateSparseDelayRow(p, sparseMaskReg, targetAddrReg, 
+                                               vectorTimeReg, SWeightBuffer);
                     }
                     else {
                         generateDenseRow(p, targetReg, SWeightBuffer);
