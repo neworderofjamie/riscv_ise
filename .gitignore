@@ -2,7 +2,7 @@
 /pyfenn.egg-info/
 /Debug/
 /lib/
-/obj/
+/obj*/
 /build/
 **/x64/
 *.vcxproj.user
