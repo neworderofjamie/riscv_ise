@@ -103,6 +103,25 @@ def get_latency_spikes(images, tau=20.0, num_timesteps=79, threshold=51):
     return np.stack(spikes).view(np.uint32)
 
 
+def build_delay_weights(weights: np.ndarray, delays: np.ndarray,
+                        delay_bits: int) -> np.ndarray:
+    assert weights.shape == delays.shape
+    
+    # Check largest delay fits without delay connectivity bits
+    max_delay = np.amax(delays)
+    if max_delay >= 2**delay_bits:
+        raise RuntimeError("Not enough bits to represent delays")
+
+    # Check weight fits within remaining bits
+    weight_bits = 15 - delay_bits
+    max_weight = (2**weight_bits) - 1
+    min_weight = -max_weight - 1
+    if np.amin(weights) < min_weight or np.amax(weights) > max_weight:
+        raise RuntimeError("Not enough bits for weight")
+
+    # Combine weight and indices
+    return delays | (weights << delay_bits)
+
 def build_sparse_connectivity(row_ind: Sequence[np.ndarray], weight: Number,
                               sparse_connectivity_bits: int) -> np.ndarray:
     num_pre = len(row_ind)
