@@ -73,7 +73,8 @@ class COMPILER_EXPORT EventPropagationProcess : public AcceptableModelComponent<
 public:
     EventPropagationProcess(Private, std::shared_ptr<const EventContainer> inputEvents, 
                             std::shared_ptr<const Variable> weight, std::shared_ptr<const Variable> target,
-                            size_t numSparseConnectivityBits, const std::string &name);
+                            size_t numSparseConnectivityBits, size_t numDelayBits,
+                            const std::string &name);
 
     //------------------------------------------------------------------------
     // Public API
@@ -87,6 +88,7 @@ public:
     size_t getMaxRowLength() const{ return m_MaxRowLength; }
 
     size_t getNumSparseConnectivityBits() const{ return m_NumSparseConnectivityBits; }
+    size_t getNumDelayBits() const{ return m_NumDelayBits; }
     
     //------------------------------------------------------------------------
     // Static API
@@ -95,10 +97,11 @@ public:
                                                            std::shared_ptr<const Variable> weight,
                                                            std::shared_ptr<const Variable> target, 
                                                            size_t numSparseConnectivityBits = 0,
+                                                           size_t numDelayBits = 0,
                                                            const std::string &name = "")
     {
         return std::make_shared<EventPropagationProcess>(Private(), inputEvents, weight, target, 
-                                                         numSparseConnectivityBits, name);
+                                                         numSparseConnectivityBits, numDelayBits, name);
     }
 
 private:
@@ -114,6 +117,7 @@ private:
     size_t m_MaxRowLength;
 
     size_t m_NumSparseConnectivityBits;
+    size_t m_NumDelayBits;
 };
 
 //----------------------------------------------------------------------------

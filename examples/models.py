@@ -121,7 +121,8 @@ class LI:
 class Linear:
     def __init__(self, source_events: EventContainer, target_var: Variable,
                  weight_dtype: str, max_row_length: Optional[int] = None, 
-                 num_sparse_connectivity_bits: int = 0, name: str = ""):
+                 num_sparse_connectivity_bits: int = 0, 
+                 num_delay_bits: int = 0, name: str = ""):
         self.shape = Shape([source_events.shape.num_neurons,
                             target_var.shape.num_neurons])
         weight_shape = Shape(
@@ -134,4 +135,4 @@ class Linear:
         self.process = EventPropagationProcess(source_events, self.weight,
                                                target_var, 
                                                num_sparse_connectivity_bits,
-                                               name)
+                                               num_delay_bits, name)

@@ -55,9 +55,10 @@ NeuronUpdateProcess::NeuronUpdateProcess(Private, const std::string &code, const
 //----------------------------------------------------------------------------
 EventPropagationProcess::EventPropagationProcess(Private, std::shared_ptr<const EventContainer> inputEvents, 
                                                  std::shared_ptr<const Variable> weight, std::shared_ptr<const Variable> target,
-                                                 size_t numSparseConnectivityBits, const std::string &name)
+                                                 size_t numSparseConnectivityBits, size_t numDelayBits, const std::string &name)
 :   AcceptableModelComponent<EventPropagationProcess, Process>(name), m_InputEvents(inputEvents), 
-    m_Weight(weight), m_Target(target), m_NumSparseConnectivityBits(numSparseConnectivityBits)
+    m_Weight(weight), m_Target(target), m_NumSparseConnectivityBits(numSparseConnectivityBits),
+    m_NumDelayBits(numDelayBits)
 {
     if(m_InputEvents == nullptr) {
         throw std::runtime_error("Event propagation process requires input events");
@@ -87,6 +88,12 @@ EventPropagationProcess::EventPropagationProcess(Private, std::shared_ptr<const 
                                  + std::to_string(m_NumSourceNeurons) + " source neurons");
     }
 
+    // Check delays and sparsity are not being combined
+    if(m_NumDelayBits > 0 && m_NumSparseConnectivityBits > 0) {
+        throw std::runtime_error("Event propagation processes with both events "
+                                 "and delays are not currently supported");
+    }
+
     // Check weight number of target neurons matches if no sparsity
     if(m_NumSparseConnectivityBits == 0 && m_MaxRowLength != m_NumTargetNeurons) {
         throw std::runtime_error("Weight with shape: " + weight->getShape().toString() 
@@ -99,9 +106,19 @@ EventPropagationProcess::EventPropagationProcess(Private, std::shared_ptr<const 
                                  "currently supported by event propagation processes");
     }
 
-    if (m_Target->getNumBufferTimesteps() != 1) {
-        throw std::runtime_error("Target has more than 1 buffer timestep which isn't "
-                                 "currently supported by event propagation processes");
+    // If there are no delays, check target only has one buffer timestep
+    if (m_NumDelayBits == 0) {
+        if(m_Target->getNumBufferTimesteps() != 1) {
+            throw std::runtime_error("Target has more than 1 buffer timestep "
+                                     "but no delay bits are specified");
+        }
+    }
+    // Otherwise, check buffer size matches
+    else {
+        if(m_Target->getNumBufferTimesteps() != (1 << m_NumDelayBits)) {
+            throw std::runtime_error("Number of target buffer timestep does not "
+                                     "match specified number of delay bits");
+        }
     }
     
 }
