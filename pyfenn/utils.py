@@ -22,11 +22,10 @@ def load_and_push(filename: str, state, runtime: Runtime):
 
     # Get array and view
     array, view = get_array_view(runtime, state, np.uint8)
-    # **TODO** something smarter about if array is 1D and difference just padding
-    assert array.host_view.nbytes >= data.nbytes
+    assert array.host_view.nbytes == data.nbytes
 
     # Copy data to array host pointer
-    view[:data.nbytes] = data
+    view[:] = data
 
     # Push to device
     array.push_to_device()
