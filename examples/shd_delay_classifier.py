@@ -8,22 +8,21 @@ from models import Copy, LI, Linear, RNGInit
 from tonic.datasets import SHD
 
 from pyfenn import disassemble, init_logging
-from pyfenn.utils import (ceil_divide, get_array_view, load_and_push, 
+from pyfenn.utils import (build_delay_weights, ceil_divide, copy_and_push, 
+                          get_array_view, load_quantise_and_push, quantise, 
                           seed_and_push, zero_and_push)
 from tqdm.auto import tqdm
 
 class LIF:
     def __init__(self, shape, tau_m: float, tau_syn: float, v_thresh: float,
-                 record_spikes: bool = False, fixed_point: int = 5,
-                 name: str = ""):
+                 fixed_point: int = 5, spike_record_timesteps: int = 1,
+                 i_delay_timesteps: int = 1, name: str = ""):
         self.shape = Shape(shape)
         decay_dtype = UnresolvedType("s0_15_sat_t")
         dtype = UnresolvedType(f"s{15 - fixed_point}_{fixed_point}_sat_t")
         self.v = Variable(self.shape, dtype, name=f"{name}_v")
-        self.i = Variable(self.shape, dtype, name=f"{name}_i")
-        self.out_spikes = EventContainer(self.shape, 
-                                         (num_timesteps if record_spikes
-                                          else 1))
+        self.i = Variable(self.shape, dtype, i_delay_timesteps, name=f"{name}_i")
+        self.out_spikes = EventContainer(self.shape, spike_record_timesteps)
         self.process = NeuronUpdateProcess(
             f"""
             // Synapse
@@ -65,7 +64,8 @@ shd_spikes = []
 shd_labels = []
 timestep_range = np.arange(num_timesteps + 1)
 neuron_range = np.arange((ceil_divide(input_shape[0], 32) * 32) + 1)
-for events, label in dataset:
+for i in range(100):
+    events, label = dataset[i]
     # Build histogram
     spike_event_histogram = np.histogram2d(events["t"] / 1000.0, events["x"], (timestep_range, neuron_range))[0]
     spike_event_histogram = np.minimum(spike_event_histogram, 1).astype(bool)
@@ -80,11 +80,13 @@ input_spikes = EventContainer(Shape(input_shape), num_timesteps)
 
 # Model
 hidden = LIF(hidden_shape, 20.0, 5.0, 1.0,
-              record, 8, name="hidden")
+             8, 1, 64, name="hidden")
 output = LI(output_shape, 20.0, num_timesteps, 8, name="output")
 
-input_hidden = Linear(input_spikes, hidden.i, "s7_8_sat_t", name="input_hidden")
-hidden_hidden = Linear(hidden.out_spikes, hidden.i, "s7_8_sat_t", name="hidden_hidden")
+input_hidden = Linear(input_spikes, hidden.i, "s7_8_sat_t", 
+                      num_delay_bits=6, name="input_hidden")
+hidden_hidden = Linear(hidden.out_spikes, hidden.i, "s7_8_sat_t", 
+                       num_delay_bits=6, name="hidden_hidden")
 hidden_output = Linear(hidden.out_spikes, output.i, "s7_8_sat_t", name="hidden_output")
 
 output_copy = Copy(output.v_avg)
@@ -115,17 +117,32 @@ runtime = Runtime(model, backend)
 # Allocate memory for model
 runtime.allocate()
 
-# Load weights
-load_and_push("99-Conn_Pop0_Pop1-g.bin", input_hidden.weight, runtime)
-load_and_push("99-Conn_Pop1_Pop1-g.bin", hidden_hidden.weight, runtime)
-load_and_push("99-Conn_Pop1_Pop2-g.bin", hidden_output.weight, runtime)
-load_and_push("99-Pop2-Bias.bin", output.bias, runtime)
+# Load and round delays
+in_hid_delays = np.round(np.load("checkpoints_6_1_256_62_1_0_1.0_1_5e-12/best-Conn_Pop0_Pop1-d.npy")).astype(np.uint16)
+hid_hid_delays = np.round(np.load("checkpoints_6_1_256_62_1_0_1.0_1_5e-12/best-Conn_Pop1_Pop1-d.npy")).astype(np.uint16)
+
+# Load and quantise weights
+in_hid_weights = quantise(np.load("checkpoints_6_1_256_62_1_0_1.0_1_5e-12/best-Conn_Pop0_Pop1-g.npy"),
+                          8, input_shape[0], True)
+                          
+hid_hid_weights = quantise(np.load("checkpoints_6_1_256_62_1_0_1.0_1_5e-12/best-Conn_Pop1_Pop1-g.npy"),
+                           8, hidden_shape[0], True) 
+
+# Combine weights and delays and push
+copy_and_push(build_delay_weights(in_hid_weights, in_hid_delays, 6),
+              input_hidden.weight, runtime)
+copy_and_push(build_delay_weights(hid_hid_weights, hid_hid_delays, 6),
+              hidden_hidden.weight, runtime)
+
+# Load and quantise output weights
+load_quantise_and_push("checkpoints_6_1_256_62_1_0_1.0_1_5e-12/best-Conn_Pop1_Pop2-g.npy",
+                       8, hidden_output.weight, runtime, hidden_shape[0], True)
 
 # Zero remaining state
 zero_and_push(hidden.v, runtime)
 zero_and_push(hidden.i, runtime)
-zero_and_push(hidden.refrac_time, runtime)
 zero_and_push(output.v, runtime)
+zero_and_push(output.bias, runtime) # Optimise out
 zero_and_push(output.v_avg, runtime)
 
 # Set instructions
@@ -140,7 +157,7 @@ output_v_avg_array, _ = get_array_view(runtime, output.v_avg, np.int16)
 output_v_avg_copy_array, output_v_avg_copy_view = get_array_view(runtime, output_copy.target,
                                                                  np.int16)
 num_correct = 0
-for spikes, label in tqdm(zip(shd_spikes, shd_labels),
+for spikes, label in tqdm(zip(shd_spikes[:100], shd_labels),
                           total=len(shd_labels)):
     # Copy data to array host pointe
     input_spike_view[:] = spikes
