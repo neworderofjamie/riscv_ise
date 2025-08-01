@@ -17,16 +17,31 @@ def ceil_divide(numerator, denominator):
     return (numerator + denominator - 1) // denominator
 
 def quantise(data, fractional_bits: int, num_pre: int = None,
-             pad_post: bool = False):
+             pad_post: bool = False, percentile: float = 99.0):
+    # Split data into positive and negative
+    positive_mask = (data > 0)
+    positive_data = data[positive_mask]
+    negative_data = data[np.logical_not(positive_mask)]
+
+    # Calculate desired percentile
+    positive_perc = np.percentile(positive_data, percentile)
+    negative_perc = np.percentile(-negative_data, percentile)
+
+    # Calculate the largest of these and clip
+    max_val = max(positive_perc, negative_perc)
+    data = np.clip(data, -max_val, max_val)
+
     if pad_post:
         assert num_pre is not None
         
         data = np.reshape(data, (num_pre, -1))
         pad_num_post = ceil_divide(data.shape[1], 32) * 32
-        data = np.pad(data, ((0, 0), (0, pad_num_post - data.shape[1])))    
+        data = np.pad(data, ((0, 0), (0, pad_num_post - data.shape[1])))  
 
     # Scale, round and convert to int16
     fp_one = 2.0 ** fractional_bits
+
+    # Scale by fixed point, round, convert to int and flatten
     return np.round(data * fp_one).astype(np.int16).flatten()
 
 def zero_and_push(state, runtime: Runtime):
@@ -129,7 +144,7 @@ def build_delay_weights(weights: np.ndarray, delays: np.ndarray,
         raise RuntimeError("Not enough bits for weight")
 
     # Combine weight and indices
-    return delays | (weights << delay_bits)
+    return (delays | (weights << delay_bits)).astype(np.int16)
 
 def build_sparse_connectivity(row_ind: Sequence[np.ndarray], weight: Number,
                               sparse_connectivity_bits: int) -> np.ndarray:
