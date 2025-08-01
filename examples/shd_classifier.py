@@ -85,12 +85,13 @@ runtime.allocate()
 
 # Load weights, quantise and pusn to FeNN
 load_quantise_and_push("99-Conn_Pop0_Pop1-g.npy", 7, 
-                       input_hidden.weight, runtime)
+                       input_hidden.weight, runtime, percentile=100.0)
 load_quantise_and_push("99-Conn_Pop1_Pop1-g.npy", 7,
-                       hidden_hidden.weight, runtime)
+                       hidden_hidden.weight, runtime, percentile=100.0)
 load_quantise_and_push("99-Conn_Pop1_Pop2-g.npy", 11, hidden_output.weight,
-                       runtime, hidden_shape[0], True)
-load_quantise_and_push("99-Pop2-Bias.npy", 11, output.bias, runtime, 1, True)
+                       runtime, hidden_shape[0], True, percentile=100.0)
+load_quantise_and_push("99-Pop2-Bias.npy", 11, output.bias, runtime, 
+                       1, True, percentile=100.0)
 
 # Zero remaining state
 zero_and_push(hidden.v, runtime)

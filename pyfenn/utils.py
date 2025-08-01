@@ -72,9 +72,10 @@ def load_and_push(filename: str, state, runtime: Runtime):
 
 def load_quantise_and_push(filename: str, fractional_bits: int,
                            state, runtime: Runtime, num_pre: int = None,
-                           pad_post: bool = False):
+                           pad_post: bool = False, percentile: float = 99.0):
     # Load data from file and quantise
-    data = quantise(np.load(filename), fractional_bits, num_pre, pad_post)
+    data = quantise(np.load(filename), fractional_bits, 
+                    num_pre, pad_post, percentile)
 
     # Copy and push
     copy_and_push(data, state, runtime)
