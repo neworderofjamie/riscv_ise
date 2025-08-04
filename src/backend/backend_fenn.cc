@@ -1660,6 +1660,22 @@ StateBase::StateBase(const Model &model)
     }
 }
 //----------------------------------------------------------------------------
+void StateBase::allocateLUTs(IFieldArray *fieldArray, uint32_t numFields)
+{
+    // Start offset at end of fields
+    uint32_t startOffset = numFields * 4;
+
+    // Loop through required LUTs
+    for(const auto &l : m_LUTs) {
+        // **TODO** 
+        // 1. create LLMArray - guess this needs to be in backend
+        // 2. set as value of m_LUTs[l]
+        // 3. fieldArray->setFieldArray()
+        startOffset++;
+    }
+}
+
+//----------------------------------------------------------------------------
 // BackendFeNN
 //------------------------------------------------------------------------
 std::vector<uint32_t> BackendFeNN::generateSimulationKernel(const std::vector<std::shared_ptr<const ProcessGroup>> &timestepProcessGroups,

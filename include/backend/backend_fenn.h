@@ -1,6 +1,7 @@
 #pragma once
 
 // Standard C++ includes
+#include <map>
 #include <memory>
 #include <vector>
 
@@ -286,6 +287,10 @@ public:
 
     auto &getLUT(const std::string &function){ return m_LUTs.at(function); }
 
+    size_t getNumLUTs() const{ return m_LUTs.size(); }
+
+    void allocateLUTs(IFieldArray *fieldArray, uint32_t numFields);
+
 private:
     //------------------------------------------------------------------------
     // Members
@@ -295,7 +300,8 @@ private:
     LLMAllocator m_LLMAllocator;
 
     // Lookup tables
-    std::unordered_map<std::string, std::unique_ptr<LLMArrayBase>> m_LUTs;
+    // **NOTE** use std::map so these are in predictable order
+    std::map<std::string, std::unique_ptr<LLMArrayBase>> m_LUTs;
 };
 
 //----------------------------------------------------------------------------

@@ -304,7 +304,15 @@ std::unique_ptr<ArrayBase> BackendFeNNHW::createLLMArray(const GeNN::Type::Resol
 //------------------------------------------------------------------------
 std::unique_ptr<IFieldArray> BackendFeNNHW::createFieldArray(const Model &model, StateBase *state) const
 {
-    return std::make_unique<::BRAMFieldArray<BRAMArray>>(GeNN::Type::Uint32, model.getNumFields(), static_cast<HWState*>(state));
+    // Create field array with enough space for fields and LUTs
+    auto fieldArray = std::make_unique<::BRAMFieldArray<BRAMArray>>(
+        GeNN::Type::Uint32, model.getNumFields() + state->getNumLUTs(), 
+        static_cast<HWState*>(state));
+
+    // Allocate LUTs
+    state->allocateLUTs(fieldArray.get(), model.getNumFields());
+
+    return fieldArray;
 }
 //------------------------------------------------------------------------
 std::unique_ptr<StateBase> BackendFeNNHW::createState(const Model &model) const
