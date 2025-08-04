@@ -22,7 +22,7 @@ public:
 
     virtual std::unique_ptr<IFieldArray> createFieldArray(const Model &model, StateBase *state) const override final;
 
-    virtual std::unique_ptr<StateBase> createState() const override final;
+    virtual std::unique_ptr<StateBase> createState(const Model &model) const override final;
 
 protected:
     //------------------------------------------------------------------------

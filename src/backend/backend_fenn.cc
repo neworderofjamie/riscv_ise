@@ -611,6 +611,59 @@ private:
     bool m_BRAMCompatible;
 };
 
+//----------------------------------------------------------------------------
+// LUTVisitor
+//----------------------------------------------------------------------------
+class LUTVisitor : public ModelComponentVisitor
+{
+public:
+    LUTVisitor(const Model &model)
+    {
+        // Loop through process groups in model and visit all processes
+        for(const auto g : model.getProcessGroups()) {
+            for(const auto &p : g->getProcesses()) {
+                p->accept(*this);
+            }
+        }
+    }
+
+    const auto &getLUTFunctions() const{ return m_LUTFunctions; }
+
+private:
+    //------------------------------------------------------------------------
+    // ModelComponentVisitor virtuals
+    //------------------------------------------------------------------------
+    virtual void visit(std::shared_ptr<const NeuronUpdateProcess> neuronUpdateProcess)
+    {
+        // If exponential function is referenced in tokens
+        if(isIdentifierCalled("exp", neuronUpdateProcess->getTokens())) {
+            m_LUTFunctions.push_back("exp");
+        }
+    }
+
+    bool isIdentifierCalled(const std::string &identifierName, const std::vector<Transpiler::Token> &tokens) const
+    {
+        // Loop through tokens
+        for(auto t = tokens.cbegin(); t != tokens.cend(); t++) {
+            // If token is an identifier with correct name
+            if(t->type == Transpiler::Token::Type::IDENTIFIER && t->lexeme == identifierName) {
+                // If token isn't last in sequence and it's followed by a left bracket
+                const auto tNext = std::next(t);
+                if(tNext != tokens.cend() && tNext->type == Transpiler::Token::Type::LEFT_PAREN) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    //------------------------------------------------------------------------
+    // Members
+    //------------------------------------------------------------------------
+    std::vector<std::string> m_LUTFunctions;
+};
+
 class PerformanceCounterScope
 {
 public:
@@ -1592,6 +1645,20 @@ void LLMArrayBase::serialiseDeviceObject(std::vector<std::byte> &bytes) const
     std::memcpy(bytes.data(), &llmPointer, 4);
 }
 
+//----------------------------------------------------------------------------
+// BackendFeNN
+//------------------------------------------------------------------------
+StateBase::StateBase(const Model &model)
+{
+    // Visit model to find what functions are required
+    LUTVisitor visitor(model);
+
+    // Loop through
+    for(const auto &l : visitor.getLUTFunctions()) {
+        LOGI << "Model requires LUT for '" << l << "' function";
+        m_LUTs.try_emplace(l, nullptr);
+    }
+}
 //----------------------------------------------------------------------------
 // BackendFeNN
 //------------------------------------------------------------------------

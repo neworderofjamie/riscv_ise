@@ -24,7 +24,8 @@ namespace
 class SimState : public StateBase
 {
 public:
-    SimState()
+    SimState(const Model &model)
+    :   StateBase(model)
     {
         m_RISCV.addCoprocessor<VectorProcessor>(vectorQuadrant);
     }
@@ -306,10 +307,14 @@ std::unique_ptr<ArrayBase> BackendFeNNSim::createLLMArray(const GeNN::Type::Reso
 //------------------------------------------------------------------------
 std::unique_ptr<IFieldArray> BackendFeNNSim::createFieldArray(const Model &model, StateBase *state) const
 {
+    // **TODO** Get number of additional fields for LUTs from state (could be done in StateBase constructor)
+
     return std::make_unique<::BRAMFieldArray<BRAMArray>>(GeNN::Type::Uint32, model.getNumFields(), static_cast<SimState*>(state));
+
+    // **TODO** Allocate arrays and set in field array
 }
 //------------------------------------------------------------------------
-std::unique_ptr<StateBase> BackendFeNNSim::createState() const
+std::unique_ptr<StateBase> BackendFeNNSim::createState(const Model &model) const
 {
-    return std::make_unique<SimState>();
+    return std::make_unique<SimState>(model);
 }
