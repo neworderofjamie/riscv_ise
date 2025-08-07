@@ -10,6 +10,8 @@
 class BACKEND_EXPORT BackendFeNNSim : public BackendFeNN
 {
 public:
+    using BackendFeNN::BackendFeNN;
+
     //------------------------------------------------------------------------
     // BackendFeNN virtuals
     //------------------------------------------------------------------------

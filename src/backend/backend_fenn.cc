@@ -480,8 +480,10 @@ void compileStatements(const std::vector<Token> &tokens, const Type::TypeContext
 class VariableImplementerVisitor : public ModelComponentVisitor
 {
 public:
-    VariableImplementerVisitor(std::shared_ptr<const Variable> variable, const Model::StateProcesses::mapped_type &processes)
-    :   m_Variable(variable), m_LLMCompatible(true), m_URAMCompatible(true), m_BRAMCompatible(true)
+    VariableImplementerVisitor(std::shared_ptr<const Variable> variable, const Model::StateProcesses::mapped_type &processes,
+                               bool useDRAMForWeights)
+    :   m_Variable(variable), m_UseDRAMForWeights(useDRAMForWeights), m_LLMCompatible(true), 
+        m_URAMCompatible(true), m_BRAMCompatible(true), m_DRAMCompatible(true)
     {
         // Visit all processes
         for(auto p : processes) {
@@ -492,6 +494,7 @@ public:
     bool isLLMCompatible() const{ return m_LLMCompatible; }
     bool isURAMCompatible() const{ return m_URAMCompatible; }
     bool isBRAMCompatible() const{ return m_BRAMCompatible; }
+    bool isDRAMCompatible() const{ return m_DRAMCompatible; }
 
 private:
     //------------------------------------------------------------------------
@@ -505,6 +508,7 @@ private:
      
         // Neuron variables can be located in URAM or LLM
         m_BRAMCompatible = false;
+        m_DRAMCompatible = false;
 
         if(!m_URAMCompatible && !m_LLMCompatible) {
             throw std::runtime_error("Neuron update process '" + neuronUpdateProcess->getName()
@@ -520,16 +524,30 @@ private:
             m_LLMCompatible = false;
             m_BRAMCompatible = false;
 
-            if(!m_URAMCompatible) {
-                throw std::runtime_error("Event propagation process '" + eventPropagationProcess->getName() 
-                                        + "' weight array '" + eventPropagationProcess->getWeight()->getName()
-                                        + "' shared with incompatible processes");
+            if(m_UseDRAMForWeights) {
+                m_URAMCompatible = false;
+
+                if(!m_DRAMCompatible) {
+                    throw std::runtime_error("Event propagation process '" + eventPropagationProcess->getName() 
+                                            + "' weight array '" + eventPropagationProcess->getWeight()->getName()
+                                            + "' shared with incompatible processes");
+                }
+            }
+            else {
+                m_DRAMCompatible = false;
+
+                if(!m_URAMCompatible) {
+                    throw std::runtime_error("Event propagation process '" + eventPropagationProcess->getName() 
+                                            + "' weight array '" + eventPropagationProcess->getWeight()->getName()
+                                            + "' shared with incompatible processes");
+                }
             }
         }
         // Otherwise, if variable's target
         else if(m_Variable == eventPropagationProcess->getTarget()) {
-            // It can't be located in BRAM
+            // It can't be located in BRAM or DRAM
             m_BRAMCompatible = false;
+            m_DRAMCompatible = false;
 
             // If it's sparse or delayed, it also can't be located in URAM
             if(eventPropagationProcess->getNumSparseConnectivityBits() > 0
@@ -556,6 +574,7 @@ private:
         // Seeds can only be stored in URAM
         m_LLMCompatible = false;
         m_BRAMCompatible = false;
+        m_DRAMCompatible = false;
 
         if(!m_URAMCompatible) {
             throw std::runtime_error("RNG init process '" + rngInitProcess->getName() 
@@ -570,6 +589,7 @@ private:
         if(m_Variable == copyProcess->getSource()) {
             m_LLMCompatible = false;
             m_BRAMCompatible = false;
+            m_DRAMCompatible = false;
 
             if(!m_URAMCompatible) {
                 throw std::runtime_error("Copy process '" + copyProcess->getName() 
@@ -581,6 +601,7 @@ private:
         else if(m_Variable == copyProcess->getTarget()) {
             m_LLMCompatible = false;
             m_URAMCompatible = false;
+            m_DRAMCompatible = false;
 
             if(!m_BRAMCompatible) {
                 throw std::runtime_error("Copy process '" + copyProcess->getName()
@@ -606,9 +627,11 @@ private:
     // Members
     //------------------------------------------------------------------------
     std::shared_ptr<const Variable> m_Variable;
+    bool m_UseDRAMForWeights;
     bool m_LLMCompatible;
     bool m_URAMCompatible;
     bool m_BRAMCompatible;
+    bool m_DRAMCompatible;
 };
 
 //----------------------------------------------------------------------------
@@ -765,9 +788,9 @@ public:
                          CodeGenerator &codeGenerator, 
                          VectorRegisterAllocator &vectorRegisterAllocator, 
                          ScalarRegisterAllocator &scalarRegisterAllocator, 
-                         const Model &model)
+                         const Model &model, bool useDRAMForWeights)
     :   m_TimeRegister(timeRegister), m_CodeGenerator(codeGenerator), m_VectorRegisterAllocator(vectorRegisterAllocator),
-        m_ScalarRegisterAllocator(scalarRegisterAllocator), m_Model(model)
+        m_ScalarRegisterAllocator(scalarRegisterAllocator), m_Model(model), m_UseDRAMForWeights(useDRAMForWeights)
     {
         PerformanceCounterScope p(processGroup, codeGenerator, 
                                   scalarRegisterAllocator, model);
@@ -829,7 +852,8 @@ private:
             // Loop through neuron variables
             for(const auto &v : neuronUpdateProcess->getVariables()) {
                 // Visit all users of this variable to determine how it should be implemented
-                VariableImplementerVisitor visitor(v.second, m_Model.get().getStateProcesses().at(v.second));
+                VariableImplementerVisitor visitor(v.second, m_Model.get().getStateProcesses().at(v.second),
+                                                   m_UseDRAMForWeights);
 
                 // If variable can be implemented in URAM
                 if(visitor.isURAMCompatible()) {
@@ -1188,7 +1212,8 @@ private:
         const auto &stateFields = m_Model.get().getProcessFields().at(memsetProcess);
         
         // Visit all users of this variable to determine how it should be implemented
-        VariableImplementerVisitor visitor(memsetProcess->getTarget(), m_Model.get().getStateProcesses().at(memsetProcess->getTarget()));
+        VariableImplementerVisitor visitor(memsetProcess->getTarget(), m_Model.get().getStateProcesses().at(memsetProcess->getTarget()),
+                                           m_UseDRAMForWeights);
 
         {
             // Load target address
@@ -1593,6 +1618,7 @@ private:
     std::reference_wrapper<VectorRegisterAllocator> m_VectorRegisterAllocator;
     std::reference_wrapper<ScalarRegisterAllocator> m_ScalarRegisterAllocator;
     std::reference_wrapper<const Model> m_Model;
+    bool m_UseDRAMForWeights;
 };
 }
 
@@ -1726,7 +1752,8 @@ std::vector<uint32_t> BackendFeNN::generateSimulationKernel(const std::vector<st
                 // Visit timestep process group
                 for (const auto &p : timestepProcessGroups) {
                     CodeGeneratorVisitor visitor(p, STime, c, vectorRegisterAllocator,
-                                                 scalarRegisterAllocator, model);
+                                                 scalarRegisterAllocator, model,
+                                                 m_UseDRAMForWeights);
                 }
                 
                 c.addi(*STime, *STime, 1);
@@ -1736,7 +1763,8 @@ std::vector<uint32_t> BackendFeNN::generateSimulationKernel(const std::vector<st
             // Visit end process group
             for (const auto &p : endProcessGroups) {
                 CodeGeneratorVisitor visitor(p, nullptr, c, vectorRegisterAllocator,
-                                             scalarRegisterAllocator, model);
+                                             scalarRegisterAllocator, model,
+                                             m_UseDRAMForWeights);
             }
         });
 }
@@ -1759,7 +1787,8 @@ std::vector<uint32_t> BackendFeNN::generateKernel(const std::vector <std::shared
             // Visit process groups
             for (const auto &p : processGroups) {
                 CodeGeneratorVisitor visitor(p, nullptr, c, vectorRegisterAllocator,
-                                             scalarRegisterAllocator, model);
+                                             scalarRegisterAllocator, model,
+                                             m_UseDRAMForWeights);
             }
         });
 }
@@ -1780,7 +1809,7 @@ std::unique_ptr<ArrayBase> BackendFeNN::createArray(std::shared_ptr<const Variab
                                          1, std::multiplies<size_t>()) * variable->getNumBufferTimesteps();
 
     // Create URAM array if variable can be implemented there
-    VariableImplementerVisitor visitor(variable, processes);
+    VariableImplementerVisitor visitor(variable, processes, m_UseDRAMForWeights);
     if(visitor.isURAMCompatible()) {
         LOGI << "Creating variable '" << variable->getName() << "' array in URAM";
         return createURAMArray(variable->getType(), count, state);
@@ -1794,6 +1823,11 @@ std::unique_ptr<ArrayBase> BackendFeNN::createArray(std::shared_ptr<const Variab
     else if(visitor.isBRAMCompatible()) {
         LOGI << "Creating variable '" << variable->getName() << "' array in BRAM";
         return createBRAMArray(variable->getType(), count, state);
+    }
+    // Otherwise, create DRAM array if variable can be implemented there
+    else if(visitor.isDRAMCompatible()) {
+        LOGI << "Creating variable '" << variable->getName() << "' array in DRAM";
+        return createDRAMArray(variable->getType(), count, state);
     }
     else {
         assert(false);

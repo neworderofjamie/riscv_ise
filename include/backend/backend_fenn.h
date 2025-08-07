@@ -346,6 +346,10 @@ private:
 class BACKEND_EXPORT BackendFeNN
 {
 public:
+    BackendFeNN(bool useDRAMForWeights = false)
+    :   m_UseDRAMForWeights(useDRAMForWeights)
+    {}
+
     virtual ~BackendFeNN()
     {}
 
@@ -390,5 +394,11 @@ protected:
     //------------------------------------------------------------------------
     //! Should kernels be generated with simulation or hardware signalling
     virtual bool shouldGenerateSimulationKernels() const = 0;
+
+private:
+    //------------------------------------------------------------------------
+    // Members
+    //------------------------------------------------------------------------
+    bool m_UseDRAMForWeights;
 
 };

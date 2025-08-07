@@ -7,6 +7,8 @@
 class BACKEND_EXPORT BackendFeNNHW : public BackendFeNN
 {
 public:
+    using BackendFeNN::BackendFeNN;
+
     //------------------------------------------------------------------------
     // BackendFeNN virtuals
     //------------------------------------------------------------------------
