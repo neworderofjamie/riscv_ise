@@ -1646,6 +1646,19 @@ void LLMArrayBase::serialiseDeviceObject(std::vector<std::byte> &bytes) const
 }
 
 //----------------------------------------------------------------------------
+// DRAMArrayBase
+//----------------------------------------------------------------------------
+void DRAMArrayBase::serialiseDeviceObject(std::vector<std::byte> &bytes) const
+{
+    // Allocate 4 bytes of space
+    bytes.resize(4);
+
+    // Memcpy DRAM pointer into bytes
+    const uint32_t dramPointer = m_DRAMPointer.value(); 
+    std::memcpy(bytes.data(), &dramPointer, 4);
+}
+
+//----------------------------------------------------------------------------
 // BackendFeNN
 //------------------------------------------------------------------------
 StateBase::StateBase(const Model &model)

@@ -220,6 +220,40 @@ private:
 };
 
 
+//----------------------------------------------------------------------------
+// DRAMArrayBase
+//----------------------------------------------------------------------------
+//! Base class for arrays located in DRAM, accessed using DMA controller
+class BACKEND_EXPORT DRAMArrayBase : public ArrayBase
+{
+public:
+    //------------------------------------------------------------------------
+    // ArrayBase virtuals
+    //------------------------------------------------------------------------
+    //! Serialise backend-specific device object to uint32_t
+    virtual void serialiseDeviceObject(std::vector<std::byte> &bytes) const override final;
+
+    //------------------------------------------------------------------------
+    // Public API
+    //------------------------------------------------------------------------
+    uint32_t getDRAMPointer() const{ return m_DRAMPointer.value(); }
+
+protected:
+    using ArrayBase::ArrayBase;
+
+    //------------------------------------------------------------------------
+    // Protected API
+    //------------------------------------------------------------------------
+    void setDRAMPointer(std::optional<uint32_t> dramPointer){ m_DRAMPointer = dramPointer; }
+
+private:
+    //------------------------------------------------------------------------
+    // Members
+    //------------------------------------------------------------------------
+    std::optional<uint32_t> m_DRAMPointer;
+};
+
+
 //------------------------------------------------------------------------
 // BRAMFieldArray
 //------------------------------------------------------------------------
@@ -324,6 +358,8 @@ public:
                                                        StateBase *state) const = 0;
     virtual std::unique_ptr<ArrayBase> createLLMArray(const GeNN::Type::ResolvedType &type, size_t count,
                                                       StateBase *state) const = 0;                                                       
+    virtual std::unique_ptr<ArrayBase> createDRAMArray(const GeNN::Type::ResolvedType &type, size_t count,
+                                                       StateBase *state) const = 0;
 
     virtual std::unique_ptr<IFieldArray> createFieldArray(const Model &model, StateBase *state) const = 0;
     virtual std::unique_ptr<StateBase> createState(const Model &model) const = 0;

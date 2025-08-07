@@ -16,7 +16,6 @@
 #include "backend/backend_export.h"
 
 // Forward declarations
-class DMABuffer;
 class EventContainer;
 class Variable;
 
@@ -78,5 +77,6 @@ public:
 class BACKEND_EXPORT DMABufferAllocator : public MemoryAllocator
 {
 public:
-    DMABufferAllocator(const DMABuffer &dmaBuffer);
+    DMABufferAllocator(size_t bufferSize) : MemoryAllocator(bufferSize, 64, "DMA buffer")
+    {}
 };

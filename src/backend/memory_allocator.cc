@@ -10,6 +10,9 @@
 #include "common/dma_buffer.h"
 #include "common/utils.h"
 
+// ISE includes
+#include "ise/dma_controller_sim.h"
+
 //----------------------------------------------------------------------------
 // MemoryAllocator
 //----------------------------------------------------------------------------
@@ -32,13 +35,4 @@ size_t MemoryAllocator::allocate(size_t sizeBytes)
     const size_t address = m_HighWaterBytes;
     m_HighWaterBytes = newHighWaterBytes;
     return address;
-}
-
-//----------------------------------------------------------------------------
-// DMABufferAllocator
-//----------------------------------------------------------------------------
-// **THINK** do we want to vector align DMA buffer and remove hardware alignement
-DMABufferAllocator::DMABufferAllocator(const DMABuffer &dmaBuffer)
-:   MemoryAllocator(dmaBuffer.getSize(), 4, "DMA buffer")
-{
 }

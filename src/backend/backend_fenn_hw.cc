@@ -24,7 +24,7 @@ class HWState : public StateBase
 {
 public:
     HWState(const Model &model) 
-    :   StateBase(model), m_DMABufferAllocator(m_DMABuffer)
+    :   StateBase(model), m_DMABufferAllocator(m_DMABuffer.getSize())
     {}
 
     //------------------------------------------------------------------------
@@ -278,6 +278,71 @@ public:
 private:
     HWState *m_State;
 };
+
+//------------------------------------------------------------------------
+// DRAMArray
+//------------------------------------------------------------------------
+//! Class for managing arrays in DRAM. 
+class DRAMArray : public DRAMArrayBase
+{
+public:
+    DRAMArray(const GeNN::Type::ResolvedType &type, size_t count, HWState *state)
+    :   DRAMArrayBase(type, count), m_State(state)
+    {
+        // Allocate if count is specified
+        if(count > 0) {
+            allocate(count);
+        }
+    }
+
+    virtual ~DRAMArray()
+    {
+        if(getCount() > 0) {
+            free();
+        }
+    }
+
+    //------------------------------------------------------------------------
+    // ArrayBase virtuals
+    //------------------------------------------------------------------------
+    //! Allocate array
+    virtual void allocate(size_t count) final override
+    {
+        // Set count
+        setCount(count);
+        
+        // Allocate block of DMA buffer
+        const size_t offset = m_State->getDMABufferAllocator().allocate(getSizeBytes());
+
+        // Add to virtual address of DMA buffer data to get host pointer
+        setHostPointer(m_State->getDMABuffer().getData() + offset);
+
+        // Add to physical address of DMA buffer to get device pointer
+        setDRAMPointer(m_State->getDMABuffer().getPhysicalAddress() + offset);
+    }
+
+    //! Free array
+    virtual void free() final override
+    {
+        // **NOTE** no memory is owned by array so just invalidate
+        setHostPointer(nullptr);
+        setDRAMPointer(std::nullopt);
+        setCount(0);
+    }
+
+    //! Copy entire array to device
+    virtual void pushToDevice() final override
+    {
+    }
+
+    //! Copy entire array from device
+    virtual void pullFromDevice() final override
+    {
+    }
+
+private:
+    HWState *m_State;
+};
 }
 
 
@@ -300,6 +365,12 @@ std::unique_ptr<ArrayBase> BackendFeNNHW::createLLMArray(const GeNN::Type::Resol
                                                          StateBase *state) const
 {
     return std::make_unique<::LLMArray>(type, count, static_cast<HWState*>(state));
+}
+//------------------------------------------------------------------------
+std::unique_ptr<ArrayBase> BackendFeNNHW::createDRAMArray(const GeNN::Type::ResolvedType &type, size_t count,
+                                                          StateBase *state) const
+{
+    return std::make_unique<::DRAMArray>(type, count, static_cast<HWState*>(state));
 }
 //------------------------------------------------------------------------
 std::unique_ptr<IFieldArray> BackendFeNNHW::createFieldArray(const Model &model, StateBase *state) const

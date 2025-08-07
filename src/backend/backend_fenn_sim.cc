@@ -10,6 +10,7 @@
 #include "common/utils.h"
 
 // ISE includes
+#include "ise/dma_controller_sim.h"
 #include "ise/riscv.h"
 #include "ise/vector_processor.h"
 
@@ -24,10 +25,15 @@ namespace
 class SimState : public StateBase
 {
 public:
-    SimState(const Model &model)
-    :   StateBase(model)
+    SimState(const Model &model, size_t dmaBufferSize = 512 * 1024)
+    :   StateBase(model), m_DMABufferAllocator(dmaBufferSize)
     {
         m_RISCV.addCoprocessor<VectorProcessor>(vectorQuadrant);
+
+        // Create simulated DMA controller
+        m_DMAController = std::make_unique<DMAControllerSim>(m_RISCV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getVectorDataMemory(),
+                                                             dmaBufferSize);
+        m_RISCV.setDMAController(m_DMAController.get());
     }
 
     //------------------------------------------------------------------------
@@ -50,11 +56,19 @@ public:
     const auto &getRISCV() const{ return m_RISCV; }
     auto &getRISCV(){ return m_RISCV; }  
 
+    const auto &getDMABufferAllocator() const{ return m_DMABufferAllocator; }
+    auto &getDMABufferAllocator(){ return m_DMABufferAllocator; }
+    
+    const DMAControllerSim *getDMAController() const{ return m_DMAController.get(); }
+    DMAControllerSim *getDMAController(){ return m_DMAController.get(); }
+
 private:
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
     RISCV m_RISCV;
+    std::unique_ptr<DMAControllerSim> m_DMAController;
+    DMABufferAllocator m_DMABufferAllocator;
 };
 
 
@@ -282,6 +296,72 @@ public:
 private:
     SimState *m_State;
 };
+
+//------------------------------------------------------------------------
+// DRAMArray
+//------------------------------------------------------------------------
+//! Class for managing arrays in DRAM. 
+class DRAMArray : public DRAMArrayBase
+{
+public:
+    DRAMArray(const GeNN::Type::ResolvedType &type, size_t count, SimState *state)
+    :   DRAMArrayBase(type, count), m_State(state)
+    {
+        // Allocate if count is specified
+        if(count > 0) {
+            allocate(count);
+        }
+    }
+
+    virtual ~DRAMArray()
+    {
+        if(getCount() > 0) {
+            free();
+        }
+    }
+
+    //------------------------------------------------------------------------
+    // ArrayBase virtuals
+    //------------------------------------------------------------------------
+    //! Allocate array
+    virtual void allocate(size_t count) final override
+    {
+         // Set count
+        setCount(count);
+
+        // Allocate block of DMA buffer
+        const size_t offset = m_State->getDMABufferAllocator().allocate(getSizeBytes());
+
+        // Add to virtual address of DMA buffer data to get host pointer
+        setHostPointer(m_State->getDMAController()->getData() + offset);
+
+        // Use directly as device pointer
+        // **NOTE** simulated DMA controller has a physical address of 0
+        setDRAMPointer(offset);
+    }
+
+    //! Free array
+    virtual void free() final override
+    {
+        // **NOTE** no memory is owned by array so just invalidate
+        setHostPointer(nullptr);
+        setDRAMPointer(std::nullopt);
+        setCount(0);
+    }
+
+    //! Copy entire array to device
+    virtual void pushToDevice() final override
+    {
+    }
+
+    //! Copy entire array from device
+    virtual void pullFromDevice() final override
+    {
+    }
+
+private:
+    SimState *m_State;
+};
 }
 
 //----------------------------------------------------------------------------
@@ -303,6 +383,12 @@ std::unique_ptr<ArrayBase> BackendFeNNSim::createLLMArray(const GeNN::Type::Reso
                                                          StateBase *state) const
 {
     return std::make_unique<::LLMArray>(type, count, static_cast<SimState*>(state));
+}
+//------------------------------------------------------------------------
+std::unique_ptr<ArrayBase> BackendFeNNSim::createDRAMArray(const GeNN::Type::ResolvedType &type, size_t count,
+                                                           StateBase *state) const
+{
+    return std::make_unique<::DRAMArray>(type, count, static_cast<SimState*>(state));
 }
 //------------------------------------------------------------------------
 std::unique_ptr<IFieldArray> BackendFeNNSim::createFieldArray(const Model &model, StateBase *state) const
