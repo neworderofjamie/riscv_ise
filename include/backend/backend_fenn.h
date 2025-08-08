@@ -2,6 +2,7 @@
 
 // Standard C++ includes
 #include <memory>
+#include <unordered_set>
 #include <vector>
 
 // Standard C includes
@@ -382,6 +383,11 @@ public:
     std::unique_ptr<ArrayBase> createArray(std::shared_ptr<const PerformanceCounter> performanceCounter, 
                                            const Model::StateProcesses::mapped_type &processes,
                                            StateBase *state) const;
+
+    //! Get names of backend-specific state fields this model is going to require
+    //! **THINK** are strings REALLY the best idea here
+    std::unordered_set<std::string> getStateNames(const Model &model) const;
+
 protected:
     //------------------------------------------------------------------------
     // Declared virtuals

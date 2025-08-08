@@ -9,6 +9,9 @@
 #include "compiler/process_group.h"
 #include "compiler/variable.h"
 
+// Backend includes
+#include "backend/backend_fenn.h"
+
 namespace
 {
 //----------------------------------------------------------------------------
@@ -18,16 +21,15 @@ class Visitor : public ModelComponentVisitor
 {
 public:
     Visitor(const std::vector<std::shared_ptr<const ProcessGroup>> processGroups, 
-            Model::StatefulFields &statefulFields, Model::StateProcesses &stateProcesses)
-    :   m_StatefulFields(statefulFields), m_StateProcesses(stateProcesses), m_FieldOffset(4)
+            Model::StatefulFields &statefulFields, Model::StateProcesses &stateProcesses,
+            uint32_t &fieldOffset)
+    :   m_StatefulFields(statefulFields), m_StateProcesses(stateProcesses), m_FieldOffset(fieldOffset)
     {
         // Loop through all process groups and visit
         for(const auto &g : processGroups)  {
             g->accept(*this);
         }
     }
-
-    uint32_t getNumFields() const { return m_FieldOffset / 4; }
 
 private:
     //------------------------------------------------------------------------
@@ -212,21 +214,29 @@ private:
     //------------------------------------------------------------------------
     std::reference_wrapper<Model::StatefulFields> m_StatefulFields;
     std::reference_wrapper<Model::StateProcesses> m_StateProcesses;
+    std::reference_wrapper<uint32_t> m_FieldOffset;
     Model::StateFields m_CurrentProcessFields;
     Model::StateFields m_CurrentProcessGroupFields;
-    uint32_t m_FieldOffset;
 };
 }
 
 //----------------------------------------------------------------------------
 // Model
 //----------------------------------------------------------------------------
-Model::Model(const std::vector<std::shared_ptr<const ProcessGroup>> &processGroups)
+Model::Model(const std::vector<std::shared_ptr<const ProcessGroup>> &processGroups, 
+             const BackendFeNN &backend)
 :   m_ProcessGroups(processGroups)
 {
     // Use visitor to populate process fields and 
     // state processes data structures from process groups
-    Visitor visitor(m_ProcessGroups, m_StatefulFields, m_StateProcesses);
+    uint32_t fieldOffset = 4;
+    Visitor visitor(m_ProcessGroups, m_StatefulFields, m_StateProcesses, fieldOffset);
 
-    m_NumFields = visitor.getNumFields();
+    // Loop through backend state names 
+    for(const auto &s : backend.getStateNames(*this)) {
+        m_BackendFields.try_emplace(s, fieldOffset += 4);
+    }
+
+    // Calculate total
+    m_NumFields = (fieldOffset / 4);
 }

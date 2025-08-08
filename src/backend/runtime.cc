@@ -90,6 +90,13 @@ void Runtime::allocate()
         }
     }
 
+    // Loop through all fields requested by the backend
+    for(const auto &b : m_Model.get().getBackendFields()) {
+        // 1. Allocate - the arrays need to be owned by state
+        // 2. Set
+        //m_FieldArray->setFieldArray(b.second, getArray(s.first));
+    }
+
     // Push populated fields to device
     m_FieldArray->pushFieldsToDevice();
 }

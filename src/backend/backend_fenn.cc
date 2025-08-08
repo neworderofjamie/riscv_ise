@@ -5,6 +5,7 @@
 #include <numeric>
 #include <tuple>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 // Standard C includes
@@ -660,7 +661,7 @@ private:
     {
         // If exponential function is referenced in tokens
         if(isIdentifierCalled("exp", neuronUpdateProcess->getTokens())) {
-            m_LUTFunctions.push_back("exp");
+            m_LUTFunctions.insert("exp");
         }
     }
 
@@ -684,7 +685,7 @@ private:
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
-    std::vector<std::string> m_LUTFunctions;
+    std::unordered_set<std::string> m_LUTFunctions;
 };
 
 class PerformanceCounterScope
@@ -2100,4 +2101,22 @@ std::unique_ptr<ArrayBase> BackendFeNN::createArray(std::shared_ptr<const Perfor
     // Performance counter contains a 64-bit number for 
     // instructions retired and one for number of cycles 
     return createBRAMArray(GeNN::Type::Uint64, 2, state);
+}
+//------------------------------------------------------------------------
+std::unordered_set<std::string> BackendFeNN::getStateNames(const Model &model) const
+{
+    // If we should use DRAM for weights, we require two row buffers
+    std::unordered_set<std::string> stateNames;
+    if(m_UseDRAMForWeights) {
+        stateNames.insert("RowBufferA");
+        stateNames.insert("RowBufferB");
+    }
+
+    // Visit model to find what functions are required
+    LUTVisitor visitor(model);
+    for(const auto &l : visitor.getLUTFunctions()) {
+        stateNames.insert("LUT" + l);
+    }
+
+    return stateNames;
 }

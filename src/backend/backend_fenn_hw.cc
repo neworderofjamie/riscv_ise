@@ -78,7 +78,7 @@ private:
 class URAMArray : public URAMArrayBase
 {
 public:
-     URAMArray(const GeNN::Type::ResolvedType &type, size_t count, HWState *state)
+    URAMArray(const GeNN::Type::ResolvedType &type, size_t count, HWState *state)
     :   URAMArrayBase(type, count), m_State(state)
     {
         // Allocate if count is specified

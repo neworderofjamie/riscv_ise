@@ -393,11 +393,7 @@ std::unique_ptr<ArrayBase> BackendFeNNSim::createDRAMArray(const GeNN::Type::Res
 //------------------------------------------------------------------------
 std::unique_ptr<IFieldArray> BackendFeNNSim::createFieldArray(const Model &model, StateBase *state) const
 {
-    // **TODO** Get number of additional fields for LUTs from state (could be done in StateBase constructor)
-
     return std::make_unique<::BRAMFieldArray<BRAMArray>>(GeNN::Type::Uint32, model.getNumFields(), static_cast<SimState*>(state));
-
-    // **TODO** Allocate arrays and set in field array
 }
 //------------------------------------------------------------------------
 std::unique_ptr<StateBase> BackendFeNNSim::createState(const Model &model) const
