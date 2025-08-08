@@ -58,7 +58,7 @@ private:
 Runtime::Runtime(const Model &model, const BackendFeNN &backend)
 :   m_Backend(backend), m_Model(model)
 {
-    m_State = m_Backend.get().createState(m_Model.get());
+    m_State = m_Backend.get().createState();
 }
 //----------------------------------------------------------------------------
 void Runtime::setInstructions(const std::vector<uint32_t> &instructions)

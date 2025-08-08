@@ -635,6 +635,7 @@ private:
     bool m_DRAMCompatible;
 };
 
+
 //----------------------------------------------------------------------------
 // LUTVisitor
 //----------------------------------------------------------------------------
@@ -1947,20 +1948,6 @@ void DRAMArrayBase::serialiseDeviceObject(std::vector<std::byte> &bytes) const
     std::memcpy(bytes.data(), &dramPointer, 4);
 }
 
-//----------------------------------------------------------------------------
-// BackendFeNN
-//------------------------------------------------------------------------
-StateBase::StateBase(const Model &model)
-{
-    // Visit model to find what functions are required
-    LUTVisitor visitor(model);
-
-    // Loop through
-    for(const auto &l : visitor.getLUTFunctions()) {
-        LOGI << "Model requires LUT for '" << l << "' function";
-        m_LUTs.try_emplace(l, nullptr);
-    }
-}
 //----------------------------------------------------------------------------
 // BackendFeNN
 //------------------------------------------------------------------------

@@ -23,8 +23,7 @@ namespace
 class HWState : public StateBase
 {
 public:
-    HWState(const Model &model) 
-    :   StateBase(model), m_DMABufferAllocator(m_DMABuffer.getSize())
+    HWState() : m_DMABufferAllocator(m_DMABuffer.getSize())
     {}
 
     //------------------------------------------------------------------------
@@ -378,7 +377,7 @@ std::unique_ptr<IFieldArray> BackendFeNNHW::createFieldArray(const Model &model,
     return std::make_unique<::BRAMFieldArray<BRAMArray>>(GeNN::Type::Uint32, model.getNumFields(), static_cast<HWState*>(state));
 }
 //------------------------------------------------------------------------
-std::unique_ptr<StateBase> BackendFeNNHW::createState(const Model &model) const
+std::unique_ptr<StateBase> BackendFeNNHW::createState() const
 {
-    return std::make_unique<HWState>(model);
+    return std::make_unique<HWState>();
 }

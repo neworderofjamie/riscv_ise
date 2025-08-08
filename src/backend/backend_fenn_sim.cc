@@ -25,8 +25,8 @@ namespace
 class SimState : public StateBase
 {
 public:
-    SimState(const Model &model, size_t dmaBufferSize = 512 * 1024)
-    :   StateBase(model), m_DMABufferAllocator(dmaBufferSize)
+    SimState(size_t dmaBufferSize = 512 * 1024)
+    :   m_DMABufferAllocator(dmaBufferSize)
     {
         m_RISCV.addCoprocessor<VectorProcessor>(vectorQuadrant);
 
@@ -396,7 +396,7 @@ std::unique_ptr<IFieldArray> BackendFeNNSim::createFieldArray(const Model &model
     return std::make_unique<::BRAMFieldArray<BRAMArray>>(GeNN::Type::Uint32, model.getNumFields(), static_cast<SimState*>(state));
 }
 //------------------------------------------------------------------------
-std::unique_ptr<StateBase> BackendFeNNSim::createState(const Model &model) const
+std::unique_ptr<StateBase> BackendFeNNSim::createState() const
 {
-    return std::make_unique<SimState>(model);
+    return std::make_unique<SimState>();
 }

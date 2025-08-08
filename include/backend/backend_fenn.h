@@ -22,6 +22,44 @@
 class ProcessGroup;
 
 //----------------------------------------------------------------------------
+// StateBase
+//----------------------------------------------------------------------------
+//! Base class for runtime state objects created by backend
+class StateBase
+{
+public:
+    StateBase() = default;
+    virtual ~StateBase() = default;
+    StateBase(const StateBase &) = delete;
+
+    //------------------------------------------------------------------------
+    // Declared virtuals
+    //------------------------------------------------------------------------
+    virtual void setInstructions(const std::vector<uint32_t> &instructions) = 0;
+    virtual void run() = 0;
+
+    //------------------------------------------------------------------------
+    // Public API
+    //------------------------------------------------------------------------
+    const auto &getBRAMAllocator() const{ return m_BRAMAllocator; }
+    auto &getBRAMAllocator(){ return m_BRAMAllocator; }
+
+    const auto &getURAMAllocator() const{ return m_URAMAllocator; }
+    auto &getURAMAllocator(){ return m_URAMAllocator; }
+
+    const auto &getLLMAllocator() const{ return m_LLMAllocator; }
+    auto &getLLMAllocator(){ return m_LLMAllocator; }
+
+private:
+    //------------------------------------------------------------------------
+    // Members
+    //------------------------------------------------------------------------
+    BRAMAllocator m_BRAMAllocator;
+    URAMAllocator m_URAMAllocator;
+    LLMAllocator m_LLMAllocator;
+};
+
+//----------------------------------------------------------------------------
 // ArrayBase
 //----------------------------------------------------------------------------
 //! Base class for arrays created by backend
@@ -253,7 +291,6 @@ private:
     std::optional<uint32_t> m_DRAMPointer;
 };
 
-
 //------------------------------------------------------------------------
 // BRAMFieldArray
 //------------------------------------------------------------------------
@@ -289,50 +326,6 @@ public:
     }
 };
 
-
-//----------------------------------------------------------------------------
-// StateBase
-//----------------------------------------------------------------------------
-//! Base class for runtime state objects created by backend
-class StateBase
-{
-public:
-    StateBase(const Model &model);
-    virtual ~StateBase() = default;
-    StateBase(const StateBase &) = delete;
-
-    //------------------------------------------------------------------------
-    // Declared virtuals
-    //------------------------------------------------------------------------
-    virtual void setInstructions(const std::vector<uint32_t> &instructions) = 0;
-    virtual void run() = 0;
-
-    //------------------------------------------------------------------------
-    // Public API
-    //------------------------------------------------------------------------
-    const auto &getBRAMAllocator() const{ return m_BRAMAllocator; }
-    auto &getBRAMAllocator(){ return m_BRAMAllocator; }
-
-    const auto &getURAMAllocator() const{ return m_URAMAllocator; }
-    auto &getURAMAllocator(){ return m_URAMAllocator; }
-
-    const auto &getLLMAllocator() const{ return m_LLMAllocator; }
-    auto &getLLMAllocator(){ return m_LLMAllocator; }
-
-    auto &getLUT(const std::string &function){ return m_LUTs.at(function); }
-
-private:
-    //------------------------------------------------------------------------
-    // Members
-    //------------------------------------------------------------------------
-    BRAMAllocator m_BRAMAllocator;
-    URAMAllocator m_URAMAllocator;
-    LLMAllocator m_LLMAllocator;
-
-    // Lookup tables
-    std::unordered_map<std::string, std::unique_ptr<LLMArrayBase>> m_LUTs;
-};
-
 //----------------------------------------------------------------------------
 // BackendFeNN
 //----------------------------------------------------------------------------
@@ -361,7 +354,7 @@ public:
                                                        StateBase *state) const = 0;
 
     virtual std::unique_ptr<IFieldArray> createFieldArray(const Model &model, StateBase *state) const = 0;
-    virtual std::unique_ptr<StateBase> createState(const Model &model) const = 0;
+    virtual std::unique_ptr<StateBase> createState() const = 0;
 
     //------------------------------------------------------------------------
     // Public API
