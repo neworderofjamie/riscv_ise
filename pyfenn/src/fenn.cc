@@ -223,11 +223,16 @@ PYBIND11_MODULE(_fenn, m)
     pybind11::class_<PerformanceCounter, State, std::shared_ptr<PerformanceCounter>>(m, "PerformanceCounter")
         .def(pybind11::init(&PerformanceCounter::create),
              pybind11::arg("name") = "");
-        
+
+    //------------------------------------------------------------------------
+    // fenn.Stateful
+    //------------------------------------------------------------------------
+    pybind11::class_<Stateful, ModelComponent, std::shared_ptr<Stateful>>(m, "Stateful");
+
     //------------------------------------------------------------------------
     // fenn.Process
     //------------------------------------------------------------------------
-    pybind11::class_<Process, ModelComponent, std::shared_ptr<Process>>(m, "Process");
+    pybind11::class_<Process, Stateful, std::shared_ptr<Process>>(m, "Process");
     
     //------------------------------------------------------------------------
     // fenn.NeuronUpdateProcess
@@ -289,7 +294,7 @@ PYBIND11_MODULE(_fenn, m)
     //------------------------------------------------------------------------
     // fenn.ProcessGroup
     //------------------------------------------------------------------------
-    pybind11::class_<ProcessGroup, ModelComponent, std::shared_ptr<ProcessGroup>>(m, "ProcessGroup")
+    pybind11::class_<ProcessGroup, Stateful, std::shared_ptr<ProcessGroup>>(m, "ProcessGroup")
         .def(pybind11::init(&ProcessGroup::create),
              pybind11::arg("processes"), pybind11::arg("performance_counter") = nullptr,
              pybind11::arg("name") = "")
