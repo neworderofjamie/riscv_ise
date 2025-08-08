@@ -11,6 +11,7 @@
 
 // ISE includes
 #include "ise/fsm.h"
+#include "ise/ise_export.h"
 
 // Forward declarations
 class VectorDataMemory;
@@ -18,7 +19,7 @@ class VectorDataMemory;
 //----------------------------------------------------------------------------
 // DMAControllerSim
 //----------------------------------------------------------------------------
-class DMAControllerSim
+class ISE_EXPORT DMAControllerSim
 {
 public:
     //------------------------------------------------------------------------
