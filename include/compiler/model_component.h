@@ -68,12 +68,22 @@ private:
 };
 
 //----------------------------------------------------------------------------
-// Process
+// Stateful
 //----------------------------------------------------------------------------
-class Process : public ModelComponent
+class Stateful : public ModelComponent
 {
 protected:
     using ModelComponent::ModelComponent;
+};
+
+
+//----------------------------------------------------------------------------
+// Process
+//----------------------------------------------------------------------------
+class Process : public Stateful
+{
+protected:
+    using Stateful::Stateful;
 };
 
 //----------------------------------------------------------------------------

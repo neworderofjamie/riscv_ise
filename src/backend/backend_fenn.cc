@@ -743,7 +743,7 @@ public:
                                                    *startInstructsReg, *startInstructsHighReg);
  
             // Get fields associated with this process group
-            const auto &stateFields = m_Model.get().getProcessGroupFields().at(m_ProcessGroup);
+            const auto &stateFields = m_Model.get().getStatefulFields().at(m_ProcessGroup);
 
             // Load performance counter base address into registers
             c.lw(*SPerfBase, Reg::X0, stateFields.at(m_ProcessGroup->getPerformanceCounter()));
@@ -828,7 +828,7 @@ private:
         auto &c = m_CodeGenerator.get();
 
         // Get fields associated with this process
-        const auto &stateFields = m_Model.get().getProcessFields().at(neuronUpdateProcess);
+        const auto &stateFields = m_Model.get().getStatefulFields().at(neuronUpdateProcess);
 
         // Build literal pool
         std::unordered_map<int16_t, VectorRegisterAllocator::RegisterPtr> literalPool;
@@ -1126,7 +1126,7 @@ private:
         //**TODO** check seed shape
 
         // Get fields associated with this process
-        const auto &stateFields = m_Model.get().getProcessFields().at(rngInitProcess);
+        const auto &stateFields = m_Model.get().getStatefulFields().at(rngInitProcess);
 
         // Allocate scalar register to hold address of seed buffer
         ALLOCATE_SCALAR(SReg);
@@ -1148,7 +1148,7 @@ private:
         // **TODO** URAM->BRAM copy assumed
 
         // Get fields associated with this process
-        const auto &stateFields = m_Model.get().getProcessFields().at(copyProcess);
+        const auto &stateFields = m_Model.get().getStatefulFields().at(copyProcess);
 
         // Register allocation
         ALLOCATE_SCALAR(SDataBuffer);
@@ -1216,7 +1216,7 @@ private:
         auto &c = m_CodeGenerator.get();
 
         // Get fields associated with this process
-        const auto &stateFields = m_Model.get().getProcessFields().at(memsetProcess);
+        const auto &stateFields = m_Model.get().getStatefulFields().at(memsetProcess);
         
         // Visit all users of this variable to determine how it should be implemented
         VariableImplementerVisitor visitor(memsetProcess->getTarget(), m_Model.get().getStateProcesses().at(memsetProcess->getTarget()),
@@ -1467,7 +1467,7 @@ private:
                 c.sub(*SN, *SN, *SNumLZ);
 
                 // Loop through postsynaptic targets
-                const auto &processFields = m_Model.get().getProcessFields();
+                const auto &processFields = m_Model.get().getStatefulFields();
                 for(size_t i = 0; i < processes.size(); i++) {
                     const auto p = processes[i];
                     const auto &stateFields = processFields.at(p);
@@ -1534,7 +1534,7 @@ private:
         c.L(wordEnd);
     }
 
-    void generateDRAMWordLoop(const std::vector<std::shared_ptr<const EventPropagationProcess>> &processes,
+    /*void generateDRAMWordLoop(const std::vector<std::shared_ptr<const EventPropagationProcess>> &processes,
                               const EventPropagationProcessRegisters &processRegs, ScalarRegisterAllocator::RegisterPtr eventBufferReg, 
                               ScalarRegisterAllocator::RegisterPtr eventBufferEndReg, VectorRegisterAllocator::RegisterPtr vectorTimeReg)
     {
@@ -1772,7 +1772,7 @@ private:
         }
     
         c.L(wordEnd);
-    }
+    }*/
 
     void generateEventPropagationProcesses(const std::vector<std::shared_ptr<const EventPropagationProcess>> &processes)
     {
@@ -1786,7 +1786,7 @@ private:
         ALLOCATE_SCALAR(SEventBufferEnd);
 
         // Generate code to load address of input event buffer
-        const auto &processFields = m_Model.get().getProcessFields();
+        const auto &processFields = m_Model.get().getStatefulFields();
         c.lw(*SEventBuffer, Reg::X0, processFields.at(processes.front()).at(processes.front()->getInputEvents()));
 
         {
@@ -1862,7 +1862,8 @@ private:
     
         // Generate correct loop depending on whether weights are in DRAM or URAM
         if(m_UseDRAMForWeights) {
-            generateDRAMWordLoop(processes, sProcessRegs, SEventBuffer, SEventBufferEnd, vectorTimeReg);
+            assert(false);
+            //generateDRAMWordLoop(processes, sProcessRegs, SEventBuffer, SEventBufferEnd, vectorTimeReg);
         }
         else {
             generateURAMWordLoop(processes, sProcessRegs, SEventBuffer, SEventBufferEnd, vectorTimeReg);

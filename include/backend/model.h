@@ -15,6 +15,7 @@
 class Process;
 class ProcessGroup;
 class State;
+class Stateful;
 
 //----------------------------------------------------------------------------
 // Model
@@ -26,11 +27,8 @@ public:
     // Mapping of state objects to field offset
     using StateFields = std::unordered_map<std::shared_ptr<const State>, uint32_t>;
 
-    // Mapping of processes to their fields
-    using ProcessFields = std::unordered_map<std::shared_ptr<const Process>, StateFields>;
-
-    // Mapping of process groups to their fields
-    using ProcessGroupFields = std::unordered_map<std::shared_ptr<const ProcessGroup>, StateFields>;
+    // Mapping of stateful model objects to their fields
+    using StatefulFields = std::unordered_map<std::shared_ptr<const Stateful>, StateFields>;
 
     // Mapping of state objects to processes which reference them
     using StateProcesses = std::unordered_map<std::shared_ptr<const State>, std::vector<std::shared_ptr<const Process>>>;
@@ -41,16 +39,14 @@ public:
     // Public API
     //------------------------------------------------------------------------
     const auto &getProcessGroups() const{ return m_ProcessGroups; }
-    const auto &getProcessFields() const{ return m_ProcessFields; }
-    const auto &getProcessGroupFields() const{ return m_ProcessGroupFields; }
+    const auto &getStatefulFields() const{ return m_StatefulFields; }
     const auto &getStateProcesses() const{ return m_StateProcesses; }
 
     uint32_t getNumFields() const { return m_NumFields; }
 
 private:
     std::vector<std::shared_ptr<const ProcessGroup>> m_ProcessGroups;
-    ProcessFields m_ProcessFields;
-    ProcessGroupFields m_ProcessGroupFields;
+    StatefulFields m_StatefulFields;
     StateProcesses m_StateProcesses;
     uint32_t m_NumFields;
 };

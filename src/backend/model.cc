@@ -18,10 +18,8 @@ class Visitor : public ModelComponentVisitor
 {
 public:
     Visitor(const std::vector<std::shared_ptr<const ProcessGroup>> processGroups, 
-            Model::ProcessFields &processFields, Model::ProcessGroupFields &processGroupFields,
-            Model::StateProcesses &stateProcesses)
-    :   m_ProcessFields(processFields), m_ProcessGroupFields(processGroupFields),
-        m_StateProcesses(stateProcesses), m_FieldOffset(4)
+            Model::StatefulFields &statefulFields, Model::StateProcesses &stateProcesses)
+    :   m_StatefulFields(statefulFields), m_StateProcesses(stateProcesses), m_FieldOffset(4)
     {
         // Loop through all process groups and visit
         for(const auto &g : processGroups)  {
@@ -76,7 +74,7 @@ private:
         }
 
         // Add process group fields
-        if(!m_ProcessGroupFields.get().try_emplace(processGroup, m_CurrentProcessGroupFields).second) {
+        if(!m_StatefulFields.get().try_emplace(processGroup, m_CurrentProcessGroupFields).second) {
             throw std::runtime_error("Process group '" + processGroup->getName() + "' encountered multiple times in model traversal");
         }
 
@@ -102,7 +100,7 @@ private:
         }
 
         // Add process fields
-        if(!m_ProcessFields.get().try_emplace(neuronUpdateProcess, m_CurrentProcessFields).second) {
+        if(!m_StatefulFields.get().try_emplace(neuronUpdateProcess, m_CurrentProcessFields).second) {
             throw std::runtime_error("Neuron update process '" + neuronUpdateProcess->getName() + "' encountered multiple times in model traversal");
         }
 
@@ -126,7 +124,7 @@ private:
         m_StateProcesses.get()[eventPropagationProcess->getTarget()].push_back(eventPropagationProcess);
 
         // Add process fields
-        if(!m_ProcessFields.get().try_emplace(eventPropagationProcess, m_CurrentProcessFields).second) {
+        if(!m_StatefulFields.get().try_emplace(eventPropagationProcess, m_CurrentProcessFields).second) {
             throw std::runtime_error("Event propagation process '" + eventPropagationProcess->getName() + "' encountered multiple times in model traversal");
         }
 
@@ -146,7 +144,7 @@ private:
         m_StateProcesses.get()[rngInitProcess->getSeed()].push_back(rngInitProcess);
 
         // Add process fields
-        if(!m_ProcessFields.get().try_emplace(rngInitProcess, m_CurrentProcessFields).second) {
+        if(!m_StatefulFields.get().try_emplace(rngInitProcess, m_CurrentProcessFields).second) {
             throw std::runtime_error("RNG init process '" + rngInitProcess->getName() + "' encountered multiple times in model traversal");
         }
 
@@ -168,7 +166,7 @@ private:
         m_StateProcesses.get()[copyProcess->getTarget()].push_back(copyProcess);
 
         // Add process fields
-        if(!m_ProcessFields.get().try_emplace(copyProcess, m_CurrentProcessFields).second) {
+        if(!m_StatefulFields.get().try_emplace(copyProcess, m_CurrentProcessFields).second) {
             throw std::runtime_error("Copy process '" + copyProcess->getName() + "' encountered multiple times in model traversal");
         }
 
@@ -188,7 +186,7 @@ private:
         m_StateProcesses.get()[memsetProcess->getTarget()].push_back(memsetProcess);
 
         // Add process fields
-        if(!m_ProcessFields.get().try_emplace(memsetProcess, m_CurrentProcessFields).second) {
+        if(!m_StatefulFields.get().try_emplace(memsetProcess, m_CurrentProcessFields).second) {
             throw std::runtime_error("Memset process '" + memsetProcess->getName() + "' encountered multiple times in model traversal");
         }
 
@@ -212,8 +210,7 @@ private:
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
-    std::reference_wrapper<Model::ProcessFields> m_ProcessFields;
-    std::reference_wrapper<Model::ProcessGroupFields> m_ProcessGroupFields;
+    std::reference_wrapper<Model::StatefulFields> m_StatefulFields;
     std::reference_wrapper<Model::StateProcesses> m_StateProcesses;
     Model::StateFields m_CurrentProcessFields;
     Model::StateFields m_CurrentProcessGroupFields;
@@ -229,8 +226,7 @@ Model::Model(const std::vector<std::shared_ptr<const ProcessGroup>> &processGrou
 {
     // Use visitor to populate process fields and 
     // state processes data structures from process groups
-    Visitor visitor(m_ProcessGroups, m_ProcessFields, m_ProcessGroupFields, 
-                    m_StateProcesses);
+    Visitor visitor(m_ProcessGroups, m_StatefulFields, m_StateProcesses);
 
     m_NumFields = visitor.getNumFields();
 }

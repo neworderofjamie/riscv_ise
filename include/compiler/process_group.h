@@ -14,13 +14,13 @@ class Process;
 //----------------------------------------------------------------------------
 // ProcessGroup
 //----------------------------------------------------------------------------
-class ProcessGroup : public AcceptableModelComponent<ProcessGroup>
+class ProcessGroup : public AcceptableModelComponent<ProcessGroup, Stateful>
 {
 public:
     ProcessGroup(Private, const std::vector<std::shared_ptr<const Process>> &processes, 
                  std::shared_ptr<const PerformanceCounter> performanceCounter, 
                  const std::string &name)
-    :   AcceptableModelComponent<ProcessGroup>(name), m_Processes(processes),
+    :   AcceptableModelComponent<ProcessGroup, Stateful>(name), m_Processes(processes),
         m_PerformanceCounter(performanceCounter)
     {
     }

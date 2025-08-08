@@ -82,17 +82,9 @@ void Runtime::allocate()
         }
     }
     
-    // Loop through all the processes with fields that require population
-    for(const auto &p : m_Model.get().getProcessFields()) {
-        // Loop through all fields associated with process and assign corresponding arrays to file
-        for(const auto &s : p.second) {
-            m_FieldArray->setFieldArray(s.second, getArray(s.first));
-        }
-    }
-
-    // Loop through all the process groups with fields that require population
-    for(const auto &p : m_Model.get().getProcessGroupFields()) {
-        // Loop through all fields associated with process and assign corresponding arrays to file
+    // Loop through all stateful objects with fields that require population
+    for(const auto &p : m_Model.get().getStatefulFields()) {
+        // Loop through all fields associated with stateful object and assign corresponding arrays to file
         for(const auto &s : p.second) {
             m_FieldArray->setFieldArray(s.second, getArray(s.first));
         }
