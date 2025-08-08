@@ -81,7 +81,7 @@
       <ConformanceMode>true</ConformanceMode>
       <DisableSpecificWarnings Condition=" $(Configuration.Contains('DLL')) ">4251</DisableSpecificWarnings>
       <LanguageStandard>stdcpp17</LanguageStandard>
-      <AdditionalIncludeDirectories>$(SolutionDir)include;$(GENN_PATH)/include/genn/third_party;$(GENN_PATH)/include/genn/genn;$(GENN_PATH)/include/genn/third_party/libffi;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)include;$(SolutionDir)genn/include/genn/third_party;$(SolutionDir)genn/include/genn/genn;$(SolutionDir)genn/include/genn/third_party/libffi;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -89,7 +89,7 @@
       <EnableCOMDATFolding Condition=" $(Configuration.Contains('Release')) ">true</EnableCOMDATFolding>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalDependencies>assembler_$(Configuration).lib;genn_$(Configuration).lib;libffi_$(Configuration).lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories Condition=" !$(Configuration.Contains('DLL')) ">$(OutDir);$(GENN_PATH)/lib</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories Condition=" !$(Configuration.Contains('DLL')) ">$(OutDir);$(SolutionDir)genn/lib</AdditionalLibraryDirectories>
       <AdditionalLibraryDirectories Condition=" $(Configuration.Contains('DLL')) ">$(OutDir);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>

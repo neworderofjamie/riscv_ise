@@ -14,7 +14,7 @@ OBJECTS			:=$(SOURCES:%.cc=$(OBJECT_DIRECTORY)/%.o)
 DEPS			:=$(OBJECTS:.o=.d)
 
 # Add GeNN include directories
-CXXFLAGS +=-I$(GENN_PATH)/include/genn/genn -I$(GENN_PATH)/include/genn/third_party $(shell pkg-config libffi --cflags)
+CXXFLAGS +=-I$(RISCV_DIR)/genn/include/genn/genn -I$(RISCV_DIR)/genn/include/genn/third_party $(shell pkg-config libffi --cflags)
 
 .PHONY: all clean
 

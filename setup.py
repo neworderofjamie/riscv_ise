@@ -26,11 +26,6 @@ for arg in sys.argv:
 # Add filtered (those that setuptools will understand) back to sys.argv
 sys.argv = filtered_args
 
-# Get GeNN path from environment variable
-genn_path = os.environ.get("GENN_PATH")
-if genn_path is None or not os.path.exists(genn_path):
-    raise RuntimeError("GeNN is currently required to install FeNN")
-
 # Are we on Linux?
 # **NOTE** Pybind11Extension provides WIN and MAC
 LINUX = system() == "Linux"
@@ -50,12 +45,12 @@ pyfenn_path = os.path.join(fenn_path, "pyfenn")
 pyfenn_src = os.path.join(pyfenn_path, "src")
 fenn_include = os.path.join(fenn_path, "include")
 
+genn_path = os.path.join(fenn_path, "genn")
 genn_include = os.path.join(genn_path, "include", "genn", "genn")
 genn_third_party_include = os.path.join(genn_path, "include", "genn", "third_party")
-#genn_share = os.path.join(genn_path, "share", "genn")
-#pygenn_share = os.path.join(pygenn_path, "share")
 
 fenn_libraries = ["backend", "ise", "compiler", "disassembler", "assembler", "common"]
+
 # Always package LibGeNN
 if WIN:
     package_data = [f"genn{lib_suffix}.dll",
@@ -126,6 +121,15 @@ if build_fenn_libs:
     if WIN:
         # **NOTE** ensure pygenn_path has trailing slash to make MSVC happy
         out_dir = os.path.join(pyfenn_path, "")
+        
+        # Build libGeNN
+        check_call(["msbuild", os.path.join(genn_path, "genn.sln"), f"/t:genn",
+                    f"/p:Configuration={lib_suffix[1:]}",
+                    "/m", "/verbosity:quiet",
+                    f"/p:OutDir={out_dir}"],
+                    cwd=fenn_path)
+
+        # Build all dependencies for FeNN backend
         check_call(["msbuild", "riscv_ise.sln", f"/t:backend",
                     f"/p:Configuration={lib_suffix[1:]}",
                     "/m", "/verbosity:quiet",
