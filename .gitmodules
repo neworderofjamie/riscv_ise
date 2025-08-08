@@ -1,3 +1,7 @@
 [submodule "udmabuf"]
 	path = udmabuf
 	url = ../../ikwzm/udmabuf.git
+[submodule "genn"]
+	path = genn
+	url = ../../genn-team/genn.git
+	branch = fixed_point
