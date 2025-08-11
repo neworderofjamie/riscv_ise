@@ -10,7 +10,7 @@
 class BACKEND_EXPORT BackendFeNNSim : public BackendFeNN
 {
 public:
-    using BackendFeNN::BackendFeNN;
+    BackendFeNNSim(bool useDRAMForWeights = false, size_t dmaBufferSize = 512 * 1024);
 
     //------------------------------------------------------------------------
     // BackendFeNN virtuals
@@ -23,4 +23,7 @@ protected:
     //------------------------------------------------------------------------
     //! Should kernels be generated with simulation or hardware signalling
     virtual bool shouldGenerateSimulationKernels() const override final { return true; }
+
+private:
+    size_t m_DMABufferSize;
 };

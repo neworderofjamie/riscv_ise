@@ -232,8 +232,8 @@ Model::Model(const std::vector<std::shared_ptr<const ProcessGroup>> &processGrou
     uint32_t fieldOffset = 4;
     Visitor visitor(m_ProcessGroups, m_StatefulFields, m_StateProcesses, fieldOffset);
 
-    // Loop through backend state names 
-    for(const auto &s : backend.getStateNames(*this)) {
+    // Loop through required backend-specific state objects names 
+    for(const auto &s : backend.getRequiredStateObjects(*this)) {
         m_BackendFields.try_emplace(s, fieldOffset += 4);
     }
 

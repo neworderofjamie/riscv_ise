@@ -2,7 +2,7 @@
 
 // Standard C++ includes
 #include <memory>
-#include <unordered_set>
+#include <unordered_map>
 #include <vector>
 
 // Standard C includes
@@ -296,7 +296,10 @@ public:
 class StateBase
 {
 public:
-    StateBase() = default;
+    StateBase(const BackendFeNN &backend)
+    :   m_Backend(backend)
+    {}
+
     virtual ~StateBase() = default;
     StateBase(const StateBase &) = delete;
 
@@ -315,6 +318,8 @@ public:
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
+    void allocateBackendArrays(const Model &model);
+
     const auto &getBRAMAllocator() const{ return m_BRAMAllocator; }
     auto &getBRAMAllocator(){ return m_BRAMAllocator; }
 
@@ -324,13 +329,22 @@ public:
     const auto &getLLMAllocator() const{ return m_LLMAllocator; }
     auto &getLLMAllocator(){ return m_LLMAllocator; }
 
+    const ArrayBase *getBackendArray(int id) const{ return m_StateObjectArrays.at(id).get(); }
+    ArrayBase *getBackendArray(int id){ return m_StateObjectArrays.at(id).get(); }
+
 private:
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
+    //! Allocators for BRAM, URAM and Lane-Local Memories
     BRAMAllocator m_BRAMAllocator;
     URAMAllocator m_URAMAllocator;
     LLMAllocator m_LLMAllocator;
+    
+    // Additional arrays us
+    std::unordered_map<int, std::unique_ptr<ArrayBase>> m_StateObjectArrays;
+
+    std::reference_wrapper<const BackendFeNN> m_Backend;
 };
 
 //----------------------------------------------------------------------------
@@ -374,9 +388,10 @@ public:
                                            const Model::StateProcesses::mapped_type &processes,
                                            StateBase *state) const;
 
-    //! Get names of backend-specific state fields this model is going to require
-    //! **THINK** are strings REALLY the best idea here
-    std::unordered_set<std::string> getStateNames(const Model &model) const;
+    //! Get IDs of backend-specific additional state objects this model is going to require
+    std::vector<int> getRequiredStateObjects(const Model &model) const;
+
+    bool shouldUseDRAMForWeights() const{ return m_UseDRAMForWeights; }
 
 protected:
     //------------------------------------------------------------------------

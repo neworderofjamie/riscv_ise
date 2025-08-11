@@ -144,11 +144,14 @@ private:
     SimState *m_State;
 };
 
+//----------------------------------------------------------------------------
+// SimState
+//----------------------------------------------------------------------------
 class SimState : public StateBase
 {
 public:
-    SimState(size_t dmaBufferSize = 512 * 1024)
-    :   m_DMABufferAllocator(dmaBufferSize)
+    SimState(const BackendFeNN &backend, size_t dmaBufferSize)
+    :   StateBase(backend), m_DMABufferAllocator(dmaBufferSize)
     {
         m_RISCV.addCoprocessor<VectorProcessor>(vectorQuadrant);
 
@@ -453,7 +456,12 @@ void DRAMArray::pullFromDevice()
 //----------------------------------------------------------------------------
 // BackendFeNNSim
 //------------------------------------------------------------------------
+BackendFeNNSim::BackendFeNNSim(bool useDRAMForWeights, size_t dmaBufferSize)
+:   BackendFeNN(useDRAMForWeights), m_DMABufferSize(dmaBufferSize)
+{
+}
+//------------------------------------------------------------------------
 std::unique_ptr<StateBase> BackendFeNNSim::createState() const
 {
-    return std::make_unique<SimState>();
+    return std::make_unique<SimState>(*this, m_DMABufferSize);
 }

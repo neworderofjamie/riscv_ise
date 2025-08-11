@@ -31,8 +31,8 @@ public:
     // Mapping of stateful model objects to their fields
     using StatefulFields = std::unordered_map<std::shared_ptr<const Stateful>, StateFields>;
 
-    // Mapping of named global state to fields
-    using BackendFields = std::unordered_map<std::string, uint32_t>;
+    // Mapping of backend-specific ID to fields
+    using BackendFields = std::unordered_map<int, uint32_t>;
 
     // Mapping of state objects to processes which reference them
     using StateProcesses = std::unordered_map<std::shared_ptr<const State>, std::vector<std::shared_ptr<const Process>>>;
@@ -46,7 +46,7 @@ public:
     const auto &getProcessGroups() const{ return m_ProcessGroups; }
     const auto &getStatefulFields() const{ return m_StatefulFields; }
     const auto &getStateProcesses() const{ return m_StateProcesses; }
-    const auto &getBackendFields() const {return m_BackendFields; }
+    const auto &getBackendFields() const { return m_BackendFields; }
 
     uint32_t getNumFields() const { return m_NumFields; }
 

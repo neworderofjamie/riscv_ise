@@ -148,10 +148,14 @@ private:
     HWState *m_State;
 };
 
+//----------------------------------------------------------------------------
+// HWState
+//----------------------------------------------------------------------------
 class HWState : public StateBase
 {
 public:
-    HWState() : m_DMABufferAllocator(m_DMABuffer.getSize())
+    HWState(const BackendFeNN &backend) 
+    :   StateBase(backend), m_DMABufferAllocator(m_DMABuffer.getSize())
     {}
 
     //------------------------------------------------------------------------
@@ -286,7 +290,7 @@ void URAMArray::memsetHostPointer(int value)
     }
 }
 //------------------------------------------------------------------------
-void pullFromDevice()
+void URAMArray::pullFromDevice()
 {
     throw std::runtime_error("URAM arrays cannot currently be pulled from device on FeNN");
 }
@@ -432,6 +436,14 @@ void DRAMArray::free()
     setDRAMPointer(std::nullopt);
     setCount(0);
 }
+//------------------------------------------------------------------------
+void DRAMArray::pushToDevice()
+{
+}
+//------------------------------------------------------------------------
+void DRAMArray::pullFromDevice()
+{
+}
 }
 
 
@@ -440,5 +452,5 @@ void DRAMArray::free()
 //------------------------------------------------------------------------
 std::unique_ptr<StateBase> BackendFeNNHW::createState() const
 {
-    return std::make_unique<HWState>();
+    return std::make_unique<HWState>(*this);
 }

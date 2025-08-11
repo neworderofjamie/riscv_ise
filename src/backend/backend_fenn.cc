@@ -51,6 +51,14 @@ using namespace GeNN::Transpiler;
 //----------------------------------------------------------------------------
 namespace
 {
+enum class StateObjectID : int
+{
+    ROW_BUFFER_A,
+    ROW_BUFFER_B,
+
+    LUT_EXP,
+};
+
 class EnvironmentExternalBase : public ::EnvironmentBase, public Transpiler::TypeChecker::EnvironmentBase
 {
 public:
@@ -635,6 +643,40 @@ private:
     bool m_DRAMCompatible;
 };
 
+//----------------------------------------------------------------------------
+// MaxRowLengthVisitor
+//----------------------------------------------------------------------------
+class MaxRowLengthVisitor : public ModelComponentVisitor
+{
+public:
+    MaxRowLengthVisitor(const Model &model)
+    :   m_MaxRowLength(0)
+    {
+        // Loop through process groups in model and visit all processes
+        for(const auto g : model.getProcessGroups()) {
+            for(const auto &p : g->getProcesses()) {
+                p->accept(*this);
+            }
+        }
+    }
+
+    size_t getMaxRowLength() const{ return m_MaxRowLength; }
+
+    
+private:
+    //------------------------------------------------------------------------
+    // ModelComponentVisitor virtuals
+    //------------------------------------------------------------------------
+    virtual void visit(std::shared_ptr<const EventPropagationProcess> eventPropagationProcess)
+    {
+        m_MaxRowLength = std::max(m_MaxRowLength, eventPropagationProcess->getMaxRowLength());
+    }
+
+    //------------------------------------------------------------------------
+    // Members
+    //------------------------------------------------------------------------
+    size_t m_MaxRowLength;
+};
 
 //----------------------------------------------------------------------------
 // LUTVisitor
@@ -652,7 +694,7 @@ public:
         }
     }
 
-    const auto &getLUTFunctions() const{ return m_LUTFunctions; }
+    const auto &getLUTObjectIDs() const{ return m_LUTObjectIDs; }
 
 private:
     //------------------------------------------------------------------------
@@ -662,7 +704,7 @@ private:
     {
         // If exponential function is referenced in tokens
         if(isIdentifierCalled("exp", neuronUpdateProcess->getTokens())) {
-            m_LUTFunctions.insert("exp");
+            m_LUTObjectIDs.insert(StateObjectID::LUT_EXP);
         }
     }
 
@@ -686,7 +728,7 @@ private:
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
-    std::unordered_set<std::string> m_LUTFunctions;
+    std::unordered_set<StateObjectID> m_LUTObjectIDs;
 };
 
 class PerformanceCounterScope
@@ -1949,6 +1991,31 @@ void DRAMArrayBase::serialiseDeviceObject(std::vector<std::byte> &bytes) const
 }
 
 //----------------------------------------------------------------------------
+// StateBase
+//----------------------------------------------------------------------------
+void StateBase::allocateBackendArrays(const Model &model)
+{
+    // If we should use DRAM for weights
+    std::vector<int> stateIDs;
+    if(m_Backend.get().shouldUseDRAMForWeights()) {
+        // Visit model to find largest max row length
+        MaxRowLengthVisitor visitor(model);
+
+        // Create DMA buffers
+        LOGI << "Creating DMA row buffers with " + std::to_string(visitor.getMaxRowLength()) + " entries";
+        m_StateObjectArrays[static_cast<int>(StateObjectID::ROW_BUFFER_A)] = createURAMArray(Type::Int16, visitor.getMaxRowLength());
+        m_StateObjectArrays[static_cast<int>(StateObjectID::ROW_BUFFER_B)] = createURAMArray(Type::Int16, visitor.getMaxRowLength());
+    }
+
+    // Loop through LUT object IDs required for model and create 64-element LUT required for faithful interpolation
+    LUTVisitor visitor(model);
+    for(const auto l : visitor.getLUTObjectIDs()) {
+        LOGI << "Creating LUT with 64 entries";
+        m_StateObjectArrays[static_cast<int>(l)] = createLLMArray(Type::Int16, 64);
+    }
+}
+
+//----------------------------------------------------------------------------
 // BackendFeNN
 //------------------------------------------------------------------------
 std::vector<uint32_t> BackendFeNN::generateSimulationKernel(const std::vector<std::shared_ptr<const ProcessGroup>> &timestepProcessGroups,
@@ -2090,20 +2157,19 @@ std::unique_ptr<ArrayBase> BackendFeNN::createArray(std::shared_ptr<const Perfor
     return state->createBRAMArray(GeNN::Type::Uint64, 2);
 }
 //------------------------------------------------------------------------
-std::unordered_set<std::string> BackendFeNN::getStateNames(const Model &model) const
+std::vector<int> BackendFeNN::getRequiredStateObjects(const Model &model) const
 {
     // If we should use DRAM for weights, we require two row buffers
-    std::unordered_set<std::string> stateNames;
+    std::vector<int> stateIDs;
     if(m_UseDRAMForWeights) {
-        stateNames.insert("RowBufferA");
-        stateNames.insert("RowBufferB");
+        stateIDs.emplace_back(static_cast<int>(StateObjectID::ROW_BUFFER_A));
+        stateIDs.emplace_back(static_cast<int>(StateObjectID::ROW_BUFFER_B));
     }
 
-    // Visit model to find what functions are required
+    // Visit model to find what LUT object IDs are required and copy into state IDs
     LUTVisitor visitor(model);
-    for(const auto &l : visitor.getLUTFunctions()) {
-        stateNames.insert("LUT" + l);
-    }
+    std::transform(visitor.getLUTObjectIDs().cbegin(), visitor.getLUTObjectIDs().cend(),
+                   std::back_inserter(stateIDs), [](auto i){ return static_cast<int>(i); });
 
-    return stateNames;
+    return stateIDs;
 }
