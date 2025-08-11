@@ -306,7 +306,7 @@ PYBIND11_MODULE(_fenn, m)
     // fenn.Model
     //------------------------------------------------------------------------
     pybind11::class_<Model>(m, "Model")
-        .def(pybind11::init<std::vector<std::shared_ptr<const ProcessGroup>>&>());
+        .def(pybind11::init<std::vector<std::shared_ptr<const ProcessGroup>>&, const BackendFeNN&>());
 
     //------------------------------------------------------------------------
     // fenn.BackendFeNN
@@ -319,13 +319,14 @@ PYBIND11_MODULE(_fenn, m)
     // fenn.BackendFeNNSim
     //------------------------------------------------------------------------
     pybind11::class_<BackendFeNNSim, BackendFeNN>(m, "BackendFeNNSim")
-        .def(pybind11::init<>());
+        .def(pybind11::init<bool, size_t>(),
+             pybind11::arg("use_dram_for_weights") = false, pybind11::arg("dma_buffer_size") = 512 * 1024);
 
     //------------------------------------------------------------------------
     // fenn.BackendFeNNHW
     //------------------------------------------------------------------------
     pybind11::class_<BackendFeNNHW, BackendFeNN>(m, "BackendFeNNHW")
-        .def(pybind11::init<>());
+        .def(pybind11::init<bool>(), pybind11::arg("use_dram_for_weights") = false);
 
     //------------------------------------------------------------------------
     // fenn.ArrayBase
