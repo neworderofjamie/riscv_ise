@@ -2046,22 +2046,22 @@ std::unique_ptr<ArrayBase> BackendFeNN::createArray(std::shared_ptr<const Variab
     VariableImplementerVisitor visitor(variable, processes, m_UseDRAMForWeights);
     if(visitor.isURAMCompatible()) {
         LOGI << "Creating variable '" << variable->getName() << "' array in URAM";
-        return createURAMArray(variable->getType(), count, state);
+        return state->createURAMArray(variable->getType(), count);
     }
     // Otherwise, create LLM array if variable can be implemented there
     else if(visitor.isLLMCompatible()) {
         LOGI << "Creating variable '" << variable->getName() << "' array in LLM";
-        return createLLMArray(variable->getType(), count, state);
+        return state->createLLMArray(variable->getType(), count);
     }
     // Otherwise, create BRAM array if variable can be implemented there
     else if(visitor.isBRAMCompatible()) {
         LOGI << "Creating variable '" << variable->getName() << "' array in BRAM";
-        return createBRAMArray(variable->getType(), count, state);
+        return state->createBRAMArray(variable->getType(), count);
     }
     // Otherwise, create DRAM array if variable can be implemented there
     else if(visitor.isDRAMCompatible()) {
         LOGI << "Creating variable '" << variable->getName() << "' array in DRAM";
-        return createDRAMArray(variable->getType(), count, state);
+        return state->createDRAMArray(variable->getType(), count);
     }
     else {
         assert(false);
@@ -2076,7 +2076,7 @@ std::unique_ptr<ArrayBase> BackendFeNN::createArray(std::shared_ptr<const EventC
 
     // Event containers are always implemented as BRAM bitfields
     const size_t numSpikeWords = ceilDivide(eventContainer->getShape().getFlattenedSize(), 32) * eventContainer->getNumBufferTimesteps();
-    return createBRAMArray(GeNN::Type::Uint32, numSpikeWords, state);
+    return state->createBRAMArray(GeNN::Type::Uint32, numSpikeWords);
 }
 //------------------------------------------------------------------------
 std::unique_ptr<ArrayBase> BackendFeNN::createArray(std::shared_ptr<const PerformanceCounter> performanceCounter,
@@ -2087,7 +2087,7 @@ std::unique_ptr<ArrayBase> BackendFeNN::createArray(std::shared_ptr<const Perfor
 
     // Performance counter contains a 64-bit number for 
     // instructions retired and one for number of cycles 
-    return createBRAMArray(GeNN::Type::Uint64, 2, state);
+    return state->createBRAMArray(GeNN::Type::Uint64, 2);
 }
 //------------------------------------------------------------------------
 std::unordered_set<std::string> BackendFeNN::getStateNames(const Model &model) const

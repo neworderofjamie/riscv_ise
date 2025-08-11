@@ -21,43 +21,6 @@
 // Forward declarations
 class ProcessGroup;
 
-//----------------------------------------------------------------------------
-// StateBase
-//----------------------------------------------------------------------------
-//! Base class for runtime state objects created by backend
-class StateBase
-{
-public:
-    StateBase() = default;
-    virtual ~StateBase() = default;
-    StateBase(const StateBase &) = delete;
-
-    //------------------------------------------------------------------------
-    // Declared virtuals
-    //------------------------------------------------------------------------
-    virtual void setInstructions(const std::vector<uint32_t> &instructions) = 0;
-    virtual void run() = 0;
-
-    //------------------------------------------------------------------------
-    // Public API
-    //------------------------------------------------------------------------
-    const auto &getBRAMAllocator() const{ return m_BRAMAllocator; }
-    auto &getBRAMAllocator(){ return m_BRAMAllocator; }
-
-    const auto &getURAMAllocator() const{ return m_URAMAllocator; }
-    auto &getURAMAllocator(){ return m_URAMAllocator; }
-
-    const auto &getLLMAllocator() const{ return m_LLMAllocator; }
-    auto &getLLMAllocator(){ return m_LLMAllocator; }
-
-private:
-    //------------------------------------------------------------------------
-    // Members
-    //------------------------------------------------------------------------
-    BRAMAllocator m_BRAMAllocator;
-    URAMAllocator m_URAMAllocator;
-    LLMAllocator m_LLMAllocator;
-};
 
 //----------------------------------------------------------------------------
 // ArrayBase
@@ -327,6 +290,50 @@ public:
 };
 
 //----------------------------------------------------------------------------
+// StateBase
+//----------------------------------------------------------------------------
+//! Base class for runtime state objects created by backend
+class StateBase
+{
+public:
+    StateBase() = default;
+    virtual ~StateBase() = default;
+    StateBase(const StateBase &) = delete;
+
+    //------------------------------------------------------------------------
+    // Declared virtuals
+    //------------------------------------------------------------------------
+    virtual void setInstructions(const std::vector<uint32_t> &instructions) = 0;
+    virtual void run() = 0;
+
+    virtual std::unique_ptr<ArrayBase> createURAMArray(const GeNN::Type::ResolvedType &type, size_t count) = 0;
+    virtual std::unique_ptr<ArrayBase> createBRAMArray(const GeNN::Type::ResolvedType &type, size_t count) = 0;
+    virtual std::unique_ptr<ArrayBase> createLLMArray(const GeNN::Type::ResolvedType &type, size_t count) = 0;
+    virtual std::unique_ptr<ArrayBase> createDRAMArray(const GeNN::Type::ResolvedType &type, size_t count) = 0;
+    virtual std::unique_ptr<IFieldArray> createFieldArray(const Model &model) = 0;
+
+    //------------------------------------------------------------------------
+    // Public API
+    //------------------------------------------------------------------------
+    const auto &getBRAMAllocator() const{ return m_BRAMAllocator; }
+    auto &getBRAMAllocator(){ return m_BRAMAllocator; }
+
+    const auto &getURAMAllocator() const{ return m_URAMAllocator; }
+    auto &getURAMAllocator(){ return m_URAMAllocator; }
+
+    const auto &getLLMAllocator() const{ return m_LLMAllocator; }
+    auto &getLLMAllocator(){ return m_LLMAllocator; }
+
+private:
+    //------------------------------------------------------------------------
+    // Members
+    //------------------------------------------------------------------------
+    BRAMAllocator m_BRAMAllocator;
+    URAMAllocator m_URAMAllocator;
+    LLMAllocator m_LLMAllocator;
+};
+
+//----------------------------------------------------------------------------
 // BackendFeNN
 //----------------------------------------------------------------------------
 //! Base class for FeNN backends
@@ -344,16 +351,6 @@ public:
     //------------------------------------------------------------------------
     // Declared virtuals
     //------------------------------------------------------------------------
-    virtual std::unique_ptr<ArrayBase> createURAMArray(const GeNN::Type::ResolvedType &type, size_t count,
-                                                       StateBase *state) const = 0;
-    virtual std::unique_ptr<ArrayBase> createBRAMArray(const GeNN::Type::ResolvedType &type, size_t count,
-                                                       StateBase *state) const = 0;
-    virtual std::unique_ptr<ArrayBase> createLLMArray(const GeNN::Type::ResolvedType &type, size_t count,
-                                                      StateBase *state) const = 0;                                                       
-    virtual std::unique_ptr<ArrayBase> createDRAMArray(const GeNN::Type::ResolvedType &type, size_t count,
-                                                       StateBase *state) const = 0;
-
-    virtual std::unique_ptr<IFieldArray> createFieldArray(const Model &model, StateBase *state) const = 0;
     virtual std::unique_ptr<StateBase> createState() const = 0;
 
     //------------------------------------------------------------------------

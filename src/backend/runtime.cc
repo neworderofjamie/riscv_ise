@@ -69,7 +69,7 @@ void Runtime::setInstructions(const std::vector<uint32_t> &instructions)
 void Runtime::allocate()
 {
     // Create special array to hold field information
-    m_FieldArray = m_Backend.get().createFieldArray(m_Model.get(), m_State.get());
+    m_FieldArray = m_State->createFieldArray(m_Model.get());
 
     // Loop through state objects used by model
     for (const auto &s : m_Model.get().getStateProcesses()) {

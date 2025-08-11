@@ -17,11 +17,133 @@
 // Backend includes
 #include "backend/memory_allocator.h"
 
+
 //------------------------------------------------------------------------
 // Anonymous namespace
 //------------------------------------------------------------------------
 namespace
 {
+// Forward declarations
+class SimState;
+
+//------------------------------------------------------------------------
+// URAMArray
+//------------------------------------------------------------------------
+//! Class for managing arrays in URAM. Host memory lives in 
+//! (uncached) DMA buffer and is transferred to FeNN using DMA controller
+class URAMArray : public URAMArrayBase
+{
+public:
+    URAMArray(const GeNN::Type::ResolvedType &type, size_t count, SimState *state);
+    virtual ~URAMArray();
+
+    //------------------------------------------------------------------------
+    // ArrayBase virtuals
+    //------------------------------------------------------------------------
+    //! Allocate array
+    virtual void allocate(size_t count) final override;
+
+    //! Free array
+    virtual void free() final override;
+
+    //! Copy entire array to device
+    virtual void pushToDevice() final override;
+
+    //! Copy entire array from device
+    virtual void pullFromDevice() final override;
+
+private:
+    SimState *m_State;
+};
+
+//------------------------------------------------------------------------
+// BRAMArray
+//------------------------------------------------------------------------
+//! Class for managing arrays in BRAM. Host memory is allocated using standard
+//! allocator and is transferred to FeNN using Device functionality
+class BRAMArray : public BRAMArrayBase
+{
+public:
+    BRAMArray(const GeNN::Type::ResolvedType &type, size_t count, SimState *state);
+    virtual ~BRAMArray();
+
+    //------------------------------------------------------------------------
+    // ArrayBase virtuals
+    //------------------------------------------------------------------------
+    //! Allocate array
+    virtual void allocate(size_t count) final override;
+
+    //! Free array
+    virtual void free() final override;
+
+    //! Copy entire array to device
+    virtual void pushToDevice() final override;
+
+    //! Copy entire array from device
+    virtual void pullFromDevice() final override;
+
+private:
+    SimState *m_State;
+};
+
+//------------------------------------------------------------------------
+// LLMArray
+//------------------------------------------------------------------------
+//! Class for managing arrays in lane-local memory.
+class LLMArray : public LLMArrayBase
+{
+public:
+    LLMArray(const GeNN::Type::ResolvedType &type, size_t count, SimState *state);
+    virtual ~LLMArray();
+
+    //------------------------------------------------------------------------
+    // ArrayBase virtuals
+    //------------------------------------------------------------------------
+    //! Allocate array
+    virtual void allocate(size_t count) final override;
+
+    //! Free array
+    virtual void free() final override;
+
+    //! Copy entire array to device
+    virtual void pushToDevice() final override;
+
+    //! Copy entire array from device
+    virtual void pullFromDevice() final override;
+
+private:
+    SimState *m_State;
+};
+
+//------------------------------------------------------------------------
+// DRAMArray
+//------------------------------------------------------------------------
+//! Class for managing arrays in DRAM. 
+class DRAMArray : public DRAMArrayBase
+{
+public:
+    DRAMArray(const GeNN::Type::ResolvedType &type, size_t count, SimState *state);
+    virtual ~DRAMArray();
+
+    //------------------------------------------------------------------------
+    // ArrayBase virtuals
+    //------------------------------------------------------------------------
+    //! Allocate array
+    virtual void allocate(size_t count) final override;
+
+    //! Free array
+    virtual void free() final override;
+
+    //! Copy entire array to device
+    virtual void pushToDevice() final override;
+
+    //! Copy entire array from device
+    virtual void pullFromDevice() final override;
+
+private:
+    SimState *m_State;
+};
+
 class SimState : public StateBase
 {
 public:
@@ -50,6 +172,31 @@ public:
         m_RISCV.run();
     }
 
+    std::unique_ptr<ArrayBase> createURAMArray(const GeNN::Type::ResolvedType &type, size_t count) final override
+    {
+        return std::make_unique<::URAMArray>(type, count, this);
+    }
+    
+    std::unique_ptr<ArrayBase> createBRAMArray(const GeNN::Type::ResolvedType &type, size_t count) final override
+    {
+        return std::make_unique<::BRAMArray>(type, count, this);
+    }
+    
+    std::unique_ptr<ArrayBase> createLLMArray(const GeNN::Type::ResolvedType &type, size_t count) final override
+    {
+        return std::make_unique<::LLMArray>(type, count, this);
+    }
+    
+    std::unique_ptr<ArrayBase> createDRAMArray(const GeNN::Type::ResolvedType &type, size_t count) final override
+    {
+        return std::make_unique<::DRAMArray>(type, count, this);
+    }
+
+    std::unique_ptr<IFieldArray> createFieldArray(const Model &model) final override
+    {
+        return std::make_unique<::BRAMFieldArray<BRAMArray>>(GeNN::Type::Uint32, model.getNumFields(), this);
+    }
+
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
@@ -75,326 +222,236 @@ private:
 //------------------------------------------------------------------------
 // URAMArray
 //------------------------------------------------------------------------
-//! Class for managing arrays in URAM. Host memory lives in 
-//! (uncached) DMA buffer and is transferred to FeNN using DMA controller
-class URAMArray : public URAMArrayBase
+URAMArray::URAMArray(const GeNN::Type::ResolvedType &type, size_t count, SimState *state)
+:   URAMArrayBase(type, count), m_State(state)
 {
-public:
-    URAMArray(const GeNN::Type::ResolvedType &type, size_t count, SimState *state)
-    :   URAMArrayBase(type, count), m_State(state)
-    {
-        // Allocate if count is specified
-        if(count > 0) {
-            allocate(count);
-        }
+    // Allocate if count is specified
+    if(count > 0) {
+        allocate(count);
     }
-
-    virtual ~URAMArray()
-    {
-        if(getCount() > 0) {
-            free();
-        }
+}
+//------------------------------------------------------------------------
+URAMArray::~URAMArray()
+{
+    if(getCount() > 0) {
+        free();
     }
+}
+//------------------------------------------------------------------------
+void URAMArray::allocate(size_t count)
+{
+    // Set count
+    setCount(count);
 
-    //------------------------------------------------------------------------
-    // ArrayBase virtuals
-    //------------------------------------------------------------------------
-    //! Allocate array
-    virtual void allocate(size_t count) final override
-    {
-        // Set count
-        setCount(count);
+    // Allocate memory for host pointer
+    setHostPointer(new uint8_t[getSizeBytes()]);
 
-        // Allocate memory for host pointer
-        setHostPointer(new uint8_t[getSizeBytes()]);
-
-        // Allocate URAM
-        setURAMPointer(m_State->getURAMAllocator().allocate(getSizeBytes()));
-    }
-
-    //! Free array
-    virtual void free() final override
-    {
-        delete [] getHostPointer();
-        setHostPointer(nullptr);
-        setURAMPointer(std::nullopt);
-        setCount(0);
-    }
-
-    //! Copy entire array to device
-    virtual void pushToDevice() final override
-    {
-        // Copy correct number of int16_t from host pointer to vector data memory
-        auto &vectorDataMemory = m_State->getRISCV().getCoprocessor<VectorProcessor>(vectorQuadrant)->getVectorDataMemory();
-        std::copy_n(getHostPointer<int16_t>(), getCount(), 
-                    vectorDataMemory.getData() + (getURAMPointer() / 2));
-    }
-
-    //! Copy entire array from device
-    virtual void pullFromDevice() final override
-    {
-        LOGW << "Copying URAM buffers is implemented in simulation for convenience but currently doens't work on device";
+    // Allocate URAM
+    setURAMPointer(m_State->getURAMAllocator().allocate(getSizeBytes()));
+}
+//------------------------------------------------------------------------
+void URAMArray::free()
+{
+    delete [] getHostPointer();
+    setHostPointer(nullptr);
+    setURAMPointer(std::nullopt);
+    setCount(0);
+}
+//------------------------------------------------------------------------
+void URAMArray::pushToDevice()
+{
+    // Copy correct number of int16_t from host pointer to vector data memory
+    auto &vectorDataMemory = m_State->getRISCV().getCoprocessor<VectorProcessor>(vectorQuadrant)->getVectorDataMemory();
+    std::copy_n(getHostPointer<int16_t>(), getCount(), 
+                vectorDataMemory.getData() + (getURAMPointer() / 2));
+}
+//------------------------------------------------------------------------
+void URAMArray::pullFromDevice()
+{
+    LOGW << "Copying URAM buffers is implemented in simulation for convenience but currently doens't work on device";
         
-        // Copy correct number of int16_t from vector data memory to host pointer
-        const auto &vectorDataMemory = m_State->getRISCV().getCoprocessor<VectorProcessor>(vectorQuadrant)->getVectorDataMemory();
-        std::copy_n(vectorDataMemory.getData() + (getURAMPointer() / 2), getCount(), 
-                    getHostPointer<int16_t>());
-    }
-
-private:
-    SimState *m_State;
-};
+    // Copy correct number of int16_t from vector data memory to host pointer
+    const auto &vectorDataMemory = m_State->getRISCV().getCoprocessor<VectorProcessor>(vectorQuadrant)->getVectorDataMemory();
+    std::copy_n(vectorDataMemory.getData() + (getURAMPointer() / 2), getCount(), 
+                getHostPointer<int16_t>());
+}
 
 //------------------------------------------------------------------------
 // BRAMArray
 //------------------------------------------------------------------------
-//! Class for managing arrays in BRAM. Host memory is allocated using standard
-//! allocator and is transferred to FeNN using Device functionality
-class BRAMArray : public BRAMArrayBase
+BRAMArray::BRAMArray(const GeNN::Type::ResolvedType &type, size_t count, SimState *state)
+:   BRAMArrayBase(type, count), m_State(state)
 {
-public:
-    BRAMArray(const GeNN::Type::ResolvedType &type, size_t count, SimState *state)
-    :   BRAMArrayBase(type, count), m_State(state)
-    {
-        // Allocate if count is specified
-        if(count > 0) {
-            allocate(count);
-        }
+    // Allocate if count is specified
+    if(count > 0) {
+        allocate(count);
     }
-
-    virtual ~BRAMArray()
-    {
-        if(getCount() > 0) {
-            free();
-        }
+}
+//------------------------------------------------------------------------
+BRAMArray::~BRAMArray()
+{
+    if(getCount() > 0) {
+        free();
     }
+}
+//------------------------------------------------------------------------
+void BRAMArray::allocate(size_t count)
+{
+    // Set count
+    setCount(count);
 
-    //------------------------------------------------------------------------
-    // ArrayBase virtuals
-    //------------------------------------------------------------------------
-    //! Allocate array
-    virtual void allocate(size_t count) final override
-    {
-         // Set count
-        setCount(count);
+    // Allocate memory for host pointer
+    setHostPointer(new uint8_t[getSizeBytes()]);
 
-        // Allocate memory for host pointer
-        setHostPointer(new uint8_t[getSizeBytes()]);
+    // Allocate BRAM
+    setBRAMPointer(m_State->getBRAMAllocator().allocate(getSizeBytes()));
+}
+//------------------------------------------------------------------------
+void BRAMArray::free()
+{
+    delete [] getHostPointer();
+    setHostPointer(nullptr);
+    setBRAMPointer(std::nullopt);
+    setCount(0);
+}
+//------------------------------------------------------------------------
+void BRAMArray::pushToDevice()
+{
+    // Copy correct number of int16_t from host pointer to vector data memory
+    auto &scalarDataMemory = m_State->getRISCV().getScalarDataMemory();
+    std::copy_n(getHostPointer<uint8_t>(), getSizeBytes(), 
+                scalarDataMemory.getData() + getBRAMPointer());
+}
+//------------------------------------------------------------------------
+void BRAMArray::pullFromDevice()
+{
+    // Copy correct number of int16_t from vector data memory to host pointer
+    const auto &scalarDataMemory = m_State->getRISCV().getScalarDataMemory();
+    std::copy_n(scalarDataMemory.getData() + getBRAMPointer(), getSizeBytes(), 
+                getHostPointer<uint8_t>());
+}
 
-        // Allocate BRAM
-        setBRAMPointer(m_State->getBRAMAllocator().allocate(getSizeBytes()));
-    }
-
-    //! Free array
-    virtual void free() final override
-    {
-        delete [] getHostPointer();
-        setHostPointer(nullptr);
-        setBRAMPointer(std::nullopt);
-        setCount(0);
-    }
-
-    //! Copy entire array to device
-    virtual void pushToDevice() final override
-    {
-        // Copy correct number of int16_t from host pointer to vector data memory
-        auto &scalarDataMemory = m_State->getRISCV().getScalarDataMemory();
-        std::copy_n(getHostPointer<uint8_t>(), getSizeBytes(), 
-                    scalarDataMemory.getData() + getBRAMPointer());
-    }
-
-    //! Copy entire array from device
-    virtual void pullFromDevice() final override
-    {
-        // Copy correct number of int16_t from vector data memory to host pointer
-        const auto &scalarDataMemory = m_State->getRISCV().getScalarDataMemory();
-        std::copy_n(scalarDataMemory.getData() + getBRAMPointer(), getSizeBytes(), 
-                    getHostPointer<uint8_t>());
-    }
-
-private:
-    SimState *m_State;
-};
 
 //------------------------------------------------------------------------
 // LLMArray
 //------------------------------------------------------------------------
-//! Class for managing arrays in lane-local memory.
-class LLMArray : public LLMArrayBase
+LLMArray::LLMArray(const GeNN::Type::ResolvedType &type, size_t count, SimState *state)
+:   LLMArrayBase(type, count), m_State(state)
 {
-public:
-    LLMArray(const GeNN::Type::ResolvedType &type, size_t count, SimState *state)
-    :   LLMArrayBase(type, count), m_State(state)
-    {
-        // Allocate if count is specified
-        if(count > 0) {
-            allocate(count);
+    // Allocate if count is specified
+    if(count > 0) {
+        allocate(count);
+    }
+}
+//------------------------------------------------------------------------
+LLMArray::~LLMArray()
+{
+    if(getCount() > 0) {
+        free();
+    }
+}
+//------------------------------------------------------------------------
+void LLMArray::allocate(size_t count)
+{
+    // Set count
+    setCount(count);
+
+    // Allocate memory for host pointer
+    setHostPointer(nullptr);
+
+    // Allocate LLM
+    setLLMPointer(m_State->getLLMAllocator().allocate(getSizeBytes()));
+}
+//------------------------------------------------------------------------
+void LLMArray::free()
+{
+    delete [] getHostPointer();
+    setHostPointer(nullptr);
+    setLLMPointer(std::nullopt);
+    setCount(0);
+}
+//------------------------------------------------------------------------
+void LLMArray::pushToDevice()
+{
+    LOGW << "Copying LLM buffers is implemented in simulation for convenience but is not possible on device";
+    const size_t numRows = ceilDivide(getCount(), 32);
+    for(size_t l = 0; l < 32; l++) {
+        auto &laneLocalMemory = m_State->getRISCV().getCoprocessor<VectorProcessor>(vectorQuadrant)->getLaneLocalMemory(l);    
+        int16_t *llmPointer = laneLocalMemory.getData() + (getLLMPointer() / 2);
+        for(size_t r = 0; r < numRows; r++) {
+            *llmPointer++ = getHostPointer<int16_t>()[(r * 32) + l];
         }
     }
-
-    virtual ~LLMArray()
-    {
-        if(getCount() > 0) {
-            free();
-        }
-    }
-
-    //------------------------------------------------------------------------
-    // ArrayBase virtuals
-    //------------------------------------------------------------------------
-    //! Allocate array
-    virtual void allocate(size_t count) final override
-    {
-        // Set count
-        setCount(count);
-
-        // Allocate memory for host pointer
-        setHostPointer(nullptr);
-
-        // Allocate LLM
-        setLLMPointer(m_State->getLLMAllocator().allocate(getSizeBytes()));
-    }
-
-    //! Free array
-    virtual void free() final override
-    {
-        delete [] getHostPointer();
-        setHostPointer(nullptr);
-        setLLMPointer(std::nullopt);
-        setCount(0);
-    }
-
-    //! Copy entire array to device
-    virtual void pushToDevice() final override
-    {
-        LOGW << "Copying LLM buffers is implemented in simulation for convenience but is not possible on device";
-        const size_t numRows = ceilDivide(getCount(), 32);
-        for(size_t l = 0; l < 32; l++) {
-            auto &laneLocalMemory = m_State->getRISCV().getCoprocessor<VectorProcessor>(vectorQuadrant)->getLaneLocalMemory(l);    
-            int16_t *llmPointer = laneLocalMemory.getData() + (getLLMPointer() / 2);
-            for(size_t r = 0; r < numRows; r++) {
-                *llmPointer++ = getHostPointer<int16_t>()[(r * 32) + l];
-            }
-        }
-    }
-
-    //! Copy entire array from device
-    virtual void pullFromDevice() final override
-    {
-        LOGW << "Copying LLM buffers is implemented in simulation for convenience but is not possible on device";
+}
+//------------------------------------------------------------------------
+void LLMArray::pullFromDevice()
+{
+    LOGW << "Copying LLM buffers is implemented in simulation for convenience but is not possible on device";
         
-        const size_t numRows = ceilDivide(getCount(), 32);
-        for(size_t l = 0; l < 32; l++) {
-            const auto &laneLocalMemory = m_State->getRISCV().getCoprocessor<VectorProcessor>(vectorQuadrant)->getLaneLocalMemory(l);    
-            const int16_t *llmPointer = laneLocalMemory.getData() + (getLLMPointer() / 2);
-            for(size_t r = 0; r < numRows; r++) {
-                getHostPointer<int16_t>()[(r * 32) + l] = *llmPointer++;
-            }
+    const size_t numRows = ceilDivide(getCount(), 32);
+    for(size_t l = 0; l < 32; l++) {
+        const auto &laneLocalMemory = m_State->getRISCV().getCoprocessor<VectorProcessor>(vectorQuadrant)->getLaneLocalMemory(l);    
+        const int16_t *llmPointer = laneLocalMemory.getData() + (getLLMPointer() / 2);
+        for(size_t r = 0; r < numRows; r++) {
+            getHostPointer<int16_t>()[(r * 32) + l] = *llmPointer++;
         }
     }
+}
 
-private:
-    SimState *m_State;
-};
 
 //------------------------------------------------------------------------
 // DRAMArray
 //------------------------------------------------------------------------
-//! Class for managing arrays in DRAM. 
-class DRAMArray : public DRAMArrayBase
+DRAMArray::DRAMArray(const GeNN::Type::ResolvedType &type, size_t count, SimState *state)
+:   DRAMArrayBase(type, count), m_State(state)
 {
-public:
-    DRAMArray(const GeNN::Type::ResolvedType &type, size_t count, SimState *state)
-    :   DRAMArrayBase(type, count), m_State(state)
-    {
-        // Allocate if count is specified
-        if(count > 0) {
-            allocate(count);
-        }
+    // Allocate if count is specified
+    if(count > 0) {
+        allocate(count);
     }
-
-    virtual ~DRAMArray()
-    {
-        if(getCount() > 0) {
-            free();
-        }
+}
+DRAMArray::~DRAMArray()
+{
+    if(getCount() > 0) {
+        free();
     }
+}
+//------------------------------------------------------------------------
+void DRAMArray::allocate(size_t count)
+{
+        // Set count
+    setCount(count);
 
-    //------------------------------------------------------------------------
-    // ArrayBase virtuals
-    //------------------------------------------------------------------------
-    //! Allocate array
-    virtual void allocate(size_t count) final override
-    {
-         // Set count
-        setCount(count);
+    // Allocate block of DMA buffer
+    const size_t offset = m_State->getDMABufferAllocator().allocate(getSizeBytes());
 
-        // Allocate block of DMA buffer
-        const size_t offset = m_State->getDMABufferAllocator().allocate(getSizeBytes());
+    // Add to virtual address of DMA buffer data to get host pointer
+    setHostPointer(m_State->getDMAController()->getData() + offset);
 
-        // Add to virtual address of DMA buffer data to get host pointer
-        setHostPointer(m_State->getDMAController()->getData() + offset);
-
-        // Use directly as device pointer
-        // **NOTE** simulated DMA controller has a physical address of 0
-        setDRAMPointer(offset);
-    }
-
-    //! Free array
-    virtual void free() final override
-    {
-        // **NOTE** no memory is owned by array so just invalidate
-        setHostPointer(nullptr);
-        setDRAMPointer(std::nullopt);
-        setCount(0);
-    }
-
-    //! Copy entire array to device
-    virtual void pushToDevice() final override
-    {
-    }
-
-    //! Copy entire array from device
-    virtual void pullFromDevice() final override
-    {
-    }
-
-private:
-    SimState *m_State;
-};
+    // Use directly as device pointer
+    // **NOTE** simulated DMA controller has a physical address of 0
+    setDRAMPointer(offset);
+}
+//------------------------------------------------------------------------
+void DRAMArray::free()
+{
+    // **NOTE** no memory is owned by array so just invalidate
+    setHostPointer(nullptr);
+    setDRAMPointer(std::nullopt);
+    setCount(0);
+}
+//------------------------------------------------------------------------
+void DRAMArray::pushToDevice()
+{
+}
+//------------------------------------------------------------------------
+void DRAMArray::pullFromDevice()
+{
+}
 }
 
 //----------------------------------------------------------------------------
 // BackendFeNNSim
-//------------------------------------------------------------------------
-std::unique_ptr<ArrayBase> BackendFeNNSim::createURAMArray(const GeNN::Type::ResolvedType &type, size_t count,
-                                                           StateBase *state) const
-{
-    return std::make_unique<::URAMArray>(type, count, static_cast<SimState*>(state));
-}
-//------------------------------------------------------------------------
-std::unique_ptr<ArrayBase> BackendFeNNSim::createBRAMArray(const GeNN::Type::ResolvedType &type, size_t count,
-                                                           StateBase *state) const
-{
-    return std::make_unique<::BRAMArray>(type, count, static_cast<SimState*>(state));
-}
-//------------------------------------------------------------------------
-std::unique_ptr<ArrayBase> BackendFeNNSim::createLLMArray(const GeNN::Type::ResolvedType &type, size_t count,
-                                                         StateBase *state) const
-{
-    return std::make_unique<::LLMArray>(type, count, static_cast<SimState*>(state));
-}
-//------------------------------------------------------------------------
-std::unique_ptr<ArrayBase> BackendFeNNSim::createDRAMArray(const GeNN::Type::ResolvedType &type, size_t count,
-                                                           StateBase *state) const
-{
-    return std::make_unique<::DRAMArray>(type, count, static_cast<SimState*>(state));
-}
-//------------------------------------------------------------------------
-std::unique_ptr<IFieldArray> BackendFeNNSim::createFieldArray(const Model &model, StateBase *state) const
-{
-    return std::make_unique<::BRAMFieldArray<BRAMArray>>(GeNN::Type::Uint32, model.getNumFields(), static_cast<SimState*>(state));
-}
 //------------------------------------------------------------------------
 std::unique_ptr<StateBase> BackendFeNNSim::createState() const
 {
