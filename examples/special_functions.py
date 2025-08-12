@@ -14,7 +14,7 @@ device = False
 fixed_point = 9
 min_val = -3.4
 max_val = 3.4
-disassemble_code = True
+disassemble_code = False
 
 class Exp:
     def __init__(self, input: Variable):
