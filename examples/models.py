@@ -1,11 +1,11 @@
 import numpy as np
 
-from typing import Optional
+from typing import Optional, Union
 
-from pyfenn import (CopyProcess, EventContainer, EventPropagationProcess,
-                    MemsetProcess, NeuronUpdateProcess, NumericValue,
-                    Parameter, RNGInitProcess, Shape, UnresolvedType,
-                    Variable)
+from pyfenn import (BroadcastProcess, CopyProcess, EventContainer, 
+                    EventPropagationProcess, MemsetProcess, 
+                    NeuronUpdateProcess, NumericValue, Parameter,
+                    RNGInitProcess, Shape, UnresolvedType, Variable)
 
 class RNGInit:
     def __init__(self):
@@ -23,7 +23,12 @@ class Copy:
 class Memset:
     def __init__(self, target: Variable, name: str = ""):
         self.process = MemsetProcess(target, name)
-        
+
+class ExpLUTBroadcast:
+    def __init__(self):
+        self.lut = Variable(Shape([65]), UnresolvedType("int16_t"), name="exp_lut_source")
+        self.process = BroadcastProcess(self.lut, 2, "exp_lut_broadcast")
+
 class LIF:
     def __init__(self, shape, tau_m: float, tau_refrac: int, v_thresh: float,
                  record_spikes: bool = False, fixed_point: int = 5,

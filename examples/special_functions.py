@@ -3,10 +3,11 @@ import matplotlib.pyplot as plt
 
 from pyfenn import (BackendFeNNHW, BackendFeNNSim, Model, NeuronUpdateProcess,
                     ProcessGroup, Runtime, Shape, UnresolvedType, Variable)
-from models import Copy
+from models import ExpLUTBroadcast
 
 from pyfenn import disassemble, init_logging
-from pyfenn.utils import ceil_divide, copy_and_push, get_array_view
+from pyfenn.utils import (ceil_divide, copy_and_push, 
+                          generate_exp_lut_and_push, get_array_view)
 
 
 device = False
@@ -38,19 +39,20 @@ init_logging()
 # Model
 input_var = Variable(Shape(input_data.shape), UnresolvedType("s6_9_t"))
 exp = Exp(input_var)
+lut_broadcast = ExpLUTBroadcast()
 
 # Group processes
-#init_processes = ProcessGroup([rng_init.process])
+init_processes = ProcessGroup([lut_broadcast.process])
 exp_processes = ProcessGroup([exp.process])
 
 # Create backend
 backend = BackendFeNNHW() if device else BackendFeNNSim()
 
 # Create model
-model = Model([exp_processes], backend)
+model = Model([init_processes, exp_processes], backend)
 
 # Generate init and sim code
-code = backend.generate_kernel([exp_processes], model)
+code = backend.generate_kernel([init_processes, exp_processes], model)
 
 # Disassemble if required
 if disassemble_code:
@@ -67,6 +69,7 @@ runtime.allocate()
 
 # Copy input currents to device
 copy_and_push(input_data, input_var, runtime)
+generate_exp_lut_and_push(lut_broadcast.lut, runtime)
 
 # Set instructions and run
 runtime.set_instructions(code)

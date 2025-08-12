@@ -109,6 +109,24 @@ def seed_and_push(state, runtime: Runtime):
     # Push to device
     array.push_to_device()
 
+def generate_exp_lut_and_push(state, runtime: Runtime):
+    array, view = get_array_view(runtime, state, np.int16)
+    
+    num_bits = 15
+    table_bits = (num_bits - 3) // 2
+    lut_size = (1 << table_bits) + 1
+
+    log2 = np.log(2.0)
+    exp_max = 0.5 * log2
+    step = (2.0 * exp_max) / (2 ** table_bits)
+
+    # Generate LUT and copy into view
+    lut = np.round(np.exp(np.arange(-exp_max, exp_max + step, step)) * (2 ** 14)).astype(np.int16)
+    view[:lut_size] = lut
+    
+    # Push to device
+    array.push_to_device()
+
 def get_latency_spikes(images, tau=20.0, num_timesteps=79, threshold=51):
     # Flatten images and convert intensity to time
     images = np.reshape(images, (images.shape[0], -1))
