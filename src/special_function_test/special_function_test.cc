@@ -48,7 +48,7 @@ int main(int argc, char** argv)
 
     CLI11_PARSE(app, argc, argv);
 
-      // Build LUT
+    // Build LUT
     constexpr size_t numBits = 15;
     constexpr size_t tableBits = (numBits - 3) / 2;
     constexpr size_t fracBits = tableBits + 3;
