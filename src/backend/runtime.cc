@@ -82,21 +82,28 @@ void Runtime::allocate()
         }
     }
 
-    // Allocate any backend-specific arrays required by this model
-    m_State->allocateBackendArrays(m_Model.get());
-    
     // Loop through all stateful objects with fields that require population
     for(const auto &p : m_Model.get().getStatefulFields()) {
-        // Loop through all fields associated with stateful object and assign corresponding arrays to file
+        // Loop through all fields associated with stateful object and assign corresponding arrays to field
         for(const auto &s : p.second) {
             m_FieldArray->setFieldArray(s.second, getArray(s.first));
         }
     }
 
-    // Loop through all fields requested by the backend and write array to field
+    // Loop through all fields requested by the backend 
     for(const auto &b : m_Model.get().getBackendFields()) {
-        m_FieldArray->setFieldArray(b.second, m_State->getBackendArray(b.first));
+        // Create array
+        auto fieldArray = m_Backend.get().createArray(std::get<0>(b.second), b.first, m_State.get());
+        
+        // Take ownership of array and add to arrays map
+        if (!m_Arrays.try_emplace(std::get<0>(b.second), std::move(fieldArray)).second) {
+            assert(false);
+        }
+
+        // Assign array to field
+        m_FieldArray->setFieldArray(std::get<1>(b.second), fieldArray.get());
     }
+
 
     // Push populated fields to device
     m_FieldArray->pushFieldsToDevice();

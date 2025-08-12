@@ -296,10 +296,7 @@ public:
 class StateBase
 {
 public:
-    StateBase(const BackendFeNN &backend)
-    :   m_Backend(backend)
-    {}
-
+    StateBase() = default;
     virtual ~StateBase() = default;
     StateBase(const StateBase &) = delete;
 
@@ -318,8 +315,6 @@ public:
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
-    void allocateBackendArrays(const Model &model);
-
     const auto &getBRAMAllocator() const{ return m_BRAMAllocator; }
     auto &getBRAMAllocator(){ return m_BRAMAllocator; }
 
@@ -329,9 +324,6 @@ public:
     const auto &getLLMAllocator() const{ return m_LLMAllocator; }
     auto &getLLMAllocator(){ return m_LLMAllocator; }
 
-    const ArrayBase *getBackendArray(int id) const{ return m_StateObjectArrays.at(id).get(); }
-    ArrayBase *getBackendArray(int id){ return m_StateObjectArrays.at(id).get(); }
-
 private:
     //------------------------------------------------------------------------
     // Members
@@ -340,11 +332,6 @@ private:
     BRAMAllocator m_BRAMAllocator;
     URAMAllocator m_URAMAllocator;
     LLMAllocator m_LLMAllocator;
-    
-    // Additional arrays us
-    std::unordered_map<int, std::unique_ptr<ArrayBase>> m_StateObjectArrays;
-
-    std::reference_wrapper<const BackendFeNN> m_Backend;
 };
 
 //----------------------------------------------------------------------------
@@ -388,10 +375,11 @@ public:
                                            const Model::StateProcesses::mapped_type &processes,
                                            StateBase *state) const;
 
-    //! Get IDs of backend-specific additional state objects this model is going to require
-    std::vector<int> getRequiredStateObjects(const Model &model) const;
+    std::unique_ptr<ArrayBase> createArray(std::shared_ptr<const State> state, 
+                                           int stateID, StateBase *backendState) const;
 
-    bool shouldUseDRAMForWeights() const{ return m_UseDRAMForWeights; }
+    //! Get mapping of IDs to state objects for any backend-specific state this model is going to require
+    std::unordered_map<int, std::shared_ptr<State>> getRequiredStateObjects(const Model &model) const;
 
 protected:
     //------------------------------------------------------------------------

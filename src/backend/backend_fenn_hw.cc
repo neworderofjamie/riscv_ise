@@ -154,8 +154,8 @@ private:
 class HWState : public StateBase
 {
 public:
-    HWState(const BackendFeNN &backend) 
-    :   StateBase(backend), m_DMABufferAllocator(m_DMABuffer.getSize())
+    HWState() 
+    :   m_DMABufferAllocator(m_DMABuffer.getSize())
     {}
 
     //------------------------------------------------------------------------
@@ -452,5 +452,5 @@ void DRAMArray::pullFromDevice()
 //------------------------------------------------------------------------
 std::unique_ptr<StateBase> BackendFeNNHW::createState() const
 {
-    return std::make_unique<HWState>(*this);
+    return std::make_unique<HWState>();
 }

@@ -1999,31 +1999,6 @@ void DRAMArrayBase::serialiseDeviceObject(std::vector<std::byte> &bytes) const
 }
 
 //----------------------------------------------------------------------------
-// StateBase
-//----------------------------------------------------------------------------
-void StateBase::allocateBackendArrays(const Model &model)
-{
-    // If we should use DRAM for weights
-    std::vector<int> stateIDs;
-    if(m_Backend.get().shouldUseDRAMForWeights()) {
-        // Visit model to find largest max row length
-        MaxRowLengthVisitor visitor(model);
-
-        // Create DMA buffers
-        LOGI << "Creating DMA row buffers with " + std::to_string(visitor.getMaxRowLength()) + " entries";
-        m_StateObjectArrays[static_cast<int>(StateObjectID::ROW_BUFFER_A)] = createURAMArray(Type::Int16, visitor.getMaxRowLength());
-        m_StateObjectArrays[static_cast<int>(StateObjectID::ROW_BUFFER_B)] = createURAMArray(Type::Int16, visitor.getMaxRowLength());
-    }
-
-    // Loop through LUT object IDs required for model and create 64-element LUT required for faithful interpolation
-    LUTVisitor visitor(model);
-    for(const auto l : visitor.getLUTObjectIDs()) {
-        LOGI << "Creating LUT with 64 entries";
-        m_StateObjectArrays[static_cast<int>(l)] = createLLMArray(Type::Int16, 64);
-    }
-}
-
-//----------------------------------------------------------------------------
 // BackendFeNN
 //------------------------------------------------------------------------
 std::vector<uint32_t> BackendFeNN::generateSimulationKernel(const std::vector<std::shared_ptr<const ProcessGroup>> &timestepProcessGroups,
@@ -2165,19 +2140,47 @@ std::unique_ptr<ArrayBase> BackendFeNN::createArray(std::shared_ptr<const Perfor
     return state->createBRAMArray(GeNN::Type::Uint64, 2);
 }
 //------------------------------------------------------------------------
-std::vector<int> BackendFeNN::getRequiredStateObjects(const Model &model) const
+std::unique_ptr<ArrayBase> BackendFeNN::createArray(std::shared_ptr<const State> state, 
+                                                    int stateID, StateBase *backendState) const
+{
+    auto variable = std::static_pointer_cast<const Variable>(state);
+    switch(static_cast<StateObjectID>(stateID)) {
+    case StateObjectID::ROW_BUFFER_A:
+    case StateObjectID::ROW_BUFFER_B:
+    {
+        LOGI << "Creating row buffer array in URAM";
+        return backendState->createURAMArray(variable->getType(), variable->getShape().getFlattenedSize());
+    }
+
+    case StateObjectID::LUT_EXP:
+        LOGI << "Creating LUT array in LLM";
+        return backendState->createLLMArray(variable->getType(), variable->getShape().getFlattenedSize());
+
+    default:
+        assert(false);
+    }
+}
+//------------------------------------------------------------------------
+std::unordered_map<int, std::shared_ptr<State>> BackendFeNN::getRequiredStateObjects(const Model &model) const
 {
     // If we should use DRAM for weights, we require two row buffers
-    std::vector<int> stateIDs;
+    std::unordered_map<int, std::shared_ptr<State>> stateObjects;
     if(m_UseDRAMForWeights) {
-        stateIDs.emplace_back(static_cast<int>(StateObjectID::ROW_BUFFER_A));
-        stateIDs.emplace_back(static_cast<int>(StateObjectID::ROW_BUFFER_B));
+         // Visit model to find largest max row length
+        MaxRowLengthVisitor visitor(model);
+
+        // Create DMA buffers
+        LOGI << "Creating DMA row buffers with " + std::to_string(visitor.getMaxRowLength()) + " entries";
+        const Shape rowBufferShape({visitor.getMaxRowLength()});
+        stateObjects.try_emplace(static_cast<int>(StateObjectID::ROW_BUFFER_A), Variable::create(rowBufferShape, Type::Int16, 1, "RowBufferA"));
+        stateObjects.try_emplace(static_cast<int>(StateObjectID::ROW_BUFFER_B), Variable::create(rowBufferShape, Type::Int16, 1, "RowBufferB"));
     }
 
     // Visit model to find what LUT object IDs are required and copy into state IDs
     LUTVisitor visitor(model);
     std::transform(visitor.getLUTObjectIDs().cbegin(), visitor.getLUTObjectIDs().cend(),
-                   std::back_inserter(stateIDs), [](auto i){ return static_cast<int>(i); });
+                   std::inserter(stateObjects, stateObjects.end()), 
+                   [](auto i){ return std::make_pair(static_cast<int>(i), Variable::create(Shape({64 * 32}), Type::Int16, 1, "LUT")); });
 
-    return stateIDs;
+    return stateObjects;
 }

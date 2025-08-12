@@ -191,7 +191,7 @@ private:
 class COMPILER_EXPORT MemsetProcess : public AcceptableModelComponent<MemsetProcess, Process>
 {
 public:
-    MemsetProcess(Private, VariablePtrBackendState target, const std::string &name);
+    MemsetProcess(Private, VariablePtr/*BackendState*/ target, const std::string &name);
 
     //------------------------------------------------------------------------
     // Public API
@@ -201,7 +201,7 @@ public:
     //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------
-    static std::shared_ptr<MemsetProcess> create(VariablePtrBackendState target, const std::string &name = "")
+    static std::shared_ptr<MemsetProcess> create(VariablePtr/*BackendState*/ target, const std::string &name = "")
     {
         return std::make_shared<MemsetProcess>(Private(), target, name);
     }
@@ -210,5 +210,5 @@ private:
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
-    VariablePtrBackendState m_Target;
+    VariablePtr/*BackendState*/ m_Target;
 };

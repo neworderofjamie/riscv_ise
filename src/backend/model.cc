@@ -232,10 +232,11 @@ Model::Model(const std::vector<std::shared_ptr<const ProcessGroup>> &processGrou
     uint32_t fieldOffset = 4;
     Visitor visitor(m_ProcessGroups, m_StatefulFields, m_StateProcesses, fieldOffset);
 
-    // Loop through required backend-specific state objects names 
-    for(const auto &s : backend.getRequiredStateObjects(*this)) {
-        m_BackendFields.try_emplace(s, fieldOffset += 4);
-    }
+    // Allocate fields for backend-specific state
+    const auto backendStateObjects = backend.getRequiredStateObjects(*this);
+    std::transform(backendStateObjects.cbegin(), backendStateObjects.cend(),
+                   std::inserter(m_BackendFields, m_BackendFields.end()),
+                   [&fieldOffset](const auto &s){ return std::make_pair(s.first, std::make_tuple(s.second, fieldOffset += 4)); });
 
     // Calculate total
     m_NumFields = (fieldOffset / 4);
