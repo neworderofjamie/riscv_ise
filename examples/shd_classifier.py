@@ -62,14 +62,11 @@ synapse_update_processes = ProcessGroup([input_hidden.process, hidden_hidden.pro
                                          hidden_output.process])
 copy_processes = ProcessGroup([output_copy.process])
 
-# Create backend
-backend = BackendFeNNHW() if device else BackendFeNNSim()
-
 # Create model
-model = Model([init_processes, neuron_update_processes, synapse_update_processes, copy_processes],
-              backend)
+model = Model([init_processes, neuron_update_processes, synapse_update_processes, copy_processes])
 
-# Generate init and sim code
+# Create backend and use to generate sim code
+backend = BackendFeNNHW() if device else BackendFeNNSim()
 init_code = backend.generate_kernel([init_processes], model)
 code = backend.generate_simulation_kernel([synapse_update_processes, neuron_update_processes],  # Update synapses and then neurons every timestep
                                           [copy_processes],

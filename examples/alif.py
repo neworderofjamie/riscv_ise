@@ -77,14 +77,11 @@ init_processes = ProcessGroup([rng_init.process])
 neuron_update_processes = ProcessGroup([neurons.process])
 copy_processes = ProcessGroup([copy_v.process, copy_a.process])
 
-# Create backend
-backend = BackendFeNNHW() if device else BackendFeNNSim()
-
 # Create model
-model = Model([init_processes, neuron_update_processes, copy_processes],
-              backend)
+model = Model([init_processes, neuron_update_processes, copy_processes])
 
-# Generate init and sim code
+# Create backend and use to generate sim code
+backend = BackendFeNNHW() if device else BackendFeNNSim()
 init_code = backend.generate_kernel([init_processes], model)
 code = backend.generate_simulation_kernel([neuron_update_processes, copy_processes],
                                           [],
