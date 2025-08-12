@@ -303,7 +303,12 @@ Model::Model(const std::vector<std::shared_ptr<const ProcessGroup>> &processGrou
     const auto backendStateObjects = backend.getRequiredStateObjects(*this);
     std::transform(backendStateObjects.cbegin(), backendStateObjects.cend(),
                    std::inserter(m_BackendFields, m_BackendFields.end()),
-                   [&fieldOffset](const auto &s){ return std::make_pair(s.first, std::make_tuple(s.second, fieldOffset += 4)); });
+                   [&fieldOffset](const auto &s)
+                   {
+                       const uint32_t oldFieldOffset = fieldOffset;
+                       fieldOffset += 4;
+                       return std::make_pair(s.first, std::make_tuple(s.second, oldFieldOffset));
+                   });
 
     // Use visitor to populate process fields and 
     // state processes data structures from process groups
