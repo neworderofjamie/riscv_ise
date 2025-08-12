@@ -184,3 +184,45 @@ MemsetProcess::MemsetProcess(Private, VariablePtrBackendState target, const std:
         }
     }
 }
+
+//----------------------------------------------------------------------------
+// BroadcastProcess
+//----------------------------------------------------------------------------
+BroadcastProcess::BroadcastProcess(Private, VariablePtr source, VariablePtrBackendState target, const std::string &name)
+:   AcceptableModelComponent<BroadcastProcess, Process>(name), m_Source(source), m_Target(target)
+{
+    if(m_Source == nullptr) {
+        throw std::runtime_error("Broadcast process requires source");
+    }
+
+    if (m_Source->getNumBufferTimesteps() != 1) {
+        throw std::runtime_error("Source has more than 1 buffer timestep which "
+                                 "isn't currently supported by broadcast processes");
+    }
+
+    if(m_Source->getShape().getDims().size() != 1) {
+        throw std::runtime_error("Multi-dimensional sources aren't currently "
+                                 "supported by broadcast processes");
+    }
+
+    // If target is a variable
+    // **NOTE** if target is a backend-specific state object, there's nothing we can check yet
+    if(std::holds_alternative<VariablePtr>(m_Target)) {
+        auto targetVar = std::get<VariablePtr>(m_Target);
+        if(targetVar == nullptr) {
+            throw std::runtime_error("Broadcast process requires target");
+        }
+
+        if(targetVar->getShape().getDims().size() != 2) {
+            throw std::runtime_error("Broadcast process currently required 2 dimensional target");
+        }
+
+        if(targetVar->getShape().getDims().at(0) != m_Source->getShape().getDims().at(0)) {
+            throw std::runtime_error("Broadcast process requires first dimension of source and target to match");
+        }
+
+        if (m_Source->getType() != targetVar->getType()) {
+            throw std::runtime_error("Broadcast process requires source and target with same shape");
+        }
+    }
+}

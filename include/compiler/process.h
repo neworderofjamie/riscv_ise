@@ -212,3 +212,35 @@ private:
     //------------------------------------------------------------------------
     VariablePtrBackendState m_Target;
 };
+
+//----------------------------------------------------------------------------
+// BroadcastProcess
+//----------------------------------------------------------------------------
+//! Process for 'broadcasting' one scalar array across multiple vector lanes
+class COMPILER_EXPORT BroadcastProcess : public AcceptableModelComponent<BroadcastProcess, Process>
+{
+public:
+    BroadcastProcess(Private, VariablePtr source, VariablePtrBackendState target, const std::string &name);
+
+    //------------------------------------------------------------------------
+    // Public API
+    //------------------------------------------------------------------------
+    const auto getSource() const{ return m_Source; }
+    const auto getTarget() const{ return m_Target; }
+    
+    //------------------------------------------------------------------------
+    // Static API
+    //------------------------------------------------------------------------
+    static std::shared_ptr<BroadcastProcess> create(VariablePtr source, VariablePtrBackendState target,
+                                                    const std::string &name = "")
+    {
+        return std::make_shared<BroadcastProcess>(Private(), source, target, name);
+    }
+
+private:
+    //------------------------------------------------------------------------
+    // Members
+    //------------------------------------------------------------------------
+    VariablePtr m_Source;
+    VariablePtrBackendState m_Target;
+};

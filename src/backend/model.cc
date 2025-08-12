@@ -155,6 +155,59 @@ private:
         m_CurrentProcessFields.clear();
     }
 
+    virtual void visit(std::shared_ptr<const BroadcastProcess> broadcastProcess)
+    {
+        LOGD << "\tBroadcast process '" << broadcastProcess->getName() << "'";
+        assert(m_CurrentProcessFields.empty());
+
+        // Visit source and add back-references in state processes
+        broadcastProcess->getSource()->accept(*this);
+        m_StateProcesses.get()[broadcastProcess->getSource()].push_back(broadcastProcess);
+
+         // If target is a variable reference
+        if(std::holds_alternative<VariablePtr>(broadcastProcess->getTarget())) {
+            auto target = std::get<VariablePtr>(broadcastProcess->getTarget());
+
+            // Visit target and add back-references in state processes
+            target->accept(*this);    
+            m_StateProcesses.get()[target].push_back(broadcastProcess);
+        }
+        // Otherwise
+        else {
+            // Check state exists
+            const int target = std::get<int>(broadcastProcess->getTarget());
+            const auto backendField = m_BackendFields.get().find(target);
+            if(backendField != m_BackendFields.get().cend()) {
+                auto targetVar = std::static_pointer_cast<const Variable>(std::get<0>(backendField->second));
+            
+                // **YUCK** duplicate checks - these belong in BroadcastProcess
+                if(targetVar->getShape().getDims().size() != 2) {
+                    throw std::runtime_error("Broadcast process currently required 2 dimensional target");
+                }
+
+                if(targetVar->getShape().getDims().at(0) != broadcastProcess->getSource()->getShape().getDims().at(0)) {
+                    throw std::runtime_error("Broadcast process requires first dimension of source and target to match");
+                }
+
+                if (targetVar->getType() != broadcastProcess->getSource()->getType()) {
+                    throw std::runtime_error("Broadcast process requires source and target with same shape");
+                }
+            }
+            else {
+                throw std::runtime_error("Broadcast process '" + broadcastProcess->getName() + "' targets non-existent backend state");
+            }
+        }
+        
+        
+        // Add process fields
+        if(!m_StatefulFields.get().try_emplace(broadcastProcess, m_CurrentProcessFields).second) {
+            throw std::runtime_error("Broadcast process '" + broadcastProcess->getName() + "' encountered multiple times in model traversal");
+        }
+
+        // Clear current state fields
+        m_CurrentProcessFields.clear();
+    }
+
     virtual void visit(std::shared_ptr<const CopyProcess> copyProcess)
     {
         LOGD << "\tCopy process '" << copyProcess->getName() << "'";

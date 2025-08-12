@@ -292,6 +292,16 @@ PYBIND11_MODULE(_fenn, m)
         .def_property_readonly("target", &MemsetProcess::getTarget);
 
     //------------------------------------------------------------------------
+    // fenn.BroadcastProcess
+    //------------------------------------------------------------------------
+    pybind11::class_<BroadcastProcess, Process, std::shared_ptr<BroadcastProcess>>(m, "BroadcastProcess")
+        .def(pybind11::init(&BroadcastProcess::create),
+             pybind11::arg("source"), pybind11::arg("target"), pybind11::arg("name") = "")
+
+        .def_property_readonly("source", &BroadcastProcess::getSource)
+        .def_property_readonly("target", &BroadcastProcess::getTarget);
+    
+    //------------------------------------------------------------------------
     // fenn.ProcessGroup
     //------------------------------------------------------------------------
     pybind11::class_<ProcessGroup, Stateful, std::shared_ptr<ProcessGroup>>(m, "ProcessGroup")

@@ -348,6 +348,38 @@ private:
         }
     }
 
+    virtual void visit(std::shared_ptr<const BroadcastProcess> broadcastProcess)
+    {
+        // If variable is source, it can only be located in BRAM
+        if(m_Variable == broadcastProcess->getSource()) {
+            m_LLMCompatible = false;
+            m_URAMCompatible = false;
+            m_DRAMCompatible = false;
+
+            if(!m_BRAMCompatible) {
+                throw std::runtime_error("Broadcast process '" + broadcastProcess->getName() 
+                                        + "' source array '" + broadcastProcess->getSource()->getName()
+                                        + "' shared with incompatible processes");
+            }
+        }
+        else {
+            // Otherwise, if variable's target, it can only located in LLM
+            // **TODO** URAM would also be sensible IN THEORY 
+            const auto target = std::get<VariablePtr>(broadcastProcess->getTarget());
+            assert(m_Variable == target);
+            
+            m_BRAMCompatible = false;
+            m_URAMCompatible = false;
+            m_DRAMCompatible = false;
+
+            if(!m_LLMCompatible) {
+                throw std::runtime_error("Broadcast process '" + broadcastProcess->getName()
+                                        + "' target array '" + target->getName()
+                                        + "' shared with incompatible processes");
+            }
+        }
+    }
+
     virtual void visit(std::shared_ptr<const CopyProcess> copyProcess)
     {
         // If variable is source, it can only be located in URAM
@@ -938,6 +970,93 @@ private:
         // Load seed into RNG registers
         c.vloadr0(*SReg);
         c.vloadr1(*SReg, 64);
+    }
+
+    virtual void visit(std::shared_ptr<const BroadcastProcess> broadcastProcess)
+    {
+        auto &scalarRegisterAllocator = m_ScalarRegisterAllocator.get();
+        auto &vectorRegisterAllocator = m_VectorRegisterAllocator.get();
+        auto &c = m_CodeGenerator.get();
+
+        // Register allocation
+        ALLOCATE_SCALAR(SDataBuffer);
+        ALLOCATE_SCALAR(SDataBufferEnd);
+        ALLOCATE_VECTOR(VAddress)
+        ALLOCATE_VECTOR(VTwo);
+
+        // Labels
+        Label halfWordLoop;
+
+        // Get fields associated with this process
+        const auto &stateFields = m_Model.get().getStatefulFields().at(broadcastProcess);
+
+        // Load increment
+        c.vlui(*VTwo, 2);
+
+        // If target is a variable reference
+        {
+            ALLOCATE_SCALAR(SLLMAddress)
+        
+            if(std::holds_alternative<VariablePtr>(broadcastProcess->getTarget())) {
+                auto target = std::get<VariablePtr>(broadcastProcess->getTarget());
+                
+                c.lw(*SLLMAddress, Reg::X0, stateFields.at(target));
+            }
+            // Otherwise
+            else {
+                // Get state object ID
+                const int target = std::get<int>(broadcastProcess->getTarget());
+                
+                // Get target field
+                // **NOTE** model already checks validity of taret
+                const auto &targetField = m_Model.get().getBackendFields().at(target);
+
+                // If target is a LUT i.e. in lane-local memory, load target field
+                if(static_cast<StateObjectID>(target) == StateObjectID::LUT_EXP) {    
+                    c.lw(*SLLMAddress, Reg::X0, std::get<1>(targetField));
+                }
+                else {
+                    throw std::runtime_error("Broadcast process '" + broadcastProcess->getName() 
+                                            + "' targets incompatible backend state object "
+                                            + std::to_string(target));
+                }
+            }
+
+            // Fill vector register with LLM address
+            c.vfill(*VAddress, *SLLMAddress);
+        }
+
+        // SDataBuffer = scalarPtr
+        c.lw(*SDataBuffer, Reg::X0, stateFields.at(broadcastProcess->getSource()));
+
+        // Load size in bytes and add to scalar buffer to get end
+        c.li(*SDataBufferEnd, 2 * broadcastProcess->getSource()->getShape().getDims().at(0));
+        c.add(*SDataBufferEnd, *SDataBufferEnd, *SDataBuffer);
+        
+
+        // Loop over vectors
+        c.L(halfWordLoop);
+        {
+            // Register allocation
+            ALLOCATE_VECTOR(VVector);
+            ALLOCATE_SCALAR(SVal);
+
+            // Load halfword
+            c.lh(*SVal, *SDataBuffer);
+
+            // Increment pointer
+            c.addi(*SDataBuffer, *SDataBuffer, 2);
+        
+            // Fill vector register
+            c.vfill(*VVector, *SVal);
+
+            // Write to all lane local memories and increment address
+            c.vstorel(*VVector, *VAddress);
+            c.vadd(*VAddress, *VAddress, *VTwo);
+
+            // Loop
+            c.bne(*SDataBuffer, *SDataBufferEnd, halfWordLoop);
+        }
     }
 
     virtual void visit(std::shared_ptr<const CopyProcess> copyProcess)
@@ -1962,13 +2081,13 @@ std::unordered_map<int, std::shared_ptr<State>> BackendFeNN::getRequiredStateObj
 
     // Visit model to find what LUT object IDs are required and copy into state IDs
     LUTVisitor visitor(model);
+    const Shape lutShape({SpecialFunctions::getLUTCount(), 32});
     std::transform(visitor.getLUTObjectIDs().cbegin(), visitor.getLUTObjectIDs().cend(),
                    std::inserter(stateObjects, stateObjects.end()), 
-                   [](auto i)
+                   [&lutShape](auto i)
                    { 
                        return std::make_pair(static_cast<int>(i), 
-                                             Variable::create(Shape({SpecialFunctions::getLUTCount()}), 
-                                             Type::Int16, 1, "LUT")); 
+                                             Variable::create(lutShape, Type::Int16, 1, "LUT")); 
                    });
 
     return stateObjects;

@@ -12,6 +12,7 @@ class ProcessGroup;
 class NeuronUpdateProcess;
 class EventPropagationProcess;
 class RNGInitProcess;
+class BroadcastProcess;
 class CopyProcess;
 class MemsetProcess;
 class Variable;
@@ -29,6 +30,7 @@ public:
     virtual void visit(std::shared_ptr<const NeuronUpdateProcess>){}
     virtual void visit(std::shared_ptr<const EventPropagationProcess>){}
     virtual void visit(std::shared_ptr<const RNGInitProcess>){};
+    virtual void visit(std::shared_ptr<const BroadcastProcess>){};
     virtual void visit(std::shared_ptr<const CopyProcess>){};
     virtual void visit(std::shared_ptr<const MemsetProcess>){}
     virtual void visit(std::shared_ptr<const Variable>){}

@@ -104,7 +104,6 @@ void Runtime::allocate()
         }
     }
 
-
     // Push populated fields to device
     m_FieldArray->pushFieldsToDevice();
 }

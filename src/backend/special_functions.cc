@@ -31,7 +31,7 @@ constexpr size_t fracBits = tableBits + 3;
 
 size_t getLUTCount()
 {
-    return 32 * ((1 << tableBits) + 1);
+    return ((1 << tableBits) + 1);
 }
 
 //----------------------------------------------------------------------------
