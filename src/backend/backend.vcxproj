@@ -23,17 +23,21 @@
     <ClInclude Include="..\..\include\backend\backend_fenn.h" />
     <ClInclude Include="..\..\include\backend\backend_fenn_hw.h" />
     <ClInclude Include="..\..\include\backend\backend_fenn_sim.h" />
+    <ClInclude Include="..\..\include\backend\environment.h" />
     <ClInclude Include="..\..\include\backend\memory_allocator.h" />
     <ClInclude Include="..\..\include\backend\model.h" />
     <ClInclude Include="..\..\include\backend\runtime.h" />
+    <ClInclude Include="..\..\include\backend\special_function.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="backend_fenn.cc" />
     <ClCompile Include="backend_fenn_hw.cc" />
     <ClCompile Include="backend_fenn_sim.cc" />
+    <ClCompile Include="environment.cc" />
     <ClCompile Include="memory_allocator.cc" />
     <ClCompile Include="model.cc" />
     <ClCompile Include="runtime.cc" />
+    <ClCompile Include="special_functions.cc" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>

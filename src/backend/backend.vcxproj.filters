@@ -32,6 +32,12 @@
     <ClInclude Include="..\..\include\backend\backend_export.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\include\backend\special_function.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\backend\environment.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="backend_fenn_hw.cc">
@@ -50,6 +56,12 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="backend_fenn.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="environment.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="special_functions.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
