@@ -95,13 +95,13 @@ void Runtime::allocate()
         // Create array
         auto fieldArray = m_Backend.get().createArray(std::get<0>(b.second), b.first, m_State.get());
         
+        // Assign array to field
+        m_FieldArray->setFieldArray(std::get<1>(b.second), fieldArray.get());
+
         // Take ownership of array and add to arrays map
         if (!m_Arrays.try_emplace(std::get<0>(b.second), std::move(fieldArray)).second) {
             assert(false);
         }
-
-        // Assign array to field
-        m_FieldArray->setFieldArray(std::get<1>(b.second), fieldArray.get());
     }
 
 
