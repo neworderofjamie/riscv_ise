@@ -192,10 +192,6 @@ int main(int argc, char** argv)
     const auto synapseUpdateProcesses = ProcessGroup::create({inputHidden, hiddenOutput}, time ? synapseUpdatePerfCounter : nullptr);
     const auto copyProcesses = ProcessGroup::create({copyOutputSum}, time ? copyPerfCounter : nullptr);
 
-
-    // Build model from process groups we want to simulate
-    Model model({synapseUpdateProcesses, neuronUpdateProcesses, copyProcesses});
-
     std::unique_ptr<BackendFeNN> backend;
     if (device) {
         backend = std::make_unique<BackendFeNNHW>();
@@ -203,6 +199,9 @@ int main(int argc, char** argv)
     else {
         backend = std::make_unique<BackendFeNNSim>();
     }
+
+    // Build model from process groups we want to simulate
+    Model model({synapseUpdateProcesses, neuronUpdateProcesses, copyProcesses}, *backend);
 
     // Generate kernel
     const auto code = backend->generateSimulationKernel({synapseUpdateProcesses, neuronUpdateProcesses},

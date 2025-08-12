@@ -140,11 +140,14 @@ synapse_update_processes = ProcessGroup([ee_pop.process, ei_pop.process,
                                          ii_pop.process, ie_pop.process],
                                         PerformanceCounter() if time else None)
 
-# Create model
-model = Model([i_zero_processes, neuron_update_processes, synapse_update_processes])
-
-# Create backend and use to generate init and sim code
+# Create backend
 backend = BackendFeNNHW() if device else BackendFeNNSim()
+
+# Create model
+model = Model([i_zero_processes, neuron_update_processes, synapse_update_processes],
+              backend)
+
+# Generate init and sim code
 init_code = backend.generate_kernel([i_zero_processes], model)
 code = backend.generate_simulation_kernel([synapse_update_processes, neuron_update_processes],
                                           [],
