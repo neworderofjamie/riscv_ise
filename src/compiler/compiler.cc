@@ -753,7 +753,7 @@ private:
     void generateVMOV(VReg destinationReg, VReg sourceReg) const
     {
         m_Environment.get().getCodeGenerator().vadd(destinationReg, sourceReg,
-                                                    *std::get<VectorRegisterAllocator::RegisterPtr>(m_Environment.get().getRegister("_zero")));
+                                                    *m_Environment.get().getVectorRegister("_zero"));
     }
 
     void generateAssign(const Token &token, VReg destinationReg, VReg assigneeReg, VReg valueReg,

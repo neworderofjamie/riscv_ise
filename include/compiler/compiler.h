@@ -52,6 +52,19 @@ public:
     virtual CodeGenerator &getCodeGenerator() = 0;
 
     //------------------------------------------------------------------------
+    // Public API
+    //------------------------------------------------------------------------
+    ScalarRegisterAllocator::RegisterPtr getScalarRegister(const std::string &name)
+    {
+        return std::get<ScalarRegisterAllocator::RegisterPtr>(getRegister(name));
+    }
+
+    VectorRegisterAllocator::RegisterPtr getVectorRegister(const std::string &name)
+    {
+        return std::get<VectorRegisterAllocator::RegisterPtr>(getRegister(name));
+    }
+
+    //------------------------------------------------------------------------
     // Operators
     //------------------------------------------------------------------------
     RegisterPtr operator[] (const std::string &name)
