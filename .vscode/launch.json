@@ -50,6 +50,7 @@
         "shd",
         "sparse_spike",
         "spike_dma",
+        "special_function_test",
         "va_benchmark"
       ],
       "default": "lif"
