@@ -115,7 +115,6 @@ int main(int argc, char** argv)
             ALLOCATE_SCALAR(SInputBuffer);
             ALLOCATE_SCALAR(SInputBufferEnd);
             ALLOCATE_SCALAR(SOutputBuffer);
-            ALLOCATE_VECTOR(VTwo);
             ALLOCATE_VECTOR(VShiftScale);
             ALLOCATE_VECTOR(VFracMask);
             ALLOCATE_VECTOR(VInvLog);
@@ -132,7 +131,6 @@ int main(int argc, char** argv)
             c.li(*SOutputBuffer, outputDataPtr);
 
             // Load constants
-            c.vlui(*VTwo, 2);
             c.vlui(*VShiftScale, 14 - valueFixedPoint);
             c.vlui(*VFracMask, (1 << fracBits) - 1);
             c.vlui(*VLog2, convertFixedPoint(log2, 15));
@@ -178,11 +176,8 @@ int main(int argc, char** argv)
                 // Load lower LUT entry
                 c.vloadl(*VLUTLower, *VLUTAddress, 0);
 
-                // VLUTAddress+=2
-                c.vadd(*VLUTAddress, *VLUTAddress, *VTwo);
-
                 // Load higher LUT value
-                c.vloadl(*VLUTDiff, *VLUTAddress, 0);
+                c.vloadl(*VLUTDiff, *VLUTAddress, 2);
 
                 // VOutput = VX & VFracMask
                 c.vand(*VOutput, *VR, *VFracMask);
