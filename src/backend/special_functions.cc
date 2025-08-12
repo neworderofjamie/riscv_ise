@@ -37,7 +37,7 @@ size_t getLUTCount()
 //----------------------------------------------------------------------------
 // SpecialFunctions::Exp
 //----------------------------------------------------------------------------
-namespace SpecialFunctions::Exp
+namespace Exp
 {
 // Constants
 const double log2 = std::log(2.0);
@@ -166,5 +166,5 @@ void add(CodeGenerator &codeGenerator, ScalarRegisterAllocator &scalarRegisterAl
                            }));
     }
 }
-}   // SpecialFunctions::Exp
-}   // SpecialFunctions
+}   // namespace Exp
+}   // namespace SpecialFunctions
