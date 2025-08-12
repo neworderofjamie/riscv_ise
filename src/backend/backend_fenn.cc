@@ -450,7 +450,7 @@ public:
     :   m_MaxRowLength(0)
     {
         // Loop through process groups in model and visit all processes
-        for(const auto g : model.getProcessGroups()) {
+        for(const auto &g : model.getProcessGroups()) {
             for(const auto &p : g->getProcesses()) {
                 p->accept(*this);
             }
@@ -484,7 +484,7 @@ public:
     LUTVisitor(const Model &model)
     {
         // Loop through process groups in model and visit all processes
-        for(const auto g : model.getProcessGroups()) {
+        for(const auto &g : model.getProcessGroups()) {
             for(const auto &p : g->getProcesses()) {
                 p->accept(*this);
             }
