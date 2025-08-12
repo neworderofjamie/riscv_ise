@@ -4,6 +4,7 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <variant>
 
 // GeNN includes
 #include "transpiler/token.h"
@@ -17,9 +18,12 @@ class EventContainer;
 class Parameter;
 class Variable;
 
+using VariablePtr = std::shared_ptr<const Variable>;
+using VariablePtrBackendState = std::variant<VariablePtr, int>;
 using EventContainerMap = std::unordered_map<std::string, std::shared_ptr<EventContainer>>;
 using ParameterMap = std::unordered_map<std::string, std::shared_ptr<const Parameter>>;
-using VariableMap = std::unordered_map<std::string, std::shared_ptr<const Variable>>;
+using VariableMap = std::unordered_map<std::string, VariablePtr>;
+
 
 //----------------------------------------------------------------------------
 // NeuronUpdateProcess
@@ -72,7 +76,7 @@ class COMPILER_EXPORT EventPropagationProcess : public AcceptableModelComponent<
 {
 public:
     EventPropagationProcess(Private, std::shared_ptr<const EventContainer> inputEvents, 
-                            std::shared_ptr<const Variable> weight, std::shared_ptr<const Variable> target,
+                            VariablePtr weight, VariablePtr target,
                             size_t numSparseConnectivityBits, size_t numDelayBits,
                             const std::string &name);
 
@@ -94,8 +98,7 @@ public:
     // Static API
     //------------------------------------------------------------------------
     static std::shared_ptr<EventPropagationProcess> create(std::shared_ptr<const EventContainer> inputEvents, 
-                                                           std::shared_ptr<const Variable> weight,
-                                                           std::shared_ptr<const Variable> target, 
+                                                           VariablePtr weight, VariablePtr target, 
                                                            size_t numSparseConnectivityBits = 0,
                                                            size_t numDelayBits = 0,
                                                            const std::string &name = "")
@@ -109,8 +112,8 @@ private:
     // Members
     //------------------------------------------------------------------------
     std::shared_ptr<const EventContainer> m_InputEvents;
-    std::shared_ptr<const Variable> m_Weight;
-    std::shared_ptr<const Variable> m_Target;
+    VariablePtr m_Weight;
+    VariablePtr m_Target;
     
     size_t m_NumSourceNeurons;
     size_t m_NumTargetNeurons;
@@ -126,7 +129,7 @@ private:
 class COMPILER_EXPORT RNGInitProcess : public AcceptableModelComponent<RNGInitProcess, Process>
 {
 public:
-    RNGInitProcess(Private, std::shared_ptr<const Variable> seed, const std::string &name);
+    RNGInitProcess(Private, VariablePtr seed, const std::string &name);
 
     //------------------------------------------------------------------------
     // Public API
@@ -136,8 +139,7 @@ public:
     //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------
-    static std::shared_ptr<RNGInitProcess> create(std::shared_ptr<const Variable> seed,
-                                                  const std::string &name = "")
+    static std::shared_ptr<RNGInitProcess> create(VariablePtr seed, const std::string &name = "")
     {
         return std::make_shared<RNGInitProcess>(Private(), seed, name);
     }
@@ -157,8 +159,7 @@ private:
 class COMPILER_EXPORT CopyProcess : public AcceptableModelComponent<CopyProcess, Process>
 {
 public:
-    CopyProcess(Private, std::shared_ptr<const Variable> source,
-                std::shared_ptr<const Variable> target, const std::string &name);
+    CopyProcess(Private, VariablePtr source, VariablePtr target, const std::string &name);
 
     //------------------------------------------------------------------------
     // Public API
@@ -169,8 +170,7 @@ public:
     //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------
-    static std::shared_ptr<CopyProcess> create(std::shared_ptr<const Variable> source,
-                                               std::shared_ptr<const Variable> target,
+    static std::shared_ptr<CopyProcess> create(VariablePtr source, VariablePtr target,
                                                const std::string &name = "")
     {
         return std::make_shared<CopyProcess>(Private(), source, target, name);
@@ -180,8 +180,8 @@ private:
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
-    std::shared_ptr<const Variable> m_Source;
-    std::shared_ptr<const Variable> m_Target;
+    VariablePtr m_Source;
+    VariablePtr m_Target;
 };
 
 //----------------------------------------------------------------------------
@@ -191,8 +191,7 @@ private:
 class COMPILER_EXPORT MemsetProcess : public AcceptableModelComponent<MemsetProcess, Process>
 {
 public:
-    MemsetProcess(Private, std::shared_ptr<const Variable> target,
-                  const std::string &name);
+    MemsetProcess(Private, VariablePtrBackendState target, const std::string &name);
 
     //------------------------------------------------------------------------
     // Public API
@@ -202,8 +201,7 @@ public:
     //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------
-    static std::shared_ptr<MemsetProcess> create(std::shared_ptr<const Variable> target,
-                                                 const std::string &name = "")
+    static std::shared_ptr<MemsetProcess> create(VariablePtrBackendState target, const std::string &name = "")
     {
         return std::make_shared<MemsetProcess>(Private(), target, name);
     }
@@ -212,5 +210,5 @@ private:
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
-    std::shared_ptr<const Variable> m_Target;
+    VariablePtrBackendState m_Target;
 };

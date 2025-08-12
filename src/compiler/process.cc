@@ -54,8 +54,8 @@ NeuronUpdateProcess::NeuronUpdateProcess(Private, const std::string &code, const
 // EventPropagationProcess
 //----------------------------------------------------------------------------
 EventPropagationProcess::EventPropagationProcess(Private, std::shared_ptr<const EventContainer> inputEvents, 
-                                                 std::shared_ptr<const Variable> weight, std::shared_ptr<const Variable> target,
-                                                 size_t numSparseConnectivityBits, size_t numDelayBits, const std::string &name)
+                                                 VariablePtr weight, VariablePtr target, size_t numSparseConnectivityBits, 
+                                                 size_t numDelayBits, const std::string &name)
 :   AcceptableModelComponent<EventPropagationProcess, Process>(name), m_InputEvents(inputEvents), 
     m_Weight(weight), m_Target(target), m_NumSparseConnectivityBits(numSparseConnectivityBits),
     m_NumDelayBits(numDelayBits)
@@ -126,7 +126,7 @@ EventPropagationProcess::EventPropagationProcess(Private, std::shared_ptr<const 
 //----------------------------------------------------------------------------
 // RNGInitProcess
 //----------------------------------------------------------------------------
-RNGInitProcess::RNGInitProcess(Private, std::shared_ptr<const Variable> seed, const std::string &name)
+RNGInitProcess::RNGInitProcess(Private, VariablePtr seed, const std::string &name)
 :   AcceptableModelComponent<RNGInitProcess, Process>(name), m_Seed(seed)
 {
     if(m_Seed == nullptr) {
@@ -137,8 +137,7 @@ RNGInitProcess::RNGInitProcess(Private, std::shared_ptr<const Variable> seed, co
 //----------------------------------------------------------------------------
 // CopyProcess
 //----------------------------------------------------------------------------
-CopyProcess::CopyProcess(Private, std::shared_ptr<const Variable> source,
-                         std::shared_ptr<const Variable> target, const std::string &name)
+CopyProcess::CopyProcess(Private, VariablePtr source, VariablePtr target, const std::string &name)
 :   AcceptableModelComponent<CopyProcess, Process>(name), m_Source(source), m_Target(target)
 {
     if(m_Source == nullptr) {
@@ -167,17 +166,19 @@ CopyProcess::CopyProcess(Private, std::shared_ptr<const Variable> source,
 //----------------------------------------------------------------------------
 // MemsetProcess
 //----------------------------------------------------------------------------
-MemsetProcess::MemsetProcess(Private, std::shared_ptr<const Variable> target,
-                             const std::string &name)
+MemsetProcess::MemsetProcess(Private, VariablePtrBackendState target, const std::string &name)
 :   AcceptableModelComponent<MemsetProcess, Process>(name), m_Target(target)
 {
-    if(m_Target == nullptr) {
-        throw std::runtime_error("Memset process requires target");
-    }
+    if(std::holds_alternative<VariablePtr>(m_Target)) {
+        auto targetVar = std::get<VariablePtr>(m_Target);
+        if(targetVar == nullptr) {
+            throw std::runtime_error("Memset process requires target");
+        }
 
    
-    if (m_Target->getNumBufferTimesteps() != 1) {
-        throw std::runtime_error("Target has more than 1 buffer timestep which "
-                                 "isn't currently supported by memset processes");
+        if (targetVar->getNumBufferTimesteps() != 1) {
+            throw std::runtime_error("Target has more than 1 buffer timestep which "
+                                     "isn't currently supported by memset processes");
+        }
     }
 }

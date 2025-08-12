@@ -625,9 +625,17 @@ private:
 
     virtual void visit(std::shared_ptr<const MemsetProcess> memsetProcess)
     {
-        // As long as variable is our target, can memset anything!
-        if(m_Variable != memsetProcess->getTarget()) {
-            assert(false);
+        assert(m_Variable == memsetProcess->getTarget());
+
+        // **TODO** memset could handle anything
+        m_BRAMCompatible = false;
+        m_DRAMCompatible = false;
+        m_URAMCompatible = false;
+
+        if(!m_LLMCompatible) {
+            throw std::runtime_error("Memset process '" + memsetProcess->getName()
+                                    + "' target array '" + memsetProcess->getTarget()->getName()
+                                    + "' shared with incompatible processes");
         }
     }
 
