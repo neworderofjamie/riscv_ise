@@ -270,7 +270,14 @@ void unrollLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAll
     if(numUnrolls.quot != 0) {
         // Calculate end of unrolled section of buffer
         ALLOCATE_SCALAR(STestBufferEndReg);
-        c.addi(*STestBufferEndReg, testBufferReg, iterationBytes * numUnrolls.quot * maxUnroll);
+        const size_t stride = iterationBytes * numUnrolls.quot * maxUnroll;
+        if(inSBit(stride, 12)) {
+            c.addi(*STestBufferEndReg, testBufferReg, stride);
+        }
+        else {
+            c.li(*STestBufferEndReg, stride);
+            c.add(*STestBufferEndReg, *STestBufferEndReg, testBufferReg);
+        }
 
         Label loop;
         c.L(loop);
