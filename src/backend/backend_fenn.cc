@@ -41,7 +41,9 @@
 #include "compiler/variable.h"
 
 // Backend includes
+#include "backend/environment.h"
 #include "backend/memory_allocator.h"
+#include "backend/special_function.h"
 
 using namespace GeNN;
 using namespace GeNN::Transpiler;
@@ -59,272 +61,6 @@ enum class StateObjectID : int
     LUT_EXP,
 };
 
-class EnvironmentExternalBase : public ::EnvironmentBase, public Transpiler::TypeChecker::EnvironmentBase
-{
-public:
-    explicit EnvironmentExternalBase(EnvironmentExternalBase &enclosing)
-    :   m_Context{&enclosing, &enclosing, nullptr}
-    {
-    }
-
-    explicit EnvironmentExternalBase(::EnvironmentBase &enclosing)
-    :   m_Context{nullptr, &enclosing, nullptr}
-    {
-    }
-
-    explicit EnvironmentExternalBase(CodeGenerator &os)
-    :   m_Context{nullptr, nullptr, &os}
-    {
-    }
-
-    //------------------------------------------------------------------------
-    // Assembler::EnvironmentBase virtuals
-    //------------------------------------------------------------------------
-    virtual void define(const std::string &, RegisterPtr) override
-    {
-        throw std::runtime_error("Cannot declare variable in external environment");
-    }
-
-    //! Get stream to write code within this environment to
-    virtual CodeGenerator &getCodeGenerator() final
-    {
-        // If context includes a code stream
-        if (std::get<2>(m_Context)) {
-            return *std::get<2>(m_Context);
-        }
-        // Otherwise
-        else {
-            // Assert that there is a pretty printing environment
-            assert(std::get<1>(m_Context));
-
-            // Return its stream
-            return std::get<1>(m_Context)->getCodeGenerator();
-        }
-    }
-
-    //------------------------------------------------------------------------
-    // TypeChecker::EnvironmentBase virtuals
-    //------------------------------------------------------------------------
-    virtual void define(const Transpiler::Token &, const GeNN::Type::ResolvedType &,
-                        Transpiler::ErrorHandlerBase &) override
-    {
-        throw std::runtime_error("Cannot declare variable in external environment");
-    }
-
-protected:
-    //------------------------------------------------------------------------
-    // Protected API
-    //------------------------------------------------------------------------
-    RegisterPtr getContextRegister(const std::string &name) const
-    {
-        // If context includes a pretty-printing environment, get name from it
-        if (std::get<1>(m_Context)) {
-            return std::get<1>(m_Context)->getRegister(name);
-        }
-        // Otherwise, give error
-        else {
-            throw std::runtime_error("Identifier '" + name + "' undefined");
-        }
-    }
-
-    FunctionGenerator getContextFunctionGenerator(const std::string &name, std::optional<Type::ResolvedType> type = std::nullopt) const
-    {
-        // If context includes a pretty-printing environment, get name from it
-        if (std::get<1>(m_Context)) {
-            return std::get<1>(m_Context)->getFunctionGenerator(name, type);
-        }
-        // Otherwise, give error
-        else {
-            throw std::runtime_error("Identifier '" + name + "' undefined");
-        }
-    }
-
-    //! Get vector of types from context if it provides this functionality
-    std::vector<Type::ResolvedType> getContextTypes(const Transpiler::Token &name, Transpiler::ErrorHandlerBase &errorHandler)  const
-    {
-        // If context includes a type-checking environment, get type from it
-        if (std::get<0>(m_Context)) {
-            return std::get<0>(m_Context)->getTypes(name, errorHandler);
-        }
-        // Otherwise, give error
-        else {
-            errorHandler.error(name, "Undefined identifier");
-            throw TypeChecker::TypeCheckError();
-        }
-    }
-
-
-private:
-    //------------------------------------------------------------------------
-    // Members
-    //------------------------------------------------------------------------
-    std::tuple<Transpiler::TypeChecker::EnvironmentBase*, ::EnvironmentBase*, CodeGenerator*> m_Context;
-};
-
-//----------------------------------------------------------------------------
-// EnvironmentExternal
-//----------------------------------------------------------------------------
-class EnvironmentExternal : public EnvironmentExternalBase
-{
-public:
-    explicit EnvironmentExternal(EnvironmentExternalBase &enclosing)
-    :   EnvironmentExternalBase(enclosing)
-    {
-    }
-
-    explicit EnvironmentExternal(EnvironmentExternal &enclosing)
-        : EnvironmentExternalBase(enclosing)
-    {
-    }
-
-    explicit EnvironmentExternal(::EnvironmentBase &enclosing)
-    :   EnvironmentExternalBase(enclosing)
-    {
-    }
-
-    explicit EnvironmentExternal(CodeGenerator &os)
-    :   EnvironmentExternalBase(os)
-    {
-    }
-
-    EnvironmentExternal(const EnvironmentExternal&) = delete;
-
-    //------------------------------------------------------------------------
-    // Assembler::EnvironmentBase virtuals
-    //------------------------------------------------------------------------
-    virtual RegisterPtr getRegister(const std::string &name) final
-    {
-        // If name isn't found in environment
-        auto env = m_Environment.find(name);
-        if (env == m_Environment.end()) {
-            return getContextRegister(name);
-        }
-        // Otherwise, get name from payload
-        else {
-            return std::get<RegisterPtr>(std::get<1>(env->second));
-        }
-    }
-
-    virtual FunctionGenerator getFunctionGenerator(const std::string &name, std::optional<Type::ResolvedType> type = std::nullopt) final
-    {
-        // If name isn't found in environment
-        auto env = m_Environment.find(name);
-        if (env == m_Environment.end()) {
-            return getContextFunctionGenerator(name, type);
-        }
-        // Otherwise, get name from payload
-        else {
-            return std::get<FunctionGenerator>(std::get<1>(env->second));
-        }
-    }
-
-    //------------------------------------------------------------------------
-    // TypeChecker::EnvironmentBase virtuals
-    //------------------------------------------------------------------------
-    virtual std::vector<Type::ResolvedType> getTypes(const Transpiler::Token &name, Transpiler::ErrorHandlerBase &errorHandler) final
-    {
-        // If name isn't found in environment
-        auto env = m_Environment.find(name.lexeme);
-        if (env == m_Environment.end()) {
-            return getContextTypes(name, errorHandler);
-        }
-        // Otherwise, return type of variables
-        else {
-            return {std::get<0>(env->second)};
-        }
-    }
-
-    //------------------------------------------------------------------------
-    // Public API
-    //------------------------------------------------------------------------
-    //! Map a type (for type-checking) and a value (for pretty-printing) to an identifier
-    void add(const GeNN::Type::ResolvedType &type, const std::string &name, std::variant<RegisterPtr, FunctionGenerator> value)
-    {
-         if(!m_Environment.try_emplace(name, type, value).second) {
-            throw std::runtime_error("Redeclaration of '" + std::string{name} + "'");
-        }
-    }
-
-private:
-    //------------------------------------------------------------------------
-    // Members
-    //------------------------------------------------------------------------
-    std::unordered_map<std::string, std::tuple<Type::ResolvedType, std::variant<RegisterPtr, FunctionGenerator>>> m_Environment;
-};
-
-
-//----------------------------------------------------------------------------
-// EnvironmentLibrary
-//----------------------------------------------------------------------------
-class EnvironmentLibrary : public EnvironmentExternalBase
-{
-public:
-    using Library = std::unordered_multimap<std::string, std::pair<Type::ResolvedType, FunctionGenerator>>;
-
-    explicit EnvironmentLibrary(EnvironmentExternalBase &enclosing, const Library &library)
-    :   EnvironmentExternalBase(enclosing), m_Library(library)
-    {
-    }
-
-    explicit EnvironmentLibrary(::EnvironmentBase &enclosing, const Library &library)
-    :   EnvironmentExternalBase(enclosing), m_Library(library)
-    {
-    }
-
-    explicit EnvironmentLibrary(CodeGenerator &os, const Library &library)
-    :   EnvironmentExternalBase(os), m_Library(library)
-    {
-    }
-
-    EnvironmentLibrary(const EnvironmentLibrary &) = delete;
-
-    //------------------------------------------------------------------------
-    // Assembler::EnvironmentBase virtuals
-    //------------------------------------------------------------------------
-    virtual RegisterPtr getRegister(const std::string &name) final
-    {
-        return getContextRegister(name);
-    }
-
-    virtual FunctionGenerator getFunctionGenerator(const std::string &name, std::optional<Type::ResolvedType> type = std::nullopt) final
-    {
-        const auto [libTypeBegin, libTypeEnd] = m_Library.get().equal_range(name);
-        if (libTypeBegin == libTypeEnd) {
-            return getContextFunctionGenerator(name, type);
-        }
-        else {
-            if (!type) {
-                throw std::runtime_error("Ambiguous reference to '" + name + "' but no type provided to disambiguate");
-            }
-            const auto libType = std::find_if(libTypeBegin, libTypeEnd,
-                                              [type](const auto &t) { return t.second.first == type; });
-            assert(libType != libTypeEnd);
-            return libType->second.second;
-        }
-    }
-
-    //------------------------------------------------------------------------
-    // TypeChecker::EnvironmentBase virtuals
-    //------------------------------------------------------------------------
-    virtual std::vector<Type::ResolvedType> getTypes(const Transpiler::Token &name, Transpiler::ErrorHandlerBase &errorHandler) final
-    {
-        const auto [typeBegin, typeEnd] = m_Library.get().equal_range(name.lexeme);
-        if (typeBegin == typeEnd) {
-            return getContextTypes(name, errorHandler);
-        }
-        else {
-            std::vector<Type::ResolvedType> types;
-            types.reserve(std::distance(typeBegin, typeEnd));
-            std::transform(typeBegin, typeEnd, std::back_inserter(types),
-                           [](const auto &t) { return t.second.first; });
-            return types;
-        }
-    }
-
-private:
-    std::reference_wrapper<const Library> m_Library;
-};
-
 Type::ResolvedType createFixedPointType(int numInt, bool saturating)
 {
     const int numFrac = 15 - numInt;
@@ -339,17 +75,20 @@ Type::ResolvedType createFixedPointType(int numInt, bool saturating)
     return Type::ResolvedType::createFixedPointNumeric<int16_t>(name.str(), 50 + numInt, saturating,
                                                                 numFrac, &ffi_type_sint16, "");
 }
+
 void addStochMulFunctions(EnvironmentLibrary::Library &library) 
 {
     // Loop through possible number of integer bits for operand a
     for(int aInt = 0; aInt < 16; aInt++) {
         // Create saturating and non-saturating fixed-point types 
+        // **YUCK** these should go in GeNN::Type
         const auto aType = createFixedPointType(aInt, false);
         const auto aTypeSat = createFixedPointType(aInt, true);
 
         // Loop through possible number of integer bits for operand b
         for(int bInt = 0; bInt < 16; bInt++) {
             // Create saturating and non-saturating fixed-point types
+            // **YUCK** these should go in GeNN::Type
             const auto bType = createFixedPointType(bInt, false);
             const auto bTypeSat = createFixedPointType(bInt, true);
     
@@ -382,8 +121,25 @@ void addStochMulFunctions(EnvironmentLibrary::Library &library)
                                }));
         }
     }
-
 }
+
+bool isIdentifierCalled(const std::string &identifierName, const std::vector<Transpiler::Token> &tokens)
+{
+    // Loop through tokens
+    for(auto t = tokens.cbegin(); t != tokens.cend(); t++) {
+        // If token is an identifier with correct name
+        if(t->type == Transpiler::Token::Type::IDENTIFIER && t->lexeme == identifierName) {
+            // If token isn't last in sequence and it's followed by a left bracket
+            const auto tNext = std::next(t);
+            if(tNext != tokens.cend() && tNext->type == Transpiler::Token::Type::LEFT_PAREN) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
 void updateLiteralPool(const std::vector<Token> &tokens, VectorRegisterAllocator &vectorRegisterAllocator, 
                        std::unordered_map<int16_t, VectorRegisterAllocator::RegisterPtr> &literalPool)
 {
@@ -717,23 +473,6 @@ private:
         }
     }
 
-    bool isIdentifierCalled(const std::string &identifierName, const std::vector<Transpiler::Token> &tokens) const
-    {
-        // Loop through tokens
-        for(auto t = tokens.cbegin(); t != tokens.cend(); t++) {
-            // If token is an identifier with correct name
-            if(t->type == Transpiler::Token::Type::IDENTIFIER && t->lexeme == identifierName) {
-                // If token isn't last in sequence and it's followed by a left bracket
-                const auto tNext = std::next(t);
-                if(tNext != tokens.cend() && tNext->type == Transpiler::Token::Type::LEFT_PAREN) {
-                    return true;
-                }
-            }
-        }
-
-        return false;
-    }
-
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
@@ -1038,7 +777,16 @@ private:
                                return std::make_pair(result, true);
                            }));
         addStochMulFunctions(functionLibrary);
+        
+        // If exp is called
+        if(isIdentifierCalled("exp", neuronUpdateProcess->getTokens())) {
+            // Get field containing LUT for exponential function
+            const auto &lutField = m_Model.get().getBackendFields().at(static_cast<int>(StateObjectID::LUT_EXP));
 
+            // Add special function to environment
+            SpecialFunctions::Exp::add(c, scalarRegisterAllocator, m_VectorRegisterAllocator.get(),
+                                       env, functionLibrary, std::get<1>(lutField));
+        }
         // Insert environment with this library
         EnvironmentLibrary envLibrary(env, functionLibrary);
         
@@ -2216,7 +1964,12 @@ std::unordered_map<int, std::shared_ptr<State>> BackendFeNN::getRequiredStateObj
     LUTVisitor visitor(model);
     std::transform(visitor.getLUTObjectIDs().cbegin(), visitor.getLUTObjectIDs().cend(),
                    std::inserter(stateObjects, stateObjects.end()), 
-                   [](auto i){ return std::make_pair(static_cast<int>(i), Variable::create(Shape({64 * 32}), Type::Int16, 1, "LUT")); });
+                   [](auto i)
+                   { 
+                       return std::make_pair(static_cast<int>(i), 
+                                             Variable::create(Shape({SpecialFunctions::getLUTCount()}), 
+                                             Type::Int16, 1, "LUT")); 
+                   });
 
     return stateObjects;
 }
