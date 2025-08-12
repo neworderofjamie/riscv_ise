@@ -22,8 +22,9 @@ class Visitor : public ModelComponentVisitor
 public:
     Visitor(const std::vector<std::shared_ptr<const ProcessGroup>> processGroups, 
             Model::StatefulFields &statefulFields, Model::StateProcesses &stateProcesses,
-            uint32_t &fieldOffset)
-    :   m_StatefulFields(statefulFields), m_StateProcesses(stateProcesses), m_FieldOffset(fieldOffset)
+            const Model::BackendFields &backendFields, uint32_t &fieldOffset)
+    :   m_StatefulFields(statefulFields), m_StateProcesses(stateProcesses), 
+        m_BackendFields(backendFields), m_FieldOffset(fieldOffset)
     {
         // Loop through all process groups and visit
         for(const auto &g : processGroups)  {
@@ -179,21 +180,37 @@ private:
     virtual void visit(std::shared_ptr<const MemsetProcess> memsetProcess)
     {
         LOGD << "\tMemset process '" << memsetProcess->getName() << "'";
-        assert(m_CurrentProcessFields.empty());
-
-        // Visit 
-        memsetProcess->getTarget()->accept(*this);
         
-        // Add back-references in state 
-        m_StateProcesses.get()[memsetProcess->getTarget()].push_back(memsetProcess);
+        // If target is a variable reference
+        if(std::holds_alternative<VariablePtr>(memsetProcess->getTarget())) {
+            auto target = std::get<VariablePtr>(memsetProcess->getTarget());
+            assert(m_CurrentProcessFields.empty());
 
-        // Add process fields
-        if(!m_StatefulFields.get().try_emplace(memsetProcess, m_CurrentProcessFields).second) {
-            throw std::runtime_error("Memset process '" + memsetProcess->getName() + "' encountered multiple times in model traversal");
+            // Visit 
+            target->accept(*this);
+            
+            // Add back-references in state 
+            m_StateProcesses.get()[target].push_back(memsetProcess);
+
+            // Add process fields
+            if(!m_StatefulFields.get().try_emplace(memsetProcess, m_CurrentProcessFields).second) {
+                throw std::runtime_error("Memset process '" + memsetProcess->getName() + "' encountered multiple times in model traversal");
+            }
+
+            // Clear current state fields
+            m_CurrentProcessFields.clear();
         }
+        // Otherwise
+        else {
+            // Check state exists
+            // **TODO** check buffer timesteps
+            const int target = std::get<int>(memsetProcess->getTarget());
+            if(m_BackendFields.get().find(target) == m_BackendFields.get().cend()) {
+                throw std::runtime_error("Memset process '" + memsetProcess->getName() + "' targets non-existent backend state");
+            }
 
-        // Clear current state fields
-        m_CurrentProcessFields.clear();
+            // **NOTE** no need for back-references - backend fields are global
+        }
     }
 
 
@@ -214,6 +231,7 @@ private:
     //------------------------------------------------------------------------
     std::reference_wrapper<Model::StatefulFields> m_StatefulFields;
     std::reference_wrapper<Model::StateProcesses> m_StateProcesses;
+    std::reference_wrapper<const Model::BackendFields> m_BackendFields;
     std::reference_wrapper<uint32_t> m_FieldOffset;
     Model::StateFields m_CurrentProcessFields;
     Model::StateFields m_CurrentProcessGroupFields;
@@ -227,16 +245,17 @@ Model::Model(const std::vector<std::shared_ptr<const ProcessGroup>> &processGrou
              const BackendFeNN &backend)
 :   m_ProcessGroups(processGroups)
 {
-    // Use visitor to populate process fields and 
-    // state processes data structures from process groups
-    uint32_t fieldOffset = 4;
-    Visitor visitor(m_ProcessGroups, m_StatefulFields, m_StateProcesses, fieldOffset);
-
     // Allocate fields for backend-specific state
+    uint32_t fieldOffset = 4;
     const auto backendStateObjects = backend.getRequiredStateObjects(*this);
     std::transform(backendStateObjects.cbegin(), backendStateObjects.cend(),
                    std::inserter(m_BackendFields, m_BackendFields.end()),
                    [&fieldOffset](const auto &s){ return std::make_pair(s.first, std::make_tuple(s.second, fieldOffset += 4)); });
+
+    // Use visitor to populate process fields and 
+    // state processes data structures from process groups
+    Visitor visitor(m_ProcessGroups, m_StatefulFields, m_StateProcesses, 
+                    m_BackendFields, fieldOffset);
 
     // Calculate total
     m_NumFields = (fieldOffset / 4);

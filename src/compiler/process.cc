@@ -166,19 +166,21 @@ CopyProcess::CopyProcess(Private, VariablePtr source, VariablePtr target, const 
 //----------------------------------------------------------------------------
 // MemsetProcess
 //----------------------------------------------------------------------------
-MemsetProcess::MemsetProcess(Private, VariablePtr/*BackendState*/ target, const std::string &name)
+MemsetProcess::MemsetProcess(Private, VariablePtrBackendState target, const std::string &name)
 :   AcceptableModelComponent<MemsetProcess, Process>(name), m_Target(target)
 {
-    //if(std::holds_alternative<VariablePtr>(m_Target)) {
-        //auto targetVar = std::get<VariablePtr>(m_Target);
-        if(m_Target/*targetVar*/ == nullptr) {
+    // If target is a variable
+    // **NOTE** if target is a backend-specific state object, there's nothing we can check yet
+    if(std::holds_alternative<VariablePtr>(m_Target)) {
+        auto targetVar = std::get<VariablePtr>(m_Target);
+        if(targetVar == nullptr) {
             throw std::runtime_error("Memset process requires target");
         }
 
    
-        if (m_Target/*targetVar*/->getNumBufferTimesteps() != 1) {
+        if (targetVar->getNumBufferTimesteps() != 1) {
             throw std::runtime_error("Target has more than 1 buffer timestep which "
                                      "isn't currently supported by memset processes");
         }
-    //}
+    }
 }

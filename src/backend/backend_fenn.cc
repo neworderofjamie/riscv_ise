@@ -625,7 +625,8 @@ private:
 
     virtual void visit(std::shared_ptr<const MemsetProcess> memsetProcess)
     {
-        assert(m_Variable == memsetProcess->getTarget());
+        const auto target = std::get<VariablePtr>(memsetProcess->getTarget());
+        assert(m_Variable == target);
 
         // **TODO** memset could handle anything
         m_BRAMCompatible = false;
@@ -634,7 +635,7 @@ private:
 
         if(!m_LLMCompatible) {
             throw std::runtime_error("Memset process '" + memsetProcess->getName()
-                                    + "' target array '" + memsetProcess->getTarget()->getName()
+                                    + "' target array '" + target->getName()
                                     + "' shared with incompatible processes");
         }
     }
@@ -1264,61 +1265,58 @@ private:
     virtual void visit(std::shared_ptr<const MemsetProcess> memsetProcess)
     {
         auto &scalarRegisterAllocator = m_ScalarRegisterAllocator.get();
-        auto &vectorRegisterAllocator = m_VectorRegisterAllocator.get();
         auto &c = m_CodeGenerator.get();
 
         // Get fields associated with this process
         const auto &stateFields = m_Model.get().getStatefulFields().at(memsetProcess);
         
-        // Visit all users of this variable to determine how it should be implemented
-        VariableImplementerVisitor visitor(memsetProcess->getTarget(), m_Model.get().getStateProcesses().at(memsetProcess->getTarget()),
-                                           m_UseDRAMForWeights);
+        // If target is a variable reference
+        if(std::holds_alternative<VariablePtr>(memsetProcess->getTarget())) {
+            auto target = std::get<VariablePtr>(memsetProcess->getTarget());
+            
+            // Visit all users of this variable to determine how it has been be implemented
+            VariableImplementerVisitor visitor(target, m_Model.get().getStateProcesses().at(target),
+                                               m_UseDRAMForWeights);
 
-        {
             // Load target address
             ALLOCATE_SCALAR(STargetBuffer);
-            c.lw(*STargetBuffer, Reg::X0, stateFields.at(memsetProcess->getTarget()));
+            c.lw(*STargetBuffer, Reg::X0, stateFields.at(target));
 
             /*if(visitor.isURAMCompatible()) {
             
             }
             else */if(visitor.isLLMCompatible()) {
-                ALLOCATE_VECTOR(VValue);
-                ALLOCATE_VECTOR(VLLMAddress);
-                ALLOCATE_VECTOR(VNumUnrollBytes);
-                
-                // Determine how many vectors we're memsetting
-                const size_t numVectors = ceilDivide(memsetProcess->getTarget()->getShape().getFlattenedSize(), 32);
-
-                // Load value to memset and calculate unroll bytes
-                // **TODO** parameterise
-                c.vlui(*VValue, 0);
-                c.vlui(*VNumUnrollBytes, 2 * std::min(numVectors, size_t{4}));
-
-                // Broadcast address
-                c.vfill(*VLLMAddress, *STargetBuffer);
-
-                // Generate unrolled loop 
-                AssemblerUtils::unrollVectorLoopBody(
-                    c, scalarRegisterAllocator, numVectors * 32, 4, *STargetBuffer,
-                    [&scalarRegisterAllocator, &vectorRegisterAllocator,
-                     VLLMAddress, VValue]
-                    (CodeGenerator &c, uint32_t r, uint32_t, ScalarRegisterAllocator::RegisterPtr)
-                    {
-                        c.vstorel(*VValue, *VLLMAddress, r * 2);                  
-                    },
-                    [STargetBuffer, VLLMAddress, VNumUnrollBytes]
-                    (CodeGenerator &c, uint32_t numUnrolls)
-                    {
-                        c.vadd(*VLLMAddress, *VLLMAddress, *VNumUnrollBytes);
-                        c.addi(*STargetBuffer, *STargetBuffer, 64 * numUnrolls);
-                    });
-                
+                generateLLMMemset(target->getShape(), STargetBuffer);
             }
             /*else if(visitor.isBRAMCompatible()) {
             }*/
             else {
                 assert(false);
+            }
+        }
+        // Otherwise
+        else {
+            // Get state object ID
+            const int target = std::get<int>(memsetProcess->getTarget());
+            
+            // Get target field
+            // **NOTE** model already checks validity of taret
+            const auto &targetField = m_Model.get().getBackendFields().at(target);
+
+            // If target is a LUT i.e. in lane-local memory
+            if(static_cast<StateObjectID>(target) == StateObjectID::LUT_EXP) {    
+                // Load target address
+                 ALLOCATE_SCALAR(STargetBuffer);
+                 c.lw(*STargetBuffer, Reg::X0, std::get<1>(targetField));
+
+                 // **YUCK** cast to variable and generate lane-local memory memset
+                 auto targetVar = std::static_pointer_cast<const Variable>(std::get<0>(targetField));
+                 generateLLMMemset(targetVar->getShape(), STargetBuffer);
+            }
+            else {
+                throw std::runtime_error("Memset process '" + memsetProcess->getName() 
+                                         + "' targets incompatible backend state object "
+                                        + std::to_string(target));
             }
         }
     }
@@ -1332,6 +1330,45 @@ private:
     //------------------------------------------------------------------------
     // Private methods
     //------------------------------------------------------------------------
+    void generateLLMMemset(const Shape &shape, ScalarRegisterAllocator::RegisterPtr targetReg)
+    {
+        // Make some friendlier-named references
+        auto &scalarRegisterAllocator = m_ScalarRegisterAllocator.get();
+        auto &vectorRegisterAllocator = m_VectorRegisterAllocator.get();
+        auto &c = m_CodeGenerator.get();
+
+        ALLOCATE_VECTOR(VValue);
+        ALLOCATE_VECTOR(VLLMAddress);
+        ALLOCATE_VECTOR(VNumUnrollBytes);
+        
+        // Determine how many vectors we're memsetting
+        const size_t numVectors = ceilDivide(shape.getFlattenedSize(), 32);
+
+        // Load value to memset and calculate unroll bytes
+        // **TODO** parameterise
+        c.vlui(*VValue, 0);
+        c.vlui(*VNumUnrollBytes, 2 * std::min(numVectors, size_t{4}));
+
+        // Broadcast address
+        c.vfill(*VLLMAddress, *targetReg);
+
+        // Generate unrolled loop 
+        AssemblerUtils::unrollVectorLoopBody(
+            c, scalarRegisterAllocator, numVectors * 32, 4, *targetReg,
+            [&scalarRegisterAllocator, &vectorRegisterAllocator,
+                VLLMAddress, VValue]
+            (CodeGenerator &c, uint32_t r, uint32_t, ScalarRegisterAllocator::RegisterPtr)
+            {
+                c.vstorel(*VValue, *VLLMAddress, r * 2);                  
+            },
+            [targetReg, VLLMAddress, VNumUnrollBytes]
+            (CodeGenerator &c, uint32_t numUnrolls)
+            {
+                c.vadd(*VLLMAddress, *VLLMAddress, *VNumUnrollBytes);
+                c.addi(*targetReg, *targetReg, 64 * numUnrolls);
+            });
+    }
+
     void generateDenseRow(std::shared_ptr<const EventPropagationProcess> process,
                           ScalarRegisterAllocator::RegisterPtr targetReg,
                           ScalarRegisterAllocator::RegisterPtr weightBufferReg)
@@ -1458,7 +1495,6 @@ private:
     {
         // Make some friendlier-named references
         auto &scalarRegisterAllocator = m_ScalarRegisterAllocator.get();
-        auto &vectorRegisterAllocator = m_VectorRegisterAllocator.get();
         auto &c = m_CodeGenerator.get();
 
         ALLOCATE_SCALAR(SWordNStart);
