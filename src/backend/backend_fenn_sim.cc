@@ -271,8 +271,6 @@ void URAMArray::pushToDevice()
 //------------------------------------------------------------------------
 void URAMArray::pullFromDevice()
 {
-    LOGW << "Copying URAM buffers is implemented in simulation for convenience but currently doens't work on device";
-        
     // Copy correct number of int16_t from vector data memory to host pointer
     const auto &vectorDataMemory = m_State->getRISCV().getCoprocessor<VectorProcessor>(vectorQuadrant)->getVectorDataMemory();
     std::copy_n(vectorDataMemory.getData() + (getURAMPointer() / 2), getCount(), 

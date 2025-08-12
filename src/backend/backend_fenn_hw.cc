@@ -292,7 +292,11 @@ void URAMArray::memsetHostPointer(int value)
 //------------------------------------------------------------------------
 void URAMArray::pullFromDevice()
 {
-    throw std::runtime_error("URAM arrays cannot currently be pulled from device on FeNN");
+    // Start DMA read and wait for completion
+    auto *dmaController = m_State->getDevice().getDMAController();
+    dmaController->startRead(m_State->getDMABuffer(), m_DMABufferOffset.value(), 
+                             getURAMPointer(), getSizeBytes());
+    dmaController->waitForReadComplete();
 }
 
 
