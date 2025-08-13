@@ -895,20 +895,15 @@ void EnvironmentInternal::define(const std::string &name, RegisterPtr reg)
     }
 }
 //----------------------------------------------------------------------------
-RegisterPtr EnvironmentInternal::getRegister(const std::string &name)
+EnvironmentItem EnvironmentInternal::getItem(const std::string &name, std::optional<Type::ResolvedType> type)
 {
     auto l = m_LocalVariables.find(name);
     if(l == m_LocalVariables.end()) {
-        return m_Enclosing.getRegister(name);
+        return m_Enclosing.getItem(name, type);
     }
     else {
         return l->second;
     }
-}
-//----------------------------------------------------------------------------
-FunctionGenerator EnvironmentInternal::getFunctionGenerator(const std::string &name, std::optional<Type::ResolvedType> type)
-{
-    return m_Enclosing.getFunctionGenerator(name, type);
 }
 //----------------------------------------------------------------------------
 CodeGenerator &EnvironmentInternal::getCodeGenerator()

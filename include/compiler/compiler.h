@@ -30,6 +30,8 @@ using FunctionGenerator = std::function<std::pair<RegisterPtr, bool>(Environment
                                                                      ScalarRegisterAllocator&, 
                                                                      ScalarRegisterAllocator::RegisterPtr, 
                                                                      const std::vector<RegisterPtr>&)>;
+using EnvironmentItem = std::variant<RegisterPtr, FunctionGenerator>;
+
 //----------------------------------------------------------------------------
 // EnvironmentBase
 //----------------------------------------------------------------------------
@@ -43,10 +45,7 @@ public:
     virtual void define(const std::string &name, RegisterPtr reg) = 0;
     
     //! Get the register to use for the named identifier
-    virtual RegisterPtr getRegister(const std::string &name) = 0;
-    
-    //! Get the function generator to use for the named identifier
-    virtual FunctionGenerator getFunctionGenerator(const std::string &name, std::optional<GeNN::Type::ResolvedType> type = std::nullopt) = 0;
+    virtual EnvironmentItem getItem(const std::string &name, std::optional<GeNN::Type::ResolvedType> type = std::nullopt) = 0;
 
     //! Get stream to write code within this environment to
     virtual CodeGenerator &getCodeGenerator() = 0;
@@ -54,6 +53,16 @@ public:
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
+    RegisterPtr getRegister(const std::string &name)
+    {
+        return std::get<RegisterPtr>(getItem(name));
+    }
+
+    FunctionGenerator getFunctionGenerator(const std::string &name, std::optional<GeNN::Type::ResolvedType> type = std::nullopt)
+    {
+        return std::get<FunctionGenerator>(getItem(name, type));
+    }
+
     ScalarRegisterAllocator::RegisterPtr getScalarRegister(const std::string &name)
     {
         return std::get<ScalarRegisterAllocator::RegisterPtr>(getRegister(name));
@@ -89,9 +98,7 @@ public:
     //---------------------------------------------------------------------------
     virtual void define(const std::string &name, RegisterPtr reg) final;
 
-    virtual RegisterPtr getRegister(const std::string &name) final;
-
-    virtual FunctionGenerator getFunctionGenerator(const std::string &name, std::optional<GeNN::Type::ResolvedType> type = std::nullopt) final;
+    virtual EnvironmentItem getItem(const std::string &name, std::optional<GeNN::Type::ResolvedType> type = std::nullopt) final;
 
     virtual CodeGenerator &getCodeGenerator() final;
 

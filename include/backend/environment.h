@@ -51,10 +51,8 @@ protected:
     //------------------------------------------------------------------------
     // Protected API
     //------------------------------------------------------------------------
-    RegisterPtr getContextRegister(const std::string &name) const;
-
-    FunctionGenerator getContextFunctionGenerator(const std::string &name, 
-                                                  std::optional<GeNN::Type::ResolvedType> type = std::nullopt) const;
+    EnvironmentItem getContextItem(const std::string &name, 
+                                   std::optional<GeNN::Type::ResolvedType> type = std::nullopt) const;
 
     //! Get vector of types from context if it provides this functionality
     std::vector<GeNN::Type::ResolvedType> getContextTypes(const GeNN::Transpiler::Token &name, 
@@ -98,9 +96,7 @@ public:
     //------------------------------------------------------------------------
     // Assembler::EnvironmentBase virtuals
     //------------------------------------------------------------------------
-    virtual RegisterPtr getRegister(const std::string &name) final;
-
-    virtual FunctionGenerator getFunctionGenerator(const std::string &name, std::optional<GeNN::Type::ResolvedType> type = std::nullopt) final;
+    virtual EnvironmentItem getItem(const std::string &name, std::optional<GeNN::Type::ResolvedType> type = std::nullopt) final;
 
     //------------------------------------------------------------------------
     // TypeChecker::EnvironmentBase virtuals
@@ -118,7 +114,7 @@ private:
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
-    std::unordered_map<std::string, std::tuple<GeNN::Type::ResolvedType, std::variant<RegisterPtr, FunctionGenerator>>> m_Environment;
+    std::unordered_map<std::string, std::tuple<GeNN::Type::ResolvedType, EnvironmentItem>> m_Environment;
 };
 
 
@@ -150,10 +146,7 @@ public:
     //------------------------------------------------------------------------
     // Assembler::EnvironmentBase virtuals
     //------------------------------------------------------------------------
-    virtual RegisterPtr getRegister(const std::string &name) final;
-
-    virtual FunctionGenerator getFunctionGenerator(const std::string &name, 
-                                                  std::optional<GeNN::Type::ResolvedType> type = std::nullopt) final;
+    virtual EnvironmentItem getItem(const std::string &name, std::optional<GeNN::Type::ResolvedType> type = std::nullopt) final;
 
     //------------------------------------------------------------------------
     // TypeChecker::EnvironmentBase virtuals

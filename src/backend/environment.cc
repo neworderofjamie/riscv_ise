@@ -38,24 +38,12 @@ void EnvironmentExternalBase::define(const Transpiler::Token &, const GeNN::Type
     throw std::runtime_error("Cannot declare variable in external environment");
 }
 //------------------------------------------------------------------------
-RegisterPtr EnvironmentExternalBase::getContextRegister(const std::string &name) const
+EnvironmentItem EnvironmentExternalBase::getContextItem(const std::string &name, 
+                                                        std::optional<Type::ResolvedType> type) const
 {
     // If context includes a pretty-printing environment, get name from it
     if (std::get<1>(m_Context)) {
-        return std::get<1>(m_Context)->getRegister(name);
-    }
-    // Otherwise, give error
-    else {
-        throw std::runtime_error("Identifier '" + name + "' undefined");
-    }
-}
-//----------------------------------------------------------------------------
-FunctionGenerator EnvironmentExternalBase::getContextFunctionGenerator(const std::string &name, 
-                                                                       std::optional<Type::ResolvedType> type) const
-{
-    // If context includes a pretty-printing environment, get name from it
-    if (std::get<1>(m_Context)) {
-        return std::get<1>(m_Context)->getFunctionGenerator(name, type);
+        return std::get<1>(m_Context)->getItem(name, type);
     }
     // Otherwise, give error
     else {
@@ -81,30 +69,16 @@ std::vector<Type::ResolvedType> EnvironmentExternalBase::getContextTypes(const T
 //----------------------------------------------------------------------------
 // EnvironmentExternal
 //----------------------------------------------------------------------------
-RegisterPtr EnvironmentExternal::getRegister(const std::string &name)
+EnvironmentItem EnvironmentExternal::getItem(const std::string &name, std::optional<Type::ResolvedType> type)
 {
     // If name isn't found in environment
     auto env = m_Environment.find(name);
     if (env == m_Environment.end()) {
-        return getContextRegister(name);
+        return getContextItem(name, type);
     }
     // Otherwise, get name from payload
     else {
-        return std::get<RegisterPtr>(std::get<1>(env->second));
-    }
-}
-//----------------------------------------------------------------------------
-FunctionGenerator EnvironmentExternal::getFunctionGenerator(const std::string &name, 
-                                                            std::optional<Type::ResolvedType> type)
-{
-    // If name isn't found in environment
-    auto env = m_Environment.find(name);
-    if (env == m_Environment.end()) {
-        return getContextFunctionGenerator(name, type);
-    }
-    // Otherwise, get name from payload
-    else {
-        return std::get<FunctionGenerator>(std::get<1>(env->second));
+        return std::get<1>(env->second);
     }
 }
 //----------------------------------------------------------------------------
@@ -134,23 +108,18 @@ void EnvironmentExternal::add(const GeNN::Type::ResolvedType &type, const std::s
 //----------------------------------------------------------------------------
 // EnvironmentLibrary
 //----------------------------------------------------------------------------
-RegisterPtr EnvironmentLibrary::getRegister(const std::string &name)
-{
-    return getContextRegister(name);
-}
-//----------------------------------------------------------------------------
-FunctionGenerator EnvironmentLibrary::getFunctionGenerator(const std::string &name, std::optional<Type::ResolvedType> type)
+EnvironmentItem EnvironmentLibrary::getItem(const std::string &name, std::optional<GeNN::Type::ResolvedType> type)
 {
     const auto [libTypeBegin, libTypeEnd] = m_Library.get().equal_range(name);
     if (libTypeBegin == libTypeEnd) {
-        return getContextFunctionGenerator(name, type);
+        return getContextItem(name, type);
     }
     else {
         if (!type) {
             throw std::runtime_error("Ambiguous reference to '" + name + "' but no type provided to disambiguate");
         }
         const auto libType = std::find_if(libTypeBegin, libTypeEnd,
-                                            [type](const auto &t) { return t.second.first == type; });
+                                          [type](const auto &t) { return t.second.first == type; });
         assert(libType != libTypeEnd);
         return libType->second.second;
     }
