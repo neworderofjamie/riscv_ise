@@ -79,12 +79,12 @@ void add(CodeGenerator &codeGenerator, ScalarRegisterAllocator &scalarRegisterAl
     // Loop through possible number of integer bits for operand a
     for(int numInt = 0; numInt < 16; numInt++) {
         // Fixed-point types 
-        // **NOTE** we don't care about saturating ness here
+        // **NOTE** we only specify saturating as non-saturating types will be promoted
         // **YUCK** this should go in GeNN::Type
         const int numFrac = 15 - numInt;
         const auto aType = Type::ResolvedType::createFixedPointNumeric<int16_t>(
-            "s" + std::to_string(numInt) + "_" + std::to_string(numFrac) + "_t", 
-            50 + numInt, false, numFrac, &ffi_type_sint16, "");
+            "s" + std::to_string(numInt) + "_" + std::to_string(numFrac) + "_sat_t", 
+            50 + numInt, true, numFrac, &ffi_type_sint16, "");
 
         library.emplace(
             "exp",
