@@ -35,26 +35,28 @@ class AdExp:
                V = vReset;
             }}
             // Calculate RK4 terms
-            const s1_14_sat_t v1 = {self._dv('V', 'W')};
-            const s1_14_sat_t w1 = {self._dw('V', 'W')};
-            s1_14_sat_t tmpV = V + (halfDT * v1);
-            s1_14_sat_t tmpW = W + (halfDT * w1);
-            const s1_14_sat_t v2 = {self._dv('tmpV', 'tmpW')};
-            const s1_14_sat_t w2 = {self._dw('tmpV', 'tmpW')};
-            tmpV = V + (halfDT * v2);
-            tmpW = W + (halfDT * w2);
-            const s1_14_sat_t v3 = {self._dv('tmpV', 'tmpW')};
-            const s1_14_sat_t w3 = {self._dw('tmpV', 'tmpW')};
-            tmpV = V + (dt * v3);
-            tmpW = W + (dt * w3);
-            const s1_14_sat_t v4 = {self._dv('tmpV', 'tmpW')};
-            const s1_14_sat_t w4 = {self._dw('tmpV', 'tmpW')};
-            // Update V
-            V += sixthDT * (v1 + (2.0h{fixed_point} * (v2 + v3)) + v4);
-            // If we're not above peak, update w
-            // **NOTE** it's not safe to do this at peak as w may well be huge
-            if(V <= -0.4h{fixed_point}) {{
-               W += sixthDT * (w1 + (2.0h{fixed_point} * (w2 + w3)) + w4);
+            {{
+                const s1_14_sat_t v1 = {self._dv('V', 'W')};
+                const s1_14_sat_t w1 = {self._dw('V', 'W')};
+                s1_14_sat_t tmpV = V + (halfDT * v1);
+                s1_14_sat_t tmpW = W + (halfDT * w1);
+                const s1_14_sat_t v2 = {self._dv('tmpV', 'tmpW')};
+                const s1_14_sat_t w2 = {self._dw('tmpV', 'tmpW')};
+                tmpV = V + (halfDT * v2);
+                tmpW = W + (halfDT * w2);
+                const s1_14_sat_t v3 = {self._dv('tmpV', 'tmpW')};
+                const s1_14_sat_t w3 = {self._dw('tmpV', 'tmpW')};
+                tmpV = V + (dt * v3);
+                tmpW = W + (dt * w3);
+                const s1_14_sat_t v4 = {self._dv('tmpV', 'tmpW')};
+                const s1_14_sat_t w4 = {self._dw('tmpV', 'tmpW')};
+                // Update V
+                V += sixthDT * (v1 + (2.0h{fixed_point} * (v2 + v3)) + v4);
+                // If we're not above peak, update w
+                // **NOTE** it's not safe to do this at peak as w may well be huge
+                if(V <= -0.4h{fixed_point}) {{
+                   W += sixthDT * (w1 + (2.0h{fixed_point} * (w2 + w3)) + w4);
+                }}
             }}
             
             if(V > -0.4h{fixed_point}) {{
