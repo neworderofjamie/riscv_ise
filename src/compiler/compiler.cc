@@ -48,6 +48,23 @@ void checkConversion(const Type::ResolvedType &leftType, const Type::ResolvedTyp
     }
 }
 
+template<typename A, typename R>
+R getBinaryResultReg(bool leftReusable, bool rightReusable, 
+                     R leftReg, R rightReg,
+                     A &registerAllocator)
+{
+    R resultReg;
+    if(leftReusable) {
+        return leftReg;
+    }
+    else if(rightReusable) {
+        return rightReg;
+    }
+    else {
+        return registerAllocator.getRegister();
+    }
+}
+
 bool isSaturating(const Type::ResolvedType &aType, const Type::ResolvedType &bType)
 {
     return (aType.getNumeric().isSaturating || bType.getNumeric().isSaturating);
@@ -152,9 +169,14 @@ private:
         // If operation is bitwise
         if(opType == Token::Type::AMPERSAND || opType == Token::Type::CARET || opType == Token::Type::PIPE) {
             const auto scalarLeftReg = getExpressionScalarRegister(binary.getLeft());
+            const bool leftReusable = isExpressionRegisterReusable();
             const auto scalarRightReg = getExpressionScalarRegister(binary.getRight());
+            const bool rightReusable = isExpressionRegisterReusable();
 
-            const auto resultReg = m_ScalarRegisterAllocator.getRegister();
+            const auto resultReg = getBinaryResultReg(leftReusable, rightReusable, 
+                                                      scalarLeftReg, scalarRightReg,
+                                                      m_ScalarRegisterAllocator);
+
             if(opType == Token::Type::AMPERSAND) {
                 m_Environment.get().getCodeGenerator().and_(*resultReg, *scalarLeftReg, *scalarRightReg);
             }
@@ -171,11 +193,15 @@ private:
         }
         else {
             const auto vecLeftReg = getExpressionVectorRegister(binary.getLeft());
+            const bool leftReusable = isExpressionRegisterReusable();
             const auto vecRightReg = getExpressionVectorRegister(binary.getRight());
+            const bool rightReusable = isExpressionRegisterReusable();
 
             // If operation is arithmetic
             if(opType == Token::Type::MINUS || opType == Token::Type::PLUS || opType == Token::Type::STAR) {
-                const auto resultReg = m_VectorRegisterAllocator.getRegister();
+                const auto resultReg = getBinaryResultReg(leftReusable, rightReusable, 
+                                                          vecLeftReg, vecRightReg,
+                                                          m_VectorRegisterAllocator);
                 if(opType == Token::Type::MINUS) {
                     checkConversion(leftType, rightType, binary.getOperator(), m_ErrorHandler.get());
 
