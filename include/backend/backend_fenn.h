@@ -12,6 +12,9 @@
 // GeNN includes
 #include "type.h"
 
+// Compiler includes
+#include "compiler/compiler.h"
+
 // Backend include
 #include "backend/backend_export.h"
 #include "backend/memory_allocator.h"
@@ -342,8 +345,10 @@ private:
 class BACKEND_EXPORT BackendFeNN
 {
 public:
-    BackendFeNN(bool useDRAMForWeights = false, bool keepParamsInRegisters = true)
-    :   m_UseDRAMForWeights(useDRAMForWeights), m_KeepParamsInRegisters(keepParamsInRegisters)
+    BackendFeNN(bool useDRAMForWeights = false, bool keepParamsInRegisters = true,
+                RoundingMode neuronUpdateRoundingMode = RoundingMode::NEAREST)
+    :   m_UseDRAMForWeights(useDRAMForWeights), m_KeepParamsInRegisters(keepParamsInRegisters),
+        m_NeuronUpdateRoundingMode(neuronUpdateRoundingMode)
     {}
 
     virtual ~BackendFeNN()
@@ -394,5 +399,6 @@ private:
     //------------------------------------------------------------------------
     bool m_UseDRAMForWeights;
     bool m_KeepParamsInRegisters;
+    RoundingMode m_NeuronUpdateRoundingMode;
 
 };

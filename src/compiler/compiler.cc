@@ -98,11 +98,11 @@ public:
     Visitor(const Statement::StatementList &statements, EnvironmentInternal &environment,
             const Type::TypeContext &context, const TypeChecker::ResolvedTypeMap &resolvedTypes,
             ErrorHandlerBase &errorHandler, const std::unordered_map<int16_t, VectorRegisterAllocator::RegisterPtr> &literalPool,
-            ScalarRegisterAllocator::RegisterPtr maskRegister,
+            ScalarRegisterAllocator::RegisterPtr maskRegister, RoundingMode roundingMode,
             ScalarRegisterAllocator &scalarRegisterAllocator, VectorRegisterAllocator &vectorRegisterAllocator)
     :   m_Environment(environment), m_Context(context), m_MaskRegister(maskRegister), m_ResolvedTypes(resolvedTypes),
-        m_ErrorHandler(errorHandler), m_LiteralPool(literalPool), m_ScalarRegisterAllocator(scalarRegisterAllocator), 
-        m_VectorRegisterAllocator(vectorRegisterAllocator)
+        m_ErrorHandler(errorHandler), m_LiteralPool(literalPool), m_RoundingMode(roundingMode),
+        m_ScalarRegisterAllocator(scalarRegisterAllocator),  m_VectorRegisterAllocator(vectorRegisterAllocator)
     {
          for(auto &s : statements) {
             s.get()->accept(*this);
@@ -225,10 +225,19 @@ private:
                 else if(opType == Token::Type::STAR || opType == Token::Type::AT) {
                     const auto &resultType = m_ResolvedTypes.at(&binary);
 
-                    // **TODO** rounding
                     const int shift = getConversionShift(resultType, leftType, rightType, 
                                                          binary.getOperator(), m_ErrorHandler.get());
-                    m_Environment.get().getCodeGenerator().vmul(shift, *resultReg, *vecLeftReg, *vecRightReg);
+                    const bool fixedPoint = (leftType.getNumeric().fixedPoint || rightType.getNumeric().fixedPoint);
+                    if(fixedPoint && m_RoundingMode == RoundingMode::NEAREST) {
+                        m_Environment.get().getCodeGenerator().vmul_rn(shift, *resultReg, *vecLeftReg, *vecRightReg);
+                    }
+                    else if(fixedPoint && m_RoundingMode == RoundingMode::STOCHASTIC) {
+                        m_Environment.get().getCodeGenerator().vmul_rn(shift, *resultReg, *vecLeftReg, *vecRightReg);
+                    }
+                    else {
+                        m_Environment.get().getCodeGenerator().vmul(shift, *resultReg, *vecLeftReg, *vecRightReg);
+                    }
+                    
                 }
             
                 // Set result register
@@ -904,6 +913,7 @@ private:
     const TypeChecker::ResolvedTypeMap &m_ResolvedTypes;
     std::reference_wrapper<ErrorHandlerBase> m_ErrorHandler;
     const std::unordered_map<int16_t, VectorRegisterAllocator::RegisterPtr> &m_LiteralPool;
+    RoundingMode m_RoundingMode;
     ScalarRegisterAllocator &m_ScalarRegisterAllocator;
     VectorRegisterAllocator &m_VectorRegisterAllocator;
 };
@@ -938,9 +948,10 @@ CodeGenerator &EnvironmentInternal::getCodeGenerator()
 void compile(const Statement::StatementList &statements, EnvironmentInternal &environment, 
              const Type::TypeContext &context, const TypeChecker::ResolvedTypeMap &resolvedTypes,
              ErrorHandlerBase &errorHandler, const std::unordered_map<int16_t, VectorRegisterAllocator::RegisterPtr> &literalPool,
-             ScalarRegisterAllocator::RegisterPtr maskRegister, 
+             ScalarRegisterAllocator::RegisterPtr maskRegister, RoundingMode roundingMode,
              ScalarRegisterAllocator &scalarRegisterAllocator, VectorRegisterAllocator &vectorRegisterAllocator)
 {
-    Visitor visitor(statements, environment, context, resolvedTypes, errorHandler, literalPool, maskRegister,
+    Visitor visitor(statements, environment, context, resolvedTypes, errorHandler, literalPool, 
+                    maskRegister, roundingMode,
                     scalarRegisterAllocator, vectorRegisterAllocator);
 }

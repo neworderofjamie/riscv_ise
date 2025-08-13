@@ -11,6 +11,7 @@ class BACKEND_EXPORT BackendFeNNSim : public BackendFeNN
 {
 public:
     BackendFeNNSim(bool useDRAMForWeights = false, bool keepParamsInRegisters = true, 
+                   RoundingMode neuronUpdateRoundingMode = RoundingMode::NEAREST,
                    size_t dmaBufferSize = 512 * 1024);
 
     //------------------------------------------------------------------------

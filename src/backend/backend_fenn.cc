@@ -213,7 +213,7 @@ void compileStatements(const std::vector<Token> &tokens, const Type::TypeContext
                        const std::unordered_map<int16_t, VectorRegisterAllocator::RegisterPtr> &literalPool,
                        TypeChecker::EnvironmentInternal &typeCheckEnv, EnvironmentInternal &compilerEnv,
                        ErrorHandler &errorHandler, Transpiler::TypeChecker::StatementHandler forEachSynapseTypeCheckHandler,
-                       ScalarRegisterAllocator::RegisterPtr maskRegister, 
+                       ScalarRegisterAllocator::RegisterPtr maskRegister, RoundingMode roundingMode,
                        ScalarRegisterAllocator &scalarRegisterAllocator, VectorRegisterAllocator &vectorRegisterAllocator)
 {
     
@@ -233,7 +233,8 @@ void compileStatements(const std::vector<Token> &tokens, const Type::TypeContext
 
     // Compile
     compile(updateStatements, compilerEnv, typeContext, resolvedTypes,
-            errorHandler, literalPool, maskRegister, scalarRegisterAllocator, vectorRegisterAllocator);
+            errorHandler, literalPool, maskRegister, roundingMode,
+            scalarRegisterAllocator, vectorRegisterAllocator);
     if(errorHandler.hasError()) {
         throw std::runtime_error("Compiler error " + errorHandler.getContext());
     }
@@ -612,10 +613,12 @@ public:
                          CodeGenerator &codeGenerator, 
                          VectorRegisterAllocator &vectorRegisterAllocator, 
                          ScalarRegisterAllocator &scalarRegisterAllocator, 
-                         const Model &model, bool useDRAMForWeights, bool keepParamsInRegisters)
+                         const Model &model, bool useDRAMForWeights, bool keepParamsInRegisters,
+                         RoundingMode neuronUpdateRoundingMode)
     :   m_TimeRegister(timeRegister), m_CodeGenerator(codeGenerator), m_VectorRegisterAllocator(vectorRegisterAllocator),
         m_ScalarRegisterAllocator(scalarRegisterAllocator), m_Model(model), 
-        m_UseDRAMForWeights(useDRAMForWeights), m_KeepParamsInRegisters(keepParamsInRegisters)
+        m_UseDRAMForWeights(useDRAMForWeights), m_KeepParamsInRegisters(keepParamsInRegisters),
+        m_NeuronUpdateRoundingMode(neuronUpdateRoundingMode)
     {
         PerformanceCounterScope p(processGroup, codeGenerator, 
                                   scalarRegisterAllocator, model);
@@ -908,8 +911,8 @@ private:
                     EnvironmentInternal compilerEnv(unrollEnv);
                     ErrorHandler errorHandler("Neuron update process '" + neuronUpdateProcess->getName() + "'");        
                     compileStatements(neuronUpdateProcess->getTokens(), {}, literalPool, typeCheckEnv, compilerEnv,
-                                      errorHandler, nullptr, nullptr, m_ScalarRegisterAllocator.get(),
-                                      m_VectorRegisterAllocator.get());
+                                      errorHandler, nullptr, nullptr, m_NeuronUpdateRoundingMode, 
+                                      m_ScalarRegisterAllocator.get(), m_VectorRegisterAllocator.get());
                 }
 
                 // Loop through variables
@@ -1854,6 +1857,7 @@ private:
     std::reference_wrapper<const Model> m_Model;
     bool m_UseDRAMForWeights;
     bool m_KeepParamsInRegisters;
+    RoundingMode m_NeuronUpdateRoundingMode;
 };
 }
 
@@ -1958,7 +1962,8 @@ std::vector<uint32_t> BackendFeNN::generateSimulationKernel(const std::vector<st
                 for (const auto &p : timestepProcessGroups) {
                     CodeGeneratorVisitor visitor(p, STime, c, vectorRegisterAllocator,
                                                  scalarRegisterAllocator, model,
-                                                 m_UseDRAMForWeights, m_KeepParamsInRegisters);
+                                                 m_UseDRAMForWeights, m_KeepParamsInRegisters,
+                                                 m_NeuronUpdateRoundingMode);
                 }
                 
                 c.addi(*STime, *STime, 1);
@@ -1969,7 +1974,8 @@ std::vector<uint32_t> BackendFeNN::generateSimulationKernel(const std::vector<st
             for (const auto &p : endProcessGroups) {
                 CodeGeneratorVisitor visitor(p, nullptr, c, vectorRegisterAllocator,
                                              scalarRegisterAllocator, model,
-                                             m_UseDRAMForWeights, m_KeepParamsInRegisters);
+                                             m_UseDRAMForWeights, m_KeepParamsInRegisters,
+                                             m_NeuronUpdateRoundingMode);
             }
         });
 }
@@ -1993,7 +1999,8 @@ std::vector<uint32_t> BackendFeNN::generateKernel(const std::vector <std::shared
             for (const auto &p : processGroups) {
                 CodeGeneratorVisitor visitor(p, nullptr, c, vectorRegisterAllocator,
                                              scalarRegisterAllocator, model,
-                                             m_UseDRAMForWeights, m_KeepParamsInRegisters);
+                                             m_UseDRAMForWeights, m_KeepParamsInRegisters,
+                                             m_NeuronUpdateRoundingMode);
             }
         });
 }

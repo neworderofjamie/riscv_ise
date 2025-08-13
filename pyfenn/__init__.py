@@ -6,8 +6,9 @@ from ._fenn import (BackendFeNNHW, BackendFeNNSim, BroadcastProcess, CopyProcess
                     EventContainer, EventPropagationProcess, MemsetProcess,
                     Model, ModelComponent, NeuronUpdateProcess, NumericValue,
                     Parameter, PerformanceCounter, PlogSeverity, Process,
-                    ProcessGroup, RNGInitProcess, Runtime, Shape, State,
-                    UnresolvedType, Variable, disassemble, init_logging)
+                    ProcessGroup, RNGInitProcess, RoundingMode, Runtime, 
+                    Shape, State, UnresolvedType, Variable,
+                    disassemble, init_logging)
 
 from . import nir_import, utils
 
@@ -15,8 +16,8 @@ __all__ = ["BackendFeNNHW", "BackendFeNNSim", "BroadcastProcess",
            "CopyProcess", "EventContainer", "EventPropagationProcess",
            "MemsetProcess", "Model", "ModelComponent", "NeuronUpdateProcess",
            "NumericValue", "Parameter", "PerformanceCounter", "PlogSeverity",
-           "Process", "ProcessGroup", "RNGInitProcess", "Runtime", "Shape",
-           "State", "UnresolvedType", "Variable", 
+           "Process", "ProcessGroup", "RNGInitProcess", "RoundingMode", 
+           "Runtime", "Shape", "State", "UnresolvedType", "Variable", 
            "disassemble", "init_logging", "nir_import", "utils"]
 
 if sys.version_info >= (3, 8):

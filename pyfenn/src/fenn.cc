@@ -27,6 +27,7 @@
 #include "backend/runtime.h"
 
 // FeNN compiler includes
+#include "compiler/compiler.h"
 #include "compiler/event_container.h"
 #include "compiler/parameter.h"
 #include "compiler/process.h"
@@ -118,6 +119,11 @@ PYBIND11_MODULE(_fenn, m)
         .value("INFO", plog::Severity::info)
         .value("DEBUG", plog::Severity::debug)
         .value("VERBOSE", plog::Severity::verbose);
+    
+    pybind11::enum_<RoundingMode>(m, "RoundingMode")
+        .value("TO_ZERO", RoundingMode::TO_ZERO)
+        .value("NEAREST", RoundingMode::NEAREST)
+        .value("STOCHASTIC", RoundingMode::STOCHASTIC);
 
     //------------------------------------------------------------------------
     // Free functions
@@ -329,16 +335,18 @@ PYBIND11_MODULE(_fenn, m)
     // fenn.BackendFeNNSim
     //------------------------------------------------------------------------
     pybind11::class_<BackendFeNNSim, BackendFeNN>(m, "BackendFeNNSim")
-        .def(pybind11::init<bool, bool, size_t>(), pybind11::arg("use_dram_for_weights") = false, 
+        .def(pybind11::init<bool, bool, RoundingMode, size_t>(), pybind11::arg("use_dram_for_weights") = false, 
              pybind11::arg("keep_params_in_registers") = true, 
+             pybind11::arg("rounding_mode") = RoundingMode::NEAREST,
              pybind11::arg("dma_buffer_size") = 512 * 1024);
 
     //------------------------------------------------------------------------
     // fenn.BackendFeNNHW
     //------------------------------------------------------------------------
     pybind11::class_<BackendFeNNHW, BackendFeNN>(m, "BackendFeNNHW")
-        .def(pybind11::init<bool, bool>(), pybind11::arg("use_dram_for_weights") = false,
-             pybind11::arg("keep_params_in_registers") = true);
+        .def(pybind11::init<bool, bool, RoundingMode>(), pybind11::arg("use_dram_for_weights") = false,
+             pybind11::arg("keep_params_in_registers") = true,
+             pybind11::arg("rounding_mode") = RoundingMode::NEAREST);
 
     //------------------------------------------------------------------------
     // fenn.ArrayBase

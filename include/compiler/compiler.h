@@ -32,6 +32,14 @@ using FunctionGenerator = std::function<std::pair<RegisterPtr, bool>(Environment
                                                                      const std::vector<RegisterPtr>&)>;
 using EnvironmentItem = std::variant<RegisterPtr, FunctionGenerator>;
 
+// What rounding mode to use for multiplication
+enum class RoundingMode
+{
+    TO_ZERO,
+    NEAREST,
+    STOCHASTIC,
+};
+
 //----------------------------------------------------------------------------
 // EnvironmentBase
 //----------------------------------------------------------------------------
@@ -116,5 +124,5 @@ private:
 COMPILER_EXPORT void compile(const GeNN::Transpiler::Statement::StatementList &statements, EnvironmentInternal &environment, 
                              const GeNN::Type::TypeContext &context, const GeNN::Transpiler::TypeChecker::ResolvedTypeMap &resolvedTypes,
                              GeNN::Transpiler::ErrorHandlerBase &errorHandler, const std::unordered_map<int16_t, VectorRegisterAllocator::RegisterPtr> &literalPool,
-                             ScalarRegisterAllocator::RegisterPtr maskRegister, 
+                             ScalarRegisterAllocator::RegisterPtr maskRegister, RoundingMode roundingMode,
                              ScalarRegisterAllocator &scalarRegisterAllocator, VectorRegisterAllocator &vectorRegisterAllocator);

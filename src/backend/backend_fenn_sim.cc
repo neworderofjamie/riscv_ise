@@ -455,8 +455,9 @@ void DRAMArray::pullFromDevice()
 // BackendFeNNSim
 //------------------------------------------------------------------------
 BackendFeNNSim::BackendFeNNSim(bool useDRAMForWeights, bool keepParamsInRegisters, 
-                               size_t dmaBufferSize)
-:   BackendFeNN(useDRAMForWeights, keepParamsInRegisters), m_DMABufferSize(dmaBufferSize)
+                               RoundingMode neuronUpdateRoundingMode, size_t dmaBufferSize)
+:   BackendFeNN(useDRAMForWeights, keepParamsInRegisters, neuronUpdateRoundingMode), 
+    m_DMABufferSize(dmaBufferSize)
 {
 }
 //------------------------------------------------------------------------
