@@ -1,7 +1,7 @@
 # Include common makefile
 include src/MakefileCommon
 
-.PHONY: all assembler common compiler disassembler ise backend assembly_examples
+.PHONY: all assembler common compiler disassembler genn ise backend assembly_examples
 
 all: backend
 
@@ -17,10 +17,13 @@ compiler: common assembler
 disassembler: common 
 	$(MAKE) -C src/disassembler
 
+genn: 
+	$(MAKE) -C genn/src/genn/genn
+
 ise: common
 	$(MAKE) -C src/ise
 
-backend: assembler common compiler disassembler ise
+backend: assembler common compiler disassembler genn ise
 	$(MAKE) -C src/backend
 
 assembly_examples:
