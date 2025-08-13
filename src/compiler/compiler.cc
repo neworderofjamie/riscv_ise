@@ -477,9 +477,21 @@ private:
 
     virtual void visit(const Expression::Unary &unary) final
     {
-        assert(false);
-        //m_Environment.get().getStream() << unary.getOperator().lexeme;
-        //unary.getRight()->accept(*this);
+        // If operation is negation
+        if(unary.getOperator().type == Token::Type::MINUS) {
+            // Negate by subtracting from zero
+            const auto vecTargetReg = getExpressionVectorRegister(unary.getRight());
+            const auto resultReg = m_VectorRegisterAllocator.getRegister();
+            m_Environment.get().getCodeGenerator().vsub(*resultReg, *m_Environment.get().getVectorRegister("_zero"), *vecTargetReg);
+            
+            // Return result
+            // **NOTE** result is a temporary register so always re-usable
+            setExpressionRegister(resultReg, true);
+        }
+        // Otherwise, if operation isn't PLUS (which can be ignored), give error
+        else if(unary.getOperator().type == Token::Type::PLUS) {
+            assert(false);
+        }
     }
 
     //---------------------------------------------------------------------------
