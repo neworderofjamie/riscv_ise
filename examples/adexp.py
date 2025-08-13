@@ -22,7 +22,8 @@ class AdExp:
                  v_spike: float, v_reset: float, a: float, b: float, 
                  i_offset: float, dt: float = 0.1, name: str = ""):
         self.shape = Shape(shape)
-        dtype = UnresolvedType("s1_14_sat_t")
+        fixed_point = 12
+        dtype = UnresolvedType(f"s{15 - fixed_point}_{fixed_point}_sat_t")
         self.v = Variable(self.shape, dtype, num_timesteps, name=f"{name}_V")
         self.w = Variable(self.shape, dtype, num_timesteps, name=f"{name}_W")
         self.out_spikes = EventContainer(self.shape, num_timesteps)
@@ -34,8 +35,8 @@ class AdExp:
                V = vReset;
             }}
             // Calculate RK4 terms
-            v1 = {self._dv('V', 'W')};
-            w1 = {self._dw('V', 'W')};
+            const s1_14_sat_t v1 = {self._dv('V', 'W')};
+            const s1_14_sat_t w1 = {self._dw('V', 'W')};
             s1_14_sat_t tmpV = V + (halfDT * v1);
             s1_14_sat_t tmpW = W + (halfDT * w1);
             const s1_14_sat_t v2 = {self._dv('tmpV', 'tmpW')};
@@ -49,14 +50,14 @@ class AdExp:
             const s1_14_sat_t v4 = {self._dv('tmpV', 'tmpW')};
             const s1_14_sat_t w4 = {self._dw('tmpV', 'tmpW')};
             // Update V
-            V += sixthDT * (v1 + (2.0 * (v2 + v3)) + v4);
+            V += sixthDT * (v1 + (2.0h{fixed_point} * (v2 + v3)) + v4);
             // If we're not above peak, update w
-            // **NOTE** it's not safe to do this at peak as wn may well be huge
-            if(V <= -0.4) {{
-               W += sixthDT * (w1 + (2.0 * (w2 + w3)) + w4);
+            // **NOTE** it's not safe to do this at peak as w may well be huge
+            if(V <= -0.4h{fixed_point}) {{
+               W += sixthDT * (w1 + (2.0h{fixed_point} * (w2 + w3)) + w4);
             }}
             
-            if(V > -0.4) {{
+            if(V > -0.4h{fixed_point}) {{
                 // **NOTE** we reset v to arbitrary plotting peak rather than to actual reset voltage
                 V = vSpike;
                 W += b;
@@ -70,7 +71,7 @@ class AdExp:
              "R": Parameter(NumericValue(r), dtype),
              "eL": Parameter(NumericValue(e_l), dtype),
              "deltaT": Parameter(NumericValue(delta_t), dtype),
-             "deltaTRecip": Parameter(NumericValue(1.0 / delta_t), dtype),
+             "deltaTRecip": Parameter(NumericValue(1.0 / delta_t), UnresolvedType("s6_9_sat_t")),
              "vThresh": Parameter(NumericValue(v_thresh), dtype),
              "vSpike": Parameter(NumericValue(v_spike), dtype),
              "vReset": Parameter(NumericValue(v_reset), dtype),
@@ -119,7 +120,6 @@ init_code = backend.generate_kernel([init_processes], model)
 code = backend.generate_simulation_kernel([neuron_processes], [],
                                           num_timesteps, model)
 
-# Disassemble if required
 # Disassemble if required
 if disassemble_code:
     print("Init:")
