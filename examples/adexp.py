@@ -13,8 +13,8 @@ from pyfenn.utils import (ceil_divide, copy_and_push,
 
 
 device = False
-disassemble_code = False
-num_timesteps = 10000
+disassemble_code = True
+num_timesteps = 1000
 
 class AdExp:
     def __init__(self, shape, num_timesteps: int, tau_m: float, tau_w: float, 
@@ -23,7 +23,8 @@ class AdExp:
                  i_offset: float, dt: float = 0.1, name: str = ""):
         self.shape = Shape(shape)
         fixed_point = 12
-        dtype = UnresolvedType(f"s{15 - fixed_point}_{fixed_point}_sat_t")
+        type_str = f"s{15 - fixed_point}_{fixed_point}_sat_t"
+        dtype = UnresolvedType(type_str)
         self.v = Variable(self.shape, dtype, num_timesteps, name=f"{name}_V")
         self.w = Variable(self.shape, dtype, num_timesteps, name=f"{name}_W")
         self.out_spikes = EventContainer(self.shape, num_timesteps)
@@ -36,20 +37,20 @@ class AdExp:
             }}
             // Calculate RK4 terms
             {{
-                const s1_14_sat_t v1 = {self._dv('V', 'W')};
-                const s1_14_sat_t w1 = {self._dw('V', 'W')};
-                s1_14_sat_t tmpV = V + (halfDT * v1);
-                s1_14_sat_t tmpW = W + (halfDT * w1);
-                const s1_14_sat_t v2 = {self._dv('tmpV', 'tmpW')};
-                const s1_14_sat_t w2 = {self._dw('tmpV', 'tmpW')};
+                const {type_str} v1 = {self._dv('V', 'W')};
+                const {type_str} w1 = {self._dw('V', 'W')};
+                {type_str} tmpV = V + (halfDT * v1);
+                {type_str} tmpW = W + (halfDT * w1);
+                const {type_str} v2 = {self._dv('tmpV', 'tmpW')};
+                const {type_str} w2 = {self._dw('tmpV', 'tmpW')};
                 tmpV = V + (halfDT * v2);
                 tmpW = W + (halfDT * w2);
-                const s1_14_sat_t v3 = {self._dv('tmpV', 'tmpW')};
-                const s1_14_sat_t w3 = {self._dw('tmpV', 'tmpW')};
+                const {type_str} v3 = {self._dv('tmpV', 'tmpW')};
+                const {type_str} w3 = {self._dw('tmpV', 'tmpW')};
                 tmpV = V + (dt * v3);
                 tmpW = W + (dt * w3);
-                const s1_14_sat_t v4 = {self._dv('tmpV', 'tmpW')};
-                const s1_14_sat_t w4 = {self._dw('tmpV', 'tmpW')};
+                const {type_str} v4 = {self._dv('tmpV', 'tmpW')};
+                const {type_str} w4 = {self._dw('tmpV', 'tmpW')};
                 // Update V
                 V += sixthDT * (v1 + (2.0h{fixed_point} * (v2 + v3)) + v4);
                 // If we're not above peak, update w
@@ -67,7 +68,7 @@ class AdExp:
             }}
             """,
             {"dt": Parameter(NumericValue(dt), dtype),
-             "halfDT": Parameter(NumericValue(dt * 0.5), dtype),
+             "halfDT": Parameter(NumericValue(dt / 2.0), dtype),
              "sixthDT": Parameter(NumericValue(dt / 6.0), dtype),
              "tauMRecip": Parameter(NumericValue(1.0 / tau_m), dtype),
              "R": Parameter(NumericValue(r), dtype),
@@ -86,7 +87,7 @@ class AdExp:
             name)
     
     def _dv(self, v: str, w: str):
-        return f"tauMRecip * (-(({v}) - eL) + (deltaT * exp((({v}) - vThresh) * deltaTRecip)) + R * (iOffset - ({w})))"
+        return f"tauMRecip * (-(({v}) - eL) + (deltaT @ exp((({v}) - vThresh) * deltaTRecip)) + R * (iOffset - ({w})))"
 
     def _dw(self, v: str, w: str):
         return f"tauWRecip * ((a * ({v} - eL)) - {w})"
@@ -112,7 +113,7 @@ init_processes = ProcessGroup([lut_broadcast.process])
 neuron_processes = ProcessGroup([ad_exp.process])
 
 # Create backend
-backend = BackendFeNNHW() if device else BackendFeNNSim()
+backend = BackendFeNNHW() if device else BackendFeNNSim(keep_params_in_registers=False)
 
 # Create model
 model = Model([init_processes, neuron_processes], backend)
@@ -141,7 +142,7 @@ runtime.allocate()
 # Zero i and initialise V
 zero_and_push(ad_exp.w, runtime)
 v_array, v_view = get_array_view(runtime, ad_exp.v, np.int16)
-v_view[:] = np.round(-70.6 * v_scale * (2**14)).astype(np.int16)
+v_view[:] = np.round(-70.6 * v_scale * (2**12)).astype(np.int16)
 v_array.push_to_device()
 
 # Initialise exp LUT
@@ -167,18 +168,18 @@ w_array, w_view = get_array_view(runtime, ad_exp.w,
 v_array.pull_from_device()
 w_array.pull_from_device()
 
-print(w_view.shape, v_view.shape)
-"""
+v_view = np.reshape(v_view, (-1, 32))
+w_view = np.reshape(w_view, (-1, 32))
+print(v_view)
 # Create plot
 figure, axes = plt.subplots(2)
 
 # Plot voltages
 axes[0].set_title("Voltage")
-axes[0].plot(adexp_v)
+axes[0].plot(v_view[:,0])
 
 axes[1].set_title("Adaption current")
-axes[1].plot(adexp_w)
+axes[1].plot(w_view[:,0])
 
 # Show plot
 plt.show()
-"""
