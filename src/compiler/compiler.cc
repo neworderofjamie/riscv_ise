@@ -198,7 +198,7 @@ private:
             const bool rightReusable = isExpressionRegisterReusable();
 
             // If operation is arithmetic
-            if(opType == Token::Type::MINUS || opType == Token::Type::PLUS || opType == Token::Type::STAR) {
+            if(opType == Token::Type::MINUS || opType == Token::Type::PLUS || opType == Token::Type::STAR || opType == Token::Type::AT) {
                 const auto resultReg = getBinaryResultReg(leftReusable, rightReusable, 
                                                           vecLeftReg, vecRightReg,
                                                           m_VectorRegisterAllocator);
@@ -222,7 +222,7 @@ private:
                         m_Environment.get().getCodeGenerator().vadd(*resultReg, *vecLeftReg, *vecRightReg);
                     }
                 }
-                else if(opType == Token::Type::STAR) {
+                else if(opType == Token::Type::STAR || opType == Token::Type::AT) {
                     const auto &resultType = m_ResolvedTypes.at(&binary);
 
                     // **TODO** rounding
