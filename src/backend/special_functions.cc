@@ -93,20 +93,10 @@ void add(CodeGenerator &codeGenerator, ScalarRegisterAllocator &scalarRegisterAl
                            {
                                auto &c = env.getCodeGenerator();
                                
-                               ALLOCATE_VECTOR(VLUTAddress);
-                               ALLOCATE_VECTOR(VLUTLower);
-                               ALLOCATE_VECTOR(VLUTDiff);
                                ALLOCATE_VECTOR(VK);
                                ALLOCATE_VECTOR(VR);
-                               ALLOCATE_VECTOR(VShiftScale);
-                               ALLOCATE_VECTOR(VExpMax);
                                ALLOCATE_VECTOR(VOutput);
 
-                               // Load constants that 
-                               // **TODO** could be generated lazily by multi-pass assembler
-                               c.vlui(*VShiftScale, 14 - fracBits);
-                               c.vlui(*VExpMax, convertFixedPoint(expMax, fracBits));
-                                
                                // Get registers from environment
                                auto VFracMask = env.getVectorRegister("_exp_frac_mask");
                                auto VLog2 = env.getVectorRegister("_exp_log_2");
@@ -123,41 +113,62 @@ void add(CodeGenerator &codeGenerator, ScalarRegisterAllocator &scalarRegisterAl
                                c.vsub(*VR, *std::get<VectorRegisterAllocator::RegisterPtr>(args[0]), *VR);
 
                                // VR = (VR - VExpMax) / (VExpMax - -VExpMax)
-                               c.vadd(*VR, *VR, *VExpMax);
+                               {
+                                   ALLOCATE_VECTOR(VExpMax);
+                                   // Load expMaxc
+                                   // **TODO** could be generated lazily by multi-pass assembler
+                                   c.vlui(*VExpMax, convertFixedPoint(expMax, fracBits));
+                                   c.vadd(*VR, *VR, *VExpMax);
+                               }
+
                                c.vmul_rn(numFrac - 1, *VR, *VR, *VMaxScale);
 
-                               // START FAITHFUL INTERPOLATION
-                               // VLUTAddress = VX >> fracBits
-                               c.vsrai(fracBits, *VLUTAddress, *VR);
+                               {
+                                   ALLOCATE_VECTOR(VLUTAddress);
+                                   ALLOCATE_VECTOR(VLUTLower);
+                                   ALLOCATE_VECTOR(VLUTDiff);
 
-                               // VLUTAddress *= 2 (to convert to bytes)
-                               // **THINK** could just subtract 1 from fracBits
-                               // Won't result in aligned address but that gets ignored on HW
-                               c.vslli(1, *VLUTAddress, *VLUTAddress);
+                                   // START FAITHFUL INTERPOLATION
+                                   // VLUTAddress = VX >> fracBits
+                                   c.vsrai(fracBits, *VLUTAddress, *VR);
+
+                                   // VLUTAddress *= 2 (to convert to bytes)
+                                   // **THINK** could just subtract 1 from fracBits
+                                   // Won't result in aligned address but that gets ignored on HW
+                                   c.vslli(1, *VLUTAddress, *VLUTAddress);
                             
-                               // Add bas address
-                               c.vadd(*VLUTAddress, *VLUTAddress, *VLUTBaseAddress);
+                                   // Add bas address
+                                   c.vadd(*VLUTAddress, *VLUTAddress, *VLUTBaseAddress);
 
-                               // Load lower LUT entry
-                               c.vloadl(*VLUTLower, *VLUTAddress, 0);
+                                   // Load lower LUT entry
+                                   c.vloadl(*VLUTLower, *VLUTAddress, 0);
                         
-                               // Load higher LUT value
-                               c.vloadl(*VLUTDiff, *VLUTAddress, 2);
+                                   // Load higher LUT value
+                                   c.vloadl(*VLUTDiff, *VLUTAddress, 2);
 
-                               // VOutput = VX & VFracMask
-                               c.vand(*VOutput, *VR, *VFracMask);
+                                   // VOutput = VX & VFracMask
+                                   c.vand(*VOutput, *VR, *VFracMask);
 
-                               // Calculate difference
-                               c.vsub(*VLUTDiff, *VLUTDiff, *VLUTLower);
+                                   // Calculate difference
+                                   c.vsub(*VLUTDiff, *VLUTDiff, *VLUTLower);
                         
-                               // VOutput *= 
-                               c.vmul_rn(fracBits, *VOutput, *VOutput, *VLUTDiff);
+                                   // VOutput *= 
+                                   c.vmul_rn(fracBits, *VOutput, *VOutput, *VLUTDiff);
 
-                               c.vadd(*VOutput, *VOutput, *VLUTLower);
+                                   c.vadd(*VOutput, *VOutput, *VLUTLower);
+                               }
 
-                               // K = shiftScale - K to include shift to 
-                               // convert from S1.14 to output forma
-                               c.vsub(*VK, *VShiftScale, *VK);
+                               {
+                                   ALLOCATE_VECTOR(VShiftScale);
+                                   
+                                   // Load shift-scale
+                                   // **TODO** could be generated lazily by multi-pass assembler
+                                   c.vlui(*VShiftScale, 14 - fracBits);
+
+                                   // K = shiftScale - K to include shift to 
+                                   // convert from S1.14 to output forma
+                                   c.vsub(*VK, *VShiftScale, *VK);
+                               }
 
                                // END FAITHFUL INTERPOLATION
                                c.vsra(*VOutput, *VOutput, *VK);
