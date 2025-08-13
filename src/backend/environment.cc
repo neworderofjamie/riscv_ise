@@ -97,7 +97,7 @@ std::vector<Type::ResolvedType> EnvironmentExternal::getTypes(const Transpiler::
 }
 //----------------------------------------------------------------------------
 void EnvironmentExternal::add(const GeNN::Type::ResolvedType &type, const std::string &name,
-                              std::variant<RegisterPtr, FunctionGenerator> value)
+                              EnvironmentItem value)
 {
     if(!m_Environment.try_emplace(name, type, value).second) {
         throw std::runtime_error("Redeclaration of '" + std::string{name} + "'");

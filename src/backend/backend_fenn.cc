@@ -612,9 +612,10 @@ public:
                          CodeGenerator &codeGenerator, 
                          VectorRegisterAllocator &vectorRegisterAllocator, 
                          ScalarRegisterAllocator &scalarRegisterAllocator, 
-                         const Model &model, bool useDRAMForWeights)
+                         const Model &model, bool useDRAMForWeights, bool keepParamsInRegisters)
     :   m_TimeRegister(timeRegister), m_CodeGenerator(codeGenerator), m_VectorRegisterAllocator(vectorRegisterAllocator),
-        m_ScalarRegisterAllocator(scalarRegisterAllocator), m_Model(model), m_UseDRAMForWeights(useDRAMForWeights)
+        m_ScalarRegisterAllocator(scalarRegisterAllocator), m_Model(model), 
+        m_UseDRAMForWeights(useDRAMForWeights), m_KeepParamsInRegisters(keepParamsInRegisters)
     {
         PerformanceCounterScope p(processGroup, codeGenerator, 
                                   scalarRegisterAllocator, model);
@@ -764,12 +765,6 @@ private:
 
         // Loop through neuron parameters
         for(const auto &p : neuronUpdateProcess->getParameters()) {
-            // Allocate vector register for parameter
-            const auto reg = m_VectorRegisterAllocator.get().getRegister((p.first + " V").c_str());
-
-            // Add to environment
-            env.add(p.second->getType(), p.first, reg);
-
             const auto &numericType = p.second->getType().getNumeric();
             int64_t integerResult;
             if(numericType.isIntegral) {
@@ -791,8 +786,30 @@ private:
                                           +p.second->getType().getName() + "'");
             }
 
-            // Generate code to load parameter
-            c.vlui(*reg, (uint16_t)integerResult);
+            // If we should keep parameters in registers
+            if(m_KeepParamsInRegisters) {
+                // Allocate vector register for parameter
+                const auto reg = m_VectorRegisterAllocator.get().getRegister((p.first + " V").c_str());
+
+                // Add to environment
+                env.add(p.second->getType(), p.first, reg);
+
+                // Generate code to load parameter
+                c.vlui(*reg, (uint16_t)integerResult);
+            }
+            // Otherwise
+            else {
+                // Generate code to VLUI parameter when required
+                // **YUCK** this is very innefficient
+                env.add(p.second->getType(), p.first,
+                        [&p, integerResult](auto &env, auto &vectorRegisterAllocator, auto&, auto, const auto&)
+                        {
+                            auto result = vectorRegisterAllocator.getRegister((p.first + " = V").c_str());
+                            env.getCodeGenerator().vlui(*result, (uint16_t)integerResult);
+                            return std::make_pair(result, true);
+                        }); 
+            }
+
         }
 
         env.add(Type::S8_7, "_zero", literalPool.at(0));
@@ -1836,6 +1853,7 @@ private:
     std::reference_wrapper<ScalarRegisterAllocator> m_ScalarRegisterAllocator;
     std::reference_wrapper<const Model> m_Model;
     bool m_UseDRAMForWeights;
+    bool m_KeepParamsInRegisters;
 };
 }
 
@@ -1940,7 +1958,7 @@ std::vector<uint32_t> BackendFeNN::generateSimulationKernel(const std::vector<st
                 for (const auto &p : timestepProcessGroups) {
                     CodeGeneratorVisitor visitor(p, STime, c, vectorRegisterAllocator,
                                                  scalarRegisterAllocator, model,
-                                                 m_UseDRAMForWeights);
+                                                 m_UseDRAMForWeights, m_KeepParamsInRegisters);
                 }
                 
                 c.addi(*STime, *STime, 1);
@@ -1951,7 +1969,7 @@ std::vector<uint32_t> BackendFeNN::generateSimulationKernel(const std::vector<st
             for (const auto &p : endProcessGroups) {
                 CodeGeneratorVisitor visitor(p, nullptr, c, vectorRegisterAllocator,
                                              scalarRegisterAllocator, model,
-                                             m_UseDRAMForWeights);
+                                             m_UseDRAMForWeights, m_KeepParamsInRegisters);
             }
         });
 }
@@ -1975,7 +1993,7 @@ std::vector<uint32_t> BackendFeNN::generateKernel(const std::vector <std::shared
             for (const auto &p : processGroups) {
                 CodeGeneratorVisitor visitor(p, nullptr, c, vectorRegisterAllocator,
                                              scalarRegisterAllocator, model,
-                                             m_UseDRAMForWeights);
+                                             m_UseDRAMForWeights, m_KeepParamsInRegisters);
             }
         });
 }

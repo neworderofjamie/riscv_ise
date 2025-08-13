@@ -495,9 +495,33 @@ private:
             assert(false);
         }
         else {
-            // Set result register
-            // **NOTE** we don't want to re-use registers used for variables
-            setExpressionRegister(m_Environment.get().getRegister(identifier.getName().lexeme), false);
+            // Get item from environment
+            const auto item = m_Environment.get().getItem(identifier.getName().lexeme);
+
+            // If item is a register holding value associated with identifier
+            if(std::holds_alternative<RegisterPtr>(item)) {
+                // Set result register
+                // **NOTE** we don't want to re-use registers used for variables
+                setExpressionRegister(std::get<RegisterPtr>(item), false);
+            }
+            // Otherwise, it's a function generator which generates a value
+            else {
+                // Cache reference to current reference
+                std::reference_wrapper<EnvironmentBase> oldEnvironment = m_Environment; 
+            
+                // Create new environment and set to current
+                EnvironmentInternal environment(m_Environment);
+                m_Environment = environment;
+                
+                // Call function generator to generate code
+                const auto result = std::get<FunctionGenerator>(item)(m_Environment.get(), m_VectorRegisterAllocator, 
+                                                                      m_ScalarRegisterAllocator, m_MaskRegister, {});
+                setExpressionRegister(result.first, result.second);
+
+                // Restore old environment
+                m_Environment = oldEnvironment;
+            }
+            
         }
     }
 

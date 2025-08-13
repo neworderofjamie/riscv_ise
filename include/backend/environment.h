@@ -108,7 +108,7 @@ public:
     // Public API
     //------------------------------------------------------------------------
     //! Map a type (for type-checking) and a value (for pretty-printing) to an identifier
-    void add(const GeNN::Type::ResolvedType &type, const std::string &name, std::variant<RegisterPtr, FunctionGenerator> value);
+    void add(const GeNN::Type::ResolvedType &type, const std::string &name, EnvironmentItem value);
 
 private:
     //------------------------------------------------------------------------

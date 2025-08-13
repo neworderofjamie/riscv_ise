@@ -342,8 +342,8 @@ private:
 class BACKEND_EXPORT BackendFeNN
 {
 public:
-    BackendFeNN(bool useDRAMForWeights = false)
-    :   m_UseDRAMForWeights(useDRAMForWeights)
+    BackendFeNN(bool useDRAMForWeights = false, bool keepParamsInRegisters = true)
+    :   m_UseDRAMForWeights(useDRAMForWeights), m_KeepParamsInRegisters(keepParamsInRegisters)
     {}
 
     virtual ~BackendFeNN()
@@ -393,5 +393,6 @@ private:
     // Members
     //------------------------------------------------------------------------
     bool m_UseDRAMForWeights;
+    bool m_KeepParamsInRegisters;
 
 };

@@ -454,8 +454,9 @@ void DRAMArray::pullFromDevice()
 //----------------------------------------------------------------------------
 // BackendFeNNSim
 //------------------------------------------------------------------------
-BackendFeNNSim::BackendFeNNSim(bool useDRAMForWeights, size_t dmaBufferSize)
-:   BackendFeNN(useDRAMForWeights), m_DMABufferSize(dmaBufferSize)
+BackendFeNNSim::BackendFeNNSim(bool useDRAMForWeights, bool keepParamsInRegisters, 
+                               size_t dmaBufferSize)
+:   BackendFeNN(useDRAMForWeights, keepParamsInRegisters), m_DMABufferSize(dmaBufferSize)
 {
 }
 //------------------------------------------------------------------------

@@ -329,14 +329,16 @@ PYBIND11_MODULE(_fenn, m)
     // fenn.BackendFeNNSim
     //------------------------------------------------------------------------
     pybind11::class_<BackendFeNNSim, BackendFeNN>(m, "BackendFeNNSim")
-        .def(pybind11::init<bool, size_t>(),
-             pybind11::arg("use_dram_for_weights") = false, pybind11::arg("dma_buffer_size") = 512 * 1024);
+        .def(pybind11::init<bool, bool, size_t>(), pybind11::arg("use_dram_for_weights") = false, 
+             pybind11::arg("keep_params_in_registers") = true, 
+             pybind11::arg("dma_buffer_size") = 512 * 1024);
 
     //------------------------------------------------------------------------
     // fenn.BackendFeNNHW
     //------------------------------------------------------------------------
     pybind11::class_<BackendFeNNHW, BackendFeNN>(m, "BackendFeNNHW")
-        .def(pybind11::init<bool>(), pybind11::arg("use_dram_for_weights") = false);
+        .def(pybind11::init<bool, bool>(), pybind11::arg("use_dram_for_weights") = false,
+             pybind11::arg("keep_params_in_registers") = true);
 
     //------------------------------------------------------------------------
     // fenn.ArrayBase

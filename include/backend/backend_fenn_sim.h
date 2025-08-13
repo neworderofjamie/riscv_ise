@@ -10,7 +10,8 @@
 class BACKEND_EXPORT BackendFeNNSim : public BackendFeNN
 {
 public:
-    BackendFeNNSim(bool useDRAMForWeights = false, size_t dmaBufferSize = 512 * 1024);
+    BackendFeNNSim(bool useDRAMForWeights = false, bool keepParamsInRegisters = true, 
+                   size_t dmaBufferSize = 512 * 1024);
 
     //------------------------------------------------------------------------
     // BackendFeNN virtuals
