@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer, Model, NeuronUpdateProcess,
                     NumericValue, Parameter, PlogSeverity, ProcessGroup, 
                     Runtime, Shape, UnresolvedType, Variable)
-from models import Copy, RNGInit
+from models import RNGInit
 
 from pyfenn import disassemble, init_logging
 from pyfenn.utils import get_array_view, seed_and_push, zero_and_push
@@ -22,9 +22,9 @@ class ALIF:
         v_dtype = UnresolvedType("s6_9_sat_t")
         a_dtype = UnresolvedType("s6_9_sat_t")
         decay_dtype = UnresolvedType("s0_15_sat_t")
-        self.v = Variable(self.shape, v_dtype)
-        self.a = Variable(self.shape, a_dtype)
-        self.i = Variable(self.shape, UnresolvedType("int16_t"), num_timesteps)
+        self.v = Variable(self.shape, v_dtype, num_timesteps + 1)
+        self.a = Variable(self.shape, a_dtype, num_timesteps + 1)
+        self.i = Variable(self.shape, UnresolvedType("int16_t"), num_timesteps + 1)
         self.refrac_time = Variable(self.shape, UnresolvedType("int16_t"))
         self.process = NeuronUpdateProcess(
             """
@@ -49,8 +49,8 @@ class ALIF:
             {"V": self.v, "A": self.a, "I": self.i, "RefracTime": self.refrac_time})
 
 # Generate poisson data with two periods of average firing interspersed by background
-data = np.zeros(num_timesteps)
-data[0:] = np.random.poisson(rate, num_timesteps)
+data = np.zeros(num_timesteps + 1)
+data[0:] = np.random.poisson(rate, num_timesteps + 1)
 #data[0:2000] = np.random.poisson(rate, 2000)
 #data[2000:4000] = np.random.poisson(background_rate, 2000)
 #data[4000:5000] = np.random.poisson(rate, 1000)
@@ -69,24 +69,21 @@ init_logging()
 # Model
 rng_init = RNGInit()
 neurons = ALIF([32], 20.0, 2000, 5, 0.6, 0.0174, 0.01, num_timesteps)
-copy_v = Copy(neurons.v, num_timesteps)
-copy_a = Copy(neurons.a, num_timesteps)
 
 # Group processes
 init_processes = ProcessGroup([rng_init.process])
 neuron_update_processes = ProcessGroup([neurons.process])
-copy_processes = ProcessGroup([copy_v.process, copy_a.process])
 
 # Create backend
 backend = BackendFeNNHW() if device else BackendFeNNSim()
 
 # Create model
-model = Model([init_processes, neuron_update_processes, copy_processes],
+model = Model([init_processes, neuron_update_processes],
               backend)
 
 # Generate init and sim code
 init_code = backend.generate_kernel([init_processes], model)
-code = backend.generate_simulation_kernel([neuron_update_processes, copy_processes],
+code = backend.generate_simulation_kernel([neuron_update_processes],
                                           [],
                                           num_timesteps, model)
 
@@ -124,29 +121,27 @@ runtime.set_instructions(code)
 # Simulate
 runtime.run()
 
-neurons_v_copy_array, neurons_v_copy_view = get_array_view(runtime, copy_v.target,
-                                                           np.int16)
-neurons_a_copy_array, neurons_a_copy_view = get_array_view(runtime, copy_a.target,
-                                                           np.int16)
+neurons_v_array, neurons_v_view = get_array_view(runtime, neurons.v, np.int16)
+neurons_a_array, neurons_a_view = get_array_view(runtime, neurons.a, np.int16)
 
-neurons_v_copy_array.pull_from_device()
-neurons_a_copy_array.pull_from_device()
+neurons_v_array.pull_from_device()
+neurons_a_array.pull_from_device()
 
 # **YUCK** reshape
-neurons_v_copy_view = np.reshape(neurons_v_copy_view, (-1, 32))
-neurons_a_copy_view = np.reshape(neurons_a_copy_view, (-1, 32))
+neurons_v_view = np.reshape(neurons_v_view, (-1, 32))
+neurons_a_view = np.reshape(neurons_a_view, (-1, 32))
 
 # Calculate mean and standard deviation
-neurons_v_mean = np.average(neurons_v_copy_view, axis=1)
-neurons_v_std = np.std(neurons_v_copy_view, axis=1)
-neurons_a_mean = np.average(neurons_a_copy_view, axis=1)
-neurons_a_std = np.std(neurons_a_copy_view, axis=1)
+neurons_v_mean = np.average(neurons_v_view, axis=1)
+neurons_v_std = np.std(neurons_v_view, axis=1)
+neurons_a_mean = np.average(neurons_a_view, axis=1)
+neurons_a_std = np.std(neurons_a_view, axis=1)
 
 fig, axis = plt.subplots()
 
 a_axis = axis.twinx()
 
-timesteps = np.arange(num_timesteps)
+timesteps = np.arange(num_timesteps + 1)
 axis.plot(timesteps, neurons_v_mean, color="red")
 axis.fill_between(timesteps, (neurons_v_mean - neurons_v_std), 
                   (neurons_v_mean + neurons_v_std),
