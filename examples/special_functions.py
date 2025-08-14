@@ -17,8 +17,8 @@ max_val = 3.4
 disassemble_code = False
 
 class Exp:
-    def __init__(self, input: Variable):
-        self.val = Variable(input.shape, UnresolvedType("s6_9_t"))
+    def __init__(self, input: Variable, dtype):
+        self.val = Variable(input.shape, dtype)
         
         self.process = NeuronUpdateProcess(
             """
@@ -37,8 +37,9 @@ input_data = np.arange(min_val_fixed, min_val_fixed + count_padded).astype(np.in
 init_logging()
 
 # Model
-input_var = Variable(Shape(input_data.shape), UnresolvedType("s6_9_t"))
-exp = Exp(input_var)
+dtype = UnresolvedType(f"s{15 - fixed_point}_{fixed_point}_t")
+input_var = Variable(Shape(input_data.shape), dtype)
+exp = Exp(input_var, dtype)
 lut_broadcast = ExpLUTBroadcast()
 
 # Group processes
