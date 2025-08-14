@@ -15,6 +15,45 @@
 namespace
 {
 //----------------------------------------------------------------------------
+// NeuronVariableFieldSizeVisitor
+//----------------------------------------------------------------------------
+class NeuronVariableFieldSizeVisitor : public ModelComponentVisitor
+{
+public:
+     NeuronVariableFieldSizeVisitor(std::shared_ptr<const Variable> variable, const Model::StateProcesses::mapped_type &processes)
+    :   m_Variable(variable), m_FieldSize(4)
+    {
+        // Visit all processes
+        for(auto p : processes) {
+            p->accept(*this);
+        }
+    }
+
+    uint32_t getFieldSize() const{ return m_FieldSize; }
+
+private:
+    virtual void visit(std::shared_ptr<const EventPropagationProcess> eventPropagationProcess)
+    {
+        // If variable is target of event propagation process with delay, increase field size to 8 bytes
+        if(m_Variable == eventPropagationProcess->getTarget() 
+           && eventPropagationProcess->getNumDelayBits() > 0) 
+        {
+            LOGD << "Variable '" << m_Variable->getName() 
+                 << "' referenced by delayed event propagation process. "
+                 << "Therefore requires 8 bytes field";
+            
+            m_FieldSize = 8;
+        }
+    }
+
+    //------------------------------------------------------------------------
+    // Members
+    //------------------------------------------------------------------------
+    std::shared_ptr<const Variable> m_Variable;
+    uint32_t m_FieldSize;
+};
+
+//----------------------------------------------------------------------------
 // ProcessVisitor
 //----------------------------------------------------------------------------
 //! Visitor to determine which 
@@ -113,8 +152,8 @@ private:
     // Members
     //------------------------------------------------------------------------
     std::reference_wrapper<Model::StateProcesses> m_StateProcesses;
-
 };
+
 //----------------------------------------------------------------------------
 // FieldVisitor
 //----------------------------------------------------------------------------
@@ -122,8 +161,10 @@ class FieldVisitor : public ModelComponentVisitor
 {
 public:
     FieldVisitor(const std::vector<std::shared_ptr<const ProcessGroup>> processGroups, 
-            Model::StatefulFields &statefulFields, const Model::BackendFields &backendFields, uint32_t &fieldOffset)
-    :   m_StatefulFields(statefulFields), m_BackendFields(backendFields), m_FieldOffset(fieldOffset)
+            Model::StatefulFields &statefulFields, const Model::BackendFields &backendFields, 
+            const Model::StateProcesses &stateProcesses, uint32_t &fieldOffset)
+    :   m_StatefulFields(statefulFields), m_BackendFields(backendFields), m_StateProcesses(stateProcesses),
+        m_FieldOffset(fieldOffset), m_FieldSize(4)
     {
         // Loop through all process groups and visit
         for(const auto &g : processGroups)  {
@@ -140,7 +181,7 @@ private:
         // Allocate BRAM for field pointer
         LOGD << "\t\tEvent container '" << eventContainer->getName() << "'";
         if(m_CurrentProcessFields.try_emplace(eventContainer, m_FieldOffset).second) {
-            m_FieldOffset += 4;
+            m_FieldOffset += m_FieldSize;
         }
         else {
             throw std::runtime_error("Event container '" + eventContainer->getName() + "' encountered multiple times in model traversal");
@@ -152,7 +193,7 @@ private:
         // Allocate BRAM for field pointer
         LOGD << "\tPerformance counter '" << performanceCounter->getName() << "'";
         if(m_CurrentProcessGroupFields.try_emplace(performanceCounter, m_FieldOffset).second) {
-            m_FieldOffset += 4;
+            m_FieldOffset += m_FieldSize;
         }
         else {
             throw std::runtime_error("Performance counter '" + performanceCounter->getName() + "' encountered multiple times in model traversal");
@@ -190,7 +231,10 @@ private:
     
         // Visit variables
         for(auto &v : neuronUpdateProcess->getVariables()) {
+            NeuronVariableFieldSizeVisitor visitor(v.second, m_StateProcesses.get().at(v.second));
+            m_FieldSize = visitor.getFieldSize();
             v.second->accept(*this);
+            m_FieldSize = 4;
         }
 
         // Visit output event containers
@@ -334,7 +378,7 @@ private:
         // Allocate BRAM for field pointer
         LOGD << "\t\tVariable '" << variable->getName() << "'";
         if(m_CurrentProcessFields.try_emplace(variable, m_FieldOffset).second) {
-            m_FieldOffset += 4;
+            m_FieldOffset += m_FieldSize;
         }
         else {
             throw std::runtime_error("Variable '" + variable->getName() + "' encountered multiple times in model traversal");
@@ -346,9 +390,11 @@ private:
     //------------------------------------------------------------------------
     std::reference_wrapper<Model::StatefulFields> m_StatefulFields;
     std::reference_wrapper<const Model::BackendFields> m_BackendFields;
+    std::reference_wrapper<const Model::StateProcesses> m_StateProcesses;
     std::reference_wrapper<uint32_t> m_FieldOffset;
     Model::StateFields m_CurrentProcessFields;
     Model::StateFields m_CurrentProcessGroupFields;
+    uint32_t m_FieldSize;
 };
 }
 
@@ -376,5 +422,6 @@ Model::Model(const std::vector<std::shared_ptr<const ProcessGroup>> &processGrou
                    });
 
     // Visit fields to build StatefulFields datastructure, allocating fields for all Stateful objects
-    FieldVisitor fieldVisitor(m_ProcessGroups, m_StatefulFields, m_BackendFields, m_NumFieldBytes);
+    FieldVisitor fieldVisitor(m_ProcessGroups, m_StatefulFields, m_BackendFields, 
+                              m_StateProcesses, m_NumFieldBytes);
 }
