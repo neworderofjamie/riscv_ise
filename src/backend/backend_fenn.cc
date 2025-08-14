@@ -420,9 +420,8 @@ private:
         // **TODO** memset could handle anything
         m_BRAMCompatible = false;
         m_DRAMCompatible = false;
-        m_URAMCompatible = false;
 
-        if(!m_LLMCompatible) {
+        if(!m_LLMCompatible && !m_URAMCompatible) {
             throw std::runtime_error("Memset process '" + memsetProcess->getName()
                                     + "' target array '" + target->getName()
                                     + "' shared with incompatible processes");
@@ -1195,10 +1194,10 @@ private:
             ALLOCATE_SCALAR(STargetBuffer);
             c.lw(*STargetBuffer, Reg::X0, stateFields.at(target));
 
-            /*if(visitor.isURAMCompatible()) {
-            
+            if(visitor.isURAMCompatible()) {
+                generateURAMMemset(target->getShape(), STargetBuffer);
             }
-            else */if(visitor.isLLMCompatible()) {
+            else if(visitor.isLLMCompatible()) {
                 generateLLMMemset(target->getShape(), STargetBuffer);
             }
             /*else if(visitor.isBRAMCompatible()) {
@@ -1268,8 +1267,7 @@ private:
         // Generate unrolled loop 
         AssemblerUtils::unrollVectorLoopBody(
             c, scalarRegisterAllocator, numVectors * 32, 4, *targetReg,
-            [&scalarRegisterAllocator, &vectorRegisterAllocator,
-                VLLMAddress, VValue]
+            [VLLMAddress, VValue]
             (CodeGenerator &c, uint32_t r, uint32_t, ScalarRegisterAllocator::RegisterPtr)
             {
                 c.vstorel(*VValue, *VLLMAddress, r * 2);                  
@@ -1278,6 +1276,36 @@ private:
             (CodeGenerator &c, uint32_t numUnrolls)
             {
                 c.vadd(*VLLMAddress, *VLLMAddress, *VNumUnrollBytes);
+                c.addi(*targetReg, *targetReg, 64 * numUnrolls);
+            });
+    }
+
+    void generateURAMMemset(const Shape &shape, ScalarRegisterAllocator::RegisterPtr targetReg)
+    {
+        // Make some friendlier-named references
+        auto &vectorRegisterAllocator = m_VectorRegisterAllocator.get();
+        auto &c = m_CodeGenerator.get();
+
+        ALLOCATE_VECTOR(VValue);
+        
+        // Determine how many vectors we're memsetting
+        const size_t numVectors = ceilDivide(shape.getFlattenedSize(), 32);
+
+        // Load value to memset and calculate unroll bytes
+        // **TODO** parameterise
+        c.vlui(*VValue, 0);
+  
+        // Generate unrolled loop 
+        AssemblerUtils::unrollVectorLoopBody(
+            c, m_ScalarRegisterAllocator.get(), numVectors * 32, 4, *targetReg,
+            [targetReg, VValue]
+            (CodeGenerator &c, uint32_t r, uint32_t, ScalarRegisterAllocator::RegisterPtr)
+            {
+                c.vstore(*VValue, *targetReg, r * 2);                  
+            },
+            [targetReg]
+            (CodeGenerator &c, uint32_t numUnrolls)
+            {
                 c.addi(*targetReg, *targetReg, 64 * numUnrolls);
             });
     }
