@@ -610,12 +610,13 @@ class CodeGeneratorVisitor : public ModelComponentVisitor
 public:
     CodeGeneratorVisitor(std::shared_ptr<const ProcessGroup> processGroup, 
                          ScalarRegisterAllocator::RegisterPtr timeRegister,
+                         std::optional<uint32_t> numTimesteps,
                          CodeGenerator &codeGenerator, 
                          VectorRegisterAllocator &vectorRegisterAllocator, 
                          ScalarRegisterAllocator &scalarRegisterAllocator, 
                          const Model &model, bool useDRAMForWeights, bool keepParamsInRegisters,
                          RoundingMode neuronUpdateRoundingMode)
-    :   m_TimeRegister(timeRegister), m_CodeGenerator(codeGenerator), m_VectorRegisterAllocator(vectorRegisterAllocator),
+    :   m_TimeRegister(timeRegister), m_NumTimesteps(numTimesteps), m_CodeGenerator(codeGenerator), m_VectorRegisterAllocator(vectorRegisterAllocator),
         m_ScalarRegisterAllocator(scalarRegisterAllocator), m_Model(model), 
         m_UseDRAMForWeights(useDRAMForWeights), m_KeepParamsInRegisters(keepParamsInRegisters),
         m_NeuronUpdateRoundingMode(neuronUpdateRoundingMode)
@@ -673,7 +674,7 @@ private:
          // For now, unrollVectorLoopBody requires SOME buffers
         assert(!neuronUpdateProcess->getVariables().empty());
 
-        std::unordered_map<std::shared_ptr<const Variable>, RegisterPtr> varBufferRegisters;
+        std::unordered_map<std::shared_ptr<const Variable>, std::vector<RegisterPtr>> varBufferRegisters;
         {
             // If any variables have buffering, calculate stride in bytes
             // **TODO** make set of non-1 bufferings and pre-multiply time by this
@@ -693,21 +694,35 @@ private:
                 // If variable can be implemented in URAM
                 if(visitor.isURAMCompatible()) {
                     // Allocate scalar register to hold address of variable
-                    const auto reg = m_ScalarRegisterAllocator.get().getRegister((v.first + "Buffer X").c_str());
+                    const auto regRead = m_ScalarRegisterAllocator.get().getRegister((v.first + "Buffer X").c_str());
 
                     // Add register to map
-                    varBufferRegisters.try_emplace(v.second, reg);
+                    varBufferRegisters[v.second].emplace_back(regRead);
 
                     // Generate code to load address
-                    c.lw(*reg, Reg::X0, stateFields.at(v.second));
+                    c.lw(*regRead, Reg::X0, stateFields.at(v.second));
 
-                    // If there are multiple timesteps, multiply timestep by stride and add to register
-                    // **TODO** modulus number of buffer timesteps/whatever else for delays
-                    if (v.second->getNumBufferTimesteps() != 1) {
+                    // **TODO** currently this just handles providing entire simulation kernel worth of variable data or
+                    // recording variables for entire simulation - extend to support axonal delays and ring-buffer recording
+                    const size_t numBufferTimesteps = v.second->getNumBufferTimesteps();
+                    if (numBufferTimesteps != 1) {
+                        // Check there is a buffer entry for each timestep with one extra
+                        // **NOTE** variables get read from timestep and written to timestep + 1 hence extra buf
+                        if(numBufferTimesteps < (m_NumTimesteps.value() + 1)) {
+                            throw std::runtime_error("Variables need to be buffered for " + std::to_string(m_NumTimesteps.value() + 1u) + " timesteps");
+                        }
+
                         ALLOCATE_SCALAR(STmp);
-
                         c.mul(*STmp, *m_TimeRegister, *SNumVariableBytes);
-                        c.add(*reg, *reg, *STmp);
+                        c.add(*regRead, *regRead, *STmp);
+
+                        // Allocate additional register for writing variable
+                        // **TODO** should be lazy
+                        const auto regWrite = m_ScalarRegisterAllocator.get().getRegister((v.first + "BufferWrite X").c_str());
+                        c.add(*regWrite, *regRead, *SNumVariableBytes);
+
+                        // Add additional register
+                        varBufferRegisters[v.second].emplace_back(regWrite);
                     }
                 }
                 // Otherwise, if it can be implemented in LLM
@@ -716,7 +731,7 @@ private:
                     const auto reg = m_VectorRegisterAllocator.get().getRegister((v.first + "Buffer V").c_str());
 
                     // Add register to map
-                    varBufferRegisters.try_emplace(v.second, reg);
+                    varBufferRegisters[v.second].emplace_back(reg);
 
                     // Generate code to load address
                     ALLOCATE_SCALAR(STmp);
@@ -754,11 +769,20 @@ private:
                 c.lw(*reg, Reg::X0, stateFields.at(e.second));
 
                 // If there are multiple timesteps, multiply timestep by stride and add to register
-                // **TODO** modulus number of buffer timesteps/whatever else for delays
-                if (e.second->getNumBufferTimesteps() != 1) {
+                // **TODO** currently this just handles providing entire simulation kernel worth of event data or
+                // recording variables for entire simulation - extend to support axonal delays and ring-buffer recording
+                const size_t numBufferTimesteps = e.second->getNumBufferTimesteps();
+                if (numBufferTimesteps != 1) {
+                    // Check there is a buffer entry for each timestep with one extra
+                    // **NOTE** variables get read from timestep and written to timestep + 1 so extra buf
+                    if(numBufferTimesteps < (m_NumTimesteps.value() + 1)) {
+                        throw std::runtime_error("Events need to be buffered for " + std::to_string(m_NumTimesteps.value() + 1u) + " timesteps");
+                    }
+
+                    // reg = stride * (time + 1)
                     ALLOCATE_SCALAR(STmp);
-                    
-                    c.mul(*STmp, *m_TimeRegister, *SNumEventBytes);
+                    c.addi(*STmp, *m_TimeRegister, 1);
+                    c.mul(*STmp, *STmp, *SNumEventBytes);
                     c.add(*reg, *reg, *STmp);
                 }
             }
@@ -844,13 +868,13 @@ private:
         
         // **YUCK** find first scalar-addressed variable to use for loop check
         auto firstScalarAddressRegister = std::find_if(varBufferRegisters.cbegin(), varBufferRegisters.cend(),
-                                                       [](const auto &v){ return std::holds_alternative<ScalarRegisterAllocator::RegisterPtr>(v.second); });
+                                                       [](const auto &v){ return std::holds_alternative<ScalarRegisterAllocator::RegisterPtr>(v.second.front()); });
         assert(firstScalarAddressRegister != varBufferRegisters.cend());
 
         // Build vectorised neuron loop
         AssemblerUtils::unrollVectorLoopBody(
             envLibrary.getCodeGenerator(), m_ScalarRegisterAllocator.get(),
-            neuronUpdateProcess->getNumNeurons(), 4, *std::get<ScalarRegisterAllocator::RegisterPtr>(firstScalarAddressRegister->second),
+            neuronUpdateProcess->getNumNeurons(), 4, *std::get<ScalarRegisterAllocator::RegisterPtr>(firstScalarAddressRegister->second.front()),
             [this, &envLibrary, &eventBufferRegisters, &literalPool, &neuronUpdateProcess,
              &emitEventFunctionType, &varBufferRegisters]
             (CodeGenerator&, uint32_t r, bool, ScalarRegisterAllocator::RegisterPtr maskReg)
@@ -876,7 +900,7 @@ private:
                             {
                                 unrollEnv.getCodeGenerator().vloadl(*reg, *bufferReg, 2 * r);    
                             }},
-                        varBufferRegisters.at(v.second));
+                        varBufferRegisters.at(v.second).front());
                 }
 
                 // Loop through neuron event outputs
@@ -931,7 +955,7 @@ private:
                             {
                                 unrollEnv.getCodeGenerator().vstorel(*reg, *bufferReg, 2 * r);    
                             }},
-                        varBufferRegisters.at(v.second));
+                        varBufferRegisters.at(v.second).back());
                 }
             },
             [this, &eventBufferRegisters, &neuronUpdateProcess, &varBufferRegisters]
@@ -940,26 +964,28 @@ private:
                 // If any variables have vector addresses i.e. are stored in LLM, load number of bytes to unroll
                 VectorRegisterAllocator::RegisterPtr numUnrollBytesReg;
                 if(std::any_of(varBufferRegisters.cbegin(), varBufferRegisters.cend(),
-                               [](const auto &v){ return std::holds_alternative<VectorRegisterAllocator::RegisterPtr>(v.second); }))
+                               [](const auto &v){ return std::holds_alternative<VectorRegisterAllocator::RegisterPtr>(v.second.front()); }))
                 {
                     numUnrollBytesReg = m_VectorRegisterAllocator.get().getRegister("NumUnrollBytes V");
                     c.vlui(*numUnrollBytesReg, numUnrolls * 2);
                 }
             
-                // Loop through variables and increment buffers
+                // Loop through variables and increment all buffers
                 // **TODO** based on data structure, determine stride
                 for(const auto &v : neuronUpdateProcess->getVariables()) {
-                    std::visit(
-                        Utils::Overload{
-                            [&c, numUnrolls](ScalarRegisterAllocator::RegisterPtr bufferReg)
-                            {
-                                c.addi(*bufferReg, *bufferReg, 64 * numUnrolls);
-                            },
-                            [&c, numUnrollBytesReg](VectorRegisterAllocator::RegisterPtr bufferReg)
-                            {
-                                c.vadd(*bufferReg, *bufferReg, *numUnrollBytesReg);
-                            }},
-                        varBufferRegisters.at(v.second));
+                    for(const auto &r : varBufferRegisters.at(v.second)) {
+                        std::visit(
+                            Utils::Overload{
+                                [&c, numUnrolls](ScalarRegisterAllocator::RegisterPtr bufferReg)
+                                {
+                                    c.addi(*bufferReg, *bufferReg, 64 * numUnrolls);
+                                },
+                                [&c, numUnrollBytesReg](VectorRegisterAllocator::RegisterPtr bufferReg)
+                                {
+                                    c.vadd(*bufferReg, *bufferReg, *numUnrollBytesReg);
+                                }},
+                            r);
+                    }
                 }
 
                 // Loop through output events and increment buffers
@@ -1770,25 +1796,20 @@ private:
             c.li(*STmp, ceilDivide(processes.front()->getNumSourceNeurons(), 32) * 4);
 
             // If there are multiple timesteps, multiply timestep by stride and add to event start pointer
-            // **TODO** modulus number of buffer timesteps/whatever else for delays
+            // **TODO** currently this just handles providing entire simulation kernel worth of event data or
+            // recording events for entire simulation - extend to support axonal delays and ring-buffer recording
             const size_t numBufferTimesteps = processes.front()->getInputEvents()->getNumBufferTimesteps();
             if (numBufferTimesteps != 1) {
-                // Check number of buffer timesteps is P.O.T.
-                if((numBufferTimesteps & (numBufferTimesteps - 1)) != 0) {
-                    throw std::runtime_error("When used for spike propagation, event containers "
-                                             "need to have a power-of-two number of buffer timesteps");
+                // Check there is a buffer entry for each timestep
+                // **NOTE** because event propagation processes only READ 
+                // events, there's no need for extra buffer entry to write into this timestep
+                if(numBufferTimesteps < m_NumTimesteps.value()) {
+                    throw std::runtime_error("Event containers need to have a buffer");
                 }
 
+                // Multiply time by stride and add to address
                 ALLOCATE_SCALAR(STmp2);
-
-                // Calculate (t + numBufferTimesteps - 1) % numBufferTimesteps
-                // **TODO** delay
-                // **THINK** using immediates limits to 12 bit delay - more than enough
-                c.addi(*STmp2, *m_TimeRegister, numBufferTimesteps - 1);
-                c.andi(*STmp2, *STmp2, numBufferTimesteps - 1);
-
-                // Multiply by stride and add to address
-                c.mul(*STmp2, *STmp2, *STmp);
+                c.mul(*STmp2, *m_TimeRegister, *STmp);
                 c.add(*SEventBuffer, *SEventBuffer, *STmp2);
             }
 
@@ -1851,6 +1872,7 @@ private:
     //------------------------------------------------------------------------
     std::unordered_map<std::shared_ptr<const EventContainer>, std::vector<std::shared_ptr<const EventPropagationProcess>>> m_EventPropagationProcesses;
     ScalarRegisterAllocator::RegisterPtr m_TimeRegister;
+    std::optional<uint32_t> m_NumTimesteps;
     std::reference_wrapper<CodeGenerator> m_CodeGenerator;
     std::reference_wrapper<VectorRegisterAllocator> m_VectorRegisterAllocator;
     std::reference_wrapper<ScalarRegisterAllocator> m_ScalarRegisterAllocator;
@@ -1960,7 +1982,7 @@ std::vector<uint32_t> BackendFeNN::generateSimulationKernel(const std::vector<st
             {
                 // Visit timestep process group
                 for (const auto &p : timestepProcessGroups) {
-                    CodeGeneratorVisitor visitor(p, STime, c, vectorRegisterAllocator,
+                    CodeGeneratorVisitor visitor(p, STime, numTimesteps, c, vectorRegisterAllocator,
                                                  scalarRegisterAllocator, model,
                                                  m_UseDRAMForWeights, m_KeepParamsInRegisters,
                                                  m_NeuronUpdateRoundingMode);
@@ -1972,7 +1994,7 @@ std::vector<uint32_t> BackendFeNN::generateSimulationKernel(const std::vector<st
 
             // Visit end process group
             for (const auto &p : endProcessGroups) {
-                CodeGeneratorVisitor visitor(p, nullptr, c, vectorRegisterAllocator,
+                CodeGeneratorVisitor visitor(p, nullptr, std::nullopt, c, vectorRegisterAllocator,
                                              scalarRegisterAllocator, model,
                                              m_UseDRAMForWeights, m_KeepParamsInRegisters,
                                              m_NeuronUpdateRoundingMode);
@@ -1997,7 +2019,7 @@ std::vector<uint32_t> BackendFeNN::generateKernel(const std::vector <std::shared
 
             // Visit process groups
             for (const auto &p : processGroups) {
-                CodeGeneratorVisitor visitor(p, nullptr, c, vectorRegisterAllocator,
+                CodeGeneratorVisitor visitor(p, nullptr, std::nullopt, c, vectorRegisterAllocator,
                                              scalarRegisterAllocator, model,
                                              m_UseDRAMForWeights, m_KeepParamsInRegisters,
                                              m_NeuronUpdateRoundingMode);
