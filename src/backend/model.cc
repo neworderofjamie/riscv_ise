@@ -15,16 +15,115 @@
 namespace
 {
 //----------------------------------------------------------------------------
-// Visitor
+// ProcessVisitor
 //----------------------------------------------------------------------------
-class Visitor : public ModelComponentVisitor
+//! Visitor to determine which 
+class ProcessVisitor : public ModelComponentVisitor
 {
 public:
-    Visitor(const std::vector<std::shared_ptr<const ProcessGroup>> processGroups, 
-            Model::StatefulFields &statefulFields, Model::StateProcesses &stateProcesses,
-            const Model::BackendFields &backendFields, uint32_t &fieldOffset)
-    :   m_StatefulFields(statefulFields), m_StateProcesses(stateProcesses), 
-        m_BackendFields(backendFields), m_FieldOffset(fieldOffset)
+    ProcessVisitor(const std::vector<std::shared_ptr<const ProcessGroup>> processGroups, 
+                   Model::StateProcesses &stateProcesses)
+    :   m_StateProcesses(stateProcesses)
+    {
+        // Loop through all process groups and visit
+        for(const auto &g : processGroups)  {
+            g->accept(*this);
+        }
+    }
+
+private:
+    //------------------------------------------------------------------------
+    // ModelComponentVisitor virtuals
+    //------------------------------------------------------------------------
+    virtual void visit(std::shared_ptr<const ProcessGroup> processGroup)
+    {
+        LOGD << "Process group '" << processGroup->getName() << "'";
+       
+        // Visit performance counter
+        // **THINK** what is going on here!?
+        if(processGroup->getPerformanceCounter()) {
+            m_StateProcesses.get().try_emplace(processGroup->getPerformanceCounter());
+        }
+
+        // Visit all the processes
+        for(const auto &p : processGroup->getProcesses()) {
+            p->accept(*this);
+        }
+    }
+
+    virtual void visit(std::shared_ptr<const NeuronUpdateProcess> neuronUpdateProcess)
+    {
+        LOGD << "\tNeuron update process '" << neuronUpdateProcess->getName() << "'";
+        
+        // Visit variables
+        for(auto &v : neuronUpdateProcess->getVariables()) {
+            m_StateProcesses.get()[v.second].push_back(neuronUpdateProcess);
+        }
+
+        // Visit output event containers
+        for(auto &e : neuronUpdateProcess->getOutputEvents()) {
+            m_StateProcesses.get()[e.second].push_back(neuronUpdateProcess);
+        }
+    }
+
+    virtual void visit(std::shared_ptr<const EventPropagationProcess> eventPropagationProcess)
+    {
+        LOGD << "\tEvent propagation process '" << eventPropagationProcess->getName() << "'";
+
+        // Add back-references in state processes
+        m_StateProcesses.get()[eventPropagationProcess->getInputEvents()].push_back(eventPropagationProcess);
+        m_StateProcesses.get()[eventPropagationProcess->getWeight()].push_back(eventPropagationProcess);
+        m_StateProcesses.get()[eventPropagationProcess->getTarget()].push_back(eventPropagationProcess);
+    }
+
+    virtual void visit(std::shared_ptr<const RNGInitProcess> rngInitProcess)
+    {
+        LOGD << "\tRNG init process '" << rngInitProcess->getName() << "'";
+
+        // Add back-references in state processes
+        m_StateProcesses.get()[rngInitProcess->getSeed()].push_back(rngInitProcess);
+    }
+
+    virtual void visit(std::shared_ptr<const BroadcastProcess> broadcastProcess)
+    {
+        LOGD << "\tBroadcast process '" << broadcastProcess->getName() << "'";
+    
+        // Add back-references in state processes
+        m_StateProcesses.get()[broadcastProcess->getSource()].push_back(broadcastProcess);
+
+         // If target is a variable reference, add back-references in state 
+        if(std::holds_alternative<VariablePtr>(broadcastProcess->getTarget())) {
+            auto target = std::get<VariablePtr>(broadcastProcess->getTarget());
+            m_StateProcesses.get()[target].push_back(broadcastProcess);
+        }
+    }
+
+    virtual void visit(std::shared_ptr<const MemsetProcess> memsetProcess)
+    {
+        LOGD << "\tMemset process '" << memsetProcess->getName() << "'";
+        
+        // If target is a variable reference, add back-references in state 
+        if(std::holds_alternative<VariablePtr>(memsetProcess->getTarget())) {
+            auto target = std::get<VariablePtr>(memsetProcess->getTarget());
+            m_StateProcesses.get()[target].push_back(memsetProcess);
+        }
+    }
+
+    //------------------------------------------------------------------------
+    // Members
+    //------------------------------------------------------------------------
+    std::reference_wrapper<Model::StateProcesses> m_StateProcesses;
+
+};
+//----------------------------------------------------------------------------
+// FieldVisitor
+//----------------------------------------------------------------------------
+class FieldVisitor : public ModelComponentVisitor
+{
+public:
+    FieldVisitor(const std::vector<std::shared_ptr<const ProcessGroup>> processGroups, 
+            Model::StatefulFields &statefulFields, const Model::BackendFields &backendFields, uint32_t &fieldOffset)
+    :   m_StatefulFields(statefulFields), m_BackendFields(backendFields), m_FieldOffset(fieldOffset)
     {
         // Loop through all process groups and visit
         for(const auto &g : processGroups)  {
@@ -68,7 +167,6 @@ private:
         // Visit performance counter
         if(processGroup->getPerformanceCounter()) {
             processGroup->getPerformanceCounter()->accept(*this);
-            m_StateProcesses.get().try_emplace(processGroup->getPerformanceCounter());
         }
 
         // Visit all the processes
@@ -93,13 +191,11 @@ private:
         // Visit variables
         for(auto &v : neuronUpdateProcess->getVariables()) {
             v.second->accept(*this);
-            m_StateProcesses.get()[v.second].push_back(neuronUpdateProcess);
         }
 
         // Visit output event containers
         for(auto &e : neuronUpdateProcess->getOutputEvents()) {
             e.second->accept(*this);
-            m_StateProcesses.get()[e.second].push_back(neuronUpdateProcess);
         }
 
         // Add process fields
@@ -120,11 +216,6 @@ private:
         eventPropagationProcess->getInputEvents()->accept(*this);
         eventPropagationProcess->getWeight()->accept(*this);
         eventPropagationProcess->getTarget()->accept(*this);
-        
-        // Add back-references in state processes
-        m_StateProcesses.get()[eventPropagationProcess->getInputEvents()].push_back(eventPropagationProcess);
-        m_StateProcesses.get()[eventPropagationProcess->getWeight()].push_back(eventPropagationProcess);
-        m_StateProcesses.get()[eventPropagationProcess->getTarget()].push_back(eventPropagationProcess);
 
         // Add process fields
         if(!m_StatefulFields.get().try_emplace(eventPropagationProcess, m_CurrentProcessFields).second) {
@@ -142,9 +233,6 @@ private:
 
         // Visit components
         rngInitProcess->getSeed()->accept(*this);
-        
-        // Add back-references in state processes
-        m_StateProcesses.get()[rngInitProcess->getSeed()].push_back(rngInitProcess);
 
         // Add process fields
         if(!m_StatefulFields.get().try_emplace(rngInitProcess, m_CurrentProcessFields).second) {
@@ -160,17 +248,13 @@ private:
         LOGD << "\tBroadcast process '" << broadcastProcess->getName() << "'";
         assert(m_CurrentProcessFields.empty());
 
-        // Visit source and add back-references in state processes
+        // Visit source 
         broadcastProcess->getSource()->accept(*this);
-        m_StateProcesses.get()[broadcastProcess->getSource()].push_back(broadcastProcess);
-
-         // If target is a variable reference
+  
+         // If target is a variable reference, visit target
         if(std::holds_alternative<VariablePtr>(broadcastProcess->getTarget())) {
             auto target = std::get<VariablePtr>(broadcastProcess->getTarget());
-
-            // Visit target and add back-references in state processes
             target->accept(*this);    
-            m_StateProcesses.get()[target].push_back(broadcastProcess);
         }
         // Otherwise
         else {
@@ -225,9 +309,6 @@ private:
             // Visit 
             target->accept(*this);
             
-            // Add back-references in state 
-            m_StateProcesses.get()[target].push_back(memsetProcess);
-
             // Add process fields
             if(!m_StatefulFields.get().try_emplace(memsetProcess, m_CurrentProcessFields).second) {
                 throw std::runtime_error("Memset process '" + memsetProcess->getName() + "' encountered multiple times in model traversal");
@@ -244,8 +325,6 @@ private:
             if(m_BackendFields.get().find(target) == m_BackendFields.get().cend()) {
                 throw std::runtime_error("Memset process '" + memsetProcess->getName() + "' targets non-existent backend state");
             }
-
-            // **NOTE** no need for back-references - backend fields are global
         }
     }
 
@@ -266,7 +345,6 @@ private:
     // Members
     //------------------------------------------------------------------------
     std::reference_wrapper<Model::StatefulFields> m_StatefulFields;
-    std::reference_wrapper<Model::StateProcesses> m_StateProcesses;
     std::reference_wrapper<const Model::BackendFields> m_BackendFields;
     std::reference_wrapper<uint32_t> m_FieldOffset;
     Model::StateFields m_CurrentProcessFields;
@@ -281,6 +359,10 @@ Model::Model(const std::vector<std::shared_ptr<const ProcessGroup>> &processGrou
              const BackendFeNN &backend)
 :   m_ProcessGroups(processGroups)
 {
+    // Visit processes to build StateProcesses datastructure, 
+    // determining which Process objects reference each State obkect
+    ProcessVisitor processVisitor(m_ProcessGroups, m_StateProcesses);
+
     // Allocate fields for backend-specific state
     uint32_t fieldOffset = 4;
     const auto backendStateObjects = backend.getRequiredStateObjects(*this);
@@ -293,10 +375,8 @@ Model::Model(const std::vector<std::shared_ptr<const ProcessGroup>> &processGrou
                        return std::make_pair(s.first, std::make_tuple(s.second, oldFieldOffset));
                    });
 
-    // Use visitor to populate process fields and 
-    // state processes data structures from process groups
-    Visitor visitor(m_ProcessGroups, m_StatefulFields, m_StateProcesses, 
-                    m_BackendFields, fieldOffset);
+    // Visit fields to build StatefulFields datastructure, allocating fields for all Stateful objects
+    FieldVisitor fieldVisitor(m_ProcessGroups, m_StatefulFields, m_BackendFields, fieldOffset);
 
     // Calculate total
     m_NumFields = (fieldOffset / 4);
