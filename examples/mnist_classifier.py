@@ -3,7 +3,7 @@ import mnist
 
 from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer, Model, 
                     PerformanceCounter, ProcessGroup, Runtime, Shape)
-from models import Copy, LI, LIF, Linear
+from models import LI, LIF, Linear, Memset
 
 from pyfenn import disassemble, init_logging
 from pyfenn.utils import (get_array_view, get_latency_spikes, load_and_push,
@@ -37,23 +37,23 @@ output = LI(output_shape, 20.0, num_timesteps, 6, name="output")
 input_hidden = Linear(input_spikes, hidden.i, "s10_5_sat_t", name="input_hidden")
 hidden_output = Linear(hidden.out_spikes, output.i, "s9_6_sat_t", name="hidden_output")
 
-output_copy = Copy(output.v_avg)
+avg_zero = Memset(output.v_avg)
 
 # Group processes
 neuron_update_processes = ProcessGroup([hidden.process, output.process], PerformanceCounter() if time else None)
 synapse_update_processes = ProcessGroup([input_hidden.process, hidden_output.process], PerformanceCounter() if time else None)
-copy_processes = ProcessGroup([output_copy.process], PerformanceCounter() if time else None)
+zero_processes = ProcessGroup([avg_zero.process], PerformanceCounter() if time else None)
 
 # Create backend
 backend = BackendFeNNHW() if device else BackendFeNNSim()
 
 # Create model
-model = Model([neuron_update_processes, synapse_update_processes, copy_processes],
+model = Model([neuron_update_processes, synapse_update_processes, zero_processes],
               backend)
 
 # Generate sim code
 code = backend.generate_simulation_kernel([synapse_update_processes, neuron_update_processes],  # Update synapses and then neurons every timestep
-                                          [copy_processes],
+                                          [zero_processes], [],
                                           num_timesteps, model)
 
 # Disassemble if required
@@ -83,7 +83,7 @@ zero_and_push(output.v_avg, runtime)
 if time:
     zero_and_push(neuron_update_processes.performance_counter, runtime)
     zero_and_push(synapse_update_processes.performance_counter, runtime)
-    zero_and_push(copy_processes.performance_counter, runtime)
+    zero_and_push(zero_processes.performance_counter, runtime)
 
 # Set instructions
 runtime.set_instructions(code)
@@ -93,9 +93,7 @@ input_spike_array, input_spike_view = get_array_view(runtime, input_spikes,
                                                      np.uint32)
 hidden_spike_array = runtime.get_array(hidden.out_spikes)
 
-output_v_avg_array, _ = get_array_view(runtime, output.v_avg, np.int16)
-output_v_avg_copy_array, output_v_avg_copy_view = get_array_view(runtime, output_copy.target,
-                                                                 np.int16)
+output_v_avg_array, output_v_avg_view = get_array_view(runtime, output.v_avg, np.int16)
 num_correct = 0
 for i in tqdm(range(len(mnist_labels))):
     # Copy data to array host pointe
@@ -105,23 +103,14 @@ for i in tqdm(range(len(mnist_labels))):
     # Classify
     runtime.run()
 
-    # If we're recording, write input and hidden spikes to file
-    #if record:
-    #    recordSpikes("mnist_input_spikes_" + std::to_string(i) + ".csv", inputSpikeArray,
-    #                 inputShape.getNumNeurons(), numTimesteps);
-    #    recordSpikes("mnist_hidden_spikes_" + std::to_string(i) + ".csv", hiddenSpikeArray,
-    #                 hiddenShape.getNumNeurons(), numTimesteps);
-
     # Copy output V sum from device
-    output_v_avg_copy_array.pull_from_device()
+    output_v_avg_array.pull_from_device()
 
     # Determine if output is correct
-    classification = np.argmax(output_v_avg_copy_view)
+    classification = np.argmax(output_v_avg_view)
     if classification == mnist_labels[i]:
         num_correct += 1
 
-    # Push ORIGINAL output back to device (zeroing)
-    output_v_avg_array.push_to_device()
 
 print(f"{num_correct} / {len(mnist_labels)} correct {100.0 * (num_correct / len(mnist_labels))}%")
 
@@ -131,7 +120,7 @@ if time:
     synapse_update_cycles, synapse_update_instructions = read_perf_counter(
         synapse_update_processes.performance_counter, runtime)
     copy_cycles, copy_instructions = read_perf_counter(
-        copy_processes.performance_counter, runtime)
+        zero_processes.performance_counter, runtime)
     
     print(f"Neuron update {neuron_update_cycles} cycles, {neuron_update_instructions} instruction ({neuron_update_instructions / neuron_update_cycles})")
     print(f"Synapse update {synapse_update_cycles} cycles, {synapse_update_instructions} instruction ({synapse_update_instructions / synapse_update_cycles})")

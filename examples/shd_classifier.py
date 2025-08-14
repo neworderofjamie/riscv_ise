@@ -3,7 +3,7 @@ import mnist
 
 from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer, Model, ProcessGroup,
                     Runtime, Shape)
-from models import ALIF, Copy, LI, Linear, RNGInit
+from models import ALIF, LI, Linear, Memset, RNGInit
 from tonic.datasets import SHD
 
 from pyfenn import disassemble, init_logging
@@ -53,26 +53,26 @@ input_hidden = Linear(input_spikes, hidden.i, "s8_7_sat_t", name="input_hidden")
 hidden_hidden = Linear(hidden.out_spikes, hidden.i, "s8_7_sat_t", name="hidden_hidden")
 hidden_output = Linear(hidden.out_spikes, output.i, "s4_11_sat_t", name="hidden_output")
 
-output_copy = Copy(output.v_avg)
+output_zero = Memset(output.v_avg)
 
 # Group processes
 init_processes = ProcessGroup([rng_init.process])
 neuron_update_processes = ProcessGroup([hidden.process, output.process])
 synapse_update_processes = ProcessGroup([input_hidden.process, hidden_hidden.process, 
                                          hidden_output.process])
-copy_processes = ProcessGroup([output_copy.process])
+zero_processes = ProcessGroup([output_zero.process])
 
 # Create backend
 backend = BackendFeNNHW() if device else BackendFeNNSim()
 
 # Create model
-model = Model([init_processes, neuron_update_processes, synapse_update_processes, copy_processes],
+model = Model([init_processes, neuron_update_processes, synapse_update_processes, zero_processes],
               backend)
 
 # Generate init and sim code
 init_code = backend.generate_kernel([init_processes], model)
 code = backend.generate_simulation_kernel([synapse_update_processes, neuron_update_processes],  # Update synapses and then neurons every timestep
-                                          [copy_processes],
+                                          [zero_processes], [],
                                           num_timesteps, model)
 
 # Disassemble if required
@@ -119,10 +119,8 @@ runtime.set_instructions(code)
 input_spike_array, input_spike_view = get_array_view(runtime, input_spikes,
                                                      np.uint32)
 hidden_spike_array = runtime.get_array(hidden.out_spikes)
+output_v_avg_array, output_v_avg_view = get_array_view(runtime, output.v_avg, np.int16)
 
-output_v_avg_array, _ = get_array_view(runtime, output.v_avg, np.int16)
-output_v_avg_copy_array, output_v_avg_copy_view = get_array_view(runtime, output_copy.target,
-                                                                 np.int16)
 num_correct = 0
 for spikes, label in tqdm(zip(shd_spikes, shd_labels),
                           total=len(shd_labels)):
@@ -134,14 +132,11 @@ for spikes, label in tqdm(zip(shd_spikes, shd_labels),
     runtime.run()
 
     # Copy output V sum from device
-    output_v_avg_copy_array.pull_from_device();
+    output_v_avg_array.pull_from_device();
 
     # Determine if output is correct
-    classification = np.argmax(output_v_avg_copy_view)
+    classification = np.argmax(output_v_avg_view)
     if classification == label:
         num_correct += 1
-
-    # Push ORIGINAL output back to device (zeroing)
-    output_v_avg_array.push_to_device()
 
 print(f"{num_correct} / {len(shd_labels)} correct {100.0 * (num_correct / len(shd_labels))}%")
