@@ -4,7 +4,6 @@ import torch
 
 from pyfenn import (BackendFeNNHW, BackendFeNNSim, Model,
                     ProcessGroup, Runtime)
-from models import Copy
 
 from pyfenn import disassemble, init_logging
 from pyfenn.utils import get_array_view, load_and_push, zero_and_push
