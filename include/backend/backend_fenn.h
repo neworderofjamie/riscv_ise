@@ -363,6 +363,7 @@ public:
     // Public API
     //------------------------------------------------------------------------
     std::vector<uint32_t> generateSimulationKernel(const std::vector<std::shared_ptr<const ProcessGroup>> &timestepProcessGroups, 
+                                                   const std::vector <std::shared_ptr<const ProcessGroup>> &beginProcessGroups,
                                                    const std::vector <std::shared_ptr<const ProcessGroup>> &endProcessGroups,
                                                    uint32_t numTimesteps, const Model &model) const;
 

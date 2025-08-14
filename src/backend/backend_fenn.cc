@@ -1949,6 +1949,7 @@ void DRAMArrayBase::serialiseDeviceObject(std::vector<std::byte> &bytes) const
 // BackendFeNN
 //------------------------------------------------------------------------
 std::vector<uint32_t> BackendFeNN::generateSimulationKernel(const std::vector<std::shared_ptr<const ProcessGroup>> &timestepProcessGroups,
+                                                            const std::vector <std::shared_ptr<const ProcessGroup>> &beginProcessGroups,
                                                             const std::vector <std::shared_ptr<const ProcessGroup>> &endProcessGroups,
                                                             uint32_t numTimesteps, const Model &model) const
 {
@@ -1976,6 +1977,14 @@ std::vector<uint32_t> BackendFeNN::generateSimulationKernel(const std::vector<st
             // Set timestep range and load ready flag pointer
             c.li(*STime, 0);
             c.li(*STimeEnd, numTimesteps);
+            
+            // Visit begin process group
+            for (const auto &p : beginProcessGroups) {
+                CodeGeneratorVisitor visitor(p, nullptr, std::nullopt, c, vectorRegisterAllocator,
+                                             scalarRegisterAllocator, model,
+                                             m_UseDRAMForWeights, m_KeepParamsInRegisters,
+                                             m_NeuronUpdateRoundingMode);
+            }
 
             // Loop over time
             c.L(timeLoop);
