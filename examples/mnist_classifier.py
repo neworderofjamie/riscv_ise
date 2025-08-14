@@ -119,9 +119,9 @@ if time:
         neuron_update_processes.performance_counter, runtime)
     synapse_update_cycles, synapse_update_instructions = read_perf_counter(
         synapse_update_processes.performance_counter, runtime)
-    copy_cycles, copy_instructions = read_perf_counter(
+    zero_cycles, zero_instructions = read_perf_counter(
         zero_processes.performance_counter, runtime)
     
     print(f"Neuron update {neuron_update_cycles} cycles, {neuron_update_instructions} instruction ({neuron_update_instructions / neuron_update_cycles})")
     print(f"Synapse update {synapse_update_cycles} cycles, {synapse_update_instructions} instruction ({synapse_update_instructions / synapse_update_cycles})")
-    print(f"Copy {copy_cycles} cycles, {copy_instructions} instruction ({copy_instructions / copy_cycles})")
+    print(f"Zero {zero_cycles} cycles, {zero_instructions} instruction ({zero_instructions / zero_cycles})")
