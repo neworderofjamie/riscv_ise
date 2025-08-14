@@ -25,9 +25,9 @@ class AdExp:
         fixed_point = 12
         type_str = f"s{15 - fixed_point}_{fixed_point}_sat_t"
         dtype = UnresolvedType(type_str)
-        self.v = Variable(self.shape, dtype, num_timesteps, name=f"{name}_V")
-        self.w = Variable(self.shape, dtype, num_timesteps, name=f"{name}_W")
-        self.out_spikes = EventContainer(self.shape, num_timesteps)
+        self.v = Variable(self.shape, dtype, num_timesteps + 1, name=f"{name}_V")
+        self.w = Variable(self.shape, dtype, num_timesteps + 1, name=f"{name}_W")
+        self.out_spikes = EventContainer(self.shape, num_timesteps + 1)
 
         self.process = NeuronUpdateProcess(
             f"""

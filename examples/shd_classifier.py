@@ -11,7 +11,7 @@ from pyfenn.utils import (ceil_divide, get_array_view, load_quantise_and_push,
                           seed_and_push, zero_and_push)
 from tqdm.auto import tqdm
 
-num_timesteps = 1024
+num_timesteps = 1170
 input_shape = [700]
 hidden_shape = [256]
 output_shape = [20]

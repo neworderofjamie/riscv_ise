@@ -25,11 +25,11 @@ disassemble_code = False
 mnist.datasets_url = "https://storage.googleapis.com/cvdf-datasets/mnist/"
 mnist_spikes = get_latency_spikes(mnist.test_images())
 mnist_labels = mnist.test_labels().astype(np.int16)
-mnist_spikes = np.reshape(mnist_spikes, (mnist_spikes.shape[0], num_timesteps, -1))
+
 init_logging()
 
 # Input spikes
-input_spikes = EventContainer(Shape(input_shape), 128)
+input_spikes = EventContainer(Shape(input_shape), num_timesteps)
 
 # Model
 hidden = LIF(hidden_shape, 20.0, 5, 0.61, record, 5, name="hidden")
@@ -90,11 +90,7 @@ runtime.set_instructions(code)
 
 # Loop through examples
 input_spike_array, input_spike_view = get_array_view(runtime, input_spikes,
-                                                     np.uint32, (128, -1))
-
-# Zero end of input spike buffer
-input_spike_view[num_timesteps:,:] = 0
-
+                                                     np.uint32)
 hidden_spike_array = runtime.get_array(hidden.out_spikes)
 
 output_v_avg_array, _ = get_array_view(runtime, output.v_avg, np.int16)
@@ -103,7 +99,7 @@ output_v_avg_copy_array, output_v_avg_copy_view = get_array_view(runtime, output
 num_correct = 0
 for i in tqdm(range(len(mnist_labels))):
     # Copy data to array host pointe
-    input_spike_view[:num_timesteps,:] = mnist_spikes[i]
+    input_spike_view[:] = mnist_spikes[i]
     input_spike_array.push_to_device()
 
     # Classify

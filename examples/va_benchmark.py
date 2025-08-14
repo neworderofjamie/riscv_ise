@@ -26,7 +26,7 @@ class CUBALIF:
         self.i_inh = Variable(self.shape, dtype, name=f"{name}_IInh")
         self.refrac_time = Variable(self.shape, UnresolvedType("int16_t"), 
                                     name=f"{name}_RefracTime")
-        self.out_spikes = EventContainer(self.shape, num_timesteps)
+        self.out_spikes = EventContainer(self.shape, num_timesteps + 1)
         self.process = NeuronUpdateProcess(
             """
             s5_10_sat_t inSyn;
@@ -101,11 +101,11 @@ ei_conn = build_sparse_connectivity(ei_conn, int(round(exc_weight * 2**10)), num
 # Neurons
 e_pop = CUBALIF([num_excitatory], tau_m=20.0, tau_syn_exc=5.0, tau_syn_inh=10.0,
                 tau_refrac=5, v_thresh=10, i_offset=0.55,
-                num_timesteps=1024, name="E")
+                num_timesteps=num_timesteps, name="E")
 
 i_pop = CUBALIF([num_inhibitory], tau_m=20.0, tau_syn_exc=5.0, tau_syn_inh=10.0,
                 tau_refrac=5, v_thresh=10, i_offset=0.55,
-                num_timesteps=1024, name="I")
+                num_timesteps=num_timesteps, name="I")
 
 # Synapses
 ee_pop = Linear(e_pop.out_spikes, e_pop.i_exc,
@@ -222,8 +222,8 @@ if time:
     print(f"Synapse update {synapse_update_cycles} cycles, {synapse_update_instructions} instruction ({synapse_update_instructions / synapse_update_cycles})")
 
 # Pull spikes
-e_spikes = pull_spikes(1024, e_pop.out_spikes, runtime)
-i_spikes = pull_spikes(1024, i_pop.out_spikes, runtime)
+e_spikes = pull_spikes(num_timesteps + 1, e_pop.out_spikes, runtime)
+i_spikes = pull_spikes(num_timesteps + 1, i_pop.out_spikes, runtime)
 
 # Plot
 fig, axis = plt.subplots()
