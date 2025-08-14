@@ -1832,7 +1832,7 @@ private:
                 // **NOTE** because event propagation processes only READ 
                 // events, there's no need for extra buffer entry to write into this timestep
                 if(numBufferTimesteps < m_NumTimesteps.value()) {
-                    throw std::runtime_error("Event containers need to have a buffer");
+                    throw std::runtime_error("Events need to be buffered for " + std::to_string(m_NumTimesteps.value()) + " timesteps");
                 }
 
                 // Multiply time by stride and add to address
