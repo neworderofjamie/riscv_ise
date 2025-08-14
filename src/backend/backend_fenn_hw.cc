@@ -203,6 +203,13 @@ public:
         return std::make_unique<::DRAMArray>(type, count, this);
     }
 
+    virtual std::unique_ptr<ArrayBase> createURAMLLMArray(const GeNN::Type::ResolvedType &type,
+                                                          size_t uramCount, size_t llmCount) final override
+    {
+        return std::make_unique<::URAMLLMArray>(type, uramCount, llmCount, this);
+    }
+
+
     std::unique_ptr<IFieldArray> createFieldArray(const Model &model) final override
     {
         return std::make_unique<::BRAMFieldArray<BRAMArray>>(GeNN::Type::Uint8, model.getNumFieldBytes(), this);

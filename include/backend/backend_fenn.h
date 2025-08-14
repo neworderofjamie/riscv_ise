@@ -273,6 +273,8 @@ public:
     virtual std::unique_ptr<ArrayBase> createBRAMArray(const GeNN::Type::ResolvedType &type, size_t count) = 0;
     virtual std::unique_ptr<ArrayBase> createLLMArray(const GeNN::Type::ResolvedType &type, size_t count) = 0;
     virtual std::unique_ptr<ArrayBase> createDRAMArray(const GeNN::Type::ResolvedType &type, size_t count) = 0;
+    virtual std::unique_ptr<ArrayBase> createURAMLLMArray(const GeNN::Type::ResolvedType &type,
+                                                          size_t uramCount, size_t llmCount) = 0;
     virtual std::unique_ptr<IFieldArray> createFieldArray(const Model &model) = 0;
 
     //------------------------------------------------------------------------

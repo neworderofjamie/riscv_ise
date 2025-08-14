@@ -176,27 +176,33 @@ public:
         m_RISCV.run();
     }
 
-    std::unique_ptr<ArrayBase> createURAMArray(const GeNN::Type::ResolvedType &type, size_t count) final override
+    virtual std::unique_ptr<ArrayBase> createURAMArray(const GeNN::Type::ResolvedType &type, size_t count) final override
     {
         return std::make_unique<::URAMArray>(type, count, this);
     }
     
-    std::unique_ptr<ArrayBase> createBRAMArray(const GeNN::Type::ResolvedType &type, size_t count) final override
+    virtual std::unique_ptr<ArrayBase> createBRAMArray(const GeNN::Type::ResolvedType &type, size_t count) final override
     {
         return std::make_unique<::BRAMArray>(type, count, this);
     }
     
-    std::unique_ptr<ArrayBase> createLLMArray(const GeNN::Type::ResolvedType &type, size_t count) final override
+    virtual std::unique_ptr<ArrayBase> createLLMArray(const GeNN::Type::ResolvedType &type, size_t count) final override
     {
         return std::make_unique<::LLMArray>(type, count, this);
     }
     
-    std::unique_ptr<ArrayBase> createDRAMArray(const GeNN::Type::ResolvedType &type, size_t count) final override
+    virtual std::unique_ptr<ArrayBase> createDRAMArray(const GeNN::Type::ResolvedType &type, size_t count) final override
     {
         return std::make_unique<::DRAMArray>(type, count, this);
     }
 
-    std::unique_ptr<IFieldArray> createFieldArray(const Model &model) final override
+    virtual std::unique_ptr<ArrayBase> createURAMLLMArray(const GeNN::Type::ResolvedType &type,
+                                                          size_t uramCount, size_t llmCount) final override
+    {
+        return std::make_unique<::URAMLLMArray>(type, uramCount, llmCount, this);
+    }
+
+    virtual std::unique_ptr<IFieldArray> createFieldArray(const Model &model) final override
     {
         return std::make_unique<::BRAMFieldArray<BRAMArray>>(GeNN::Type::Uint8, model.getNumFieldBytes(), this);
     }
