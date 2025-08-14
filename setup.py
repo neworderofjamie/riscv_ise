@@ -121,13 +121,6 @@ if build_fenn_libs:
     if WIN:
         # **NOTE** ensure pygenn_path has trailing slash to make MSVC happy
         out_dir = os.path.join(pyfenn_path, "")
-        
-        # Build libGeNN
-        check_call(["msbuild", os.path.join(genn_path, "genn.sln"), f"/t:genn",
-                    f"/p:Configuration={lib_suffix[1:]}",
-                    "/m", "/verbosity:quiet",
-                    f"/p:OutDir={out_dir}"],
-                    cwd=fenn_path)
 
         # Build all dependencies for FeNN backend
         check_call(["msbuild", "riscv_ise.sln", f"/t:backend",
