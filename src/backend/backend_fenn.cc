@@ -249,7 +249,7 @@ public:
     VariableImplementerVisitor(std::shared_ptr<const Variable> variable, const Model::StateProcesses::mapped_type &processes,
                                bool useDRAMForWeights)
     :   m_Variable(variable), m_UseDRAMForWeights(useDRAMForWeights), m_LLMCompatible(true), 
-        m_URAMCompatible(true), m_BRAMCompatible(true), m_DRAMCompatible(true)
+        m_URAMCompatible(true), m_BRAMCompatible(true), m_DRAMCompatible(true), m_URAMLLMCompatible(true)
     {
         // Visit all processes
         for(auto p : processes) {
@@ -261,6 +261,7 @@ public:
     bool isURAMCompatible() const{ return m_URAMCompatible; }
     bool isBRAMCompatible() const{ return m_BRAMCompatible; }
     bool isDRAMCompatible() const{ return m_DRAMCompatible; }
+    bool isURAMLLMCompatible() const{ return m_URAMLLMCompatible; }
 
 private:
     //------------------------------------------------------------------------
@@ -272,11 +273,11 @@ private:
                                       [this](const auto &v){ return v.second == m_Variable; });
         assert(var != neuronUpdateProcess->getVariables().cend());
      
-        // Neuron variables can be located in URAM or LLM
+        // Neuron variables can be located in URAM, LLM or both
         m_BRAMCompatible = false;
         m_DRAMCompatible = false;
 
-        if(!m_URAMCompatible && !m_LLMCompatible) {
+        if(!m_URAMCompatible && !m_LLMCompatible && !m_URAMLLMCompatible) {
             throw std::runtime_error("Neuron update process '" + neuronUpdateProcess->getName()
                                     + "' variable array '" + m_Variable->getName()
                                     + "' shared with incompatible processes");
@@ -289,6 +290,7 @@ private:
         if(m_Variable == eventPropagationProcess->getWeight()) {
             m_LLMCompatible = false;
             m_BRAMCompatible = false;
+            m_URAMLLMCompatible = false;
 
             if(m_UseDRAMForWeights) {
                 m_URAMCompatible = false;
@@ -315,17 +317,27 @@ private:
             m_BRAMCompatible = false;
             m_DRAMCompatible = false;
 
-            // If it's sparse or delayed, it also can't be located in URAM
-            if(eventPropagationProcess->getNumSparseConnectivityBits() > 0
-               || eventPropagationProcess->getNumDelayBits() > 0) 
-            {
+            // If it's sparse, it must be located in LLM
+            if(eventPropagationProcess->getNumSparseConnectivityBits() > 0) {
                 m_URAMCompatible = false;
+                m_URAMLLMCompatible = false;
+
+                if(!m_LLMCompatible) {
+                    throw std::runtime_error("Event propagation process '" + eventPropagationProcess->getName()
+                                            + "' target array '" + eventPropagationProcess->getTarget()->getName()
+                                            + "' shared with incompatible processes");
+                }
             }
-            
-            if(!m_URAMCompatible && !m_LLMCompatible) {
-                throw std::runtime_error("Event propagation process '" + eventPropagationProcess->getName()
-                                        + "' target array '" + eventPropagationProcess->getTarget()->getName()
-                                        + "' shared with incompatible processes");
+            // Otherwise, if it's delayed, it must be located in URAMLLM
+            else if(eventPropagationProcess->getNumDelayBits() > 0) {
+                m_URAMCompatible = false;
+                m_LLMCompatible = false;
+
+                if(!m_URAMLLMCompatible) {
+                    throw std::runtime_error("Event propagation process '" + eventPropagationProcess->getName()
+                                            + "' target array '" + eventPropagationProcess->getTarget()->getName()
+                                            + "' shared with incompatible processes");
+                }
             }
         }
         else {
@@ -341,6 +353,7 @@ private:
         m_LLMCompatible = false;
         m_BRAMCompatible = false;
         m_DRAMCompatible = false;
+        m_URAMLLMCompatible = false;
 
         if(!m_URAMCompatible) {
             throw std::runtime_error("RNG init process '" + rngInitProcess->getName() 
@@ -356,6 +369,7 @@ private:
             m_LLMCompatible = false;
             m_URAMCompatible = false;
             m_DRAMCompatible = false;
+            m_URAMLLMCompatible = false;
 
             if(!m_BRAMCompatible) {
                 throw std::runtime_error("Broadcast process '" + broadcastProcess->getName() 
@@ -364,7 +378,7 @@ private:
             }
         }
         else {
-            // Otherwise, if variable's target, it can only located in LLM
+            // Otherwise, if variable's target, it can only located in LLM or URAMLLM
             // **TODO** URAM would also be sensible IN THEORY 
             const auto target = std::get<VariablePtr>(broadcastProcess->getTarget());
             assert(m_Variable == target);
@@ -373,7 +387,7 @@ private:
             m_URAMCompatible = false;
             m_DRAMCompatible = false;
 
-            if(!m_LLMCompatible) {
+            if(!m_LLMCompatible && !m_URAMLLMCompatible) {
                 throw std::runtime_error("Broadcast process '" + broadcastProcess->getName()
                                         + "' target array '" + target->getName()
                                         + "' shared with incompatible processes");
@@ -390,10 +404,10 @@ private:
         m_BRAMCompatible = false;
         m_DRAMCompatible = false;
 
-        if(!m_LLMCompatible && !m_URAMCompatible) {
+        if(!m_LLMCompatible && !m_URAMCompatible && !m_URAMLLMCompatible) {
             throw std::runtime_error("Memset process '" + memsetProcess->getName()
-                                    + "' target array '" + target->getName()
-                                    + "' shared with incompatible processes");
+                                     + "' target array '" + target->getName()
+                                     + "' shared with incompatible processes");
         }
     }
 
@@ -407,6 +421,7 @@ private:
     bool m_URAMCompatible;
     bool m_BRAMCompatible;
     bool m_DRAMCompatible;
+    bool m_URAMLLMCompatible;
 };
 
 //----------------------------------------------------------------------------
@@ -1986,8 +2001,9 @@ std::unique_ptr<ArrayBase> BackendFeNN::createArray(std::shared_ptr<const Variab
     varDims.back() = padSize(varDims.back(), 32);
 
     // Multiple padded dimensions together
-    const size_t count = std::accumulate(varDims.cbegin(), varDims.cend(), 
-                                         1, std::multiplies<size_t>()) * variable->getNumBufferTimesteps();
+    const size_t countOneTimestep = std::accumulate(varDims.cbegin(), varDims.cend(), 
+                                                    1, std::multiplies<size_t>());
+    const size_t count = countOneTimestep * variable->getNumBufferTimesteps();
 
     // Create URAM array if variable can be implemented there
     VariableImplementerVisitor visitor(variable, processes, m_UseDRAMForWeights);
@@ -1999,6 +2015,10 @@ std::unique_ptr<ArrayBase> BackendFeNN::createArray(std::shared_ptr<const Variab
     else if(visitor.isLLMCompatible()) {
         LOGI << "Creating variable '" << variable->getName() << "' array in LLM";
         return state->createLLMArray(variable->getType(), count);
+    }
+    else if(visitor.isURAMLLMCompatible()) {
+        LOGI << "Creating variable '" << variable->getName() << "' array in URAM and LLM";
+        return state->createURAMLLMArray(variable->getType(), countOneTimestep, count);
     }
     // Otherwise, create BRAM array if variable can be implemented there
     else if(visitor.isBRAMCompatible()) {
