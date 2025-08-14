@@ -178,19 +178,18 @@ int main(int argc, char** argv)
     const auto hiddenOutputWeight = Variable::create(hiddenOutputShape, GeNN::Type::S9_6);
     const auto hiddenOutput = EventPropagationProcess::create(hiddenSpikes, hiddenOutputWeight, outputI);
 
-    // Output sum copy
-    const auto outputVAvgCopy = Variable::create(outputShape, GeNN::Type::S9_6Sat, 1, "output v avg copy");
-    const auto copyOutputSum = CopyProcess::create(outputVAvg, outputVAvgCopy);
+    // Output zero
+    const auto zeroOutputSum = MemsetProcess::create(outputVAvg);
 
     // Performance counters
     const auto neuronUpdatePerfCounter = PerformanceCounter::create();
     const auto synapseUpdatePerfCounter = PerformanceCounter::create();
-    const auto copyPerfCounter = PerformanceCounter::create();
+    const auto zeroPerfCounter = PerformanceCounter::create();
 
     // Group processes
     const auto neuronUpdateProcesses = ProcessGroup::create({hidden, output}, time ? neuronUpdatePerfCounter : nullptr);
     const auto synapseUpdateProcesses = ProcessGroup::create({inputHidden, hiddenOutput}, time ? synapseUpdatePerfCounter : nullptr);
-    const auto copyProcesses = ProcessGroup::create({copyOutputSum}, time ? copyPerfCounter : nullptr);
+    const auto zeroProcesses = ProcessGroup::create({zeroOutputSum}, time ? zeroPerfCounter : nullptr);
 
     std::unique_ptr<BackendFeNN> backend;
     if (device) {
@@ -201,11 +200,11 @@ int main(int argc, char** argv)
     }
 
     // Build model from process groups we want to simulate
-    Model model({synapseUpdateProcesses, neuronUpdateProcesses, copyProcesses}, *backend);
+    Model model({synapseUpdateProcesses, neuronUpdateProcesses, zeroProcesses}, *backend);
 
     // Generate kernel
     const auto code = backend->generateSimulationKernel({synapseUpdateProcesses, neuronUpdateProcesses},
-                                                        {copyProcesses}, numTimesteps, model);
+                                                        {zeroProcesses}, {}, numTimesteps, model);
     if(shouldDisassemble) {
         for(size_t i = 0; i < code.size(); i++){
             try {
@@ -239,12 +238,11 @@ int main(int argc, char** argv)
     zeroAndPush(outputV, runtime);
     zeroAndPush(outputI, runtime);
     zeroAndPush(outputVAvg, runtime);
-    zeroAndPush(outputVAvgCopy, runtime);
 
     if(time) {
         zeroAndPush(neuronUpdatePerfCounter, runtime);
         zeroAndPush(synapseUpdatePerfCounter, runtime);
-        zeroAndPush(copyPerfCounter, runtime);
+        zeroAndPush(zeroPerfCounter, runtime);
     }
 
     // Load data
@@ -255,8 +253,7 @@ int main(int argc, char** argv)
     auto *inputSpikeArray = runtime.getArray(inputSpikes);
     auto *hiddenSpikeArray = runtime.getArray(hiddenSpikes);
     auto *outputVAvgArray = runtime.getArray(outputVAvg);
-    auto *outputVAvgCopyArray = runtime.getArray(outputVAvgCopy);
-    auto *outputVAvgCopyArrayHostPtr = outputVAvgCopyArray->getHostPointer<int16_t>();
+    auto *outputVAvgHostPtr = outputVAvgArray->getHostPointer<int16_t>();
     size_t numCorrect = 0;
     for (size_t i = 0; i < numExamples; i++) {
         // Copy data to array host pointer
@@ -277,18 +274,13 @@ int main(int argc, char** argv)
         }
 
         // Copy copy of output V sum from device
-        // **NOTE** this has been copied to BRAM so is accessible
-        outputVAvgCopyArray->pullFromDevice();
+        outputVAvgArray->pullFromDevice();
 
         // Determine if output is correct
-        const auto classification = std::distance(outputVAvgCopyArrayHostPtr, std::max_element(outputVAvgCopyArrayHostPtr, outputVAvgCopyArrayHostPtr + 10));
+        const auto classification = std::distance(outputVAvgHostPtr, std::max_element(outputVAvgHostPtr, outputVAvgHostPtr + 10));
         if (classification == mnistLabels[i]) {
             numCorrect++;
         }
-
-        // Push original zeros back over VAvg
-        // **HACK** gross way of zeroing
-        outputVAvgArray->pushToDevice();
     }
 
     std::cout << numCorrect << " / " << numExamples << " correct (" << 100.0 * (numCorrect / double(numExamples)) << "%)" << std::endl;
@@ -298,12 +290,12 @@ int main(int argc, char** argv)
         // Read performance counters
         auto [neuronUpdateCycles, neuronUpdateInstructions] = readPerfCounter(neuronUpdatePerfCounter, runtime);
         auto [synapseUpdateCycles, synapseUpdateInstructions] = readPerfCounter(synapseUpdatePerfCounter, runtime);
-        auto [copyCycles, copyInstructions] = readPerfCounter(copyPerfCounter, runtime);
+        auto [zeroCycles, zeroInstructions] = readPerfCounter(zeroPerfCounter, runtime);
 
         // Print
         std::cout << "Neuron update " << neuronUpdateCycles << " cycles, " << neuronUpdateInstructions << " instruction (" << (double)neuronUpdateInstructions / neuronUpdateCycles << ")" << std::endl;
         std::cout << "Synapse update " << synapseUpdateCycles << " cycles, " << synapseUpdateInstructions << " instruction (" << (double)synapseUpdateInstructions / synapseUpdateCycles << ")" << std::endl;
-        std::cout << "Copy " << copyCycles << " cycles, " << copyInstructions << " instruction (" << (double)copyInstructions / copyCycles << ")" << std::endl;
+        std::cout << "Zero " << zeroCycles << " cycles, " << zeroInstructions << " instruction (" << (double)zeroInstructions / zeroCycles << ")" << std::endl;
     }
     //std::cout << duration.count() << " seconds" << std::endl;
 

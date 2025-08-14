@@ -196,7 +196,6 @@ public:
         // Memcpy bytes into field offset
         std::memcpy(this->getHostPointer() + fieldOffset, 
                     bytes.data(), 4);
-            
     }
 
     //! Copy field data to device

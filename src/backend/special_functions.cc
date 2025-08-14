@@ -104,11 +104,11 @@ void add(CodeGenerator &codeGenerator, ScalarRegisterAllocator &scalarRegisterAl
                                auto VMaxScale = env.getVectorRegister("_exp_max_scale");
 
                                // START RANGE-REDUCTION
-                               // VK = floor((VX * VInvLog) + 0.5).
+                               // VK = floor((VX * VInvLog) + 0.5) [aType]
                                c.vmul(14, *VK, *std::get<VectorRegisterAllocator::RegisterPtr>(args[0]), *VInvLog);
                                c.vsrai_rn(numFrac, *VK, *VK);
 
-                               // VR = VX - (VK * VLog2)
+                               // VR = VX - (VK * VLog2) [aType]
                                c.vmul_rn(15 - numFrac, *VR, *VK, *VLog2);
                                c.vsub(*VR, *std::get<VectorRegisterAllocator::RegisterPtr>(args[0]), *VR);
 

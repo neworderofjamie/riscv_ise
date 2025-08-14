@@ -152,39 +152,6 @@ private:
 };
 
 //----------------------------------------------------------------------------
-// CopyProcess
-//----------------------------------------------------------------------------
-//! Temporary process for copying between variables (typically in different memory space)
-//! Full DMA controller will remove the need for this
-class COMPILER_EXPORT CopyProcess : public AcceptableModelComponent<CopyProcess, Process>
-{
-public:
-    CopyProcess(Private, VariablePtr source, VariablePtr target, const std::string &name);
-
-    //------------------------------------------------------------------------
-    // Public API
-    //------------------------------------------------------------------------
-    const auto getSource() const{ return m_Source; }
-    const auto getTarget() const{ return m_Target; }
-    
-    //------------------------------------------------------------------------
-    // Static API
-    //------------------------------------------------------------------------
-    static std::shared_ptr<CopyProcess> create(VariablePtr source, VariablePtr target,
-                                               const std::string &name = "")
-    {
-        return std::make_shared<CopyProcess>(Private(), source, target, name);
-    }
-
-private:
-    //------------------------------------------------------------------------
-    // Members
-    //------------------------------------------------------------------------
-    VariablePtr m_Source;
-    VariablePtr m_Target;
-};
-
-//----------------------------------------------------------------------------
 // MemsetProcess
 //----------------------------------------------------------------------------
 //! Process for memsetting variables

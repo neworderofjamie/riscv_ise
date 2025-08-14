@@ -213,28 +213,6 @@ private:
         m_CurrentProcessFields.clear();
     }
 
-    virtual void visit(std::shared_ptr<const CopyProcess> copyProcess)
-    {
-        LOGD << "\tCopy process '" << copyProcess->getName() << "'";
-        assert(m_CurrentProcessFields.empty());
-
-        // Visit components
-        copyProcess->getSource()->accept(*this);
-        copyProcess->getTarget()->accept(*this);
-        
-        // Add back-references in state processes
-        m_StateProcesses.get()[copyProcess->getSource()].push_back(copyProcess);
-        m_StateProcesses.get()[copyProcess->getTarget()].push_back(copyProcess);
-
-        // Add process fields
-        if(!m_StatefulFields.get().try_emplace(copyProcess, m_CurrentProcessFields).second) {
-            throw std::runtime_error("Copy process '" + copyProcess->getName() + "' encountered multiple times in model traversal");
-        }
-
-        // Clear current state fields
-        m_CurrentProcessFields.clear();
-    }
-
     virtual void visit(std::shared_ptr<const MemsetProcess> memsetProcess)
     {
         LOGD << "\tMemset process '" << memsetProcess->getName() << "'";

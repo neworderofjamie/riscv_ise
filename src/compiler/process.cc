@@ -135,35 +135,6 @@ RNGInitProcess::RNGInitProcess(Private, VariablePtr seed, const std::string &nam
 }
 
 //----------------------------------------------------------------------------
-// CopyProcess
-//----------------------------------------------------------------------------
-CopyProcess::CopyProcess(Private, VariablePtr source, VariablePtr target, const std::string &name)
-:   AcceptableModelComponent<CopyProcess, Process>(name), m_Source(source), m_Target(target)
-{
-    if(m_Source == nullptr) {
-        throw std::runtime_error("Copy process requires source");
-    }
-
-    if(m_Target == nullptr) {
-        throw std::runtime_error("Copy process requires target");
-    }
-
-    if(m_Source->getShape() != m_Target->getShape()) {
-        throw std::runtime_error("Copy process requires source and target with same shape");
-    }
-
-    if (m_Source->getType() != m_Target->getType()) {
-        throw std::runtime_error("Copy process requires source and target with same shape");
-    }
-
-    if (m_Source->getNumBufferTimesteps() != 1) {
-        throw std::runtime_error("Source has more than 1 buffer timestep which "
-                                 "isn't currently supported by copy processes");
-    }
-}
-
-
-//----------------------------------------------------------------------------
 // MemsetProcess
 //----------------------------------------------------------------------------
 MemsetProcess::MemsetProcess(Private, VariablePtrBackendState target, const std::string &name)

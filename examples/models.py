@@ -2,23 +2,15 @@ import numpy as np
 
 from typing import Optional, Union
 
-from pyfenn import (BroadcastProcess, CopyProcess, EventContainer, 
-                    EventPropagationProcess, MemsetProcess, 
-                    NeuronUpdateProcess, NumericValue, Parameter,
-                    RNGInitProcess, Shape, UnresolvedType, Variable)
+from pyfenn import (BroadcastProcess, EventContainer, EventPropagationProcess,
+                    MemsetProcess, NeuronUpdateProcess, NumericValue,
+                    Parameter, RNGInitProcess, Shape, 
+                    UnresolvedType, Variable)
 
 class RNGInit:
     def __init__(self):
         self.seed = Variable(Shape([64]), UnresolvedType("int16_t"))
         self.process = RNGInitProcess(self.seed)
-
-class Copy:
-    def __init__(self, source: Variable, num_timesteps: int = 1):
-        self.target = Variable(source.shape, 
-                               UnresolvedType(source.type),
-                               num_timesteps,
-                               f"{source.name}_copy")
-        self.process = CopyProcess(source, self.target)
 
 class Memset:
     def __init__(self, target: Variable, name: str = ""):

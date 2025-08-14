@@ -381,37 +381,6 @@ private:
         }
     }
 
-    virtual void visit(std::shared_ptr<const CopyProcess> copyProcess)
-    {
-        // If variable is source, it can only be located in URAM
-        if(m_Variable == copyProcess->getSource()) {
-            m_LLMCompatible = false;
-            m_BRAMCompatible = false;
-            m_DRAMCompatible = false;
-
-            if(!m_URAMCompatible) {
-                throw std::runtime_error("Copy process '" + copyProcess->getName() 
-                                        + "' source array '" + copyProcess->getSource()->getName()
-                                        + "' shared with incompatible processes");
-            }
-        }
-        // Otherwise, if variable's target, it can either be located in BRAM
-        else if(m_Variable == copyProcess->getTarget()) {
-            m_LLMCompatible = false;
-            m_URAMCompatible = false;
-            m_DRAMCompatible = false;
-
-            if(!m_BRAMCompatible) {
-                throw std::runtime_error("Copy process '" + copyProcess->getName()
-                                        + "' target array '" + copyProcess->getTarget()->getName()
-                                        + "' shared with incompatible processes");
-            }
-        }
-        else {
-            assert(false);
-        }
-    }
-
     virtual void visit(std::shared_ptr<const MemsetProcess> memsetProcess)
     {
         const auto target = std::get<VariablePtr>(memsetProcess->getTarget());
@@ -1101,76 +1070,6 @@ private:
 
             // Loop
             c.bne(*SDataBuffer, *SDataBufferEnd, halfWordLoop);
-        }
-    }
-
-    virtual void visit(std::shared_ptr<const CopyProcess> copyProcess)
-    {
-        auto &scalarRegisterAllocator = m_ScalarRegisterAllocator.get();
-        auto &vectorRegisterAllocator = m_VectorRegisterAllocator.get();
-        auto &c = m_CodeGenerator.get();
-
-        // **TODO** URAM->BRAM copy assumed
-
-        // Get fields associated with this process
-        const auto &stateFields = m_Model.get().getStatefulFields().at(copyProcess);
-
-        // Register allocation
-        ALLOCATE_SCALAR(SDataBuffer);
-        ALLOCATE_SCALAR(SVectorBuffer)
-        ALLOCATE_SCALAR(SVectorBufferEnd);
-
-        // Labels
-        Label vectorLoop;
-
-        // Load source and target start address
-        c.lw(*SVectorBuffer, Reg::X0, stateFields.at(copyProcess->getSource()));
-        c.lw(*SDataBuffer, Reg::X0, stateFields.at(copyProcess->getTarget()));
-
-        {
-            // Calculate vector-padded size in bytes and add to get end address
-            ALLOCATE_SCALAR(STemp);
-            c.li(*STemp, 2 * padSize(copyProcess->getSource()->getShape().getFlattenedSize(), 32));
-            c.add(*SVectorBufferEnd, *SVectorBuffer, *STemp);
-
-            // If target has buffering, multiply timestep by stride and add to target buffer pointer
-            if (copyProcess->getTarget()->getNumBufferTimesteps() != 1) {
-                ALLOCATE_SCALAR(STmp2);
-                c.mul(*STmp2, *m_TimeRegister, *STemp);
-                c.add(*SDataBuffer, *SDataBuffer, *STmp2);
-            }
-        }
-        
-        // Loop over vectors
-        c.L(vectorLoop);
-        {
-            // Register allocation
-            ALLOCATE_VECTOR(VData);
-            ALLOCATE_SCALAR(SVal);
-
-            // Load vector
-            c.vloadv(*VData, *SVectorBuffer, 0);
-
-            // **STALL**
-            c.nop();
-            
-            // Unroll lane loop
-            for(int l = 0; l < 32; l++) {
-                // Extract lane into scalar registers
-                c.vextract(*SVal, *VData, l);
-
-                // Store halfword
-                c.sh(*SVal, *SDataBuffer, l * 2);
-            }
-
-            // SVectorBuffer += 64
-            c.addi(*SVectorBuffer, *SVectorBuffer, 64);
-
-            // SDataBuffer += 64
-            c.addi(*SDataBuffer, *SDataBuffer, 64);
-        
-            // If SVectorBuffer != SVectorBufferEnd, goto vector loop
-            c.bne(*SVectorBuffer, *SVectorBufferEnd, vectorLoop);
         }
     }
 

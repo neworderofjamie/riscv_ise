@@ -2,7 +2,7 @@
 import sys
 
 # pyfenn interface
-from ._fenn import (BackendFeNNHW, BackendFeNNSim, BroadcastProcess, CopyProcess, 
+from ._fenn import (BackendFeNNHW, BackendFeNNSim, BroadcastProcess,  
                     EventContainer, EventPropagationProcess, MemsetProcess,
                     Model, ModelComponent, NeuronUpdateProcess, NumericValue,
                     Parameter, PerformanceCounter, PlogSeverity, Process,
@@ -13,11 +13,11 @@ from ._fenn import (BackendFeNNHW, BackendFeNNSim, BroadcastProcess, CopyProcess
 from . import nir_import, utils
 
 __all__ = ["BackendFeNNHW", "BackendFeNNSim", "BroadcastProcess",
-           "CopyProcess", "EventContainer", "EventPropagationProcess",
-           "MemsetProcess", "Model", "ModelComponent", "NeuronUpdateProcess",
-           "NumericValue", "Parameter", "PerformanceCounter", "PlogSeverity",
-           "Process", "ProcessGroup", "RNGInitProcess", "RoundingMode", 
-           "Runtime", "Shape", "State", "UnresolvedType", "Variable", 
+           "EventContainer", "EventPropagationProcess", "MemsetProcess",
+           "Model", "ModelComponent", "NeuronUpdateProcess", "NumericValue",
+           "Parameter", "PerformanceCounter", "PlogSeverity", "Process",
+           "ProcessGroup", "RNGInitProcess", "RoundingMode", "Runtime",
+           "Shape", "State", "UnresolvedType", "Variable",
            "disassemble", "init_logging", "nir_import", "utils"]
 
 if sys.version_info >= (3, 8):
