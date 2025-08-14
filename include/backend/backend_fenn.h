@@ -137,7 +137,6 @@ private:
     std::optional<uint32_t> m_LLMPointer;
 };
 
-
 //----------------------------------------------------------------------------
 // DRAMArrayBase
 //----------------------------------------------------------------------------
@@ -170,6 +169,54 @@ private:
     //------------------------------------------------------------------------
     std::optional<uint32_t> m_DRAMPointer;
 };
+
+//----------------------------------------------------------------------------
+// URAMLLMArrayBase
+//----------------------------------------------------------------------------
+//! Base class for arrays which are allocated in URAM but also have a delayed input in LLM
+//! Typically used for implementing neuron variables with dendritically-delayed input
+class BACKEND_EXPORT URAMLLMArrayBase : public ArrayBase
+{
+public:
+    //------------------------------------------------------------------------
+    // ArrayBase virtuals
+    //------------------------------------------------------------------------
+    //! Serialise backend-specific device object to uint32_t
+    virtual void serialiseDeviceObject(std::vector<std::byte> &bytes) const override final;
+
+    //------------------------------------------------------------------------
+    // Public API
+    //------------------------------------------------------------------------
+    uint32_t getURAMPointer() const{ return m_URAMPointer.value(); }
+    uint32_t getLLMPointer() const{ return m_LLMPointer.value(); }
+
+    size_t getLLMCount() const{ return m_LLMCount; };
+    size_t getLLMSizeBytes() const{ return m_LLMCount * getType().getValue().size; };
+
+protected:
+    URAMLLMArrayBase(const GeNN::Type::ResolvedType &type, size_t uramCount, size_t llmCount)
+    :   ArrayBase(type, uramCount), m_LLMCount(llmCount)
+    {
+        if(type.getSize(0) != 2) {
+            throw std::runtime_error("Only 16-bit types can be stored in URAM/LLM arrays");
+        }
+    }
+
+    //------------------------------------------------------------------------
+    // Protected API
+    //------------------------------------------------------------------------
+    void setURAMPointer(std::optional<uint32_t> uramPointer){ m_URAMPointer = uramPointer; }
+    void setLLMPointer(std::optional<uint32_t> llmPointer){ m_LLMPointer = llmPointer; }
+
+private:
+    //------------------------------------------------------------------------
+    // Members
+    //------------------------------------------------------------------------
+    std::optional<uint32_t> m_URAMPointer;
+    std::optional<uint32_t> m_LLMPointer;
+    size_t m_LLMCount;
+};
+
 
 //------------------------------------------------------------------------
 // BRAMFieldArray

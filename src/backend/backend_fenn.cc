@@ -1819,7 +1819,7 @@ void URAMArrayBase::serialiseDeviceObject(std::vector<std::byte> &bytes) const
     bytes.resize(4);
 
     // Memcpy URAM pointer into bytes
-    const uint32_t uramPointer = m_URAMPointer.value(); 
+    const uint32_t uramPointer = getURAMPointer(); 
     std::memcpy(bytes.data(), &uramPointer, 4);
 }
 
@@ -1832,7 +1832,7 @@ void BRAMArrayBase::serialiseDeviceObject(std::vector<std::byte> &bytes) const
     bytes.resize(4);
 
     // Memcpy BRAM pointer into bytes
-    const uint32_t bramPointer = m_BRAMPointer.value();
+    const uint32_t bramPointer = getBRAMPointer();
     std::memcpy(bytes.data(), &bramPointer, 4);
 }
 
@@ -1847,7 +1847,7 @@ void LLMArrayBase::serialiseDeviceObject(std::vector<std::byte> &bytes) const
     // Memcpy LLM pointer into bytes
     // **NOTE** the code wants lane addresses not array addresses
     // **THINK** would it be better to allocate 2 byte aligned?
-    const uint32_t llmPointer = m_LLMPointer.value() / 32;
+    const uint32_t llmPointer = getLLMPointer() / 32;
     std::memcpy(bytes.data(), &llmPointer, 4);
 }
 
@@ -1860,8 +1860,27 @@ void DRAMArrayBase::serialiseDeviceObject(std::vector<std::byte> &bytes) const
     bytes.resize(4);
 
     // Memcpy DRAM pointer into bytes
-    const uint32_t dramPointer = m_DRAMPointer.value(); 
+    const uint32_t dramPointer = getDRAMPointer();
     std::memcpy(bytes.data(), &dramPointer, 4);
+}
+
+//----------------------------------------------------------------------------
+// URAMLLMArrayBase
+//----------------------------------------------------------------------------
+void URAMLLMArrayBase::serialiseDeviceObject(std::vector<std::byte> &bytes) const
+{
+    // Allocate 8 bytes of space
+    bytes.resize(8);
+
+    // Memcpy URAM pointer into bytes
+    const uint32_t uramPointer = getURAMPointer();
+    std::memcpy(bytes.data(), &uramPointer, 4);
+
+    // Memcpy LLM pointer into bytes
+    // **NOTE** the code wants lane addresses not array addresses
+    // **THINK** would it be better to allocate 2 byte aligned?
+    const uint32_t llmPointer = getLLMPointer() / 32;
+    std::memcpy(bytes.data() + 4, &llmPointer, 4);
 }
 
 //----------------------------------------------------------------------------

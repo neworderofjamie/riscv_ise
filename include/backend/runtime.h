@@ -28,17 +28,14 @@ class StateBase;
 class BACKEND_EXPORT ArrayBase
 {
 public:
-    virtual ~ArrayBase() = default;
+    virtual ~ArrayBase()
+    {
+        m_Count = 0;
+    }
 
     //------------------------------------------------------------------------
     // Declared virtuals
     //------------------------------------------------------------------------
-    //! Allocate array
-    virtual void allocate(size_t count) = 0;
-
-    //! Free array
-    virtual void free() = 0;
-
     //! Copy entire array to device
     virtual void pushToDevice() = 0;
 
@@ -73,7 +70,6 @@ protected:
     //------------------------------------------------------------------------
     // Protected API
     //------------------------------------------------------------------------    
-    void setCount(size_t count) { m_Count = count; }
     void setHostPointer(uint8_t *hostPointer) { m_HostPointer = hostPointer; }
 
 private:
