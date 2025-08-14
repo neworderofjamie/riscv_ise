@@ -2,8 +2,8 @@ import numpy as np
 import mnist
 
 from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer, Model,
-                    NeuronUpdateProcess, NumericValue, ProcessGroup, Parameter,
-                    Runtime, Shape, UnresolvedType, Variable)
+                    NeuronUpdateProcess, NumericValue, PlogSeverity, ProcessGroup, 
+                    Parameter, Runtime, Shape, UnresolvedType, Variable)
 from models import LI, Linear, Memset, RNGInit
 from tonic.datasets import SHD
 
@@ -45,7 +45,7 @@ class LIF:
             {"Spike": self.out_spikes},
             name)
 
-num_timesteps = 1024
+num_timesteps = 1170
 input_shape = [700]
 hidden_shape = [256]
 output_shape = [20]
@@ -73,7 +73,7 @@ for i in range(100):
     shd_spikes.append(spike_event_bits.view(np.uint32).flatten())
     shd_labels.append(label)
 
-init_logging()
+init_logging(PlogSeverity.DEBUG)
 
 # Input spikes
 input_spikes = EventContainer(Shape(input_shape), num_timesteps)
