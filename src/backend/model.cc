@@ -15,12 +15,12 @@
 namespace
 {
 //----------------------------------------------------------------------------
-// NeuronVariableFieldSizeVisitor
+// VariableFieldSizeVisitor
 //----------------------------------------------------------------------------
-class NeuronVariableFieldSizeVisitor : public ModelComponentVisitor
+class VariableFieldSizeVisitor : public ModelComponentVisitor
 {
 public:
-     NeuronVariableFieldSizeVisitor(std::shared_ptr<const Variable> variable, const Model::StateProcesses::mapped_type &processes)
+     VariableFieldSizeVisitor(std::shared_ptr<const Variable> variable, const Model::StateProcesses::mapped_type &processes)
     :   m_Variable(variable), m_FieldSize(4)
     {
         // Visit all processes
@@ -161,8 +161,8 @@ class FieldVisitor : public ModelComponentVisitor
 {
 public:
     FieldVisitor(const std::vector<std::shared_ptr<const ProcessGroup>> processGroups, 
-            Model::StatefulFields &statefulFields, const Model::BackendFields &backendFields, 
-            const Model::StateProcesses &stateProcesses, uint32_t &fieldOffset)
+                 Model::StatefulFields &statefulFields, const Model::BackendFields &backendFields, 
+                 const Model::StateProcesses &stateProcesses, uint32_t &fieldOffset)
     :   m_StatefulFields(statefulFields), m_BackendFields(backendFields), m_StateProcesses(stateProcesses),
         m_FieldOffset(fieldOffset), m_FieldSize(4)
     {
@@ -231,10 +231,7 @@ private:
     
         // Visit variables
         for(auto &v : neuronUpdateProcess->getVariables()) {
-            NeuronVariableFieldSizeVisitor visitor(v.second, m_StateProcesses.get().at(v.second));
-            m_FieldSize = visitor.getFieldSize();
-            v.second->accept(*this);
-            m_FieldSize = 4;
+            acceptVariable(v.second);
         }
 
         // Visit output event containers
@@ -258,8 +255,8 @@ private:
 
         // Visit components
         eventPropagationProcess->getInputEvents()->accept(*this);
-        eventPropagationProcess->getWeight()->accept(*this);
-        eventPropagationProcess->getTarget()->accept(*this);
+        acceptVariable(eventPropagationProcess->getWeight());
+        acceptVariable(eventPropagationProcess->getTarget());
 
         // Add process fields
         if(!m_StatefulFields.get().try_emplace(eventPropagationProcess, m_CurrentProcessFields).second) {
@@ -276,7 +273,7 @@ private:
         assert(m_CurrentProcessFields.empty());
 
         // Visit components
-        rngInitProcess->getSeed()->accept(*this);
+        acceptVariable(rngInitProcess->getSeed());
 
         // Add process fields
         if(!m_StatefulFields.get().try_emplace(rngInitProcess, m_CurrentProcessFields).second) {
@@ -293,12 +290,11 @@ private:
         assert(m_CurrentProcessFields.empty());
 
         // Visit source 
-        broadcastProcess->getSource()->accept(*this);
+        acceptVariable(broadcastProcess->getSource());
   
          // If target is a variable reference, visit target
         if(std::holds_alternative<VariablePtr>(broadcastProcess->getTarget())) {
-            auto target = std::get<VariablePtr>(broadcastProcess->getTarget());
-            target->accept(*this);    
+            acceptVariable(std::get<VariablePtr>(broadcastProcess->getTarget()));
         }
         // Otherwise
         else {
@@ -347,11 +343,10 @@ private:
         
         // If target is a variable reference
         if(std::holds_alternative<VariablePtr>(memsetProcess->getTarget())) {
-            auto target = std::get<VariablePtr>(memsetProcess->getTarget());
             assert(m_CurrentProcessFields.empty());
 
             // Visit 
-            target->accept(*this);
+            acceptVariable(std::get<VariablePtr>(memsetProcess->getTarget()));
             
             // Add process fields
             if(!m_StatefulFields.get().try_emplace(memsetProcess, m_CurrentProcessFields).second) {
@@ -383,6 +378,22 @@ private:
         else {
             throw std::runtime_error("Variable '" + variable->getName() + "' encountered multiple times in model traversal");
         }
+    }
+
+    //------------------------------------------------------------------------
+    // Private API
+    //------------------------------------------------------------------------
+    void acceptVariable(std::shared_ptr<const Variable> variable)
+    {
+        // Visit variable to determine field size
+        VariableFieldSizeVisitor visitor(variable, m_StateProcesses.get().at(variable));
+        m_FieldSize = visitor.getFieldSize();
+
+        // Accept variable
+        variable->accept(*this);
+
+        // Restore default field size
+        m_FieldSize = 4;
     }
 
     //------------------------------------------------------------------------
