@@ -196,8 +196,8 @@ BroadcastProcess::BroadcastProcess(Private, VariablePtr source, VariablePtrBacke
     }
 
     if (m_Source->getNumBufferTimesteps() != 1) {
-        throw std::runtime_error("Source has more than 1 buffer timestep which "
-                                 "isn't currently supported by broadcast processes");
+        throw std::runtime_error("Broadcast process source has more than 1 buffer "
+                                 "timestep which isn't currently supported");
     }
 
     if(m_Source->getShape().getDims().size() != 1) {
@@ -211,6 +211,11 @@ BroadcastProcess::BroadcastProcess(Private, VariablePtr source, VariablePtrBacke
         auto targetVar = std::get<VariablePtr>(m_Target);
         if(targetVar == nullptr) {
             throw std::runtime_error("Broadcast process requires target");
+        }
+
+        if (targetVar->getNumBufferTimesteps() != 1) {
+            throw std::runtime_error("Broadcast process target has more than 1 buffer "
+                                     "timestep which isn't currently supported");
         }
 
         if(targetVar->getShape().getDims().size() != 2) {

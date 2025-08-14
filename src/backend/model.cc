@@ -181,6 +181,11 @@ private:
                 auto targetVar = std::static_pointer_cast<const Variable>(std::get<0>(backendField->second));
             
                 // **YUCK** duplicate checks - these belong in BroadcastProcess
+                if (targetVar->getNumBufferTimesteps() != 1) {
+                    throw std::runtime_error("Broadcast process target has more than 1 buffer "
+                                             "timestep which isn't currently supported");
+                }
+
                 if(targetVar->getShape().getDims().size() != 2) {
                     throw std::runtime_error("Broadcast process currently required 2 dimensional target");
                 }
