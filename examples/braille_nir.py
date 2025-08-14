@@ -36,13 +36,15 @@ print(f"{num_timesteps} timesteps")
 (in_proc, out_proc, neuron_proc_group, syn_proc_group, var_vals, neuron_proc) =\
     parse("braille_noDelay_noBias_subtract.nir", num_timesteps, DT)
 
-# Create model
-model = Model([neuron_proc_group, syn_proc_group])
-
-# Create backend and use to generate sim code
+# Create backend
 backend = BackendFeNNHW() if DEVICE else BackendFeNNSim()
+
+# Create model
+model = Model([neuron_proc_group, syn_proc_group], backend)
+
+# Generate sim code
 code = backend.generate_simulation_kernel([syn_proc_group, neuron_proc_group],
-                                          [], num_timesteps, model)
+                                          [], [], num_timesteps, model)
 
 # Disassemble if required
 if DISASSEMBLE_CODE:
@@ -83,14 +85,15 @@ input_spike_array, input_spike_view = get_array_view(runtime,
 output_spike_array, output_spike_view = get_array_view(runtime,
                                                        out_proc.out_spikes,
                                                        np.uint8)
-output_spike_view = np.reshape(output_spike_view, (num_timesteps, -1))
+output_spike_view = np.reshape(output_spike_view, (num_timesteps + 1, -1))
 num_correct = 0
 time = 0
 for i, (spikes, label) in enumerate(zip(test_spikes, test_labels)):
     # Copy data to array host pointer
-    assert input_spike_view.nbytes == spikes.nbytes
-    input_spike_view[:] = spikes.flatten()
-    input_spike_array.push_to_device();
+    #assert input_spike_view.nbytes == spikes.nbytes
+    flat_spikes = spikes.flatten()
+    input_spike_view[:len(flat_spikes)] = flat_spikes
+    input_spike_array.push_to_device()
 
     # Classify
     start = perf_counter()

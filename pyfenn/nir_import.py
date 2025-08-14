@@ -158,10 +158,11 @@ def _build_neuron_update_processes(graph: nir.NIRGraph, neuron_update_nodes,
             process_type = neuron_update_nodes[type(node)]
             fixed_point = (target_node_quant[name][2]
                            if name in target_node_quant else None)
-            num_proc_timesteps = (num_timesteps 
-                                  if (isinstance(node, nir.Input)
-                                      or name == output_name)
-                                  else 1)
+            num_proc_timesteps = 1
+            if isinstance(node, nir.Input):
+                num_proc_timesteps = num_timesteps
+            elif name == output_name:
+                num_proc_timesteps = num_timesteps + 1
             node_processes[name] = process_type(name, node, fixed_point,
                                                 num_proc_timesteps, dt)
         elif not isinstance(node, event_prop_nodes_tuple
