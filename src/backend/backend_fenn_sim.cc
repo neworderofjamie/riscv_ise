@@ -197,7 +197,7 @@ public:
 
     std::unique_ptr<IFieldArray> createFieldArray(const Model &model) final override
     {
-        return std::make_unique<::BRAMFieldArray<BRAMArray>>(GeNN::Type::Uint32, model.getNumFields(), this);
+        return std::make_unique<::BRAMFieldArray<BRAMArray>>(GeNN::Type::Uint8, model.getNumFieldBytes(), this);
     }
 
     //------------------------------------------------------------------------

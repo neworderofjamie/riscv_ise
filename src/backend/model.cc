@@ -364,20 +364,17 @@ Model::Model(const std::vector<std::shared_ptr<const ProcessGroup>> &processGrou
     ProcessVisitor processVisitor(m_ProcessGroups, m_StateProcesses);
 
     // Allocate fields for backend-specific state
-    uint32_t fieldOffset = 4;
+    m_NumFieldBytes = 4;
     const auto backendStateObjects = backend.getRequiredStateObjects(*this);
     std::transform(backendStateObjects.cbegin(), backendStateObjects.cend(),
                    std::inserter(m_BackendFields, m_BackendFields.end()),
-                   [&fieldOffset](const auto &s)
+                   [this](const auto &s)
                    {
-                       const uint32_t oldFieldOffset = fieldOffset;
-                       fieldOffset += 4;
+                       const uint32_t oldFieldOffset = m_NumFieldBytes;
+                       m_NumFieldBytes += 4;
                        return std::make_pair(s.first, std::make_tuple(s.second, oldFieldOffset));
                    });
 
     // Visit fields to build StatefulFields datastructure, allocating fields for all Stateful objects
-    FieldVisitor fieldVisitor(m_ProcessGroups, m_StatefulFields, m_BackendFields, fieldOffset);
-
-    // Calculate total
-    m_NumFields = (fieldOffset / 4);
+    FieldVisitor fieldVisitor(m_ProcessGroups, m_StatefulFields, m_BackendFields, m_NumFieldBytes);
 }

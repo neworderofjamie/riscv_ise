@@ -48,7 +48,7 @@ public:
     const auto &getStateProcesses() const{ return m_StateProcesses; }
     const auto &getBackendFields() const { return m_BackendFields; }
 
-    uint32_t getNumFields() const { return m_NumFields; }
+    uint32_t getNumFieldBytes() const { return m_NumFieldBytes; }
 
 private:
     std::vector<std::shared_ptr<const ProcessGroup>> m_ProcessGroups;
@@ -56,5 +56,5 @@ private:
     StateProcesses m_StateProcesses;
     BackendFields m_BackendFields;
 
-    uint32_t m_NumFields;
+    uint32_t m_NumFieldBytes;
 };
