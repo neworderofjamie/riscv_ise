@@ -622,8 +622,8 @@ private:
     class NeuronVarBase
     {
     public:
-        virtual void genLoad(CodeGenerator &c, VectorRegisterAllocator::RegisterPtr reg, uint32_t r) = 0;
-        virtual void genStore(CodeGenerator &c, VectorRegisterAllocator::RegisterPtr reg, uint32_t r) = 0;
+        virtual void genLoad(::EnvironmentBase &env, VectorRegisterAllocator::RegisterPtr reg, uint32_t r) = 0;
+        virtual void genStore(::EnvironmentBase &env, VectorRegisterAllocator::RegisterPtr reg, uint32_t r) = 0;
         virtual void genIncrement(CodeGenerator &c, uint32_t numUnrolls, 
                                   VectorRegisterAllocator::RegisterPtr numUnrollBytesReg) = 0;
         virtual ScalarRegisterAllocator::RegisterPtr getLoopCountScalarReg() const = 0;
@@ -668,14 +668,14 @@ private:
         //--------------------------------------------------------------------
         // NeuronVarBase virtuals
         //--------------------------------------------------------------------
-        virtual void genLoad(CodeGenerator &c, VectorRegisterAllocator::RegisterPtr reg, uint32_t r) final override
+        virtual void genLoad(::EnvironmentBase &env, VectorRegisterAllocator::RegisterPtr reg, uint32_t r) final override
         {
-            c.vloadv(*reg, *m_ReadBufferReg, 64 * r);
+            env.getCodeGenerator().vloadv(*reg, *m_ReadBufferReg, 64 * r);
         }
 
-        virtual void genStore(CodeGenerator &c, VectorRegisterAllocator::RegisterPtr reg, uint32_t r) final override
+        virtual void genStore(::EnvironmentBase &env, VectorRegisterAllocator::RegisterPtr reg, uint32_t r) final override
         {
-            c.vstore(*reg, (m_WriteBufferReg ? *m_WriteBufferReg : *m_ReadBufferReg), 64 * r);
+            env.getCodeGenerator().vstore(*reg, (m_WriteBufferReg ? *m_WriteBufferReg : *m_ReadBufferReg), 64 * r);
         }
 
         virtual void genIncrement(CodeGenerator &c, uint32_t numUnrolls,
@@ -724,14 +724,14 @@ private:
         //--------------------------------------------------------------------
         // NeuronVarBase virtuals
         //--------------------------------------------------------------------
-        virtual void genLoad(CodeGenerator &c, VectorRegisterAllocator::RegisterPtr reg, uint32_t r) final override
+        virtual void genLoad(::EnvironmentBase &env, VectorRegisterAllocator::RegisterPtr reg, uint32_t r) final override
         {
-            c.vloadl(*reg, *m_BufferReg, 2 * r);   
+            env.getCodeGenerator().vloadl(*reg, *m_BufferReg, 2 * r);   
         }
 
-        virtual void genStore(CodeGenerator &c, VectorRegisterAllocator::RegisterPtr reg, uint32_t r) final override
+        virtual void genStore(::EnvironmentBase &env, VectorRegisterAllocator::RegisterPtr reg, uint32_t r) final override
         {
-            c.vstorel(*reg, *m_BufferReg, 2 * r);    
+            env.getCodeGenerator().vstorel(*reg, *m_BufferReg, 2 * r);    
         }
 
         virtual void genIncrement(CodeGenerator &c, uint32_t,
@@ -754,9 +754,100 @@ private:
         VectorRegisterAllocator::RegisterPtr m_BufferReg;
     };
 
-    /*class URAMLLMNeuronVar : public NeuronVarBase
+    class URAMLLMNeuronVar : public NeuronVarBase
     {
-    };*/
+    public:
+        URAMLLMNeuronVar(const std::string &varName, std::shared_ptr<const Variable> var, 
+                         CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator,
+                         VectorRegisterAllocator &vectorRegisterAllocator, const Model::StateFields &stateFields, 
+                         ScalarRegisterAllocator::RegisterPtr timeReg)
+        :   m_DelayStride(2 * var->getNumBufferTimesteps()), m_VectorRegisterAllocator(vectorRegisterAllocator)
+        {
+            // Check number of buffer timesteps is P.O.T.
+            if(!isPOT(var->getNumBufferTimesteps())) {
+                throw std::runtime_error("When used as delayed event propagation targets, variables "
+                                         "need to have a power-of-two number of buffer timesteps");
+            }
+
+            // Allocate scalar register to hold address of variable in URAM
+            m_URAMBufferReg = scalarRegisterAllocator.getRegister((varName + "Buffer X").c_str());
+
+            // Load URAM address from first word of field
+            c.lw(*m_URAMBufferReg, Reg::X0, stateFields.at(var));
+
+            // Allocate vector registers to hold address of variable in LLM and delay stride
+            m_LLMBufferReg = vectorRegisterAllocator.getRegister((varName + "Buffer V").c_str());
+            m_DelayStrideReg = vectorRegisterAllocator.getRegister((varName + "DelayStride V").c_str());
+
+            // Load delay stride
+            c.vlui(*m_DelayStrideReg, m_DelayStride);
+
+            {
+                ALLOCATE_SCALAR(STmp);
+                ALLOCATE_SCALAR(STmp2);
+
+                // Calculate time modulo delay buffer size
+                c.andi(*STmp, *timeReg, var->getNumBufferTimesteps() - 1);
+
+                // Double to get starting offset in bytes
+                c.slli(*STmp, *STmp, 1);
+
+                // Load LLM address from second word of field, add offset and broadcast
+                c.lw(*STmp2, Reg::X0, stateFields.at(var) + 4);
+                c.add(*STmp2, *STmp2, *STmp);
+                c.vfill(*m_LLMBufferReg, *STmp2);
+            }
+        }
+
+        //--------------------------------------------------------------------
+        // NeuronVarBase virtuals
+        //--------------------------------------------------------------------
+        virtual void genLoad(::EnvironmentBase &env, VectorRegisterAllocator::RegisterPtr reg, uint32_t r) final override
+        {
+            // Load from LLM buffer into temporary register
+            auto denDelayFrontReg = m_VectorRegisterAllocator.get().getRegister("DenDelayFront V");
+            env.getCodeGenerator().vloadl(*denDelayFrontReg, *m_LLMBufferReg, m_DelayStride * r);   
+
+            // Load from URAM buffer into state register
+            env.getCodeGenerator().vloadv(*reg, *m_URAMBufferReg, 64 * r);
+
+            // Write zero back to LLM
+            env.getCodeGenerator().vstorel(*env.getVectorRegister("_zero"), *m_LLMBufferReg, m_DelayStride * r);
+
+            // Add new input from LLM to state register
+            env.getCodeGenerator().vadd(*reg, *reg, *denDelayFrontReg);
+        }
+
+        virtual void genStore(::EnvironmentBase &env, VectorRegisterAllocator::RegisterPtr reg, uint32_t r) final override
+        {
+            env.getCodeGenerator().vstore(*reg, *m_URAMBufferReg, 64 * r);
+        }
+
+        virtual void genIncrement(CodeGenerator &c, uint32_t numUnrolls,
+                                  VectorRegisterAllocator::RegisterPtr) final override
+        {
+            // Increment URAM and LLM pointers
+            c.addi(*m_URAMBufferReg, *m_URAMBufferReg, 64 * numUnrolls);
+            c.vadd(*m_LLMBufferReg, *m_LLMBufferReg, *m_DelayStrideReg);
+        }
+
+        virtual ScalarRegisterAllocator::RegisterPtr getLoopCountScalarReg() const final override
+        {
+            return m_URAMBufferReg;
+        }
+
+        virtual bool needsNumUnrollBytesReg() const final override
+        {
+            return false;
+        }
+    
+    private:
+        size_t m_DelayStride;
+        ScalarRegisterAllocator::RegisterPtr m_URAMBufferReg;
+        VectorRegisterAllocator::RegisterPtr m_LLMBufferReg;
+        VectorRegisterAllocator::RegisterPtr m_DelayStrideReg;
+        std::reference_wrapper<VectorRegisterAllocator> m_VectorRegisterAllocator;
+    };
     //------------------------------------------------------------------------
     // Using directives
     //------------------------------------------------------------------------
@@ -824,23 +915,11 @@ private:
                                         std::make_unique<LLMNeuronVar>(v.first, v.second, c, scalarRegisterAllocator,
                                                                        m_VectorRegisterAllocator.get(), stateFields));
                 }
-                /*else if(visitor.isURAMLLMCompatible()) {
-                    // Allocate scalar register to hold address of variable in URAM
-                    const auto regURAMAddress = m_ScalarRegisterAllocator.get().getRegister((v.first + "Buffer X").c_str());
-
-                    // Allocate vector register to hold address of variable
-                    const auto regLLMAddress = m_VectorRegisterAllocator.get().getRegister((v.first + "Buffer V").c_str());
-                    
-                    // Load URAM address from first word of field
-                    c.lw(*regURAMAddress, Reg::X0, stateFields.at(v.second));
-
-                    // Generate code to load LLM address from second word of field
-                    {
-                        ALLOCATE_SCALAR(STmp);
-                        c.lw(*STmp, Reg::X0, stateFields.at(v.second) + 4);
-                        c.vfill(*regLLMAddress, *STmp);
-                    }
-                }*/
+                else if(visitor.isURAMLLMCompatible()) {
+                    varBuffers.emplace(v.second, 
+                                       std::make_unique<URAMLLMNeuronVar>(v.first, v.second, c, scalarRegisterAllocator,
+                                                                          m_VectorRegisterAllocator.get(), stateFields, m_TimeRegister));
+                }
                 // Otherwise, 
                 else {
                     assert(false);
@@ -992,7 +1071,7 @@ private:
                     unrollEnv.add(v.second->getType(), v.first, reg);
 
                     // Generate load
-                    varBuffers.at(v.second)->genLoad(unrollEnv.getCodeGenerator(), reg, r);
+                    varBuffers.at(v.second)->genLoad(unrollEnv, reg, r);
                 }
 
                 // Loop through neuron event outputs
@@ -1037,7 +1116,7 @@ private:
                     const auto reg = std::get<VectorRegisterAllocator::RegisterPtr>(unrollEnv.getRegister(v.first));
                     
                     // Generate store
-                    varBuffers.at(v.second)->genStore(unrollEnv.getCodeGenerator(), reg, r);
+                    varBuffers.at(v.second)->genStore(unrollEnv, reg, r);
                 }
             },
             [this, &eventBufferRegisters, &neuronUpdateProcess, &varBuffers]
@@ -1852,6 +1931,7 @@ private:
         {
             vectorTimeReg = vectorRegisterAllocator.getRegister("VTime V");
             c.vfill(*vectorTimeReg, *m_TimeRegister);
+            c.vslli(1, *vectorTimeReg, *vectorTimeReg);
         }
 
         // Loop through postsynaptic targets
@@ -1879,6 +1959,7 @@ private:
             }
             else if(p->getNumDelayBits() > 0) {
                 // Allocate register for delay mask and calculate
+                targetDelayMaskReg = vectorRegisterAllocator.getRegister("VTargetDelayMask V");
                 c.vlui(*targetDelayMaskReg, (1 << p->getNumDelayBits()) - 1);
 
                 // Check number of buffer timesteps is P.O.T.
