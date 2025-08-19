@@ -1270,24 +1270,26 @@ private:
                                                m_UseDRAMForWeights);
 
             // Determine how many vectors we're memsetting
-            const size_t numVectors = (ceilDivide(target->getShape().getFlattenedSize(), 32)
-                                       * target->getNumBufferTimesteps());
+            const size_t numVecsOneTimestep = ceilDivide(target->getShape().getFlattenedSize(), 32);
+            const size_t numVecs = numVecsOneTimestep * target->getNumBufferTimesteps();
 
-            // Load target address
+            // Allocate register for target address
             ALLOCATE_SCALAR(STargetBuffer);
             
-
             if(visitor.isURAMCompatible()) {
                 c.lw(*STargetBuffer, Reg::X0, stateFields.at(target));
-                generateURAMMemset(numVectors, STargetBuffer);
+                generateURAMMemset(numVecs, STargetBuffer);
             }
             else if(visitor.isLLMCompatible()) {
                 c.lw(*STargetBuffer, Reg::X0, stateFields.at(target));
-                generateLLMMemset(numVectors, STargetBuffer);
+                generateLLMMemset(numVecs, STargetBuffer);
             }
             else if(visitor.isURAMLLMCompatible()) {
+                c.lw(*STargetBuffer, Reg::X0, stateFields.at(target));
+                generateURAMMemset(numVecsOneTimestep, STargetBuffer);
+
                 c.lw(*STargetBuffer, Reg::X0, stateFields.at(target) + 4);
-                generateLLMMemset(numVectors, STargetBuffer);
+                generateLLMMemset(numVecs, STargetBuffer);
             }
             /*else if(visitor.isBRAMCompatible()) {
             }*/
@@ -1385,7 +1387,7 @@ private:
             [targetReg, VValue]
             (CodeGenerator &c, uint32_t r, uint32_t, ScalarRegisterAllocator::RegisterPtr)
             {
-                c.vstore(*VValue, *targetReg, r * 2);                  
+                c.vstore(*VValue, *targetReg, r * 64);                  
             },
             [targetReg]
             (CodeGenerator &c, uint32_t numUnrolls)
