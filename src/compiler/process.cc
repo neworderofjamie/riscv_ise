@@ -148,12 +148,6 @@ MemsetProcess::MemsetProcess(Private, VariablePtrBackendState target, const std:
         if(targetVar == nullptr) {
             throw std::runtime_error("Memset process requires target");
         }
-
-   
-        if (targetVar->getNumBufferTimesteps() != 1) {
-            throw std::runtime_error("Target has more than 1 buffer timestep which "
-                                     "isn't currently supported by memset processes");
-        }
     }
 }
 

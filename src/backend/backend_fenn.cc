@@ -1269,15 +1269,25 @@ private:
             VariableImplementerVisitor visitor(target, m_Model.get().getStateProcesses().at(target),
                                                m_UseDRAMForWeights);
 
+            // Determine how many vectors we're memsetting
+            const size_t numVectors = (ceilDivide(target->getShape().getFlattenedSize(), 32)
+                                       * target->getNumBufferTimesteps());
+
             // Load target address
             ALLOCATE_SCALAR(STargetBuffer);
-            c.lw(*STargetBuffer, Reg::X0, stateFields.at(target));
+            
 
             if(visitor.isURAMCompatible()) {
-                generateURAMMemset(target->getShape(), STargetBuffer);
+                c.lw(*STargetBuffer, Reg::X0, stateFields.at(target));
+                generateURAMMemset(numVectors, STargetBuffer);
             }
             else if(visitor.isLLMCompatible()) {
-                generateLLMMemset(target->getShape(), STargetBuffer);
+                c.lw(*STargetBuffer, Reg::X0, stateFields.at(target));
+                generateLLMMemset(numVectors, STargetBuffer);
+            }
+            else if(visitor.isURAMLLMCompatible()) {
+                c.lw(*STargetBuffer, Reg::X0, stateFields.at(target) + 4);
+                generateLLMMemset(numVectors, STargetBuffer);
             }
             /*else if(visitor.isBRAMCompatible()) {
             }*/
@@ -1302,7 +1312,8 @@ private:
 
                  // **YUCK** cast to variable and generate lane-local memory memset
                  auto targetVar = std::static_pointer_cast<const Variable>(std::get<0>(targetField));
-                 generateLLMMemset(targetVar->getShape(), STargetBuffer);
+                 generateLLMMemset(ceilDivide(targetVar->getShape().getFlattenedSize(), 32),
+                                   STargetBuffer);
             }
             else {
                 throw std::runtime_error("Memset process '" + memsetProcess->getName() 
@@ -1321,7 +1332,7 @@ private:
     //------------------------------------------------------------------------
     // Private methods
     //------------------------------------------------------------------------
-    void generateLLMMemset(const Shape &shape, ScalarRegisterAllocator::RegisterPtr targetReg)
+    void generateLLMMemset(size_t numVectors, ScalarRegisterAllocator::RegisterPtr targetReg)
     {
         // Make some friendlier-named references
         auto &scalarRegisterAllocator = m_ScalarRegisterAllocator.get();
@@ -1332,9 +1343,6 @@ private:
         ALLOCATE_VECTOR(VLLMAddress);
         ALLOCATE_VECTOR(VNumUnrollBytes);
         
-        // Determine how many vectors we're memsetting
-        const size_t numVectors = ceilDivide(shape.getFlattenedSize(), 32);
-
         // Load value to memset and calculate unroll bytes
         // **TODO** parameterise
         c.vlui(*VValue, 0);
@@ -1359,16 +1367,13 @@ private:
             });
     }
 
-    void generateURAMMemset(const Shape &shape, ScalarRegisterAllocator::RegisterPtr targetReg)
+    void generateURAMMemset(size_t numVectors, ScalarRegisterAllocator::RegisterPtr targetReg)
     {
         // Make some friendlier-named references
         auto &vectorRegisterAllocator = m_VectorRegisterAllocator.get();
         auto &c = m_CodeGenerator.get();
 
         ALLOCATE_VECTOR(VValue);
-        
-        // Determine how many vectors we're memsetting
-        const size_t numVectors = ceilDivide(shape.getFlattenedSize(), 32);
 
         // Load value to memset and calculate unroll bytes
         // **TODO** parameterise
