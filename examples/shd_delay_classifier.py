@@ -4,7 +4,7 @@ import mnist
 from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer, Model,
                     NeuronUpdateProcess, NumericValue, PlogSeverity, ProcessGroup, 
                     Parameter, Runtime, Shape, UnresolvedType, Variable)
-from models import LI, Linear, Memset, RNGInit
+from models import Linear, Memset
 from tonic.datasets import SHD
 
 from pyfenn import disassemble, init_logging
@@ -30,7 +30,7 @@ class LIF:
             I *= Beta;
 
             // Neuron
-            V = (Alpha * V) + inSyn;
+            V = (Alpha * V) + (OneMinusAlpha * inSyn);
             
             if(V >= VThresh) {{
                Spike();
@@ -38,6 +38,7 @@ class LIF:
             }}
             """,
             {"Alpha": Parameter(NumericValue(np.exp(-1.0 / tau_m)), decay_dtype),
+             "OneMinusAlpha": Parameter(NumericValue(1.0 - np.exp(-1.0 / tau_m)), decay_dtype),
              "Beta": Parameter(NumericValue(np.exp(-1.0 / tau_syn)), decay_dtype),
              "IScale": Parameter(NumericValue((1.0 - np.exp(-1.0 / tau_m)) * tau_syn * (1.0 - np.exp(-1.0 / tau_syn))), dtype),
              "VThresh": Parameter(NumericValue(v_thresh), dtype)},
@@ -45,6 +46,34 @@ class LIF:
             {"Spike": self.out_spikes},
             name)
 
+class LI:
+    def __init__(self, shape, tau_m: float, tau_syn: float, num_timesteps: int,
+                 fixed_point: int = 5, name: str = ""):
+        self.shape = Shape(shape)
+        decay_dtype = UnresolvedType("s0_15_sat_t")
+        dtype = UnresolvedType(f"s{15 - fixed_point}_{fixed_point}_sat_t")
+
+        self.v = Variable(self.shape, dtype, name=f"{name}_v")
+        self.v_avg = Variable(self.shape, dtype, name=f"{name}_v_avg")
+        self.i = Variable(self.shape, dtype, name=f"{name}_i")
+        self.process = NeuronUpdateProcess(
+            f"""
+            // Synapse
+            s{15 - fixed_point}_{fixed_point}_sat_t inSyn = I * IScale;
+            I *= Beta;
+
+            // Neuron
+            V = (Alpha * V) + (OneMinusAlpha * inSyn);
+            VAvg += (VAvgScale * V);
+            """,
+            {"Alpha": Parameter(NumericValue(np.exp(-1.0 / tau_m)), decay_dtype), 
+             "OneMinusAlpha": Parameter(NumericValue(1.0 - np.exp(-1.0 / tau_m)), decay_dtype),
+             "Beta": Parameter(NumericValue(np.exp(-1.0 / tau_syn)), decay_dtype),
+             "IScale": Parameter(NumericValue((1.0 - np.exp(-1.0 / tau_m)) * tau_syn * (1.0 - np.exp(-1.0 / tau_syn))), dtype),
+             "VAvgScale": Parameter(NumericValue(1.0 / (num_timesteps / 2)), dtype)},
+            {"V": self.v, "VAvg": self.v_avg, "I": self.i},
+            {}, name)
+        
 num_timesteps = 1170
 input_shape = [700]
 hidden_shape = [256]
@@ -54,7 +83,7 @@ hidden_hidden_shape = [hidden_shape[0], hidden_shape[0]]
 hidden_output_shape = [hidden_shape[0], output_shape[0]]
 device = False
 record = False
-disassemble_code = False
+disassemble_code = True
 num_delay_bits = 7
 
 # Load and preprocess SHD
@@ -92,27 +121,36 @@ hidden_output = Linear(hidden.out_spikes, output.i, "s7_8_sat_t", name="hidden_o
 
 output_zero = Memset(output.v_avg)
 
+i_zero = Memset(hidden.i)
+
 # Group processes
 neuron_update_processes = ProcessGroup([hidden.process, output.process])
 synapse_update_processes = ProcessGroup([input_hidden.process, hidden_hidden.process, 
                                          hidden_output.process])
 zero_processes = ProcessGroup([output_zero.process])
+init_processes = ProcessGroup([i_zero.process])
 
 # Create backend
 backend = BackendFeNNHW() if device else BackendFeNNSim()
 
 # Create model
-model = Model([neuron_update_processes, synapse_update_processes, zero_processes],
+model = Model([init_processes, neuron_update_processes, synapse_update_processes, zero_processes],
               backend)
 
-# Generate sim code
-code = backend.generate_simulation_kernel([synapse_update_processes, neuron_update_processes],  # Update synapses and then neurons every timestep
-                                          [zero_processes], [],
-                                          num_timesteps, model)
+# Generate code
+init_code = backend.generate_kernel([init_processes], model)
+sim_code = backend.generate_simulation_kernel([synapse_update_processes, neuron_update_processes],  # Update synapses and then neurons every timestep
+                                              [zero_processes], [],
+                                              num_timesteps, model)
 
 # Disassemble if required
 if disassemble_code:
-    for i, c in enumerate(code):
+    print("Init:")
+    for i, c in enumerate(init_code):
+        print(f"{i * 4} : {disassemble(c)}")
+
+    print("Simulation:")
+    for i, c in enumerate(sim_code):
         print(f"{i * 4} : {disassemble(c)}")
 
 # Create runtime
@@ -144,13 +182,18 @@ load_quantise_and_push("checkpoints_6_1_256_62_1_0_1.0_1_5e-12/best-Conn_Pop1_Po
 
 # Zero remaining state
 zero_and_push(hidden.v, runtime)
-zero_and_push(hidden.i, runtime)
 zero_and_push(output.v, runtime)
-zero_and_push(output.bias, runtime) # Optimise out
 zero_and_push(output.v_avg, runtime)
 
-# Set instructions
-runtime.set_instructions(code)
+# Set init instructions
+print("Initialising")
+runtime.set_instructions(init_code)
+
+# Initialise
+runtime.run()
+
+# Set sim instructions
+runtime.set_instructions(sim_code)
 
 # Loop through examples
 input_spike_array, input_spike_view = get_array_view(runtime, input_spikes,
