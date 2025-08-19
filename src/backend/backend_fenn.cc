@@ -619,17 +619,30 @@ public:
     }
 
 private:
+    //------------------------------------------------------------------------
+    // NeuronVarBase
+    //------------------------------------------------------------------------
+    //! Base class for helper classes used to manage memory access to neuron variables
     class NeuronVarBase
     {
     public:
+        //! Generate code to load vector register reg from memory before unrolled loop iteration r
         virtual void genLoad(::EnvironmentBase &env, VectorRegisterAllocator::RegisterPtr reg, uint32_t r) = 0;
+        
+        //! Generate code to store vector register reg to memory after unrolled loop iteration r
         virtual void genStore(::EnvironmentBase &env, VectorRegisterAllocator::RegisterPtr reg, uint32_t r) = 0;
+
+        //! Generate code to advance pointer after numUnrolls unrolled 
         virtual void genIncrement(CodeGenerator &c, uint32_t numUnrolls, 
                                   VectorRegisterAllocator::RegisterPtr numUnrollBytesReg) = 0;
         virtual ScalarRegisterAllocator::RegisterPtr getLoopCountScalarReg() const = 0;
         virtual bool needsNumUnrollBytesReg() const = 0;
     };
 
+    //------------------------------------------------------------------------
+    // URAMNeuronVar
+    //------------------------------------------------------------------------
+    //! Implementation of NeuronVarBase to handle standard variables located in URAM
     class URAMNeuronVar : public NeuronVarBase
     {
     public:
@@ -702,6 +715,11 @@ private:
         ScalarRegisterAllocator::RegisterPtr m_WriteBufferReg;
     };
 
+    //------------------------------------------------------------------------
+    // LLMNeuronVar
+    //------------------------------------------------------------------------
+    //! Implementation of NeuronVarBase to handle variables stored in LLM.
+    //! Typically these are the output of sparse connectivity
     class LLMNeuronVar : public NeuronVarBase
     {
     public:
@@ -754,6 +772,12 @@ private:
         VectorRegisterAllocator::RegisterPtr m_BufferReg;
     };
 
+    //------------------------------------------------------------------------
+    // URAMLLMNeuronVar
+    //------------------------------------------------------------------------
+    //! Implementation of NeuronVarBase to handle variables with a delayed 
+    //! input buffer stored in LLM but the variable itself in URAM.
+    //! Typically these are the output of delayed connectivity
     class URAMLLMNeuronVar : public NeuronVarBase
     {
     public:
@@ -848,12 +872,301 @@ private:
         VectorRegisterAllocator::RegisterPtr m_DelayStrideReg;
         std::reference_wrapper<VectorRegisterAllocator> m_VectorRegisterAllocator;
     };
-    //------------------------------------------------------------------------
-    // Using directives
-    //------------------------------------------------------------------------
-    using EventPropagationProcessRegisters = std::vector<std::tuple<ScalarRegisterAllocator::RegisterPtr, 
-                                                                    VectorRegisterAllocator::RegisterPtr, 
-                                                                    VectorRegisterAllocator::RegisterPtr>>;
+
+    class RowGeneratorBase
+    {
+    public:
+        RowGeneratorBase(CodeGenerator &c, std::shared_ptr<const EventPropagationProcess> process,
+                         const Model::StateFields &stateFields,
+                         ScalarRegisterAllocator &scalarRegisterAllocator, 
+                         VectorRegisterAllocator &vectorRegisterAllocator)
+        :   m_Process(process), m_StateFields(stateFields), m_ScalarRegisterAllocator(scalarRegisterAllocator), 
+            m_VectorRegisterAllocator(vectorRegisterAllocator)
+        {
+            // Allocate register for stride, calculate and load as immediate
+            m_StrideReg = scalarRegisterAllocator.getRegister("SStride = X");
+            c.li(*m_StrideReg, ceilDivide(process->getMaxRowLength(), 32) * 64);
+
+        }
+
+        // Declared virtuals
+        virtual void generateRow(CodeGenerator &cg, ScalarRegisterAllocator::RegisterPtr idPreReg) = 0;
+    
+    protected:
+        auto getProcess() const{ return m_Process; }
+  
+        auto &getStateFields(){ return m_StateFields.get(); }
+        auto &getScalarRegisterAllocator(){ return m_ScalarRegisterAllocator.get(); }
+        auto &getVectorRegisterAllocator(){ return m_VectorRegisterAllocator.get(); }
+        
+        auto loadWeightBuffer(CodeGenerator &c, ScalarRegisterAllocator::RegisterPtr idPreReg)
+        {
+            auto &scalarRegisterAllocator = getScalarRegisterAllocator();
+
+            // SWeightBuffer = weightInHidStart + (numPostVecs * 64 * SN);
+            ALLOCATE_SCALAR(SWeightBuffer);
+            c.lw(*SWeightBuffer, Reg::X0, getStateFields().at(getProcess()->getWeight()));
+            {
+                ALLOCATE_SCALAR(STemp);
+                c.mul(*STemp, *idPreReg, *m_StrideReg);
+                c.add(*SWeightBuffer, *SWeightBuffer, *STemp);
+            }
+
+            return SWeightBuffer;
+        }
+
+    private:
+        std::shared_ptr<const EventPropagationProcess> m_Process;
+        ScalarRegisterAllocator::RegisterPtr m_StrideReg;
+        std::reference_wrapper<const Model::StateFields> m_StateFields;
+        std::reference_wrapper<ScalarRegisterAllocator> m_ScalarRegisterAllocator;
+        std::reference_wrapper<VectorRegisterAllocator> m_VectorRegisterAllocator;
+    };
+
+    class DenseRowGeneratorBase : public RowGeneratorBase
+    {
+    public:
+        using RowGeneratorBase::RowGeneratorBase;
+    
+        virtual void generateRow(CodeGenerator &c, ScalarRegisterAllocator::RegisterPtr idPreReg) final override
+        {
+            // Make some friendlier-named references
+            auto &scalarRegisterAllocator = getScalarRegisterAllocator();
+            auto &vectorRegisterAllocator = getVectorRegisterAllocator();
+
+            ALLOCATE_VECTOR(VWeight);
+            ALLOCATE_VECTOR(VTarget1);
+            ALLOCATE_VECTOR(VTarget2);
+            ALLOCATE_VECTOR(VTargetNew);
+            ALLOCATE_SCALAR(STargetBuf);
+
+            // Load target register from state fields
+            // **NOTE** no point in caching this as it needs resetting every row
+            c.lw(*STargetBuf, Reg::X0, getStateFields().at(getProcess()->getTarget()));
+
+            // Load weight buffer 
+            auto weightBufferReg = loadWeightBuffer(c, idPreReg);
+
+            // Preload first ISyn to avoid stall
+            c.vloadv(*VTarget1, *STargetBuf, 0);
+
+            AssemblerUtils::unrollVectorLoopBody(
+                c, scalarRegisterAllocator, getProcess()->getNumTargetNeurons(), 4, *STargetBuf,
+                [this, weightBufferReg, STargetBuf, VWeight, VTarget1, VTarget2, VTargetNew]
+                (CodeGenerator &c, uint32_t r, bool even, ScalarRegisterAllocator::RegisterPtr maskReg)
+                {
+                    // Load vector of weights
+                    c.vloadv(*VWeight, *weightBufferReg, r * 64);
+
+                    // Load NEXT vector of target to avoid stall
+                    // **YUCK** in last iteration, while this may not be accessed, it may be out of bounds                  
+                    c.vloadv(even ? *VTarget2 : *VTarget1, *STargetBuf, (r + 1) * 64);
+                
+                    // Add weights to ISyn
+                    auto VTarget = even ? VTarget1 : VTarget2;
+                    if(maskReg) {
+                        c.vadd_s(*VTargetNew, *VTarget, *VWeight);
+                        c.vsel(*VTarget, *maskReg, *VTargetNew);
+                    }
+                    else {
+                        c.vadd_s(*VTarget, *VTarget, *VWeight);
+                    }
+
+                    // Write back target
+                    c.vstore(*VTarget, *STargetBuf, r * 64);
+                },
+                [this, weightBufferReg, STargetBuf](CodeGenerator &c, uint32_t numUnrolls)
+                {
+                    // Increment pointers 
+                    c.addi(*STargetBuf, *STargetBuf, 64 * numUnrolls);
+                    c.addi(*weightBufferReg, *weightBufferReg, 64 * numUnrolls);
+                });
+        }   
+    };
+
+    class SparseRowGeneratorBase : public RowGeneratorBase
+    {
+    public:
+        SparseRowGeneratorBase(CodeGenerator &c, std::shared_ptr<const EventPropagationProcess> process,
+                               const Model::StateFields &stateFields,
+                               ScalarRegisterAllocator &scalarRegisterAllocator, 
+                               VectorRegisterAllocator &vectorRegisterAllocator)
+        :   RowGeneratorBase(c, process, stateFields, scalarRegisterAllocator, vectorRegisterAllocator)
+        {
+
+            // Allocate register for target mask and calculate
+            m_TargetMaskReg = getVectorRegisterAllocator().getRegister("VTargetDelayMask V");
+            c.vlui(*m_TargetMaskReg, (1 << process->getNumSparseConnectivityBits()) - 1);
+
+            // Allocate register for target address
+            // Generate code to load address
+            // **NOTE** If delays are used, LLM address is offset by 4 bytes
+            ALLOCATE_SCALAR(STmp);
+            m_TargetAddrReg = getVectorRegisterAllocator().getRegister("VTargetAddr V");
+            c.lw(*STmp, Reg::X0, stateFields.at(process->getTarget()));
+            c.vfill(*m_TargetAddrReg, *STmp);
+        }
+         
+        virtual void generateRow(CodeGenerator &c, ScalarRegisterAllocator::RegisterPtr idPreReg) final override
+        {
+            // Make some friendlier-named references
+            auto &scalarRegisterAllocator = getScalarRegisterAllocator();
+            auto &vectorRegisterAllocator = getVectorRegisterAllocator();
+
+            // Loop over postsynaptic neurons
+            ALLOCATE_VECTOR(VAccum)
+            ALLOCATE_VECTOR(VWeightInd1);
+            ALLOCATE_VECTOR(VWeightInd2);
+            ALLOCATE_VECTOR(VPostAddr);
+            ALLOCATE_VECTOR(VWeight);
+
+            // Load weight buffer 
+            auto weightBufferReg = loadWeightBuffer(c, idPreReg);
+
+            // Preload first weights and indices to avoid stall
+            c.vloadv(*VWeightInd1, *weightBufferReg, 0);
+            
+            AssemblerUtils::unrollVectorLoopBody(
+                c, scalarRegisterAllocator, getProcess()->getMaxRowLength(), 4, *weightBufferReg,
+                [this, weightBufferReg,
+                VAccum, VPostAddr, VWeight, VWeightInd1, VWeightInd2]
+                (CodeGenerator &c, uint32_t r, bool even, ScalarRegisterAllocator::RegisterPtr)
+                {
+                    // Load NEXT vector of weights and indices
+                    c.vloadv(even ? *VWeightInd2 : *VWeightInd1, *weightBufferReg, (r + 1) * 64);
+
+                    // Extract postsynaptic index/delay
+                    auto VWeightInd = even ? VWeightInd1 : VWeightInd2;
+                    c.vand(*VPostAddr, *VWeightInd, *m_TargetMaskReg);
+
+                    // Add base address
+                    c.vadd(*VPostAddr, *VPostAddr, *m_TargetAddrReg); 
+                    
+                    // Load accumulator
+                    c.vloadl(*VAccum, *VPostAddr);
+                    
+                    // Extract weight
+                    c.vsrai(getProcess()->getNumSparseConnectivityBits(), *VWeight, *VWeightInd);
+
+                    // Add weights to accumulator loaded in previous iteration
+                    c.vadd_s(*VAccum, *VAccum, *VWeight);
+
+                    // Write back accumulator
+                    c.vstorel(*VAccum, *VPostAddr);
+                },
+                [this, weightBufferReg]
+                (CodeGenerator &c, uint32_t numUnrolls)
+                {
+                    // Increment pointers 
+                    c.addi(*weightBufferReg, *weightBufferReg, 64 * numUnrolls);
+                });
+        }
+
+    private:
+        VectorRegisterAllocator::RegisterPtr m_TargetMaskReg;
+        VectorRegisterAllocator::RegisterPtr m_TargetAddrReg;
+    };
+
+    /*class DelayedRowGeneratorBase : public RowGeneratorBase
+    {
+    public:
+        DelayedRowGeneratorBase(CodeGenerator &c, std::shared_ptr<const EventPropagationProcess> process,
+                                const Model::StateFields &stateFields, VectorRegisterAllocator::RegisterPtr vectorTimeReg,
+                                ScalarRegisterAllocator &scalarRegisterAllocator, 
+                                VectorRegisterAllocator &vectorRegisterAllocator)
+        :   RowGeneratorBase(c, process, stateFields, scalarRegisterAllocator, vectorRegisterAllocator),
+            m_VectorTimeReg(vectorTimeReg)
+        {
+            // Allocate register for delay mask and calculate
+            m_DelayMaskReg = vectorRegisterAllocator.getRegister("VTargetDelayMask V");
+            c.vlui(*m_DelayMaskReg, (1 << process->getNumDelayBits()) - 1);
+
+            // Check number of buffer timesteps is P.O.T.
+            if(!isPOT(process->getTarget()->getNumBufferTimesteps())) {
+                    throw std::runtime_error("When used as delayed event propagation targets, variables "
+                                            "need to have a power-of-two number of buffer timesteps");
+            }
+
+            // Allocate register for target address
+            // Generate code to load address
+            // **NOTE** LLM address is offset by 4 bytes in field
+            // **NOTE** this needs re-initialising every row so might as well keep in scalar register
+            ALLOCATE_SCALAR(STmp);
+            m_TargetAddrReg = scalarRegisterAllocator.getRegister("STargetAddr X");
+            c.lw(*m_TargetAddrReg, Reg::X0, stateFields.at(process->getTarget()) + 4);
+        }
+    
+        virtual void generateRow(CodeGenerator &c, ScalarRegisterAllocator::RegisterPtr idPreReg) final override
+        {
+            // Make some friendlier-named references
+            auto &scalarRegisterAllocator = getScalarRegisterAllocator();
+            auto &vectorRegisterAllocator = getVectorRegisterAllocator();
+
+            // Loop over postsynaptic neurons
+            ALLOCATE_VECTOR(VAccum)
+            ALLOCATE_VECTOR(VWeightInd1);
+            ALLOCATE_VECTOR(VWeightInd2);
+            ALLOCATE_VECTOR(VPostAddr);
+            ALLOCATE_VECTOR(VWeight);
+            ALLOCATE_VECTOR(VTargetReg);
+
+            // REset target register from scalar register
+            // **NOTE** no point in caching this as it needs resetting every row
+            c.vfill(*VTargetReg, *m_TargetAddrReg);
+
+            // Load weight buffer 
+            auto weightBufferReg = loadWeightBuffer(c, idPreReg);
+
+            // Preload first weights and indices to avoid stall
+            c.vloadv(*VWeightInd1, *weightBufferReg, 0);
+            
+            AssemblerUtils::unrollVectorLoopBody(
+                c, scalarRegisterAllocator, getProcess()->getMaxRowLength(), 4, *weightBufferReg,
+                [this, weightBufferReg,
+                VAccum, VPostAddr, VTargetReg, VWeight, VWeightInd1, VWeightInd2]
+                (CodeGenerator &c, uint32_t r, bool even, ScalarRegisterAllocator::RegisterPtr)
+                {
+                    // Load NEXT vector of weights and indices
+                    c.vloadv(even ? *VWeightInd2 : *VWeightInd1, *weightBufferReg, (r + 1) * 64);
+
+                    // Extract postsynaptic index/delay
+                    auto VWeightInd = even ? VWeightInd1 : VWeightInd2;
+                    c.vand(*VPostAddr, *VWeightInd, *m_DelayMaskReg);
+
+                    // Add time to delay
+                    c.vadd(*VPostAddr, *VPostAddr, *m_VectorTimeReg);
+
+                    // Take modulo max delay
+                    c.vand(*VPostAddr, *VPostAddr, *m_DelayMaskReg);
+
+                    // Add base address
+                    c.vadd(*VPostAddr, *VPostAddr, *VTargetReg); 
+                    
+                    // Load accumulator
+                    c.vloadl(*VAccum, *VPostAddr);
+                    
+                    // Extract weight
+                    c.vsrai(getProcess()->getNumDelayBits(), *VWeight, *VWeightInd);
+
+                    // Add weights to accumulator loaded in previous iteration
+                    c.vadd_s(*VAccum, *VAccum, *VWeight);
+
+                    // Write back accumulator
+                    c.vstorel(*VAccum, *VPostAddr);
+                },
+                [this, VTargetReg, weightBufferReg]
+                (CodeGenerator &c, uint32_t numUnrolls)
+                {
+                    // Increment pointers 
+                    c.addi(*weightBufferReg, *weightBufferReg, 64 * numUnrolls);
+                    c.vadd(*VTargetReg, *VTargetReg, maxDelay * 2);
+                });
+        }
+    private:
+        VectorRegisterAllocator::RegisterPtr m_DelayMaskReg;
+        ScalarRegisterAllocator::RegisterPtr m_TargetAddrReg;
+        VectorRegisterAllocator::RegisterPtr m_VectorTimeReg;
+    };*/
 
     //------------------------------------------------------------------------
     // ModelComponentVisitor virtuals
@@ -1396,129 +1709,9 @@ private:
             });
     }
 
-    void generateDenseRow(std::shared_ptr<const EventPropagationProcess> process,
-                          ScalarRegisterAllocator::RegisterPtr targetReg,
-                          ScalarRegisterAllocator::RegisterPtr weightBufferReg)
-    {
-        // Make some friendlier-named references
-        auto &scalarRegisterAllocator = m_ScalarRegisterAllocator.get();
-        auto &vectorRegisterAllocator = m_VectorRegisterAllocator.get();
-        auto &c = m_CodeGenerator.get();
-
-        ALLOCATE_VECTOR(VWeight);
-        ALLOCATE_VECTOR(VTarget1);
-        ALLOCATE_VECTOR(VTarget2);
-        ALLOCATE_VECTOR(VTargetNew);
-
-        // Preload first ISyn to avoid stall
-        c.vloadv(*VTarget1, *targetReg, 0);
-
-        AssemblerUtils::unrollVectorLoopBody(
-            c, scalarRegisterAllocator, process->getNumTargetNeurons(), 4, *targetReg,
-            [&targetReg, weightBufferReg, VWeight, VTarget1, VTarget2, VTargetNew]
-            (CodeGenerator &c, uint32_t r, bool even, ScalarRegisterAllocator::RegisterPtr maskReg)
-            {
-                // Load vector of weights
-                c.vloadv(*VWeight, *weightBufferReg, r * 64);
-
-                // Load NEXT vector of target to avoid stall
-                // **YUCK** in last iteration, while this may not be accessed, it may be out of bounds                  
-                c.vloadv(even ? *VTarget2 : *VTarget1, *targetReg, (r + 1) * 64);
-            
-                // Add weights to ISyn
-                auto VTarget = even ? VTarget1 : VTarget2;
-                if(maskReg) {
-                    c.vadd_s(*VTargetNew, *VTarget, *VWeight);
-                    c.vsel(*VTarget, *maskReg, *VTargetNew);
-                }
-                else {
-                    c.vadd_s(*VTarget, *VTarget, *VWeight);
-                }
-
-                // Write back target
-                c.vstore(*VTarget, *targetReg, r * 64);
-            },
-            [&targetReg, weightBufferReg]
-            (CodeGenerator &c, uint32_t numUnrolls)
-            {
-                // Increment pointers 
-                c.addi(*targetReg, *targetReg, 64 * numUnrolls);
-                c.addi(*weightBufferReg, *weightBufferReg, 64 * numUnrolls);
-            });
-    }
-
-    void generateSparseDelayRow(std::shared_ptr<const EventPropagationProcess> process,
-                                VectorRegisterAllocator::RegisterPtr targetDelayMaskReg, 
-                                VectorRegisterAllocator::RegisterPtr targetAddrReg,
-                                VectorRegisterAllocator::RegisterPtr vectorTimeReg,
-                                ScalarRegisterAllocator::RegisterPtr weightBufferReg)
-    {
-        // Make some friendlier-named references
-        auto &scalarRegisterAllocator = m_ScalarRegisterAllocator.get();
-        auto &vectorRegisterAllocator = m_VectorRegisterAllocator.get();
-        auto &c = m_CodeGenerator.get();
-
-        // Loop over postsynaptic neurons
-        ALLOCATE_VECTOR(VAccum)
-        ALLOCATE_VECTOR(VWeightInd1);
-        ALLOCATE_VECTOR(VWeightInd2);
-        ALLOCATE_VECTOR(VPostAddr);
-        ALLOCATE_VECTOR(VWeight);
-
-        // Preload first weights and indices to avoid stall
-        c.vloadv(*VWeightInd1, *weightBufferReg, 0);
-        
-        AssemblerUtils::unrollVectorLoopBody(
-            c, scalarRegisterAllocator, process->getMaxRowLength(), 4, *weightBufferReg,
-            [process, targetDelayMaskReg, targetAddrReg, vectorTimeReg, weightBufferReg, 
-             VAccum, VPostAddr, VWeight, VWeightInd1, VWeightInd2]
-            (CodeGenerator &c, uint32_t r, bool even, ScalarRegisterAllocator::RegisterPtr)
-            {
-                // Load NEXT vector of weights and indices
-                c.vloadv(even ? *VWeightInd2 : *VWeightInd1, *weightBufferReg, (r + 1) * 64);
-
-                // Extract postsynaptic index/delay
-                auto VWeightInd = even ? VWeightInd1 : VWeightInd2;
-                c.vand(*VPostAddr, *VWeightInd, *targetDelayMaskReg);
-                
-                // If process has delays
-                if(process->getNumDelayBits() > 0) {
-                    // Add time to delay
-                    c.vadd(*VPostAddr, *VPostAddr, *vectorTimeReg);
-
-                    // Take modulo max delay
-                    c.vand(*VPostAddr, *VPostAddr, *targetDelayMaskReg);
-                }
-
-                // Add base address
-                c.vadd(*VPostAddr, *VPostAddr, *targetAddrReg); 
-                
-                // Load accumulator
-                c.vloadl(*VAccum, *VPostAddr);
-                
-                // Extract weight
-                const size_t numBits = ((process->getNumSparseConnectivityBits() > 0) 
-                                        ? process->getNumSparseConnectivityBits()
-                                        : process->getNumDelayBits());
-                c.vsrai(numBits, *VWeight, *VWeightInd);
-
-                // Add weights to accumulator loaded in previous iteration
-                c.vadd_s(*VAccum, *VAccum, *VWeight);
-
-                // Write back accumulator
-                c.vstorel(*VAccum, *VPostAddr);
-            },
-            [weightBufferReg]
-            (CodeGenerator &c, uint32_t numUnrolls)
-            {
-                // Increment pointers 
-                c.addi(*weightBufferReg, *weightBufferReg, 64 * numUnrolls);
-            });
-    }
-
-    void generateURAMWordLoop(const std::vector<std::shared_ptr<const EventPropagationProcess>> &processes,
-                              const EventPropagationProcessRegisters &processRegs, ScalarRegisterAllocator::RegisterPtr eventBufferReg, 
-                              ScalarRegisterAllocator::RegisterPtr eventBufferEndReg, VectorRegisterAllocator::RegisterPtr vectorTimeReg)
+    void generateURAMWordLoop(const std::vector<std::unique_ptr<RowGeneratorBase>> &rowGenerators, 
+                              ScalarRegisterAllocator::RegisterPtr eventBufferReg, 
+                              ScalarRegisterAllocator::RegisterPtr eventBufferEndReg)
     {
         // Make some friendlier-named references
         auto &scalarRegisterAllocator = m_ScalarRegisterAllocator.get();
@@ -1581,42 +1774,9 @@ private:
                 c.L(bitLoopBody);
                 c.sub(*SN, *SN, *SNumLZ);
 
-                // Loop through postsynaptic targets
-                const auto &processFields = m_Model.get().getStatefulFields();
-                for(size_t i = 0; i < processes.size(); i++) {
-                    const auto p = processes[i];
-                    const auto &stateFields = processFields.at(p);
-
-                    // Get previously allocated registers
-                    auto [strideReg, sparseMaskReg, targetAddrReg] = processRegs[i];
-
-                    // If process is dense, allocate target register and load
-                    // **YUCK** it would be nice to put this at the start of generateDenseRow
-                    // but first instruction requires targetReg so this would stall
-                    ScalarRegisterAllocator::RegisterPtr targetReg;
-                    const bool sparseOrDelay = (p->getNumSparseConnectivityBits() > 0 
-                                                || p->getNumDelayBits() > 0);
-                    if(!sparseOrDelay) {
-                        targetReg = scalarRegisterAllocator.getRegister("STargetBuffer = X");
-                        c.lw(*targetReg, Reg::X0, stateFields.at(p->getTarget()));
-                    }
-
-                    // SWeightBuffer = weightInHidStart + (numPostVecs * 64 * SN);
-                    ALLOCATE_SCALAR(SWeightBuffer);
-                    c.lw(*SWeightBuffer, Reg::X0, stateFields.at(p->getWeight()));
-                    {
-                        ALLOCATE_SCALAR(STemp);
-                        c.mul(*STemp, *SN, *strideReg);
-                        c.add(*SWeightBuffer, *SWeightBuffer, *STemp);
-                    }
-
-                    if(sparseOrDelay) {
-                        generateSparseDelayRow(p, sparseMaskReg, targetAddrReg, 
-                                               vectorTimeReg, SWeightBuffer);
-                    }
-                    else {
-                        generateDenseRow(p, targetReg, SWeightBuffer);
-                    }
+                // Loop through row generators and generate code to process rows
+                for(auto &r : rowGenerators) {
+                    r->generateRow(c, SN);
                 }
 
                 // SN --
@@ -1942,50 +2102,23 @@ private:
         }
 
         // Loop through postsynaptic targets
-        EventPropagationProcessRegisters sProcessRegs;
+        std::vector<std::unique_ptr<RowGeneratorBase>> rowGenerators;
         for(const auto &p : processes) {
-            // Allocate register for stride, calculate and load as immediate
-            auto strideReg = scalarRegisterAllocator.getRegister("SStride = X");
-            c.li(*strideReg, ceilDivide(p->getMaxRowLength(), 32) * 64);
-
-            // If process has sparse connectivity or delays
-            VectorRegisterAllocator::RegisterPtr targetDelayMaskReg;
-            VectorRegisterAllocator::RegisterPtr targetAddrReg;
-            if(p->getNumSparseConnectivityBits()) {
-                // Allocate register for target mask and calculate
-                targetDelayMaskReg = vectorRegisterAllocator.getRegister("VTargetDelayMask V");
-                c.vlui(*targetDelayMaskReg, (1 << p->getNumSparseConnectivityBits()) - 1);
-
-                // Allocate register for target address
-                // Generate code to load address
-                // **NOTE** If delays are used, LLM address is offset by 4 bytes
-                ALLOCATE_SCALAR(STmp);
-                targetAddrReg = vectorRegisterAllocator.getRegister("VTargetAddr V");
-                c.lw(*STmp, Reg::X0, processFields.at(p).at(p->getTarget()));
-                c.vfill(*targetAddrReg, *STmp);
+            if(p->getNumSparseConnectivityBits() > 0) { 
+                rowGenerators.emplace_back(
+                    std::make_unique<SparseRowGeneratorBase>(c, p, processFields.at(p), 
+                                                             scalarRegisterAllocator, 
+                                                             vectorRegisterAllocator));
             }
             else if(p->getNumDelayBits() > 0) {
-                // Allocate register for delay mask and calculate
-                targetDelayMaskReg = vectorRegisterAllocator.getRegister("VTargetDelayMask V");
-                c.vlui(*targetDelayMaskReg, (1 << p->getNumDelayBits()) - 1);
-
-                // Check number of buffer timesteps is P.O.T.
-                if(!isPOT(p->getTarget()->getNumBufferTimesteps())) {
-                        throw std::runtime_error("When used as delayed event propagation targets, variables "
-                                                "need to have a power-of-two number of buffer timesteps");
-                }
-
-                // Allocate register for target address
-                // Generate code to load address
-                // **NOTE** LLM address is offset by 4 bytes in field
-                ALLOCATE_SCALAR(STmp);
-                targetAddrReg = vectorRegisterAllocator.getRegister("VTargetAddr V");
-                c.lw(*STmp, Reg::X0, processFields.at(p).at(p->getTarget()) + 4);
-                c.vfill(*targetAddrReg, *STmp);
+                assert(false);
             }
-
-            // Add register pointers to vector
-            sProcessRegs.emplace_back(strideReg, targetDelayMaskReg, targetAddrReg);
+            else {
+                rowGenerators.emplace_back(
+                    std::make_unique<DenseRowGeneratorBase>(c, p, processFields.at(p), 
+                                                            scalarRegisterAllocator, 
+                                                            vectorRegisterAllocator));
+            }
         }
     
         // Generate correct loop depending on whether weights are in DRAM or URAM
@@ -1994,7 +2127,7 @@ private:
             //generateDRAMWordLoop(processes, sProcessRegs, SEventBuffer, SEventBufferEnd, vectorTimeReg);
         }
         else {
-            generateURAMWordLoop(processes, sProcessRegs, SEventBuffer, SEventBufferEnd, vectorTimeReg);
+            generateURAMWordLoop(rowGenerators, SEventBuffer, SEventBufferEnd);
         }
         
     }
