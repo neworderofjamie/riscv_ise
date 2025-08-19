@@ -237,12 +237,9 @@ public:
         std::vector<std::byte> bytes;
         array->serialiseDeviceObject(bytes);
 
-        // Check serialised data is exactly 4 bytes
-        assert(bytes.size() == 4);
-
         // Memcpy bytes into field offset
         std::memcpy(this->getHostPointer() + fieldOffset, 
-                    bytes.data(), 4);
+                    bytes.data(), bytes.size());
     }
 
     //! Copy field data to device
