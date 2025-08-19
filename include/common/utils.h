@@ -25,6 +25,11 @@ constexpr inline auto padSize(A size, B blockSize)
     return ceilDivide(size, blockSize) * blockSize;
 }
 
+template<typename A, typename = std::enable_if_t<std::is_integral_v<A>>>
+constexpr inline bool isPOT(A value)
+{
+    return (value & (value - 1)) == 0;
+}
 
 inline int clz(uint32_t value)
 {
