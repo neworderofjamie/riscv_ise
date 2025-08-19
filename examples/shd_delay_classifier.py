@@ -55,6 +55,7 @@ hidden_output_shape = [hidden_shape[0], output_shape[0]]
 device = False
 record = False
 disassemble_code = False
+num_delay_bits = 7
 
 # Load and preprocess SHD
 dataset = SHD(save_to="data", train=False)
@@ -80,13 +81,13 @@ input_spikes = EventContainer(Shape(input_shape), num_timesteps)
 
 # Model
 hidden = LIF(hidden_shape, 20.0, 5.0, 1.0,
-             8, 1, 64, name="hidden")
+             8, 1, 2**(num_delay_bits - 1), name="hidden")
 output = LI(output_shape, 20.0, num_timesteps, 8, name="output")
 
 input_hidden = Linear(input_spikes, hidden.i, "s7_8_sat_t", 
-                      num_delay_bits=6, name="input_hidden")
+                      num_delay_bits=num_delay_bits, name="input_hidden")
 hidden_hidden = Linear(hidden.out_spikes, hidden.i, "s7_8_sat_t", 
-                       num_delay_bits=6, name="hidden_hidden")
+                       num_delay_bits=num_delay_bits, name="hidden_hidden")
 hidden_output = Linear(hidden.out_spikes, output.i, "s7_8_sat_t", name="hidden_output")
 
 output_zero = Memset(output.v_avg)
@@ -126,15 +127,15 @@ hid_hid_delays = np.round(np.load("checkpoints_6_1_256_62_1_0_1.0_1_5e-12/best-C
 
 # Load and quantise weights
 in_hid_weights = quantise(np.load("checkpoints_6_1_256_62_1_0_1.0_1_5e-12/best-Conn_Pop0_Pop1-g.npy"),
-                          8, input_shape[0], True)
+                          16 - num_delay_bits, input_shape[0], True)
                           
 hid_hid_weights = quantise(np.load("checkpoints_6_1_256_62_1_0_1.0_1_5e-12/best-Conn_Pop1_Pop1-g.npy"),
-                           8, hidden_shape[0], True) 
+                           16 - num_delay_bits, hidden_shape[0], True) 
 
 # Combine weights and delays and push
-copy_and_push(build_delay_weights(in_hid_weights, in_hid_delays, 6),
+copy_and_push(build_delay_weights(in_hid_weights, in_hid_delays, num_delay_bits),
               input_hidden.weight, runtime)
-copy_and_push(build_delay_weights(hid_hid_weights, hid_hid_delays, 6),
+copy_and_push(build_delay_weights(hid_hid_weights, hid_hid_delays, num_delay_bits),
               hidden_hidden.weight, runtime)
 
 # Load and quantise output weights
