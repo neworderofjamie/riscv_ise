@@ -70,7 +70,7 @@ class LI:
              "OneMinusAlpha": Parameter(NumericValue(1.0 - np.exp(-1.0 / tau_m)), decay_dtype),
              "Beta": Parameter(NumericValue(np.exp(-1.0 / tau_syn)), decay_dtype),
              "IScale": Parameter(NumericValue(tau_syn * (1.0 - np.exp(-1.0 / tau_syn))), decay_dtype),
-             "VAvgScale": Parameter(NumericValue(1.0 / (num_timesteps / 2)), dtype)},
+             "VAvgScale": Parameter(NumericValue(1.0 / (num_timesteps / 2)), decay_dtype)},
             {"V": self.v, "VAvg": self.v_avg, "I": self.i},
             {}, name)
         
@@ -83,7 +83,7 @@ hidden_hidden_shape = [hidden_shape[0], hidden_shape[0]]
 hidden_output_shape = [hidden_shape[0], output_shape[0]]
 device = False
 record = False
-disassemble_code = True
+disassemble_code = False
 num_delay_bits = 7
 
 # Load and preprocess SHD
@@ -94,8 +94,7 @@ shd_spikes = []
 shd_labels = []
 timestep_range = np.arange(num_timesteps + 1)
 neuron_range = np.arange((ceil_divide(input_shape[0], 32) * 32) + 1)
-for i in range(100):
-    events, label = dataset[i]
+for events, label in dataset:
     # Build histogram
     spike_event_histogram = np.histogram2d(events["t"] / 1000.0, events["x"], (timestep_range, neuron_range))[0]
     spike_event_histogram = np.minimum(spike_event_histogram, 1).astype(bool)
@@ -188,7 +187,7 @@ input_spike_array, input_spike_view = get_array_view(runtime, input_spikes,
                                                      np.uint32)
 output_v_avg_array, output_v_avg_view = get_array_view(runtime, output.v_avg, np.int16)
 num_correct = 0
-for spikes, label in tqdm(zip(shd_spikes[:10], shd_labels),
+for spikes, label in tqdm(zip(shd_spikes, shd_labels),
                           total=len(shd_labels)):
     # Copy data to array host pointe
     input_spike_view[:] = spikes
@@ -197,19 +196,9 @@ for spikes, label in tqdm(zip(shd_spikes[:10], shd_labels),
     # Classify
     runtime.run()
 
-    #hidden_spikes = pull_spikes(num_timesteps + 1, hidden.out_spikes, runtime)
-    #print(hidden_spikes)    
-
-    # If we're recording, write input and hidden spikes to file
-    #if record:
-    #    recordSpikes("mnist_input_spikes_" + std::to_string(i) + ".csv", inputSpikeArray,
-    #                 inputShape.getNumNeurons(), numTimesteps);
-    #    recordSpikes("mnist_hidden_spikes_" + std::to_string(i) + ".csv", hiddenSpikeArray,
-    #                 hiddenShape.getNumNeurons(), numTimesteps);
-
     # Copy output V sum from device
     output_v_avg_array.pull_from_device()
-    print(output_v_avg_view)
+
     # Determine if output is correct
     classification = np.argmax(output_v_avg_view)
     if classification == label:
