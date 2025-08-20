@@ -168,8 +168,6 @@ def build_delay_weights(weights: np.ndarray, delays: np.ndarray,
 
 def build_sparse_connectivity(row_ind: Sequence[np.ndarray], weight: Number,
                               sparse_connectivity_bits: int) -> np.ndarray:
-    num_pre = len(row_ind)
-
     # Determine which lane each postsynaptic index belongs in
     row_lane = [r % 32 for r in row_ind]
 
@@ -180,7 +178,8 @@ def build_sparse_connectivity(row_ind: Sequence[np.ndarray], weight: Number,
     row_conns_per_lane = [np.bincount(l) for l in row_lane]
 
     # Determine maximum number of vectors
-    num_vectors = max(np.amax(c) for c in row_conns_per_lane)
+    num_vectors = max(np.amax(c) for c in row_conns_per_lane
+                      if len(c) > 0)
 
     # Calculate cumulative sum of bin count to determine where to split per-bank
     row_conn_lane_sections = [np.cumsum(c) for c in row_conns_per_lane]
@@ -189,7 +188,8 @@ def build_sparse_connectivity(row_ind: Sequence[np.ndarray], weight: Number,
     row_data_sorted = [((r // 32) * 2).astype(np.int16) for r in row_ind_sorted]
 
     # Check largest address fits without sparse connectivity bits
-    max_address = max(np.amax(r) for r in row_data_sorted)
+    max_address = max(np.amax(r) for r in row_data_sorted
+                      if len(r) > 0)
     if max_address >= 2**sparse_connectivity_bits:
         raise RuntimeError("Not enough bits to represent connectivity")
 
