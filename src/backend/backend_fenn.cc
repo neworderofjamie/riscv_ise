@@ -841,7 +841,7 @@ private:
             env.getCodeGenerator().vstorel(*env.getVectorRegister("_zero"), *m_LLMBufferReg, m_DelayStride * r);
 
             // Add new input from LLM to state register
-            env.getCodeGenerator().vadd(*reg, *reg, *denDelayFrontReg);
+            env.getCodeGenerator().vadd_s(*reg, *reg, *denDelayFrontReg);
         }
 
         virtual void genStore(::EnvironmentBase &env, VectorRegisterAllocator::RegisterPtr reg, uint32_t r) final override
