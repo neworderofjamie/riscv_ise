@@ -229,6 +229,6 @@ def test_forward_den_delay(device):
 
         # Remove first timestep and padding neurons
         x_view = x_view[1:,:num_post]
-        if np.all(x_view != correct):
+        if np.any(x_view != correct):
             assert False, f"{p.process.name} decoding incorrect ({x_view} rather than {correct})"
 
