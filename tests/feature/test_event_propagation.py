@@ -149,34 +149,36 @@ def test_forward(device):
 def test_forward_den_delay(device):
     init_logging(PlogSeverity.INFO)
 
-    num = 10
+    num_pre = 10
+    num_post = 4
     num_delay_bits = 5
 
-    num_vecs = ceil_divide(num, 32) 
+    num_pre_vecs = ceil_divide(num_pre, 32)
+    num_post_vecs = ceil_divide(num_post, 32)
 
     # Create one-hot pattern of spikes to decode
-    spikes = np.identity(num, dtype=bool)
+    spikes = np.identity(num_pre, dtype=bool)
 
     # Pack along neurons axis
     spikes = np.packbits(spikes, axis=1, bitorder="little")
 
     # Pad neuron axes to 4 bytes
-    spikes = np.pad(spikes, ((0, 0), (0, (num_vecs * 4) - spikes.shape[1])))
+    spikes = np.pad(spikes, ((0, 0), (0, (num_pre_vecs * 4) - spikes.shape[1])))
 
     # Convert to uint32 and flatten
     spikes = spikes.view(np.uint32).flatten()
 
     # Build combined
-    delays = np.arange(num - 1, -1, -1)
+    delays = np.reshape(np.arange(num_pre - 1, -1, -1), (num_pre, 1))
     delay_weights = build_delay_weights(np.ones_like(delays), delays, num_delay_bits)
-    delay_weights = np.reshape(delay_weights, (num, 1))
-    delay_weights = np.pad(delay_weights, ((0, 0), (0, (32 - delay_weights.shape[1]))))
+    delay_weights = np.tile(delay_weights, (1, num_post))
+    delay_weights = np.pad(delay_weights, ((0, 0), (0, (num_post_vecs * 32) - delay_weights.shape[1])))
 
     # Create input spike container
-    input_spikes = EventContainer(Shape([num]), num)
+    input_spikes = EventContainer(Shape([num_pre]), num_pre)
 
     # Create one output neuron pop
-    dense_n_pop = PostNeuron([1], 2**(num_delay_bits - 1), num + 1, "DenseNPop")
+    dense_n_pop = PostNeuron([num_post], 2**(num_delay_bits - 1), num_pre + 1, "DenseNPop")
 
     # Create delayed connection from input spikes to dense
     input_dense = Linear(input_spikes, dense_n_pop.i, "int16_t", 
@@ -200,7 +202,7 @@ def test_forward_den_delay(device):
     # Generate sim code
     code = backend.generate_simulation_kernel([synapse_update_processes, neuron_update_processes],
                                               [init_processes], [],
-                                              num, model)
+                                              num_pre, model)
     # Create runtime
     runtime = Runtime(model, backend)
 
@@ -218,16 +220,15 @@ def test_forward_den_delay(device):
     runtime.run()
 
     # Simulate for 11 timesteps
-    correct = np.zeros(num)
-    correct[-1] = num
+    correct = np.reshape(np.zeros(num_pre), (num_pre, 1))
+    correct[-1] = num_pre
 
     for p in [dense_n_pop]:
-        x_array, x_view = get_array_view(runtime, p.x, np.int16, (num + 1, 32))
+        x_array, x_view = get_array_view(runtime, p.x, np.int16, (num_pre + 1, num_post_vecs * 32))
         x_array.pull_from_device()
 
         # Remove first timestep and padding neurons
-        x_view = x_view[1:,:1]
-
+        x_view = x_view[1:,:num_post]
         if np.all(x_view != correct):
             assert False, f"{p.process.name} decoding incorrect ({x_view} rather than {correct})"
 
