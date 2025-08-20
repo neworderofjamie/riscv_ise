@@ -17,7 +17,7 @@ ifdef DEBUG
     PREFIX:=$(PREFIX)_debug
     CXXFLAGS+=-g -O0 -DDEBUG
 else
-    CXXFLAGS+=-Ofast
+    CXXFLAGS+=-O3
 endif 
 
 
