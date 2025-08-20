@@ -165,10 +165,10 @@ hid_hid_delays = np.round(np.load("checkpoints_6_1_256_62_1_0_1.0_1_5e-12/best-C
 
 # Load and quantise weights
 in_hid_weights = quantise(np.load("checkpoints_6_1_256_62_1_0_1.0_1_5e-12/best-Conn_Pop0_Pop1-g.npy"),
-                          16 - num_delay_bits, input_shape[0], True)
+                          8, input_shape[0], True)
                           
 hid_hid_weights = quantise(np.load("checkpoints_6_1_256_62_1_0_1.0_1_5e-12/best-Conn_Pop1_Pop1-g.npy"),
-                           16 - num_delay_bits, hidden_shape[0], True) 
+                           8, hidden_shape[0], True) 
 
 # Combine weights and delays and push
 copy_and_push(build_delay_weights(in_hid_weights, in_hid_delays, num_delay_bits),
@@ -222,6 +222,7 @@ for spikes, label in tqdm(zip(shd_spikes[:100], shd_labels),
     output_v_avg_array.pull_from_device()
 
     # Determine if output is correct
+    print(output_v_avg_view)
     classification = np.argmax(output_v_avg_view)
     if classification == label:
         num_correct += 1
