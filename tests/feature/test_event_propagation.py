@@ -1,28 +1,36 @@
 import numpy as np
 import pytest
+from typing import Optional
 
 from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer,
                     EventPropagationProcess, MemsetProcess, Model,
-                    NeuronUpdateProcess, ProcessGroup, Runtime, Shape,
-                    UnresolvedType, Variable)
+                    NeuronUpdateProcess, PlogSeverity, ProcessGroup, Runtime,
+                    Shape, UnresolvedType, Variable)
 
 from pyfenn import disassemble, init_logging
-from pyfenn.utils import (build_sparse_connectivity, ceil_divide,
-                          copy_and_push, generate_fixed_prob, pull_spikes,
-                          read_perf_counter, zero_and_push)
+from pyfenn.utils import (build_delay_weights, build_sparse_connectivity,
+                          ceil_divide, copy_and_push, get_array_view)
                           
 
+# **THINK** should REALLY generic models belong in pyfenn somewhere
 class Memset:
     def __init__(self, target: Variable, name: str = ""):
         self.process = MemsetProcess(target, name)
 
 class PostNeuron:
-    def __init__(self, shape, num_timesteps, name: str = ""):
+    def __init__(self, shape, num_i_timesteps, num_x_timesteps, name: str = ""):
         self.shape = Shape(shape)
         dtype = UnresolvedType("int16_t")
-        self.i = Variable(self.shape, dtype, num_timesteps + 1, name=f"{name}_I")
-        self.process = NeuronUpdateProcess("", {}, {"I": self.i}, {}, name)
+        self.i = Variable(self.shape, dtype, num_i_timesteps, name=f"{name}_I")
+        self.x = Variable(self.shape, dtype, num_x_timesteps, name=f"{name}_X")
+        self.process = NeuronUpdateProcess(
+            """
+            X = I;
+            I = 0;
+            """, 
+            {}, {"I": self.i, "X": self.x}, {}, name)
 
+# **THINK** should REALLY generic models belong in pyfenn somewhere
 class Linear:
     def __init__(self, source_events: EventContainer, target_var: Variable,
                  weight_dtype: str, max_row_length: Optional[int] = None, 
@@ -35,6 +43,7 @@ class Linear:
              (target_var.shape.num_neurons 
               if num_sparse_connectivity_bits == 0 
               else max_row_length)])
+
         weight_dtype = UnresolvedType(weight_dtype)
         self.weight = Variable(weight_shape, weight_dtype, 1, f"{name}_weight")
         self.process = EventPropagationProcess(source_events, self.weight,
@@ -43,37 +52,43 @@ class Linear:
                                                num_delay_bits, name)
 
 def test_forward(device):
-    input_spikes = EventContainer(Shape([16]), 16)
-    
-    # Create spike source array to generate one-hot pattern to decode
-    #ss_pop = model.add_neuron_population("SpikeSource", 16, "SpikeSourceArray",
-    #                                     {}, {"startSpike": np.arange(16), "endSpike": np.arange(1, 17)})
-    #ss_pop.extra_global_params["spikeTimes"].set_init_values(np.arange(16.0))
+    init_logging(PlogSeverity.INFO)
 
+    # Create one-hot pattern of spikes to decode
+    spikes = np.identity(16, dtype=bool)
+
+    # Pack along neurons axis
+    spikes = np.packbits(spikes, axis=1, bitorder="little")
+
+    # Pad neuron axes to 4 bytes
+    spikes = np.pad(spikes, ((0, 0), (0, 4 - spikes.shape[1])))
+
+    # Convert to uint32 and flatten
+    spikes = spikes.view(np.uint32).flatten()
+    
     # Build sparse connectivity
-    conn = []
-    for i in range(16):
-        row = []
-        for j in range(4):
-            j_value = 1 << j
-            if ((i + 1) & j_value) != 0:
-                row.append(j)
-        conn.append(np.asarray(row))
-    
-    conn = build_sparse_connectivity(conn, 1, 3)
-    
-    # Use to build dense matrix
-    dense = np.zeros((16, 4), dtype=np.int16)
-    dense[pre_inds,post_inds] = 1
-    
-    # Create one output neuron pop with sparse decoder population
-    sparse_n_pop = PostNeuron([4], 16, "SparseNPop")
-    dense_n_pop = PostNeuron([4], 16, "DenseNPop")
+    j = np.arange(4)
+    j_value = 1 << j
+    conn = [np.where((j_value & (i + 1)) != 0)[0]
+            for i in range(16)]
 
-    #manual_sparse_s_pop.set_sparse_connections(pre_inds, post_inds)
-    
+    # Use to build dense matrix
+    dense = np.zeros((16, 32), dtype=np.int16)
+    for i, row in enumerate(conn):
+        dense[i,row] = 1
+
+    # Convert into internal format
+    conn = build_sparse_connectivity(conn, 1, 3)
+
+    # Create input spike container
+    input_spikes = EventContainer(Shape([16]), 16)
+
+    # Create one output neuron pop with sparse decoder population
+    sparse_n_pop = PostNeuron([4], 1, 17, "SparseNPop")
+    dense_n_pop = PostNeuron([4], 1, 17, "DenseNPop")
+
     input_sparse = Linear(input_spikes, sparse_n_pop.i, "int16_t", 
-                          max_row_length=16, num_sparse_connectivity_bits=3,
+                          max_row_length=4, num_sparse_connectivity_bits=3,
                           name="input_sparse")
     input_dense = Linear(input_spikes, dense_n_pop.i, "int16_t", name="input_dense")
 
@@ -105,8 +120,9 @@ def test_forward(device):
     runtime.allocate()
 
     # Initialise weights
+    copy_and_push(spikes, input_spikes, runtime)
     copy_and_push(conn.flatten(), input_sparse.weight, runtime)
-    copy_and_push(dense.flatten(), dense_zero.weight, runtime)
+    copy_and_push(dense.flatten(), input_dense.weight, runtime)
    
     # Set sim instructions
     runtime.set_instructions(code)
@@ -114,75 +130,104 @@ def test_forward(device):
     # Simulate
     runtime.run()
 
+    # Loop through output processes
     output_place_values = 2 ** np.arange(4)
-    output_populations = [sparse_constant_weight_n_pop,
-                          sparse_constant_weight_pre_n_pop,
-                          manual_sparse_constant_weight_n_pop,
-                          sparse_n_pop, sparse_pre_n_pop, sparse_hybrid_n_pop,
-                          manual_sparse_n_pop, bitmask_n_pop,
-                          word_packed_bitmask_n_pop, dense_n_pop,
-                          manual_dense_n_pop, sparse_event_n_pop]
+    for p in [sparse_n_pop, dense_n_pop]:
+        x_array, x_view = get_array_view(runtime, p.x, np.int16, (17, 32))
+        x_array.pull_from_device()
+        
+        # Remove first timestep and padding neurons; and convert to bool
+        x_view = x_view[1:,:4].astype(bool)
+        
+        for t in range(16):
+            correct_value = (t + 1) % 16
+            output_value = np.sum(output_place_values[x_view[t]])
+            if output_value != correct_value:
+                assert False, f"{p.process.name} decoding incorrect ({output_value} rather than {correct_value})"
     
-    """
-    while model.timestep < 16:
-        model.step_time()
 
-        # Loop through output populations
-        for pop in output_populations:
-            # Pull state variable
-            pop.vars["x"].pull_from_device()
-
-            # Convert to binary mask
-            output_binary = np.isclose(np.ones(4), pop.vars["x"].view)
-
-            # Sum up active place values
-            output_value = np.sum(output_place_values[output_binary])
-            if output_value != (model.timestep - 1):
-                assert False, f"{pop.name} decoding incorrect ({output_value} rather than {model.timestep - 1})"
-    """
-
-"""
 def test_forward_den_delay(device):
-    model = make_model(precision, "test_forward_den_delay", backend=backend)
-    model.dt = 1.0
-    model.batch_size = batch_size
+    init_logging(PlogSeverity.INFO)
 
-    # Create spike source array to generate one-hot pattern to decode
-    # **NOTE** startSpike and endSpike will be broadcast across batch dimension
-    ss_pop = model.add_neuron_population("SpikeSource", 10, "SpikeSourceArray",
-                                         {}, {"startSpike": np.arange(10), "endSpike": np.arange(1, 11)})
-    ss_pop.extra_global_params["spikeTimes"].set_init_values(np.arange(10.0))
+    num = 10
+    num_delay_bits = 5
 
-    # Create one output neuron pop with dense decoder population
-    delay = np.arange(9, -1, -1)
-    dense_n_pop = model.add_neuron_population(
-        "PostDenseNeuron", 1, post_neuron_model,
-        {}, {"x": 0.0})
-    dense_s_pop = model.add_synapse_population(
-        "PostDenseSynapse", "DENSE",
-        ss_pop, dense_n_pop,
-        init_weight_update("StaticPulseDendriticDelay", {}, {"g": 1.0, "d": delay}),
-        init_postsynaptic("DeltaCurr", {}, {}))
-    dense_s_pop.max_dendritic_delay_timesteps = 10
+    num_vecs = ceil_divide(num, 32) 
 
-    # Build model and load
-    model.build()
-    model.load()
+    # Create one-hot pattern of spikes to decode
+    spikes = np.identity(num, dtype=bool)
+
+    # Pack along neurons axis
+    spikes = np.packbits(spikes, axis=1, bitorder="little")
+
+    # Pad neuron axes to 4 bytes
+    spikes = np.pad(spikes, ((0, 0), (0, (num_vecs * 4) - spikes.shape[1])))
+
+    # Convert to uint32 and flatten
+    spikes = spikes.view(np.uint32).flatten()
+
+    # Build combined
+    delays = np.arange(num - 1, -1, -1)
+    delay_weights = build_delay_weights(np.ones_like(delays), delays, num_delay_bits)
+    delay_weights = np.reshape(delay_weights, (num, 1))
+    delay_weights = np.pad(delay_weights, ((0, 0), (0, (32 - delay_weights.shape[1]))))
+
+    # Create input spike container
+    input_spikes = EventContainer(Shape([num]), num)
+
+    # Create one output neuron pop
+    dense_n_pop = PostNeuron([1], 2**(num_delay_bits - 1), num + 1, "DenseNPop")
+
+    # Create delayed connection from input spikes to dense
+    input_dense = Linear(input_spikes, dense_n_pop.i, "int16_t", 
+                         num_delay_bits=num_delay_bits, name="input_dense")
+
+    # Initialisation
+    dense_zero = Memset(dense_n_pop.i)
+    
+    # Group processes
+    init_processes = ProcessGroup([dense_zero.process])
+    neuron_update_processes = ProcessGroup([dense_n_pop.process])
+    synapse_update_processes = ProcessGroup([input_dense.process])
+    
+    # Create backend
+    backend = BackendFeNNHW() if device else BackendFeNNSim()
+
+    # Create model
+    model = Model([init_processes, neuron_update_processes, synapse_update_processes],
+                   backend)
+
+    # Generate sim code
+    code = backend.generate_simulation_kernel([synapse_update_processes, neuron_update_processes],
+                                              [init_processes], [],
+                                              num, model)
+    # Create runtime
+    runtime = Runtime(model, backend)
+
+    # Allocate memory for model
+    runtime.allocate()
+
+    # Initialise weights
+    copy_and_push(spikes, input_spikes, runtime)
+    copy_and_push(delay_weights.flatten(), input_dense.weight, runtime)
+
+     # Set sim instructions
+    runtime.set_instructions(code)
+
+    # Simulate
+    runtime.run()
 
     # Simulate for 11 timesteps
-    output_populations = [dense_n_pop, sparse_n_pop, sparse_pre_n_pop]
-    while model.timestep < 11:
-        model.step_time()
+    correct = np.zeros(num)
+    correct[-1] = num
 
-        # Loop through output populations
-        correct = 10.0 if model.timestep == 11 else 0.0
-        for pop in output_populations:
-            # Pull state variable
-            pop.vars["x"].pull_from_device()
+    for p in [dense_n_pop]:
+        x_array, x_view = get_array_view(runtime, p.x, np.int16, (num + 1, 32))
+        x_array.pull_from_device()
 
-            # If not close to correct value, error
-            # **NOTE** all close to handle batching
-            if not np.allclose(pop.vars["x"].view, correct):
-                assert False, f"{pop.name} decoding incorrect ({pop.vars['x'].view} rather than {correct})"
-"""
+        # Remove first timestep and padding neurons
+        x_view = x_view[1:,:1]
+
+        if np.all(x_view != correct):
+            assert False, f"{p.process.name} decoding incorrect ({x_view} rather than {correct})"
 
