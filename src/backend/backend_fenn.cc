@@ -711,6 +711,9 @@ private:
         }
     
     private:
+        //--------------------------------------------------------------------
+        // Members
+        //--------------------------------------------------------------------
         ScalarRegisterAllocator::RegisterPtr m_ReadBufferReg;
         ScalarRegisterAllocator::RegisterPtr m_WriteBufferReg;
     };
@@ -769,6 +772,9 @@ private:
         }
 
     private:
+        //--------------------------------------------------------------------
+        // Members
+        //--------------------------------------------------------------------
         VectorRegisterAllocator::RegisterPtr m_BufferReg;
     };
 
@@ -801,10 +807,6 @@ private:
 
             // Allocate vector registers to hold address of variable in LLM and delay stride
             m_LLMBufferReg = vectorRegisterAllocator.getRegister((varName + "Buffer V").c_str());
-            m_DelayStrideReg = vectorRegisterAllocator.getRegister((varName + "DelayStride V").c_str());
-
-            // Load delay stride
-            c.vlui(*m_DelayStrideReg, m_DelayStride);
 
             {
                 ALLOCATE_SCALAR(STmp);
@@ -850,9 +852,14 @@ private:
         virtual void genIncrement(CodeGenerator &c, uint32_t numUnrolls,
                                   VectorRegisterAllocator::RegisterPtr) final override
         {
+            // Calculate how many bytes we need to advance LLM addresses
+            // **TODO** VADDI instruction would save an instruction in this type of situation
+            auto numUnrollBytesReg = m_VectorRegisterAllocator.get().getRegister("NumUnrollBytes V");
+            c.vlui(*numUnrollBytesReg, numUnrolls * m_DelayStride);
+            
             // Increment URAM and LLM pointers
             c.addi(*m_URAMBufferReg, *m_URAMBufferReg, 64 * numUnrolls);
-            c.vadd(*m_LLMBufferReg, *m_LLMBufferReg, *m_DelayStrideReg);
+            c.vadd(*m_LLMBufferReg, *m_LLMBufferReg, *numUnrollBytesReg);
         }
 
         virtual ScalarRegisterAllocator::RegisterPtr getLoopCountScalarReg() const final override
@@ -866,13 +873,18 @@ private:
         }
     
     private:
+        //--------------------------------------------------------------------
+        // Members
+        //--------------------------------------------------------------------
         size_t m_DelayStride;
         ScalarRegisterAllocator::RegisterPtr m_URAMBufferReg;
         VectorRegisterAllocator::RegisterPtr m_LLMBufferReg;
-        VectorRegisterAllocator::RegisterPtr m_DelayStrideReg;
         std::reference_wrapper<VectorRegisterAllocator> m_VectorRegisterAllocator;
     };
 
+    //------------------------------------------------------------------------
+    // RowGeneratorBase
+    //------------------------------------------------------------------------
     class RowGeneratorBase
     {
     public:
@@ -889,10 +901,15 @@ private:
 
         }
 
+        //--------------------------------------------------------------------
         // Declared virtuals
+        //--------------------------------------------------------------------
         virtual void generateRow(CodeGenerator &cg, ScalarRegisterAllocator::RegisterPtr idPreReg) = 0;
     
     protected:
+        //--------------------------------------------------------------------
+        // Protected API
+        //--------------------------------------------------------------------
         auto getProcess() const{ return m_Process; }
   
         auto &getStateFields(){ return m_StateFields.get(); }
@@ -916,6 +933,9 @@ private:
         }
 
     private:
+        //--------------------------------------------------------------------
+        // Members
+        //--------------------------------------------------------------------
         std::shared_ptr<const EventPropagationProcess> m_Process;
         ScalarRegisterAllocator::RegisterPtr m_StrideReg;
         std::reference_wrapper<const Model::StateFields> m_StateFields;
@@ -923,11 +943,17 @@ private:
         std::reference_wrapper<VectorRegisterAllocator> m_VectorRegisterAllocator;
     };
 
-    class DenseRowGeneratorBase : public RowGeneratorBase
+    //------------------------------------------------------------------------
+    // DenseRowGenerator
+    //------------------------------------------------------------------------
+    class DenseRowGenerator : public RowGeneratorBase
     {
     public:
         using RowGeneratorBase::RowGeneratorBase;
     
+        //--------------------------------------------------------------------
+        // RowGeneratorBase virtuals
+        //--------------------------------------------------------------------
         virtual void generateRow(CodeGenerator &c, ScalarRegisterAllocator::RegisterPtr idPreReg) final override
         {
             // Make some friendlier-named references
@@ -984,13 +1010,16 @@ private:
         }   
     };
 
-    class SparseRowGeneratorBase : public RowGeneratorBase
+    //------------------------------------------------------------------------
+    // SparseRowGenerator
+    //------------------------------------------------------------------------
+    class SparseRowGenerator : public RowGeneratorBase
     {
     public:
-        SparseRowGeneratorBase(CodeGenerator &c, std::shared_ptr<const EventPropagationProcess> process,
-                               const Model::StateFields &stateFields,
-                               ScalarRegisterAllocator &scalarRegisterAllocator, 
-                               VectorRegisterAllocator &vectorRegisterAllocator)
+        SparseRowGenerator(CodeGenerator &c, std::shared_ptr<const EventPropagationProcess> process,
+                           const Model::StateFields &stateFields,
+                           ScalarRegisterAllocator &scalarRegisterAllocator, 
+                           VectorRegisterAllocator &vectorRegisterAllocator)
         :   RowGeneratorBase(c, process, stateFields, scalarRegisterAllocator, vectorRegisterAllocator)
         {
 
@@ -1007,6 +1036,9 @@ private:
             c.vfill(*m_TargetAddrReg, *STmp);
         }
          
+        //--------------------------------------------------------------------
+        // RowGeneratorBase virtuals
+        //--------------------------------------------------------------------
         virtual void generateRow(CodeGenerator &c, ScalarRegisterAllocator::RegisterPtr idPreReg) final override
         {
             // Make some friendlier-named references
@@ -1067,15 +1099,19 @@ private:
         VectorRegisterAllocator::RegisterPtr m_TargetAddrReg;
     };
 
-    /*class DelayedRowGeneratorBase : public RowGeneratorBase
+
+    //------------------------------------------------------------------------
+    // DelayedRowGenerator
+    //------------------------------------------------------------------------
+    class DelayedRowGenerator : public RowGeneratorBase
     {
     public:
-        DelayedRowGeneratorBase(CodeGenerator &c, std::shared_ptr<const EventPropagationProcess> process,
-                                const Model::StateFields &stateFields, VectorRegisterAllocator::RegisterPtr vectorTimeReg,
-                                ScalarRegisterAllocator &scalarRegisterAllocator, 
-                                VectorRegisterAllocator &vectorRegisterAllocator)
+        DelayedRowGenerator(CodeGenerator &c, std::shared_ptr<const EventPropagationProcess> process,
+                            const Model::StateFields &stateFields, VectorRegisterAllocator::RegisterPtr vectorTimeReg,
+                            ScalarRegisterAllocator &scalarRegisterAllocator, 
+                            VectorRegisterAllocator &vectorRegisterAllocator)
         :   RowGeneratorBase(c, process, stateFields, scalarRegisterAllocator, vectorRegisterAllocator),
-            m_VectorTimeReg(vectorTimeReg)
+            m_DelayStride(2 * process->getTarget()->getNumBufferTimesteps()), m_VectorTimeReg(vectorTimeReg)
         {
             // Allocate register for delay mask and calculate
             m_DelayMaskReg = vectorRegisterAllocator.getRegister("VTargetDelayMask V");
@@ -1096,6 +1132,9 @@ private:
             c.lw(*m_TargetAddrReg, Reg::X0, stateFields.at(process->getTarget()) + 4);
         }
     
+        //--------------------------------------------------------------------
+        // RowGeneratorBase virtuals
+        //--------------------------------------------------------------------
         virtual void generateRow(CodeGenerator &c, ScalarRegisterAllocator::RegisterPtr idPreReg) final override
         {
             // Make some friendlier-named references
@@ -1110,7 +1149,7 @@ private:
             ALLOCATE_VECTOR(VWeight);
             ALLOCATE_VECTOR(VTargetReg);
 
-            // REset target register from scalar register
+            // Reset target register from scalar register
             // **NOTE** no point in caching this as it needs resetting every row
             c.vfill(*VTargetReg, *m_TargetAddrReg);
 
@@ -1143,7 +1182,7 @@ private:
                     c.vadd(*VPostAddr, *VPostAddr, *VTargetReg); 
                     
                     // Load accumulator
-                    c.vloadl(*VAccum, *VPostAddr);
+                    c.vloadl(*VAccum, *VPostAddr, m_DelayStride * r);
                     
                     // Extract weight
                     c.vsrai(getProcess()->getNumDelayBits(), *VWeight, *VWeightInd);
@@ -1152,21 +1191,31 @@ private:
                     c.vadd_s(*VAccum, *VAccum, *VWeight);
 
                     // Write back accumulator
-                    c.vstorel(*VAccum, *VPostAddr);
+                    c.vstorel(*VAccum, *VPostAddr, m_DelayStride * r);
                 },
-                [this, VTargetReg, weightBufferReg]
+                [this, VTargetReg, weightBufferReg, &vectorRegisterAllocator]
                 (CodeGenerator &c, uint32_t numUnrolls)
                 {
+                    // Calculate how many bytes we need to advance LLM addresses
+                    // **TODO** VADDI instruction would save an instruction in this type of situation
+                    ALLOCATE_VECTOR(VNumUnrollBytes);
+                    c.vlui(*VNumUnrollBytes, numUnrolls * m_DelayStride);
+                    
                     // Increment pointers 
                     c.addi(*weightBufferReg, *weightBufferReg, 64 * numUnrolls);
-                    c.vadd(*VTargetReg, *VTargetReg, maxDelay * 2);
+                    c.vadd(*VTargetReg, *VTargetReg, *VNumUnrollBytes);
                 });
         }
+
     private:
+        //--------------------------------------------------------------------
+        // Members
+        //--------------------------------------------------------------------
+        size_t m_DelayStride;
         VectorRegisterAllocator::RegisterPtr m_DelayMaskReg;
         ScalarRegisterAllocator::RegisterPtr m_TargetAddrReg;
         VectorRegisterAllocator::RegisterPtr m_VectorTimeReg;
-    };*/
+    };
 
     //------------------------------------------------------------------------
     // ModelComponentVisitor virtuals
@@ -1658,10 +1707,8 @@ private:
         ALLOCATE_VECTOR(VLLMAddress);
         ALLOCATE_VECTOR(VNumUnrollBytes);
         
-        // Load value to memset and calculate unroll bytes
-        // **TODO** parameterise
+        // Load value to memset
         c.vlui(*VValue, 0);
-        c.vlui(*VNumUnrollBytes, 2 * std::min(numVectors, size_t{4}));
 
         // Broadcast address
         c.vfill(*VLLMAddress, *targetReg);
@@ -1674,9 +1721,14 @@ private:
             {
                 c.vstorel(*VValue, *VLLMAddress, r * 2);                  
             },
-            [targetReg, VLLMAddress, VNumUnrollBytes]
+            [targetReg, VLLMAddress, VNumUnrollBytes, &vectorRegisterAllocator]
             (CodeGenerator &c, uint32_t numUnrolls)
             {
+                // Calculate how many bytes we need to advance LLM addresses
+                // **TODO** VADDI instruction would save an instruction in this type of situation
+                ALLOCATE_VECTOR(VNumUnrollBytes);
+                c.vlui(*VNumUnrollBytes, numUnrolls * 2);
+
                 c.vadd(*VLLMAddress, *VLLMAddress, *VNumUnrollBytes);
                 c.addi(*targetReg, *targetReg, 64 * numUnrolls);
             });
@@ -2101,23 +2153,23 @@ private:
             c.vslli(1, *vectorTimeReg, *vectorTimeReg);
         }
 
-        // Loop through postsynaptic targets
+        // Loop through postsynaptic targets and create appropriate row generator objects
         std::vector<std::unique_ptr<RowGeneratorBase>> rowGenerators;
         for(const auto &p : processes) {
             if(p->getNumSparseConnectivityBits() > 0) { 
                 rowGenerators.emplace_back(
-                    std::make_unique<SparseRowGeneratorBase>(c, p, processFields.at(p), 
-                                                             scalarRegisterAllocator, 
-                                                             vectorRegisterAllocator));
+                    std::make_unique<SparseRowGenerator>(c, p, processFields.at(p), scalarRegisterAllocator, 
+                                                         vectorRegisterAllocator));
             }
             else if(p->getNumDelayBits() > 0) {
-                assert(false);
+                rowGenerators.emplace_back(
+                    std::make_unique<DelayedRowGenerator>(c, p, processFields.at(p), vectorTimeReg,
+                                                          scalarRegisterAllocator, vectorRegisterAllocator));
             }
             else {
                 rowGenerators.emplace_back(
-                    std::make_unique<DenseRowGeneratorBase>(c, p, processFields.at(p), 
-                                                            scalarRegisterAllocator, 
-                                                            vectorRegisterAllocator));
+                    std::make_unique<DenseRowGenerator>(c, p, processFields.at(p), scalarRegisterAllocator, 
+                                                        vectorRegisterAllocator));
             }
         }
     
