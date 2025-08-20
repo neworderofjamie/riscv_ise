@@ -121,14 +121,15 @@ hidden_output = Linear(hidden.out_spikes, output.i, "s7_8_sat_t", name="hidden_o
 
 output_zero = Memset(output.v_avg)
 
-i_zero = Memset(hidden.i)
+hidden_i_zero = Memset(hidden.i)
+output_i_zero = Memset(output.i)
 
 # Group processes
 neuron_update_processes = ProcessGroup([hidden.process, output.process])
 synapse_update_processes = ProcessGroup([input_hidden.process, hidden_hidden.process, 
                                          hidden_output.process])
 zero_processes = ProcessGroup([output_zero.process])
-init_processes = ProcessGroup([i_zero.process])
+init_processes = ProcessGroup([hidden_i_zero.process, output_i_zero.process])
 
 # Create backend
 backend = BackendFeNNHW() if device else BackendFeNNSim()
@@ -222,7 +223,6 @@ for spikes, label in tqdm(zip(shd_spikes[:100], shd_labels),
     output_v_avg_array.pull_from_device()
 
     # Determine if output is correct
-    print(output_v_avg_view)
     classification = np.argmax(output_v_avg_view)
     if classification == label:
         num_correct += 1
