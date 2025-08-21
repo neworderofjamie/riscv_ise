@@ -87,7 +87,7 @@ class AdExp:
             name)
     
     def _dv(self, v: str, w: str):
-        return f"tauMRecip * (-(({v}) - eL) + (deltaT @ exp((({v}) - vThresh) * deltaTRecip)) + R * (iOffset - ({w})))"
+        return f"tauMRecip * (-(({v}) - eL) + (deltaT @ exp_3((({v}) - vThresh) * deltaTRecip)) + R * (iOffset - ({w})))"
 
     def _dw(self, v: str, w: str):
         return f"tauWRecip * ((a * ({v} - eL)) - {w})"
@@ -170,16 +170,23 @@ w_array.pull_from_device()
 
 v_view = np.reshape(v_view, (-1, 32))
 w_view = np.reshape(w_view, (-1, 32))
-print(v_view)
+
+# Load reference data
+v_ref = np.load("adexp_v.npy")
+w_ref = np.load("adexp_w.npy")
+print(v_ref.shape, w_ref.shape)
 # Create plot
-figure, axes = plt.subplots(2)
+figure, axes = plt.subplots(2, sharex=True)
 
 # Plot voltages
 axes[0].set_title("Voltage")
-axes[0].plot(v_view[:,0])
+axes[0].plot(v_view[:,0] / (2**12), label="FeNN")
+axes[0].plot(v_ref[:len(v_view)], label="GeNN")
+axes[0].legend()
 
 axes[1].set_title("Adaption current")
-axes[1].plot(w_view[:,0])
-
+axes[1].plot(w_view[:,0] / (2**12), label="FeNN")
+axes[1].plot(w_ref[:len(w_view)], label="GeNN")
+axes[1].legend()
 # Show plot
 plt.show()
