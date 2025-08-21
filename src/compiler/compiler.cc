@@ -232,7 +232,7 @@ private:
                         m_Environment.get().getCodeGenerator().vmul_rn(shift, *resultReg, *vecLeftReg, *vecRightReg);
                     }
                     else if(fixedPoint && m_RoundingMode == RoundingMode::STOCHASTIC) {
-                        m_Environment.get().getCodeGenerator().vmul_rn(shift, *resultReg, *vecLeftReg, *vecRightReg);
+                        m_Environment.get().getCodeGenerator().vmul_rs(shift, *resultReg, *vecLeftReg, *vecRightReg);
                     }
                     else {
                         m_Environment.get().getCodeGenerator().vmul(shift, *resultReg, *vecLeftReg, *vecRightReg);
