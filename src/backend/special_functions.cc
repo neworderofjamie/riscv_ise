@@ -54,14 +54,14 @@ void add(CodeGenerator &codeGenerator, ScalarRegisterAllocator &scalarRegisterAl
     ALLOCATE_VECTOR(VFracMask);
     ALLOCATE_VECTOR(VLog2);
     ALLOCATE_VECTOR(VInvLog);
-    ALLOCATE_VECTOR(VMaxScale);
+    ALLOCATE_VECTOR(VHalf);
     ALLOCATE_VECTOR(VLUTBaseAddress);
     
     // Load constants
     c.vlui(*VFracMask, (1 << fracBits) - 1);
     c.vlui(*VLog2, convertFixedPoint(log2, 15));
     c.vlui(*VInvLog, convertFixedPoint(1.0 / log2, 14));
-    c.vlui(*VMaxScale, convertFixedPoint(1.0 / (2.0 * expMax), 14));
+    c.vlui(*VHalf, convertFixedPoint(0.5, 15));
 
     // Generate code to load address from field
     {
@@ -74,7 +74,7 @@ void add(CodeGenerator &codeGenerator, ScalarRegisterAllocator &scalarRegisterAl
     env.add(Type::Void, "_exp_frac_mask", VFracMask);        
     env.add(Type::Void, "_exp_log_2", VLog2);        
     env.add(Type::Void, "_exp_inv_2", VInvLog);        
-    env.add(Type::Void, "_exp_max_scale", VMaxScale);
+    env.add(Type::Void, "_exp_half", VHalf);
     
     // Loop through possible number of integer bits for operand a
     for(int aInt = 0; aInt < 16; aInt++) {
@@ -89,7 +89,7 @@ void add(CodeGenerator &codeGenerator, ScalarRegisterAllocator &scalarRegisterAl
         // Loop through possible number of integer bits for result
         for(int rInt = 0; rInt < 16; rInt++) {
             // Create saturating and non-saturating fixed-point types
-            // // **NOTE** we only specify saturating as non-saturating types will be promoted
+            // **NOTE** we only specify saturating as non-saturating types will be promoted
             // **YUCK** these should go in GeNN::Type
             const int rFrac = 15 - rInt;
             const auto rType = Type::ResolvedType::createFixedPointNumeric<int16_t>(
@@ -115,7 +115,7 @@ void add(CodeGenerator &codeGenerator, ScalarRegisterAllocator &scalarRegisterAl
                                    auto VFracMask = env.getVectorRegister("_exp_frac_mask");
                                    auto VLog2 = env.getVectorRegister("_exp_log_2");
                                    auto VInvLog = env.getVectorRegister("_exp_inv_2");
-                                   auto VMaxScale = env.getVectorRegister("_exp_max_scale");
+                                   auto VHalf = env.getVectorRegister("_exp_half");
 
                                    // START RANGE-REDUCTION
                                    // VK = floor((VX * VInvLog) + 0.5) [aType]
@@ -126,16 +126,12 @@ void add(CodeGenerator &codeGenerator, ScalarRegisterAllocator &scalarRegisterAl
                                    c.vmul_rn(15 - aFrac, *VR, *VK, *VLog2);
                                    c.vsub(*VR, *std::get<VectorRegisterAllocator::RegisterPtr>(args[0]), *VR);
 
-                                   {
-                                       // Load expMax
-                                       // **TODO** could be generated lazily by multi-pass assembler
-                                       ALLOCATE_VECTOR(VExpMax);
-                                       c.vlui(*VExpMax, convertFixedPoint(expMax, aFrac));
-
-                                       // VR = (VR - VExpMax) / (VExpMax - -VExpMax) [s0.15]
-                                       c.vadd(*VR, *VR, *VExpMax);
-                                       c.vmul_rn(aFrac - 1, *VR, *VR, *VMaxScale);
-                                   }
+                                    // VR = (VR - -0.5Ln2) / (0.5Ln2 - -0.5Ln2) [s0.15]
+                                    // VR = (VR + 0.5Ln2) / Ln2
+                                    // **NOTE** VR = (VR * (1/Ln2)) + 0.5 is more precise than (VR + 0.5Ln2) * (1 / Ln2)
+                                    c.vmul_rn(aFrac - 1, *VR, *VR, *VInvLog);
+                                    c.vadd(*VR, *VR, *VHalf);
+  
                                    {
                                        ALLOCATE_VECTOR(VLUTAddress);
                                        ALLOCATE_VECTOR(VLUTLower);

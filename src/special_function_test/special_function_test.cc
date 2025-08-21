@@ -124,7 +124,7 @@ int main(int argc, char** argv)
             ALLOCATE_VECTOR(VInvLog);
             ALLOCATE_VECTOR(VLog2);
             ALLOCATE_VECTOR(VExpMax);
-            ALLOCATE_VECTOR(VExpMaxScale);
+            ALLOCATE_VECTOR(VHalf);
 
             // Labels
             Label vectorLoop;
@@ -140,7 +140,7 @@ int main(int argc, char** argv)
             c.vlui(*VLog2, convertFixedPoint(log2, 15));
             c.vlui(*VInvLog, convertFixedPoint(1.0 / log2, 14));
             c.vlui(*VExpMax, convertFixedPoint(expMax, inputFixedPoint));
-            c.vlui(*VExpMaxScale, convertFixedPoint(1.0 / (2.0 * expMax), 14));
+            c.vlui(*VHalf, convertFixedPoint(0.5, 15));
 
             // Loop over vectors
             c.L(vectorLoop);
@@ -166,9 +166,11 @@ int main(int argc, char** argv)
                 c.vmul_rn(15 - inputFixedPoint, *VR, *VK, *VLog2);
                 c.vsub(*VR, *VX, *VR);
 
-                // VR = (VR - VExpMax) / (VExpMax - -VExpMax)
-                c.vadd(*VR, *VR, *VExpMax);
-                c.vmul_rn(inputFixedPoint - 1, *VR, *VR, *VExpMaxScale);
+                // VR = (VR - -0.5Ln2) / (0.5Ln2 - -0.5Ln2) [s0.15]
+                // VR = (VR + 0.5Ln2) / Ln2
+                // **NOTE** VR = (VR * (1/Ln2)) + 0.5 is more precise than (VR + 0.5Ln2) * (1 / Ln2)
+                c.vmul_rn(inputFixedPoint - 1, *VR, *VR, *VInvLog);
+                c.vadd(*VR, *VR, *VHalf);
 
                 // START FAITHFUL INTERPOLATION
                 // VLUTAddress = VX >> fracBits
