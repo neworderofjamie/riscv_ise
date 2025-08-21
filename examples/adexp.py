@@ -14,8 +14,8 @@ from pyfenn.utils import (ceil_divide, copy_and_push,
 
 
 device = False
-disassemble_code = True
-num_timesteps = 1000
+disassemble_code = False
+num_timesteps = 4000
 fixed_point = 12
 
 def calc_nrmse(target, result):
@@ -30,6 +30,7 @@ class AdExp:
         self.shape = Shape(shape)
         type_str = f"s{15 - fixed_point}_{fixed_point}_sat_t"
         dtype = UnresolvedType(type_str)
+        frac_dtype = UnresolvedType("s0_15_sat_t")
         self.v = Variable(self.shape, dtype, num_timesteps + 1, name=f"{name}_V")
         self.w = Variable(self.shape, dtype, num_timesteps + 1, name=f"{name}_W")
         self.out_spikes = EventContainer(self.shape, num_timesteps + 1)
@@ -73,9 +74,9 @@ class AdExp:
             }}
             """,
             {"dt": Parameter(NumericValue(dt), dtype),
-             "halfDT": Parameter(NumericValue(dt / 2.0), dtype),
-             "sixthDT": Parameter(NumericValue(dt / 6.0), dtype),
-             "tauMRecip": Parameter(NumericValue(1.0 / tau_m), dtype),
+             "halfDT": Parameter(NumericValue(dt / 2.0), frac_dtype),
+             "sixthDT": Parameter(NumericValue(dt / 6.0), frac_dtype),
+             "tauMRecip": Parameter(NumericValue(1.0 / tau_m), frac_dtype),
              "R": Parameter(NumericValue(r), dtype),
              "eL": Parameter(NumericValue(e_l), dtype),
              "deltaT": Parameter(NumericValue(delta_t), dtype),
@@ -83,7 +84,7 @@ class AdExp:
              "vThresh": Parameter(NumericValue(v_thresh), dtype),
              "vSpike": Parameter(NumericValue(v_spike), dtype),
              "vReset": Parameter(NumericValue(v_reset), dtype),
-             "tauWRecip": Parameter(NumericValue(1.0 / tau_w), dtype),
+             "tauWRecip": Parameter(NumericValue(1.0 / tau_w), frac_dtype),
              "a": Parameter(NumericValue(a), dtype),
              "b": Parameter(NumericValue(b), dtype),
              "iOffset": Parameter(NumericValue(i_offset), dtype)}, 
@@ -123,7 +124,7 @@ neuron_processes = ProcessGroup([ad_exp.process])
 
 # Create backend
 backend_params = {"keep_params_in_registers": False,
-                  "rounding_mode": RoundingMode.NEAREST}
+                  "rounding_mode": RoundingMode.STOCHASTIC}
 backend = BackendFeNNHW(**backend_params) if device else BackendFeNNSim(**backend_params)
 
 # Create model
@@ -201,22 +202,20 @@ figure, axes = plt.subplots(2, sharex=True)
 
 # Plot voltages
 axes[0].set_title("Voltage")
-v_actor = axes[0].plot(timesteps, v_mean / fixed_point_one, label="FeNN")[0]
-axes[0].fill_between(timesteps, (v_mean - v_std) / fixed_point_one, 
-                     (v_mean + v_std) / fixed_point_one,
-                     alpha=0.5, color=v_actor.get_color())
-
-axes[0].plot(timesteps, v_ref[:len(v_view)] * v_scale, label="GeNN")
-axes[0].legend()
+v_actor = axes[0].plot(timesteps, v_view / fixed_point_one, label="FeNN")[0]
+#axes[0].fill_between(timesteps, (v_mean - v_std) / fixed_point_one, 
+#                     (v_mean + v_std) / fixed_point_one,
+#                     alpha=0.5, color=v_actor.get_color())
+axes[0].plot(timesteps, v_ref[:len(v_view)] * v_scale, linestyle="--")
+#axes[0].legend()
 
 axes[1].set_title("Adaption current")
-w_actor = axes[1].plot(timesteps, w_mean / fixed_point_one, label="FeNN")[0]
-axes[1].fill_between(timesteps, (w_mean - w_std) / fixed_point_one, 
-                     (w_mean + w_std) / fixed_point_one,
-                     alpha=0.5, color=w_actor.get_color())
-                  
-axes[1].plot(timesteps, w_ref[:len(w_view)] * v_scale, label="GeNN")
-axes[1].legend()
+w_actor = axes[1].plot(timesteps, w_view / fixed_point_one, label="FeNN")[0]
+#axes[1].fill_between(timesteps, (w_mean - w_std) / fixed_point_one, 
+#                     (w_mean + w_std) / fixed_point_one,
+#                     alpha=0.5, color=w_actor.get_color())
+axes[1].plot(timesteps, w_ref[:len(w_view)] * v_scale, linestyle="--")
+#axes[1].legend()
 
 v_rmse = calc_nrmse(v_ref[:len(v_view)] * v_scale, v_mean / fixed_point_one)
 w_rmse = calc_nrmse(w_ref[:len(w_view)] * v_scale, w_mean / fixed_point_one)
