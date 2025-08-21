@@ -12,4 +12,12 @@ fig, axis = plt.subplots()
 axis.plot(exp_x, faithful_data[:,1], label="Approx")
 axis.plot(exp_x, exp_y_correct, label="Correct")
 axis.legend()
+
+def calc_nrmse(target, result):
+    scale = np.amax(target) - np.amin(target)
+    return np.sqrt(np.mean((result - target)**2)) / scale
+
+rmse = calc_nrmse(faithful_data[:,1], exp_y_correct)
+print(f"RMSE={rmse}")
+
 plt.show()
