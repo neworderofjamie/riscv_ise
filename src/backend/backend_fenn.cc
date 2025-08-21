@@ -140,6 +140,23 @@ bool isIdentifierCalled(const std::string &identifierName, const std::vector<Tra
     return false;
 }
 
+bool isExpCalled(const std::vector<Transpiler::Token> &tokens)
+{
+    // Loop through tokens
+    for(auto t = tokens.cbegin(); t != tokens.cend(); t++) {
+        // If token is an identifier with correct name
+        if(t->type == Transpiler::Token::Type::IDENTIFIER && (t->lexeme == "exp" || t->lexeme.rfind("exp_") == 0)) {
+            // If token isn't last in sequence and it's followed by a left bracket
+            const auto tNext = std::next(t);
+            if(tNext != tokens.cend() && tNext->type == Transpiler::Token::Type::LEFT_PAREN) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
 void updateLiteralPool(const std::vector<Token> &tokens, VectorRegisterAllocator &vectorRegisterAllocator, 
                        std::unordered_map<int16_t, VectorRegisterAllocator::RegisterPtr> &literalPool)
 {
@@ -484,7 +501,7 @@ private:
     virtual void visit(std::shared_ptr<const NeuronUpdateProcess> neuronUpdateProcess)
     {
         // If exponential function is referenced in tokens
-        if(isIdentifierCalled("exp", neuronUpdateProcess->getTokens())) {
+        if(isExpCalled(neuronUpdateProcess->getTokens())) {
             m_LUTObjectIDs.insert(StateObjectID::LUT_EXP);
         }
     }
@@ -1398,7 +1415,7 @@ private:
         addStochMulFunctions(functionLibrary);
         
         // If exp is called
-        if(isIdentifierCalled("exp", neuronUpdateProcess->getTokens())) {
+        if(isExpCalled(neuronUpdateProcess->getTokens())) {
             // Get field containing LUT for exponential function
             const auto &lutField = m_Model.get().getBackendFields().at(static_cast<int>(StateObjectID::LUT_EXP));
 

@@ -77,104 +77,133 @@ void add(CodeGenerator &codeGenerator, ScalarRegisterAllocator &scalarRegisterAl
     env.add(Type::Void, "_exp_max_scale", VMaxScale);
     
     // Loop through possible number of integer bits for operand a
-    for(int numInt = 0; numInt < 16; numInt++) {
-        // Fixed-point types 
+    for(int aInt = 0; aInt < 16; aInt++) {
+        // Create saturating and non-saturating fixed-point types 
         // **NOTE** we only specify saturating as non-saturating types will be promoted
-        // **YUCK** this should go in GeNN::Type
-        const int numFrac = 15 - numInt;
+        // **YUCK** these should go in GeNN::Type
+        const int aFrac = 15 - aInt;
         const auto aType = Type::ResolvedType::createFixedPointNumeric<int16_t>(
-            "s" + std::to_string(numInt) + "_" + std::to_string(numFrac) + "_sat_t", 
-            50 + numInt, true, numFrac, &ffi_type_sint16, "");
+            "s" + std::to_string(aInt) + "_" + std::to_string(aFrac) + "_sat_t", 
+            50 + aInt, true, aFrac, &ffi_type_sint16, "");
 
-        library.emplace(
-            "exp",
-            std::make_pair(Type::ResolvedType::createFunction(aType, {aType}),
-                           [VLUTBaseAddress, numFrac](auto &env, auto &vectorRegisterAllocator, auto &, auto, const auto &args)
-                           {
-                               auto &c = env.getCodeGenerator();
+        // Loop through possible number of integer bits for result
+        for(int rInt = 0; rInt < 16; rInt++) {
+            // Create saturating and non-saturating fixed-point types
+            // // **NOTE** we only specify saturating as non-saturating types will be promoted
+            // **YUCK** these should go in GeNN::Type
+            const int rFrac = 15 - rInt;
+            const auto rType = Type::ResolvedType::createFixedPointNumeric<int16_t>(
+                "s" + std::to_string(rInt) + "_" + std::to_string(rFrac) + "_sat_t", 
+                50 + rInt, true, rFrac, &ffi_type_sint16, "");
+
+            // Exp functions should be called "exp" if operand and result type are  
+            // the same, otherwise, it's suffixed with number of fractional bits
+            const std::string name = (aInt == rInt) ? "exp" : ("exp_" + std::to_string(rFrac));
+
+            library.emplace(
+                name,
+                std::make_pair(Type::ResolvedType::createFunction(rType, {aType}),
+                               [VLUTBaseAddress, aFrac, rFrac](auto &env, auto &vectorRegisterAllocator, auto &scalarRegisterAllocator, auto, const auto &args)
+                               {
+                                   auto &c = env.getCodeGenerator();
                                
-                               ALLOCATE_VECTOR(VK);
-                               ALLOCATE_VECTOR(VR);
-                               ALLOCATE_VECTOR(VOutput);
+                                   ALLOCATE_VECTOR(VK);
+                                   ALLOCATE_VECTOR(VR);
+                                   ALLOCATE_VECTOR(VOutput);
 
-                               // Get registers from environment
-                               auto VFracMask = env.getVectorRegister("_exp_frac_mask");
-                               auto VLog2 = env.getVectorRegister("_exp_log_2");
-                               auto VInvLog = env.getVectorRegister("_exp_inv_2");
-                               auto VMaxScale = env.getVectorRegister("_exp_max_scale");
+                                   // Get registers from environment
+                                   auto VFracMask = env.getVectorRegister("_exp_frac_mask");
+                                   auto VLog2 = env.getVectorRegister("_exp_log_2");
+                                   auto VInvLog = env.getVectorRegister("_exp_inv_2");
+                                   auto VMaxScale = env.getVectorRegister("_exp_max_scale");
 
-                               // START RANGE-REDUCTION
-                               // VK = floor((VX * VInvLog) + 0.5) [aType]
-                               c.vmul(14, *VK, *std::get<VectorRegisterAllocator::RegisterPtr>(args[0]), *VInvLog);
-                               c.vsrai_rn(numFrac, *VK, *VK);
+                                   // START RANGE-REDUCTION
+                                   // VK = floor((VX * VInvLog) + 0.5) [aType]
+                                   c.vmul(14, *VK, *std::get<VectorRegisterAllocator::RegisterPtr>(args[0]), *VInvLog);
+                                   c.vsrai_rn(aFrac, *VK, *VK);
 
-                               // VR = VX - (VK * VLog2) [aType]
-                               c.vmul_rn(15 - numFrac, *VR, *VK, *VLog2);
-                               c.vsub(*VR, *std::get<VectorRegisterAllocator::RegisterPtr>(args[0]), *VR);
+                                   // VR = VX - (VK * VLog2) [aType]
+                                   c.vmul_rn(15 - aFrac, *VR, *VK, *VLog2);
+                                   c.vsub(*VR, *std::get<VectorRegisterAllocator::RegisterPtr>(args[0]), *VR);
 
-                               // VR = (VR - VExpMax) / (VExpMax - -VExpMax)
-                               {
-                                   ALLOCATE_VECTOR(VExpMax);
-                                   // Load expMaxc
-                                   // **TODO** could be generated lazily by multi-pass assembler
-                                   c.vlui(*VExpMax, convertFixedPoint(expMax, fracBits));
-                                   c.vadd(*VR, *VR, *VExpMax);
-                               }
+                                   // VR = (VR - VExpMax) / (VExpMax - -VExpMax)
+                                   {
+                                       ALLOCATE_VECTOR(VExpMax);
+                                       // Load expMax
+                                       // **TODO** could be generated lazily by multi-pass assembler
+                                       c.vlui(*VExpMax, convertFixedPoint(expMax, aFrac));
+                                       c.vadd(*VR, *VR, *VExpMax);
+                                   }
 
-                               c.vmul_rn(numFrac - 1, *VR, *VR, *VMaxScale);
+                                   c.vmul_rn(aFrac - 1, *VR, *VR, *VMaxScale);
 
-                               {
-                                   ALLOCATE_VECTOR(VLUTAddress);
-                                   ALLOCATE_VECTOR(VLUTLower);
-                                   ALLOCATE_VECTOR(VLUTDiff);
+                                   {
+                                       ALLOCATE_VECTOR(VLUTAddress);
+                                       ALLOCATE_VECTOR(VLUTLower);
+                                       ALLOCATE_VECTOR(VLUTDiff);
 
-                                   // START FAITHFUL INTERPOLATION
-                                   // VLUTAddress = VX >> fracBits
-                                   c.vsrai(fracBits, *VLUTAddress, *VR);
+                                       // START FAITHFUL INTERPOLATION
+                                       // VLUTAddress = VX >> fracBits
+                                       c.vsrai(fracBits, *VLUTAddress, *VR);
 
-                                   // VLUTAddress *= 2 (to convert to bytes)
-                                   // **THINK** could just subtract 1 from fracBits
-                                   // Won't result in aligned address but that gets ignored on HW
-                                   c.vslli(1, *VLUTAddress, *VLUTAddress);
+                                       // VLUTAddress *= 2 (to convert to bytes)
+                                       // **THINK** could just subtract 1 from fracBits
+                                       // Won't result in aligned address but that gets ignored on HW
+                                       c.vslli(1, *VLUTAddress, *VLUTAddress);
                             
-                                   // Add bas address
-                                   c.vadd(*VLUTAddress, *VLUTAddress, *VLUTBaseAddress);
+                                       // Add base address
+                                       c.vadd(*VLUTAddress, *VLUTAddress, *VLUTBaseAddress);
 
-                                   // Load lower LUT entry
-                                   c.vloadl(*VLUTLower, *VLUTAddress, 0);
+                                       // Load lower LUT entry
+                                       c.vloadl(*VLUTLower, *VLUTAddress, 0);
                         
-                                   // Load higher LUT value
-                                   c.vloadl(*VLUTDiff, *VLUTAddress, 2);
+                                       // Load higher LUT value
+                                       c.vloadl(*VLUTDiff, *VLUTAddress, 2);
 
-                                   // VOutput = VX & VFracMask
-                                   c.vand(*VOutput, *VR, *VFracMask);
+                                       // VOutput = VX & VFracMask
+                                       c.vand(*VOutput, *VR, *VFracMask);
 
-                                   // Calculate difference
-                                   c.vsub(*VLUTDiff, *VLUTDiff, *VLUTLower);
+                                       // Calculate difference
+                                       c.vsub(*VLUTDiff, *VLUTDiff, *VLUTLower);
                         
-                                   // VOutput *= 
-                                   c.vmul_rn(fracBits, *VOutput, *VOutput, *VLUTDiff);
+                                       // VOutput *= 
+                                       c.vmul_rn(fracBits, *VOutput, *VOutput, *VLUTDiff);
 
-                                   c.vadd(*VOutput, *VOutput, *VLUTLower);
-                               }
+                                       c.vadd(*VOutput, *VOutput, *VLUTLower);
+                                   }
 
-                               {
-                                   ALLOCATE_VECTOR(VShiftScale);
-                                   
-                                   // Load shift-scale
-                                   // **TODO** could be generated lazily by multi-pass assembler
-                                   c.vlui(*VShiftScale, 14 - fracBits);
-
-                                   // K = shiftScale - K to include shift to 
-                                   // convert from S1.14 to output forma
-                                   c.vsub(*VK, *VShiftScale, *VK);
-                               }
-
-                               // END FAITHFUL INTERPOLATION
-                               c.vsra(*VOutput, *VOutput, *VK);
                                 
-                               return std::make_pair(VOutput, true);
-                           }));
+                                   // **TODO** Single VS instruction which shifts left or right based on signs would save a lot of expense here
+                                   {
+                                       ALLOCATE_SCALAR(SShiftScaleLessK);
+                                       ALLOCATE_VECTOR(VKLeft);
+                                       ALLOCATE_VECTOR(VOutputLeft);
+                                       ALLOCATE_VECTOR(VShiftScale);
+
+                                       // Load shift-scale
+                                       // **TODO** could be generated lazily by multi-pass assembler
+                                       c.vlui(*VShiftScale, 14 - rFrac);
+
+                                       // Determine which VK are less than 
+                                       c.vtlt(*SShiftScaleLessK, *VShiftScale, *VK);
+
+                                       // Shift left by (VK - ShiftScale) to 
+                                       // convert from S1.14 to output form
+                                       c.vsub(*VKLeft, *VK, *VShiftScale);
+                                       c.vsll(*VOutputLeft, *VOutput, *VKLeft);
+
+                                       // Shift right by (ShiftScale - VK) to 
+                                       // convert from S1.14 to output form
+                                       c.vsub(*VK, *VShiftScale, *VK);
+                                       c.vsra(*VOutput, *VOutput, *VK);
+
+                                       // Select between two results depending on whether shift scale is less than K
+                                       c.vsel(*VOutput, *SShiftScaleLessK, *VOutputLeft);
+                                   }
+                            
+                                   return std::make_pair(VOutput, true);
+                               }));
+        }
     }
 }
 }   // namespace Exp
