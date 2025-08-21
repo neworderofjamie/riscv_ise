@@ -16,6 +16,7 @@ from pyfenn.utils import (ceil_divide, copy_and_push,
 device = False
 disassemble_code = True
 num_timesteps = 1000
+fixed_point = 12
 
 def calc_nrmse(target, result):
     scale = np.amax(target) - np.amin(target)
@@ -25,9 +26,8 @@ class AdExp:
     def __init__(self, shape, num_timesteps: int, tau_m: float, tau_w: float, 
                  r: float, e_l: float, delta_t: float, v_thresh: float, 
                  v_spike: float, v_reset: float, a: float, b: float, 
-                 i_offset: float, dt: float = 0.1, name: str = ""):
+                 i_offset: float, dt: float = 0.1, fixed_point: int = 12, name: str = ""):
         self.shape = Shape(shape)
-        fixed_point = 12
         type_str = f"s{15 - fixed_point}_{fixed_point}_sat_t"
         dtype = UnresolvedType(type_str)
         self.v = Variable(self.shape, dtype, num_timesteps + 1, name=f"{name}_V")
@@ -111,7 +111,8 @@ ad_exp = AdExp([32], num_timesteps, tau_m=(c / gL), tau_w=144.0,
                delta_t=(2.0 * v_scale), v_thresh=(-50.4 * v_scale),
                v_spike=(10.0 * v_scale), v_reset=(-70.6 * v_scale), 
                a=((4.0 / 1000.0) / (v_scale / w_scale)), b=(0.0805 * w_scale),
-               i_offset=(700.0 * (w_scale / 1000.0)), dt=0.1, name="ad_exp")
+               i_offset=(700.0 * (w_scale / 1000.0)), dt=0.1, fixed_point=fixed_point,
+               name="ad_exp")
 
 rng_init = RNGInit()
 lut_broadcast = ExpLUTBroadcast()
@@ -151,8 +152,9 @@ runtime.allocate()
 
 # Zero i and initialise V
 zero_and_push(ad_exp.w, runtime)
+fixed_point_one = (2 ** fixed_point)
 v_array, v_view = get_array_view(runtime, ad_exp.v, np.int16)
-v_view[:] = np.round(-70.6 * v_scale * (2**12)).astype(np.int16)
+v_view[:] = np.round(-70.6 * v_scale * fixed_point_one).astype(np.int16)
 v_array.push_to_device()
 
 # Initialise exp LUT and RNG
@@ -199,25 +201,25 @@ figure, axes = plt.subplots(2, sharex=True)
 
 # Plot voltages
 axes[0].set_title("Voltage")
-v_actor = axes[0].plot(timesteps, v_mean / (2**12), label="FeNN")[0]
-axes[0].fill_between(timesteps, (v_mean - v_std) / (2**12), 
-                     (v_mean + v_std) / (2**12),
+v_actor = axes[0].plot(timesteps, v_mean / fixed_point_one, label="FeNN")[0]
+axes[0].fill_between(timesteps, (v_mean - v_std) / fixed_point_one, 
+                     (v_mean + v_std) / fixed_point_one,
                      alpha=0.5, color=v_actor.get_color())
 
 axes[0].plot(timesteps, v_ref[:len(v_view)] * v_scale, label="GeNN")
 axes[0].legend()
 
 axes[1].set_title("Adaption current")
-w_actor = axes[1].plot(timesteps, w_mean / (2**12), label="FeNN")[0]
-axes[1].fill_between(timesteps, (w_mean - w_std) / (2**12), 
-                     (w_mean + w_std) / (2**12),
+w_actor = axes[1].plot(timesteps, w_mean / fixed_point_one, label="FeNN")[0]
+axes[1].fill_between(timesteps, (w_mean - w_std) / fixed_point_one, 
+                     (w_mean + w_std) / fixed_point_one,
                      alpha=0.5, color=w_actor.get_color())
                   
 axes[1].plot(timesteps, w_ref[:len(w_view)] * v_scale, label="GeNN")
 axes[1].legend()
 
-v_rmse = calc_nrmse(v_ref[:len(v_view)] * v_scale, v_mean / (2**12))
-w_rmse = calc_nrmse(w_ref[:len(w_view)] * v_scale, w_mean / (2**12))
+v_rmse = calc_nrmse(v_ref[:len(v_view)] * v_scale, v_mean / fixed_point_one)
+w_rmse = calc_nrmse(w_ref[:len(w_view)] * v_scale, w_mean / fixed_point_one)
 print(f"V RMSE={v_rmse}, W RMSE={w_rmse}")
 
 # Show plot
