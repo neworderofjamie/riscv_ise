@@ -55,6 +55,7 @@ int main(int argc, char** argv)
     constexpr size_t lutSize = (1 << tableBits) + 1;
     constexpr size_t inputFixedPoint = 9;
     constexpr size_t outputFixedPoint = 3;
+    constexpr bool saturate = true;
     const double min = 1.0;
     const double max = 8.0;
     const int16_t minFixed = convertFixedPoint(min, inputFixedPoint);
@@ -193,12 +194,38 @@ int main(int argc, char** argv)
 
                 c.vadd(*VOutput, *VOutput, *VLUTLower);
 
-                // K = shiftScale - K to include shift to 
-                // convert from S1.14 to output forma
-                c.vsub(*VK, *VShiftScale, *VK);
+                
+                
+                if(saturate) {
+                    ALLOCATE_SCALAR(SShiftScaleLessK);
+                    ALLOCATE_VECTOR(VKLeft);
+                    ALLOCATE_VECTOR(VOutputLeft);
 
+                    // Determine which VK are less than 
+                    c.vtlt(*SShiftScaleLessK, *VShiftScale, *VK);
+
+                    // Shift left by (VK - ShiftScale) to 
+                    // convert from S1.14 to output form
+                    c.vsub(*VKLeft, *VK, *VShiftScale);
+                    c.vsll(*VOutputLeft, *VOutput, *VKLeft);
+
+                    // Shift right by (ShiftScale - VK) to 
+                    // convert from S1.14 to output form
+                    c.vsub(*VK, *VShiftScale, *VK);
+                    c.vsra(*VOutput, *VOutput, *VK);
+
+                    // Select between two results depending on whether shift scale is less than K
+                    c.vsel(*VOutput, *SShiftScaleLessK, *VOutputLeft);
+                }
+                else {
+                    // K = shiftScale - K to include shift to 
+                    // convert from S1.14 to output forma
+                    c.vsub(*VK, *VShiftScale, *VK);
+                    c.vsra(*VOutput, *VOutput, *VK);
+                }
+    
                 // END FAITHFUL INTERPOLATION
-                c.vsra(*VOutput, *VOutput, *VK);
+                
 
                 // END RANGE-REDUCTION
                 // Write to output buffer
