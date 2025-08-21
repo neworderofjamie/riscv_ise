@@ -126,17 +126,16 @@ void add(CodeGenerator &codeGenerator, ScalarRegisterAllocator &scalarRegisterAl
                                    c.vmul_rn(15 - aFrac, *VR, *VK, *VLog2);
                                    c.vsub(*VR, *std::get<VectorRegisterAllocator::RegisterPtr>(args[0]), *VR);
 
-                                   // VR = (VR - VExpMax) / (VExpMax - -VExpMax)
                                    {
-                                       ALLOCATE_VECTOR(VExpMax);
                                        // Load expMax
                                        // **TODO** could be generated lazily by multi-pass assembler
+                                       ALLOCATE_VECTOR(VExpMax);
                                        c.vlui(*VExpMax, convertFixedPoint(expMax, aFrac));
+
+                                       // VR = (VR - VExpMax) / (VExpMax - -VExpMax) [s0.15]
                                        c.vadd(*VR, *VR, *VExpMax);
+                                       c.vmul_rn(aFrac - 1, *VR, *VR, *VMaxScale);
                                    }
-
-                                   c.vmul_rn(aFrac - 1, *VR, *VR, *VMaxScale);
-
                                    {
                                        ALLOCATE_VECTOR(VLUTAddress);
                                        ALLOCATE_VECTOR(VLUTLower);
@@ -154,19 +153,19 @@ void add(CodeGenerator &codeGenerator, ScalarRegisterAllocator &scalarRegisterAl
                                        // Add base address
                                        c.vadd(*VLUTAddress, *VLUTAddress, *VLUTBaseAddress);
 
-                                       // Load lower LUT entry
+                                       // Load lower LUT entry [s1.14]
                                        c.vloadl(*VLUTLower, *VLUTAddress, 0);
                         
-                                       // Load higher LUT value
+                                       // Load higher LUT value [s1.14]
                                        c.vloadl(*VLUTDiff, *VLUTAddress, 2);
 
                                        // VOutput = VX & VFracMask
                                        c.vand(*VOutput, *VR, *VFracMask);
 
-                                       // Calculate difference
+                                       // Calculate difference [s1.14]
                                        c.vsub(*VLUTDiff, *VLUTDiff, *VLUTLower);
                         
-                                       // VOutput *= 
+                                       // VOutput *= VLUTDiff [s1.14]
                                        c.vmul_rn(fracBits, *VOutput, *VOutput, *VLUTDiff);
 
                                        c.vadd(*VOutput, *VOutput, *VLUTLower);
@@ -188,12 +187,12 @@ void add(CodeGenerator &codeGenerator, ScalarRegisterAllocator &scalarRegisterAl
                                        c.vtlt(*SShiftScaleLessK, *VShiftScale, *VK);
 
                                        // Shift left by (VK - ShiftScale) to 
-                                       // convert from S1.14 to output form
+                                       // convert from S1.14 to output form [rType]
                                        c.vsub(*VKLeft, *VK, *VShiftScale);
                                        c.vsll(*VOutputLeft, *VOutput, *VKLeft);
 
                                        // Shift right by (ShiftScale - VK) to 
-                                       // convert from S1.14 to output form
+                                       // convert from S1.14 to output form [rType]
                                        c.vsub(*VK, *VShiftScale, *VK);
                                        c.vsra(*VOutput, *VOutput, *VK);
 
