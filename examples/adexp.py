@@ -3,13 +3,14 @@ import matplotlib.pyplot as plt
 
 from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer, Model,
                     NeuronUpdateProcess, NumericValue, Parameter,
-                    ProcessGroup, Runtime, Shape, UnresolvedType, Variable)
-from models import ExpLUTBroadcast
+                    ProcessGroup, RoundingMode, Runtime, Shape,
+                    UnresolvedType, Variable)
+from models import ExpLUTBroadcast, RNGInit
 
 from pyfenn import disassemble, init_logging
 from pyfenn.utils import (ceil_divide, copy_and_push, 
                           generate_exp_lut_and_push, get_array_view,
-                          zero_and_push)
+                          seed_and_push, zero_and_push)
 
 
 device = False
@@ -107,14 +108,18 @@ ad_exp = AdExp([32], num_timesteps, tau_m=(c / gL), tau_w=144.0,
                v_spike=(10.0 * v_scale), v_reset=(-70.6 * v_scale), 
                a=((4.0 / 1000.0) / (v_scale / w_scale)), b=(0.0805 * w_scale),
                i_offset=(700.0 * (w_scale / 1000.0)), dt=0.1, name="ad_exp")
+
+rng_init = RNGInit()
 lut_broadcast = ExpLUTBroadcast()
 
 # Group processes
-init_processes = ProcessGroup([lut_broadcast.process])
+init_processes = ProcessGroup([rng_init.process, lut_broadcast.process])
 neuron_processes = ProcessGroup([ad_exp.process])
 
 # Create backend
-backend = BackendFeNNHW() if device else BackendFeNNSim(keep_params_in_registers=False)
+backend_params = {"keep_params_in_registers": False,
+                  "rounding_mode": RoundingMode.STOCHASTIC}
+backend = BackendFeNNHW(**backend_params) if device else BackendFeNNSim(**backend_params)
 
 # Create model
 model = Model([init_processes, neuron_processes], backend)
@@ -146,8 +151,9 @@ v_array, v_view = get_array_view(runtime, ad_exp.v, np.int16)
 v_view[:] = np.round(-70.6 * v_scale * (2**12)).astype(np.int16)
 v_array.push_to_device()
 
-# Initialise exp LUT
+# Initialise exp LUT and RNG
 generate_exp_lut_and_push(lut_broadcast.lut, runtime)
+seed_and_push(rng_init.seed, runtime)
 
 # Set init instructions
 print("Initialising")
@@ -172,22 +178,38 @@ w_array.pull_from_device()
 v_view = np.reshape(v_view, (-1, 32))
 w_view = np.reshape(w_view, (-1, 32))
 
+# Calculate mean and standard deviation
+v_mean = np.average(v_view, axis=1)
+v_std = np.std(v_view, axis=1)
+w_mean = np.average(w_view, axis=1)
+w_std = np.std(w_view, axis=1)
+
+timesteps = np.arange(0.0, (num_timesteps * 0.1) + 0.1, 0.1)
+
 # Load reference data
 v_ref = np.load("orig_adexp_v.npy")
 w_ref = np.load("orig_adexp_w.npy")
-print(v_ref.shape, w_ref.shape)
+
 # Create plot
 figure, axes = plt.subplots(2, sharex=True)
 
 # Plot voltages
 axes[0].set_title("Voltage")
-axes[0].plot(v_view[:,0] / (2**12), label="FeNN")
-axes[0].plot(v_ref[:len(v_view)] * v_scale, label="GeNN")
+v_actor = axes[0].plot(timesteps, v_mean / (2**12), label="FeNN")[0]
+axes[0].fill_between(timesteps, (v_mean - v_std) / (2**12), 
+                     (v_mean + v_std) / (2**12),
+                     alpha=0.5, color=v_actor.get_color())
+
+axes[0].plot(timesteps, v_ref[:len(v_view)] * v_scale, label="GeNN")
 axes[0].legend()
 
 axes[1].set_title("Adaption current")
-axes[1].plot(w_view[:,0] / (2**12), label="FeNN")
-axes[1].plot(w_ref[:len(w_view)] * v_scale, label="GeNN")
+w_actor = axes[1].plot(timesteps, w_mean / (2**12), label="FeNN")[0]
+axes[1].fill_between(timesteps, (w_mean - w_std) / (2**12), 
+                     (w_mean + w_std) / (2**12),
+                     alpha=0.5, color=w_actor.get_color())
+                  
+axes[1].plot(timesteps, w_ref[:len(w_view)] * v_scale, label="GeNN")
 axes[1].legend()
 # Show plot
 plt.show()
