@@ -100,12 +100,13 @@ init_logging()
 c = 281.0 / 1000.0
 gL = 30.0 / 1000.0
 v_scale = 0.01
+w_scale = 10.0
 ad_exp = AdExp([32], num_timesteps, tau_m=(c / gL), tau_w=144.0,
-               r=((1.0 / gL) * v_scale), e_l=(-70.6 * v_scale),
+               r=((1.0 / gL) * (v_scale / w_scale)), e_l=(-70.6 * v_scale),
                delta_t=(2.0 * v_scale), v_thresh=(-50.4 * v_scale),
                v_spike=(10.0 * v_scale), v_reset=(-70.6 * v_scale), 
-               a=((4.0 / 1000.0) / v_scale), b=0.0805, 
-               i_offset=(700.0 / 1000.0), dt=0.1, name="ad_exp")
+               a=((4.0 / 1000.0) / (v_scale / w_scale)), b=(0.0805 * w_scale),
+               i_offset=(700.0 * (w_scale / 1000.0)), dt=0.1, name="ad_exp")
 lut_broadcast = ExpLUTBroadcast()
 
 # Group processes
@@ -172,8 +173,8 @@ v_view = np.reshape(v_view, (-1, 32))
 w_view = np.reshape(w_view, (-1, 32))
 
 # Load reference data
-v_ref = np.load("adexp_v.npy")
-w_ref = np.load("adexp_w.npy")
+v_ref = np.load("orig_adexp_v.npy")
+w_ref = np.load("orig_adexp_w.npy")
 print(v_ref.shape, w_ref.shape)
 # Create plot
 figure, axes = plt.subplots(2, sharex=True)
@@ -181,12 +182,12 @@ figure, axes = plt.subplots(2, sharex=True)
 # Plot voltages
 axes[0].set_title("Voltage")
 axes[0].plot(v_view[:,0] / (2**12), label="FeNN")
-axes[0].plot(v_ref[:len(v_view)], label="GeNN")
+axes[0].plot(v_ref[:len(v_view)] * v_scale, label="GeNN")
 axes[0].legend()
 
 axes[1].set_title("Adaption current")
 axes[1].plot(w_view[:,0] / (2**12), label="FeNN")
-axes[1].plot(w_ref[:len(w_view)], label="GeNN")
+axes[1].plot(w_ref[:len(w_view)] * v_scale, label="GeNN")
 axes[1].legend()
 # Show plot
 plt.show()
