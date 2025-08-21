@@ -24,12 +24,12 @@
 #include "ise/riscv.h"
 #include "ise/vector_processor.h"
 
-void writeData(const volatile int16_t *scalarOutputData, size_t numTestVectors)
+void writeData(const int16_t *inputData, const volatile int16_t *scalarOutputData, size_t count)
 {
     std::ofstream output("special_function_output.csv");
     
-    for(uint32_t n = 0; n < (32 * numTestVectors); n++) {
-        output << *scalarOutputData++ << std::endl;
+    for(uint32_t n = 0; n < count; n++) {
+        output << *inputData++ << ", " << *scalarOutputData++ << std::endl;
     }
 }
 
@@ -195,7 +195,6 @@ int main(int argc, char** argv)
                 c.vadd(*VOutput, *VOutput, *VLUTLower);
 
                 
-                
                 if(saturate) {
                     ALLOCATE_SCALAR(SShiftScaleLessK);
                     ALLOCATE_VECTOR(VKLeft);
@@ -294,7 +293,8 @@ int main(int argc, char** argv)
         LOGI << "Done";
 
         // Write data to text file
-        writeData(reinterpret_cast<const volatile int16_t*>(device.getDataMemory() + outputScalarDataPtr), numTestVectors);
+        writeData(vectorInitData.data() + (inputDataPtr / 2), 
+                  reinterpret_cast<const volatile int16_t*>(device.getDataMemory() + outputScalarDataPtr), count);
     }
     else {
         // Build ISE with vector co-processor
@@ -312,7 +312,8 @@ int main(int argc, char** argv)
         // Write data to text file
         const auto *scalarData = riscV.getScalarDataMemory().getData();
         const int16_t *scalarOutputData = reinterpret_cast<const int16_t*>(scalarData + outputScalarDataPtr);
-        writeData(scalarOutputData, numTestVectors);
+        writeData(vectorInitData.data() + (inputDataPtr / 2), 
+                  scalarOutputData, count);
     }
     LOGI << "Success!";
     
