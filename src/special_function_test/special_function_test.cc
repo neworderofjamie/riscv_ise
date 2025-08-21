@@ -53,14 +53,17 @@ int main(int argc, char** argv)
     constexpr size_t tableBits = (numBits - 3) / 2;
     constexpr size_t fracBits = tableBits + 3;
     constexpr size_t lutSize = (1 << tableBits) + 1;
-    constexpr size_t valueFixedPoint = 9;
-    const double min = -3.4;
-    const double max = 3.4;
-    const int16_t minFixed = convertFixedPoint(min, valueFixedPoint);
-    const int16_t maxFixed = convertFixedPoint(max, valueFixedPoint);
+    constexpr size_t inputFixedPoint = 9;
+    constexpr size_t outputFixedPoint = 3;
+    const double min = 1.0;
+    const double max = 8.0;
+    const int16_t minFixed = convertFixedPoint(min, inputFixedPoint);
+    const int16_t maxFixed = convertFixedPoint(max, inputFixedPoint);
 
     const size_t count = maxFixed - minFixed;
     const size_t numTestVectors = ceilDivide(count, 32);
+
+    LOGI << "Count: " << count;
 
     // Create memory contents
     std::vector<uint8_t> scalarInitData;
@@ -131,11 +134,11 @@ int main(int argc, char** argv)
             c.li(*SOutputBuffer, outputDataPtr);
 
             // Load constants
-            c.vlui(*VShiftScale, 14 - valueFixedPoint);
+            c.vlui(*VShiftScale, 14 - outputFixedPoint);
             c.vlui(*VFracMask, (1 << fracBits) - 1);
             c.vlui(*VLog2, convertFixedPoint(log2, 15));
             c.vlui(*VInvLog, convertFixedPoint(1.0 / log2, 14));
-            c.vlui(*VExpMax, convertFixedPoint(expMax, valueFixedPoint));
+            c.vlui(*VExpMax, convertFixedPoint(expMax, inputFixedPoint));
             c.vlui(*VExpMaxScale, convertFixedPoint(1.0 / (2.0 * expMax), 14));
 
             // Loop over vectors
@@ -156,15 +159,15 @@ int main(int argc, char** argv)
                 // START RANGE-REDUCTION
                 // VK = floor((VX * VInvLog) + 0.5).
                 c.vmul(14, *VK, *VX, *VInvLog);
-                c.vsrai_rn(valueFixedPoint, *VK, *VK);
+                c.vsrai_rn(inputFixedPoint, *VK, *VK);
 
                 // VR = VX - (VK * VLog2)
-                c.vmul_rn(15 - valueFixedPoint, *VR, *VK, *VLog2);
+                c.vmul_rn(15 - inputFixedPoint, *VR, *VK, *VLog2);
                 c.vsub(*VR, *VX, *VR);
 
                 // VR = (VR - VExpMax) / (VExpMax - -VExpMax)
                 c.vadd(*VR, *VR, *VExpMax);
-                c.vmul_rn(valueFixedPoint - 1, *VR, *VR, *VExpMaxScale);
+                c.vmul_rn(inputFixedPoint - 1, *VR, *VR, *VExpMaxScale);
 
                 // START FAITHFUL INTERPOLATION
                 // VLUTAddress = VX >> fracBits
