@@ -17,6 +17,10 @@ device = False
 disassemble_code = True
 num_timesteps = 1000
 
+def calc_nrmse(target, result):
+    scale = np.amax(target) - np.amin(target)
+    return np.sqrt(np.mean((result - target)**2)) / scale
+
 class AdExp:
     def __init__(self, shape, num_timesteps: int, tau_m: float, tau_w: float, 
                  r: float, e_l: float, delta_t: float, v_thresh: float, 
@@ -118,7 +122,7 @@ neuron_processes = ProcessGroup([ad_exp.process])
 
 # Create backend
 backend_params = {"keep_params_in_registers": False,
-                  "rounding_mode": RoundingMode.STOCHASTIC}
+                  "rounding_mode": RoundingMode.NEAREST}
 backend = BackendFeNNHW(**backend_params) if device else BackendFeNNSim(**backend_params)
 
 # Create model
@@ -211,5 +215,10 @@ axes[1].fill_between(timesteps, (w_mean - w_std) / (2**12),
                   
 axes[1].plot(timesteps, w_ref[:len(w_view)] * v_scale, label="GeNN")
 axes[1].legend()
+
+v_rmse = calc_nrmse(v_ref[:len(v_view)] * v_scale, v_mean / (2**12))
+w_rmse = calc_nrmse(w_ref[:len(w_view)] * v_scale, w_mean / (2**12))
+print(f"V RMSE={v_rmse}, W RMSE={w_rmse}")
+
 # Show plot
 plt.show()
