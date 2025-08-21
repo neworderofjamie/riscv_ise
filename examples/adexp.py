@@ -120,7 +120,7 @@ model = Model([init_processes, neuron_processes], backend)
 
 # Generate init and sim code
 init_code = backend.generate_kernel([init_processes], model)
-code = backend.generate_simulation_kernel([neuron_processes], [],
+code = backend.generate_simulation_kernel([neuron_processes], [], [],
                                           num_timesteps, model)
 
 # Disassemble if required
