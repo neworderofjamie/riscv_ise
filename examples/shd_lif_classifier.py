@@ -3,14 +3,16 @@ import mnist
 
 from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer, Model,
                     NeuronUpdateProcess, NumericValue, PlogSeverity, ProcessGroup, 
-                    Parameter, Runtime, Shape, UnresolvedType, Variable)
+                    Parameter, PerformanceCounter, RoundingMode, Runtime, Shape, 
+                    UnresolvedType, Variable)
 from pyfenn.models import Linear, Memset
+
 from tonic.datasets import SHD
 
 from pyfenn import disassemble, init_logging
 from pyfenn.utils import (build_delay_weights, ceil_divide, copy_and_push, 
                           get_array_view, load_quantise_and_push, pull_spikes,
-                          quantise, zero_and_push)
+                          read_perf_counter, quantise, zero_and_push)
 from tqdm.auto import tqdm
 
 class LIF:
@@ -84,6 +86,7 @@ hidden_hidden_shape = [hidden_shape[0], hidden_shape[0]]
 hidden_output_shape = [hidden_shape[0], output_shape[0]]
 device = False
 record = False
+time = True
 disassemble_code = False
 
 # Load and preprocess SHD
@@ -124,15 +127,19 @@ output_v_zero = Memset(output.v)
 output_v_avg_zero = Memset(output.v_avg)
 
 # Group processes
-neuron_update_processes = ProcessGroup([hidden.process, output.process])
+neuron_update_processes = ProcessGroup([hidden.process, output.process],
+                                       PerformanceCounter() if time else None)
 synapse_update_processes = ProcessGroup([input_hidden.process, hidden_hidden.process, 
-                                         hidden_output.process])
+                                         hidden_output.process],
+                                        PerformanceCounter() if time else None)
 reset_processes = ProcessGroup([hidden_i_zero.process, hidden_v_zero.process,
                                 output_i_zero.process, output_v_zero.process,
-                                output_v_avg_zero.process])
+                                output_v_avg_zero.process],
+                               PerformanceCounter() if time else None)
 
 # Create backend
-backend = BackendFeNNHW() if device else BackendFeNNSim()
+backend_params = {"rounding_mode": RoundingMode.STOCHASTIC}
+backend = BackendFeNNHW(**backend_params) if device else BackendFeNNSim(**backend_params)
 
 # Create model
 model = Model([neuron_update_processes, synapse_update_processes, reset_processes],
@@ -164,6 +171,11 @@ load_quantise_and_push("0/108-Conn_Pop1_Pop1-g.npy",    #+- 1
 load_quantise_and_push("0/108-Conn_Pop1_Pop2-g.npy",    #+-3
                        8, hidden_output.weight, runtime, hidden_shape[0], True, percentile=100.0)
 
+if time:
+    zero_and_push(neuron_update_processes.performance_counter, runtime)
+    zero_and_push(synapse_update_processes.performance_counter, runtime)
+    zero_and_push(reset_processes.performance_counter, runtime)
+
 # Set sim instructions
 runtime.set_instructions(sim_code)
 
@@ -190,3 +202,15 @@ for spikes, label in tqdm(zip(shd_spikes, shd_labels),
         num_correct += 1
 
 print(f"{num_correct} / {len(shd_labels)} correct {100.0 * (num_correct / len(shd_labels))}%")
+
+if time:
+    neuron_update_cycles, neuron_update_instructions = read_perf_counter(
+        neuron_update_processes.performance_counter, runtime)
+    synapse_update_cycles, synapse_update_instructions = read_perf_counter(
+        synapse_update_processes.performance_counter, runtime)
+    reset_cycles, reset_instructions = read_perf_counter(
+        reset_processes.performance_counter, runtime)
+    print(f"Neuron update {neuron_update_cycles} cycles, {neuron_update_instructions} instruction ({neuron_update_instructions / neuron_update_cycles})")
+    print(f"Synapse update {synapse_update_cycles} cycles, {synapse_update_instructions} instruction ({synapse_update_instructions / synapse_update_cycles})")
+    print(f"Reset {reset_cycles} cycles, {reset_instructions} instruction ({reset_instructions / reset_cycles})")
+
