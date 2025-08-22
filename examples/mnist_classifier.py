@@ -3,7 +3,8 @@ import mnist
 
 from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer, Model, 
                     PerformanceCounter, ProcessGroup, Runtime, Shape)
-from models import LI, LIF, Linear, Memset
+from pyfenn.models import Linear, Memset
+from models import LI, LIF
 
 from pyfenn import disassemble, init_logging
 from pyfenn.utils import (get_array_view, get_latency_spikes, load_and_push,

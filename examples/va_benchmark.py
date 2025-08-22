@@ -5,7 +5,7 @@ from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer,
                     Model, NeuronUpdateProcess, NumericValue, Parameter,
                     PerformanceCounter, PlogSeverity, ProcessGroup,
                     Runtime, Shape, UnresolvedType, Variable)
-from models import Linear, Memset
+from pyfenn.models import Linear, Memset
 
 from pyfenn import disassemble, init_logging
 from pyfenn.utils import (build_sparse_connectivity, ceil_divide,

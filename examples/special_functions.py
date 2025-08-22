@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 
 from pyfenn import (BackendFeNNHW, BackendFeNNSim, Model, NeuronUpdateProcess,
                     ProcessGroup, Runtime, Shape, UnresolvedType, Variable)
-from models import ExpLUTBroadcast
+from pyfenn.models import ExpLUTBroadcast
 
 from pyfenn import disassemble, init_logging
 from pyfenn.utils import (ceil_divide, copy_and_push, 

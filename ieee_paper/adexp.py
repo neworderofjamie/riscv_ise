@@ -8,14 +8,14 @@ from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer, Model,
 from models import ExpLUTBroadcast, RNGInit
 
 from pyfenn import disassemble, init_logging
-from pyfenn.utils import (ceil_divide, copy_and_push, 
-                          generate_exp_lut_and_push, get_array_view,
-                          seed_and_push, zero_and_push)
+from pyfenn.utils import (generate_exp_lut_and_push, get_array_view,
+                          pull_spikes, seed_and_push, zero_and_push)
 
 
 device = False
 disassemble_code = False
-num_timesteps = 4000
+num_timesteps = 2500
+num_blocks = 4
 fixed_point = 12
 
 def calc_nrmse(target, result):
@@ -173,29 +173,51 @@ runtime.run()
 print("Simulating")
 runtime.set_instructions(code)
 
-# Simulate
-runtime.run()
-
-# Pull neuron voltage and adaptation variables
+# Get arrays and views corresponding to neuron state
 w_array, w_view = get_array_view(runtime, ad_exp.w,
                                  np.int16)
-v_array.pull_from_device()
-w_array.pull_from_device()
+                                 
+# Loop through simulation blocks
+v = []
+w = []
+spike_times = []
+spike_ids = []
+for i in range(num_blocks):
+    # Run
+    runtime.run()
 
-v_view = np.reshape(v_view, (-1, 32))
-w_view = np.reshape(w_view, (-1, 32))
+    # Copy data back to host
+    v_array.pull_from_device()
+    w_array.pull_from_device()
+    block_spike_times, block_spike_ids = pull_spikes(num_timesteps, 
+                                                     ad_exp.out_spikes,
+                                                     runtime)
+    
+    # Add to lists
+    v.append(np.copy(np.reshape(v_view, (-1, 32))))
+    w.append(np.copy(np.reshape(w_view, (-1, 32))))
+    spike_times.append(block_spike_times)
+    spike_ids.append(block_spike_ids)
+
+v = np.vstack(v)
+print(v.shape)
+
+#v_view = np.reshape(v_view, (-1, 32))
+#w_view = np.reshape(w_view, (-1, 32))
 
 # Calculate mean and standard deviation
-v_mean = np.average(v_view, axis=1)
-v_std = np.std(v_view, axis=1)
-w_mean = np.average(w_view, axis=1)
-w_std = np.std(w_view, axis=1)
+#v_mean = np.average(v_view, axis=1)
+#v_std = np.std(v_view, axis=1)
+#w_mean = np.average(w_view, axis=1)
+#w_std = np.std(w_view, axis=1)
 
-timesteps = np.arange(0.0, (num_timesteps * 0.1) + 0.1, 0.1)
+num_total_timesteps = num_timesteps * num_blocks
+timesteps = np.arange(0.0, (num_total_timesteps * 0.1) + 0.1, 0.1)
 
 # Load reference data
-v_ref = np.load("orig_adexp_v.npy")
-w_ref = np.load("orig_adexp_w.npy")
+v_ref = np.load("adexp_v_ref.npy")
+w_ref = np.load("adexp_w_ref.npy")
+spike_times_ref = np.load("adexp_spike_times_ref.npy")
 
 # Create plot
 figure, axes = plt.subplots(2, sharex=True)

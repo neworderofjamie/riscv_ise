@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer, Model, NeuronUpdateProcess,
                     NumericValue, Parameter, PlogSeverity, ProcessGroup, 
                     Runtime, Shape, UnresolvedType, Variable)
-from models import RNGInit
+from pyfenn.models import RNGInit
 
 from pyfenn import disassemble, init_logging
 from pyfenn.utils import get_array_view, seed_and_push, zero_and_push
@@ -84,7 +84,7 @@ model = Model([init_processes, neuron_update_processes],
 # Generate init and sim code
 init_code = backend.generate_kernel([init_processes], model)
 code = backend.generate_simulation_kernel([neuron_update_processes],
-                                          [],
+                                          [], [],
                                           num_timesteps, model)
 
 # Disassemble if required

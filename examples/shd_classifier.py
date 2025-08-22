@@ -3,7 +3,8 @@ import mnist
 
 from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer, Model, ProcessGroup,
                     Runtime, Shape)
-from models import ALIF, LI, Linear, Memset, RNGInit
+from pyfenn.models import Linear, Memset, RNGInit
+from models import ALIF, LI
 from tonic.datasets import SHD
 
 from pyfenn import disassemble, init_logging

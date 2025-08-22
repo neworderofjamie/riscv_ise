@@ -5,7 +5,7 @@ from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer, Model,
                     NeuronUpdateProcess, NumericValue, Parameter,
                     ProcessGroup, RoundingMode, Runtime, Shape,
                     UnresolvedType, Variable)
-from models import ExpLUTBroadcast, RNGInit
+from pyfenn.models import ExpLUTBroadcast, RNGInit
 
 from pyfenn import disassemble, init_logging
 from pyfenn.utils import (ceil_divide, copy_and_push, 
@@ -17,10 +17,6 @@ device = False
 disassemble_code = False
 num_timesteps = 4000
 fixed_point = 12
-
-def calc_nrmse(target, result):
-    scale = np.amax(target) - np.amin(target)
-    return np.sqrt(np.mean((result - target)**2)) / scale
 
 class AdExp:
     def __init__(self, shape, num_timesteps: int, tau_m: float, tau_w: float, 
@@ -185,41 +181,18 @@ w_array.pull_from_device()
 v_view = np.reshape(v_view, (-1, 32))
 w_view = np.reshape(w_view, (-1, 32))
 
-# Calculate mean and standard deviation
-v_mean = np.average(v_view, axis=1)
-v_std = np.std(v_view, axis=1)
-w_mean = np.average(w_view, axis=1)
-w_std = np.std(w_view, axis=1)
-
 timesteps = np.arange(0.0, (num_timesteps * 0.1) + 0.1, 0.1)
-
-# Load reference data
-v_ref = np.load("orig_adexp_v.npy")
-w_ref = np.load("orig_adexp_w.npy")
 
 # Create plot
 figure, axes = plt.subplots(2, sharex=True)
 
 # Plot voltages
 axes[0].set_title("Voltage")
-v_actor = axes[0].plot(timesteps, v_view / fixed_point_one, label="FeNN")[0]
-#axes[0].fill_between(timesteps, (v_mean - v_std) / fixed_point_one, 
-#                     (v_mean + v_std) / fixed_point_one,
-#                     alpha=0.5, color=v_actor.get_color())
-axes[0].plot(timesteps, v_ref[:len(v_view)] * v_scale, linestyle="--")
-#axes[0].legend()
+axes[0].plot(timesteps, v_view[:,0] / fixed_point_one)
 
 axes[1].set_title("Adaption current")
-w_actor = axes[1].plot(timesteps, w_view / fixed_point_one, label="FeNN")[0]
-#axes[1].fill_between(timesteps, (w_mean - w_std) / fixed_point_one, 
-#                     (w_mean + w_std) / fixed_point_one,
-#                     alpha=0.5, color=w_actor.get_color())
-axes[1].plot(timesteps, w_ref[:len(w_view)] * v_scale, linestyle="--")
-#axes[1].legend()
-
-v_rmse = calc_nrmse(v_ref[:len(v_view)] * v_scale, v_mean / fixed_point_one)
-w_rmse = calc_nrmse(w_ref[:len(w_view)] * v_scale, w_mean / fixed_point_one)
-print(f"V RMSE={v_rmse}, W RMSE={w_rmse}")
+axes[1].plot(timesteps, w_view[:,0] / fixed_point_one)
+axes[1].set_xlabel("Time [ms]")
 
 # Show plot
 plt.show()
