@@ -921,8 +921,8 @@ private:
         //--------------------------------------------------------------------
         // Declared virtuals
         //--------------------------------------------------------------------
-        virtual void generateRow(CodeGenerator &cg, ScalarRegisterAllocator::RegisterPtr idPreReg) = 0;
-    
+        virtual void generateRow(CodeGenerator &cg, ScalarRegisterAllocator::RegisterPtr weightBufferReg) = 0;
+
     protected:
         //--------------------------------------------------------------------
         // Protected API
@@ -933,6 +933,10 @@ private:
         auto &getScalarRegisterAllocator(){ return m_ScalarRegisterAllocator.get(); }
         auto &getVectorRegisterAllocator(){ return m_VectorRegisterAllocator.get(); }
         
+    public:
+        //--------------------------------------------------------------------
+        // Public API
+        //--------------------------------------------------------------------
         auto loadWeightBuffer(CodeGenerator &c, ScalarRegisterAllocator::RegisterPtr idPreReg)
         {
             auto &scalarRegisterAllocator = getScalarRegisterAllocator();
@@ -948,7 +952,6 @@ private:
 
             return SWeightBuffer;
         }
-
     private:
         //--------------------------------------------------------------------
         // Members
@@ -971,7 +974,7 @@ private:
         //--------------------------------------------------------------------
         // RowGeneratorBase virtuals
         //--------------------------------------------------------------------
-        virtual void generateRow(CodeGenerator &c, ScalarRegisterAllocator::RegisterPtr idPreReg) final override
+        virtual void generateRow(CodeGenerator &c, ScalarRegisterAllocator::RegisterPtr weightBufferReg) final override
         {
             // Make some friendlier-named references
             auto &scalarRegisterAllocator = getScalarRegisterAllocator();
@@ -986,9 +989,6 @@ private:
             // Load target register from state fields
             // **NOTE** no point in caching this as it needs resetting every row
             c.lw(*STargetBuf, Reg::X0, getStateFields().at(getProcess()->getTarget()));
-
-            // Load weight buffer 
-            auto weightBufferReg = loadWeightBuffer(c, idPreReg);
 
             // Preload first ISyn to avoid stall
             c.vloadv(*VTarget1, *STargetBuf, 0);
@@ -1056,7 +1056,7 @@ private:
         //--------------------------------------------------------------------
         // RowGeneratorBase virtuals
         //--------------------------------------------------------------------
-        virtual void generateRow(CodeGenerator &c, ScalarRegisterAllocator::RegisterPtr idPreReg) final override
+        virtual void generateRow(CodeGenerator &c, ScalarRegisterAllocator::RegisterPtr weightBufferReg) final override
         {
             // Make some friendlier-named references
             auto &scalarRegisterAllocator = getScalarRegisterAllocator();
@@ -1068,9 +1068,6 @@ private:
             ALLOCATE_VECTOR(VWeightInd2);
             ALLOCATE_VECTOR(VPostAddr);
             ALLOCATE_VECTOR(VWeight);
-
-            // Load weight buffer 
-            auto weightBufferReg = loadWeightBuffer(c, idPreReg);
 
             // Preload first weights and indices to avoid stall
             c.vloadv(*VWeightInd1, *weightBufferReg, 0);
@@ -1152,7 +1149,7 @@ private:
         //--------------------------------------------------------------------
         // RowGeneratorBase virtuals
         //--------------------------------------------------------------------
-        virtual void generateRow(CodeGenerator &c, ScalarRegisterAllocator::RegisterPtr idPreReg) final override
+        virtual void generateRow(CodeGenerator &c, ScalarRegisterAllocator::RegisterPtr weightBufferReg) final override
         {
             // Make some friendlier-named references
             auto &scalarRegisterAllocator = getScalarRegisterAllocator();
@@ -1169,9 +1166,6 @@ private:
             // Reset target register from scalar register
             // **NOTE** no point in caching this as it needs resetting every row
             c.vfill(*VTargetReg, *m_TargetAddrReg);
-
-            // Load weight buffer 
-            auto weightBufferReg = loadWeightBuffer(c, idPreReg);
 
             // Preload first weights and indices to avoid stall
             c.vloadv(*VWeightInd1, *weightBufferReg, 0);
@@ -1233,6 +1227,11 @@ private:
         ScalarRegisterAllocator::RegisterPtr m_TargetAddrReg;
         VectorRegisterAllocator::RegisterPtr m_VectorTimeReg;
     };
+
+    uint32_t getBackendFieldOffset(StateObjectID id) const
+    {
+        return std::get<1>(m_Model.get().getBackendFields().at(static_cast<int>(id)));
+    }
 
     //------------------------------------------------------------------------
     // ModelComponentVisitor virtuals
@@ -1414,14 +1413,10 @@ private:
                            }));
         addStochMulFunctions(functionLibrary);
         
-        // If exp is called
+        // If exp is called, add special function to environment
         if(isExpCalled(neuronUpdateProcess->getTokens())) {
-            // Get field containing LUT for exponential function
-            const auto &lutField = m_Model.get().getBackendFields().at(static_cast<int>(StateObjectID::LUT_EXP));
-
-            // Add special function to environment
             SpecialFunctions::Exp::add(c, scalarRegisterAllocator, m_VectorRegisterAllocator.get(),
-                                       env, functionLibrary, std::get<1>(lutField));
+                                       env, functionLibrary, getBackendFieldOffset(StateObjectID::LUT_EXP));
         }
         // Insert environment with this library
         EnvironmentLibrary envLibrary(env, functionLibrary);
@@ -1845,7 +1840,8 @@ private:
 
                 // Loop through row generators and generate code to process rows
                 for(auto &r : rowGenerators) {
-                    r->generateRow(c, SN);
+                    auto weightBufferReg = r->loadWeightBuffer(c, SN);
+                    r->generateRow(c, weightBufferReg);
                 }
 
                 // SN --
@@ -1878,14 +1874,12 @@ private:
         c.L(wordEnd);
     }
 
-    /*void generateDRAMWordLoop(const std::vector<std::shared_ptr<const EventPropagationProcess>> &processes,
-                              const EventPropagationProcessRegisters &processRegs, ScalarRegisterAllocator::RegisterPtr eventBufferReg, 
-                              ScalarRegisterAllocator::RegisterPtr eventBufferEndReg, VectorRegisterAllocator::RegisterPtr vectorTimeReg)
+    /*void generateDRAMWordLoop(const std::vector<std::unique_ptr<RowGeneratorBase>> &rowGenerators, 
+                              ScalarRegisterAllocator::RegisterPtr eventBufferReg, 
+                              ScalarRegisterAllocator::RegisterPtr eventBufferEndReg)
     {
         // Make some friendlier-named references
-        const auto &processFields = m_Model.get().getProcessFields();
         auto &scalarRegisterAllocator = m_ScalarRegisterAllocator.get();
-        auto &vectorRegisterAllocator = m_VectorRegisterAllocator.get();
         auto &c = m_CodeGenerator.get();
 
         ALLOCATE_SCALAR(SWordNStart);
@@ -1904,9 +1898,9 @@ private:
         Label wordEnd;
 
         // Load row buffer pointers
-        c.li(*SRowBufferA, rowBufferAPtr);
-        c.li(*SRowBufferB, rowBufferBPtr);
-    
+        c.lw(*SRowBufferA, Reg::X0, getBackendFieldOffset(StateObjectID::ROW_BUFFER_A));
+        c.lw(*SRowBufferB, Reg::X0, getBackendFieldOffset(StateObjectID::ROW_BUFFER_B));
+        
         // Load some useful constants
         c.li(*SConst1, 1);
 
