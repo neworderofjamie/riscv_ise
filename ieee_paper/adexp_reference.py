@@ -139,7 +139,7 @@ adexp_w = np.vstack(adexp_w)
 
 np.save("adexp_v_ref.npy", adexp_v)
 np.save("adexp_w_ref.npy", adexp_w)
-np.save("adexp_spike_times.npy", times)
+np.save("adexp_spike_times_ref.npy", times)
 
 for i in range(4):
     adexp_v_grad[i] = np.vstack(adexp_v_grad[i])
