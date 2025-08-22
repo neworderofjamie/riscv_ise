@@ -5,11 +5,11 @@ from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer, Model,
                     NeuronUpdateProcess, NumericValue, Parameter,
                     ProcessGroup, RoundingMode, Runtime, Shape,
                     UnresolvedType, Variable)
-from models import ExpLUTBroadcast, RNGInit
+from pyfenn.models import ExpLUTBroadcast, RNGInit
 
 from pyfenn import disassemble, init_logging
 from pyfenn.utils import (generate_exp_lut_and_push, get_array_view,
-                          pull_spikes, seed_and_push, zero_and_push)
+                          seed_and_push, zero_and_push)
 
 
 device = False
@@ -17,10 +17,6 @@ disassemble_code = False
 num_timesteps = 2500
 num_blocks = 4
 fixed_point = 12
-
-def calc_nrmse(target, result):
-    scale = np.amax(target) - np.amin(target)
-    return np.sqrt(np.mean((result - target)**2)) / scale
 
 class AdExp:
     def __init__(self, shape, num_timesteps: int, tau_m: float, tau_w: float, 
@@ -174,14 +170,18 @@ print("Simulating")
 runtime.set_instructions(code)
 
 # Get arrays and views corresponding to neuron state
-w_array, w_view = get_array_view(runtime, ad_exp.w,
-                                 np.int16)
-                                 
+w_array, w_view = get_array_view(runtime, ad_exp.w, np.int16)
+spike_array, spike_view = get_array_view(runtime, ad_exp.out_spikes, np.uint8)
+spike_view = np.reshape(spike_view, (num_timesteps + 1, -1))
+
+# Reshape views into more useful shapes
+v_view = np.reshape(v_view, (-1, 32))
+w_view = np.reshape(w_view, (-1, 32))
+
 # Loop through simulation blocks
 v = []
 w = []
-spike_times = []
-spike_ids = []
+spikes = []
 for i in range(num_blocks):
     # Run
     runtime.run()
@@ -189,59 +189,76 @@ for i in range(num_blocks):
     # Copy data back to host
     v_array.pull_from_device()
     w_array.pull_from_device()
-    block_spike_times, block_spike_ids = pull_spikes(num_timesteps, 
-                                                     ad_exp.out_spikes,
-                                                     runtime)
-    
+    spike_array.pull_from_device()
+
     # Add to lists
-    v.append(np.copy(np.reshape(v_view, (-1, 32))))
-    w.append(np.copy(np.reshape(w_view, (-1, 32))))
-    spike_times.append(block_spike_times)
-    spike_ids.append(block_spike_ids)
+    v.append(np.copy(v_view[1:,:]))
+    w.append(np.copy(w_view[1:,:]))
+    spikes.append(np.unpackbits(spike_view, axis=1, bitorder="little")[1:,:])
+    
+    # Wrap state around and copy back to device
+    v_view[0] = v_view[-1]
+    w_view[0] = w_view[-1]
+    v_array.push_to_device()
+    w_array.push_to_device()
 
+# Stack blocks of state variable recording
 v = np.vstack(v)
-print(v.shape)
+w = np.vstack(w)
 
-#v_view = np.reshape(v_view, (-1, 32))
-#w_view = np.reshape(w_view, (-1, 32))
-
-# Calculate mean and standard deviation
-#v_mean = np.average(v_view, axis=1)
-#v_std = np.std(v_view, axis=1)
-#w_mean = np.average(w_view, axis=1)
-#w_std = np.std(w_view, axis=1)
+# Stack spikes and get times for each neuron
+spikes = np.vstack(spikes)
+spike_times = [np.where(spikes[:,i])[0] * 0.1 for i in range(32)]
 
 num_total_timesteps = num_timesteps * num_blocks
-timesteps = np.arange(0.0, (num_total_timesteps * 0.1) + 0.1, 0.1)
+timesteps = np.arange(0.0, num_total_timesteps * 0.1, 0.1)
 
 # Load reference data
 v_ref = np.load("adexp_v_ref.npy")
 w_ref = np.load("adexp_w_ref.npy")
 spike_times_ref = np.load("adexp_spike_times_ref.npy")
 
+# Check right number of spikes emitted
+assert all(len(spike_times_ref) == len(s) for s in spike_times)
+
+# That means we're safe to turn list of spike time arrays into 2D array
+spike_times = np.asarray(spike_times)
+
+# Calculate mean and std spike time
+mean_spike_times = np.average(spike_times, axis=0)
+std_spike_times = np.std(spike_times, axis=0)
+
+# Calculate mean and std lag
+lag = spike_times - spike_times_ref
+mean_lag = np.average(lag, axis=0)
+std_lag = np.std(lag, axis=0)
+
 # Create plot
-figure, axes = plt.subplots(2, sharex=True)
+figure, axes = plt.subplots(3, sharex=True)
 
 # Plot voltages
-axes[0].set_title("Voltage")
-v_actor = axes[0].plot(timesteps, v_view / fixed_point_one, label="FeNN")[0]
-#axes[0].fill_between(timesteps, (v_mean - v_std) / fixed_point_one, 
-#                     (v_mean + v_std) / fixed_point_one,
-#                     alpha=0.5, color=v_actor.get_color())
-axes[0].plot(timesteps, v_ref[:len(v_view)] * v_scale, linestyle="--")
-#axes[0].legend()
+axes[0].set_ylabel("Voltage [mV]")
+v_actor = axes[0].plot(timesteps, v[:,0] / (fixed_point_one * v_scale))[0]
+axes[0].plot(timesteps, v_ref[:len(v)] / v_scale, color=v_actor.get_color(), linestyle="--")
 
-axes[1].set_title("Adaption current")
-w_actor = axes[1].plot(timesteps, w_view / fixed_point_one, label="FeNN")[0]
-#axes[1].fill_between(timesteps, (w_mean - w_std) / fixed_point_one, 
-#                     (w_mean + w_std) / fixed_point_one,
-#                     alpha=0.5, color=w_actor.get_color())
-axes[1].plot(timesteps, w_ref[:len(w_view)] * v_scale, linestyle="--")
-#axes[1].legend()
+axes[1].set_ylabel("Adaption current [pA]")
+w_actor = axes[1].plot(timesteps, w[:,0] / (fixed_point_one * v_scale), label="FeNN")[0]
+axes[1].plot(timesteps, w_ref[:len(w)] / v_scale, color=w_actor.get_color(), linestyle="--")
 
-v_rmse = calc_nrmse(v_ref[:len(v_view)] * v_scale, v_mean / fixed_point_one)
-w_rmse = calc_nrmse(w_ref[:len(w_view)] * v_scale, w_mean / fixed_point_one)
-print(f"V RMSE={v_rmse}, W RMSE={w_rmse}")
+axes[2].set_title("Spike times")
+s_actor = axes[2].vlines(mean_spike_times, 0, 1, label="FeNN")
+axes[2].vlines(spike_times_ref, 0, 1, color=s_actor.get_color(), linestyle="--")
+axes[2].bar(mean_spike_times - std_spike_times, 1, 2 * std_spike_times, align="edge",
+            color=s_actor.get_color(), alpha=0.5)
+axes[2].set_xlabel("Time [ms]")
+
+lag_fig, lag_axis = plt.subplots()
+lag_actor = lag_axis.plot(mean_lag)[0]
+lag_axis.fill_between(np.arange(len(mean_lag)), (mean_lag - std_lag), 
+                      (mean_lag + std_lag),
+                      alpha=0.5, color=lag_actor.get_color())
+lag_axis.set_xlabel("Spike number")
+lag_axis.set_ylabel("Lag [ms]")
 
 # Show plot
 plt.show()
