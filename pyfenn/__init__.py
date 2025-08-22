@@ -10,7 +10,7 @@ from ._fenn import (BackendFeNNHW, BackendFeNNSim, BroadcastProcess,
                     Shape, State, UnresolvedType, Variable,
                     disassemble, init_logging)
 
-from . import nir_import, utils
+from . import models, nir_import, utils
 
 __all__ = ["BackendFeNNHW", "BackendFeNNSim", "BroadcastProcess",
            "EventContainer", "EventPropagationProcess", "MemsetProcess",
@@ -18,7 +18,7 @@ __all__ = ["BackendFeNNHW", "BackendFeNNSim", "BroadcastProcess",
            "Parameter", "PerformanceCounter", "PlogSeverity", "Process",
            "ProcessGroup", "RNGInitProcess", "RoundingMode", "Runtime",
            "Shape", "State", "UnresolvedType", "Variable",
-           "disassemble", "init_logging", "nir_import", "utils"]
+           "disassemble", "init_logging", "models", "nir_import", "utils"]
 
 if sys.version_info >= (3, 8):
     from importlib import metadata

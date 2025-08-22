@@ -8,14 +8,11 @@ from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer,
                     Shape, UnresolvedType, Variable)
 
 from pyfenn import disassemble, init_logging
+from pyfenn.models import Linear, Memset
 from pyfenn.utils import (build_delay_weights, build_sparse_connectivity,
                           ceil_divide, copy_and_push, get_array_view)
                           
 
-# **THINK** should REALLY generic models belong in pyfenn somewhere
-class Memset:
-    def __init__(self, target: Variable, name: str = ""):
-        self.process = MemsetProcess(target, name)
 
 class PostNeuron:
     def __init__(self, shape, num_i_timesteps, num_x_timesteps, name: str = ""):
@@ -29,27 +26,6 @@ class PostNeuron:
             I = 0;
             """, 
             {}, {"I": self.i, "X": self.x}, {}, name)
-
-# **THINK** should REALLY generic models belong in pyfenn somewhere
-class Linear:
-    def __init__(self, source_events: EventContainer, target_var: Variable,
-                 weight_dtype: str, max_row_length: Optional[int] = None, 
-                 num_sparse_connectivity_bits: int = 0, 
-                 num_delay_bits: int = 0, name: str = ""):
-        self.shape = Shape([source_events.shape.num_neurons,
-                            target_var.shape.num_neurons])
-        weight_shape = Shape(
-            [source_events.shape.num_neurons,
-             (target_var.shape.num_neurons 
-              if num_sparse_connectivity_bits == 0 
-              else max_row_length)])
-
-        weight_dtype = UnresolvedType(weight_dtype)
-        self.weight = Variable(weight_shape, weight_dtype, 1, f"{name}_weight")
-        self.process = EventPropagationProcess(source_events, self.weight,
-                                               target_var, 
-                                               num_sparse_connectivity_bits,
-                                               num_delay_bits, name)
 
 def test_forward(device):
     init_logging(PlogSeverity.INFO)

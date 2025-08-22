@@ -4,7 +4,7 @@ import mnist
 from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer, Model,
                     NeuronUpdateProcess, NumericValue, PlogSeverity, ProcessGroup, 
                     Parameter, Runtime, Shape, UnresolvedType, Variable)
-from models import Linear, Memset
+from pyfenn.models import Linear, Memset
 from tonic.datasets import SHD
 
 from pyfenn import disassemble, init_logging
