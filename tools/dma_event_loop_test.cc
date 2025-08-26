@@ -75,7 +75,7 @@ bool validateTrace(const std::vector<uint32_t> &spikeIDs, const Trace &trace, ui
         }
 
         // If prefetch
-        auto &state = idIter->second[std::get<2>(t)];
+        auto &state = idIter->second.at(std::get<2>(t));
         if(std::get<0>(t)) {
             // If row has already been prefetched
             if(state.first) {
@@ -127,7 +127,7 @@ bool validateTrace(const std::vector<uint32_t> &spikeIDs, const Trace &trace, ui
     return success;
 }
 
-void propagate(const uint32_t *spikeWord, uint32_t numSpikeWords, uint32_t numRows, Trace &trace)
+void propagate(const std::vector<uint32_t> &spikeWord, uint32_t numSpikeWords, uint32_t numRows, Trace &trace)
 {
     // Find first spike to prefetch
     uint32_t currentSpikeWord;
@@ -136,14 +136,14 @@ void propagate(const uint32_t *spikeWord, uint32_t numSpikeWords, uint32_t numRo
     uint32_t w = 0;
     for(; w < numSpikeWords; w++) {
         // Get spike word
-        currentSpikeWord = spikeWord[w];
+        currentSpikeWord = spikeWord.at(w);
         
         // Reset neuron ID
         idPre = (w * 32) + 31;
         
         // If spike word is zero, no spikes at all so advance to next word and keep prefetching
         if(currentSpikeWord == 0) {
-            currentSpikeWord = spikeWord[w + 1];
+            currentSpikeWord = spikeWord.at(w + 1);
         }
         // Otherwise, if spikeWord == 1 there is one spike
         else if(currentSpikeWord == 1) {
@@ -154,7 +154,7 @@ void propagate(const uint32_t *spikeWord, uint32_t numSpikeWords, uint32_t numRo
             // Advance to next word and stop searching
             w++;
             if(w < numSpikeWords) {
-                currentSpikeWord = spikeWord[w];
+                currentSpikeWord = spikeWord.at(w);
             }
             idPre = (w * 32) + 31;
             break;
@@ -215,7 +215,7 @@ void propagate(const uint32_t *spikeWord, uint32_t numSpikeWords, uint32_t numRo
         
         // Get next word and calculate it's starting index
         if(w < (numSpikeWords - 1)) {
-            currentSpikeWord = spikeWord[w + 1];
+            currentSpikeWord = spikeWord.at(w + 1);
         }
         idPre = ((w + 1) * 32) + 31;
     }
@@ -246,7 +246,7 @@ TEST_P(PropagateTest, NoSpikes)
     std::vector<uint32_t> spikeWords(4, 0);
     
     Trace trace;
-    propagate(spikeWords.data(), spikeWords.size(), GetParam(), trace);
+    propagate(spikeWords, spikeWords.size(), GetParam(), trace);
     
     ASSERT_TRUE(trace.empty());
 }
@@ -260,7 +260,7 @@ TEST_P(PropagateTest, AllSpikes)
     generateSpikeWords(spikeIDs, spikeWords);
     
     Trace trace;
-    propagate(spikeWords.data(), spikeWords.size(), GetParam(), trace);
+    propagate(spikeWords, spikeWords.size(), GetParam(), trace);
     
     if(!validateTrace(spikeIDs, trace, GetParam())) {
         printTrace(trace);
@@ -277,7 +277,7 @@ TEST_P(PropagateTest, EmptyFirstWord)
     generateSpikeWords(spikeIDs, spikeWords);
     
     Trace trace;
-    propagate(spikeWords.data(), spikeWords.size(), GetParam(), trace);
+    propagate(spikeWords, spikeWords.size(), GetParam(), trace);
     
     if(!validateTrace(spikeIDs, trace, GetParam())) {
         printTrace(trace);
@@ -295,7 +295,7 @@ TEST_P(PropagateTest, OneFirstWord)
     generateSpikeWords(spikeIDs, spikeWords);
     
     Trace trace;
-    propagate(spikeWords.data(), spikeWords.size(), GetParam(), trace);    
+    propagate(spikeWords, spikeWords.size(), GetParam(), trace);    
     
     if(!validateTrace(spikeIDs, trace, GetParam())) {
         printTrace(trace);
@@ -314,7 +314,7 @@ TEST_P(PropagateTest, EmptyOneFirstWord)
     generateSpikeWords(spikeIDs, spikeWords);
     
     Trace trace;
-    propagate(spikeWords.data(), spikeWords.size(), GetParam(), trace);    
+    propagate(spikeWords, spikeWords.size(), GetParam(), trace);    
     
     if(!validateTrace(spikeIDs, trace, GetParam())) {
         printTrace(trace);
@@ -326,13 +326,13 @@ TEST_P(PropagateTest, EmptyMiddle)
 {
     std::vector<uint32_t> spikeIDs(3 * 32);
     std::iota(spikeIDs.begin(), spikeIDs.begin() + 64, 0);
-    std::iota(spikeIDs.begin() + 64, spikeIDs.end() + 96, 96);
+    std::iota(spikeIDs.begin() + 64, spikeIDs.end(), 96);
     
     std::vector<uint32_t> spikeWords(4);
     generateSpikeWords(spikeIDs, spikeWords);
     
     Trace trace;
-    propagate(spikeWords.data(), spikeWords.size(), GetParam(), trace);
+    propagate(spikeWords, spikeWords.size(), GetParam(), trace);
     
     if(!validateTrace(spikeIDs, trace, GetParam())) {
         printTrace(trace);
