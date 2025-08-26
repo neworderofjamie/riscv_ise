@@ -27,6 +27,11 @@ void generateSpikeWords(const std::vector<uint32_t> &ids, std::vector<uint32_t> 
         assert((i / 32) < words.size());
         words[i / 32] |= (1 << (i % 32));
     }
+    
+    for(uint32_t w : words) {
+        std::cout << w << ", ";
+    }
+    std::cout << std::endl;
 }
 
 void prefetch(uint32_t idPre, uint32_t row, Trace &trace)
@@ -46,25 +51,80 @@ void printTrace(const Trace &trace)
     }
 }
 
-bool getCounts(const std::vector<uint32_t> &spikeIDs, const Trace &trace, bool prefetchNotProcess)
+bool validateTrace(const std::vector<uint32_t> &spikeIDs, const Trace &trace, uint32_t numRows)
 {
-    std::unordered_map<uint32_t, uint32_t> spikeIDProcessedCount;
-    std::transform(spikeIDs.cbegin(), spikeIDs.cend(), std::inserter(spikeIDProcessedCount, spikeIDProcessedCount.end()),
-                   [](uint32_t id){ return std::make_pair(id, 0); });
+    std::unordered_map<uint32_t, std::vector<std::pair<bool, bool>>> spikeIDProcessed;
+    for(auto s : spikeIDs) {
+        spikeIDProcessed[s].resize(numRows, std::make_pair(false, false));
+    }
     
+    bool success = true;
     for(const auto &t : trace) {
-        // If it's the right sort of trace event
-        if(std::get<0>(t) == prefetchNotProcess) {
-            // Search for spike ID
-            auto idIter = spikeIDProcessedCount.find(std::get<1>(t));
-            assert(idIter != spikeIDProcessedCount.cend());
+        if(std::get<2>(t) >= numRows) {
+            std::cerr << "Invalid row:" << std::get<2>(t) << " found in trace" << std::endl;
+            success = false;
+            continue;
+        }
+        
+        // Search for spike ID
+        auto idIter = spikeIDProcessed.find(std::get<1>(t));
+        if(idIter == spikeIDProcessed.cend()) {
+            std::cerr << "Unknown spike ID:" << std::get<1>(t) << " found in trace" << std::endl;
+            success = false;
+            continue;
+        }
+
+        // If prefetch
+        auto &state = idIter->second[std::get<2>(t)];
+        if(std::get<0>(t)) {
+            // If row has already been prefetched
+            if(state.first) {
+                std::cerr << "Spike ID:" << std::get<1>(t) << " prefetched multiple times in trace" << std::endl;
+                success = false;
+                continue;
+            }
+            if(state.second) {
+                std::cerr << "Spike ID:" << std::get<1>(t) << " processed before it is prefetched" << std::endl;
+                success = false;
+                continue;
+            }
             
-            // Increment count
-            idIter->second++;
+            // Mark row as prefetched
+            state.first = true;
+        }
+        // Process
+        else {
+            // If row hasn't been prefetched
+            if(!state.first) {
+                std::cerr << "Spike ID:" << std::get<1>(t) << " not prefetched before it's processed" << std::endl;
+                success = false;
+                continue;
+            }
+            if(state.second) {
+                std::cerr << "Spike ID:" << std::get<1>(t) << " processed multiple times in trace" << std::endl;
+                success = false;
+                continue;
+            }
+            
+            // Mark row as processed
+            state.second = true;
         }
     }
     
-    return true;
+    for(const auto &s : spikeIDProcessed) {
+        for(const auto &r : s.second) {
+            if(!r.first) {
+                std::cerr << "Spike ID:" << s.first << " never prefetched" << std::endl;
+                success = false;
+            }
+            if(!r.second) {
+                std::cerr << "Spike ID:" << s.first << " never processed" << std::endl;
+                success = false;
+            }
+        }
+    }
+    
+    return success;
 }
 
 void propagate(const uint32_t *spikeWord, uint32_t numSpikeWords, uint32_t numRows, Trace &trace)
@@ -174,17 +234,24 @@ void propagate(const uint32_t *spikeWord, uint32_t numSpikeWords, uint32_t numRo
 }
 }
 
-TEST(DMAEventLoop, NoSpikes)
+class PropagateTest : public testing::TestWithParam<uint32_t> 
+{
+  // You can implement all the usual fixture class members here.
+  // To access the test parameter, call GetParam() from class
+  // TestWithParam<T>.
+};
+
+TEST_P(PropagateTest, NoSpikes)
 {
     std::vector<uint32_t> spikeWords(4, 0);
-    Trace trace;
     
-    propagate(spikeWords.data(), spikeWords.size(), 1, trace);
+    Trace trace;
+    propagate(spikeWords.data(), spikeWords.size(), GetParam(), trace);
     
     ASSERT_TRUE(trace.empty());
 }
 
-TEST(DMAEventLoop, AllSpikes)
+TEST_P(PropagateTest, AllSpikes)
 {
     std::vector<uint32_t> spikeIDs(4 * 32);
     std::iota(spikeIDs.begin(), spikeIDs.end(), 0);
@@ -193,80 +260,86 @@ TEST(DMAEventLoop, AllSpikes)
     generateSpikeWords(spikeIDs, spikeWords);
     
     Trace trace;
+    propagate(spikeWords.data(), spikeWords.size(), GetParam(), trace);
     
-    propagate(spikeWords.data(), spikeWords.size(), 1, trace);
-    
-    getCounts(spikeIDs, trace, true);
-    printTrace(trace);
-    //ASSERT_EQ(trace.size(), 32 * 4);
-    //for(uint32_t i = 0; i < 32 * 4; i++) {
-    //    ASSERT_EQ(trace[i], std::make_tuple(true, i));
-    //}
-}
-/*
-TEST(DMAEventLoop, EmptyFirstWord)
-{
-    std::vector<uint32_t> spikeWords(4, 0);
-    std::fill_n(spikeWords.begin() + 1, 3, 0xFFFFFFFF);
-    Trace trace;
-    
-    propagate(spikeWords.data(), spikeWords.size(), 1, trace);
-    
-    printTrace(trace);
-    //ASSERT_EQ(trace.size(), 32 * 3);
-    //for(uint32_t i = 0; i < 32 * 3; i++) {
-    //    ASSERT_EQ(trace[i], std::make_tuple(true, i + 32));
-    //}
+    if(!validateTrace(spikeIDs, trace, GetParam())) {
+        printTrace(trace);
+        FAIL();
+    }
 }
 
-TEST(DMAEventLoop, OneFirstWord)
+TEST_P(PropagateTest, EmptyFirstWord)
 {
-    std::vector<uint32_t> spikeWords(4, 1);
-    std::fill_n(spikeWords.begin() + 1, 3, 0xFFFFFFFF);
+    std::vector<uint32_t> spikeIDs(3 * 32);
+    std::iota(spikeIDs.begin(), spikeIDs.end(), 32);
+    
+    std::vector<uint32_t> spikeWords(4);
+    generateSpikeWords(spikeIDs, spikeWords);
+    
     Trace trace;
+    propagate(spikeWords.data(), spikeWords.size(), GetParam(), trace);
     
-    propagate(spikeWords.data(), spikeWords.size(), 1, trace);    
-    
-    printTrace(trace);
-    //ASSERT_EQ(trace.size(), (32 * 3) + 1);
-    //ASSERT_EQ(trace[0], std::make_tuple(true, 0));
-    //for(uint32_t i = 0; i < 32 * 3; i++) {
-    //    ASSERT_EQ(trace[i + 1], std::make_tuple(true, i + 32));
-    //}
+    if(!validateTrace(spikeIDs, trace, GetParam())) {
+        printTrace(trace);
+        FAIL();
+    }
 }
 
-TEST(DMAEventLoop, EmptyOneFirstWord)
+TEST_P(PropagateTest, OneFirstWord)
 {
-    std::vector<uint32_t> spikeWords(4, 0);
-    spikeWords[1] = 1;
-    spikeWords[2] = 0xFFFFFFFF;
-    spikeWords[3] = 0xFFFFFFFF;
+    std::vector<uint32_t> spikeIDs(3 * 32);
+    std::iota(spikeIDs.begin(), spikeIDs.end(), 32);
+    spikeIDs.insert(spikeIDs.begin(), 0);
+    
+    std::vector<uint32_t> spikeWords(4);
+    generateSpikeWords(spikeIDs, spikeWords);
+    
     Trace trace;
+    propagate(spikeWords.data(), spikeWords.size(), GetParam(), trace);    
     
-    propagate(spikeWords.data(), spikeWords.size(), 1, trace);    
-    
-    printTrace(trace);
-    //ASSERT_EQ(trace.size(), (32 * 2) + 1);
-    //ASSERT_EQ(trace[0], std::make_tuple(true, 32));
-    //for(uint32_t i = 0; i < 32 * 2; i++) {
-    //    ASSERT_EQ(trace[i + 1], std::make_tuple(true, i + 64));
-    //}
+    if(!validateTrace(spikeIDs, trace, GetParam())) {
+        printTrace(trace);
+        FAIL();
+    }
 }
 
-TEST(DMAEventLoop, EmptyMiddle)
+
+TEST_P(PropagateTest, EmptyOneFirstWord)
 {
-    std::vector<uint32_t> spikeWords(4, 0xFFFFFFFF);
-    spikeWords[2] = 0;
+    std::vector<uint32_t> spikeIDs(2 * 32);
+    std::iota(spikeIDs.begin(), spikeIDs.end(), 64);
+    spikeIDs.insert(spikeIDs.begin(), 32);
+    
+    std::vector<uint32_t> spikeWords(4);
+    generateSpikeWords(spikeIDs, spikeWords);
+    
     Trace trace;
+    propagate(spikeWords.data(), spikeWords.size(), GetParam(), trace);    
     
-    propagate(spikeWords.data(), spikeWords.size(), 1, trace);
+    if(!validateTrace(spikeIDs, trace, GetParam())) {
+        printTrace(trace);
+        FAIL();
+    }
+}
+
+TEST_P(PropagateTest, EmptyMiddle)
+{
+    std::vector<uint32_t> spikeIDs(3 * 32);
+    std::iota(spikeIDs.begin(), spikeIDs.begin() + 64, 0);
+    std::iota(spikeIDs.begin() + 64, spikeIDs.end() + 96, 96);
     
-    printTrace(trace);
-    //ASSERT_EQ(trace.size(), 32 * 3);
-    //for(uint32_t i = 0; i < 32 * 2; i++) {
-    //    ASSERT_EQ(trace[i], std::make_tuple(true, i));
-    //}
-    //for(uint32_t i = 0; i < 32; i++) {
-    //    ASSERT_EQ(trace[i + 64], std::make_tuple(true, i + 96));
-    //}
-}*/
+    std::vector<uint32_t> spikeWords(4);
+    generateSpikeWords(spikeIDs, spikeWords);
+    
+    Trace trace;
+    propagate(spikeWords.data(), spikeWords.size(), GetParam(), trace);
+    
+    if(!validateTrace(spikeIDs, trace, GetParam())) {
+        printTrace(trace);
+        FAIL();
+    }
+}
+
+INSTANTIATE_TEST_SUITE_P(RowCounts,
+                         PropagateTest,
+                         testing::Values(1, 2, 3));
