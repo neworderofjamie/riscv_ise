@@ -198,12 +198,12 @@ int main(int argc, char** argv)
 
                 
                 if(saturate) {
-                    ALLOCATE_SCALAR(SShiftScaleLessK);
+                    ALLOCATE_SCALAR(SKLessShiftScale);
                     ALLOCATE_VECTOR(VKLeft);
                     ALLOCATE_VECTOR(VOutputLeft);
 
                     // Determine which VK are less than 
-                    c.vtlt(*SShiftScaleLessK, *VShiftScale, *VK);
+                    c.vtlt(*SKLessShiftScale, *VK, *VShiftScale);
 
                     // Shift left by (VK - ShiftScale) to 
                     // convert from S1.14 to output form
@@ -214,15 +214,18 @@ int main(int argc, char** argv)
                     // convert from S1.14 to output form
                     c.vsub(*VK, *VShiftScale, *VK);
                     c.vsra(*VOutput, *VOutput, *VK);
-
+                    
                     // Select between two results depending on whether shift scale is less than K
-                    c.vsel(*VOutput, *SShiftScaleLessK, *VOutputLeft);
+                    c.vsel(*VOutputLeft, *SKLessShiftScale, *VOutput);
+                    
+                    c.vstore(*VOutputLeft, *SOutputBuffer);
                 }
                 else {
                     // K = shiftScale - K to include shift to 
                     // convert from S1.14 to output forma
                     c.vsub(*VK, *VShiftScale, *VK);
                     c.vsra(*VOutput, *VOutput, *VK);
+                    c.vstore(*VOutput, *SOutputBuffer);
                 }
     
                 // END FAITHFUL INTERPOLATION
@@ -230,7 +233,7 @@ int main(int argc, char** argv)
 
                 // END RANGE-REDUCTION
                 // Write to output buffer
-                c.vstore(*VOutput, *SOutputBuffer);
+                //c.vstore(*VOutput, *SOutputBuffer);
                 c.addi(*SOutputBuffer, *SOutputBuffer, 64);
 
                 // Loop
