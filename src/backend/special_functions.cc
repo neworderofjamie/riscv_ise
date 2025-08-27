@@ -170,7 +170,7 @@ void add(CodeGenerator &codeGenerator, ScalarRegisterAllocator &scalarRegisterAl
                                 
                                    // **TODO** Single VS instruction which shifts left or right based on signs would save a lot of expense here
                                    {
-                                       ALLOCATE_SCALAR(SKLessShiftScale);
+                                       ALLOCATE_SCALAR(SShiftScaleLessK);
                                        ALLOCATE_VECTOR(VKLeft);
                                        ALLOCATE_VECTOR(VOutputLeft);
                                        ALLOCATE_VECTOR(VShiftScale);
@@ -180,7 +180,7 @@ void add(CodeGenerator &codeGenerator, ScalarRegisterAllocator &scalarRegisterAl
                                        c.vlui(*VShiftScale, 14 - rFrac);
 
                                        // Determine which VK are less than 
-                                       c.vtlt(*SKLessShiftScale, *VK, *VShiftScale);
+                                       c.vtlt(*SShiftScaleLessK, *VShiftScale, *VK);
 
                                        // Shift left by (VK - ShiftScale) to 
                                        // convert from S1.14 to output form [rType]
@@ -193,11 +193,10 @@ void add(CodeGenerator &codeGenerator, ScalarRegisterAllocator &scalarRegisterAl
                                        c.vsra(*VOutput, *VOutput, *VK);
 
                                        // Select between two results depending on whether shift scale is less than K
-                                       c.vsel(*VOutputLeft, *SKLessShiftScale, *VOutput);
-                                       
-                                       return std::make_pair(VOutputLeft, true);
+                                       c.vsel(*VOutput, *SShiftScaleLessK, *VOutputLeft);
                                    }
                             
+                                   return std::make_pair(VOutput, true);
                                }));
         }
     }
