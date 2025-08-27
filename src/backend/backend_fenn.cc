@@ -923,6 +923,11 @@ private:
         //--------------------------------------------------------------------
         virtual void generateRow(CodeGenerator &cg, ScalarRegisterAllocator::RegisterPtr weightBufferReg) = 0;
 
+        //--------------------------------------------------------------------
+        // Public API
+        //--------------------------------------------------------------------
+        auto getStrideReg() const{ return m_StrideReg; }
+
     protected:
         //--------------------------------------------------------------------
         // Protected API
@@ -1874,7 +1879,7 @@ private:
         c.L(wordEnd);
     }
 
-    /*void generateDRAMWordLoop(const std::vector<std::unique_ptr<RowGeneratorBase>> &rowGenerators, 
+    void generateDRAMWordLoop(const std::vector<std::unique_ptr<RowGeneratorBase>> &rowGenerators, 
                               ScalarRegisterAllocator::RegisterPtr eventBufferReg, 
                               ScalarRegisterAllocator::RegisterPtr eventBufferEndReg)
     {
@@ -1882,20 +1887,28 @@ private:
         auto &scalarRegisterAllocator = m_ScalarRegisterAllocator.get();
         auto &c = m_CodeGenerator.get();
 
-        ALLOCATE_SCALAR(SWordNStart);
         ALLOCATE_SCALAR(SConst1);
-        ALLOCATE_SCALAR(SEventWord);
+        ALLOCATE_SCALAR(SCurrentEventWord);
+        ALLOCATE_SCALAR(SCurrentWordStartID);
+        ALLOCATE_SCALAR(SIDPre);
+        ALLOCATE_SCALAR(SPrevIDPre);
         ALLOCATE_SCALAR(SRowBufferA);
         ALLOCATE_SCALAR(SRowBufferB);
 
         // Labels
-        Label wordLoop;
-        Label bitLoopStart;
-        Label bitLoopBody;
-        Label bitLoopEnd;
+        Label prefetchStart;
         Label prefetchBody;
-        Label zeroSpikeWord;
-        Label wordEnd;
+        Label prefetchZeroEventWord;
+        Label wordLoop;
+        Label bitLoopBegin;
+        Label bitLoopBody;
+        Label bitLoopProcess;
+        Label zeroEventWord;
+        Label tail;
+        Label end;
+
+        // Do we have an even number of rows? This dictates whether swap is required
+        const bool evenNumRows = ((rowGenerators.size() % 2) == 0);
 
         // Load row buffer pointers
         c.lw(*SRowBufferA, Reg::X0, getBackendFieldOffset(StateObjectID::ROW_BUFFER_A));
@@ -1904,213 +1917,208 @@ private:
         // Load some useful constants
         c.li(*SConst1, 1);
 
-        // SWordNStart = 31
-        c.li(*SWordNStart, 31);
-        
-        // Outer word loop
-        c.L(wordLoop);
         {
-            // Register allocation
-            ALLOCATE_SCALAR(SN);
+            ALLOCATE_SCALAR(SCurrentEventWordPrefetch);
+            ALLOCATE_SCALAR(SCurrentWordStartIDPrefetch);
             ALLOCATE_SCALAR(SNumLZ);
 
-            {
-                ALLOCATE_SCALAR(SEventWordTemp);
+            // First prefetched event word starts at neuron ID 31
+            c.li(*SCurrentWordStartIDPrefetch, 31);
 
-                // SEventWordTemp = *eventBufferReg++
-                c.lw(*SEventWordTemp, *eventBufferReg);
-                c.addi(*eventBufferReg, *eventBufferReg, 4);
+            //ALLOCATE_SCALAR(
+            c.L(prefetchStart);
 
-                // If SSpikeWord == 0, goto bitloop end
-                c.beq(*SEventWordTemp, Reg::X0, bitLoopEnd);
+            // Prefetch event word into temporary register and increment pointer
+            c.lw(*SCurrentEventWordPrefetch, *eventBufferReg);
+            c.addi(*eventBufferReg, *eventBufferReg, 4);
 
-                // SN = SWordNStart
-                c.mv(*SN, *SWordNStart);
+            // First neuron ID in NEXT event word is 32 neurons after prefetched
+            c.addi(*SCurrentWordStartID, *SCurrentWordStartIDPrefetch, 32);
 
-                // CNumLZ = clz(SSpikeWord);
-                c.clz(*SNumLZ, *SEventWordTemp);
+            // If currentSpikeWordPrefetch != 0, 
+            c.bne(*SCurrentEventWordPrefetch, Reg::X0, prefetchBody);
 
-                // If SSpikeWord == 1  i.e. CNumLZ == 31, goto prefetch body, using zero as new spike word
-                c.li(*SEventWord, 0);
-                c.beq(*SEventWordTemp, *SConst1, prefetchBody);
-        
-                {
-                    // STmp = CNumLZ + 1
-                    ALLOCATE_SCALAR(STmp);
-                    c.addi(*STmp, *SNumLZ, 1);
+            // Update first neuron ID for next prefetch
+            c.mv(*SCurrentWordStartIDPrefetch, *SCurrentWordStartID);
+            
+            // If there's more spike words, keep prefetching
+            c.bne(*eventBufferReg, *eventBufferEndReg, prefetchStart);
+            
+            // **HACK** JUMP
+            c.beq(Reg::X0, Reg::X0, end);
 
-                    // SSpikeWord <<= CNumLZPlusOne
-                    c.sll(*SEventWord, *SEventWordTemp, *STmp);
-                }
-
-            }
-            // SN -= SNumLZ
             c.L(prefetchBody);
-            c.sub(*SN, *SN, *SNumLZ);
 
-            // SWeightBuffer = weightInHidStart + (numPostVecs * 64 * SN);
-            // **TODO** use process[0]
+            // Zero current spike word
+            c.li(*SCurrentEventWord, 0);
+            
+            // Count leading zeros in prefetched word
+            c.clz(*SNumLZ, *SCurrentEventWordPrefetch);
+            
+            // If the word we prefetched is one, skip shifting and leave current spike word at 0
+            c.beq(*SCurrentEventWordPrefetch, *SConst1, prefetchZeroEventWord);
+            
+            // CurrentSpikeWord = CurrentSpikeWordPrefetch << (numLZ + 1)
             {
-                ALLOCATE_SCALAR(STemp);
-                c.mul(*STemp, *SN, *SStride);
-                c.add(*STemp, *weightBaseAddress, *STemp);
+                ALLOCATE_SCALAR(STmp);
+                c.addi(*STmp, *SNumLZ, 1);
+                c.sll(*SCurrentEventWord, *SCurrentEventWordPrefetch, *STmp);
+            }
+
+            c.L(prefetchZeroEventWord);
+
+            // Update previous neuron ID
+            c.sub(*SPrevIDPre, *SCurrentWordStartID, *SNumLZ);
+            
+            {
+                // Calculate weight buffer
+                auto prefetchWeightBuffer = rowGenerators[0]->loadWeightBuffer(c, SPrevIDPre);
 
                 // Start DMA write into RowBufferA
-                AssemblerUtils::generateDMAStartWrite(c, *SRowBufferA, *STemp, *SStride);
+                AssemblerUtils::generateDMAStartWrite(c, *SRowBufferA, *prefetchWeightBuffer, 
+                                                      *rowGenerators[0]->getStrideReg());
             }
-
-            // SN --
-            c.addi(*SN, *SN, -1);
-       
-            // If we've now got no spikes to process skip to tail
-            c.beq(*SEventWord, Reg::X0, wordEnd);
-
-            // Inner bit loop
-            c.L(bitLoopStart);
-            {
-                // CNumLZ = clz(SEventWord);
-                c.clz(*SNumLZ, *SEventWord);
-
-                // If SEventWord == 1  i.e. CNumLZ == 31, goto zeroSpikeWord
-                c.beq(*SEventWord, *SConst1, zeroSpikeWord);
             
-                {
-                    // STmp = CNumLZ + 1
-                    ALLOCATE_SCALAR(STmp);
-                    c.addi(*STmp, *SNumLZ, 1);
+            // Update idPre
+            c.addi(*SIDPre, *SPrevIDPre, -1);
 
-                    // SEventWord <<= CNumLZPlusOne
-                    c.sll(*SEventWord, *SEventWord, *STmp);
-                }
-
-                // SN -= SNumLZ
-                c.L(bitLoopBody);
-                c.sub(*SN, *SN, *SNumLZ);
-
-                // Loop through postsynaptic targets
-                for(size_t i = 0; i < processes.size(); i++) {
-                    const auto p = processes[i];
-                    const auto &stateFields = processFields.at(p);
-
-                    // Get previously allocated registers
-                    auto [strideReg, sparseMaskReg, targetAddrReg] = processRegs[i];
-
-                    // If process is dense, allocate target register and load
-                    // **YUCK** it would be nice to put this at the start of generateDenseRow
-                    // but first instruction requires targetReg so this would stall
-                    ScalarRegisterAllocator::RegisterPtr targetReg;
-                    const bool sparseOrDelay = (p->getNumSparseConnectivityBits() > 0 
-                                                || p->getNumDelayBits() > 0);
-                    if(!sparseOrDelay) {
-                        targetReg = scalarRegisterAllocator.getRegister("STargetBuffer = X");
-                        c.lw(*targetReg, Reg::X0, stateFields.at(p->getTarget()));
-                    }
-
-                    // SWeightBuffer = weightInHidStart + (numPostVecs * 64 * SN);
-                    {
-                        ALLOCATE_SCALAR(STemp);
-
-                        c.mul(*STemp, *SN, *strideReg);
-                        c.add(*STemp, *weightBaseAddress, *STemp);
-
-                        // Wait for previous DMA write to completet
-                        AssemblerUtils::generateDMAWaitForWriteComplete(c, scalarRegisterAllocator);
-
-                        // Start DMA write into RowBufferB
-                        AssemblerUtils::generateDMAStartWrite(c, *SRowBufferB, *STemp, *strideReg);
-                    }
-
-                    if(sparseOrDelay) {
-                        generateSparseDelayRow(p, sparseMaskReg, targetAddrReg, 
-                                               vectorTimeReg, SRowBufferA);
-                    }
-                    else {
-                        generateDenseRow(p, targetReg, SRowBufferA);
-                    }
-
-                    // Swap buffers
-                    {
-                        ALLOCATE_SCALAR(STmp);
-                        c.mv(*STmp, *SRowBufferA);
-                        c.mv(*SRowBufferA, *SRowBufferB);
-                        c.mv(*SRowBufferB, *STmp);
-                    }
-                }
-            
-                 // SN --
-                c.addi(*SN, *SN, -1);
-            
-                // If SSpikeWord != 0, goto bitLoopStart
-                c.bne(*SEventWord, Reg::X0, bitLoopStart);
-
-                // Goto wordEnd
-                //c.j_(wordEnd);
-                c.beq(Reg::X0, Reg::X0, wordEnd);
-            }
-
-            // Zero spike word
-            {
-                c.L(zeroSpikeWord);
-                c.li(*SEventWord, 0);
-                //c.j_(bitLoopBody);
-                c.beq(Reg::X0, Reg::X0, bitLoopBody);
-            }
-
-            c.L(wordEnd);
-
-            // Wait for final DMA write to completet
-            AssemblerUtils::generateDMAWaitForWriteComplete(c, scalarRegisterAllocator);
-
-            // Process final row
-            {
-                const auto p = processes.back();
-                const auto &stateFields = processFields.at(p);
-
-                // Get previously allocated registers
-                auto [strideReg, sparseMaskReg, targetAddrReg] = processRegs[i];
-
-                // If process is dense, allocate target register and load
-                // **YUCK** it would be nice to put this at the start of generateDenseRow
-                // but first instruction requires targetReg so this would stall
-                ScalarRegisterAllocator::RegisterPtr targetReg;
-                const bool sparseOrDelay = (p->getNumSparseConnectivityBits() > 0 
-                                            || p->getNumDelayBits() > 0);
-                if(!sparseOrDelay) {
-                    targetReg = scalarRegisterAllocator.getRegister("STargetBuffer = X");
-                    c.lw(*targetReg, Reg::X0, stateFields.at(p->getTarget()));
-                }
-
-                if(sparseOrDelay) {
-                    generateSparseDelayRow(p, sparseMaskReg, targetAddrReg, 
-                                            vectorTimeReg, SRowBufferA);
-                }
-                else {
-                    generateDenseRow(p, targetReg, SRowBufferA);
-                }
-            }
-
-            // SWordNStart += 32
-            c.L(bitLoopEnd);
-            c.addi(*SWordNStart, *SWordNStart, 32);
-        
-            // If SEventBuffer != SEventBufferEnd, goto wordloop
-            c.bne(*eventBufferReg, *eventBufferEndReg, wordLoop);
-
-            // Goto wordEnd
-            //c.j_(wordEnd);
-            c.beq(Reg::X0, Reg::X0, wordEnd);
+            // **TODO** pretty sure this check is incorrect
+            c.beq(*eventBufferReg, *eventBufferEndReg, end); 
         }
 
-        // Zero event word
         {
-            c.L(zeroSpikeWord);
-            c.li(*SEventWord, 0);
-            //c.j_(bitLoopBody);
-            c.beq(Reg::X0, Reg::X0, bitLoopBody);
+            ALLOCATE_SCALAR(SNextEventBuffer);
+            ALLOCATE_SCALAR(SNumLZ);
+
+            c.L(wordLoop);
+
+            // Get address of next event word
+            c.addi(*SNextEventBuffer, *eventBufferReg, 4);
+
+            // If CurrentSpikeWord != 0, goto bitLoop
+            c.bne(*SCurrentEventWord, Reg::X0, bitLoopBody);
+
+            c.L(bitLoopBegin);
+
+            // Load spike word
+            c.lw(*SCurrentEventWord, *eventBufferReg);
+            
+            // If we are on the last event word, goto tail
+            c.bltu(*eventBufferEndReg, *SNextEventBuffer, tail);
+            
+            // Advance event buffer pointer
+            c.mv(*eventBufferReg, *SNextEventBuffer);
+            
+            // Reset ID pre
+            c.mv(*SIDPre, *SCurrentWordStartID);
+            
+            // Advance next event buffer and word start id
+            c.addi(*SNextEventBuffer,*eventBufferReg, 4);
+            c.addi(*SCurrentWordStartID, *SCurrentWordStartID, 32);
+            
+            // If we're done processing bits in this word, fetch more
+            c.beq(*SCurrentEventWord, Reg::X0, bitLoopBegin);
+            
+            c.L(bitLoopBody);
+
+            // Loop through all but last row
+            for(size_t r = 0; r < (rowGenerators.size() - 1); r++) {
+                const bool evenRow = ((r % 2) == 0);
+                {
+                    // Start DMA from weight buffer into correct buffer
+                    auto fetchRowBuffer = evenRow ? SRowBufferB : SRowBufferA;
+                    auto fetchWeightBuffer = rowGenerators[r + 1]->loadWeightBuffer(c, SPrevIDPre);
+                    AssemblerUtils::generateDMAStartWrite(c, *fetchRowBuffer, *fetchWeightBuffer, 
+                                                          *rowGenerators[r + 1]->getStrideReg());
+                }
+
+                // Generate code to process row in other buffer
+                rowGenerators[r]->generateRow(c, evenRow ? SRowBufferA : SRowBufferB);
+            }    
+                
+            c.clz(*SNumLZ, *SCurrentEventWord);
+
+            // If currentSpikeWord == 1, goto zeroEventWord
+            c.beq(*SCurrentEventWord, *SConst1, zeroEventWord);
+
+            // CurrentEventWord = CurrentEventWord << (NumLZ + 1)
+            {
+                ALLOCATE_SCALAR(STmp);
+                c.addi(*STmp, *SNumLZ, 1);
+                c.sll(*SCurrentEventWord, *SCurrentEventWord, *STmp);
+            }
+                
+            c.L(bitLoopProcess);
+            
+            {
+                ALLOCATE_SCALAR(STmp);
+
+                // STmp = IDPre - NumLZ
+                c.sub(*STmp, *SIDPre, *SNumLZ);
+                {
+                    {
+                        // Start DMA write into correct buffer
+                        auto fetchRowBuffer = evenNumRows ? SRowBufferA : SRowBufferB;
+                        auto fetchWeightBuffer = rowGenerators[0]->loadWeightBuffer(c, STmp);
+                        AssemblerUtils::generateDMAStartWrite(c, *fetchRowBuffer, *fetchWeightBuffer, 
+                                                              *rowGenerators[0]->getStrideReg());
+                    }
+
+                    // Generate code to process row in other buffer
+                    rowGenerators.back()->generateRow(c, evenNumRows ? SRowBufferB : SRowBufferA);
+                }
+
+                // If we have an odd number of rows, swap buffers
+                if(!evenNumRows) {
+                    ALLOCATE_SCALAR(STmp);
+                    c.mv(*STmp, *SRowBufferA);
+                    c.mv(*SRowBufferA, *SRowBufferB);
+                    c.mv(*SRowBufferB, *STmp);
+                }
+
+                // PrevIDPre = (IDPre - NumLZ)
+                c.mv(*SPrevIDPre, *STmp);
+
+                // IDPre = (IDPre - NumLZ) - 1
+                c.addi(*SIDPre, *STmp, -1);
+            }
+            // Next word
+            c.beq(Reg::X0, Reg::X0, wordLoop);
         }
-    
-        c.L(wordEnd);
-    }*/
+
+        {
+            c.L(zeroEventWord);
+            c.li(*SCurrentEventWord, 0);
+            // **HACK** jump
+            c.beq(Reg::X0, Reg::X0, bitLoopProcess);
+        }
+        
+        // Tail where last rows are processed
+        c.L(tail);
+       
+        // Loop through all but last row
+        for(size_t r = 0; r < (rowGenerators.size() - 1); r++) {
+            const bool evenRow = ((r % 2) == 0);
+            {
+                // Start DMA write into correct buffer
+                auto fetchRowBuffer = evenRow ? SRowBufferB : SRowBufferA;
+                auto fetchWeightBuffer = rowGenerators[r + 1]->loadWeightBuffer(c, SPrevIDPre);
+
+                // Start DMA write into RowBufferA
+                AssemblerUtils::generateDMAStartWrite(c, *fetchRowBuffer, *fetchWeightBuffer, 
+                                                      *rowGenerators[r + 1]->getStrideReg());
+            }
+
+            // Generate code to process row in other buffer
+            rowGenerators[r]->generateRow(c, evenRow ? SRowBufferA : SRowBufferB);
+
+        }
+
+        // Generate code to process final row
+        rowGenerators.back()->generateRow(c, evenNumRows ? SRowBufferB : SRowBufferA);
+
+        c.L(end);
+    }
 
     void generateEventPropagationProcesses(const std::vector<std::shared_ptr<const EventPropagationProcess>> &processes)
     {
@@ -2186,8 +2194,7 @@ private:
     
         // Generate correct loop depending on whether weights are in DRAM or URAM
         if(m_UseDRAMForWeights) {
-            assert(false);
-            //generateDRAMWordLoop(processes, sProcessRegs, SEventBuffer, SEventBufferEnd, vectorTimeReg);
+            generateDRAMWordLoop(rowGenerators, SEventBuffer, SEventBufferEnd);
         }
         else {
             generateURAMWordLoop(rowGenerators, SEventBuffer, SEventBufferEnd);
