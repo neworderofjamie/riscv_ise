@@ -27,7 +27,8 @@ class PostNeuron:
             """, 
             {}, {"I": self.i, "X": self.x}, {}, name)
 
-def test_forward(device):
+@pytest.mark.parametrize("use_dram_for_weights", [True, False])
+def test_forward(device, use_dram_for_weights):
     init_logging(PlogSeverity.INFO)
 
     # Create one-hot pattern of spikes to decode
@@ -78,7 +79,8 @@ def test_forward(device):
     synapse_update_processes = ProcessGroup([input_sparse.process, input_dense.process])
     
     # Create backend
-    backend = BackendFeNNHW() if device else BackendFeNNSim()
+    backend_kwargs = {"use_dram_for_weights": use_dram_for_weights}
+    backend = BackendFeNNHW(**backend_kwargs) if device else BackendFeNNSim(**backend_kwargs)
 
     # Create model
     model = Model([init_processes, neuron_update_processes, synapse_update_processes],
@@ -121,8 +123,8 @@ def test_forward(device):
             if output_value != correct_value:
                 assert False, f"{p.process.name} decoding incorrect ({output_value} rather than {correct_value})"
     
-
-def test_forward_den_delay(device):
+@pytest.mark.parametrize("use_dram_for_weights", [True, False])
+def test_forward_den_delay(device, use_dram_for_weights):
     init_logging(PlogSeverity.INFO)
 
     num_pre = 10
@@ -169,7 +171,8 @@ def test_forward_den_delay(device):
     synapse_update_processes = ProcessGroup([input_dense.process])
     
     # Create backend
-    backend = BackendFeNNHW() if device else BackendFeNNSim()
+    backend_kwargs = {"use_dram_for_weights": use_dram_for_weights}
+    backend = BackendFeNNHW(**backend_kwargs) if device else BackendFeNNSim(**backend_kwargs)
 
     # Create model
     model = Model([init_processes, neuron_update_processes, synapse_update_processes],
