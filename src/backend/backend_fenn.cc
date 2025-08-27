@@ -2028,6 +2028,7 @@ private:
                     // Start DMA from weight buffer into correct buffer
                     auto fetchRowBuffer = evenRow ? SRowBufferB : SRowBufferA;
                     auto fetchWeightBuffer = rowGenerators[r + 1]->loadWeightBuffer(c, SPrevIDPre);
+                    AssemblerUtils::generateDMAWaitForWriteComplete(c, scalarRegisterAllocator);
                     AssemblerUtils::generateDMAStartWrite(c, *fetchRowBuffer, *fetchWeightBuffer, 
                                                           *rowGenerators[r + 1]->getStrideReg());
                 }
@@ -2060,6 +2061,7 @@ private:
                         // Start DMA write into correct buffer
                         auto fetchRowBuffer = evenNumRows ? SRowBufferA : SRowBufferB;
                         auto fetchWeightBuffer = rowGenerators[0]->loadWeightBuffer(c, STmp);
+                        AssemblerUtils::generateDMAWaitForWriteComplete(c, scalarRegisterAllocator);
                         AssemblerUtils::generateDMAStartWrite(c, *fetchRowBuffer, *fetchWeightBuffer, 
                                                               *rowGenerators[0]->getStrideReg());
                     }
@@ -2105,6 +2107,7 @@ private:
                 auto fetchWeightBuffer = rowGenerators[r + 1]->loadWeightBuffer(c, SPrevIDPre);
 
                 // Start DMA write into RowBufferA
+                AssemblerUtils::generateDMAWaitForWriteComplete(c, scalarRegisterAllocator);
                 AssemblerUtils::generateDMAStartWrite(c, *fetchRowBuffer, *fetchWeightBuffer, 
                                                       *rowGenerators[r + 1]->getStrideReg());
             }
