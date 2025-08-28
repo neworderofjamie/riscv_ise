@@ -47,7 +47,7 @@ void process(uint32_t idPre, uint32_t row, Trace &trace)
 void printTrace(const Trace &trace)
 {
     for(const auto &t : trace) {
-        std::cout << std::get<1>(t) << " - " << std::get<2>(t) << "(" << (std::get<0>(t) ? "prefetch" : "process") << ")" << std::endl;
+        std::cout << "Spike: " << std::get<1>(t) << ", row:" << std::get<2>(t) << " (" << (std::get<0>(t) ? "Prefetch" : "Process") << ")" << std::endl;
     }
 }
 
@@ -161,11 +161,10 @@ void propagate(const uint32_t *spikeWord, const uint32_t *spikeWordEnd, uint32_t
             idPre--;
             break;
         }
-    }
-
-    // If we have preprocessed all spike words i.e. there are no spikes, stop
-    if(spikeWord == spikeWordEnd) {
-        return;
+        // If we have preprocessed all spike words i.e. there are no spikes, stop
+        else if(spikeWord == spikeWordEnd) {
+            return;
+        }
     }
     
     // Keep looping through spike words
@@ -241,6 +240,38 @@ TEST_P(PropagateTest, NoSpikes)
     propagate(spikeWords.data(), spikeWords.data() + spikeWords.size(), GetParam(), trace);
     
     if(!trace.empty()) {
+        printTrace(trace);
+        FAIL();
+    }
+}
+
+TEST_P(PropagateTest, SingleSpikeFirst)
+{
+    std::vector<uint32_t> spikeIDs{0};
+
+    std::vector<uint32_t> spikeWords(4);
+    generateSpikeWords(spikeIDs, spikeWords);
+
+    Trace trace;
+    propagate(spikeWords.data(), spikeWords.data() + spikeWords.size(), GetParam(), trace);
+
+    if(!validateTrace(spikeIDs, trace, GetParam())) {
+        printTrace(trace);
+        FAIL();
+    }
+}
+
+TEST_P(PropagateTest, SingleSpikeMiddle)
+{
+    std::vector<uint32_t> spikeIDs{100};
+
+    std::vector<uint32_t> spikeWords(4);
+    generateSpikeWords(spikeIDs, spikeWords);
+
+    Trace trace;
+    propagate(spikeWords.data(), spikeWords.data() + spikeWords.size(), GetParam(), trace);
+
+    if(!validateTrace(spikeIDs, trace, GetParam())) {
         printTrace(trace);
         FAIL();
     }
