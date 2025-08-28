@@ -4,6 +4,16 @@ from numbers import Number
 from pyfenn import Runtime
 from typing import Sequence, Union
 
+from platform import system
+
+def is_kria() -> bool:
+    # If we're on Linux (otherwise, uname is not available)
+    if system() == "Linux":
+        from os import uname
+        return uname().release.endswith("xilinx-zynqmp")
+    else:
+        return False
+
 def get_array_view(runtime: Runtime, state, dtype, shape=None):
     array = runtime.get_array(state)
     view = np.asarray(array.host_view).view(dtype)
