@@ -2117,6 +2117,7 @@ private:
             }
 
             // Generate code to process final row
+            AssemblerUtils::generateDMAWaitForWriteComplete(c, scalarRegisterAllocator);
             rowGenerators.back()->generateRow(c, evenNumRows ? SRowBufferB : SRowBufferA);
 
         }
