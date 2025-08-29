@@ -26,7 +26,7 @@ size_t MemoryAllocator::allocate(size_t sizeBytes)
     // Update highwater and check against size
     const size_t newHighWaterBytes = m_HighWaterBytes + varSize;
     if(newHighWaterBytes > m_SizeBytes) {
-        throw std::runtime_error("Memory exceeded");
+        throw std::runtime_error(m_Context + " memory exceeded");
     }
 
     LOGD << "Allocating " << varSize << " bytes of " << m_Context << " starting at " << m_HighWaterBytes << " bytes";    
