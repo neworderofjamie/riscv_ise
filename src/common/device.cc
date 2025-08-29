@@ -167,7 +167,7 @@ void Device::memcpyDataFromDevice(uint8_t *destination, size_t sourceOffset, siz
 //----------------------------------------------------------------------------
 std::optional<unsigned int> Device::getSOCPower() const
 {
-    std::ifstream powerStream("/sys/class/hwmon2/power1_input");
+    std::ifstream powerStream("/sys/class/hwmon/hwmon2/power1_input");
     if(powerStream.good()) {
         unsigned int power;
         powerStream >> power;
