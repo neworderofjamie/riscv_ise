@@ -125,3 +125,8 @@ ArrayBase *Runtime::getArray(std::shared_ptr<const State> variable) const
 {
     return m_Arrays.at(variable).get();
 }
+//----------------------------------------------------------------------------
+std::optional<unsigned int> Runtime::getSOCPower() const
+{
+    return m_State->getSOCPower();
+}

@@ -121,6 +121,10 @@ public:
 
     ArrayBase *getArray(std::shared_ptr<const State> variable) const;
 
+    StateBase *getState() const{ return m_State.get(); }
+
+    std::optional<unsigned int> getSOCPower() const;
+
 private:
     //------------------------------------------------------------------------
     // Members

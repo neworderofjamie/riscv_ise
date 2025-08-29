@@ -2,6 +2,7 @@
 
 // Standard C++ includes
 #include <memory>
+#include <optional>
 #include <unordered_map>
 #include <vector>
 
@@ -273,6 +274,8 @@ public:
     virtual std::unique_ptr<ArrayBase> createURAMLLMArray(const GeNN::Type::ResolvedType &type,
                                                           size_t uramCount, size_t llmCount) = 0;
     virtual std::unique_ptr<IFieldArray> createFieldArray(const Model &model) = 0;
+
+    virtual std::optional<unsigned int> getSOCPower() const = 0;
 
     //------------------------------------------------------------------------
     // Public API

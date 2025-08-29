@@ -207,6 +207,11 @@ public:
         return std::make_unique<::BRAMFieldArray<BRAMArray>>(GeNN::Type::Uint8, model.getNumFieldBytes(), this);
     }
 
+    virtual std::optional<unsigned int> getSOCPower() const final override
+    {
+        return std::nullopt;
+    }
+
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------

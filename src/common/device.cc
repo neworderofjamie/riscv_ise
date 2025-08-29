@@ -2,6 +2,7 @@
 
 // Standard C++ includes
 #include <chrono>
+#include <fstream>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -164,3 +165,15 @@ void Device::memcpyDataFromDevice(uint8_t *destination, size_t sourceOffset, siz
     }
 }
 //----------------------------------------------------------------------------
+std::optional<unsigned int> Device::getSOCPower() const
+{
+    std::ifstream powerStream("/sys/class/hwmon2/power1_input");
+    if(powerStream.good()) {
+        unsigned int power;
+        powerStream >> power;
+        return power;
+    }
+    else {
+        return std::nullopt;
+    }
+}

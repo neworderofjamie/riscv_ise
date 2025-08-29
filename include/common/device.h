@@ -46,6 +46,8 @@ public:
     void memcpyDataToDevice(size_t destinationOffset, const uint8_t *source, size_t count);
     void memcpyDataFromDevice(uint8_t *destination, size_t sourceOffset, size_t count) const;
 
+    std::optional<unsigned int> getSOCPower() const;
+
 private:
     //------------------------------------------------------------------------
     // Members

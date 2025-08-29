@@ -362,6 +362,7 @@ PYBIND11_MODULE(_fenn, m)
         .def("get_array", &Runtime::getArray, pybind11::return_value_policy::reference)
         .def("set_instructions", &Runtime::setInstructions)
         .def("allocate", &Runtime::allocate)
-        .def("run", &Runtime::run);
+        .def("run", &Runtime::run)
+        .def_property_readonly("soc_power", &Runtime::getSOCPower);
         
 }
