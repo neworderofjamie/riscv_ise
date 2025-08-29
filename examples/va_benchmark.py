@@ -69,18 +69,21 @@ class CUBALIF:
             {"Spike": self.out_spikes},
             name)
             
-num_timesteps = 1000
-num_neurons = 512
+num_timesteps = 200
+num_excitatory = 3584
 probability_connection = 0.1
-excitatory_inhibitory_ratio = 4.0
-inh_weight = -0.07968749999999998
-exc_weight = 0.0062499999999999995
+excitatory_inhibitory_ratio = 4
 
-num_excitatory = int(round((num_neurons * excitatory_inhibitory_ratio) / (1.0 + excitatory_inhibitory_ratio)))
-num_inhibitory = num_neurons - num_excitatory
-num_sparse_connectivity_bits = 5
+num_inhibitory = num_excitatory // excitatory_inhibitory_ratio
+num_neurons = num_excitatory + num_inhibitory
+scale = (4000.0 / num_neurons) * (0.02 / probability_connection)
+inh_weight = -51.0E-3 * scale
+exc_weight = 4.0E-3 * scale
+num_exc_sparse_connectivity_bits = int(np.ceil(np.log2(ceil_divide(num_excitatory, 32)))) + 1
+num_inh_sparse_connectivity_bits = int(np.ceil(np.log2(ceil_divide(num_inhibitory, 32)))) + 1
 device = False
 time = True
+use_dram_for_weights = True
 disassemble_code = False
 
 print(f"{num_excitatory} excitatory neurons, {num_inhibitory} inhibitory neurons")
@@ -93,10 +96,10 @@ ee_conn = generate_fixed_prob(num_excitatory, num_excitatory, probability_connec
 ei_conn = generate_fixed_prob(num_excitatory, num_inhibitory, probability_connection)
 
 # Pad
-ie_conn = build_sparse_connectivity(ie_conn, int(round(inh_weight * 2**10)), num_sparse_connectivity_bits)
-ii_conn = build_sparse_connectivity(ii_conn, int(round(inh_weight * 2**10)), num_sparse_connectivity_bits)
-ee_conn = build_sparse_connectivity(ee_conn, int(round(exc_weight * 2**10)), num_sparse_connectivity_bits)
-ei_conn = build_sparse_connectivity(ei_conn, int(round(exc_weight * 2**10)), num_sparse_connectivity_bits)
+ie_conn = build_sparse_connectivity(ie_conn, int(round(inh_weight * 2**10)), num_exc_sparse_connectivity_bits)
+ii_conn = build_sparse_connectivity(ii_conn, int(round(inh_weight * 2**10)), num_inh_sparse_connectivity_bits)
+ee_conn = build_sparse_connectivity(ee_conn, int(round(exc_weight * 2**10)), num_exc_sparse_connectivity_bits)
+ei_conn = build_sparse_connectivity(ei_conn, int(round(exc_weight * 2**10)), num_inh_sparse_connectivity_bits)
 
 # Neurons
 e_pop = CUBALIF([num_excitatory], tau_m=20.0, tau_syn_exc=5.0, tau_syn_inh=10.0,
@@ -110,19 +113,19 @@ i_pop = CUBALIF([num_inhibitory], tau_m=20.0, tau_syn_exc=5.0, tau_syn_inh=10.0,
 # Synapses
 ee_pop = Linear(e_pop.out_spikes, e_pop.i_exc,
                 weight_dtype="s5_10_sat_t", max_row_length=ee_conn.shape[1],
-                num_sparse_connectivity_bits=num_sparse_connectivity_bits, 
+                num_sparse_connectivity_bits=num_exc_sparse_connectivity_bits, 
                 name="EE")
 ei_pop = Linear(e_pop.out_spikes, i_pop.i_exc,
                 weight_dtype="s5_10_sat_t", max_row_length=ei_conn.shape[1],
-                num_sparse_connectivity_bits=num_sparse_connectivity_bits, 
+                num_sparse_connectivity_bits=num_inh_sparse_connectivity_bits, 
                 name="EI")
 ii_pop = Linear(i_pop.out_spikes, i_pop.i_inh,
                 weight_dtype="s5_10_sat_t", max_row_length=ii_conn.shape[1],
-                num_sparse_connectivity_bits=num_sparse_connectivity_bits, 
+                num_sparse_connectivity_bits=num_inh_sparse_connectivity_bits, 
                 name="II")
 ie_pop = Linear(i_pop.out_spikes, e_pop.i_inh,
                 weight_dtype="s5_10_sat_t", max_row_length=ie_conn.shape[1],
-                num_sparse_connectivity_bits=num_sparse_connectivity_bits, 
+                num_sparse_connectivity_bits=num_exc_sparse_connectivity_bits, 
                 name="IE")
 
 # Initialisation
@@ -141,7 +144,8 @@ synapse_update_processes = ProcessGroup([ee_pop.process, ei_pop.process,
                                         PerformanceCounter() if time else None)
 
 # Create backend
-backend = BackendFeNNHW() if device else BackendFeNNSim()
+backend_kwargs = {"use_dram_for_weights": use_dram_for_weights, "dma_buffer_size": 16 * 1024 * 1024}
+backend = BackendFeNNHW(**backend_kwargs) if device else BackendFeNNSim(**backend_kwargs)
 
 # Create model
 model = Model([i_zero_processes, neuron_update_processes, synapse_update_processes],
@@ -231,5 +235,5 @@ fig, axis = plt.subplots()
 axis.scatter(e_spikes[0], e_spikes[1], s=1)
 axis.scatter(i_spikes[0], i_spikes[1] + num_excitatory, s=1)
 
-print(f"{(len(e_spikes[0]) + len(i_spikes[0])) / num_neurons} spikes/second")
+print(f"{((len(e_spikes[0]) + len(i_spikes[0])) * 1000) / (num_neurons * num_timesteps)} spikes/second")
 plt.show()
