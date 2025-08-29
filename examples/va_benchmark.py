@@ -13,6 +13,7 @@ from pyfenn.utils import (build_sparse_connectivity, ceil_divide,
                           read_perf_counter, zero_and_push)
 
 from tqdm.auto import tqdm
+from time import perf_counter
 
 class CUBALIF:
     def __init__(self, shape, tau_m: float, tau_syn_exc: float, tau_syn_inh, 
@@ -22,8 +23,8 @@ class CUBALIF:
         dtype = UnresolvedType("s5_10_sat_t")
         decay_dtype = UnresolvedType("s0_15_sat_t")
         self.v = Variable(self.shape, dtype, name=f"{name}_V")
-        self.i_exc = Variable(self.shape, dtype, name=f"{name}_IExc")
-        self.i_inh = Variable(self.shape, dtype, name=f"{name}_IInh")
+        self.i_exc = Variable(self.shape, UnresolvedType("s2_13_sat_t"), name=f"{name}_IExc")
+        self.i_inh = Variable(self.shape, UnresolvedType("s2_13_sat_t"), name=f"{name}_IInh")
         self.refrac_time = Variable(self.shape, UnresolvedType("int16_t"), 
                                     name=f"{name}_RefracTime")
         self.out_spikes = EventContainer(self.shape, num_timesteps + 1)
@@ -69,8 +70,8 @@ class CUBALIF:
             {"Spike": self.out_spikes},
             name)
             
-num_timesteps = 200
-num_excitatory = 3584
+num_timesteps = 250
+num_excitatory = 2048
 probability_connection = 0.1
 excitatory_inhibitory_ratio = 4
 
@@ -95,12 +96,15 @@ ii_conn = generate_fixed_prob(num_inhibitory, num_inhibitory, probability_connec
 ee_conn = generate_fixed_prob(num_excitatory, num_excitatory, probability_connection)
 ei_conn = generate_fixed_prob(num_excitatory, num_inhibitory, probability_connection)
 
+print(f"Weight inhibitory: {int(round(inh_weight * 2**13))} ({inh_weight}), excitatory: {int(round(exc_weight * 2**13))} ({exc_weight})")
 # Pad
-ie_conn = build_sparse_connectivity(ie_conn, int(round(inh_weight * 2**10)), num_exc_sparse_connectivity_bits)
-ii_conn = build_sparse_connectivity(ii_conn, int(round(inh_weight * 2**10)), num_inh_sparse_connectivity_bits)
-ee_conn = build_sparse_connectivity(ee_conn, int(round(exc_weight * 2**10)), num_exc_sparse_connectivity_bits)
-ei_conn = build_sparse_connectivity(ei_conn, int(round(exc_weight * 2**10)), num_inh_sparse_connectivity_bits)
+ie_conn = build_sparse_connectivity(ie_conn, int(round(inh_weight * 2**13)), num_exc_sparse_connectivity_bits)
+ii_conn = build_sparse_connectivity(ii_conn, int(round(inh_weight * 2**13)), num_inh_sparse_connectivity_bits)
+ee_conn = build_sparse_connectivity(ee_conn, int(round(exc_weight * 2**13)), num_exc_sparse_connectivity_bits)
+ei_conn = build_sparse_connectivity(ei_conn, int(round(exc_weight * 2**13)), num_inh_sparse_connectivity_bits)
 
+print(f"Num sparse connectivity bits excitatory: {num_exc_sparse_connectivity_bits}, inhibitory: {num_inh_sparse_connectivity_bits}")
+print(f"Stride ee:{ee_conn.shape[1]} ei:{ei_conn.shape[1]} ii:{ii_conn.shape[1]} ie:{ie_conn.shape[1]}")
 # Neurons
 e_pop = CUBALIF([num_excitatory], tau_m=20.0, tau_syn_exc=5.0, tau_syn_inh=10.0,
                 tau_refrac=5, v_thresh=10, i_offset=0.55,
@@ -112,19 +116,19 @@ i_pop = CUBALIF([num_inhibitory], tau_m=20.0, tau_syn_exc=5.0, tau_syn_inh=10.0,
 
 # Synapses
 ee_pop = Linear(e_pop.out_spikes, e_pop.i_exc,
-                weight_dtype="s5_10_sat_t", max_row_length=ee_conn.shape[1],
+                weight_dtype="s2_13_sat_t", max_row_length=ee_conn.shape[1],
                 num_sparse_connectivity_bits=num_exc_sparse_connectivity_bits, 
                 name="EE")
 ei_pop = Linear(e_pop.out_spikes, i_pop.i_exc,
-                weight_dtype="s5_10_sat_t", max_row_length=ei_conn.shape[1],
+                weight_dtype="s2_13_sat_t", max_row_length=ei_conn.shape[1],
                 num_sparse_connectivity_bits=num_inh_sparse_connectivity_bits, 
                 name="EI")
 ii_pop = Linear(i_pop.out_spikes, i_pop.i_inh,
-                weight_dtype="s5_10_sat_t", max_row_length=ii_conn.shape[1],
+                weight_dtype="s2_13_sat_t", max_row_length=ii_conn.shape[1],
                 num_sparse_connectivity_bits=num_inh_sparse_connectivity_bits, 
                 name="II")
 ie_pop = Linear(i_pop.out_spikes, e_pop.i_inh,
-                weight_dtype="s5_10_sat_t", max_row_length=ie_conn.shape[1],
+                weight_dtype="s2_13_sat_t", max_row_length=ie_conn.shape[1],
                 num_sparse_connectivity_bits=num_exc_sparse_connectivity_bits, 
                 name="IE")
 
@@ -214,8 +218,9 @@ print("Simulating")
 runtime.set_instructions(code)
 
 # Simulate
+start_time = perf_counter()
 runtime.run()
-
+print(f"Simulation time {perf_counter() - start_time}")
 if time:
     neuron_update_cycles, neuron_update_instructions = read_perf_counter(
         neuron_update_processes.performance_counter, runtime)
