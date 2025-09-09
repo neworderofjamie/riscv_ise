@@ -53,13 +53,6 @@ ASSEMBLER_EXPORT void unrollLoopBody(CodeGenerator &c, ScalarRegisterAllocator &
                                      std::function<void(CodeGenerator&, uint32_t, bool)> genBodyFn, 
                                      std::function<void(CodeGenerator&, uint32_t)> genTailFn);
 
-// Generate an unrolled loop body with dynamic iteration count
-ASSEMBLER_EXPORT void unrollDynamicLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator,
-                                            uint32_t maxUnroll, uint32_t iterationBytes,
-                                            Reg numIterationsReg, Reg testBufferReg,
-                                            std::function<void(CodeGenerator&, uint32_t, bool)> genBodyFn, 
-                                            std::function<void(CodeGenerator&, uint32_t)> genTailFn);
-
 // Generate an unrolled loop body for a vectorised loop
 ASSEMBLER_EXPORT void unrollVectorLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator, 
                                            uint32_t numIterations, uint32_t maxUnroll, Reg testBufferReg,
