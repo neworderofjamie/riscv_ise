@@ -1068,20 +1068,30 @@ private:
             auto &vectorRegisterAllocator = getVectorRegisterAllocator();
 
             // Loop over postsynaptic neurons
+            ALLOCATE_SCALAR(SNumVectors);
             ALLOCATE_VECTOR(VAccum)
             ALLOCATE_VECTOR(VWeightInd1);
             ALLOCATE_VECTOR(VWeightInd2);
             ALLOCATE_VECTOR(VPostAddr);
             ALLOCATE_VECTOR(VWeight);
 
+            // Load first word containing row length
+            c.vloadv(*VWeightInd1, *weightBufferReg, 0);
+
+            // Advance pointer to actual start of weight
+            c.addi(*weightBufferReg, *weightBufferReg, 64);
+
+            // Extract number of vectors from first lane of first vector
+            c.vextract(*SNumVectors, *VWeightInd1, 0);
+
             // Preload first weights and indices to avoid stall
             c.vloadv(*VWeightInd1, *weightBufferReg, 0);
             
-            AssemblerUtils::unrollVectorLoopBody(
-                c, scalarRegisterAllocator, getProcess()->getMaxRowLength(), 4, *weightBufferReg,
+            AssemblerUtils::unrollDynamicLoopBody(
+                c, scalarRegisterAllocator, 4, 64, *SNumVectors, *weightBufferReg,
                 [this, weightBufferReg,
                 VAccum, VPostAddr, VWeight, VWeightInd1, VWeightInd2]
-                (CodeGenerator &c, uint32_t r, bool even, ScalarRegisterAllocator::RegisterPtr)
+                (CodeGenerator &c, uint32_t r, bool even)
                 {
                     // Load NEXT vector of weights and indices
                     c.vloadv(even ? *VWeightInd2 : *VWeightInd1, *weightBufferReg, (r + 1) * 64);
