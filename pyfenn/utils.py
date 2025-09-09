@@ -188,8 +188,9 @@ def build_sparse_connectivity(row_ind: Sequence[np.ndarray], weight: Number,
     row_conns_per_lane = [np.bincount(l) for l in row_lane]
 
     # Determine maximum number of vectors
-    num_vectors = max(np.amax(c) for c in row_conns_per_lane
-                      if len(c) > 0)
+    num_row_vectors = [np.amax(c) if len(c) > 0 else 0
+                       for c in row_conns_per_lane]
+    num_vectors = max(num_row_vectors)
 
     # Calculate cumulative sum of bin count to determine where to split per-bank
     row_conn_lane_sections = [np.cumsum(c) for c in row_conns_per_lane]
@@ -223,10 +224,18 @@ def build_sparse_connectivity(row_ind: Sequence[np.ndarray], weight: Number,
                                                 for a in np.split(d, s[:-1])]))
         conn_id_banked = np.pad(conn_id_banked, ((0, 0), (0, 32 - conn_id_banked.shape[1])),
                                 constant_values=0)
-        
+
         padded_rows.append(np.reshape(conn_id_banked, 32 * num_vectors))
     
-    return np.vstack(padded_rows)
+    # Stack padded rows to numpy
+    padded_rows = np.vstack(padded_rows)
+
+    # Stack number of vectors in each row and 31 zeros before padded rows and return
+    num_row_unrolls = ceil_divide(np.asarray(num_row_vectors, dtype=np.int16), 4) * 4
+    padded_rows = np.column_stack((num_row_unrolls,
+                                   np.zeros((padded_rows.shape[0], 31), dtype=np.int16), 
+                                   padded_rows))
+    return padded_rows
 
 def generate_fixed_prob(num_pre: int, num_post: int,
                         prob: float) -> Sequence[np.ndarray]:

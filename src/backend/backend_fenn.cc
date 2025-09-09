@@ -1067,8 +1067,12 @@ private:
             auto &scalarRegisterAllocator = getScalarRegisterAllocator();
             auto &vectorRegisterAllocator = getVectorRegisterAllocator();
 
+            // Labels
+            Label unrolledLoop;
+            Label end;
+
             // Loop over postsynaptic neurons
-            ALLOCATE_SCALAR(SNumVectors);
+            ALLOCATE_SCALAR(SWeightBufferEnd);
             ALLOCATE_VECTOR(VAccum)
             ALLOCATE_VECTOR(VWeightInd1);
             ALLOCATE_VECTOR(VWeightInd2);
@@ -1078,21 +1082,27 @@ private:
             // Load first word containing row length
             c.vloadv(*VWeightInd1, *weightBufferReg, 0);
 
-            // Advance pointer to actual start of weight
+            // Advance pointer to next vector containing first actual weight
             c.addi(*weightBufferReg, *weightBufferReg, 64);
 
             // Extract number of vectors from first lane of first vector
-            c.vextract(*SNumVectors, *VWeightInd1, 0);
+            c.vextract(*SWeightBufferEnd, *VWeightInd1, 0);
 
             // Preload first weights and indices to avoid stall
             c.vloadv(*VWeightInd1, *weightBufferReg, 0);
-            
-            AssemblerUtils::unrollDynamicLoopBody(
-                c, scalarRegisterAllocator, 4, 64, *SNumVectors, *weightBufferReg,
-                [this, weightBufferReg,
-                VAccum, VPostAddr, VWeight, VWeightInd1, VWeightInd2]
-                (CodeGenerator &c, uint32_t r, bool even)
-                {
+
+            // TestBufferEndReg = testBufferReg + numIterationsReg * iterationBytes
+            c.slli(*SWeightBufferEnd, *SWeightBufferEnd, 6);
+            c.add(*SWeightBufferEnd, *weightBufferReg, *SWeightBufferEnd);
+
+            c.L(unrolledLoop);
+            {
+                c.bge(*weightBufferReg, *SWeightBufferEnd, end);
+        
+                // Unroll loop
+                for(uint32_t r = 0; r < 4; r++) {
+                    const bool even = (r % 2) == 0;
+
                     // Load NEXT vector of weights and indices
                     c.vloadv(even ? *VWeightInd2 : *VWeightInd1, *weightBufferReg, (r + 1) * 64);
 
@@ -1114,13 +1124,17 @@ private:
 
                     // Write back accumulator
                     c.vstorel(*VAccum, *VPostAddr);
-                },
-                [this, weightBufferReg]
-                (CodeGenerator &c, uint32_t numUnrolls)
-                {
-                    // Increment pointers 
-                    c.addi(*weightBufferReg, *weightBufferReg, 64 * numUnrolls);
-                });
+                }
+
+                // Increment weight
+                c.addi(*weightBufferReg, *weightBufferReg, 64 * 4);
+        
+                //c.j_(unrolledLoop);
+                c.beq(Reg::X0, Reg::X0, unrolledLoop);
+            }
+
+
+            c.L(end);
         }
 
     private:
