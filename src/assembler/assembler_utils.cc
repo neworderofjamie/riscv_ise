@@ -320,10 +320,15 @@ void unrollDynamicLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegi
                            std::function<void(CodeGenerator&, uint32_t, bool)> genBodyFn, 
                            std::function<void(CodeGenerator&, uint32_t)> genTailFn)
 {
-    // Assert that max unroll is 
+    // Assert that max unroll is POT and convert to shift
     assert(isPOT(maxUnroll));
     assert(maxUnroll != 1);
     const uint32_t maxUnrollShift = (uint32_t)std::log2(maxUnroll);
+
+    // Assert that iteration bytes is POT and convert to shift
+    // **NOTE** we COULD use mul here but it seems unnecessary
+    assert(isPOT(iterationBytes));
+    const uint32_t iterationBytesShift = (uint32_t)std::log2(iterationBytes);
 
     // Labels
     Label unrolledLoop;
@@ -334,13 +339,13 @@ void unrollDynamicLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegi
     ALLOCATE_SCALAR(STestBufferEndReg);
     ALLOCATE_SCALAR(STestBufferUnrollEndReg);
 
-    // TestBufferEndReg = testBufferReg + numIterationsReg * 64
-    c.slli(*STestBufferEndReg, numIterationsReg, 6);
+    // TestBufferEndReg = testBufferReg + numIterationsReg * iterationBytes
+    c.slli(*STestBufferEndReg, numIterationsReg, iterationBytesShift);
     c.add(*STestBufferEndReg, testBufferReg, *STestBufferEndReg);
 
-    // TestBufferUnrollEndReg = testBufferReg + (((numIterationsReg / maxUnroll) * 64 * maxUnrol)
+    // TestBufferUnrollEndReg = testBufferReg + (((numIterationsReg / maxUnroll) * iterationBytes * maxUnrol)
     c.srai(*STestBufferUnrollEndReg, numIterationsReg, maxUnrollShift);
-    c.slli(*STestBufferUnrollEndReg, *STestBufferUnrollEndReg, 6 + maxUnrollShift);
+    c.slli(*STestBufferUnrollEndReg, *STestBufferUnrollEndReg, iterationBytesShift + maxUnrollShift);
     c.add(*STestBufferUnrollEndReg, testBufferReg, *STestBufferUnrollEndReg);
 
     c.L(unrolledLoop);
