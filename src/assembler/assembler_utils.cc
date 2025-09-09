@@ -314,6 +314,73 @@ void unrollLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAll
     }
 }
 //----------------------------------------------------------------------------
+void unrollDynamicLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator,
+                           uint32_t maxUnroll, uint32_t iterationBytes,
+                           Reg numIterationsReg, Reg testBufferReg,
+                           std::function<void(CodeGenerator&, uint32_t, bool)> genBodyFn, 
+                           std::function<void(CodeGenerator&, uint32_t)> genTailFn)
+{
+    // Assert that max unroll is 
+    assert(isPOT(maxUnroll));
+    assert(maxUnroll != 1);
+    const uint32_t maxUnrollShift = (uint32_t)std::log2(maxUnroll);
+
+    // Labels
+    Label unrolledLoop;
+    Label tailLoop;
+    Label end;
+
+    // Register allocation
+    ALLOCATE_SCALAR(STestBufferEndReg);
+    ALLOCATE_SCALAR(STestBufferUnrollEndReg);
+
+    // TestBufferEndReg = testBufferReg + numIterationsReg * 64
+    c.slli(*STestBufferEndReg, numIterationsReg, 6);
+    c.add(*STestBufferEndReg, testBufferReg, *STestBufferEndReg);
+
+    // TestBufferUnrollEndReg = testBufferReg + (((numIterationsReg / maxUnroll) * 64 * maxUnrol)
+    c.srai(*STestBufferUnrollEndReg, numIterationsReg, maxUnrollShift);
+    c.slli(*STestBufferUnrollEndReg, *STestBufferUnrollEndReg, 6 + maxUnrollShift);
+    c.add(*STestBufferUnrollEndReg, testBufferReg, *STestBufferUnrollEndReg);
+
+    c.L(unrolledLoop);
+    {
+        c.bge(testBufferReg, *STestBufferUnrollEndReg, tailLoop);
+        
+        // Unroll loop
+        for(uint32_t r = 0; r < maxUnroll; r++) {
+            genBodyFn(c, r, (r % 2) == 0);
+        }
+
+        // Generate tail
+        genTailFn(c, maxUnroll);
+        
+        //c.j_(unrolledLoop);
+        c.beq(Reg::X0, Reg::X0, unrolledLoop);
+    }
+
+
+    c.L(tailLoop);
+    {
+        c.bge(testBufferReg, *STestBufferEndReg, end);
+        
+        // Generate even body and tail
+        // **NOTE** maxUnrolls is always even so we will always start on even iteration
+        genBodyFn(c, 0, true);
+        genTailFn(c, 1);
+
+        c.bge(testBufferReg, *STestBufferEndReg, end);
+        
+        // Generate odd body and tail
+        genBodyFn(c, 0, false);
+        genTailFn(c, 1);
+
+        //c.j_(tailLoop);
+        c.beq(Reg::X0, Reg::X0, tailLoop);
+    }
+    c.L(end);
+}
+//----------------------------------------------------------------------------
 void unrollVectorLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator, 
                           uint32_t numIterations, uint32_t maxUnroll, Reg testBufferReg,
                           std::function<void(CodeGenerator&, uint32_t, bool, ScalarRegisterAllocator::RegisterPtr)> genBodyFn, 
