@@ -14,9 +14,9 @@ from pyfenn.utils import (generate_exp_lut_and_push, get_array_view,
 
 device = False
 disassemble_code = False
-num_timesteps = 2500
-num_blocks = 4
-fixed_point = 12
+num_timesteps = 2000
+num_blocks = 1
+fixed_point = 11
 
 class AdExp:
     def __init__(self, shape, num_timesteps: int, tau_m: float, tau_w: float, 
@@ -98,17 +98,29 @@ class AdExp:
 init_logging()
 
 
+param_sets = {
+    "original":                 {"c": (281.0 / 1000.0), "g_l": (30.0 / 1000.0), "e_l": -70.6, "v_t": -50.4, "delta_t": 2.0, "a": 4.0, "tau_w": 144.0, "i_offset": 700.0, "b": 80.5 / 1000.0, "v_r": -70.6},
+    "tonic":                    {"c": (200.0 / 1000.0), "g_l": (10.0 / 1000.0), "e_l": -70.0, "v_t": -50.0, "delta_t": 2.0, "a": 2.0, "tau_w": 30.0, "i_offset": 500.0, "b": 0.0 / 1000.0, "v_r": -58.0},
+    "adaptation":               {"c": (200.0 / 1000.0), "g_l": (12.0 / 1000.0), "e_l": -70.0, "v_t": -50.0, "delta_t": 2.0, "a": 2.0, "tau_w": 300.0, "i_offset": 500.0, "b": 60.0 / 1000.0, "v_r": -58.0},
+    "initial burst":            {"c": (130.0 / 1000.0), "g_l": (18.0 / 1000.0), "e_l": -58.0, "v_t": -50.0, "delta_t": 2.0, "a": 4.0, "tau_w": 150.0, "i_offset": 400.0, "b": 120.0 / 1000.0, "v_r": -50.0},
+    "regular bursting":         {"c": (200.0 / 1000.0), "g_l": (10.0 / 1000.0), "e_l": -58.0, "v_t": -50.0, "delta_t": 2.0, "a": 2.0, "tau_w": 120.0, "i_offset": 210.0, "b": 100.0 / 1000.0, "v_r": -46.0},
+    "delayed accelerating":     {"c": (200.0 / 1000.0), "g_l": (12.0 / 1000.0), "e_l": -70.0, "v_t": -50.0, "delta_t": 2.0, "a": -10.0, "tau_w": 300.0, "i_offset": 300.0, "b": 0.0 / 1000.0, "v_r": -58.0},
+    "delayed regular bursting": {"c": (200.0 / 1000.0), "g_l": (12.0 / 1000.0), "e_l": -70.0, "v_t": -50.0, "delta_t": 2.0, "a": -6.0, "tau_w": 300.0, "i_offset": 110.0, "b": 0.0 / 1000.0, "v_r": -58.0},
+    "transient spiking":        {"c": (100.0 / 1000.0), "g_l": (10.0 / 1000.0), "e_l": -65.0, "v_t": -50.0, "delta_t": 2.0, "a": -10.0, "tau_w": 90.0, "i_offset": 350.0, "b": 30.0 / 1000.0, "v_r": -47.0},
+    "irregular_spiking":        {"c": (100.0 / 1000.0), "g_l": (12.0 / 1000.0), "e_l": -60.0, "v_t": -50.0, "delta_t": 2.0, "a": -11.0, "tau_w": 130.0, "i_offset": 160.0, "b": 30.0 / 1000.0, "v_r": -48.0}}
 # Model
-c = 281.0 / 1000.0
-gL = 30.0 / 1000.0
 v_scale = 0.01
 w_scale = 10.0
-ad_exp = AdExp([32], num_timesteps, tau_m=(c / gL), tau_w=144.0,
-               r=((1.0 / gL) * (v_scale / w_scale)), e_l=(-70.6 * v_scale),
-               delta_t=(2.0 * v_scale), v_thresh=(-50.4 * v_scale),
-               v_spike=(10.0 * v_scale), v_reset=(-70.6 * v_scale), 
-               a=((4.0 / 1000.0) / (v_scale / w_scale)), b=(0.0805 * w_scale),
-               i_offset=(700.0 * (w_scale / 1000.0)), dt=0.1, fixed_point=fixed_point,
+
+
+params = param_sets["irregular_spiking"]
+
+ad_exp = AdExp([32], num_timesteps, tau_m=(params["c"] / params["g_l"]), tau_w=params["tau_w"],
+               r=((1.0 / params["g_l"]) * (v_scale / w_scale)), e_l=(params["e_l"] * v_scale),
+               delta_t=(params["delta_t"] * v_scale), v_thresh=(params["v_t"] * v_scale),
+               v_spike=(10.0 * v_scale), v_reset=(params["v_r"] * v_scale), 
+               a=((params["a"] / 1000.0) / (v_scale / w_scale)), b=(params["b"] * w_scale),
+               i_offset=(params["i_offset"] * (w_scale / 1000.0)), dt=0.1, fixed_point=fixed_point,
                name="ad_exp")
 
 rng_init = RNGInit()
@@ -214,24 +226,24 @@ num_total_timesteps = num_timesteps * num_blocks
 timesteps = np.arange(0.0, num_total_timesteps * 0.1, 0.1)
 
 # Load reference data
-v_ref = np.load("adexp_v_ref.npy")
-w_ref = np.load("adexp_w_ref.npy")
-spike_times_ref = np.load("adexp_spike_times_ref.npy")
+#v_ref = np.load("adexp_v_ref.npy")
+#w_ref = np.load("adexp_w_ref.npy")
+#spike_times_ref = np.load("adexp_spike_times_ref.npy")
 
 # Check right number of spikes emitted
-assert all(len(spike_times_ref) == len(s) for s in spike_times)
+#assert all(len(spike_times_ref) == len(s) for s in spike_times)
 
 # That means we're safe to turn list of spike time arrays into 2D array
-spike_times = np.asarray(spike_times)
+#spike_times = np.asarray(spike_times)
 
 # Calculate mean and std spike time
-mean_spike_times = np.average(spike_times, axis=0)
-std_spike_times = np.std(spike_times, axis=0)
+#mean_spike_times = np.average(spike_times, axis=0)
+#std_spike_times = np.std(spike_times, axis=0)
 
 # Calculate mean and std lag
-lag = spike_times - spike_times_ref
-mean_lag = np.average(lag, axis=0)
-std_lag = np.std(lag, axis=0)
+#lag = spike_times - spike_times_ref
+#mean_lag = np.average(lag, axis=0)
+#std_lag = np.std(lag, axis=0)
 
 # Create plot
 figure, axes = plt.subplots(3, sharex=True)
@@ -239,26 +251,26 @@ figure, axes = plt.subplots(3, sharex=True)
 # Plot voltages
 axes[0].set_ylabel("Voltage [mV]")
 v_actor = axes[0].plot(timesteps, v[:,0] / (fixed_point_one * v_scale))[0]
-axes[0].plot(timesteps, v_ref[:len(v)] / v_scale, color=v_actor.get_color(), linestyle="--")
+#axes[0].plot(timesteps, v_ref[:len(v)] / v_scale, color=v_actor.get_color(), linestyle="--")
 
 axes[1].set_ylabel("Adaption current [pA]")
 w_actor = axes[1].plot(timesteps, w[:,0] / (fixed_point_one * v_scale), label="FeNN")[0]
-axes[1].plot(timesteps, w_ref[:len(w)] / v_scale, color=w_actor.get_color(), linestyle="--")
+#axes[1].plot(timesteps, w_ref[:len(w)] / v_scale, color=w_actor.get_color(), linestyle="--")
 
-axes[2].set_title("Spike times")
-s_actor = axes[2].vlines(mean_spike_times, 0, 1, label="FeNN")
-axes[2].vlines(spike_times_ref, 0, 1, color=s_actor.get_color(), linestyle="--")
-axes[2].bar(mean_spike_times - std_spike_times, 1, 2 * std_spike_times, align="edge",
-            color=s_actor.get_color(), alpha=0.5)
-axes[2].set_xlabel("Time [ms]")
+#axes[2].set_title("Spike times")
+#s_actor = axes[2].vlines(mean_spike_times, 0, 1, label="FeNN")
+#axes[2].vlines(spike_times_ref, 0, 1, color=s_actor.get_color(), linestyle="--")
+#axes[2].bar(mean_spike_times - std_spike_times, 1, 2 * std_spike_times, align="edge",
+#            color=s_actor.get_color(), alpha=0.5)
+#axes[2].set_xlabel("Time [ms]")
 
-lag_fig, lag_axis = plt.subplots()
-lag_actor = lag_axis.plot(mean_lag)[0]
-lag_axis.fill_between(np.arange(len(mean_lag)), (mean_lag - std_lag), 
-                      (mean_lag + std_lag),
-                      alpha=0.5, color=lag_actor.get_color())
-lag_axis.set_xlabel("Spike number")
-lag_axis.set_ylabel("Lag [ms]")
+#lag_fig, lag_axis = plt.subplots()
+#lag_actor = lag_axis.plot(mean_lag)[0]
+#lag_axis.fill_between(np.arange(len(mean_lag)), (mean_lag - std_lag), 
+#                      (mean_lag + std_lag),
+#                      alpha=0.5, color=lag_actor.get_color())
+#lag_axis.set_xlabel("Spike number")
+#lag_axis.set_ylabel("Lag [ms]")
 
 # Show plot
 plt.show()
