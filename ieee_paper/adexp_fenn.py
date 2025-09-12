@@ -141,7 +141,7 @@ def simulate_fenn(params, device, num_timesteps=2000, disassemble_code=False, fi
 
     # Zero i and initialise V
     zero_and_push(ad_exp.w, runtime)
-    fixed_point_one = (2 ** fixed_point)
+    fixed_point_one = 2 ** fixed_point
     v_array, v_view = get_array_view(runtime, ad_exp.v, np.int16)
     v_view[:] = np.round(params["e_l"] * v_scale * fixed_point_one).astype(np.int16)
     v_array.push_to_device()

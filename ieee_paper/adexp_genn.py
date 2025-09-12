@@ -64,8 +64,8 @@ def simulate_genn(params, num_timesteps=2000):
 
     # Parameters
     adexp_params = {
-        "c":        params["c"],
-        "gL":       params["g_l"],
+        "c":        params["c"] * 1000.0,
+        "gL":       params["g_l"] * 1000.0,
         "eL":       params["e_l"],
         "deltaT":   params["delta_t"],
         "vThresh":  params["v_t"],
@@ -73,7 +73,7 @@ def simulate_genn(params, num_timesteps=2000):
         "vReset":   params["v_r"],
         "tauW":     params["tau_w"],
         "a":        params["a"],
-        "b":        params["b"],
+        "b":        params["b"] * 1000.0,
         "iOffset":  params["i_offset"]}
     adexp_vars = {"V": params["e_l"], "W": 0.0}
 
