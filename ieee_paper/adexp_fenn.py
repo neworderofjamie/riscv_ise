@@ -11,7 +11,7 @@ from pyfenn.utils import (generate_exp_lut_and_push, get_array_view,
 
 from adexp_params import param_sets
 
-def simulate_fenn(params, device, num_timesteps=2000, disassemble_code=False, fixed_point=11):
+def simulate_fenn(params, device, num_timesteps=2000, disassemble_code=False, fixed_point=11, rounding_mode=RoundingMode.STOCHASTIC):
     class AdExp:
         def __init__(self, shape, num_timesteps: int, tau_m: float, tau_w: float, 
                     r: float, e_l: float, delta_t: float, v_thresh: float, 
@@ -112,7 +112,7 @@ def simulate_fenn(params, device, num_timesteps=2000, disassemble_code=False, fi
 
     # Create backend
     backend_params = {"keep_params_in_registers": False,
-                      "rounding_mode": RoundingMode.STOCHASTIC}
+                      "rounding_mode": rounding_mode}
     backend = BackendFeNNHW(**backend_params) if device else BackendFeNNSim(**backend_params)
 
     # Create model
@@ -201,9 +201,18 @@ fixed_point = 11
 print("Running FeNN simulations")
 fenn_data = {}
 for n, p in param_sets.items():
-    v, w, spike_times = simulate_fenn(p, device, num_timesteps, disassemble_code, fixed_point) 
-    fenn_data[f"{n}_v"] = v
-    fenn_data[f"{n}_w"] = w
-    fenn_data[f"{n}_spikes"] = spike_times
+    # Run once with stochastic rounding
+    v_rs, w_rs, spikes_rs = simulate_fenn(p, device, num_timesteps, disassemble_code, 
+                                          fixed_point, RoundingMode.STOCHASTIC) 
+    fenn_data[f"{n}_v_rs"] = v_rs
+    fenn_data[f"{n}_w_rs"] = w_rs
+    fenn_data[f"{n}_spikes_rs"] = spikes_rs
+    
+    # Run once with stochastic rounding
+    v_rn, w_rn, spikes_rn = simulate_fenn(p, device, num_timesteps, disassemble_code, 
+                                          fixed_point, RoundingMode.NEAREST) 
+    fenn_data[f"{n}_v_rn"] = v_rn
+    fenn_data[f"{n}_w_rn"] = w_rn
+    fenn_data[f"{n}_spikes_rn"] = spikes_rn
 
 np.savez("adexp_fenn.npz", **fenn_data)
