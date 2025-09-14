@@ -5,7 +5,7 @@ import numpy as np
 from numbers import Number
 from collections import defaultdict
 from . import (EventContainer, EventPropagationProcess, NeuronUpdateProcess,
-               Parameter, ProcessGroup, Shape,  Variable)
+               Parameter, ProcessGroup, Shape, Variable)
 
 from .utils import ceil_divide
 
@@ -57,8 +57,8 @@ class Linear:
                  source_event_container: EventContainer,
                  target_variable: Variable,
                  fixed_point: int):
-        self.shape = Shape([source_event_container.shape.num_neurons,
-                            target_variable.shape.num_neurons])
+        self.shape = (source_event_container.shape.num_neurons,
+                      target_variable.shape.num_neurons)
         weight_dtype = _get_type(fixed_point, False)
 
         self.weight = Variable(self.shape, weight_dtype, 1,
