@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from pyfenn import (BackendFeNNHW, BackendFeNNSim, Model, NeuronUpdateProcess,
-                    ProcessGroup, Runtime, Shape, Variable)
+                    ProcessGroup, Runtime, Variable)
 from pyfenn.models import ExpLUTBroadcast
 
 from pyfenn import disassemble, init_logging
@@ -40,7 +40,7 @@ init_logging()
 
 # Model
 in_dtype = f"s{15 - in_fixed_point}_{in_fixed_point}_t"
-input_var = Variable(Shape(input_data.shape), in_dtype)
+input_var = Variable(input_data.shape, in_dtype)
 exp = Exp(input_var, out_fixed_point)
 lut_broadcast = ExpLUTBroadcast()
 

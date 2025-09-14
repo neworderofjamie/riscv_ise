@@ -5,7 +5,7 @@ from typing import Optional
 from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer,
                     EventPropagationProcess, MemsetProcess, Model,
                     NeuronUpdateProcess, PlogSeverity, ProcessGroup, Runtime,
-                    Shape, Variable)
+                    Variable)
 
 from pyfenn import disassemble, init_logging
 from pyfenn.models import Linear, Memset
@@ -16,7 +16,7 @@ from pyfenn.utils import (build_delay_weights, build_sparse_connectivity,
 
 class PostNeuron:
     def __init__(self, shape, num_i_timesteps, num_x_timesteps, name: str = ""):
-        self.shape = Shape(shape)
+        self.shape = shape
         self.i = Variable(self.shape, "int16_t", num_i_timesteps, name=f"{name}_I")
         self.x = Variable(self.shape, "int16_t", num_x_timesteps, name=f"{name}_X")
         self.process = NeuronUpdateProcess(
@@ -57,11 +57,11 @@ def test_forward(device, use_dram_for_weights):
     conn = build_sparse_connectivity(conn, 1, 3)
 
     # Create input spike container
-    input_spikes = EventContainer(Shape([16]), 16)
+    input_spikes = EventContainer(16, 16)
 
     # Create one output neuron pop with sparse decoder population
-    sparse_n_pop = PostNeuron([4], 1, 17, "SparseNPop")
-    dense_n_pop = PostNeuron([4], 1, 17, "DenseNPop")
+    sparse_n_pop = PostNeuron(4, 1, 17, "SparseNPop")
+    dense_n_pop = PostNeuron(4, 1, 17, "DenseNPop")
 
     input_sparse = Linear(input_spikes, sparse_n_pop.i, "int16_t", 
                           max_row_length=4, num_sparse_connectivity_bits=3,
@@ -152,10 +152,10 @@ def test_forward_den_delay(device, use_dram_for_weights):
     delay_weights = np.pad(delay_weights, ((0, 0), (0, (num_post_vecs * 32) - delay_weights.shape[1])))
 
     # Create input spike container
-    input_spikes = EventContainer(Shape([num_pre]), num_pre)
+    input_spikes = EventContainer(num_pre, num_pre)
 
     # Create one output neuron pop
-    dense_n_pop = PostNeuron([num_post], 2**(num_delay_bits - 1), num_pre + 1, "DenseNPop")
+    dense_n_pop = PostNeuron(num_post, 2**(num_delay_bits - 1), num_pre + 1, "DenseNPop")
 
     # Create delayed connection from input spikes to dense
     input_dense = Linear(input_spikes, dense_n_pop.i, "int16_t", 

@@ -1,7 +1,7 @@
 import numpy as np
 from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer, Model,
                     NeuronUpdateProcess, Parameter, ProcessGroup,
-                    RoundingMode, Runtime, Shape, Variable)
+                    RoundingMode, Runtime, Variable)
 from pyfenn.models import ExpLUTBroadcast, RNGInit
 
 from pyfenn import disassemble, init_logging
@@ -16,7 +16,7 @@ def simulate_fenn(params, device, num_timesteps=2000, disassemble_code=False, fi
                     r: float, e_l: float, delta_t: float, v_thresh: float, 
                     v_spike: float, v_reset: float, a: float, b: float, 
                     i_offset: float, dt: float = 0.1, fixed_point: int = 12, name: str = ""):
-            self.shape = Shape(shape)
+            self.shape = shape
             dtype = f"s{15 - fixed_point}_{fixed_point}_sat_t"
             frac_dtype = "s0_15_sat_t"
             self.v = Variable(self.shape, dtype, num_timesteps + 1, name=f"{name}_V")
@@ -93,7 +93,7 @@ def simulate_fenn(params, device, num_timesteps=2000, disassemble_code=False, fi
     v_scale = 0.01
     w_scale = 10.0
 
-    ad_exp = AdExp([32], num_timesteps, tau_m=(params["c"] / params["g_l"]), tau_w=params["tau_w"],
+    ad_exp = AdExp(32, num_timesteps, tau_m=(params["c"] / params["g_l"]), tau_w=params["tau_w"],
                    r=((1.0 / params["g_l"]) * (v_scale / w_scale)), e_l=(params["e_l"] * v_scale),
                    delta_t=(params["delta_t"] * v_scale), v_thresh=(params["v_t"] * v_scale),
                    v_spike=(10.0 * v_scale), v_reset=(params["v_r"] * v_scale), 

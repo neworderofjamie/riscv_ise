@@ -2,7 +2,7 @@ import numpy as np
 import mnist
 
 from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer, Model, ProcessGroup,
-                    Runtime, Shape)
+                    Runtime)
 from pyfenn.models import Linear, Memset, RNGInit
 from models import ALIF, LI
 from tonic.datasets import SHD
@@ -13,12 +13,12 @@ from pyfenn.utils import (ceil_divide, get_array_view, load_quantise_and_push,
 from tqdm.auto import tqdm
 
 num_timesteps = 1170
-input_shape = [700]
-hidden_shape = [256]
-output_shape = [20]
-input_hidden_shape = [input_shape[0], hidden_shape[0]]
-hidden_hidden_shape = [hidden_shape[0], hidden_shape[0]]
-hidden_output_shape = [hidden_shape[0], output_shape[0]]
+input_shape = 700
+hidden_shape = 256
+output_shape = 20
+input_hidden_shape = (input_shape, hidden_shape)
+hidden_hidden_shape = (hidden_shape, hidden_shape)
+hidden_output_shape = (hidden_shape, output_shape)
 device = False
 record = False
 disassemble_code = False
@@ -30,7 +30,7 @@ dataset = SHD(save_to="data", train=False)
 shd_spikes = []
 shd_labels = []
 timestep_range = np.arange(num_timesteps + 1)
-neuron_range = np.arange((ceil_divide(input_shape[0], 32) * 32) + 1)
+neuron_range = np.arange((ceil_divide(input_shape, 32) * 32) + 1)
 for events, label in dataset:
     # Build histogram
     spike_event_histogram = np.histogram2d(events["t"] / 1000.0, events["x"], (timestep_range, neuron_range))[0]
@@ -42,7 +42,7 @@ for events, label in dataset:
 init_logging()
 
 # Input spikes
-input_spikes = EventContainer(Shape(input_shape), num_timesteps)
+input_spikes = EventContainer(input_shape, num_timesteps)
 
 # Model
 rng_init = RNGInit()

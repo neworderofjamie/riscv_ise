@@ -3,7 +3,7 @@ import numpy as np
 
 from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer,
                     Model, NeuronUpdateProcess, Parameter, PerformanceCounter,
-                    PlogSeverity, ProcessGroup, Runtime, Shape, Variable)
+                    PlogSeverity, ProcessGroup, Runtime, Variable)
 from pyfenn.models import Linear, Memset
 
 from pyfenn import disassemble, init_logging
@@ -18,7 +18,7 @@ class CUBALIF:
     def __init__(self, shape, tau_m: float, tau_syn_exc: float, tau_syn_inh, 
                  tau_refrac: int, v_thresh: float, i_offset: float = 0.0,
                  num_timesteps: int = 1, name: str = ""):
-        self.shape = Shape(shape)
+        self.shape = shape
         dtype = "s5_10_sat_t"
         decay_dtype = "s0_15_sat_t"
         self.v = Variable(self.shape, dtype, name=f"{name}_V")
@@ -105,11 +105,11 @@ ei_conn = build_sparse_connectivity(ei_conn, int(round(exc_weight * 2**13)), num
 print(f"Num sparse connectivity bits excitatory: {num_exc_sparse_connectivity_bits}, inhibitory: {num_inh_sparse_connectivity_bits}")
 print(f"Stride ee:{ee_conn.shape[1]} ei:{ei_conn.shape[1]} ii:{ii_conn.shape[1]} ie:{ie_conn.shape[1]}")
 # Neurons
-e_pop = CUBALIF([num_excitatory], tau_m=20.0, tau_syn_exc=5.0, tau_syn_inh=10.0,
+e_pop = CUBALIF(num_excitatory, tau_m=20.0, tau_syn_exc=5.0, tau_syn_inh=10.0,
                 tau_refrac=5, v_thresh=10, i_offset=0.55,
                 num_timesteps=num_timesteps, name="E")
 
-i_pop = CUBALIF([num_inhibitory], tau_m=20.0, tau_syn_exc=5.0, tau_syn_inh=10.0,
+i_pop = CUBALIF(num_inhibitory, tau_m=20.0, tau_syn_exc=5.0, tau_syn_inh=10.0,
                 tau_refrac=5, v_thresh=10, i_offset=0.55,
                 num_timesteps=num_timesteps, name="I")
 

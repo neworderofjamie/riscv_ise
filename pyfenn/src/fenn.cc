@@ -176,6 +176,8 @@ PYBIND11_MODULE(_fenn, m)
     //------------------------------------------------------------------------
     pybind11::class_<Shape>(m, "Shape")
          .def(pybind11::init<const std::vector<size_t>&>())
+         .def(pybind11::init<size_t>())
+
          .def_property_readonly("dims", &Shape::getDims)
          .def_property_readonly("num_neurons", &Shape::getNumNeurons)
          .def_property_readonly("num_source_neurons", &Shape::getNumSourceNeurons)
@@ -184,13 +186,16 @@ PYBIND11_MODULE(_fenn, m)
          .def_property_readonly("flattened_size", &Shape::getFlattenedSize)
          
          .def("__repr__", &Shape::toString);
-    
+
+    pybind11::implicitly_convertible<const std::vector<size_t>&, Shape>();
+    pybind11::implicitly_convertible<size_t, Shape>();
+
     //------------------------------------------------------------------------
     // fenn.ModelComponent
     //------------------------------------------------------------------------
     pybind11::class_<ModelComponent, std::shared_ptr<ModelComponent>>(m, "ModelComponent")
          .def_property_readonly("name", &ModelComponent::getName);
-    
+
     //------------------------------------------------------------------------
     // fenn.State
     //------------------------------------------------------------------------
@@ -203,7 +208,7 @@ PYBIND11_MODULE(_fenn, m)
         .def(pybind11::init(&EventContainer::create),
              pybind11::arg("shape"), pybind11::arg("num_buffer_timesteps") = 1,
              pybind11::arg("name") = "")
-        
+
         .def_property_readonly("shape", &EventContainer::getShape)
         .def_property_readonly("num_buffer_timesteps", &EventContainer::getNumBufferTimesteps);
     

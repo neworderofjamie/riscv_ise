@@ -3,8 +3,8 @@ import mnist
 
 from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer, Model,
                     NeuronUpdateProcess, PlogSeverity, ProcessGroup,
-                    Parameter, PerformanceCounter, RoundingMode, Runtime, Shape,
-                     Variable)
+                    Parameter, PerformanceCounter, RoundingMode, Runtime,
+                    Variable)
 from pyfenn.models import Linear, Memset
 
 from tonic.datasets import SHD
@@ -19,7 +19,7 @@ class LIF:
     def __init__(self, shape, tau_m: float, tau_syn: float, v_thresh: float,
                  fixed_point: int = 5, spike_record_timesteps: int = 1,
                  name: str = ""):
-        self.shape = Shape(shape)
+        self.shape = shape
         decay_dtype = "s0_15_sat_t"
         dtype = f"s{15 - fixed_point}_{fixed_point}_sat_t"
 
@@ -52,7 +52,7 @@ class LIF:
 class LI:
     def __init__(self, shape, tau_m: float, tau_syn: float, num_timesteps: int,
                  fixed_point: int = 5, name: str = ""):
-        self.shape = Shape(shape)
+        self.shape = shape
         decay_dtype = "s0_15_sat_t"
         dtype = f"s{15 - fixed_point}_{fixed_point}_sat_t"
 
@@ -78,12 +78,12 @@ class LI:
             {}, name)
         
 num_timesteps = 1170
-input_shape = [700]
-hidden_shape = [256]
-output_shape = [20]
-input_hidden_shape = [input_shape[0], hidden_shape[0]]
-hidden_hidden_shape = [hidden_shape[0], hidden_shape[0]]
-hidden_output_shape = [hidden_shape[0], output_shape[0]]
+input_shape = 700
+hidden_shape = 256
+output_shape = 20
+input_hidden_shape = (input_shape, hidden_shape)
+hidden_hidden_shape = (hidden_shape, hidden_shape)
+hidden_output_shape = (hidden_shape, output_shape)
 device = False
 record = False
 time = True
@@ -96,7 +96,7 @@ dataset = SHD(save_to="data", train=False)
 shd_spikes = []
 shd_labels = []
 timestep_range = np.arange(num_timesteps + 1)
-neuron_range = np.arange((ceil_divide(input_shape[0], 32) * 32) + 1)
+neuron_range = np.arange((ceil_divide(input_shape, 32) * 32) + 1)
 for events, label in dataset:
     # Build histogram
     spike_event_histogram = np.histogram2d(events["t"] / 1000.0, events["x"], (timestep_range, neuron_range))[0]
@@ -108,7 +108,7 @@ for events, label in dataset:
 init_logging(PlogSeverity.INFO)
 
 # Input spikes
-input_spikes = EventContainer(Shape(input_shape), num_timesteps)
+input_spikes = EventContainer(input_shape, num_timesteps)
 
 # Model
 hidden = LIF(hidden_shape, 20.0, 5.0, 1.0,
@@ -165,11 +165,11 @@ runtime.allocate()
 
 # Load and quantise output weights
 load_quantise_and_push("0/108-Conn_Pop0_Pop1-g.npy",    #+- 1
-                       8, input_hidden.weight, runtime, input_shape[0], percentile=100.0)
+                       8, input_hidden.weight, runtime, input_shape, percentile=100.0)
 load_quantise_and_push("0/108-Conn_Pop1_Pop1-g.npy",    #+- 1
-                       8, hidden_hidden.weight, runtime, hidden_shape[0], percentile=100.0)
+                       8, hidden_hidden.weight, runtime, hidden_shape, percentile=100.0)
 load_quantise_and_push("0/108-Conn_Pop1_Pop2-g.npy",    #+-3
-                       8, hidden_output.weight, runtime, hidden_shape[0], True, percentile=100.0)
+                       8, hidden_output.weight, runtime, hidden_shape, True, percentile=100.0)
 
 if time:
     zero_and_push(neuron_update_processes.performance_counter, runtime)

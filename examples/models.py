@@ -1,13 +1,13 @@
 import numpy as np
 
 from pyfenn import (EventContainer, NeuronUpdateProcess,
-                    Parameter, Shape,  Variable)
+                    Parameter, Variable)
 
 class LIF:
     def __init__(self, shape, tau_m: float, tau_refrac: int, v_thresh: float,
                  record_spikes: bool = False, fixed_point: int = 5,
                  name: str = ""):
-        self.shape = Shape(shape)
+        self.shape = shape
         dtype = f"s{15 - fixed_point}_{fixed_point}_sat_t"
         self.v = Variable(self.shape, dtype, name=f"{name}_v")
         self.i = Variable(self.shape, dtype, name=f"{name}_i")
@@ -41,7 +41,7 @@ class ALIF:
                  v_thresh: float, beta: float = 0.0174,
                  record_spikes: bool = False, fixed_point: int = 9,
                  name: str = ""):
-        self.shape = Shape(shape)
+        self.shape = shape
         dtype = f"s{15 - fixed_point}_{fixed_point}_sat_t"
         decay_dtype = "s0_15_sat_t"
         self.v = Variable(self.shape, dtype, name=f"{name}_v")
@@ -79,7 +79,7 @@ class ALIF:
 class LI:
     def __init__(self, shape, tau_m: float, num_timesteps: int,
                  fixed_point: int = 5, name: str = ""):
-        self.shape = Shape(shape)
+        self.shape = shape
         dtype = f"s{15 - fixed_point}_{fixed_point}_sat_t"
 
         self.v = Variable(self.shape, dtype, name=f"{name}_v")

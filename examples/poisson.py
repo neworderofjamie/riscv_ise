@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 
 from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer, Model,
                     NeuronUpdateProcess, Parameter, ProcessGroup, Runtime,
-                    Shape, Variable)
+                    Variable)
 from pyfenn.models import RNGInit
 
 from pyfenn import disassemble, init_logging
@@ -12,7 +12,7 @@ from scipy.stats import poisson
 
 class Poisson:
     def __init__(self, shape, num_samples, rate: float):
-        self.shape = Shape(shape)
+        self.shape = shape
         self.num_spikes = Variable(self.shape, "int16_t",
                                    num_samples + 1)
         
@@ -33,7 +33,7 @@ class Poisson:
 
 device = False
 num_samples = 100
-shape = [32]
+shape = 32
 rate = 5000.0
 disassemble_code = False
 
@@ -88,7 +88,7 @@ runtime.set_instructions(code)
 runtime.run()
 
 num_spikes_array, num_spikes_view = get_array_view(runtime, poisson_process.num_spikes,
-                                                   np.int16, (num_samples + 1, shape[0]))
+                                                   np.int16, (num_samples + 1, shape))
 num_spikes_array.pull_from_device()
 
 # Remove first timestep of data

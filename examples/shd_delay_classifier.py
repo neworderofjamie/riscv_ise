@@ -3,7 +3,7 @@ import mnist
 
 from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer, Model,
                     NeuronUpdateProcess, PlogSeverity, ProcessGroup,
-                    Parameter, PerformanceCounter, RoundingMode, Runtime, Shape, 
+                    Parameter, PerformanceCounter, RoundingMode, Runtime,
                     Variable)
 from pyfenn.models import Linear, Memset
 from tonic.datasets import SHD
@@ -18,7 +18,7 @@ class LIF:
     def __init__(self, shape, tau_m: float, tau_syn: float, v_thresh: float,
                  fixed_point: int = 5, spike_record_timesteps: int = 1,
                  i_delay_timesteps: int = 1, name: str = ""):
-        self.shape = Shape(shape)
+        self.shape = shape
         decay_dtype = "s0_15_sat_t"
         dtype = f"s{15 - fixed_point}_{fixed_point}_sat_t"
         self.v = Variable(self.shape, dtype, name=f"{name}_v")
@@ -50,7 +50,7 @@ class LIF:
 class LI:
     def __init__(self, shape, tau_m: float, tau_syn: float, num_timesteps: int,
                  fixed_point: int = 5, name: str = ""):
-        self.shape = Shape(shape)
+        self.shape = shape
         decay_dtype = "s0_15_sat_t"
         dtype = f"s{15 - fixed_point}_{fixed_point}_sat_t"
 
@@ -76,12 +76,12 @@ class LI:
             {}, name)
         
 num_timesteps = 1170
-input_shape = [700]
-hidden_shape = [256]
-output_shape = [20]
-input_hidden_shape = [input_shape[0], hidden_shape[0]]
-hidden_hidden_shape = [hidden_shape[0], hidden_shape[0]]
-hidden_output_shape = [hidden_shape[0], output_shape[0]]
+input_shape = 700
+hidden_shape = 256
+output_shape = 20
+input_hidden_shape = (input_shape, hidden_shape)
+hidden_hidden_shape = (hidden_shape, hidden_shape)
+hidden_output_shape = (hidden_shape, output_shape)
 device = False
 record = False
 disassemble_code = False
@@ -95,7 +95,7 @@ dataset = SHD(save_to="data", train=False)
 shd_spikes = []
 shd_labels = []
 timestep_range = np.arange(num_timesteps + 1)
-neuron_range = np.arange((ceil_divide(input_shape[0], 32) * 32) + 1)
+neuron_range = np.arange((ceil_divide(input_shape, 32) * 32) + 1)
 for events, label in dataset:
     # Build histogram
     spike_event_histogram = np.histogram2d(events["t"] / 1000.0, events["x"], (timestep_range, neuron_range))[0]
@@ -107,7 +107,7 @@ for events, label in dataset:
 init_logging(PlogSeverity.INFO)
 
 # Input spikes
-input_spikes = EventContainer(Shape(input_shape), num_timesteps)
+input_spikes = EventContainer(input_shape, num_timesteps)
 
 # Model
 hidden = LIF(hidden_shape, 20.0, 5.0, 1.0,
@@ -183,7 +183,7 @@ copy_and_push(build_delay_weights(hid_hid_weights, hid_hid_delays, num_delay_bit
 
 # Load and quantise output weights
 load_quantise_and_push("checkpoints_6_1_256_62_1_0_1.0_1_5e-12/best-Conn_Pop1_Pop2-g.npy",
-                       8, hidden_output.weight, runtime, hidden_shape[0], True)
+                       8, hidden_output.weight, runtime, hidden_shape, True)
 
 if time:
     zero_and_push(neuron_update_processes.performance_counter, runtime)

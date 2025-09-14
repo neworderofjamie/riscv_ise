@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 
 from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer, Model,
                     NeuronUpdateProcess, Parameter, PlogSeverity,
-                    ProcessGroup, Runtime, Shape, Variable)
+                    ProcessGroup, Runtime, Variable)
 from pyfenn.models import RNGInit
 
 from pyfenn import disassemble, init_logging
@@ -18,7 +18,7 @@ disassemble_code = False
 class ALIF:
     def __init__(self, shape, tau_m: float, tau_a: float, tau_refrac: int,
                  v_thresh: float, beta: float, weight:float, num_timesteps: int):
-        self.shape = Shape(shape)
+        self.shape = shape
         v_dtype = "s6_9_sat_t"
         a_dtype = "s6_9_sat_t"
         decay_dtype = "s0_15_sat_t"
@@ -68,7 +68,7 @@ init_logging()
 
 # Model
 rng_init = RNGInit()
-neurons = ALIF([32], 20.0, 2000, 5, 0.6, 0.0174, 0.01, num_timesteps)
+neurons = ALIF(32, 20.0, 2000, 5, 0.6, 0.0174, 0.01, num_timesteps)
 
 # Group processes
 init_processes = ProcessGroup([rng_init.process])

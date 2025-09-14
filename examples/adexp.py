@@ -23,7 +23,7 @@ class AdExp:
                  r: float, e_l: float, delta_t: float, v_thresh: float, 
                  v_spike: float, v_reset: float, a: float, b: float, 
                  i_offset: float, dt: float = 0.1, fixed_point: int = 12, name: str = ""):
-        self.shape = Shape(shape)
+        self.shape = shape
         dtype = f"s{15 - fixed_point}_{fixed_point}_sat_t"
         frac_dtype = "s0_15_sat_t"
         self.v = Variable(self.shape, dtype, num_timesteps + 1, name=f"{name}_V")
@@ -102,7 +102,7 @@ c = 281.0 / 1000.0
 gL = 30.0 / 1000.0
 v_scale = 0.01
 w_scale = 10.0
-ad_exp = AdExp([32], num_timesteps, tau_m=(c / gL), tau_w=144.0,
+ad_exp = AdExp(32, num_timesteps, tau_m=(c / gL), tau_w=144.0,
                r=((1.0 / gL) * (v_scale / w_scale)), e_l=(-70.6 * v_scale),
                delta_t=(2.0 * v_scale), v_thresh=(-50.4 * v_scale),
                v_spike=(10.0 * v_scale), v_reset=(-70.6 * v_scale), 
