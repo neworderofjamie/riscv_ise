@@ -1,9 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer, Model, NeuronUpdateProcess,
-                    NumericValue, Parameter, PlogSeverity, ProcessGroup, 
-                    Runtime, Shape, UnresolvedType, Variable)
+from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer, Model,
+                    NeuronUpdateProcess, Parameter, PlogSeverity,
+                    ProcessGroup, Runtime, Shape, Variable)
 from pyfenn.models import RNGInit
 
 from pyfenn import disassemble, init_logging
@@ -19,13 +19,13 @@ class ALIF:
     def __init__(self, shape, tau_m: float, tau_a: float, tau_refrac: int,
                  v_thresh: float, beta: float, weight:float, num_timesteps: int):
         self.shape = Shape(shape)
-        v_dtype = UnresolvedType("s6_9_sat_t")
-        a_dtype = UnresolvedType("s6_9_sat_t")
-        decay_dtype = UnresolvedType("s0_15_sat_t")
+        v_dtype = "s6_9_sat_t"
+        a_dtype = "s6_9_sat_t"
+        decay_dtype = "s0_15_sat_t"
         self.v = Variable(self.shape, v_dtype, num_timesteps + 1)
         self.a = Variable(self.shape, a_dtype, num_timesteps + 1)
-        self.i = Variable(self.shape, UnresolvedType("int16_t"), num_timesteps + 1)
-        self.refrac_time = Variable(self.shape, UnresolvedType("int16_t"))
+        self.i = Variable(self.shape, "int16_t", num_timesteps + 1)
+        self.refrac_time = Variable(self.shape, "int16_t")
         self.process = NeuronUpdateProcess(
             """
             V = mul_rs(Alpha, V) + (Weight * I);
@@ -40,12 +40,12 @@ class ALIF:
                RefracTime = TauRefrac;
             }
             """,
-            {"Alpha": Parameter(NumericValue(np.exp(-1.0 / tau_m)), decay_dtype),
-             "Rho": Parameter(NumericValue(np.exp(-1.0 / tau_a)), decay_dtype),
-             "VThresh": Parameter(NumericValue(v_thresh), v_dtype),
-             "Beta": Parameter(NumericValue(beta), v_dtype),
-             "Weight": Parameter(NumericValue(weight), v_dtype),
-             "TauRefrac": Parameter(NumericValue(tau_refrac), UnresolvedType("int16_t"))},
+            {"Alpha": Parameter(np.exp(-1.0 / tau_m), decay_dtype),
+             "Rho": Parameter(np.exp(-1.0 / tau_a), decay_dtype),
+             "VThresh": Parameter(v_thresh, v_dtype),
+             "Beta": Parameter(beta, v_dtype),
+             "Weight": Parameter(weight, v_dtype),
+             "TauRefrac": Parameter(tau_refrac, "int16_t")},
             {"V": self.v, "A": self.a, "I": self.i, "RefracTime": self.refrac_time})
 
 # Generate poisson data with two periods of average firing interspersed by background

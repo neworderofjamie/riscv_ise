@@ -5,7 +5,7 @@ from typing import Optional
 from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer,
                     EventPropagationProcess, MemsetProcess, Model,
                     NeuronUpdateProcess, PlogSeverity, ProcessGroup, Runtime,
-                    Shape, UnresolvedType, Variable)
+                    Shape, Variable)
 
 from pyfenn import disassemble, init_logging
 from pyfenn.models import Linear, Memset
@@ -17,9 +17,8 @@ from pyfenn.utils import (build_delay_weights, build_sparse_connectivity,
 class PostNeuron:
     def __init__(self, shape, num_i_timesteps, num_x_timesteps, name: str = ""):
         self.shape = Shape(shape)
-        dtype = UnresolvedType("int16_t")
-        self.i = Variable(self.shape, dtype, num_i_timesteps, name=f"{name}_I")
-        self.x = Variable(self.shape, dtype, num_x_timesteps, name=f"{name}_X")
+        self.i = Variable(self.shape, "int16_t", num_i_timesteps, name=f"{name}_I")
+        self.x = Variable(self.shape, "int16_t", num_x_timesteps, name=f"{name}_X")
         self.process = NeuronUpdateProcess(
             """
             X = I;

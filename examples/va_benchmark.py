@@ -2,9 +2,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer,
-                    Model, NeuronUpdateProcess, NumericValue, Parameter,
-                    PerformanceCounter, PlogSeverity, ProcessGroup,
-                    Runtime, Shape, UnresolvedType, Variable)
+                    Model, NeuronUpdateProcess, Parameter, PerformanceCounter,
+                    PlogSeverity, ProcessGroup, Runtime, Shape, Variable)
 from pyfenn.models import Linear, Memset
 
 from pyfenn import disassemble, init_logging
@@ -20,12 +19,12 @@ class CUBALIF:
                  tau_refrac: int, v_thresh: float, i_offset: float = 0.0,
                  num_timesteps: int = 1, name: str = ""):
         self.shape = Shape(shape)
-        dtype = UnresolvedType("s5_10_sat_t")
-        decay_dtype = UnresolvedType("s0_15_sat_t")
+        dtype = "s5_10_sat_t"
+        decay_dtype = "s0_15_sat_t"
         self.v = Variable(self.shape, dtype, name=f"{name}_V")
-        self.i_exc = Variable(self.shape, UnresolvedType("s2_13_sat_t"), name=f"{name}_IExc")
-        self.i_inh = Variable(self.shape, UnresolvedType("s2_13_sat_t"), name=f"{name}_IInh")
-        self.refrac_time = Variable(self.shape, UnresolvedType("int16_t"), 
+        self.i_exc = Variable(self.shape, "s2_13_sat_t", name=f"{name}_IExc")
+        self.i_inh = Variable(self.shape, "s2_13_sat_t", name=f"{name}_IInh")
+        self.refrac_time = Variable(self.shape, "int16_t", 
                                     name=f"{name}_RefracTime")
         self.out_spikes = EventContainer(self.shape, num_timesteps + 1)
         self.process = NeuronUpdateProcess(
@@ -57,15 +56,15 @@ class CUBALIF:
                RefracTime = TauRefrac;
             }
             """,
-            {"Alpha": Parameter(NumericValue(np.exp(-1.0 / tau_m)), decay_dtype),
-             "BetaExc": Parameter(NumericValue(np.exp(-1.0 / tau_syn_exc)), decay_dtype),
-             "BetaInh": Parameter(NumericValue(np.exp(-1.0 / tau_syn_inh)), decay_dtype),
-             "ExcScale": Parameter(NumericValue(tau_syn_exc * (1.0 - np.exp(-1.0 / tau_syn_exc))), dtype),
-             "InhScale": Parameter(NumericValue(tau_syn_inh * (1.0 - np.exp(-1.0 / tau_syn_inh))), dtype),
-             "IOffset": Parameter(NumericValue(i_offset), dtype),
-             "RMembrane": Parameter(NumericValue(tau_m / 1.0), dtype),
-             "VThresh": Parameter(NumericValue(v_thresh), dtype),
-             "TauRefrac": Parameter(NumericValue(tau_refrac), UnresolvedType("int16_t"))},
+            {"Alpha": Parameter(np.exp(-1.0 / tau_m), decay_dtype),
+             "BetaExc": Parameter(np.exp(-1.0 / tau_syn_exc), decay_dtype),
+             "BetaInh": Parameter(np.exp(-1.0 / tau_syn_inh), decay_dtype),
+             "ExcScale": Parameter(tau_syn_exc * (1.0 - np.exp(-1.0 / tau_syn_exc)), dtype),
+             "InhScale": Parameter(tau_syn_inh * (1.0 - np.exp(-1.0 / tau_syn_inh)), dtype),
+             "IOffset": Parameter(i_offset, dtype),
+             "RMembrane": Parameter(tau_m / 1.0, dtype),
+             "VThresh": Parameter(v_thresh, dtype),
+             "TauRefrac": Parameter(tau_refrac, "int16_t")},
             {"V": self.v, "IExc": self.i_exc, "IInh": self.i_inh, "RefracTime": self.refrac_time},
             {"Spike": self.out_spikes},
             name)

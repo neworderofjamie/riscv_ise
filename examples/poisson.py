@@ -2,8 +2,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer, Model,
-                    NeuronUpdateProcess, NumericValue, Parameter,
-                    ProcessGroup, Runtime, Shape, UnresolvedType, Variable)
+                    NeuronUpdateProcess, Parameter, ProcessGroup, Runtime,
+                    Shape, Variable)
 from pyfenn.models import RNGInit
 
 from pyfenn import disassemble, init_logging
@@ -13,7 +13,7 @@ from scipy.stats import poisson
 class Poisson:
     def __init__(self, shape, num_samples, rate: float):
         self.shape = Shape(shape)
-        self.num_spikes = Variable(self.shape, UnresolvedType("int16_t"),
+        self.num_spikes = Variable(self.shape, "int16_t",
                                    num_samples + 1)
         
         self.process = NeuronUpdateProcess(
@@ -27,8 +27,7 @@ class Poisson:
             } while (p > ExpMinusLambda);
             --NumSpikes;
             """,
-            {"ExpMinusLambda": Parameter(NumericValue(np.exp(-(rate / 1000))),
-                                         UnresolvedType("s1_14_t"))},
+            {"ExpMinusLambda": Parameter(np.exp(-(rate / 1000)), "s1_14_t")},
             {"NumSpikes": self.num_spikes},
             {})
 

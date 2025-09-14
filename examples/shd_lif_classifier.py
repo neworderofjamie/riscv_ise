@@ -2,9 +2,9 @@ import numpy as np
 import mnist
 
 from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer, Model,
-                    NeuronUpdateProcess, NumericValue, PlogSeverity, ProcessGroup, 
-                    Parameter, PerformanceCounter, RoundingMode, Runtime, Shape, 
-                    UnresolvedType, Variable)
+                    NeuronUpdateProcess, PlogSeverity, ProcessGroup,
+                    Parameter, PerformanceCounter, RoundingMode, Runtime, Shape,
+                     Variable)
 from pyfenn.models import Linear, Memset
 
 from tonic.datasets import SHD
@@ -20,8 +20,8 @@ class LIF:
                  fixed_point: int = 5, spike_record_timesteps: int = 1,
                  name: str = ""):
         self.shape = Shape(shape)
-        decay_dtype = UnresolvedType("s0_15_sat_t")
-        dtype = UnresolvedType(f"s{15 - fixed_point}_{fixed_point}_sat_t")
+        decay_dtype = "s0_15_sat_t"
+        dtype = f"s{15 - fixed_point}_{fixed_point}_sat_t"
 
         self.v = Variable(self.shape, dtype, name=f"{name}_v")
         self.i = Variable(self.shape, dtype, name=f"{name}_i")
@@ -40,11 +40,11 @@ class LIF:
                V = 0.0h{fixed_point};
             }}
             """,
-            {"Alpha": Parameter(NumericValue(np.exp(-1.0 / tau_m)), decay_dtype),
-             "OneMinusAlpha": Parameter(NumericValue(1.0 - np.exp(-1.0 / tau_m)), decay_dtype),
-             "Beta": Parameter(NumericValue(np.exp(-1.0 / tau_syn)), decay_dtype),
-             "IScale": Parameter(NumericValue(tau_syn * (1.0 - np.exp(-1.0 / tau_syn))), decay_dtype),
-             "VThresh": Parameter(NumericValue(v_thresh), dtype)},
+            {"Alpha": Parameter(np.exp(-1.0 / tau_m), decay_dtype),
+             "OneMinusAlpha": Parameter(1.0 - np.exp(-1.0 / tau_m), decay_dtype),
+             "Beta": Parameter(np.exp(-1.0 / tau_syn), decay_dtype),
+             "IScale": Parameter(tau_syn * (1.0 - np.exp(-1.0 / tau_syn)), decay_dtype),
+             "VThresh": Parameter(v_thresh, dtype)},
             {"V": self.v, "I": self.i},
             {"Spike": self.out_spikes},
             name)
@@ -53,8 +53,8 @@ class LI:
     def __init__(self, shape, tau_m: float, tau_syn: float, num_timesteps: int,
                  fixed_point: int = 5, name: str = ""):
         self.shape = Shape(shape)
-        decay_dtype = UnresolvedType("s0_15_sat_t")
-        dtype = UnresolvedType(f"s{15 - fixed_point}_{fixed_point}_sat_t")
+        decay_dtype = "s0_15_sat_t"
+        dtype = f"s{15 - fixed_point}_{fixed_point}_sat_t"
 
         self.v = Variable(self.shape, dtype, name=f"{name}_v")
         self.v_avg = Variable(self.shape, dtype, name=f"{name}_v_avg")
@@ -69,11 +69,11 @@ class LI:
             V = (Alpha * V) + (OneMinusAlpha * inSyn);
             VAvg += (VAvgScale * V);
             """,
-            {"Alpha": Parameter(NumericValue(np.exp(-1.0 / tau_m)), decay_dtype), 
-             "OneMinusAlpha": Parameter(NumericValue(1.0 - np.exp(-1.0 / tau_m)), decay_dtype),
-             "Beta": Parameter(NumericValue(np.exp(-1.0 / tau_syn)), decay_dtype),
-             "IScale": Parameter(NumericValue(tau_syn * (1.0 - np.exp(-1.0 / tau_syn))), decay_dtype),
-             "VAvgScale": Parameter(NumericValue(1.0 / (num_timesteps / 2)), decay_dtype)},
+            {"Alpha": Parameter(np.exp(-1.0 / tau_m), decay_dtype), 
+             "OneMinusAlpha": Parameter(1.0 - np.exp(-1.0 / tau_m), decay_dtype),
+             "Beta": Parameter(np.exp(-1.0 / tau_syn), decay_dtype),
+             "IScale": Parameter(tau_syn * (1.0 - np.exp(-1.0 / tau_syn)), decay_dtype),
+             "VAvgScale": Parameter(1.0 / (num_timesteps / 2), decay_dtype)},
             {"V": self.v, "VAvg": self.v_avg, "I": self.i},
             {}, name)
         

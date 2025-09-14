@@ -1,17 +1,17 @@
 import numpy as np
 
-from pyfenn import (EventContainer, NeuronUpdateProcess, NumericValue,
-                    Parameter, Shape, UnresolvedType, Variable)
+from pyfenn import (EventContainer, NeuronUpdateProcess,
+                    Parameter, Shape,  Variable)
 
 class LIF:
     def __init__(self, shape, tau_m: float, tau_refrac: int, v_thresh: float,
                  record_spikes: bool = False, fixed_point: int = 5,
                  name: str = ""):
         self.shape = Shape(shape)
-        dtype = UnresolvedType(f"s{15 - fixed_point}_{fixed_point}_sat_t")
+        dtype = f"s{15 - fixed_point}_{fixed_point}_sat_t"
         self.v = Variable(self.shape, dtype, name=f"{name}_v")
         self.i = Variable(self.shape, dtype, name=f"{name}_i")
-        self.refrac_time = Variable(self.shape, UnresolvedType("int16_t"),
+        self.refrac_time = Variable(self.shape, "int16_t",
                                     name=f"{name}_refrac_time")
         self.out_spikes = EventContainer(self.shape, 
                                          (num_timesteps if record_spikes
@@ -29,9 +29,9 @@ class LIF:
                RefracTime = TauRefrac;
             }}
             """,
-            {"Alpha": Parameter(NumericValue(np.exp(-1.0 / tau_m)), dtype),
-             "VThresh": Parameter(NumericValue(v_thresh), dtype),
-             "TauRefrac": Parameter(NumericValue(tau_refrac), UnresolvedType("int16_t"))},
+            {"Alpha": Parameter(np.exp(-1.0 / tau_m), dtype),
+             "VThresh": Parameter(v_thresh, dtype),
+             "TauRefrac": Parameter(tau_refrac, "int16_t")},
             {"V": self.v, "I": self.i, "RefracTime": self.refrac_time},
             {"Spike": self.out_spikes},
             name)
@@ -42,12 +42,12 @@ class ALIF:
                  record_spikes: bool = False, fixed_point: int = 9,
                  name: str = ""):
         self.shape = Shape(shape)
-        dtype = UnresolvedType(f"s{15 - fixed_point}_{fixed_point}_sat_t")
-        decay_dtype = UnresolvedType("s0_15_sat_t")
+        dtype = f"s{15 - fixed_point}_{fixed_point}_sat_t"
+        decay_dtype = "s0_15_sat_t"
         self.v = Variable(self.shape, dtype, name=f"{name}_v")
         self.a = Variable(self.shape, dtype, name=f"{name}_a")
         self.i = Variable(self.shape, dtype, name=f"{name}_i")
-        self.refrac_time = Variable(self.shape, UnresolvedType("int16_t"),
+        self.refrac_time = Variable(self.shape, "int16_t",
                                     name=f"{name}_refrac_time")
         self.out_spikes = EventContainer(self.shape, 
                                          (num_timesteps if record_spikes
@@ -67,11 +67,11 @@ class ALIF:
                RefracTime = TauRefrac;
             }}
             """,
-            {"Alpha": Parameter(NumericValue(np.exp(-1.0 / tau_m)), decay_dtype),
-             "Rho": Parameter(NumericValue(np.exp(-1.0 / tau_a)), decay_dtype),
-             "Beta": Parameter(NumericValue(beta), dtype),
-             "VThresh": Parameter(NumericValue(v_thresh), dtype),
-             "TauRefrac": Parameter(NumericValue(tau_refrac), UnresolvedType("int16_t"))},
+            {"Alpha": Parameter(np.exp(-1.0 / tau_m), decay_dtype),
+             "Rho": Parameter(np.exp(-1.0 / tau_a), decay_dtype),
+             "Beta": Parameter(beta, dtype),
+             "VThresh": Parameter(v_thresh, dtype),
+             "TauRefrac": Parameter(tau_refrac, "int16_t")},
             {"V": self.v, "A": self.a, "I": self.i, "RefracTime": self.refrac_time},
             {"Spike": self.out_spikes},
             name)
@@ -80,7 +80,7 @@ class LI:
     def __init__(self, shape, tau_m: float, num_timesteps: int,
                  fixed_point: int = 5, name: str = ""):
         self.shape = Shape(shape)
-        dtype = UnresolvedType(f"s{15 - fixed_point}_{fixed_point}_sat_t")
+        dtype = f"s{15 - fixed_point}_{fixed_point}_sat_t"
 
         self.v = Variable(self.shape, dtype, name=f"{name}_v")
         self.i = Variable(self.shape, dtype, name=f"{name}_i")
@@ -92,7 +92,7 @@ class LI:
             I = 0.0h{fixed_point};
             VAvg += (VAvgScale * V);
             """,
-            {"Alpha": Parameter(NumericValue(np.exp(-1.0 / tau_m)), dtype), 
-             "VAvgScale": Parameter(NumericValue(1.0 / (num_timesteps / 2)), dtype)},
+            {"Alpha": Parameter(np.exp(-1.0 / tau_m), dtype), 
+             "VAvgScale": Parameter(1.0 / (num_timesteps / 2), dtype)},
             {"V": self.v, "VAvg": self.v_avg, "I": self.i, "Bias": self.bias},
             {}, name)

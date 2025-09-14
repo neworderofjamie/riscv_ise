@@ -2,9 +2,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer, Model,
-                    NeuronUpdateProcess, NumericValue, Parameter,
-                    ProcessGroup, RoundingMode, Runtime, Shape,
-                    UnresolvedType, Variable)
+                    NeuronUpdateProcess, Parameter, ProcessGroup,
+                    RoundingMode, Runtime, Shape,
+                    Variable)
 from pyfenn.models import ExpLUTBroadcast, RNGInit
 
 from pyfenn import disassemble, init_logging
@@ -24,9 +24,8 @@ class AdExp:
                  v_spike: float, v_reset: float, a: float, b: float, 
                  i_offset: float, dt: float = 0.1, fixed_point: int = 12, name: str = ""):
         self.shape = Shape(shape)
-        type_str = f"s{15 - fixed_point}_{fixed_point}_sat_t"
-        dtype = UnresolvedType(type_str)
-        frac_dtype = UnresolvedType("s0_15_sat_t")
+        dtype = f"s{15 - fixed_point}_{fixed_point}_sat_t"
+        frac_dtype = "s0_15_sat_t"
         self.v = Variable(self.shape, dtype, num_timesteps + 1, name=f"{name}_V")
         self.w = Variable(self.shape, dtype, num_timesteps + 1, name=f"{name}_W")
         self.out_spikes = EventContainer(self.shape, num_timesteps + 1)
@@ -39,20 +38,20 @@ class AdExp:
             }}
             // Calculate RK4 terms
             {{
-                const {type_str} v1 = {self._dv('V', 'W')};
-                const {type_str} w1 = {self._dw('V', 'W')};
-                {type_str} tmpV = V + (halfDT * v1);
-                {type_str} tmpW = W + (halfDT * w1);
-                const {type_str} v2 = {self._dv('tmpV', 'tmpW')};
-                const {type_str} w2 = {self._dw('tmpV', 'tmpW')};
+                const {dtype} v1 = {self._dv('V', 'W')};
+                const {dtype} w1 = {self._dw('V', 'W')};
+                {dtype} tmpV = V + (halfDT * v1);
+                {dtype} tmpW = W + (halfDT * w1);
+                const {dtype} v2 = {self._dv('tmpV', 'tmpW')};
+                const {dtype} w2 = {self._dw('tmpV', 'tmpW')};
                 tmpV = V + (halfDT * v2);
                 tmpW = W + (halfDT * w2);
-                const {type_str} v3 = {self._dv('tmpV', 'tmpW')};
-                const {type_str} w3 = {self._dw('tmpV', 'tmpW')};
+                const {dtype} v3 = {self._dv('tmpV', 'tmpW')};
+                const {dtype} w3 = {self._dw('tmpV', 'tmpW')};
                 tmpV = V + (dt * v3);
                 tmpW = W + (dt * w3);
-                const {type_str} v4 = {self._dv('tmpV', 'tmpW')};
-                const {type_str} w4 = {self._dw('tmpV', 'tmpW')};
+                const {dtype} v4 = {self._dv('tmpV', 'tmpW')};
+                const {dtype} w4 = {self._dw('tmpV', 'tmpW')};
                 // Update V
                 V += sixthDT * (v1 + (2.0h{fixed_point} * (v2 + v3)) + v4);
                 // If we're not above peak, update w
@@ -69,21 +68,21 @@ class AdExp:
                 Spike();
             }}
             """,
-            {"dt": Parameter(NumericValue(dt), dtype),
-             "halfDT": Parameter(NumericValue(dt / 2.0), frac_dtype),
-             "sixthDT": Parameter(NumericValue(dt / 6.0), frac_dtype),
-             "tauMRecip": Parameter(NumericValue(1.0 / tau_m), frac_dtype),
-             "R": Parameter(NumericValue(r), dtype),
-             "eL": Parameter(NumericValue(e_l), dtype),
-             "deltaT": Parameter(NumericValue(delta_t), dtype),
-             "deltaTRecip": Parameter(NumericValue(1.0 / delta_t), UnresolvedType("s6_9_sat_t")),
-             "vThresh": Parameter(NumericValue(v_thresh), dtype),
-             "vSpike": Parameter(NumericValue(v_spike), dtype),
-             "vReset": Parameter(NumericValue(v_reset), dtype),
-             "tauWRecip": Parameter(NumericValue(1.0 / tau_w), frac_dtype),
-             "a": Parameter(NumericValue(a), dtype),
-             "b": Parameter(NumericValue(b), dtype),
-             "iOffset": Parameter(NumericValue(i_offset), dtype)}, 
+            {"dt": Parameter(dt, dtype),
+             "halfDT": Parameter(dt / 2.0, frac_dtype),
+             "sixthDT": Parameter(dt / 6.0, frac_dtype),
+             "tauMRecip": Parameter(1.0 / tau_m, frac_dtype),
+             "R": Parameter(r, dtype),
+             "eL": Parameter(e_l, dtype),
+             "deltaT": Parameter(delta_t, dtype),
+             "deltaTRecip": Parameter(1.0 / delta_t, "s6_9_sat_t"),
+             "vThresh": Parameter(v_thresh, dtype),
+             "vSpike": Parameter(v_spike, dtype),
+             "vReset": Parameter(v_reset, dtype),
+             "tauWRecip": Parameter(1.0 / tau_w, frac_dtype),
+             "a": Parameter(a, dtype),
+             "b": Parameter(b, dtype),
+             "iOffset": Parameter(i_offset, dtype)}, 
             {"V": self.v, "W": self.w},
             {"Spike": self.out_spikes},
             name)

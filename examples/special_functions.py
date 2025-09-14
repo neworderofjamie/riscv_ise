@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from pyfenn import (BackendFeNNHW, BackendFeNNSim, Model, NeuronUpdateProcess,
-                    ProcessGroup, Runtime, Shape, UnresolvedType, Variable)
+                    ProcessGroup, Runtime, Shape, Variable)
 from pyfenn.models import ExpLUTBroadcast
 
 from pyfenn import disassemble, init_logging
@@ -19,7 +19,7 @@ disassemble_code = False
 
 class Exp:
     def __init__(self, input: Variable, fixed_point: int):
-        dtype = UnresolvedType(f"s{15 - fixed_point}_{fixed_point}_t")
+        dtype = f"s{15 - fixed_point}_{fixed_point}_t"
         self.val = Variable(input.shape, dtype)
         
         self.process = NeuronUpdateProcess(
@@ -39,7 +39,7 @@ input_data = np.arange(min_val_fixed, min_val_fixed + count_padded).astype(np.in
 init_logging()
 
 # Model
-in_dtype = UnresolvedType(f"s{15 - in_fixed_point}_{in_fixed_point}_t")
+in_dtype = f"s{15 - in_fixed_point}_{in_fixed_point}_t"
 input_var = Variable(Shape(input_data.shape), in_dtype)
 exp = Exp(input_var, out_fixed_point)
 lut_broadcast = ExpLUTBroadcast()

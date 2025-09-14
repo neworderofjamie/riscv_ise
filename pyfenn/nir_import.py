@@ -4,9 +4,8 @@ import numpy as np
 
 from numbers import Number
 from collections import defaultdict
-from . import (EventContainer, EventPropagationProcess,
-               NeuronUpdateProcess, NumericValue, Parameter,
-               ProcessGroup, Shape, UnresolvedType, Variable)
+from . import (EventContainer, EventPropagationProcess, NeuronUpdateProcess,
+               Parameter, ProcessGroup, Shape,  Variable)
 
 from .utils import ceil_divide
 
@@ -22,7 +21,7 @@ class CubaLIF:
                  fixed_point: int, num_timesteps: int, dt: float):
         self.shape = Shape(node.output_type["output"])
         dtype = _get_type(fixed_point, True)
-        decay_dtype = UnresolvedType("s1_14_sat_t")
+        decay_dtype = "s1_14_sat_t"
         self.v = Variable(self.shape, dtype, 1, f"{name}_v")
         self.i = Variable(self.shape, dtype, 1, f"{name}_i")
         self.out_spikes = EventContainer(self.shape, num_timesteps,
@@ -46,11 +45,11 @@ class CubaLIF:
                V -= VThresh;
             }}
             """,
-            {"Alpha": Parameter(NumericValue(alpha), decay_dtype),
-             "IScale": Parameter(NumericValue((1.0 - alpha) * node.r[0] 
-                                              * node.w_in[0]), dtype),
-             "Beta": Parameter(NumericValue(np.exp(-dt / node.tau_syn[0])), decay_dtype),
-             "VThresh": Parameter(NumericValue(node.v_threshold[0]), dtype)},
+            {"Alpha": Parameter(alpha, decay_dtype),
+             "IScale": Parameter((1.0 - alpha) * node.r[0] 
+                                 * node.w_in[0], dtype),
+             "Beta": Parameter(np.exp(-dt / node.tau_syn[0]), decay_dtype),
+             "VThresh": Parameter(node.v_threshold[0], dtype)},
             {"V": self.v, "I": self.i}, {"Spike": self.out_spikes}, name)
 
 class Linear:
@@ -71,8 +70,8 @@ class Linear:
 
 def _get_type(frac_bits: int, saturation: bool):
      int_bits = 15 - frac_bits
-     return UnresolvedType(f"s{int_bits}_{frac_bits}_sat_t" if saturation
-                           else f"s{int_bits}_{frac_bits}_t")
+     return (f"s{int_bits}_{frac_bits}_sat_t" if saturation
+             else f"s{int_bits}_{frac_bits}_t")
      
 # **TODO** should operate in terms of fixed point
 def _find_signed_scale(data, num_bits: int, percentile: float):
