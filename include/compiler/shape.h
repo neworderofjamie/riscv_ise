@@ -15,6 +15,8 @@ class COMPILER_EXPORT Shape
 public:
     Shape(const std::vector<size_t> &dims) : m_Dims(dims)
     {}
+    Shape(size_t dims) : m_Dims{{dims}}
+    {}
 
     //------------------------------------------------------------------------
     // Public API
