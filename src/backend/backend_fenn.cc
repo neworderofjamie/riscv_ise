@@ -2022,7 +2022,11 @@ private:
                 }
 
                 // Generate code to process row in other buffer
-                rowGenerators[r]->generateRow(c, evenRow ? SRowBufferA : SRowBufferB);
+                {
+                    ALLOCATE_SCALAR(SRowBuffer);
+                    c.mv(*SRowBuffer, evenRow ? *SRowBufferA : *SRowBufferB);
+                    rowGenerators[r]->generateRow(c, SRowBuffer);
+                }
             }    
 
             {
@@ -2055,7 +2059,11 @@ private:
             }
 
             // Generate code to process row in other buffer
-            rowGenerators.back()->generateRow(c, evenNumRows ? SRowBufferB : SRowBufferA);
+            {
+                ALLOCATE_SCALAR(SRowBuffer);
+                c.mv(*SRowBuffer, evenNumRows ? *SRowBufferB : *SRowBufferA);
+                rowGenerators.back()->generateRow(c, SRowBuffer);
+            }
 
             // If we have an odd number of rows, swap buffers
             if(!evenNumRows) {
@@ -2112,7 +2120,11 @@ private:
                 }
 
                 // Generate code to process row in other buffer
-                rowGenerators[r]->generateRow(c, evenRow ? SRowBufferA : SRowBufferB);
+                {
+                    ALLOCATE_SCALAR(SRowBuffer);
+                    c.mv(*SRowBuffer, evenRow ? *SRowBufferA : *SRowBufferB);
+                    rowGenerators[r]->generateRow(c, SRowBuffer);
+                }
 
             }
 
