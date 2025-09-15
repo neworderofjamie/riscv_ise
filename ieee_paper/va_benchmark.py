@@ -7,6 +7,7 @@ from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer,
                     PlogSeverity, ProcessGroup, Runtime, Variable)
 from pyfenn.models import Linear, Memset
 
+from itertools import product
 from pyfenn import disassemble, init_logging
 from pyfenn.utils import (build_sparse_connectivity, ceil_divide,
                           copy_and_push, generate_fixed_prob, pull_spikes,
@@ -70,7 +71,13 @@ class CUBALIF:
             {"Spike": self.out_spikes},
             name)
 
-def simulate_fenn(device, num_excitatory=2048, num_timesteps=1000, use_dram_for_weights=True, disassemble_code=False):
+def build_dense_connectivity(row_ind, weight, num_post):
+    weights = np.zeros((len(row_ind), num_post), dtype=np.int16)
+    for i, r in enumerate(row_ind):
+        weights[i, r] = weight
+    return weights
+    
+def simulate_fenn(device, num_excitatory=2048, num_timesteps=1000, dense=False, use_dram_for_weights=True, disassemble_code=False):
     probability_connection = 0.1
     excitatory_inhibitory_ratio = 4
     num_inhibitory = num_excitatory // excitatory_inhibitory_ratio
@@ -94,15 +101,22 @@ def simulate_fenn(device, num_excitatory=2048, num_timesteps=1000, use_dram_for_
     ei_conn = generate_fixed_prob(num_excitatory, num_inhibitory, probability_connection)
 
     print(f"\tWeight inhibitory: {int(round(inh_weight * 2**13))} ({inh_weight}), excitatory: {int(round(exc_weight * 2**13))} ({exc_weight})")
-    # Pad
-    ie_conn = build_sparse_connectivity(ie_conn, int(round(inh_weight * 2**13)), num_exc_sparse_connectivity_bits)
-    ii_conn = build_sparse_connectivity(ii_conn, int(round(inh_weight * 2**13)), num_inh_sparse_connectivity_bits)
-    ee_conn = build_sparse_connectivity(ee_conn, int(round(exc_weight * 2**13)), num_exc_sparse_connectivity_bits)
-    ei_conn = build_sparse_connectivity(ei_conn, int(round(exc_weight * 2**13)), num_inh_sparse_connectivity_bits)
+    
+    if dense:
+        ie_conn = build_dense_connectivity(ie_conn, int(round(inh_weight * 2**13)), num_excitatory)
+        ii_conn = build_dense_connectivity(ii_conn, int(round(inh_weight * 2**13)), num_inhibitory)
+        ee_conn = build_dense_connectivity(ee_conn, int(round(exc_weight * 2**13)), num_excitatory)
+        ei_conn = build_dense_connectivity(ei_conn, int(round(exc_weight * 2**13)), num_inhibitory)
+    else:
+        ie_conn = build_sparse_connectivity(ie_conn, int(round(inh_weight * 2**13)), num_exc_sparse_connectivity_bits)
+        ii_conn = build_sparse_connectivity(ii_conn, int(round(inh_weight * 2**13)), num_inh_sparse_connectivity_bits)
+        ee_conn = build_sparse_connectivity(ee_conn, int(round(exc_weight * 2**13)), num_exc_sparse_connectivity_bits)
+        ei_conn = build_sparse_connectivity(ei_conn, int(round(exc_weight * 2**13)), num_inh_sparse_connectivity_bits)
 
-    print(f"\tNum sparse connectivity bits excitatory: {num_exc_sparse_connectivity_bits}, inhibitory: {num_inh_sparse_connectivity_bits}")
-    print(f"\tStride ee:{ee_conn.shape[1]} ei:{ei_conn.shape[1]} ii:{ii_conn.shape[1]} ie:{ie_conn.shape[1]}")
-    print(f"\tMean row length ee:{np.average(ee_conn[:,0]) * 32} ei:{np.average(ei_conn[:,0]) * 32} ii:{np.average(ii_conn[:,0]) * 32} ie:{np.average(ie_conn[:,0]) * 32}")
+        print(f"\tNum sparse connectivity bits excitatory: {num_exc_sparse_connectivity_bits}, inhibitory: {num_inh_sparse_connectivity_bits}")
+        print(f"\tStride ee:{ee_conn.shape[1]} ei:{ei_conn.shape[1]} ii:{ii_conn.shape[1]} ie:{ie_conn.shape[1]}")
+        print(f"\tMean row length ee:{np.average(ee_conn[:,0]) * 32} ei:{np.average(ei_conn[:,0]) * 32} ii:{np.average(ii_conn[:,0]) * 32} ie:{np.average(ie_conn[:,0]) * 32}")
+    
     # Neurons
     e_pop = CUBALIF(num_excitatory, tau_m=20.0, tau_syn_exc=5.0, tau_syn_inh=10.0,
                     tau_refrac=5, v_thresh=10, i_offset=0.55,
@@ -113,22 +127,32 @@ def simulate_fenn(device, num_excitatory=2048, num_timesteps=1000, use_dram_for_
                     num_timesteps=num_timesteps_per_block, name="I")
 
     # Synapses
-    ee_pop = Linear(e_pop.out_spikes, e_pop.i_exc,
-                    weight_dtype="s2_13_sat_t", max_row_length=ee_conn.shape[1],
-                    num_sparse_connectivity_bits=num_exc_sparse_connectivity_bits, 
-                    name="EE")
-    ei_pop = Linear(e_pop.out_spikes, i_pop.i_exc,
-                    weight_dtype="s2_13_sat_t", max_row_length=ei_conn.shape[1],
-                    num_sparse_connectivity_bits=num_inh_sparse_connectivity_bits, 
-                    name="EI")
-    ii_pop = Linear(i_pop.out_spikes, i_pop.i_inh,
-                    weight_dtype="s2_13_sat_t", max_row_length=ii_conn.shape[1],
-                    num_sparse_connectivity_bits=num_inh_sparse_connectivity_bits, 
-                    name="II")
-    ie_pop = Linear(i_pop.out_spikes, e_pop.i_inh,
-                    weight_dtype="s2_13_sat_t", max_row_length=ie_conn.shape[1],
-                    num_sparse_connectivity_bits=num_exc_sparse_connectivity_bits, 
-                    name="IE")
+    if dense:
+        ee_pop = Linear(e_pop.out_spikes, e_pop.i_exc,
+                        weight_dtype="s2_13_sat_t", name="EE")
+        ei_pop = Linear(e_pop.out_spikes, i_pop.i_exc,
+                        weight_dtype="s2_13_sat_t", name="EI")
+        ii_pop = Linear(i_pop.out_spikes, i_pop.i_inh,
+                        weight_dtype="s2_13_sat_t", name="II")
+        ie_pop = Linear(i_pop.out_spikes, e_pop.i_inh,
+                        weight_dtype="s2_13_sat_t", name="IE")
+    else:
+        ee_pop = Linear(e_pop.out_spikes, e_pop.i_exc,
+                        weight_dtype="s2_13_sat_t", max_row_length=ee_conn.shape[1],
+                        num_sparse_connectivity_bits=None if dense else num_exc_sparse_connectivity_bits, 
+                        name="EE")
+        ei_pop = Linear(e_pop.out_spikes, i_pop.i_exc,
+                        weight_dtype="s2_13_sat_t", max_row_length=ei_conn.shape[1],
+                        num_sparse_connectivity_bits=None if dense else num_inh_sparse_connectivity_bits, 
+                        name="EI")
+        ii_pop = Linear(i_pop.out_spikes, i_pop.i_inh,
+                        weight_dtype="s2_13_sat_t", max_row_length=ii_conn.shape[1],
+                        num_sparse_connectivity_bits=num_inh_sparse_connectivity_bits, 
+                        name="II")
+        ie_pop = Linear(i_pop.out_spikes, e_pop.i_inh,
+                        weight_dtype="s2_13_sat_t", max_row_length=ie_conn.shape[1],
+                        num_sparse_connectivity_bits=num_exc_sparse_connectivity_bits, 
+                        name="IE")
 
     # Initialisation
     ee_zero = Memset(e_pop.i_exc)
@@ -257,6 +281,8 @@ def simulate_fenn(device, num_excitatory=2048, num_timesteps=1000, use_dram_for_
     return (e_spike_times, e_spike_ids, i_spike_times, i_spike_ids, sim_time, neuron_update_instructions,
             synapse_update_instructions, neuron_update_cycles, synapse_update_cycles)
 
+plot = True
+dense = True
 device = False
 with open(f"va_benchmark_{device}_perf.csv", "w") as csv_file:
     csv_writer = csv.writer(csv_file, delimiter=",")
@@ -267,12 +293,29 @@ with open(f"va_benchmark_{device}_perf.csv", "w") as csv_file:
                          "Num neuron update cycles", "Num event processing cycles"])
 
     # Loop through configurations
-    configs = [(256, True), (256, False)] + [(e, True) for e in range(512, 8000, 512)]
-    for num_excitatory, use_dram_for_weights in configs:
+    configs = [(256, True), (256, False)] + [(e, True) for e in range(512, 4000, 512)]
+    
+    if plot:
+        fig, axes = plt.subplots(3, 6, sharex="col")
+    else:
+        axes = np.empty(3 * 6)
+    
+    for ax, (num_excitatory, use_dram_for_weights) in zip(axes.flatten(), configs):
         # Run simulation
         print(f"{num_excitatory} neurons using {'DRAM' if use_dram_for_weights else 'URAM'} for weights")
-        data = simulate_fenn(device, num_excitatory=num_excitatory, num_timesteps=1000, 
+        data = simulate_fenn(device, num_excitatory=num_excitatory, num_timesteps=1000, dense=dense,
                              use_dram_for_weights=use_dram_for_weights, disassemble_code=False)
         
         # Write CSV
         csv_writer.writerow([num_excitatory, use_dram_for_weights, len(data[0]), len(data[2])] + list(data[4:]))
+        
+        if plot:
+            ax.scatter(data[0], data[1], s=1)
+            ax.scatter(data[2], data[3]+ num_excitatory, s=1)
+    
+if plot:
+    for i in range(3):
+        axes[i,0].set_ylabel("Neuron ID")
+    for j in range(6):
+        axes[-1,j].set_ylabel("Time [ms]")
+    plt.show();
