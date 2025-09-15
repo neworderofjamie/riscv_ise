@@ -183,12 +183,6 @@ def simulate_fenn(params, device, num_timesteps=2000, disassemble_code=False, fi
     spikes = np.unpackbits(spike_view, axis=1, bitorder="little")[1:,:]
     #spike_times = [np.where(spikes[:,i])[0] * 0.1 for i in range(32)]
     
-    # Wrap state around and copy back to device
-    v_view[0] = v_view[-1]
-    w_view[0] = w_view[-1]
-    v_array.push_to_device()
-    w_array.push_to_device()
-    
     return v, w, spikes
 
 #
