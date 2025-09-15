@@ -36,9 +36,4 @@ fig.legend([fenn_rn_actor, fenn_rs_actor, genn_actor], ["FeNN (RN)", "FeNN (RS)"
 
 fig.tight_layout(pad=0, rect=[0.0, 0.1, 1.0, 1.0])
 
-lag_fig = plt.subplots(figsize=(plot_settings.column_width, 1.5))
-
-for n in param_sets.keys():
-    pass
-    #genn_spike_times = 
 plt.show()
