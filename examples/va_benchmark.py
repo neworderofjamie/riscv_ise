@@ -69,7 +69,7 @@ class CUBALIF:
             {"Spike": self.out_spikes},
             name)
             
-num_timesteps = 250
+num_timesteps = 1000
 num_excitatory = 2048
 probability_connection = 0.1
 excitatory_inhibitory_ratio = 4
@@ -81,6 +81,10 @@ inh_weight = -51.0E-3 * scale
 exc_weight = 4.0E-3 * scale
 num_exc_sparse_connectivity_bits = int(np.ceil(np.log2(ceil_divide(num_excitatory, 32)))) + 1
 num_inh_sparse_connectivity_bits = int(np.ceil(np.log2(ceil_divide(num_inhibitory, 32)))) + 1
+num_timestep_spike_bytes = ceil_divide(num_neurons, 32) * 4
+num_blocks = ceil_divide(num_timesteps, (110 * 1024) // num_timestep_spike_bytes)
+num_timesteps_per_block = int(round(num_timesteps / num_blocks))
+
 device = False
 time = True
 use_dram_for_weights = True
@@ -104,14 +108,15 @@ ei_conn = build_sparse_connectivity(ei_conn, int(round(exc_weight * 2**13)), num
 
 print(f"Num sparse connectivity bits excitatory: {num_exc_sparse_connectivity_bits}, inhibitory: {num_inh_sparse_connectivity_bits}")
 print(f"Stride ee:{ee_conn.shape[1]} ei:{ei_conn.shape[1]} ii:{ii_conn.shape[1]} ie:{ie_conn.shape[1]}")
+print(f"Mean row length ee:{np.average(ee_conn[:,0]) * 32} ei:{np.average(ei_conn[:,0]) * 32} ii:{np.average(ii_conn[:,0]) * 32} ie:{np.average(ie_conn[:,0]) * 32}")
 # Neurons
 e_pop = CUBALIF(num_excitatory, tau_m=20.0, tau_syn_exc=5.0, tau_syn_inh=10.0,
                 tau_refrac=5, v_thresh=10, i_offset=0.55,
-                num_timesteps=num_timesteps, name="E")
+                num_timesteps=num_timesteps_per_block, name="E")
 
 i_pop = CUBALIF(num_inhibitory, tau_m=20.0, tau_syn_exc=5.0, tau_syn_inh=10.0,
                 tau_refrac=5, v_thresh=10, i_offset=0.55,
-                num_timesteps=num_timesteps, name="I")
+                num_timesteps=num_timesteps_per_block, name="I")
 
 # Synapses
 ee_pop = Linear(e_pop.out_spikes, e_pop.i_exc,
@@ -147,7 +152,7 @@ synapse_update_processes = ProcessGroup([ee_pop.process, ei_pop.process,
                                         PerformanceCounter() if time else None)
 
 # Create backend
-backend_kwargs = {"use_dram_for_weights": use_dram_for_weights, "dma_buffer_size": 16 * 1024 * 1024}
+backend_kwargs = {"use_dram_for_weights": use_dram_for_weights, "dma_buffer_size": 64 * 1024 * 1024}
 backend = BackendFeNNHW(**backend_kwargs) if device else BackendFeNNSim(**backend_kwargs)
 
 # Create model
@@ -158,7 +163,7 @@ model = Model([i_zero_processes, neuron_update_processes, synapse_update_process
 init_code = backend.generate_kernel([i_zero_processes], model)
 code = backend.generate_simulation_kernel([synapse_update_processes, neuron_update_processes],
                                           [], [],
-                                          num_timesteps, model)
+                                          num_timesteps_per_block, model)
 
 # Disassemble if required
 if disassemble_code:
@@ -213,13 +218,41 @@ runtime.set_instructions(init_code)
 runtime.run()
 
 # Set sim instructions
-print("Simulating")
+print(f"Simulating {num_blocks} block of {num_timesteps_per_block} timesteps")
 runtime.set_instructions(code)
 
-# Simulate
-start_time = perf_counter()
-runtime.run()
-print(f"Simulation time {perf_counter() - start_time}")
+# Loop through simulation blocks
+sim_time = 0.0
+e_spike_times = []
+e_spike_ids = []
+i_spike_times = []
+i_spike_ids = []
+block_start_timestep = 0
+for b in range(num_blocks):
+    # Simulate block
+    start_time = perf_counter()
+    runtime.run()
+    sim_time += (perf_counter() - start_time)
+
+    # Pull excitatory spikes and add to lists
+    block_e_spikes = pull_spikes(num_timesteps_per_block + 1, e_pop.out_spikes, runtime)
+    e_spike_times.append(block_e_spikes[0] + block_start_timestep)
+    e_spike_ids.append(block_e_spikes[1])
+
+    # Pull inhibitory spikes and add to lists
+    block_i_spikes = pull_spikes(num_timesteps_per_block + 1, i_pop.out_spikes, runtime)
+    i_spike_times.append(block_i_spikes[0] + block_start_timestep)
+    i_spike_ids.append(block_i_spikes[1])
+    
+    # Update start time of next timestep
+    block_start_timestep += num_timesteps_per_block
+
+i_spike_times = np.concatenate(i_spike_times)
+i_spike_ids = np.concatenate(i_spike_ids)
+e_spike_times = np.concatenate(e_spike_times)
+e_spike_ids = np.concatenate(e_spike_ids)
+
+print(f"Simulation time {sim_time}")
 if time:
     neuron_update_cycles, neuron_update_instructions = read_perf_counter(
         neuron_update_processes.performance_counter, runtime)
@@ -229,15 +262,12 @@ if time:
     print(f"Neuron update {neuron_update_cycles} cycles, {neuron_update_instructions} instruction ({neuron_update_instructions / neuron_update_cycles})")
     print(f"Synapse update {synapse_update_cycles} cycles, {synapse_update_instructions} instruction ({synapse_update_instructions / synapse_update_cycles})")
 
-# Pull spikes
-e_spikes = pull_spikes(num_timesteps + 1, e_pop.out_spikes, runtime)
-i_spikes = pull_spikes(num_timesteps + 1, i_pop.out_spikes, runtime)
-
 # Plot
 fig, axis = plt.subplots()
 
-axis.scatter(e_spikes[0], e_spikes[1], s=1)
-axis.scatter(i_spikes[0], i_spikes[1] + num_excitatory, s=1)
+axis.scatter(e_spike_times, e_spike_ids, s=1)
+axis.scatter(i_spike_times, i_spike_ids + num_excitatory, s=1)
 
-print(f"{((len(e_spikes[0]) + len(i_spikes[0])) * 1000) / (num_neurons * num_timesteps)} spikes/second")
+print(f"{len(e_spike_times)} excitatory spikes, {len(i_spike_times)} inhibitory spikes")
+print(f"{((len(e_spike_times) + len(i_spike_times)) * 1000) / (num_neurons * num_timesteps)} spikes/second")
 plt.show()
