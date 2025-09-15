@@ -114,9 +114,9 @@ def simulate_fenn(device, num_excitatory=2048, num_timesteps=1000, dense=False, 
         ei_conn = build_sparse_connectivity(ei_conn, int(round(exc_weight * 2**13)), num_inh_sparse_connectivity_bits)
 
         print(f"\tNum sparse connectivity bits excitatory: {num_exc_sparse_connectivity_bits}, inhibitory: {num_inh_sparse_connectivity_bits}")
-        print(f"\tStride ee:{ee_conn.shape[1]} ei:{ei_conn.shape[1]} ii:{ii_conn.shape[1]} ie:{ie_conn.shape[1]}")
         print(f"\tMean row length ee:{np.average(ee_conn[:,0]) * 32} ei:{np.average(ei_conn[:,0]) * 32} ii:{np.average(ii_conn[:,0]) * 32} ie:{np.average(ie_conn[:,0]) * 32}")
-    
+    print(f"\tStride ee:{ee_conn.shape[1]} ei:{ei_conn.shape[1]} ii:{ii_conn.shape[1]} ie:{ie_conn.shape[1]}")
+
     # Neurons
     e_pop = CUBALIF(num_excitatory, tau_m=20.0, tau_syn_exc=5.0, tau_syn_inh=10.0,
                     tau_refrac=5, v_thresh=10, i_offset=0.55,
@@ -279,43 +279,46 @@ def simulate_fenn(device, num_excitatory=2048, num_timesteps=1000, dense=False, 
     print(f"\tSynapse update {synapse_update_cycles} cycles, {synapse_update_instructions} instruction ({synapse_update_instructions / synapse_update_cycles})")
     
     return (e_spike_times, e_spike_ids, i_spike_times, i_spike_ids, sim_time, neuron_update_instructions,
-            synapse_update_instructions, neuron_update_cycles, synapse_update_cycles)
+            synapse_update_instructions, neuron_update_cycles, synapse_update_cycles,
+            ee_conn.shape[1], ei_conn.shape[1], ii_conn.shape[1], ie_conn.shape[1])
 
 plot = True
-dense = True
 device = False
 with open(f"va_benchmark_{device}_perf.csv", "w") as csv_file:
     csv_writer = csv.writer(csv_file, delimiter=",")
     
-    csv_writer.writerow(["Num excitatory neurons", "Using DRAM for weights", "Num excitatory spikes",
-                         "Num inhibitory spikes", "Simulation time [s]",
+    csv_writer.writerow(["Num excitatory neurons", "Using DRAM for weights", "Dense connectivity",
+                         "Num excitatory spikes", "Num inhibitory spikes", "Simulation time [s]",
                          "Num neuron update instructions", "Num event processing instructions",
-                         "Num neuron update cycles", "Num event processing cycles"])
+                         "Num neuron update cycles", "Num event processing cycles",
+                         "EE stride", "EI stride", "II stride", "IE stride"])
 
-    # Loop through configurations
+    # Build configs
     configs = [(256, True), (256, False)] + [(e, True) for e in range(512, 4000, 512)]
     
     if plot:
-        fig, axes = plt.subplots(3, 6, sharex="col")
-    else:
-        axes = np.empty(3 * 6)
+        fig, axes = plt.subplots(2, len(configs), sharex="col")
     
-    for ax, (num_excitatory, use_dram_for_weights) in zip(axes.flatten(), configs):
+    # Loop through configurations
+    for j, (num_excitatory, use_dram_for_weights) in enumerate(configs):
         # Run simulation
         print(f"{num_excitatory} neurons using {'DRAM' if use_dram_for_weights else 'URAM'} for weights")
-        data = simulate_fenn(device, num_excitatory=num_excitatory, num_timesteps=1000, dense=dense,
-                             use_dram_for_weights=use_dram_for_weights, disassemble_code=False)
         
-        # Write CSV
-        csv_writer.writerow([num_excitatory, use_dram_for_weights, len(data[0]), len(data[2])] + list(data[4:]))
-        
-        if plot:
-            ax.scatter(data[0], data[1], s=1)
-            ax.scatter(data[2], data[3]+ num_excitatory, s=1)
+        # :oop through dense and 
+        for i, dense in enumerate([True, False]):
+            data = simulate_fenn(device, num_excitatory=num_excitatory, num_timesteps=1000, dense=dense,
+                                use_dram_for_weights=use_dram_for_weights, disassemble_code=False)
+            
+            # Write CSV
+            csv_writer.writerow([num_excitatory, use_dram_for_weights, dense, len(data[0]), len(data[2])] + list(data[4:]))
+            
+            if plot:
+                axes[i, j].scatter(data[0], data[1], s=1)
+                axes[i, j].scatter(data[2], data[3]+ num_excitatory, s=1)
     
 if plot:
-    for i in range(3):
+    for i in range(axes.shape[0]):
         axes[i,0].set_ylabel("Neuron ID")
-    for j in range(6):
+    for j in range(axes.shape[1]):
         axes[-1,j].set_ylabel("Time [ms]")
     plt.show();
