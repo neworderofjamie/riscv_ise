@@ -1045,17 +1045,9 @@ private:
         :   RowGeneratorBase(c, process, stateFields, scalarRegisterAllocator, vectorRegisterAllocator)
         {
 
-            // Allocate register for target mask and calculate
-            m_TargetMaskReg = getVectorRegisterAllocator().getRegister("VTargetDelayMask V");
-            c.vlui(*m_TargetMaskReg, (1 << process->getNumSparseConnectivityBits()) - 1);
-
-            // Allocate register for target address
-            // Generate code to load address
-            // **NOTE** If delays are used, LLM address is offset by 4 bytes
-            ALLOCATE_SCALAR(STmp);
-            m_TargetAddrReg = getVectorRegisterAllocator().getRegister("VTargetAddr V");
-            c.lw(*STmp, Reg::X0, stateFields.at(process->getTarget()));
-            c.vfill(*m_TargetAddrReg, *STmp);
+            // Allocate register for target address and load address
+            m_TargetAddrReg = getScalarRegisterAllocator().getRegister("STargetAddr X");
+            c.lw(*m_TargetAddrReg, Reg::X0, stateFields.at(process->getTarget()));
         }
          
         //--------------------------------------------------------------------
@@ -1086,13 +1078,11 @@ private:
                     // Load NEXT vector of weights and indices
                     c.vloadv(even ? *VWeightInd2 : *VWeightInd1, *weightBufferReg, (r + 1) * 64);
 
-                    // Extract postsynaptic index/delay
+                    // Extract postsynaptic index and add base address
                     auto VWeightInd = even ? VWeightInd1 : VWeightInd2;
-                    c.vand(*VPostAddr, *VWeightInd, *m_TargetMaskReg);
+                    c.vandadd(getProcess()->getNumSparseConnectivityBits(), *VPostAddr, *VWeightInd,
+                              *m_TargetAddrReg);
 
-                    // Add base address
-                    c.vadd(*VPostAddr, *VPostAddr, *m_TargetAddrReg); 
-                    
                     // Load accumulator
                     c.vloadl(*VAccum, *VPostAddr);
                     
@@ -1114,8 +1104,7 @@ private:
         }
 
     private:
-        VectorRegisterAllocator::RegisterPtr m_TargetMaskReg;
-        VectorRegisterAllocator::RegisterPtr m_TargetAddrReg;
+        ScalarRegisterAllocator::RegisterPtr m_TargetAddrReg;
     };
 
 
@@ -1130,25 +1119,14 @@ private:
                             ScalarRegisterAllocator &scalarRegisterAllocator, 
                             VectorRegisterAllocator &vectorRegisterAllocator)
         :   RowGeneratorBase(c, process, stateFields, scalarRegisterAllocator, vectorRegisterAllocator),
-            m_DelayStride(2 * process->getTarget()->getNumBufferTimesteps()), m_VectorTimeReg(vectorTimeReg)
+            m_DelayStride(2 * process->getTarget()->getNumBufferTimesteps()), 
+            m_TargetAddress(stateFields.at(process->getTarget()) + 4), m_VectorTimeReg(vectorTimeReg)
         {
-            // Allocate register for delay mask and calculate
-            m_DelayMaskReg = vectorRegisterAllocator.getRegister("VTargetDelayMask V");
-            c.vlui(*m_DelayMaskReg, (1 << process->getNumDelayBits()) - 1);
-
             // Check number of buffer timesteps is P.O.T.
             if(!isPOT(process->getTarget()->getNumBufferTimesteps())) {
                     throw std::runtime_error("When used as delayed event propagation targets, variables "
                                             "need to have a power-of-two number of buffer timesteps");
             }
-
-            // Allocate register for target address
-            // Generate code to load address
-            // **NOTE** LLM address is offset by 4 bytes in field
-            // **NOTE** this needs re-initialising every row so might as well keep in scalar register
-            ALLOCATE_SCALAR(STmp);
-            m_TargetAddrReg = scalarRegisterAllocator.getRegister("STargetAddr X");
-            c.lw(*m_TargetAddrReg, Reg::X0, stateFields.at(process->getTarget()) + 4);
         }
     
         //--------------------------------------------------------------------
@@ -1161,6 +1139,7 @@ private:
             auto &vectorRegisterAllocator = getVectorRegisterAllocator();
 
             // Loop over postsynaptic neurons
+            ALLOCATE_SCALAR(STargetReg);
             ALLOCATE_VECTOR(VAccum)
             ALLOCATE_VECTOR(VWeightInd1);
             ALLOCATE_VECTOR(VWeightInd2);
@@ -1168,33 +1147,28 @@ private:
             ALLOCATE_VECTOR(VWeight);
             ALLOCATE_VECTOR(VTargetReg);
 
-            // Reset target register from scalar register
-            // **NOTE** no point in caching this as it needs resetting every row
-            c.vfill(*VTargetReg, *m_TargetAddrReg);
-
+            // Reload target register from scalar register
+            // **NOTE** LLM address is offset by 4 bytes in field
+            c.lw(*STargetReg, Reg::X0, m_TargetAddress);
+            
             // Preload first weights and indices to avoid stall
             c.vloadv(*VWeightInd1, *weightBufferReg, 0);
             
             AssemblerUtils::unrollVectorLoopBody(
                 c, scalarRegisterAllocator, getProcess()->getMaxRowLength(), 4, *weightBufferReg,
                 [this, weightBufferReg,
-                VAccum, VPostAddr, VTargetReg, VWeight, VWeightInd1, VWeightInd2]
+                STargetReg, VAccum, VPostAddr, VWeight, VWeightInd1, VWeightInd2]
                 (CodeGenerator &c, uint32_t r, bool even, ScalarRegisterAllocator::RegisterPtr)
                 {
                     // Load NEXT vector of weights and indices
                     c.vloadv(even ? *VWeightInd2 : *VWeightInd1, *weightBufferReg, (r + 1) * 64);
 
-                    // Extract postsynaptic index/delay
-                    auto VWeightInd = even ? VWeightInd1 : VWeightInd2;
-
                     // Add time to delay
+                    auto VWeightInd = even ? VWeightInd1 : VWeightInd2;
                     c.vadd(*VPostAddr, *VWeightInd, *m_VectorTimeReg);
-
-                    // Take modulo max delay
-                    c.vand(*VPostAddr, *VPostAddr, *m_DelayMaskReg);
-
-                    // Add base address
-                    c.vadd(*VPostAddr, *VPostAddr, *VTargetReg); 
+                    
+                    // Extract delay and add base address
+                    c.vandadd(getProcess()->getNumDelayBits(), *VPostAddr, *VPostAddr, *STargetReg);
                     
                     // Load accumulator
                     c.vloadl(*VAccum, *VPostAddr, m_DelayStride * r);
@@ -1227,8 +1201,7 @@ private:
         // Members
         //--------------------------------------------------------------------
         size_t m_DelayStride;
-        VectorRegisterAllocator::RegisterPtr m_DelayMaskReg;
-        ScalarRegisterAllocator::RegisterPtr m_TargetAddrReg;
+        uint32_t m_TargetAddress;
         VectorRegisterAllocator::RegisterPtr m_VectorTimeReg;
     };
 
