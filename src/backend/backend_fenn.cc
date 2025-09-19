@@ -1186,10 +1186,9 @@ private:
 
                     // Extract postsynaptic index/delay
                     auto VWeightInd = even ? VWeightInd1 : VWeightInd2;
-                    c.vand(*VPostAddr, *VWeightInd, *m_DelayMaskReg);
 
                     // Add time to delay
-                    c.vadd(*VPostAddr, *VPostAddr, *m_VectorTimeReg);
+                    c.vadd(*VPostAddr, *VWeightInd, *m_VectorTimeReg);
 
                     // Take modulo max delay
                     c.vand(*VPostAddr, *VPostAddr, *m_DelayMaskReg);
