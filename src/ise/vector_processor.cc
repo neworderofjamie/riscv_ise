@@ -277,10 +277,10 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
 
     case VectorOpCode::VSPC:
     {
-        const auto [imm, rs1, funct3, rd] = decodeIType(inst);
+        const auto [funct7, rs2, rs1, funct3, rd] = decodeRType(inst);
         const auto type = getVSpcType(funct3);
         if(type == +VSpcType::VRNG) {
-            if (rs1 != 0) {
+            if (rs1 != 0 || rs2 != 0 || funct7 != 0) {
                 throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
             }
 
@@ -299,6 +299,21 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
             std::transform(r.cbegin(), r.cend(), rdVec.begin(), 
                            [](uint16_t a){ return (int16_t)(a >> 1); });
             writeVReg(rd, rdVec);
+        }
+        else if(type == +VSpcType::VANDADD) {
+            // Extract fixed point and build mask
+            const uint32_t fixedPoint = (funct7 & 0b1111);
+            const uint16_t mask = (1 << fixedPoint) - 1;
+
+            PLOGV << "VANDADD " << rs1 << " " << rs2;
+            const auto &val = readVReg(rs1);
+            const int16_t val2 = reg[rs2];
+            writeVReg(rd, 
+                unaryOp(val, false,
+                        [mask, val2](int16_t a)
+                        { 
+                            return (a & mask) + val2; 
+                        }));
         }
         else {
             throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);

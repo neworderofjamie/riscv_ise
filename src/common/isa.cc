@@ -388,7 +388,10 @@ VSpcType getVSpcType(uint32_t funct3)
     switch(funct3){
     case 0b000:
         return VSpcType::VRNG;
-        
+    
+    case 0b001:
+        return VSpcType::VANDADD;
+    
     default:
         return VSpcType::INVALID;
     }
