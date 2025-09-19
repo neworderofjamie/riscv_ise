@@ -263,7 +263,8 @@ public:
     void vextract(Reg rd, VReg rs, Bit<5> lane){ Itype(VectorOpCode::VMOV, 0b001, rd, rs, lane); }
 
     // VSPC
-    void vrng(VReg rd){ Itype(VectorOpCode::VSPC, 0x0, rd, Reg::X0, 0); }
+    void vrng(VReg rd){ Rtype(VectorOpCode::VSPC, 0b000, 0x0, rd, 0, 0);}
+    void vandadd(Bit<4> shift, VReg rd, VReg rs1, Reg rs2){ Rtype(VectorOpCode::VSPC, 0b001, shift, rd, rs1, rs2); }
 
     // VLOAD
     void vloadv(VReg rd, Reg addr, int imm = 0){ Itype(VectorOpCode::VLOAD, 0b000, rd, addr, imm); }
