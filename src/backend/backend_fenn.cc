@@ -1145,7 +1145,6 @@ private:
             ALLOCATE_VECTOR(VWeightInd2);
             ALLOCATE_VECTOR(VPostAddr);
             ALLOCATE_VECTOR(VWeight);
-            ALLOCATE_VECTOR(VTargetReg);
 
             // Reload target register from scalar register
             // **NOTE** LLM address is offset by 4 bytes in field
@@ -1182,17 +1181,12 @@ private:
                     // Write back accumulator
                     c.vstorel(*VAccum, *VPostAddr, m_DelayStride * r);
                 },
-                [this, VTargetReg, weightBufferReg, &vectorRegisterAllocator]
+                [this, STargetReg, weightBufferReg, &vectorRegisterAllocator]
                 (CodeGenerator &c, uint32_t numUnrolls)
                 {
-                    // Calculate how many bytes we need to advance LLM addresses
-                    // **TODO** VADDI instruction would save an instruction in this type of situation
-                    ALLOCATE_VECTOR(VNumUnrollBytes);
-                    c.vlui(*VNumUnrollBytes, numUnrolls * m_DelayStride);
-                    
                     // Increment pointers 
                     c.addi(*weightBufferReg, *weightBufferReg, 64 * numUnrolls);
-                    c.vadd(*VTargetReg, *VTargetReg, *VNumUnrollBytes);
+                    c.addi(*STargetReg, *STargetReg, numUnrolls * m_DelayStride);
                 });
         }
 
