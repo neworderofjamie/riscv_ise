@@ -41,22 +41,45 @@ int main(int argc, char** argv)
     // Allocate scalar arrays
     const uint32_t readyFlagPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
 
+    // Allocate vector arrays
+    const uint32_t postAddrExc = AppUtils::allocateVectorAndZero(32, vectorInitData);
+    const uint32_t postAddrInh = AppUtils::allocateVectorAndZero(32, vectorInitData);
+
     // Generate code
     const auto code = AssemblerUtils::generateStandardKernel(
         !device, readyFlagPtr,
         [=](CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator, ScalarRegisterAllocator &scalarRegisterAllocator)
         {
-            ALLOCATE_SCALAR(SA);   
-            ALLOCATE_SCALAR(SB);
-            ALLOCATE_SCALAR(SC);
+            ALLOCATE_SCALAR(STargetAddrRegExc);
+            ALLOCATE_SCALAR(STargetAddrRegInh);
 
-            c.li(*SA, 173);
-            c.li(*SB, 134);
-            c.mul(*SC, *SA, *SB);
+            ALLOCATE_VECTOR(VWeightIndExc);
+            ALLOCATE_VECTOR(VWeightIndInh);
+            ALLOCATE_VECTOR(VPostAddrExc);
+            ALLOCATE_VECTOR(VPostAddrInh);
+
+            // Load some made up base addresses
+            c.li(*STargetAddrRegExc, 64);
+            c.li(*STargetAddrRegInh, 128);
+
+            // Load some random weights
+            c.vlui(*VWeightIndExc, 1324);
+            c.vlui(*VWeightIndInh, (uint16_t)-16702);
+
+            // AND.ADD
+            c.vandadd(4, *VPostAddrExc, *VWeightIndExc,
+                      *STargetAddrRegExc);
+            c.vandadd(2, *VPostAddrInh, *VWeightIndInh,
+                      *STargetAddrRegInh);
+
+            // STORE
+            c.vstore(*VPostAddrExc, Reg::X0, postAddrExc);
+            c.vstore(*VPostAddrInh, Reg::X0, postAddrInh);
+
         });
 
     // Dump to coe file
-    AppUtils::dumpCOE("mul.coe", code);
+    AppUtils::dumpCOE("and_add.coe", code);
 
     
     if(device) {
@@ -96,7 +119,19 @@ int main(int argc, char** argv)
         if(!riscV.run()) {
             return 1;
         }
+
+        const int16_t *vectorData = riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getVectorDataMemory().getData();
+        std::cout << "Exc: ";
+        for(size_t i = 0; i < 32; i++) {
+            std::cout << vectorData[(postAddrExc / 2) + i] << ", ";
+        }
+        std::cout << std::endl;
     
+        std::cout << "Inh: ";
+        for(size_t i = 0; i < 32; i++) {
+            std::cout << vectorData[(postAddrInh / 2) + i] << ", ";
+        }
+        std::cout << std::endl;
     }
     return 0;
 
