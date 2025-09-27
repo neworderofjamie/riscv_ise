@@ -176,13 +176,17 @@ def build_delay_weights(weights: np.ndarray, delays: np.ndarray,
     # Combine weight and indices
     return (addresses | (weights << delay_bits)).astype(np.int16)
 
-def build_sparse_connectivity(row_ind: Sequence[np.ndarray], weight: Number,
+def build_sparse_connectivity(row_ind: Sequence[np.ndarray], 
+                              weight: Union[Number, Sequence[np.ndarray]],
                               sparse_connectivity_bits: int) -> np.ndarray:
     # Determine which lane each postsynaptic index belongs in
     row_lane = [r % 32 for r in row_ind]
+    
+    # Get ordering of rows
+    row_order = [np.argsort(l) for l in row_lane]
 
     # Sort rows of indices by their lane
-    row_ind_sorted = [i[np.argsort(l)] for i, l in zip(row_ind, row_lane)]
+    row_ind_sorted = [i[o] for i, o in zip(row_ind, row_order)]
 
     # Count how many connections each lane needs to process in each row
     row_conns_per_lane = [np.bincount(l) for l in row_lane]
@@ -202,17 +206,30 @@ def build_sparse_connectivity(row_ind: Sequence[np.ndarray], weight: Number,
                       if len(r) > 0)
     if max_address >= 2**sparse_connectivity_bits:
         raise RuntimeError("Not enough bits to represent connectivity")
-
+    
     # Check weight fits within remaining bits
     weight_bits = 15 - sparse_connectivity_bits
     max_weight = (2**weight_bits) - 1
     min_weight = -max_weight - 1
-    if weight < min_weight or weight > max_weight:
-        raise RuntimeError("Not enough bits for weight")
+    if isinstance(weight, Number):
+        if weight < min_weight or weight > max_weight:
+            raise RuntimeError("Not enough bits for weight")
+        
+        # Combine weight and indices
+        row_data_sorted = [r | (weight << sparse_connectivity_bits)
+                           for r in row_data_sorted]
+    else:
+        # Check each row limits
+        for w in weight:
+            if len(w) > 0 and (np.amin(w) < min_weight or np.amax(w) > max_weight):
+                raise RuntimeError("Not enough bits for weight")
+        
+        # Sort weights into same order as indices
+        weight_sorted = [w[o] for w, o in zip(weight, row_order)]
 
-    # Combine weight and indices
-    row_data_sorted = [r | (weight << sparse_connectivity_bits)
-                       for r in row_data_sorted]
+        # Combine weight and indices
+        row_data_sorted = [r | (w << sparse_connectivity_bits)
+                           for r, w in zip(row_data_sorted, weight)]
 
     padded_rows = []
     for d, s in zip(row_data_sorted, row_conn_lane_sections):
