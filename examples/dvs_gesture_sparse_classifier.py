@@ -62,7 +62,9 @@ max_len = 0
 for events, label in dataset:
     # Build histogram
     # **TODO** x and y
-    spike_event_histogram = np.histogram2d(events["t"] / 1000.0, events["x"], (timestep_range, neuron_range))[0]
+    spike_event_histogram = np.histogram2d(events["t"] / 1000.0, 
+                                           events["x"] + (events["y"] * 32), 
+                                           (timestep_range, neuron_range))[0]
     spike_event_histogram = np.minimum(spike_event_histogram, 1).astype(bool)
     spike_event_bits = np.packbits(spike_event_histogram, axis=1, bitorder="little")
     dvs_gesture_spikes.append(spike_event_bits.view(np.uint32).flatten())
