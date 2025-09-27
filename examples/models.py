@@ -6,7 +6,7 @@ from pyfenn import (EventContainer, NeuronUpdateProcess,
 class LIF:
     def __init__(self, shape, tau_m: float, tau_refrac: int, v_thresh: float,
                  record_spikes: bool = False, fixed_point: int = 5,
-                 name: str = ""):
+                 dt: float = 1.0, name: str = ""):
         self.shape = shape
         dtype = f"s{15 - fixed_point}_{fixed_point}_sat_t"
         self.v = Variable(self.shape, dtype, name=f"{name}_v")
@@ -29,9 +29,9 @@ class LIF:
                RefracTime = TauRefrac;
             }}
             """,
-            {"Alpha": Parameter(np.exp(-1.0 / tau_m), dtype),
+            {"Alpha": Parameter(np.exp(-dt / tau_m), dtype),
              "VThresh": Parameter(v_thresh, dtype),
-             "TauRefrac": Parameter(tau_refrac, "int16_t")},
+             "TauRefrac": Parameter(int(round(tau_refrac / dt)), "int16_t")},
             {"V": self.v, "I": self.i, "RefracTime": self.refrac_time},
             {"Spike": self.out_spikes},
             name)
@@ -40,7 +40,7 @@ class ALIF:
     def __init__(self, shape, tau_m: float, tau_a: float, tau_refrac: int,
                  v_thresh: float, beta: float = 0.0174,
                  record_spikes: bool = False, fixed_point: int = 9,
-                 name: str = ""):
+                 dt: float = 1.0, name: str = ""):
         self.shape = shape
         dtype = f"s{15 - fixed_point}_{fixed_point}_sat_t"
         decay_dtype = "s0_15_sat_t"
@@ -67,18 +67,18 @@ class ALIF:
                RefracTime = TauRefrac;
             }}
             """,
-            {"Alpha": Parameter(np.exp(-1.0 / tau_m), decay_dtype),
-             "Rho": Parameter(np.exp(-1.0 / tau_a), decay_dtype),
+            {"Alpha": Parameter(np.exp(-dt / tau_m), decay_dtype),
+             "Rho": Parameter(np.exp(-dt / tau_a), decay_dtype),
              "Beta": Parameter(beta, dtype),
              "VThresh": Parameter(v_thresh, dtype),
-             "TauRefrac": Parameter(tau_refrac, "int16_t")},
+             "TauRefrac": Parameter(int(round(tau_refrac / dt)), "int16_t")},
             {"V": self.v, "A": self.a, "I": self.i, "RefracTime": self.refrac_time},
             {"Spike": self.out_spikes},
             name)
 
 class LI:
     def __init__(self, shape, tau_m: float, num_timesteps: int,
-                 fixed_point: int = 5, name: str = ""):
+                 fixed_point: int = 5, dt: float = 1.0, name: str = ""):
         self.shape = shape
         dtype = f"s{15 - fixed_point}_{fixed_point}_sat_t"
 
@@ -92,7 +92,7 @@ class LI:
             I = 0.0h{fixed_point};
             VAvg += (VAvgScale * V);
             """,
-            {"Alpha": Parameter(np.exp(-1.0 / tau_m), dtype), 
+            {"Alpha": Parameter(np.exp(-dt / tau_m), dtype), 
              "VAvgScale": Parameter(1.0 / (num_timesteps / 2), dtype)},
             {"V": self.v, "VAvg": self.v_avg, "I": self.i, "Bias": self.bias},
             {}, name)
