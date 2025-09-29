@@ -77,8 +77,9 @@ def build_dense_connectivity(row_ind, weight, num_post):
         weights[i, r] = weight
     return weights
     
-def simulate_fenn(device, num_excitatory=2048, num_timesteps=1000, dense=False, use_dram_for_weights=True, disassemble_code=False):
-    probability_connection = 0.1
+def simulate_fenn(device, num_excitatory=2048, num_timesteps=1000, dense=False,
+                  probability_connection = 0.1, use_dram_for_weights=True, disassemble_code=False):
+    
     excitatory_inhibitory_ratio = 4
     num_inhibitory = num_excitatory // excitatory_inhibitory_ratio
     num_neurons = num_excitatory + num_inhibitory
@@ -288,29 +289,32 @@ with open(f"va_benchmark_{device}_perf.csv", "w") as csv_file:
     csv_writer = csv.writer(csv_file, delimiter=",")
     
     csv_writer.writerow(["Num excitatory neurons", "Using DRAM for weights", "Dense connectivity",
-                         "Num excitatory spikes", "Num inhibitory spikes", "Simulation time [s]",
-                         "Num neuron update instructions", "Num event processing instructions",
-                         "Num neuron update cycles", "Num event processing cycles",
-                         "EE stride", "EI stride", "II stride", "IE stride"])
+                         "Probability of connection", "Num excitatory spikes", "Num inhibitory spikes", 
+                         "Simulation time [s]", "Num neuron update instructions", "Num event processing instructions",
+                         "Num neuron update cycles", "Num event processing cycles", "EE stride", "EI stride", "II stride", "IE stride"])
 
     # Build configs
-    configs = [(256, True), (256, False)] + [(e, True) for e in range(512, 4000, 512)]
+    configs = ([(256, True, 0.1), (256, False, 0.1)]                # URAM configurations
+               + [(e, True, 0.1) for e in range(512, 4000, 512)]    # 90% sparse DRAM configurations
+               + (12800, True, 0.25))
     
     if plot:
         fig, axes = plt.subplots(2, len(configs), sharex="col")
     
     # Loop through configurations
-    for j, (num_excitatory, use_dram_for_weights) in enumerate(configs):
+    for j, (num_excitatory, use_dram_for_weights, probability_connection) in enumerate(configs):
         # Run simulation
         print(f"{num_excitatory} neurons using {'DRAM' if use_dram_for_weights else 'URAM'} for weights")
         
-        # :oop through dense and 
+        # Loop through dense and sparse
         for i, dense in enumerate([True, False]):
-            data = simulate_fenn(device, num_excitatory=num_excitatory, num_timesteps=1000, dense=dense,
-                                use_dram_for_weights=use_dram_for_weights, disassemble_code=False)
+            data = simulate_fenn(device, num_excitatory=num_excitatory, num_timesteps=1000,
+                                 dense=dense, probability_connection=probability_connection,
+                                 use_dram_for_weights=use_dram_for_weights, disassemble_code=False)
             
             # Write CSV
-            csv_writer.writerow([num_excitatory, use_dram_for_weights, dense, len(data[0]), len(data[2])] + list(data[4:]))
+            csv_writer.writerow([num_excitatory, use_dram_for_weights, dense, probability_connection,
+                                 len(data[0]), len(data[2])] + list(data[4:]))
             
             if plot:
                 axes[i, j].scatter(data[0], data[1], s=1)
