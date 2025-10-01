@@ -3,12 +3,15 @@ import numpy as np
 import seaborn as sns
 import plot_settings
 
+from pyfenn.utils import build_sparse_connectivity, generate_fixed_prob
 from pandas import read_csv
 
+def fit_poly(x, y, degree):
+    return np.poly1d(np.polyfit(x, y, degree))
+
 def plot_best_fit(x, y, degree, ax, colour):
-    poly = np.poly1d(np.polyfit(x, y, degree))
-    fit = poly(x)
-    ax.plot(x, fit, color=colour, linestyle="--", alpha=0.5)
+    poly = fit_poly(x, y, degree)
+    ax.plot(x, poly(x), color=colour, linestyle="--", alpha=0.5)
 
 CLOCK_HZ = 166e6 # TODO update
 DENSE_CYCLES = 4 
@@ -17,12 +20,14 @@ SPARSE_CYCLES = 7   # TODO update
 # Load data
 df = read_csv("va_benchmark_True_perf.csv")
 
+
 # Calculate some columns
 df["Num inhibitory neurons"] = df["Num excitatory neurons"] // 4
 df["Num neurons"] = df["Num inhibitory neurons"] + df["Num excitatory neurons"]
 df["Average excitatory rate [spikes/s]"] = df["Num excitatory spikes"] / df["Num excitatory neurons"]
 df["Average inhibitory rate [spikes/s]"] = df["Num inhibitory spikes"] / df["Num inhibitory neurons"]
-df["Num SOPS"] = (df["Num excitatory spikes"] * (df["Num neurons"])) + (df["Num inhibitory spikes"] * (df["Num neurons"]))
+df["Num ESOPS"] = (df["Num excitatory spikes"] * (df["Num neurons"])) + (df["Num inhibitory spikes"] * (df["Num neurons"]))
+df["Num SOPS"] = (df["Num excitatory spikes"] * (df["EE stride"] + df["EI stride"])) + (df["Num inhibitory spikes"] * (df["IE stride"] + df["II stride"]))
 
 # Extract 10% connectivity using DRAM rows for main scaling figure
 dram_0_1_df = df[(df["Using DRAM for weights"] == True) & (df["Probability of connection"] == 0.1)]
@@ -31,52 +36,82 @@ dram_0_1_df = df[(df["Using DRAM for weights"] == True) & (df["Probability of co
 sparse_df = dram_0_1_df[dram_0_1_df["Dense connectivity"] == False]
 dense_df = dram_0_1_df[dram_0_1_df["Dense connectivity"] == True]
 
+# Fit 1D polynomial to neuron and synapse cycles
+sparse_neurons_poly = fit_poly(sparse_df["Num neurons"], sparse_df["Num neuron update cycles"], 1)
+sparse_synapse_poly = fit_poly(sparse_df["Num SOPS"], sparse_df["Num event processing cycles"], 1)
+
+
+# How many SOPs does GABAN example represent
+gaban_num_neurons = 10000
+gaban_connectivity = generate_fixed_prob(gaban_num_neurons, gaban_num_neurons, 0.1)
+gaban_connectivity = build_sparse_connectivity(gaban_connectivity, 1, 10)
+gaban_stride = gaban_connectivity.shape[1]
+gaban_neuron_cycles = sparse_neurons_poly(gaban_num_neurons)
+gaban_num_sops = 24.7 * gaban_num_neurons * gaban_stride
+gaban_synapse_cycles = sparse_synapse_poly(gaban_num_sops)
+gaban_time = (gaban_neuron_cycles + gaban_synapse_cycles) / CLOCK_HZ
+print(f"Equivalent model to GABAN would simulate in {gaban_time}s (stride={gaban_stride})")
+
+# How many SOPs does BlueVec example represent
+bluevec_num_neurons = 64000
+bluevec_neuron_cycles = sparse_neurons_poly(bluevec_num_neurons)
+bluevec_num_sops = 10.0 * bluevec_num_neurons * 1000
+bluevec_synapse_cycles = sparse_synapse_poly(bluevec_num_sops)
+bluevec_time = (bluevec_neuron_cycles + bluevec_synapse_cycles) / CLOCK_HZ
+print(f"Equivalent model to BlueVec would simulate in {bluevec_time}s)")
+
 
 # Extract performance of largest models
 big_df = df[df["Num excitatory neurons"] == 12800]
-big_df["True GSOPs"] = (big_df["Num SOPS"] / big_df["Simulation time [s]"]) / 1e9
-big_df["Synapse GSOPs"] = ((big_df["Num SOPS"] / big_df["Num event processing cycles"]) * CLOCK_HZ) / 1e9
+big_df["True GSOPs"] = (big_df["Num ESOPS"] / big_df["Simulation time [s]"]) / 1e9
+big_df["Synapse GSOPs"] = ((big_df["Num ESOPS"] / big_df["Num event processing cycles"]) * CLOCK_HZ) / 1e9
 big_df["Theoretical GSOPs"] = big_df.apply(lambda r: (((CLOCK_HZ * 32) / (DENSE_CYCLES * 1e9)) if r["Dense connectivity"]
                                                       else ((CLOCK_HZ * 32) / (SPARSE_CYCLES * r["Probability of connection"] * 1e9))),
                                            axis="columns")
 
+big_df["xtick"] = big_df.apply(
+    lambda r: ("Uncompressed" if r["Dense connectivity"] 
+               else f"Compressed {r['Probability of connection'] * 100:.0f}%"),
+    axis="columns")
+                       
+big_df = big_df[(big_df["Probability of connection"] != 0.25)
+                | (big_df["Dense connectivity"] == False)]
+
 fig, axes = plt.subplots(1, 2, figsize=(plot_settings.double_column_width, 2.5))
 
-# Plot neuron cycles and lines of best fit
-#dense_dram_actor = axes[0].scatter(dense_dram_df["Num neurons"], dense_dram_df["Num neuron update cycles"] / 1e6)
-#sparse_dram_actor = axes[0].scatter(sparse_dram_df["Num neurons"], sparse_dram_df["Num neuron update cycles"] / 1e6)
-#plot_best_fit(dense_dram_df["Num neurons"], dense_dram_df["Num neuron update cycles"] / 1e6, 1, axes[0], dense_dram_actor.get_facecolor())
-#plot_best_fit(sparse_dram_df["Num neurons"], sparse_dram_df["Num neuron update cycles"] / 1e6, 1, axes[0], sparse_dram_actor.get_facecolor())
-#axes[0].set_xlabel("Number of neurons")
-#axes[0].set_ylabel("Millions of neuron update cycles")
-#axes[0].xaxis.grid(False)
-#sns.despine(ax=axes[0])
+# Plot throughput
+bar_x = np.arange(len(big_df))
 
-# Plot synapse cycles and lines of best fit
-#axes[1].scatter(dense_dram_df["Num SOPS"] / 1e6, dense_dram_df["Num event processing cycles"] / 1e6, color=dense_dram_actor.get_facecolor())
-#axes[1].scatter(sparse_dram_df["Num SOPS"] / 1e6, sparse_dram_df["Num event processing cycles"] / 1e6, color=sparse_dram_actor.get_facecolor())
-#plot_best_fit(dense_dram_df["Num SOPS"] / 1e6, dense_dram_df["Num event processing cycles"] / 1e6, 1, axes[1], dense_dram_actor.get_facecolor())
-#plot_best_fit(sparse_dram_df["Num SOPS"] / 1e6, sparse_dram_df["Num event processing cycles"] / 1e6, 1, axes[1], sparse_dram_actor.get_facecolor())
-#axes[1].set_xlabel("Millions of synaptic operations")
-#axes[1].set_ylabel("Millions of event processing cycles")
-#axes[1].xaxis.grid(False)
-#sns.despine(ax=axes[1])
-
-    
 # Plot simulation time
-dense_dram_actor = axes[1].scatter(dense_df["Num neurons"], dense_df["Simulation time [s]"])
-sparse_dram_actor = axes[1].scatter(sparse_df["Num neurons"], sparse_df["Simulation time [s]"])
-plot_best_fit(dense_df["Num neurons"], dense_df["Simulation time [s]"], 2, axes[1], dense_dram_actor.get_facecolor())
-plot_best_fit(sparse_df["Num neurons"], sparse_df["Simulation time [s]"], 2, axes[1], sparse_dram_actor.get_facecolor())
-axes[1].set_xlabel("Number of neurons")
-axes[1].set_ylabel("Simulation time [s]")
+dense_dram_actor = axes[0].scatter(dense_df["Num neurons"], dense_df["Simulation time [s]"])
+sparse_dram_actor = axes[0].scatter(sparse_df["Num neurons"], sparse_df["Simulation time [s]"])
+plot_best_fit(dense_df["Num neurons"], dense_df["Simulation time [s]"], 2, axes[0], dense_dram_actor.get_facecolor())
+plot_best_fit(sparse_df["Num neurons"], sparse_df["Simulation time [s]"], 2, axes[0], sparse_dram_actor.get_facecolor())
+axes[0].axhline(1.0, linestyle="--", color="gray")
+axes[0].set_xlabel("Number of neurons")
+axes[0].set_ylabel("Simulation time [s]")
+axes[0].xaxis.grid(False)
+axes[0].set_title("A", loc="left")
+sns.despine(ax=axes[0])
+axes[0].legend([dense_dram_actor, sparse_dram_actor], 
+               ["Uncompressed", "Compressed"],  frameon=True)
+
+
+true_actor = axes[1].bar(bar_x, big_df["True GSOPs"], width=0.2)
+synapse_actor = axes[1].bar(bar_x + 0.2, big_df["Synapse GSOPs"], width=0.2)
+theory_actor = axes[1].bar(bar_x + 0.4, big_df["Theoretical GSOPs"], width=0.2)
+
+axes[1].set_xticks(bar_x + 0.2)
+axes[1].set_xticklabels(big_df["xtick"])
+axes[1].set_xlabel("Connectivity")
+axes[1].set_ylabel("Throughput (GSOP/s)")
 axes[1].xaxis.grid(False)
+axes[1].set_title("B", loc="left")
 sns.despine(ax=axes[1])
+axes[1].legend([true_actor, synapse_actor, theory_actor], 
+               ["Measured", "Measured w.o. neurons", "Theoretical"],
+               loc="upper left", frameon=True)
 
-fig.legend([dense_dram_actor, sparse_dram_actor], 
-           ["Dense", "Sparse"], 
-           ncol=2, loc="lower center", frameon=False)
-
-fig.tight_layout(pad=0, rect=[0.0, 0.1, 1.0, 1.0])
-
+fig.tight_layout(pad=0)
+fig.savefig("va_benchmark.pdf")
 plt.show()
