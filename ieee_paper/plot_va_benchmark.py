@@ -54,7 +54,7 @@ print(f"Equivalent model to GABAN would simulate in {gaban_time}s (stride={gaban
 
 # How many SOPs does BlueVec example represent
 bluevec_num_neurons = 64000
-bluevec_neuron_cycles = sparse_neurons_poly(bluevec_num_neurons)
+bluevec_neuron_cycles = sparse_neurons_poly(bluevec_num_neurons) * (13 / 5)
 bluevec_num_sops = 10.0 * bluevec_num_neurons * 1000
 bluevec_synapse_cycles = sparse_synapse_poly(bluevec_num_sops)
 bluevec_time = (bluevec_neuron_cycles + bluevec_synapse_cycles) / CLOCK_HZ
