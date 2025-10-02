@@ -9,7 +9,7 @@ class BACKEND_EXPORT BackendFeNNHW : public BackendFeNN
 public:
     BackendFeNNHW(bool useDRAMForWeights = false, bool keepParamsInRegisters = true, 
                   RoundingMode neuronUpdateRoundingMode = RoundingMode::NEAREST,
-                  off_t coreBaseAddress = 0x80000000);
+                  size_t coreBaseAddress = 0x80000000);
 
     //------------------------------------------------------------------------
     // BackendFeNN virtuals
@@ -24,5 +24,5 @@ protected:
     virtual bool shouldGenerateSimulationKernels() const override final { return false; }
 
 private:
-    off_t m_CoreBaseAddress;
+    size_t m_CoreBaseAddress;
 };

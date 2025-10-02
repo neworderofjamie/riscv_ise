@@ -20,7 +20,7 @@ class DMAController;
 class COMMON_EXPORT Device
 {
 public:
-    Device(off_t coreBaseAddress = 0x80000000);
+    Device(size_t coreBaseAddress = 0x80000000);
     ~Device();
 
     //------------------------------------------------------------------------

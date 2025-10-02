@@ -157,7 +157,7 @@ private:
 class HWState : public StateBase
 {
 public:
-    HWState(off_t coreBaseAddress) 
+    HWState(size_t coreBaseAddress) 
     :   m_Device(coreBaseAddress), m_DMABufferAllocator(m_DMABuffer.getSize())
     {}
 
@@ -470,7 +470,7 @@ void URAMLLMArray::pullFromDevice()
 // BackendFeNNHW
 //------------------------------------------------------------------------
 BackendFeNNHW::BackendFeNNHW(bool useDRAMForWeights, bool keepParamsInRegisters, 
-                             RoundingMode neuronUpdateRoundingMode, off_t coreBaseAddress)
+                             RoundingMode neuronUpdateRoundingMode, size_t coreBaseAddress)
 :   BackendFeNN(useDRAMForWeights, keepParamsInRegisters, neuronUpdateRoundingMode), 
     m_CoreBaseAddress(coreBaseAddress)
 {

@@ -46,7 +46,7 @@ constexpr off_t dmaControllerOffset = 0x00300000;
 //----------------------------------------------------------------------------
 // Device
 //----------------------------------------------------------------------------
-Device::Device(off_t coreBaseAddress)
+Device::Device(size_t coreBaseAddress)
 :   m_Memory(0), m_InstructionMemory(nullptr), m_DataMemory(nullptr), m_GPIO(nullptr)
 {
 #ifdef __linux__ 

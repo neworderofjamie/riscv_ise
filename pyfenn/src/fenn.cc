@@ -346,7 +346,7 @@ PYBIND11_MODULE(_fenn, m)
     // fenn.BackendFeNNHW
     //------------------------------------------------------------------------
     pybind11::class_<BackendFeNNHW, BackendFeNN>(m, "BackendFeNNHW")
-        .def(pybind11::init<bool, bool, RoundingMode, off_t>(),
+        .def(pybind11::init<bool, bool, RoundingMode, size_t>(),
              pybind11::arg("use_dram_for_weights") = false,
              pybind11::arg("keep_params_in_registers") = true,
              pybind11::arg("rounding_mode") = RoundingMode::NEAREST,
