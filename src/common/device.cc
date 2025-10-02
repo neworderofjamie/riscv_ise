@@ -50,6 +50,7 @@ Device::Device(size_t coreBaseAddress)
 :   m_Memory(0), m_InstructionMemory(nullptr), m_DataMemory(nullptr), m_GPIO(nullptr)
 {
 #ifdef __linux__ 
+    LOGI << "Creating Device with base address  " << std::hex << coreBaseAddress;
     // Open memory
     // **NOTE** O_SYNC turns of caching
     m_Memory = open("/dev/mem", O_RDWR | O_SYNC);
