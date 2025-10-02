@@ -31,22 +31,22 @@
 //----------------------------------------------------------------------------
 namespace
 {
-constexpr off_t instructionBase = 0xA5000000;
+constexpr off_t instructionOffset = 0x00000000;
 constexpr size_t instructionSize = 4 * 1024;
 
-constexpr off_t dataBase = 0xA6000000;
+constexpr off_t dataOffset = 0x00100000;
 constexpr size_t dataSize = 128 * 1024;
 
-constexpr off_t gpioBase = 0xA7000000;
+constexpr off_t gpioOffset = 0x00200000;
 constexpr size_t gpioSize = 2 * 1024;
 
-constexpr off_t dmaControllerBase = 0xA0000000;
+constexpr off_t dmaControllerOffset = 0x00300000;
 }
 
 //----------------------------------------------------------------------------
 // Device
 //----------------------------------------------------------------------------
-Device::Device()
+Device::Device(off_t coreBaseAddress)
 :   m_Memory(0), m_InstructionMemory(nullptr), m_DataMemory(nullptr), m_GPIO(nullptr)
 {
 #ifdef __linux__ 
@@ -59,27 +59,27 @@ Device::Device()
 
     // Memory map instruction memory
     m_InstructionMemory = reinterpret_cast<uint32_t*>(mmap(nullptr, instructionSize, PROT_WRITE, MAP_SHARED, 
-                                                           m_Memory, instructionBase));
+                                                           m_Memory, coreBaseAddress + instructionOffset));
     if(m_InstructionMemory == MAP_FAILED) {
         throw std::runtime_error("ITCM map failed (" + std::to_string(errno) + " = " + strerror(errno) + ")");
     }
 
     // Memory map data memory
     m_DataMemory = reinterpret_cast<uint8_t*>(mmap(nullptr, dataSize, PROT_READ | PROT_WRITE, MAP_SHARED, 
-                                                   m_Memory, dataBase));
+                                                   m_Memory, coreBaseAddress + dataOffset));
     if(m_DataMemory == MAP_FAILED) {
         throw std::runtime_error("DTCM map failed (" + std::to_string(errno) + " = " + strerror(errno) + ")");
     }
 
     // Memory map GPIO
     m_GPIO = reinterpret_cast<uint32_t*>(mmap(nullptr, gpioSize, PROT_READ | PROT_WRITE, MAP_SHARED,
-                                              m_Memory, gpioBase));
+                                              m_Memory, coreBaseAddress + gpioOffset));
     if(m_GPIO == MAP_FAILED) {
         throw std::runtime_error("GPIO map failed (" + std::to_string(errno) + " = " + strerror(errno) + ")");
     }
 
     // Create DMA controller
-    m_DMAController = std::make_unique<DMAController>(m_Memory, dmaControllerBase);
+    m_DMAController = std::make_unique<DMAController>(m_Memory, coreBaseAddress + dmaControllerOffset);
 
 #else
     throw std::runtime_error("Device interface only supports Linux");

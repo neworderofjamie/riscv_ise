@@ -157,8 +157,8 @@ private:
 class HWState : public StateBase
 {
 public:
-    HWState() 
-    :   m_DMABufferAllocator(m_DMABuffer.getSize())
+    HWState(off_t coreBaseAddress) 
+    :   m_Device(coreBaseAddress), m_DMABufferAllocator(m_DMABuffer.getSize())
     {}
 
     //------------------------------------------------------------------------
@@ -466,11 +466,17 @@ void URAMLLMArray::pullFromDevice()
 }
 }
 
-
 //----------------------------------------------------------------------------
 // BackendFeNNHW
 //------------------------------------------------------------------------
+BackendFeNNHW::BackendFeNNHW(bool useDRAMForWeights, bool keepParamsInRegisters, 
+                             RoundingMode neuronUpdateRoundingMode, off_t coreBaseAddress)
+:   BackendFeNN(useDRAMForWeights, keepParamsInRegisters, neuronUpdateRoundingMode), 
+    m_CoreBaseAddress(coreBaseAddress)
+{
+}
+//------------------------------------------------------------------------
 std::unique_ptr<StateBase> BackendFeNNHW::createState() const
 {
-    return std::make_unique<HWState>();
+    return std::make_unique<HWState>(m_CoreBaseAddress);
 }
