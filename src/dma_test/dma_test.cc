@@ -25,8 +25,8 @@
 
 int main()
 {
-    constexpr size_t numTransfers = 1;
-    constexpr size_t transferSizeHalfWords = 128;
+    constexpr size_t numTransfers = 10;
+    constexpr size_t transferSizeHalfWords = 1024;
     constexpr size_t transferHalfWords = numTransfers * transferSizeHalfWords;
 
     // Configure logging
