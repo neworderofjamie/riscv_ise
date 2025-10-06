@@ -68,7 +68,7 @@ int main()
     }
 
     // Create DMA controller
-    DMAController dmaController(memory, 0xA0000000);
+    DMAController dmaController(memory, 0x80300000);
     
     // Issue interleaved reads and writes
     for(size_t offsetBytes = 0; offsetBytes < (2 * transferHalfWords); offsetBytes+=(transferSizeHalfWords * 2)) {
