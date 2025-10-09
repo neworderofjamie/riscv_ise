@@ -22,8 +22,11 @@
     %--------------------------------------------------------
     \node (block_sparse) at (0, 0){
         \begin{tikzpicture}
-            % Draw first lanes
+            % Axis label
             \pgfmathtruncatemacro{\laneHeight}{8 * \grid}
+            \node at ({-0.5 * \grid mm}, {\laneHeight mm + (\grid mm / 2)}) {A};
+
+            % Draw first lanes
             \foreach \j in {0,...,1} {
                 \pgfmathtruncatemacro{\laneStart}{\j * (\laneGap + \grid)}
 
@@ -72,10 +75,13 @@
     %--------------------------------------------------------
     % Delayed
     %--------------------------------------------------------
-    \node (block_delay) at (50mm, 0){
+    \node (block_delay) at (40mm, 0){
         \begin{tikzpicture}
-            % Draw first lanes
+            % Axis label
             \pgfmathtruncatemacro{\laneHeight}{8 * \grid}
+            \node at ({-0.5 * \grid mm}, {\laneHeight mm + (\grid mm / 2)}) {B};
+
+            % Draw first lanes
             \foreach \j in {0,...,1} {
                 \pgfmathtruncatemacro{\laneStart}{\j * (\laneGap + \grid)}
 
