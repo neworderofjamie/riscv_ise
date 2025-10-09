@@ -5,7 +5,7 @@
 
 \usepackage{geometry}
 % NCE maximal width is 15 cm
-\geometry{paperwidth=3.5in, paperheight=2.3in, top=0pt, bottom=0pt, right=0pt, left=0pt}
+\geometry{paperwidth=3.5in, paperheight=2.65in, top=0pt, bottom=0pt, right=0pt, left=0pt}
 \usepackage{tikz}
 \usetikzlibrary{arrows, calc, patterns, decorations.pathmorphing, fit, positioning, shapes.misc}
 
@@ -27,6 +27,13 @@
             \foreach \j in {0,...,1} {
                 \pgfmathtruncatemacro{\laneStart}{\j * (\laneGap + \grid)}
 
+                % Draw thread lines
+                \draw [<-,decorate,decoration={
+                    snake,amplitude=\grid/0.8 mm,pre length=\grid/0.5 mm, post length=0 mm}]
+                    ({\laneStart mm + (\grid mm / 2)},  {\laneHeight mm + (0.1 * \grid mm)})
+                    --
+                    + (0, \grid mm);
+
                 % Draw boxes and labels
                 \foreach \i in {0,...,7} {
                     \pgfmathtruncatemacro{\index}{\j + (32 * (7 - \i))}
@@ -38,9 +45,17 @@
             
             % Draw last lane
             \pgfmathtruncatemacro{\lastLaneStart}{(2 * (\laneGap + \grid)) + \ellipsisGap}
+
+             % Draw thread line
+                \draw [<-,decorate,decoration={
+                    snake,amplitude=\grid/0.8 mm,pre length=\grid/0.5 mm, post length=0 mm}]
+                    ({\lastLaneStart mm + (\grid mm / 2)},  {\laneHeight mm + (0.1 * \grid mm)})
+                    --
+                    + (0, \grid mm);
+
             \foreach \i in {0,...,7} {
                 \pgfmathtruncatemacro{\index}{31 + (32 * (7 - \i))}
-                
+
                 % Boxes
                 \draw (\lastLaneStart mm, \grid mm * \i) +(0,0) rectangle ++(\grid mm,\grid mm);
                 
@@ -63,7 +78,14 @@
             \pgfmathtruncatemacro{\laneHeight}{8 * \grid}
             \foreach \j in {0,...,1} {
                 \pgfmathtruncatemacro{\laneStart}{\j * (\laneGap + \grid)}
-                
+
+                % Draw thread lines
+                \draw [<-,decorate,decoration={
+                    snake,amplitude=\grid/0.8 mm,pre length=\grid/0.5 mm, post length=0 mm}]
+                    ({\laneStart mm + (\grid mm / 2)},  {\laneHeight mm + (0.1 * \grid mm)})
+                    --
+                    + (0, \grid mm);
+
                 % Draw labels
                 \foreach \i in {0,...,1} {
                     \foreach \d in {0,...,3} {
@@ -78,18 +100,30 @@
             
             % Draw last lane
             \pgfmathtruncatemacro{\lastLaneStart}{(2 * (\laneGap + \grid)) + \ellipsisGap}
-    
-            \foreach \i in {0,...,7} {
-                \pgfmathtruncatemacro{\topDownI}{8 - \i}
-                
-                % Box
-                \draw (\lastLaneStart mm, \grid mm * \i) +(0,0) rectangle ++(\grid mm,\grid mm);
-                
-                % Labels
-                \node at ({\lastLaneStart mm + (\grid mm / 2)},  {\grid mm * (\i + 0.5)}) {$i_{\topDownI, 31}$};
-                
-                % Ellipsis
-                \node at ({\lastLaneStart mm - (\ellipsisGap mm / 2) - 0.5 mm},  {\grid mm * (\i + 0.5)}) {\ldots};
+
+             % Draw thread line
+                \draw [<-,decorate,decoration={
+                    snake,amplitude=\grid/0.8 mm,pre length=\grid/0.5 mm, post length=0 mm}]
+                    ({\lastLaneStart mm + (\grid mm / 2)},  {\laneHeight mm + (0.1 * \grid mm)})
+                    --
+                    + (0, \grid mm);
+
+            % Draw labels
+            \foreach \i in {0,...,1} {
+                \foreach \d in {0,...,3} {
+                    \pgfmathtruncatemacro{\y}{(\i * 4) + \d}
+                    \pgfmathtruncatemacro{\delay}{(3 - \d)}
+                    \pgfmathtruncatemacro{\index}{31 + (32 * (1 - \i))}
+
+                    % Box
+                    \draw (\lastLaneStart mm, \grid mm * \y) +(0,0) rectangle ++(\grid mm,\grid mm);
+
+                    % Labels
+                    \node at ({\lastLaneStart mm + (\grid mm / 2)},  {\grid mm * (\y + 0.5)}) {$i_{\delay, \index}$};
+  
+                    % Ellipsis
+                    \node at ({\lastLaneStart mm - (\ellipsisGap mm / 2) - 0.5 mm},  {\grid mm * (\y + 0.5)}) {\ldots};
+                }
             }
 
         \end{tikzpicture}
