@@ -5,7 +5,7 @@
 
 \usepackage{geometry}
 % NCE maximal width is 15 cm
-\geometry{paperwidth=3.5in, paperheight=3.5in, top=0pt, bottom=0pt, right=0pt, left=0pt}
+\geometry{paperwidth=3.5in, paperheight=2.3in, top=0pt, bottom=0pt, right=0pt, left=0pt}
 \usepackage{tikz}
 \usetikzlibrary{arrows, calc, patterns, decorations.pathmorphing, fit, positioning, shapes.misc}
 
@@ -38,13 +38,17 @@
             
             % Draw last lane
             \pgfmathtruncatemacro{\lastLaneStart}{(2 * (\laneGap + \grid)) + \ellipsisGap}
-  
-            % Draw labels
             \foreach \i in {0,...,7} {
                 \pgfmathtruncatemacro{\index}{31 + (32 * (7 - \i))}
-
+                
+                % Boxes
                 \draw (\lastLaneStart mm, \grid mm * \i) +(0,0) rectangle ++(\grid mm,\grid mm);
+                
+                % Labels
                 \node at ({\lastLaneStart mm + (\grid mm / 2)},  {\grid mm * (\i + 0.5)}) {$i_{\index}$};
+                
+                % Ellipsis between continuous and last nodex
+                \node at ({\lastLaneStart mm - (\ellipsisGap mm / 2) - 0.5 mm},  {\grid mm * (\i + 0.5)}) {\ldots};
             }
 
         \end{tikzpicture}
@@ -61,21 +65,31 @@
                 \pgfmathtruncatemacro{\laneStart}{\j * (\laneGap + \grid)}
                 
                 % Draw labels
-                \foreach \i in {0,...,7} {
-                    \pgfmathtruncatemacro{\topDownI}{8 - \i}
-                    \draw (\laneStart mm, \grid mm * \i) +(0,0) rectangle ++(\grid mm,\grid mm);
-                    \node at ({\laneStart mm + (\grid mm / 2)},  {\grid mm * (\i + 0.5)}) {$i_{\topDownI, \j}$};
-                }
+                \foreach \i in {0,...,1} {
+                    \foreach \d in {0,...,3} {
+                        \pgfmathtruncatemacro{\y}{(\i * 4) + \d}
+                        \pgfmathtruncatemacro{\delay}{(3 - \d)}
+                        \pgfmathtruncatemacro{\index}{\j + (32 * (1 - \i))}
+                        \draw (\laneStart mm, \grid mm * \y) +(0,0) rectangle ++(\grid mm,\grid mm);
+                        \node at ({\laneStart mm + (\grid mm / 2)},  {\grid mm * (\y + 0.5)}) {$i_{\delay, \index}$};
+                    }
+                }    
             }
             
             % Draw last lane
             \pgfmathtruncatemacro{\lastLaneStart}{(2 * (\laneGap + \grid)) + \ellipsisGap}
-            
+    
             \foreach \i in {0,...,7} {
                 \pgfmathtruncatemacro{\topDownI}{8 - \i}
-
+                
+                % Box
                 \draw (\lastLaneStart mm, \grid mm * \i) +(0,0) rectangle ++(\grid mm,\grid mm);
+                
+                % Labels
                 \node at ({\lastLaneStart mm + (\grid mm / 2)},  {\grid mm * (\i + 0.5)}) {$i_{\topDownI, 31}$};
+                
+                % Ellipsis
+                \node at ({\lastLaneStart mm - (\ellipsisGap mm / 2) - 0.5 mm},  {\grid mm * (\i + 0.5)}) {\ldots};
             }
 
         \end{tikzpicture}
