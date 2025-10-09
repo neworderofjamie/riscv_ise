@@ -42,7 +42,7 @@
                     \pgfmathtruncatemacro{\index}{\j + (32 * (7 - \i))}
 
                     \draw (\laneStart mm, \grid mm * \i) +(0,0) rectangle ++(\grid mm,\grid mm);
-                    \node at ({\laneStart mm + (\grid mm / 2)},  {\grid mm * (\i + 0.5)}) {$i_{\index}$};
+                    \node at ({\laneStart mm + (\grid mm / 2)},  {\grid mm * (\i + 0.5)}) {$I_{\index}$};
                 }
             }
             
@@ -63,7 +63,7 @@
                 \draw (\lastLaneStart mm, \grid mm * \i) +(0,0) rectangle ++(\grid mm,\grid mm);
                 
                 % Labels
-                \node at ({\lastLaneStart mm + (\grid mm / 2)},  {\grid mm * (\i + 0.5)}) {$i_{\index}$};
+                \node at ({\lastLaneStart mm + (\grid mm / 2)},  {\grid mm * (\i + 0.5)}) {$I_{\index}$};
                 
                 % Ellipsis between continuous and last nodex
                 \node at ({\lastLaneStart mm - (\ellipsisGap mm / 2) - 0.5 mm},  {\grid mm * (\i + 0.5)}) {\ldots};
@@ -99,7 +99,7 @@
                         \pgfmathtruncatemacro{\delay}{(3 - \d)}
                         \pgfmathtruncatemacro{\index}{\j + (32 * (1 - \i))}
                         \draw (\laneStart mm, \grid mm * \y) +(0,0) rectangle ++(\grid mm,\grid mm);
-                        \node at ({\laneStart mm + (\grid mm / 2)},  {\grid mm * (\y + 0.5)}) {$i_{\delay, \index}$};
+                        \node at ({\laneStart mm + (\grid mm / 2)},  {\grid mm * (\y + 0.5)}) {$I_{\delay, \index}$};
                     }
                 }    
             }
@@ -125,7 +125,7 @@
                     \draw (\lastLaneStart mm, \grid mm * \y) +(0,0) rectangle ++(\grid mm,\grid mm);
 
                     % Labels
-                    \node at ({\lastLaneStart mm + (\grid mm / 2)},  {\grid mm * (\y + 0.5)}) {$i_{\delay, \index}$};
+                    \node at ({\lastLaneStart mm + (\grid mm / 2)},  {\grid mm * (\y + 0.5)}) {$I_{\delay, \index}$};
   
                     % Ellipsis
                     \node at ({\lastLaneStart mm - (\ellipsisGap mm / 2) - 0.5 mm},  {\grid mm * (\y + 0.5)}) {\ldots};
