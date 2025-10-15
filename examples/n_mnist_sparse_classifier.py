@@ -24,7 +24,11 @@ def build_sparse_conn(checkpoint_stem: str, num_pre: int,
 
     # Load and quantise weights
     weights = quantise(np.load(f"{checkpoint_stem}-g.npy"), **quantise_kwargs)
-    
+    assert weights.shape == pre_ind.shape
+    assert weights.shape == post_ind.shape
+    assert np.amin(pre_ind) >= 0
+    assert np.amax(pre_ind) < num_pre
+
     # Loop through presynaptic neurons
     row_weights = []
     row_ind = []
@@ -83,7 +87,7 @@ input_spikes = EventContainer(input_shape, num_timesteps)
 # Model
 rng_init = RNGInit()
 hidden = LIF(hidden_shape, 20.0, 4, 0.61,
-              record, 7, dt=dt, name="hidden")
+             record, 7, dt=dt, name="hidden")
 output = LI(output_shape, 20.0, num_timesteps, 11, dt=dt, name="output")
 
 input_hidden = Linear(input_spikes, hidden.i, "s8_7_sat_t", max_row_length=in_hid_conn.shape[1],
@@ -119,6 +123,11 @@ code = backend.generate_simulation_kernel([synapse_update_processes, neuron_upda
 
 # Disassemble if required
 if disassemble_code:
+    print("Init:")
+    for i, c in enumerate(init_code):
+        print(f"{i * 4} : {disassemble(c)}")
+
+    print("Simulation:")
     for i, c in enumerate(code):
         print(f"{i * 4} : {disassemble(c)}")
 
