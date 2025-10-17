@@ -11,7 +11,7 @@ from tonic.transforms import Compose, Downsample
 from pyfenn import disassemble, init_logging
 from pyfenn.utils import (build_sparse_connectivity, ceil_divide,
                           copy_and_push, get_array_view,
-                          load_quantise_and_push, quantise,
+                          load_quantise_and_push, pull_spikes, quantise,
                           seed_and_push, zero_and_push)
 from tqdm.auto import tqdm
 
@@ -50,7 +50,7 @@ hidden_hidden_shape = (hidden_shape, hidden_shape)
 hidden_output_shape = (hidden_shape, output_shape)
 num_sparse_connectivity_bits = 5
 device = False
-record = False
+record = True
 disassemble_code = False
 
 # Load N-MNIST
@@ -63,12 +63,14 @@ n_mnist_labels = []
 timestep_range = np.arange(0, (num_timesteps + 1) * dt, dt)
 neuron_range = np.arange((ceil_divide(input_shape, 32) * 32) + 1)
 max_len = 0
-for events, label in dataset:
+for i in range(10):
+    events, label = dataset[i]
     # Build histogram
     neuron_id = (events["p"] + (events["x"] * sensor_size[2]) + 
                  (events["y"] * sensor_size[0] * sensor_size[2]))
     spike_event_histogram = np.histogram2d(events["t"] / 1000.0, neuron_id, 
                                            (timestep_range, neuron_range))[0]
+
     spike_event_histogram = np.minimum(spike_event_histogram, 1).astype(bool)
     spike_event_bits = np.packbits(spike_event_histogram, axis=1, bitorder="little")
     n_mnist_spikes.append(spike_event_bits.view(np.uint32).flatten())
@@ -87,7 +89,7 @@ input_spikes = EventContainer(input_shape, num_timesteps)
 # Model
 rng_init = RNGInit()
 hidden = LIF(hidden_shape, 20.0, 4, 0.61,
-             record, 7, dt=dt, name="hidden")
+             num_timesteps + 1 if record else 1, 7, dt=dt, name="hidden")
 output = LI(output_shape, 20.0, num_timesteps, 11, dt=dt, name="output")
 
 input_hidden = Linear(input_spikes, hidden.i, "s8_7_sat_t", max_row_length=in_hid_conn.shape[1],
@@ -167,9 +169,10 @@ runtime.set_instructions(code)
 # Loop through examples
 input_spike_array, input_spike_view = get_array_view(runtime, input_spikes,
                                                      np.uint32)
-hidden_spike_array = runtime.get_array(hidden.out_spikes)
 output_v_avg_array, output_v_avg_view = get_array_view(runtime, output.v_avg, np.int16)
 
+hidden_spike_times = []
+hidden_spike_ids = []
 num_correct = 0
 for spikes, label in tqdm(zip(n_mnist_spikes, n_mnist_labels),
                           total=len(n_mnist_labels)):
@@ -187,5 +190,18 @@ for spikes, label in tqdm(zip(n_mnist_spikes, n_mnist_labels),
     classification = np.argmax(output_v_avg_view)
     if classification == label:
         num_correct += 1
+        
+    if record:
+        hidden_spikes = pull_spikes(num_timesteps + 1, hidden.out_spikes, runtime)
+        hidden_spike_times.append(hidden_spikes[0])
+        hidden_spike_ids.append(hidden_spikes[1])
 
 print(f"{num_correct} / {len(n_mnist_labels)} correct {100.0 * (num_correct / len(n_mnist_labels))}%")
+
+if record:
+    import matplotlib.pyplot as plt
+    
+    fig, axes = plt.subplots(2, 5, sharex="col", sharey="row")
+    for t, i, a in zip(hidden_spike_times, hidden_spike_ids, axes.flatten()):
+        a.scatter(t, i, s=1)
+    plt.show()
