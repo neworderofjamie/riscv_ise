@@ -47,7 +47,7 @@ input_spikes = EventContainer(input_shape, num_timesteps)
 # Model
 rng_init = RNGInit()
 hidden = ALIF(hidden_shape, 20.0, 2000.0, 4, 0.6, 0.0174,
-              record, 7, name="hidden")
+              num_timesteps if record else 1, 7, name="hidden")
 output = LI(output_shape, 20.0, num_timesteps, 11, name="output")
 
 input_hidden = Linear(input_spikes, hidden.i, "s8_7_sat_t", name="input_hidden")

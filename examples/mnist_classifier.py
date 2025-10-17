@@ -33,7 +33,7 @@ init_logging()
 input_spikes = EventContainer(Shape(input_shape), num_timesteps)
 
 # Model
-hidden = LIF(hidden_shape, 20.0, 5, 0.61, record, 5, name="hidden")
+hidden = LIF(hidden_shape, 20.0, 5, 0.61, num_timesteps if record else 1, 5, name="hidden")
 output = LI(output_shape, 20.0, num_timesteps, 6, name="output")
 input_hidden = Linear(input_spikes, hidden.i, "s10_5_sat_t", name="input_hidden")
 hidden_output = Linear(hidden.out_spikes, output.i, "s9_6_sat_t", name="hidden_output")

@@ -5,7 +5,7 @@ from pyfenn import (EventContainer, NeuronUpdateProcess,
 
 class LIF:
     def __init__(self, shape, tau_m: float, tau_refrac: int, v_thresh: float,
-                 record_spikes: bool = False, fixed_point: int = 5,
+                 record_timesteps: int = 1, fixed_point: int = 5,
                  dt: float = 1.0, name: str = ""):
         self.shape = shape
         dtype = f"s{15 - fixed_point}_{fixed_point}_sat_t"
@@ -13,9 +13,7 @@ class LIF:
         self.i = Variable(self.shape, dtype, name=f"{name}_i")
         self.refrac_time = Variable(self.shape, "int16_t",
                                     name=f"{name}_refrac_time")
-        self.out_spikes = EventContainer(self.shape, 
-                                         (num_timesteps if record_spikes
-                                          else 1))
+        self.out_spikes = EventContainer(self.shape, record_timesteps)
         self.process = NeuronUpdateProcess(
             f"""
             V = (Alpha * V) + I;
@@ -39,7 +37,7 @@ class LIF:
 class ALIF:
     def __init__(self, shape, tau_m: float, tau_a: float, tau_refrac: int,
                  v_thresh: float, beta: float = 0.0174,
-                 record_spikes: bool = False, fixed_point: int = 9,
+                 record_timesteps: int = 1, fixed_point: int = 9,
                  dt: float = 1.0, name: str = ""):
         self.shape = shape
         dtype = f"s{15 - fixed_point}_{fixed_point}_sat_t"
@@ -49,9 +47,7 @@ class ALIF:
         self.i = Variable(self.shape, dtype, name=f"{name}_i")
         self.refrac_time = Variable(self.shape, "int16_t",
                                     name=f"{name}_refrac_time")
-        self.out_spikes = EventContainer(self.shape, 
-                                         (num_timesteps if record_spikes
-                                          else 1))
+        self.out_spikes = EventContainer(self.shape, record_timesteps)
         self.process = NeuronUpdateProcess(
             f"""
             V = mul_rs(Alpha, V) + I;
