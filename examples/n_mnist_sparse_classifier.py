@@ -34,10 +34,10 @@ def build_sparse_conn(checkpoint_stem: str, num_pre: int,
     row_ind = []
     for i in range(num_pre):
         mask = (pre_ind == i)
-        
+
         row_weights.append(weights[mask])
         row_ind.append(post_ind[mask])
-    
+
     return build_sparse_connectivity(row_ind, row_weights, num_sparse_connectivity_bits)
 
 dt = 1.0
@@ -87,7 +87,7 @@ input_spikes = EventContainer(input_shape, num_timesteps)
 # Model
 rng_init = RNGInit()
 hidden = LIF(hidden_shape, 20.0, 4, 0.61,
-             record, 7, dt=dt, name="hidden")
+             1, 7, dt=dt, name="hidden")
 output = LI(output_shape, 20.0, num_timesteps, 11, dt=dt, name="output")
 
 input_hidden = Linear(input_spikes, hidden.i, "s8_7_sat_t", max_row_length=in_hid_conn.shape[1],
