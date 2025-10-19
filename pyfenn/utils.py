@@ -230,7 +230,7 @@ def build_sparse_connectivity(row_ind: Sequence[np.ndarray],
         # Combine weight and indices
         assert len(row_data_sorted) == len(weight)
         row_data_sorted = [r | (w << sparse_connectivity_bits)
-                           for r, w in zip(row_data_sorted, weight)]
+                           for r, w in zip(row_data_sorted, weight_sorted)]
 
     padded_rows = []
     for d, s in zip(row_data_sorted, row_conn_lane_sections):
