@@ -173,12 +173,16 @@ public:
         m_Device.uploadCode(instructions);
     }
 
-    virtual void run() override final
+    virtual void startRun() override final
     {
         // Enable core
         m_Device.setEnabled(true);
         LOGD << "Running";
         
+    }
+
+    virtual void waitRun() override final
+    {
         // Wait until ready flag
         m_Device.waitOnNonZero(0);
         LOGD << "Done";

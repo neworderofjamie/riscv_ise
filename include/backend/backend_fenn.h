@@ -265,7 +265,8 @@ public:
     // Declared virtuals
     //------------------------------------------------------------------------
     virtual void setInstructions(const std::vector<uint32_t> &instructions) = 0;
-    virtual void run() = 0;
+    virtual void startRun() = 0;
+    virtual void waitRun() = 0;
 
     virtual std::unique_ptr<ArrayBase> createURAMArray(const GeNN::Type::ResolvedType &type, size_t count) = 0;
     virtual std::unique_ptr<ArrayBase> createBRAMArray(const GeNN::Type::ResolvedType &type, size_t count) = 0;

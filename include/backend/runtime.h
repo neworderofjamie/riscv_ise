@@ -118,6 +118,8 @@ public:
 
     void allocate();
     void run();
+    void startRun();
+    void waitRun();
 
     ArrayBase *getArray(std::shared_ptr<const State> variable) const;
 

@@ -118,7 +118,18 @@ void Runtime::allocate()
 //----------------------------------------------------------------------------
 void Runtime::run()
 {
-    m_State->run();
+    startRun();
+    waitRun();
+}
+//----------------------------------------------------------------------------
+void Runtime::startRun()
+{
+    m_State->startRun();
+}
+//----------------------------------------------------------------------------
+void Runtime::waitRun()
+{
+    m_State->waitRun();
 }
 //----------------------------------------------------------------------------
 ArrayBase *Runtime::getArray(std::shared_ptr<const State> variable) const

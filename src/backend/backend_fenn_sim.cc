@@ -170,10 +170,14 @@ public:
         m_RISCV.setInstructions(instructions);
     }
 
-    virtual void run() override final
+    virtual void startRun() override final
     {
         m_RISCV.setPC(0);
         m_RISCV.run();
+    }
+
+    virtual void waitRun() override final
+    {
     }
 
     virtual std::unique_ptr<ArrayBase> createURAMArray(const GeNN::Type::ResolvedType &type, size_t count) final override

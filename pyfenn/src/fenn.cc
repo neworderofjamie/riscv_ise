@@ -378,6 +378,8 @@ PYBIND11_MODULE(_fenn, m)
         .def("set_instructions", &Runtime::setInstructions)
         .def("allocate", &Runtime::allocate)
         .def("run", &Runtime::run)
+        .def("start_run", &Runtime::startRun)
+        .def("wait_run", &Runtime::waitRun)
         .def_property_readonly("soc_power", &Runtime::getSOCPower);
         
 }
