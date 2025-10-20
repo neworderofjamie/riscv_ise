@@ -54,7 +54,7 @@ def test_forward(device, use_dram_for_weights):
         dense[i,row] = 1
 
     # Convert into internal format
-    conn = build_sparse_connectivity(conn, 1, 3)
+    conn = build_sparse_connectivity(conn, 1, 2)
 
     # Create input spike container
     input_spikes = EventContainer(16, 16)
@@ -64,7 +64,7 @@ def test_forward(device, use_dram_for_weights):
     dense_n_pop = PostNeuron(4, 1, 17, "DenseNPop")
 
     input_sparse = Linear(input_spikes, sparse_n_pop.i, "int16_t", 
-                          max_row_length=4, num_sparse_connectivity_bits=3,
+                          max_row_length=4, num_sparse_connectivity_bits=2,
                           name="input_sparse")
     input_dense = Linear(input_spikes, dense_n_pop.i, "int16_t", name="input_dense")
 
@@ -128,7 +128,7 @@ def test_forward_den_delay(device, use_dram_for_weights):
 
     num_pre = 10
     num_post = 4
-    num_delay_bits = 5
+    num_delay_bits = 4
 
     num_pre_vecs = ceil_divide(num_pre, 32)
     num_post_vecs = ceil_divide(num_post, 32)
@@ -155,7 +155,7 @@ def test_forward_den_delay(device, use_dram_for_weights):
     input_spikes = EventContainer(num_pre, num_pre)
 
     # Create one output neuron pop
-    dense_n_pop = PostNeuron(num_post, 2**(num_delay_bits - 1), num_pre + 1, "DenseNPop")
+    dense_n_pop = PostNeuron(num_post, 2**num_delay_bits, num_pre + 1, "DenseNPop")
 
     # Create delayed connection from input spikes to dense
     input_dense = Linear(input_spikes, dense_n_pop.i, "int16_t", 
