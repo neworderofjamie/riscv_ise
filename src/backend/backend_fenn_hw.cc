@@ -161,7 +161,7 @@ public:
     :   m_Device(0x80000000 + (core * 0x01000000)), 
         m_DMABuffer(getParentDMABuffer(), 
                     (numCores == 1) ? getParentDMABuffer().getPhysicalAddress() : (0x40000000 + (core * 0x10000000)),
-                    (numCores == 1) ? getParentDMABuffer().getSize() : 0x10000000),
+                    (numCores == 1) ? (getParentDMABuffer().getPhysicalAddress() + getParentDMABuffer().getSize()) : (0x50000000 + (core * 0x10000000))),
         m_DMABufferAllocator(m_DMABuffer.getSize())
     {}
 
