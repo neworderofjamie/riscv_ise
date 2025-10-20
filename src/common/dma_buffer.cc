@@ -39,7 +39,7 @@ T getIOCtl(int file, unsigned long op)
 // DMABuffer
 //----------------------------------------------------------------------------
 DMABuffer::DMABuffer(int index)
-    : m_Memory(0), m_Data(nullptr), m_PhysicalAddress(0), m_Size(0)
+:   m_Memory(0), m_Data(nullptr), m_PhysicalAddress(0), m_Size(0)
 {
 #ifdef __linux__ 
     LOGI << "Creating DMA buffer " << index;
@@ -64,6 +64,36 @@ DMABuffer::DMABuffer(int index)
     if(m_Data == MAP_FAILED) {
         throw std::runtime_error("Data map failed (" + std::to_string(errno) + " = " + strerror(errno) + ")");
     }
+#else
+    throw std::runtime_error("DMABuffer interface only supports Linux");
+#endif  // __linux__
+}
+//----------------------------------------------------------------------------
+DMABuffer::DMABuffer(DMABuffer &parent, uint64_t physicalStartAddress, uint64_t physicalEndAddress)
+:   m_Memory(0)
+{
+#ifdef __linux__ 
+    LOGI << "Creating child DMA buffer";
+
+    // If parent DMA buffer does not overlap region
+    const uint64_t parentPhysicalEndAddress = parent.getPhysicalAddress() + parent.getSize();
+    if((parent.getPhysicalAddress() > physicalEndAddress)
+       || (parentPhysicalEndAddress < physicalStartAddress))
+    {
+        throw std::runtime_error("Parent DMA buffer does not overlap target physical memory region");
+    }
+
+    // Calculate start address
+    m_PhysicalAddress = std::max(physicalStartAddress, parent.getPhysicalAddress());
+    LOGD << "\tPhysical address: " << std::hex << m_PhysicalAddress;
+
+    // Calculate end and hence sie
+    const size_t actualEndAddress = std::min(physicalEndAddress, parentPhysicalEndAddress);
+    m_Size = actualEndAddress - m_PhysicalAddress;
+    LOGD << "\tSize: " << m_Size << " bytes";
+
+    // Calculate data pointer
+    m_Data = parent.getData() + (m_PhysicalAddress - parent.getPhysicalAddress());
 #else
     throw std::runtime_error("DMABuffer interface only supports Linux");
 #endif  // __linux__

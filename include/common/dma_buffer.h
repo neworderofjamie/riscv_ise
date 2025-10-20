@@ -14,6 +14,7 @@ class COMMON_EXPORT DMABuffer
 {
 public:
     DMABuffer(int index = 0);
+    DMABuffer(DMABuffer &parent, uint64_t physicalStartAddress, uint64_t physicalEndAddress);
     ~DMABuffer();
 
     //------------------------------------------------------------------------

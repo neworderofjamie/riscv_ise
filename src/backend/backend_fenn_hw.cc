@@ -157,8 +157,12 @@ private:
 class HWState : public StateBase
 {
 public:
-    HWState(size_t coreBaseAddress) 
-    :   m_Device(coreBaseAddress), m_DMABufferAllocator(m_DMABuffer.getSize())
+    HWState(unsigned int core, unsigned int numCores) 
+    :   m_Device(0x80000000 + (core * 0x01000000)), 
+        m_DMABuffer(getParentDMABuffer(), 
+                    (numCores == 1) ? getParentDMABuffer().getPhysicalAddress() : (0x40000000 + (core * 0x10000000)),
+                    (numCores == 1) ? getParentDMABuffer().getSize() : 0x10000000),
+        m_DMABufferAllocator(m_DMABuffer.getSize())
     {}
 
     //------------------------------------------------------------------------
@@ -233,6 +237,15 @@ public:
     auto &getDMABuffer(){ return m_DMABuffer; }
 
 private:
+//------------------------------------------------------------------------
+    // Static API
+    //------------------------------------------------------------------------
+    static DMABuffer &getParentDMABuffer()
+    {
+        static std::unique_ptr<DMABuffer> parentDMABuffer = std::make_unique<DMABuffer>();
+        return *parentDMABuffer.get();
+    }
+
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
@@ -470,13 +483,14 @@ void URAMLLMArray::pullFromDevice()
 // BackendFeNNHW
 //------------------------------------------------------------------------
 BackendFeNNHW::BackendFeNNHW(bool useDRAMForWeights, bool keepParamsInRegisters, 
-                             RoundingMode neuronUpdateRoundingMode, size_t coreBaseAddress)
+                             RoundingMode neuronUpdateRoundingMode, 
+                             unsigned int core, unsigned int numCores)
 :   BackendFeNN(useDRAMForWeights, keepParamsInRegisters, neuronUpdateRoundingMode), 
-    m_CoreBaseAddress(coreBaseAddress)
+    m_Core(core), m_NumCores(numCores)
 {
 }
 //------------------------------------------------------------------------
 std::unique_ptr<StateBase> BackendFeNNHW::createState() const
 {
-    return std::make_unique<HWState>(m_CoreBaseAddress);
+    return std::make_unique<HWState>(m_Core, m_NumCores);
 }

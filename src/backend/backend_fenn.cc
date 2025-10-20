@@ -123,23 +123,6 @@ void addStochMulFunctions(EnvironmentLibrary::Library &library)
     }
 }
 
-bool isIdentifierCalled(const std::string &identifierName, const std::vector<Transpiler::Token> &tokens)
-{
-    // Loop through tokens
-    for(auto t = tokens.cbegin(); t != tokens.cend(); t++) {
-        // If token is an identifier with correct name
-        if(t->type == Transpiler::Token::Type::IDENTIFIER && t->lexeme == identifierName) {
-            // If token isn't last in sequence and it's followed by a left bracket
-            const auto tNext = std::next(t);
-            if(tNext != tokens.cend() && tNext->type == Transpiler::Token::Type::LEFT_PAREN) {
-                return true;
-            }
-        }
-    }
-
-    return false;
-}
-
 bool isExpCalled(const std::vector<Transpiler::Token> &tokens)
 {
     // Loop through tokens
