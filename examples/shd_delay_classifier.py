@@ -12,7 +12,7 @@ from pyfenn import disassemble, init_logging
 from pyfenn.utils import (build_delay_weights, ceil_divide, copy_and_push, 
                           get_array_view, load_quantise_and_push, pull_spikes,
                           read_perf_counter, quantise, zero_and_push)
-from tqdm.auto import tqdm
+from tqdm.auto import tqdm, trange
 
 class LIF:
     def __init__(self, shape, tau_m: float, tau_syn: float, v_thresh: float,
@@ -87,6 +87,7 @@ record = False
 disassemble_code = False
 num_delay_bits = 7
 time = True
+num_cores = 1
 
 # Load and preprocess SHD
 dataset = SHD(save_to="data", train=False)
@@ -96,7 +97,7 @@ shd_spikes = []
 shd_labels = []
 timestep_range = np.arange(num_timesteps + 1)
 neuron_range = np.arange((ceil_divide(input_shape, 32) * 32) + 1)
-for events, label in dataset:
+for events, label in tqdm(dataset, "Preprocessing dataset"):
     # Build histogram
     spike_event_histogram = np.histogram2d(events["t"] / 1000.0, events["x"], (timestep_range, neuron_range))[0]
     spike_event_histogram = np.minimum(spike_event_histogram, 1).astype(bool)
@@ -139,30 +140,33 @@ reset_processes = ProcessGroup([hidden_i_zero.process, hidden_v_zero.process,
                                 output_v_avg_zero.process],
                                PerformanceCounter() if time else None)
 
-# Create backend
-backend_params = {"rounding_mode": RoundingMode.STOCHASTIC}
-backend = BackendFeNNHW(**backend_params) if device else BackendFeNNSim(**backend_params)
+# Create backend for each core
+if device:
+    backends = [BackendFeNNHW(rounding_mode=RoundingMode.STOCHASTIC, core=i, num_cores=num_cores)
+                for i in range(num_cores)]
+else:
+    assert num_cores == 1
+    backends = [BackendFeNNSim(rounding_mode=RoundingMode.STOCHASTIC)]
 
-# Create model
-model = Model([neuron_update_processes, synapse_update_processes, reset_processes],
-              backend)
+# Create model for each core (not really necessary)
+models = [Model([neuron_update_processes, synapse_update_processes, reset_processes], b)
+          for b in backends]
 
 # Generate code
-sim_code = backend.generate_simulation_kernel([synapse_update_processes, neuron_update_processes],  # Update synapses and then neurons every timestep
-                                              [reset_processes], [],
-                                              num_timesteps, model)
+sim_codes = [b.generate_simulation_kernel([synapse_update_processes, neuron_update_processes],
+                                          [reset_processes], [],
+                                          num_timesteps, m)
+             for b, m in zip(backends, models)]
 
 # Disassemble if required
 if disassemble_code:
     print("Simulation:")
-    for i, c in enumerate(sim_code):
+    for i, c in enumerate(sim_codes[0]):
         print(f"{i * 4} : {disassemble(c)}")
 
-# Create runtime
-runtime = Runtime(model, backend)
+# Create runtimes
+runtimes = [Runtime(m, b) for b, m in zip(backends, models)]
 
-# Allocate memory for model
-runtime.allocate()
 
 # Load and round delays
 in_hid_delays = np.round(np.load("checkpoints_6_1_256_62_1_0_1.0_1_5e-12/best-Conn_Pop0_Pop1-d.npy")).astype(np.uint16)
@@ -175,57 +179,68 @@ in_hid_weights = quantise(np.load("checkpoints_6_1_256_62_1_0_1.0_1_5e-12/best-C
 hid_hid_weights = quantise(np.load("checkpoints_6_1_256_62_1_0_1.0_1_5e-12/best-Conn_Pop1_Pop1-g.npy"),
                            8) 
 
-# Combine weights and delays and push
-copy_and_push(build_delay_weights(in_hid_weights, in_hid_delays, num_delay_bits),
-              input_hidden.weight, runtime)
-copy_and_push(build_delay_weights(hid_hid_weights, hid_hid_delays, num_delay_bits),
-              hidden_hidden.weight, runtime)
+# Loop through runtimes
+input_spike_array_views = []
+output_v_avg_array_views = []
+for r, s in zip(runtimes, sim_codes):
+    r.allocate()
 
-# Load and quantise output weights
-load_quantise_and_push("checkpoints_6_1_256_62_1_0_1.0_1_5e-12/best-Conn_Pop1_Pop2-g.npy",
-                       8, hidden_output.weight, runtime, hidden_shape, True)
+    # Combine weights and delays and push
+    copy_and_push(build_delay_weights(in_hid_weights, in_hid_delays, num_delay_bits),
+                  input_hidden.weight, r)
+    copy_and_push(build_delay_weights(hid_hid_weights, hid_hid_delays, num_delay_bits),
+                  hidden_hidden.weight, r)
 
-if time:
-    zero_and_push(neuron_update_processes.performance_counter, runtime)
-    zero_and_push(synapse_update_processes.performance_counter, runtime)
-    zero_and_push(reset_processes.performance_counter, runtime)
+    # Load and quantise output weights
+    load_quantise_and_push("checkpoints_6_1_256_62_1_0_1.0_1_5e-12/best-Conn_Pop1_Pop2-g.npy",
+                           8, hidden_output.weight, r, hidden_shape, True)
+
+    if time:
+        zero_and_push(neuron_update_processes.performance_counter, r)
+        zero_and_push(synapse_update_processes.performance_counter, r)
+        zero_and_push(reset_processes.performance_counter, r)
+        
+    # Set sim instructions
+    r.set_instructions(s)
+
+    # Loop through examples
+    input_spike_array_views.append(get_array_view(r, input_spikes, np.uint32))
+    output_v_avg_array_views.append(get_array_view(r, output.v_avg, np.int16))
     
-# Set sim instructions
-runtime.set_instructions(sim_code)
-
-# Loop through examples
-input_spike_array, input_spike_view = get_array_view(runtime, input_spikes,
-                                                     np.uint32)
-output_v_avg_array, output_v_avg_view = get_array_view(runtime, output.v_avg, np.int16)
 num_correct = 0
-for spikes, label in tqdm(zip(shd_spikes, shd_labels),
-                          total=len(shd_labels)):
-    # Copy data to array host pointe
-    input_spike_view[:] = spikes
-    input_spike_array.push_to_device()
+for e in trange(0, len(shd_spikes), num_cores, desc="Simulating"):
+    # Copy spikes to each core and start classifying
+    for r, i, s in zip(runtimes, input_spike_array_views, shd_spikes[e:e + num_cores]):
+        i[1][:] = s
+        i[0].push_to_device()
+        
+        r.start_run()
 
-    # Classify
-    runtime.run()
+    # Wait
+    for r, o, l in zip(runtimes, output_v_avg_array_views, shd_labels[e:e + num_cores]):
+        r.wait_run()
+    
+        # Copy output V sum from device
+        o[0].pull_from_device()
 
-    # Copy output V sum from device
-    output_v_avg_array.pull_from_device()
-
-    # Determine if output is correct
-    classification = np.argmax(output_v_avg_view)
-    if classification == label:
-        num_correct += 1
+        # Determine if output is correct
+        classification = np.argmax(o[1])
+        if classification == l:
+            num_correct += 1
 
 print(f"{num_correct} / {len(shd_labels)} correct {100.0 * (num_correct / len(shd_labels))}%")
 
 
 if time:
-    neuron_update_cycles, neuron_update_instructions = read_perf_counter(
-        neuron_update_processes.performance_counter, runtime)
-    synapse_update_cycles, synapse_update_instructions = read_perf_counter(
-        synapse_update_processes.performance_counter, runtime)
-    reset_cycles, reset_instructions = read_perf_counter(
-        reset_processes.performance_counter, runtime)
-    print(f"Neuron update {neuron_update_cycles} cycles, {neuron_update_instructions} instruction ({neuron_update_instructions / neuron_update_cycles})")
-    print(f"Synapse update {synapse_update_cycles} cycles, {synapse_update_instructions} instruction ({synapse_update_instructions / synapse_update_cycles})")
-    print(f"Reset {reset_cycles} cycles, {reset_instructions} instruction ({reset_instructions / reset_cycles})")
+    for i, r in enumerate(runtimes):
+        print(f"Core {i}")
+        neuron_update_cycles, neuron_update_instructions = read_perf_counter(
+            neuron_update_processes.performance_counter, r)
+        synapse_update_cycles, synapse_update_instructions = read_perf_counter(
+            synapse_update_processes.performance_counter, r)
+        reset_cycles, reset_instructions = read_perf_counter(
+            reset_processes.performance_counter, r)
+        print(f"\tNeuron update {neuron_update_cycles} cycles, {neuron_update_instructions} instruction ({neuron_update_instructions / neuron_update_cycles})")
+        print(f"\tSynapse update {synapse_update_cycles} cycles, {synapse_update_instructions} instruction ({synapse_update_instructions / synapse_update_cycles})")
+        print(f"\tReset {reset_cycles} cycles, {reset_instructions} instruction ({reset_instructions / reset_cycles})")
 
