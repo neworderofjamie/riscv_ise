@@ -161,9 +161,8 @@ def build_delay_weights(weights: np.ndarray, delays: np.ndarray,
     assert weights.shape == delays.shape
     
     # Check largest delay fits within delay connectivity bits
-    addresses = delays * 2
-    max_address = np.amax(addresses)
-    if max_address >= 2**delay_bits:
+    max_delays = np.amax(delays)
+    if max_delays >= 2**delay_bits:
         raise RuntimeError("Not enough bits to represent delays")
 
     # Check weight fits within remaining bits
@@ -174,7 +173,7 @@ def build_delay_weights(weights: np.ndarray, delays: np.ndarray,
         raise RuntimeError("Not enough bits for weight")
 
     # Combine weight and indices
-    return (addresses | (weights << delay_bits)).astype(np.int16)
+    return (delays | (weights << delay_bits)).astype(np.int16)
 
 def build_sparse_connectivity(row_ind: Sequence[np.ndarray], 
                               weight: Union[Number, Sequence[np.ndarray]],
@@ -199,7 +198,7 @@ def build_sparse_connectivity(row_ind: Sequence[np.ndarray],
     row_conn_lane_sections = [np.cumsum(c) for c in row_conns_per_lane]
 
     # Convert row indices into addresses
-    row_data_sorted = [((r // 32) * 2).astype(np.int16) for r in row_ind_sorted]
+    row_data_sorted = [(r // 32).astype(np.int16) for r in row_ind_sorted]
 
     # Check largest address fits without sparse connectivity bits
     max_address = max(np.amax(r) for r in row_data_sorted

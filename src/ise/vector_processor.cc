@@ -312,7 +312,7 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
                 unaryOp(val, false,
                         [mask, val2](int16_t a)
                         { 
-                            return (a & mask) + val2; 
+                            return ((a & mask) << 1) + val2; 
                         }));
         }
         else {

@@ -85,7 +85,7 @@ hidden_output_shape = (hidden_shape, output_shape)
 device = False
 record = False
 disassemble_code = False
-num_delay_bits = 7
+num_delay_bits = 6
 time = True
 num_cores = 1
 
@@ -112,7 +112,7 @@ input_spikes = EventContainer(input_shape, num_timesteps)
 
 # Model
 hidden = LIF(hidden_shape, 20.0, 5.0, 1.0,
-             8, 1, 2**(num_delay_bits - 1), name="hidden")
+             8, 1, 2**num_delay_bits, name="hidden")
 output = LI(output_shape, 20.0, 5.0, num_timesteps, 8, name="output")
 
 input_hidden = Linear(input_spikes, hidden.i, "s7_8_sat_t", 

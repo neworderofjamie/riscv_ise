@@ -114,9 +114,8 @@ EventPropagationProcess::EventPropagationProcess(Private, std::shared_ptr<const 
         }
     }
     // Otherwise, check buffer size matches
-    // **YUCK** the fact delays are actually addresses to 2 byte things is very FeNN-specific
     else {
-        if(m_Target->getNumBufferTimesteps() != (1 << (m_NumDelayBits - 1))) {
+        if(m_Target->getNumBufferTimesteps() != (1 << m_NumDelayBits)) {
             throw std::runtime_error("Number of target buffer timestep does not "
                                      "match specified number of delay bits");
         }

@@ -2135,7 +2135,6 @@ private:
         {
             vectorTimeReg = vectorRegisterAllocator.getRegister("VTime V");
             c.vfill(*vectorTimeReg, *m_TimeRegister);
-            c.vslli(1, *vectorTimeReg, *vectorTimeReg);
         }
 
         // Loop through postsynaptic targets and create appropriate row generator objects
