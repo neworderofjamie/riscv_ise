@@ -2,7 +2,7 @@ import numpy as np
 import mnist
 
 from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer, Model, ProcessGroup,
-                    Runtime)
+                    RoundingMode, Runtime)
 from pyfenn.models import Linear, Memset, RNGInit
 from models import LIF, LI
 from tonic.datasets import NMNIST
@@ -76,9 +76,11 @@ for events, label in dataset:
 
 # Build connectivity
 in_hid_conn = build_sparse_conn("n_mnist_checkpoints/98-Conn_Pop0_Pop2",
-                                input_shape, num_sparse_connectivity_bits, fractional_bits=7)
+                                input_shape, num_sparse_connectivity_bits, fractional_bits=8,
+                                percentile=100.0)
 hid_hid_conn = build_sparse_conn("n_mnist_checkpoints/98-Conn_Pop2_Pop2",
-                                 hidden_shape, num_sparse_connectivity_bits, fractional_bits=7)
+                                 hidden_shape, num_sparse_connectivity_bits, fractional_bits=8,
+                                 percentile=100.0)
 init_logging()
 
 # Input spikes
@@ -87,14 +89,14 @@ input_spikes = EventContainer(input_shape, num_timesteps)
 # Model
 rng_init = RNGInit()
 hidden = LIF(hidden_shape, 20.0, 4, 0.61,
-             1, 7, dt=dt, name="hidden")
-output = LI(output_shape, 20.0, num_timesteps, 11, dt=dt, name="output")
+             1, 8, dt=dt, name="hidden")
+output = LI(output_shape, 20.0, num_timesteps, 9, dt=dt, name="output")
 
-input_hidden = Linear(input_spikes, hidden.i, "s8_7_sat_t", max_row_length=in_hid_conn.shape[1],
+input_hidden = Linear(input_spikes, hidden.i, "s7_8_sat_t", max_row_length=in_hid_conn.shape[1],
                       num_sparse_connectivity_bits=num_sparse_connectivity_bits, name="input_hidden")
-hidden_hidden = Linear(hidden.out_spikes, hidden.i, "s8_7_sat_t", max_row_length=hid_hid_conn.shape[1],
+hidden_hidden = Linear(hidden.out_spikes, hidden.i, "s7_8_sat_t", max_row_length=hid_hid_conn.shape[1],
                        num_sparse_connectivity_bits=num_sparse_connectivity_bits, name="hidden_hidden")
-hidden_output = Linear(hidden.out_spikes, output.i, "s4_11_sat_t", name="hidden_output")
+hidden_output = Linear(hidden.out_spikes, output.i, "s6_9_sat_t", name="hidden_output")
 
 output_zero = Memset(output.v_avg)
 hidden_zero = Memset(hidden.i)
@@ -107,7 +109,8 @@ synapse_update_processes = ProcessGroup([input_hidden.process, hidden_hidden.pro
 zero_processes = ProcessGroup([output_zero.process])
 
 # Create backend
-backend_kwargs = {"use_dram_for_weights": True, "dma_buffer_size": 2 * 1024 * 1024}
+backend_kwargs = {"use_dram_for_weights": True, "rounding_mode": RoundingMode.STOCHASTIC, 
+                  "dma_buffer_size": 2 * 1024 * 1024}
 backend = (BackendFeNNHW(**backend_kwargs) 
            if device else BackendFeNNSim(**backend_kwargs))
 
@@ -142,9 +145,9 @@ copy_and_push(in_hid_conn.flatten(), input_hidden.weight, runtime)
 copy_and_push(hid_hid_conn.flatten(), hidden_hidden.weight, runtime)
 
 # Load output weights and biases, quantise and push to FeNN
-load_quantise_and_push("n_mnist_checkpoints/98-Conn_Pop2_Pop1-g.npy", 11, hidden_output.weight,
+load_quantise_and_push("n_mnist_checkpoints/98-Conn_Pop2_Pop1-g.npy", 9, hidden_output.weight,
                        runtime, hidden_shape, True, percentile=100.0)
-load_quantise_and_push("n_mnist_checkpoints/98-Pop1-Bias.npy", 11, output.bias, runtime, 
+load_quantise_and_push("n_mnist_checkpoints/98-Pop1-Bias.npy", 9, output.bias, runtime, 
                        1, True, percentile=100.0)
 
 # Zero remaining state
@@ -175,16 +178,16 @@ for spikes, label in tqdm(zip(n_mnist_spikes, n_mnist_labels),
                           total=len(n_mnist_labels)):
     # Copy data to array host pointe
     input_spike_view[:] = spikes
-    input_spike_array.push_to_device();
+    input_spike_array.push_to_device()
 
     # Classify
     runtime.run()
 
     # Copy output V sum from device
-    output_v_avg_array.pull_from_device();
+    output_v_avg_array.pull_from_device()
 
     # Determine if output is correct
-    classification = np.argmax(output_v_avg_view)
+    classification = np.argmax(output_v_avg_view[:10])
     if classification == label:
         num_correct += 1
 
