@@ -73,7 +73,7 @@ DMABuffer::DMABuffer(DMABuffer &parent, uint64_t physicalStartAddress, uint64_t 
 :   m_Memory(0)
 {
 #ifdef __linux__ 
-    LOGI << "Creating child DMA buffer " << std::hex() << physicalStartAddress << " - " << physicalEndAddress;
+    LOGI << "Creating child DMA buffer with target physical memory region: " << std::hex << physicalStartAddress << " - " << physicalEndAddress;
 
     // If parent DMA buffer does not overlap region
     const uint64_t parentPhysicalEndAddress = parent.getPhysicalAddress() + parent.getSize();
