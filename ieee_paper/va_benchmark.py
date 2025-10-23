@@ -283,7 +283,7 @@ def simulate_fenn(device, num_excitatory=2048, num_timesteps=1000, dense=False,
             synapse_update_instructions, neuron_update_cycles, synapse_update_cycles,
             ee_conn.shape[1], ei_conn.shape[1], ii_conn.shape[1], ie_conn.shape[1])
 
-plot = True
+plot = False
 device = False
 with open(f"va_benchmark_{device}_perf.csv", "w") as csv_file:
     csv_writer = csv.writer(csv_file, delimiter=",")
@@ -296,7 +296,7 @@ with open(f"va_benchmark_{device}_perf.csv", "w") as csv_file:
     # Build configs
     configs = ([(256, True, 0.1), (256, False, 0.1)]                # URAM configurations
                + [(e, True, 0.1) for e in range(512, 4000, 512)]    # 90% sparse DRAM configurations
-               + (12800, True, 0.25))
+               + [(12800, True, 0.25)])
     
     if plot:
         fig, axes = plt.subplots(2, len(configs), sharex="col")
