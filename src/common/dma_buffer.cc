@@ -102,11 +102,14 @@ DMABuffer::DMABuffer(DMABuffer &parent, uint64_t physicalStartAddress, uint64_t 
 DMABuffer::~DMABuffer()
 {
 #ifdef __linux__ 
-    // Unmap memory
-    munmap(m_Data, m_Size);
+    // If this is parent DMA buffer
+    if(m_Memory) {
+        // Unmap memory
+        munmap(m_Data, m_Size);
     
-    // Close memory device
-    close(m_Memory);
+        // Close memory device
+        close(m_Memory);
+    }
 #endif  // __linux__
 }
 
