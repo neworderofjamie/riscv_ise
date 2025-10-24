@@ -171,7 +171,7 @@ def simulate_fenn(device, num_excitatory=2048, num_timesteps=1000, dense=False,
                                             PerformanceCounter())
 
     # Create backend
-    backend_kwargs = {"use_dram_for_weights": use_dram_for_weights, "dma_buffer_size": 64 * 1024 * 1024}
+    backend_kwargs = {"use_dram_for_weights": use_dram_for_weights}
     backend = BackendFeNNHW(**backend_kwargs) if device else BackendFeNNSim(**backend_kwargs)
 
     # Create model
@@ -295,7 +295,7 @@ with open(f"va_benchmark_{device}_perf.csv", "w") as csv_file:
 
     # Build configs
     configs = ([(256, True, 0.1), (256, False, 0.1)]                # URAM configurations
-               + [(e, True, 0.1) for e in range(512, 4000, 512)]    # 90% sparse DRAM configurations
+               + [(e, True, 0.1) for e in range(512, 12801, 512)]    # 90% sparse DRAM configurations
                + [(12800, True, 0.25)])
     
     if plot:
