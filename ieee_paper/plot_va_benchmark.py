@@ -10,7 +10,7 @@ from pandas import read_csv
 def fit_poly(x, y, degree):
     return np.poly1d(np.polyfit(x, y, degree))
 
-CLOCK_HZ = 166e6 # TODO update
+CLOCK_HZ = 175e6 # TODO update
 DENSE_CYCLES = 4 
 SPARSE_CYCLES = 7   # TODO update
 
@@ -41,7 +41,7 @@ sparse_synapse_poly = fit_poly(sparse_df["Num SOPS"], sparse_df["Num event proce
 
 # How many SOPs does GABAN example represent
 gaban_num_neurons = 10000
-gaban_connectivity = generate_fixed_prob(gaban_num_neurons, gaban_num_neurons, 0.1)
+gaban_connectivity = generate_fixed_prob(gaban_num_neurons, gaban_num_neurons, 0.01)
 gaban_connectivity = build_sparse_connectivity(gaban_connectivity, 1, 10)
 gaban_stride = gaban_connectivity.shape[1]
 gaban_neuron_cycles = neurons_poly(gaban_num_neurons)
@@ -75,7 +75,7 @@ big_df["xtick"] = big_df.apply(
 big_df = big_df[(big_df["Probability of connection"] != 0.25)
                 | (big_df["Dense connectivity"] == False)]
 
-
+print(big_df)
 
 fig, axes = plt.subplots(1, 3, figsize=(plot_settings.double_column_width, 2.5))
 
@@ -131,7 +131,7 @@ theory_actor = axes[2].bar(bar_x + 0.4, big_df["Theoretical GSOPs"], width=0.2)
 axes[2].set_xticks(bar_x + 0.2)
 axes[2].set_xticklabels(big_df["xtick"])
 #axes[2].set_xlabel("Connectivity")
-axes[2].set_ylabel("Throughput (GSOP/s)")
+axes[2].set_ylabel("Effective throughput (GSOP/s)")
 axes[2].xaxis.grid(False)
 axes[2].set_title("C", loc="left")
 sns.despine(ax=axes[2])
