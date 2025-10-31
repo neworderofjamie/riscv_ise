@@ -96,7 +96,7 @@ inhibitory_actor.set_sizes([10])
 excitatory_actor.set_sizes([10])
 
 fig.legend([inhibitory_actor, excitatory_actor], ["Inhibitory", "Excitatory"], 
-           frameon=False, ncol=2, bbox_to_anchor=(1 / 6, 0.025), loc="lower center")
+           frameon=False, ncol=2, bbox_to_anchor=(0.19, 0.025), loc="lower center")
  
 # Plot throughput
 bar_x = np.arange(len(big_df))
@@ -120,7 +120,7 @@ axes[1].set_title("B", loc="left")
 sns.despine(ax=axes[1])
 
 fig.legend([dense_dram_actor, sparse_dram_actor], ["Uncompressed", "Compressed"], 
-           frameon=False, ncol=2, bbox_to_anchor=(0.5, 0.025), loc="lower center")
+           frameon=False, ncol=2, bbox_to_anchor=(0.53, 0.025), loc="lower center")
  
 
 
@@ -129,15 +129,15 @@ synapse_actor = axes[2].bar(bar_x + 0.2, big_df["Synapse GSOPs"], width=0.2)
 theory_actor = axes[2].bar(bar_x + 0.4, big_df["Theoretical GSOPs"], width=0.2)
 
 axes[2].set_xticks(bar_x + 0.2)
-axes[2].set_xticklabels(big_df["xtick"])
+axes[2].set_xticklabels(big_df["xtick"], fontsize=6.75)
 #axes[2].set_xlabel("Connectivity")
-axes[2].set_ylabel("Effective throughput (GSOP/s)")
+axes[2].set_ylabel("Effective throughput [GSOP/s]")
 axes[2].xaxis.grid(False)
 axes[2].set_title("C", loc="left")
 sns.despine(ax=axes[2])
 
-fig.legend([true_actor, synapse_actor, theory_actor], ["Measured", "Measured synapses", "Theoretical"], 
-           frameon=False, ncol=2, bbox_to_anchor=(1.0 - (1 / 6), 0.0), loc="lower center")
+fig.legend([true_actor, theory_actor, synapse_actor], ["Measured", "Theoretical", "Measured synapses"], 
+           frameon=False, ncol=2, bbox_to_anchor=(0.85, 0.0), loc="lower center", columnspacing=0.9)
 
 fig.tight_layout(pad=0, rect=[0.0, 0.125, 1.0, 1.0])
 fig.savefig("va_benchmark.pdf")
