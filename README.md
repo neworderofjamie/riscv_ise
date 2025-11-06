@@ -27,5 +27,5 @@ To run examples on a Kria KV260, some other steps are required:
 Some basic tutorials are available to use on Google Collab:
 1. [Simulate a population of ALIF neurons](https://colab.research.google.com/github/neworderofjamie/riscv_ise/blob/master/tutorials/alif.ipynb)
 2. [Generate poisson noise using FeNN's hardware RNG](https://colab.research.google.com/github/neworderofjamie/riscv_ise/blob/master/tutorials/poisson.ipynb)
-3. [Classify MNIST](https://colab.research.google.com/github/neworderofjamie/riscv_ise/blob/master/tutorials/poisson.ipynb)
+3. [Classify MNIST](https://colab.research.google.com/github/neworderofjamie/riscv_ise/blob/master/tutorials/mnist_classifier.ipynb)
   
