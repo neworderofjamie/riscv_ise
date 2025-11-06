@@ -1,6 +1,10 @@
 import math
-import nir
 import numpy as np
+
+try:
+    import nir
+except ImportError:
+    pass
 
 from numbers import Number
 from collections import defaultdict
