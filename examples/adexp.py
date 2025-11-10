@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+from argparse import ArgumentParser
 from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer, Model,
                     NeuronUpdateProcess, Parameter, ProcessGroup,
                     RoundingMode, Runtime, Shape,
@@ -13,9 +14,12 @@ from pyfenn.utils import (ceil_divide, copy_and_push,
                           seed_and_push, zero_and_push)
 
 
-device = False
-disassemble_code = False
-num_timesteps = 4000
+parser = ArgumentParser("Adaptive exponential neuron")
+parser.add_argument("--device", action="store_true", help="Run model on FeNN hardware")
+parser.add_argument("--disassemble", action="store_true", help="Disassemble generated code")
+parser.add_argument("--num-timesteps", type=int, default=4000, help="Number of timesteps to sample for")
+args = parser.parse_args()
+
 fixed_point = 12
 
 class AdExp:
@@ -102,7 +106,7 @@ c = 281.0 / 1000.0
 gL = 30.0 / 1000.0
 v_scale = 0.01
 w_scale = 10.0
-ad_exp = AdExp(32, num_timesteps, tau_m=(c / gL), tau_w=144.0,
+ad_exp = AdExp(32, args.num_timesteps, tau_m=(c / gL), tau_w=144.0,
                r=((1.0 / gL) * (v_scale / w_scale)), e_l=(-70.6 * v_scale),
                delta_t=(2.0 * v_scale), v_thresh=(-50.4 * v_scale),
                v_spike=(10.0 * v_scale), v_reset=(-70.6 * v_scale), 
@@ -120,7 +124,7 @@ neuron_processes = ProcessGroup([ad_exp.process])
 # Create backend
 backend_params = {"keep_params_in_registers": False,
                   "rounding_mode": RoundingMode.STOCHASTIC}
-backend = BackendFeNNHW(**backend_params) if device else BackendFeNNSim(**backend_params)
+backend = BackendFeNNHW(**backend_params) if args.device else BackendFeNNSim(**backend_params)
 
 # Create model
 model = Model([init_processes, neuron_processes], backend)
@@ -128,10 +132,10 @@ model = Model([init_processes, neuron_processes], backend)
 # Generate init and sim code
 init_code = backend.generate_kernel([init_processes], model)
 code = backend.generate_simulation_kernel([neuron_processes], [], [],
-                                          num_timesteps, model)
+                                          args.num_timesteps, model)
 
 # Disassemble if required
-if disassemble_code:
+if args.disassemble:
     print("Init:")
     for i, c in enumerate(init_code):
         print(f"{i * 4} : {disassemble(c)}")
@@ -180,7 +184,7 @@ w_array.pull_from_device()
 v_view = np.reshape(v_view, (-1, 32))
 w_view = np.reshape(w_view, (-1, 32))
 
-timesteps = np.arange(0.0, (num_timesteps * 0.1) + 0.1, 0.1)
+timesteps = np.arange(0.0, (args.num_timesteps * 0.1) + 0.1, 0.1)
 
 # Create plot
 figure, axes = plt.subplots(2, sharex=True)

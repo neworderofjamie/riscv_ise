@@ -2,6 +2,7 @@ import numpy as np
 import mnist
 import torch
 
+from argparse import ArgumentParser
 from pyfenn import (BackendFeNNHW, BackendFeNNSim, Model,
                     ProcessGroup, Runtime)
 
@@ -11,11 +12,10 @@ from pyfenn.utils import get_array_view, load_and_push, zero_and_push
 from time import perf_counter
 from pyfenn.nir_import import parse
 
-DT = 1e-4
-DEVICE = False
-DISASSEMBLE_CODE = False
-
-init_logging()
+parser = ArgumentParser("Braille tactile classifier using NIR")
+parser.add_argument("--device", action="store_true", help="Run model on FeNN hardware")
+parser.add_argument("--disassemble", action="store_true", help="Disassemble generated code")
+args = parser.parse_args()
 
 # Load test set tensor
 test_spikes, test_labels = torch.load("ds_test.pt", weights_only=False).tensors
@@ -33,10 +33,10 @@ print(f"{num_timesteps} timesteps")
 
 # Load model
 (in_proc, out_proc, neuron_proc_group, syn_proc_group, var_vals, neuron_proc) =\
-    parse("braille_noDelay_noBias_subtract.nir", num_timesteps, DT)
+    parse("braille_noDelay_noBias_subtract.nir", num_timesteps, 1e-4)
 
 # Create backend
-backend = BackendFeNNHW() if DEVICE else BackendFeNNSim()
+backend = BackendFeNNHW() if args.device else BackendFeNNSim()
 
 # Create model
 model = Model([neuron_proc_group, syn_proc_group], backend)
@@ -46,7 +46,7 @@ code = backend.generate_simulation_kernel([syn_proc_group, neuron_proc_group],
                                           [], [], num_timesteps, model)
 
 # Disassemble if required
-if DISASSEMBLE_CODE:
+if args.disassemble:
     for i, c in enumerate(code):
         print(f"{i * 4} : {disassemble(c)}")
 

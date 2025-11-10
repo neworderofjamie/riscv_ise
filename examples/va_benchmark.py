@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
+from argparse import ArgumentParser
 from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer,
                     Model, NeuronUpdateProcess, Parameter, PerformanceCounter,
                     PlogSeverity, ProcessGroup, Runtime, Variable)
@@ -68,36 +69,39 @@ class CUBALIF:
             {"V": self.v, "IExc": self.i_exc, "IInh": self.i_inh, "RefracTime": self.refrac_time},
             {"Spike": self.out_spikes},
             name)
-            
-num_timesteps = 1000
-num_excitatory = 2048
-probability_connection = 0.1
-excitatory_inhibitory_ratio = 4
 
-num_inhibitory = num_excitatory // excitatory_inhibitory_ratio
-num_neurons = num_excitatory + num_inhibitory
-scale = (4000.0 / num_neurons) * (0.02 / probability_connection)
+parser = ArgumentParser("VA benchmark")
+parser.add_argument("--device", action="store_true", help="Run model on FeNN hardware")
+parser.add_argument("--time", action="store_true", help="Record detailed timings using performance counters")
+parser.add_argument("--disassemble", action="store_true", help="Disassemble generated code")
+parser.add_argument("--dram", action="store_true", help="Use DRAM to store weights")
+parser.add_argument("--num-excitatory", type=int, default=2048, help="Number of excitatory neurons to simulate")
+parser.add_argument("--num-timesteps", type=int, default=1000, help="Number of timesteps to simulate")
+parser.add_argument("--probability-connection", type=float, default=0.1, help="Probability to connect neurons with")
+args = parser.parse_args()
+
+
+excitatory_inhibitory_ratio = 4
+num_inhibitory = args.num_excitatory // excitatory_inhibitory_ratio
+num_neurons = args.num_excitatory + num_inhibitory
+scale = (4000.0 / num_neurons) * (0.02 / args.probability_connection)
 inh_weight = -51.0E-3 * scale
 exc_weight = 4.0E-3 * scale
-num_exc_sparse_connectivity_bits = int(np.ceil(np.log2(ceil_divide(num_excitatory, 32)))) + 1
+num_exc_sparse_connectivity_bits = int(np.ceil(np.log2(ceil_divide(args.num_excitatory, 32)))) + 1
 num_inh_sparse_connectivity_bits = int(np.ceil(np.log2(ceil_divide(num_inhibitory, 32)))) + 1
 num_timestep_spike_bytes = ceil_divide(num_neurons, 32) * 4
-num_blocks = ceil_divide(num_timesteps, (110 * 1024) // num_timestep_spike_bytes)
-num_timesteps_per_block = int(round(num_timesteps / num_blocks))
+num_blocks = ceil_divide(args.num_timesteps, (110 * 1024) // num_timestep_spike_bytes)
+num_timesteps_per_block = int(round(args.num_timesteps / num_blocks))
 
-device = False
-time = True
-use_dram_for_weights = True
-disassemble_code = False
 
-print(f"{num_excitatory} excitatory neurons, {num_inhibitory} inhibitory neurons")
+print(f"{args.num_excitatory} excitatory neurons, {num_inhibitory} inhibitory neurons")
 init_logging(PlogSeverity.INFO)
 
 # Generate connectivity matrices
-ie_conn = generate_fixed_prob(num_inhibitory, num_excitatory, probability_connection)
-ii_conn = generate_fixed_prob(num_inhibitory, num_inhibitory, probability_connection)
-ee_conn = generate_fixed_prob(num_excitatory, num_excitatory, probability_connection)
-ei_conn = generate_fixed_prob(num_excitatory, num_inhibitory, probability_connection)
+ie_conn = generate_fixed_prob(num_inhibitory, args.num_excitatory, args.probability_connection)
+ii_conn = generate_fixed_prob(num_inhibitory, num_inhibitory, args.probability_connection)
+ee_conn = generate_fixed_prob(args.num_excitatory, args.num_excitatory, args.probability_connection)
+ei_conn = generate_fixed_prob(args.num_excitatory, num_inhibitory, args.probability_connection)
 
 print(f"Weight inhibitory: {int(round(inh_weight * 2**13))} ({inh_weight}), excitatory: {int(round(exc_weight * 2**13))} ({exc_weight})")
 # Pad
@@ -110,7 +114,7 @@ print(f"Num sparse connectivity bits excitatory: {num_exc_sparse_connectivity_bi
 print(f"Stride ee:{ee_conn.shape[1]} ei:{ei_conn.shape[1]} ii:{ii_conn.shape[1]} ie:{ie_conn.shape[1]}")
 print(f"Mean row length ee:{np.average(ee_conn[:,0]) * 32} ei:{np.average(ei_conn[:,0]) * 32} ii:{np.average(ii_conn[:,0]) * 32} ie:{np.average(ie_conn[:,0]) * 32}")
 # Neurons
-e_pop = CUBALIF(num_excitatory, tau_m=20.0, tau_syn_exc=5.0, tau_syn_inh=10.0,
+e_pop = CUBALIF(args.num_excitatory, tau_m=20.0, tau_syn_exc=5.0, tau_syn_inh=10.0,
                 tau_refrac=5, v_thresh=10, i_offset=0.55,
                 num_timesteps=num_timesteps_per_block, name="E")
 
@@ -146,14 +150,14 @@ ii_zero = Memset(i_pop.i_inh)
 i_zero_processes = ProcessGroup([ee_zero.process, ei_zero.process,
                                  ie_zero.process, ii_zero.process])
 neuron_update_processes = ProcessGroup([e_pop.process, i_pop.process],
-                                       PerformanceCounter() if time else None)
+                                       PerformanceCounter() if args.time else None)
 synapse_update_processes = ProcessGroup([ee_pop.process, ei_pop.process,
                                          ii_pop.process, ie_pop.process],
-                                        PerformanceCounter() if time else None)
+                                        PerformanceCounter() if args.time else None)
 
 # Create backend
-backend_kwargs = {"use_dram_for_weights": use_dram_for_weights, "dma_buffer_size": 64 * 1024 * 1024}
-backend = BackendFeNNHW(**backend_kwargs) if device else BackendFeNNSim(**backend_kwargs)
+backend_kwargs = {"use_dram_for_weights": args.dram, "dma_buffer_size": 64 * 1024 * 1024}
+backend = BackendFeNNHW(**backend_kwargs) if args.device else BackendFeNNSim(**backend_kwargs)
 
 # Create model
 model = Model([i_zero_processes, neuron_update_processes, synapse_update_processes],
@@ -166,7 +170,7 @@ code = backend.generate_simulation_kernel([synapse_update_processes, neuron_upda
                                           num_timesteps_per_block, model)
 
 # Disassemble if required
-if disassemble_code:
+if args.disassemble:
     print("Init:")
     for i, c in enumerate(init_code):
         print(f"{i * 4} : {disassemble(c)}")
@@ -190,7 +194,7 @@ copy_and_push(ie_conn.flatten(), ie_pop.weight, runtime)
 # Initialise membrane voltages
 # **TODO** use init kernel
 v_thresh_fixed = int(round(10.0 * 2**10))
-num_excitatory_padded = ceil_divide(num_excitatory, 32) * 32
+num_excitatory_padded = ceil_divide(args.num_excitatory, 32) * 32
 num_inhibitory_padded = ceil_divide(num_inhibitory, 32) * 32
 copy_and_push(np.random.randint(0, v_thresh_fixed, num_excitatory_padded,
                                 dtype=np.int16),
@@ -206,7 +210,7 @@ zero_and_push(i_pop.refrac_time, runtime)
 zero_and_push(e_pop.out_spikes, runtime)
 zero_and_push(i_pop.out_spikes, runtime)
 
-if time:
+if args.time:
     zero_and_push(neuron_update_processes.performance_counter, runtime)
     zero_and_push(synapse_update_processes.performance_counter, runtime)
 
@@ -253,7 +257,7 @@ e_spike_times = np.concatenate(e_spike_times)
 e_spike_ids = np.concatenate(e_spike_ids)
 
 print(f"Simulation time {sim_time}")
-if time:
+if args.time:
     neuron_update_cycles, neuron_update_instructions = read_perf_counter(
         neuron_update_processes.performance_counter, runtime)
     synapse_update_cycles, synapse_update_instructions = read_perf_counter(
@@ -266,8 +270,8 @@ if time:
 fig, axis = plt.subplots()
 
 axis.scatter(e_spike_times, e_spike_ids, s=1)
-axis.scatter(i_spike_times, i_spike_ids + num_excitatory, s=1)
+axis.scatter(i_spike_times, i_spike_ids + args.num_excitatory, s=1)
 
 print(f"{len(e_spike_times)} excitatory spikes, {len(i_spike_times)} inhibitory spikes")
-print(f"{((len(e_spike_times) + len(i_spike_times)) * 1000) / (num_neurons * num_timesteps)} spikes/second")
+print(f"{((len(e_spike_times) + len(i_spike_times)) * 1000) / (num_neurons * args.num_timesteps)} spikes/second")
 plt.show()

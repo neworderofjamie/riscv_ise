@@ -1,6 +1,7 @@
 import numpy as np
 import mnist
 
+from argparse import ArgumentParser
 from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer, Model, ProcessGroup,
                     RoundingMode, Runtime)
 from pyfenn.models import Linear, Memset, RNGInit
@@ -49,9 +50,11 @@ input_hidden_shape = (input_shape, hidden_shape)
 hidden_hidden_shape = (hidden_shape, hidden_shape)
 hidden_output_shape = (hidden_shape, output_shape)
 num_sparse_connectivity_bits = 5
-device = False
-record = False
-disassemble_code = False
+
+parser = ArgumentParser("N-MNIST classifier with sparse connectivity")
+parser.add_argument("--device", action="store_true", help="Run model on FeNN hardware")
+parser.add_argument("--disassemble", action="store_true", help="Disassemble generated code")
+args = parser.parse_args()
 
 # Load N-MNIST
 dataset = NMNIST(save_to="data", train=False)
@@ -62,8 +65,7 @@ n_mnist_spikes = []
 n_mnist_labels = []
 timestep_range = np.arange(0, (num_timesteps + 1) * dt, dt)
 neuron_range = np.arange((ceil_divide(input_shape, 32) * 32) + 1)
-max_len = 0
-for events, label in dataset:
+for events, label in tqdm(dataset, "Preprocessing dataset"):
     # Build histogram
     neuron_id = (events["p"] + (events["x"] * sensor_size[2]) + 
                  (events["y"] * sensor_size[0] * sensor_size[2]))
@@ -112,7 +114,7 @@ zero_processes = ProcessGroup([output_zero.process])
 backend_kwargs = {"use_dram_for_weights": True, "rounding_mode": RoundingMode.STOCHASTIC, 
                   "dma_buffer_size": 2 * 1024 * 1024}
 backend = (BackendFeNNHW(**backend_kwargs) 
-           if device else BackendFeNNSim(**backend_kwargs))
+           if args.device else BackendFeNNSim(**backend_kwargs))
 
 # Create model
 model = Model([init_processes, neuron_update_processes, synapse_update_processes, zero_processes],
@@ -125,7 +127,7 @@ code = backend.generate_simulation_kernel([synapse_update_processes, neuron_upda
                                           num_timesteps, model)
 
 # Disassemble if required
-if disassemble_code:
+if args.disassemble:
     print("Init:")
     for i, c in enumerate(init_code):
         print(f"{i * 4} : {disassemble(c)}")
@@ -175,7 +177,7 @@ output_v_avg_array, output_v_avg_view = get_array_view(runtime, output.v_avg, np
 
 num_correct = 0
 for spikes, label in tqdm(zip(n_mnist_spikes, n_mnist_labels),
-                          total=len(n_mnist_labels)):
+                          total=len(n_mnist_labels), desc="Simulating"):
     # Copy data to array host pointe
     input_spike_view[:] = spikes
     input_spike_array.push_to_device()

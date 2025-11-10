@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+from argparse import ArgumentParser
 from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer, Model,
                     NeuronUpdateProcess, Parameter, ProcessGroup, Runtime,
                     Variable)
@@ -31,24 +32,27 @@ class Poisson:
             {"NumSpikes": self.num_spikes},
             {})
 
-device = False
-num_samples = 100
-shape = 32
-rate = 5000.0
-disassemble_code = False
+
+parser = ArgumentParser("Poisson generator")
+parser.add_argument("--device", action="store_true", help="Run model on FeNN hardware")
+parser.add_argument("--disassemble", action="store_true", help="Disassemble generated code")
+parser.add_argument("--num-samples", type=int, default=100, help="Number of samples each neuron should generate")
+parser.add_argument("--num-generators", type=int, default=32, help="Number of generators")
+parser.add_argument("--rate", type=float, default=5000.0, help="Rate in spikes/second each neuron should generate at")
+args = parser.parse_args()
 
 init_logging()
 
 # Model
 rng_init = RNGInit()
-poisson_process = Poisson(shape, num_samples, rate)
+poisson_process = Poisson(args.num_generators, args.num_samples, args.rate)
 
 # Group processes
 init_processes = ProcessGroup([rng_init.process])
 update_processes = ProcessGroup([poisson_process.process])
 
 # Create backend
-backend = BackendFeNNHW() if device else BackendFeNNSim()
+backend = BackendFeNNHW() if args.device else BackendFeNNSim()
 
 # Create model
 model = Model([init_processes, update_processes],
@@ -58,10 +62,10 @@ model = Model([init_processes, update_processes],
 init_code = backend.generate_kernel([init_processes], model)
 code = backend.generate_simulation_kernel([update_processes],
                                           [], [],
-                                          num_samples, model)
+                                          args.num_samples, model)
 
 # Disassemble if required
-if disassemble_code:
+if args.disassemble:
     print("Init code:")
     for i, c in enumerate(init_code):
         print(f"{i * 4} : {disassemble(c)}")
@@ -88,7 +92,7 @@ runtime.set_instructions(code)
 runtime.run()
 
 num_spikes_array, num_spikes_view = get_array_view(runtime, poisson_process.num_spikes,
-                                                   np.int16, (num_samples + 1, shape))
+                                                   np.int16, (args.num_samples + 1, args.num_generators))
 num_spikes_array.pull_from_device()
 
 # Remove first timestep of data
@@ -97,7 +101,7 @@ x = np.arange(np.amin(num_spikes_view), 1 + np.amax(num_spikes_view))
 
 fig, axis = plt.subplots()
 axis.hist(num_spikes_view, bins=x - 0.5, density=True)
-axis.plot(x, poisson.pmf(x, 5.0))
+axis.plot(x, poisson.pmf(x, args.rate / 1000.0))
 axis.set_xlabel("k")
 axis.set_ylabel("P(x=k)")
 plt.show()
