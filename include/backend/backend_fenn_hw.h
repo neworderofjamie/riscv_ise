@@ -9,7 +9,8 @@ class BACKEND_EXPORT BackendFeNNHW : public BackendFeNN
 public:
     BackendFeNNHW(bool useDRAMForWeights = false, bool keepParamsInRegisters = true, 
                   RoundingMode neuronUpdateRoundingMode = RoundingMode::NEAREST,
-                  unsigned int core = 0, unsigned int numCores = 1);
+                  unsigned int core = 0, unsigned int numCores = 1,
+                  size_t dmaBufferSize = 512 * 1024);
 
     //------------------------------------------------------------------------
     // BackendFeNN virtuals
@@ -26,4 +27,5 @@ protected:
 private:
     unsigned m_Core;
     unsigned int m_NumCores;
+    size_t m_DMABufferSize;
 };

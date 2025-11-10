@@ -157,13 +157,17 @@ private:
 class HWState : public StateBase
 {
 public:
-    HWState(unsigned int core, unsigned int numCores) 
+    HWState(unsigned int core, unsigned int numCores, size_t dmaBufferSize) 
     :   m_Device(0x80000000 + (core * 0x01000000)), 
         m_DMABuffer(getParentDMABuffer(), 
                     (numCores == 1) ? getParentDMABuffer().getPhysicalAddress() : (0x40000000 + (core * 0x10000000)),
                     (numCores == 1) ? (getParentDMABuffer().getPhysicalAddress() + getParentDMABuffer().getSize()) : (0x50000000 + (core * 0x10000000))),
         m_DMABufferAllocator(m_DMABuffer.getSize())
-    {}
+    {
+        if(m_DMABuffer.getSize() < dmaBufferSize) {
+            LOGW << "DMA buffer created by UDMABuf driver not as large as requestted buffer size";
+        }
+    }
 
     //------------------------------------------------------------------------
     // StateBase virtuals
@@ -488,13 +492,14 @@ void URAMLLMArray::pullFromDevice()
 //------------------------------------------------------------------------
 BackendFeNNHW::BackendFeNNHW(bool useDRAMForWeights, bool keepParamsInRegisters, 
                              RoundingMode neuronUpdateRoundingMode, 
-                             unsigned int core, unsigned int numCores)
+                             unsigned int core, unsigned int numCores,
+                             size_t dmaBufferSize)
 :   BackendFeNN(useDRAMForWeights, keepParamsInRegisters, neuronUpdateRoundingMode), 
-    m_Core(core), m_NumCores(numCores)
+    m_Core(core), m_NumCores(numCores), m_DMABufferSize(dmaBufferSize)
 {
 }
 //------------------------------------------------------------------------
 std::unique_ptr<StateBase> BackendFeNNHW::createState() const
 {
-    return std::make_unique<HWState>(m_Core, m_NumCores);
+    return std::make_unique<HWState>(m_Core, m_NumCores, m_DMABufferSize);
 }
