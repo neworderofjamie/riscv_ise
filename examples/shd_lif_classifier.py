@@ -1,6 +1,7 @@
 import numpy as np
 import mnist
 
+from argparse import ArgumentParser
 from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer, Model,
                     NeuronUpdateProcess, PlogSeverity, ProcessGroup,
                     Parameter, PerformanceCounter, RoundingMode, Runtime,
@@ -84,10 +85,12 @@ output_shape = 20
 input_hidden_shape = (input_shape, hidden_shape)
 hidden_hidden_shape = (hidden_shape, hidden_shape)
 hidden_output_shape = (hidden_shape, output_shape)
-device = False
-record = False
-time = True
-disassemble_code = False
+
+parser = ArgumentParser("SHD classifier using LIF neurons")
+parser.add_argument("--device", action="store_true", help="Run model on FeNN hardware")
+parser.add_argument("--time", action="store_true", help="Record detailed timings using performance counters")
+parser.add_argument("--disassemble", action="store_true", help="Disassemble generated code")
+args = parser.parse_args()
 
 # Load and preprocess SHD
 dataset = SHD(save_to="data", train=False)
@@ -97,7 +100,7 @@ shd_spikes = []
 shd_labels = []
 timestep_range = np.arange(num_timesteps + 1)
 neuron_range = np.arange((ceil_divide(input_shape, 32) * 32) + 1)
-for events, label in dataset:
+for events, label in tqdm(dataset, "Preprocessing dataset"):
     # Build histogram
     spike_event_histogram = np.histogram2d(events["t"] / 1000.0, events["x"], (timestep_range, neuron_range))[0]
     spike_event_histogram = np.minimum(spike_event_histogram, 1).astype(bool)
@@ -128,18 +131,18 @@ output_v_avg_zero = Memset(output.v_avg)
 
 # Group processes
 neuron_update_processes = ProcessGroup([hidden.process, output.process],
-                                       PerformanceCounter() if time else None)
+                                       PerformanceCounter() if args.time else None)
 synapse_update_processes = ProcessGroup([input_hidden.process, hidden_hidden.process, 
                                          hidden_output.process],
-                                        PerformanceCounter() if time else None)
+                                        PerformanceCounter() if args.time else None)
 reset_processes = ProcessGroup([hidden_i_zero.process, hidden_v_zero.process,
                                 output_i_zero.process, output_v_zero.process,
                                 output_v_avg_zero.process],
-                               PerformanceCounter() if time else None)
+                               PerformanceCounter() if args.time else None)
 
 # Create backend
 backend_params = {"rounding_mode": RoundingMode.STOCHASTIC}
-backend = BackendFeNNHW(**backend_params) if device else BackendFeNNSim(**backend_params)
+backend = BackendFeNNHW(**backend_params) if args.device else BackendFeNNSim(**backend_params)
 
 # Create model
 model = Model([neuron_update_processes, synapse_update_processes, reset_processes],
@@ -151,7 +154,7 @@ sim_code = backend.generate_simulation_kernel([synapse_update_processes, neuron_
                                               num_timesteps, model)
 
 # Disassemble if required
-if disassemble_code:
+if args.disassemble:
     print("Simulation:")
     for i, c in enumerate(sim_code):
         print(f"{i * 4} : {disassemble(c)}")
@@ -171,7 +174,7 @@ load_quantise_and_push("0/108-Conn_Pop1_Pop1-g.npy",    #+- 1
 load_quantise_and_push("0/108-Conn_Pop1_Pop2-g.npy",    #+-3
                        8, hidden_output.weight, runtime, hidden_shape, True, percentile=100.0)
 
-if time:
+if args.time:
     zero_and_push(neuron_update_processes.performance_counter, runtime)
     zero_and_push(synapse_update_processes.performance_counter, runtime)
     zero_and_push(reset_processes.performance_counter, runtime)
@@ -185,7 +188,7 @@ input_spike_array, input_spike_view = get_array_view(runtime, input_spikes,
 output_v_avg_array, output_v_avg_view = get_array_view(runtime, output.v_avg, np.int16)
 num_correct = 0
 for spikes, label in tqdm(zip(shd_spikes, shd_labels),
-                          total=len(shd_labels)):
+                          total=len(shd_labels), desc="Simulating"):
     # Copy data to array host pointe
     input_spike_view[:] = spikes
     input_spike_array.push_to_device()
@@ -203,7 +206,7 @@ for spikes, label in tqdm(zip(shd_spikes, shd_labels),
 
 print(f"{num_correct} / {len(shd_labels)} correct {100.0 * (num_correct / len(shd_labels))}%")
 
-if time:
+if args.time:
     neuron_update_cycles, neuron_update_instructions = read_perf_counter(
         neuron_update_processes.performance_counter, runtime)
     synapse_update_cycles, synapse_update_instructions = read_perf_counter(

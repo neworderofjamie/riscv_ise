@@ -1,6 +1,7 @@
 import numpy as np
 import mnist
 
+from argparse import ArgumentParser
 from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer, Model, 
                     PerformanceCounter, ProcessGroup, Runtime, Shape)
 from pyfenn.models import Linear, Memset
@@ -17,10 +18,12 @@ hidden_shape = 128
 output_shape = 10
 input_hidden_shape = (input_shape, hidden_shape)
 hidden_output_shape = (hidden_shape, output_shape)
-device = False
-record = False
-time = True
-disassemble_code = False
+
+parser = ArgumentParser("MNIST classifier")
+parser.add_argument("--device", action="store_true", help="Run model on FeNN hardware")
+parser.add_argument("--time", action="store_true", help="Record detailed timings using performance counters")
+parser.add_argument("--disassemble", action="store_true", help="Disassemble generated code")
+args = parser.parse_args()
 
 # Load and preprocess MNIST
 mnist.datasets_url = "https://storage.googleapis.com/cvdf-datasets/mnist/"
@@ -33,7 +36,7 @@ init_logging()
 input_spikes = EventContainer(Shape(input_shape), num_timesteps)
 
 # Model
-hidden = LIF(hidden_shape, 20.0, 5, 0.61, num_timesteps if record else 1, 5, name="hidden")
+hidden = LIF(hidden_shape, 20.0, 5, 0.61, 1, 5, name="hidden")
 output = LI(output_shape, 20.0, num_timesteps, 6, name="output")
 input_hidden = Linear(input_spikes, hidden.i, "s10_5_sat_t", name="input_hidden")
 hidden_output = Linear(hidden.out_spikes, output.i, "s9_6_sat_t", name="hidden_output")
@@ -41,12 +44,12 @@ hidden_output = Linear(hidden.out_spikes, output.i, "s9_6_sat_t", name="hidden_o
 avg_zero = Memset(output.v_avg)
 
 # Group processes
-neuron_update_processes = ProcessGroup([hidden.process, output.process], PerformanceCounter() if time else None)
-synapse_update_processes = ProcessGroup([input_hidden.process, hidden_output.process], PerformanceCounter() if time else None)
-zero_processes = ProcessGroup([avg_zero.process], PerformanceCounter() if time else None)
+neuron_update_processes = ProcessGroup([hidden.process, output.process], PerformanceCounter() if args.time else None)
+synapse_update_processes = ProcessGroup([input_hidden.process, hidden_output.process], PerformanceCounter() if args.time else None)
+zero_processes = ProcessGroup([avg_zero.process], PerformanceCounter() if args.time else None)
 
 # Create backend
-backend = BackendFeNNHW() if device else BackendFeNNSim()
+backend = BackendFeNNHW() if args.device else BackendFeNNSim()
 
 # Create model
 model = Model([neuron_update_processes, synapse_update_processes, zero_processes],
@@ -58,7 +61,7 @@ code = backend.generate_simulation_kernel([synapse_update_processes, neuron_upda
                                           num_timesteps, model)
 
 # Disassemble if required
-if disassemble_code:
+if args.disassemble:
     for i, c in enumerate(code):
         print(f"{i * 4} : {disassemble(c)}")
 
@@ -81,7 +84,7 @@ zero_and_push(output.v, runtime)
 zero_and_push(output.i, runtime)
 zero_and_push(output.v_avg, runtime)
 
-if time:
+if args.time:
     zero_and_push(neuron_update_processes.performance_counter, runtime)
     zero_and_push(synapse_update_processes.performance_counter, runtime)
     zero_and_push(zero_processes.performance_counter, runtime)
@@ -115,7 +118,7 @@ for i in tqdm(range(len(mnist_labels))):
 
 print(f"{num_correct} / {len(mnist_labels)} correct {100.0 * (num_correct / len(mnist_labels))}%")
 
-if time:
+if args.time:
     neuron_update_cycles, neuron_update_instructions = read_perf_counter(
         neuron_update_processes.performance_counter, runtime)
     synapse_update_cycles, synapse_update_instructions = read_perf_counter(

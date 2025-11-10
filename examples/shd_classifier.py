@@ -1,6 +1,7 @@
 import numpy as np
 import mnist
 
+from argparse import ArgumentParser
 from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer, Model, ProcessGroup,
                     Runtime)
 from pyfenn.models import Linear, Memset, RNGInit
@@ -19,9 +20,12 @@ output_shape = 20
 input_hidden_shape = (input_shape, hidden_shape)
 hidden_hidden_shape = (hidden_shape, hidden_shape)
 hidden_output_shape = (hidden_shape, output_shape)
-device = False
-record = False
-disassemble_code = False
+
+parser = ArgumentParser("SHD classifier using ALIF neurons")
+parser.add_argument("--device", action="store_true", help="Run model on FeNN hardware")
+parser.add_argument("--disassemble", action="store_true", help="Disassemble generated code")
+args = parser.parse_args()
+
 
 # Load and preprocess SHD
 dataset = SHD(save_to="data", train=False)
@@ -31,7 +35,7 @@ shd_spikes = []
 shd_labels = []
 timestep_range = np.arange(num_timesteps + 1)
 neuron_range = np.arange((ceil_divide(input_shape, 32) * 32) + 1)
-for events, label in dataset:
+for events, label in tqdm(dataset, "Preprocessing dataset"):
     # Build histogram
     spike_event_histogram = np.histogram2d(events["t"] / 1000.0, events["x"], (timestep_range, neuron_range))[0]
     spike_event_histogram = np.minimum(spike_event_histogram, 1).astype(bool)
@@ -47,7 +51,7 @@ input_spikes = EventContainer(input_shape, num_timesteps)
 # Model
 rng_init = RNGInit()
 hidden = ALIF(hidden_shape, 20.0, 2000.0, 4, 0.6, 0.0174,
-              num_timesteps if record else 1, 7, name="hidden")
+              1, 7, name="hidden")
 output = LI(output_shape, 20.0, num_timesteps, 11, name="output")
 
 input_hidden = Linear(input_spikes, hidden.i, "s8_7_sat_t", name="input_hidden")
@@ -64,7 +68,7 @@ synapse_update_processes = ProcessGroup([input_hidden.process, hidden_hidden.pro
 zero_processes = ProcessGroup([output_zero.process])
 
 # Create backend
-backend = BackendFeNNHW() if device else BackendFeNNSim()
+backend = BackendFeNNHW() if args.device else BackendFeNNSim()
 
 # Create model
 model = Model([init_processes, neuron_update_processes, synapse_update_processes, zero_processes],
@@ -77,7 +81,7 @@ code = backend.generate_simulation_kernel([synapse_update_processes, neuron_upda
                                           num_timesteps, model)
 
 # Disassemble if required
-if disassemble_code:
+if args.disassemble:
     for i, c in enumerate(code):
         print(f"{i * 4} : {disassemble(c)}")
 
@@ -93,7 +97,7 @@ load_quantise_and_push("99-Conn_Pop0_Pop1-g.npy", 7,
 load_quantise_and_push("99-Conn_Pop1_Pop1-g.npy", 7,
                        hidden_hidden.weight, runtime, percentile=100.0)
 load_quantise_and_push("99-Conn_Pop1_Pop2-g.npy", 11, hidden_output.weight,
-                       runtime, hidden_shape[0], True, percentile=100.0)
+                       runtime, hidden_shape, True, percentile=100.0)
 load_quantise_and_push("99-Pop2-Bias.npy", 11, output.bias, runtime, 
                        1, True, percentile=100.0)
 
@@ -124,7 +128,7 @@ output_v_avg_array, output_v_avg_view = get_array_view(runtime, output.v_avg, np
 
 num_correct = 0
 for spikes, label in tqdm(zip(shd_spikes, shd_labels),
-                          total=len(shd_labels)):
+                          total=len(shd_labels), desc="Simulating"):
     # Copy data to array host pointe
     input_spike_view[:] = spikes
     input_spike_array.push_to_device();
