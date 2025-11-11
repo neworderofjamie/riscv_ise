@@ -8,8 +8,10 @@
 #include <plog/Severity.h>
 #include <plog/Appenders/ConsoleAppender.h>
 
+// Google test includes
+#include "gtest/gtest.h"
+
 // RISC-V common includes
-#include "common/CLI11.hpp"
 #include "common/app_utils.h"
 #include "common/device.h"
 
@@ -22,7 +24,13 @@
 #include "ise/riscv.h"
 #include "ise/vector_processor.h"
 
-void checkData(const std::vector<int16_t> &address, const volatile int16_t *scalarOutputData)
+namespace
+{
+class DeviceSimTest : public testing::TestWithParam<bool> 
+{
+};
+
+bool checkLaneLocalData(const std::vector<int16_t> &address, const volatile int16_t *scalarOutputData)
 {
     // Loop through COLUMNS of data
     bool correct = true;
@@ -46,7 +54,7 @@ void checkData(const std::vector<int16_t> &address, const volatile int16_t *scal
     }
 
     if(!correct) {
-        std::cout << "Incorrect data:" << std::endl;
+        LOGE << "Incorrect data:";
         for(int i = 0; i < 32; i++) {
             for(int j = 0; j < 32; j++) {
                 std::cout << *scalarOutputData << ", ";
@@ -55,21 +63,35 @@ void checkData(const std::vector<int16_t> &address, const volatile int16_t *scal
             std::cout << std::endl;
         }
     }
+    
+    return correct;
 }
-int main(int argc, char** argv)
+
+bool checkScalarData(const volatile int16_t *scalarInputData, 
+                     const volatile int16_t *scalarOutputData)
+{
+    // Verify copy was successful
+    bool correct = true;
+    for(size_t i = 0; i < (32 * 10); i++) {
+        const int16_t read = scalarInputData[i];
+        const int16_t write = scalarOutputData[i];
+        std::cout << read << "(" << write << "), ";
+        if(read != write) {
+            correct = false;
+        }
+    }
+    std::cout << std::endl;
+    return correct;
+}
+}
+//--------------------------------------------------------------------------
+// Tests
+//--------------------------------------------------------------------------
+TEST_P(DeviceSimTest, LaneLocal)
 {
     // Configure logging
     plog::ConsoleAppender<plog::TxtFormatter> consoleAppender;
     plog::init(plog::debug, &consoleAppender);
-
-    bool device = false;
-    bool dumpCoe = false;
-
-    CLI::App app{"Lane-local memory test"};
-    app.add_flag("-d,--device", device, "Should be run on device rather than simulator");
-    app.add_flag("-c,--dump-coe", dumpCoe, "Should a .coe file for simulation in the Xilinx simulator be dumped");
-
-    CLI11_PARSE(app, argc, argv);
 
     // Create memory contents
     std::vector<uint8_t> scalarInitData;
@@ -102,16 +124,9 @@ int main(int argc, char** argv)
     // Copy into scalar memory
     std::memcpy(scalarInitData.data() + addressPtr, address.data(), address.size() * 2);
 
-    // Dump initial data to coe file
-    if(dumpCoe) {
-        std::vector<uint32_t> wordData(scalarInitData.size() / 4);
-        std::memcpy(wordData.data(), scalarInitData.data(), scalarInitData.size());
-        AppUtils::dumpCOE("lane_local_test_data.coe", wordData);
-    }
-
     // Generate code
     const auto code = AssemblerUtils::generateStandardKernel(
-        !device, readyFlagPtr,
+        !GetParam(), readyFlagPtr,
         [=](CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator, ScalarRegisterAllocator &scalarRegisterAllocator)
         {
             // Generate code to copy address vector from scalar memory to vector memory
@@ -168,12 +183,7 @@ int main(int argc, char** argv)
 
         });
 
-    if(dumpCoe) {
-        AppUtils::dumpCOE("lane_local_test.coe", code);
-        return 0;
-    }
-
-    if(device) {
+    if(GetParam()) {
         LOGI << "Creating device";
         Device device;
         LOGI << "Resetting";
@@ -197,7 +207,7 @@ int main(int argc, char** argv)
         LOGI << "Done";
 
         // Check data
-        checkData(address, reinterpret_cast<const volatile int16_t*>(device.getDataMemory() + outputPtr));
+        EXPECT_TRUE(checkLaneLocalData(address, reinterpret_cast<const volatile int16_t*>(device.getDataMemory() + outputPtr)));
     }
     else {
         // Build ISE with vector co-processor
@@ -214,9 +224,96 @@ int main(int argc, char** argv)
         // Get pointers to output data in scalar memory and validate
         const auto *scalarData = riscV.getScalarDataMemory().getData();
         const int16_t *scalarOutputData = reinterpret_cast<const int16_t*>(scalarData + outputPtr);
-        checkData(address, scalarOutputData);
+        EXPECT_TRUE(checkLaneLocalData(address, scalarOutputData));
     }
-    LOGI << "Success!";
-    
-    return 0;
 }
+
+TEST_P(DeviceSimTest, URAM)
+{
+    // Configure logging
+    plog::ConsoleAppender<plog::TxtFormatter> consoleAppender;
+    plog::init(plog::debug, &consoleAppender);
+    
+    // Create memory contents
+    std::vector<uint8_t> scalarInitData;
+    std::vector<int16_t> vectorInitData;
+
+    // Allocate vector arrays
+    const uint32_t vectorPtr = AppUtils::allocateVectorAndZero(32 * 10, vectorInitData);
+
+    // Allocate scalar arrays
+    const uint32_t readyFlagPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
+    const uint32_t inputPtr = AppUtils::allocateScalarAndZero(32 * 10 * 2, scalarInitData);
+    const uint32_t outputPtr = AppUtils::allocateScalarAndZero(32 * 10 * 2, scalarInitData);    
+    
+    // Generate 10 vectors of increasing numbers and copy into scalar memory
+    std::vector<int16_t> test(10 * 32);
+    std::iota(test.begin(), test.end(), 0);
+    std::memcpy(scalarInitData.data() + inputPtr, test.data(), 10 * 32 * 2);
+
+    // Generate code
+    const auto code = AssemblerUtils::generateStandardKernel(
+        !GetParam(), readyFlagPtr,
+        [=](CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator, ScalarRegisterAllocator &scalarRegisterAllocator)
+        {
+            // Generate memcpy from inputPtr to vectorPtr
+            AssemblerUtils::generateScalarVectorMemcpy(c, vectorRegisterAllocator,
+                                                       scalarRegisterAllocator,
+                                                       inputPtr, vectorPtr, 10);
+
+            // Generate memcpy back from vectorPtr to outputPtr
+            AssemblerUtils::generateVectorScalarMemcpy(c, vectorRegisterAllocator,
+                                                       scalarRegisterAllocator,
+                                                       vectorPtr, outputPtr, 10);
+        });
+    
+    if(GetParam()) {
+        LOGI << "Creating device";
+        Device device;
+        LOGI << "Resetting";
+        // Put core into reset state
+        device.setEnabled(false);
+        
+        LOGI << "Copying instructions (" << code.size() * sizeof(uint32_t) << " bytes)";
+        device.uploadCode(code);
+        
+        LOGI << "Copying data (" << scalarInitData.size() << " bytes);";
+        device.memcpyDataToDevice(0, scalarInitData.data(), scalarInitData.size());
+        
+        LOGI << "Enabling";
+        // Put core into running state
+        device.setEnabled(true);
+        LOGI << "Running";
+        
+        // Wait until ready flag
+        device.waitOnNonZero(readyFlagPtr);
+        device.setEnabled(false);
+        LOGI << "Done";
+
+        // Check data
+        EXPECT_TRUE(checkScalarData(reinterpret_cast<const volatile int16_t*>(device.getDataMemory() + inputPtr),
+                                    reinterpret_cast<const volatile int16_t*>(device.getDataMemory() + outputPtr)));
+    }
+    else {
+        // Build ISE with vector co-processor
+        RISCV riscV;
+        riscV.addCoprocessor<VectorProcessor>(vectorQuadrant);
+
+        // Set instructions and vector init data
+        riscV.setInstructions(code);
+        riscV.getScalarDataMemory().setData(scalarInitData);
+
+        // Run!
+        riscV.run();
+        
+        // Get pointers to output data in scalar memory and validate
+        const auto *scalarData = riscV.getScalarDataMemory().getData();
+        EXPECT_TRUE(checkScalarData(reinterpret_cast<const int16_t*>(scalarData + inputPtr),
+                                    reinterpret_cast<const int16_t*>(scalarData + outputPtr)));
+    }
+}
+
+INSTANTIATE_TEST_SUITE_P(Memory,
+                         DeviceSimTest,
+                         testing::Values(true, false));
+
