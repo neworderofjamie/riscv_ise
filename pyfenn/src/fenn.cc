@@ -36,7 +36,7 @@
 
 
 // Doc strings
-//#include "docStrings.h"
+#include "docStrings.h"
 
 using namespace pybind11::literals;
 
@@ -45,45 +45,16 @@ using namespace pybind11::literals;
 //----------------------------------------------------------------------------
 #define WRAP_ENUM(ENUM, VAL) .value(#VAL, ENUM::VAL, DOC(ENUM, VAL))
 #define WRAP_METHOD(NAME, CLASS, METH) .def(NAME, &CLASS::METH, DOC(CLASS, METH))
-#define WRAP_NS_METHOD(NAME, NS, CLASS, METH) .def(NAME, &NS::CLASS::METH, DOC(NS, CLASS, METH))
-#define WRAP_NS_ATTR(NAME, NS, CLASS, ATTR) .def_readwrite(NAME, &NS::CLASS::ATTR, DOC(NS, CLASS, ATTR))
-#define WRAP_PROPERTY(NAME, CLASS, METH_STEM) .def_property(NAME, &CLASS::get##METH_STEM, &CLASS::set##METH_STEM, DOC(CLASS, m_##METH_STEM))
-#define WRAP_PROPERTY_IS(NAME, CLASS, METH_STEM) .def_property(NAME, &CLASS::is##METH_STEM, &CLASS::set##METH_STEM, DOC(CLASS, m_##METH_STEM))
-#define WRAP_PROPERTY_WO(NAME, CLASS, METH_STEM) .def_property(NAME, nullptr, &CLASS::set##METH_STEM, DOC(CLASS, m_##METH_STEM))
+#define WRAP_METHOD_REF(NAME, CLASS, METH) .def(NAME, &CLASS::METH, pybind11::return_value_policy::reference, DOC(CLASS, METH))
 #define WRAP_PROPERTY_RO(NAME, CLASS, METH_STEM) .def_property_readonly(NAME, &CLASS::get##METH_STEM, DOC(CLASS, m_##METH_STEM))
-#define WRAP_PROPERTY_RO_IS(NAME, CLASS, METH_STEM) .def_property_readonly(NAME, &CLASS::is##METH_STEM, DOC(CLASS, m_##METH_STEM))
-#define WRAP_PROPERTY_RO_REF(NAME, CLASS, METH_STEM) .def_property_readonly(NAME, &CLASS::get##METH_STEM, pybind11::return_value_policy::reference, DOC(CLASS, m_##METH_STEM))
+#define WRAP_PROPERTY_GETTER(NAME, CLASS, METH_STEM) .def_property_readonly(NAME, &CLASS::get##METH_STEM, DOC(CLASS, get##METH_STEM))
+#define WRAP_PROPERTY_RO_REF(NAME, CLASS, METH_STEM) .def_property_readonly(NAME, &CLASS::get##METH_STEM, pybind11::return_value_policy::reference, DOC(CLASS, m_##METH_STEM))*/
 
 //----------------------------------------------------------------------------
 // Anonymous namespace
 //----------------------------------------------------------------------------
 namespace
-{/*
-const CodeGenerator::ModelSpecMerged *generateCode(ModelSpecInternal &model, CodeGenerator::BackendBase &backend, 
-                                                   const std::string &sharePathStr, const std::string &outputPathStr,
-                                                   bool forceRebuild, bool neverRebuild)
 {
-    const filesystem::path outputPath(outputPathStr);
-
-    // Create merged model and generate code
-    auto *modelMerged = new CodeGenerator::ModelSpecMerged(backend, model);
-    const auto output = CodeGenerator::generateAll(
-        *modelMerged, backend, 
-        filesystem::path(sharePathStr), outputPath, 
-        forceRebuild, neverRebuild);
-
-#ifdef _WIN32
-    // Create MSBuild project to compile and link all generated modules
-    std::ofstream makefile((outputPath / "runner.vcxproj").str());
-    CodeGenerator::generateMSBuild(makefile, model, backend, "", output);
-#else
-    // Create makefile to compile and link all generated modules
-    std::ofstream makefile((outputPath / "Makefile").str());
-    CodeGenerator::generateMakefile(makefile, backend, output);
-#endif
-    return modelMerged;
-}*/
-
 void initLogging(plog::Severity level)
 {
     auto *consoleAppender = new plog::ConsoleAppender<plog::TxtFormatter>;
@@ -121,9 +92,9 @@ PYBIND11_MODULE(_fenn, m)
         .value("VERBOSE", plog::Severity::verbose);
     
     pybind11::enum_<RoundingMode>(m, "RoundingMode")
-        .value("TO_ZERO", RoundingMode::TO_ZERO)
-        .value("NEAREST", RoundingMode::NEAREST)
-        .value("STOCHASTIC", RoundingMode::STOCHASTIC);
+        WRAP_ENUM(RoundingMode, TO_ZERO)
+        WRAP_ENUM(RoundingMode, NEAREST)
+        WRAP_ENUM(RoundingMode, STOCHASTIC);
 
     //------------------------------------------------------------------------
     // Free functions
@@ -178,12 +149,12 @@ PYBIND11_MODULE(_fenn, m)
          .def(pybind11::init<const std::vector<size_t>&>())
          .def(pybind11::init<size_t>())
 
-         .def_property_readonly("dims", &Shape::getDims)
-         .def_property_readonly("num_neurons", &Shape::getNumNeurons)
-         .def_property_readonly("num_source_neurons", &Shape::getNumSourceNeurons)
-         .def_property_readonly("num_target_neurons", &Shape::getNumTargetNeurons)
-         .def_property_readonly("batch_size", &Shape::getBatchSize)
-         .def_property_readonly("flattened_size", &Shape::getFlattenedSize)
+         WRAP_PROPERTY_RO("dims", Shape, Dims)
+         WRAP_PROPERTY_GETTER("num_neurons", Shape, NumNeurons)
+         WRAP_PROPERTY_GETTER("num_source_neurons", Shape, NumSourceNeurons)
+         WRAP_PROPERTY_GETTER("num_target_neurons", Shape, NumTargetNeurons)
+         WRAP_PROPERTY_GETTER("batch_size", Shape, BatchSize)
+         WRAP_PROPERTY_GETTER("flattened_size", Shape, FlattenedSize)
          
          .def("__repr__", &Shape::toString);
 
@@ -194,7 +165,7 @@ PYBIND11_MODULE(_fenn, m)
     // fenn.ModelComponent
     //------------------------------------------------------------------------
     pybind11::class_<ModelComponent, std::shared_ptr<ModelComponent>>(m, "ModelComponent")
-         .def_property_readonly("name", &ModelComponent::getName);
+        WRAP_PROPERTY_RO("name", ModelComponent, Name);
 
     //------------------------------------------------------------------------
     // fenn.State
@@ -208,9 +179,9 @@ PYBIND11_MODULE(_fenn, m)
         .def(pybind11::init(&EventContainer::create),
              pybind11::arg("shape"), pybind11::arg("num_buffer_timesteps") = 1,
              pybind11::arg("name") = "")
-
-        .def_property_readonly("shape", &EventContainer::getShape)
-        .def_property_readonly("num_buffer_timesteps", &EventContainer::getNumBufferTimesteps);
+        
+        WRAP_PROPERTY_RO("shape", EventContainer, Shape)
+        WRAP_PROPERTY_RO("num_buffer_timesteps", EventContainer, NumBufferTimesteps);
     
     //------------------------------------------------------------------------
     // fenn.Parameter
@@ -220,8 +191,8 @@ PYBIND11_MODULE(_fenn, m)
              pybind11::arg("value"), pybind11::arg("type"),
              pybind11::arg("name") = "")
         
-        .def_property_readonly("value", &Parameter::getValue)
-        .def_property_readonly("type", &Parameter::getType);
+        WRAP_PROPERTY_RO("value", Parameter, Value)
+        WRAP_PROPERTY_RO("type", Parameter, Type);
     
     //------------------------------------------------------------------------
     // fenn.Variable
@@ -231,8 +202,8 @@ PYBIND11_MODULE(_fenn, m)
              pybind11::arg("shape"), pybind11::arg("type"),
              pybind11::arg("num_buffer_timesteps") = 1, pybind11::arg("name") = "")
         
-        .def_property_readonly("shape", &Variable::getShape)
-        .def_property_readonly("type", &Variable::getType);
+        WRAP_PROPERTY_RO("shape", Variable, Shape)
+        WRAP_PROPERTY_RO("type", Variable, Type);
     
     //------------------------------------------------------------------------
     // fenn.PerformanceCounter
@@ -259,11 +230,11 @@ PYBIND11_MODULE(_fenn, m)
              pybind11::arg("code"), pybind11::arg("parameters"),
              pybind11::arg("variables"), pybind11::arg("output_events") = EventContainerMap{}, 
              pybind11::arg("name") = "")
-
-        .def_property_readonly("parameters", &NeuronUpdateProcess::getParameters)
-        .def_property_readonly("variables", &NeuronUpdateProcess::getVariables)
-        .def_property_readonly("output_events", &NeuronUpdateProcess::getOutputEvents)
-        .def_property_readonly("num_neurons", &NeuronUpdateProcess::getNumNeurons);
+        
+        WRAP_PROPERTY_RO("parameters", NeuronUpdateProcess, Parameters)
+        WRAP_PROPERTY_RO("variables", NeuronUpdateProcess, Variables)
+        WRAP_PROPERTY_RO("output_events", NeuronUpdateProcess, OutputEvents)
+        WRAP_PROPERTY_RO("num_neurons", NeuronUpdateProcess, NumNeurons);
 
     //------------------------------------------------------------------------
     // fenn.EventPropagationProcess
@@ -274,11 +245,11 @@ PYBIND11_MODULE(_fenn, m)
              pybind11::arg("target"), pybind11::arg("num_sparse_connectivity_bits") = 0,
              pybind11::arg("num_delay_bits") = 0, pybind11::arg("name") = "")
 
-        .def_property_readonly("input_events", &EventPropagationProcess::getInputEvents)
-        .def_property_readonly("weight", &EventPropagationProcess::getWeight)
-        .def_property_readonly("target", &EventPropagationProcess::getTarget)
-        .def_property_readonly("num_source_neurons", &EventPropagationProcess::getNumSourceNeurons)
-        .def_property_readonly("num_target_neurons", &EventPropagationProcess::getNumTargetNeurons);
+        WRAP_PROPERTY_RO("input_events", EventPropagationProcess, InputEvents)
+        WRAP_PROPERTY_RO("weight", EventPropagationProcess, Weight)
+        WRAP_PROPERTY_RO("target", EventPropagationProcess, Target)
+        WRAP_PROPERTY_RO("num_source_neurons", EventPropagationProcess, NumSourceNeurons)
+        WRAP_PROPERTY_RO("num_target_neurons", EventPropagationProcess, NumTargetNeurons);
 
     //------------------------------------------------------------------------
     // fenn.RNGInitProcess
@@ -287,7 +258,7 @@ PYBIND11_MODULE(_fenn, m)
         .def(pybind11::init(&RNGInitProcess::create),
              pybind11::arg("seed"), pybind11::arg("name") = "")
 
-        .def_property_readonly("seed", &RNGInitProcess::getSeed);
+        WRAP_PROPERTY_RO("seed", RNGInitProcess, Seed);
 
     //------------------------------------------------------------------------
     // fenn.MemsetProcess
@@ -296,7 +267,7 @@ PYBIND11_MODULE(_fenn, m)
         .def(pybind11::init(&MemsetProcess::create),
              pybind11::arg("target"), pybind11::arg("name") = "")
 
-        .def_property_readonly("target", &MemsetProcess::getTarget);
+        WRAP_PROPERTY_RO("target", MemsetProcess, Target);
 
     //------------------------------------------------------------------------
     // fenn.BroadcastProcess
@@ -305,8 +276,8 @@ PYBIND11_MODULE(_fenn, m)
         .def(pybind11::init(&BroadcastProcess::create),
              pybind11::arg("source"), pybind11::arg("target"), pybind11::arg("name") = "")
 
-        .def_property_readonly("source", &BroadcastProcess::getSource)
-        .def_property_readonly("target", &BroadcastProcess::getTarget);
+        WRAP_PROPERTY_RO("source", BroadcastProcess, Source)
+        WRAP_PROPERTY_RO("target", BroadcastProcess, Target);
     
     //------------------------------------------------------------------------
     // fenn.ProcessGroup
@@ -316,8 +287,8 @@ PYBIND11_MODULE(_fenn, m)
              pybind11::arg("processes"), pybind11::arg("performance_counter") = nullptr,
              pybind11::arg("name") = "")
 
-        .def_property_readonly("processes", &ProcessGroup::getProcesses)
-        .def_property_readonly("performance_counter", &ProcessGroup::getPerformanceCounter);
+        WRAP_PROPERTY_RO("processes", ProcessGroup, Processes)
+        WRAP_PROPERTY_RO("performance_counter", ProcessGroup, PerformanceCounter);
 
     //------------------------------------------------------------------------
     // fenn.Model
@@ -329,8 +300,8 @@ PYBIND11_MODULE(_fenn, m)
     // fenn.BackendFeNN
     //------------------------------------------------------------------------
     pybind11::class_<BackendFeNN>(m, "BackendFeNN")
-        .def("generate_simulation_kernel", &BackendFeNN::generateSimulationKernel)
-        .def("generate_kernel", &BackendFeNN::generateKernel);
+        WRAP_METHOD("generate_simulation_kernel", BackendFeNN, generateSimulationKernel)
+        WRAP_METHOD("generate_kernel", BackendFeNN, generateKernel);
 
     //------------------------------------------------------------------------
     // fenn.BackendFeNNSim
@@ -364,10 +335,10 @@ PYBIND11_MODULE(_fenn, m)
                return pybind11::memoryview::from_memory(a.getHostPointer(),
                                                         a.getSizeBytes());
             })
-        .def_property_readonly("type", &ArrayBase::getType)
+        WRAP_PROPERTY_RO("type", ArrayBase, Type)
 
-        .def("push_to_device", &ArrayBase::pushToDevice)
-        .def("pull_from_device", &ArrayBase::pullFromDevice);
+        WRAP_METHOD("push_to_device", ArrayBase, pushToDevice)
+        WRAP_METHOD("pull_from_device", ArrayBase, pullFromDevice);
 
     //------------------------------------------------------------------------
     // fenn.Runtime
@@ -375,12 +346,12 @@ PYBIND11_MODULE(_fenn, m)
     pybind11::class_<Runtime>(m, "Runtime")
         .def(pybind11::init<const Model&, const BackendFeNN&>())
     
-        .def("get_array", &Runtime::getArray, pybind11::return_value_policy::reference)
-        .def("set_instructions", &Runtime::setInstructions)
-        .def("allocate", &Runtime::allocate)
-        .def("run", &Runtime::run)
-        .def("start_run", &Runtime::startRun)
-        .def("wait_run", &Runtime::waitRun)
-        .def_property_readonly("soc_power", &Runtime::getSOCPower);
+        WRAP_METHOD_REF("get_array", Runtime, getArray)
+        WRAP_METHOD("set_instructions", Runtime, setInstructions)
+        WRAP_METHOD("allocate", Runtime, allocate)
+        WRAP_METHOD("run", Runtime, run)
+        WRAP_METHOD("start_run", Runtime, startRun)
+        WRAP_METHOD("wait_run", Runtime, waitRun)
+        WRAP_PROPERTY_GETTER("soc_power", Runtime, SOCPower);
         
 }

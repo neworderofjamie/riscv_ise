@@ -659,6 +659,247 @@ static const char *__doc_Stateful = R"doc()doc";
 
 static const char *__doc_Stateful_2 = R"doc()doc";
 
+static const char *__doc_Type_FunctionFlags = R"doc(Flags that can be applied to function types)doc";
+
+static const char *__doc_Type_FunctionFlags_ARRAY_SUBSCRIPT_OVERRIDE = R"doc(Function is variadic)doc";
+
+static const char *__doc_Type_FunctionFlags_VARIADIC = R"doc()doc";
+
+static const char *__doc_Type_NumericValue =
+R"doc(ResolvedType::Numeric has various values attached e.g. min and max. These
+Cannot be represented using any single type (double can't represent all uint64_t for example)
+Therefore, this type is used as a wrapper.)doc";
+
+static const char *__doc_Type_NumericValue_NumericValue = R"doc()doc";
+
+static const char *__doc_Type_NumericValue_NumericValue_2 = R"doc()doc";
+
+static const char *__doc_Type_NumericValue_NumericValue_3 = R"doc()doc";
+
+static const char *__doc_Type_NumericValue_NumericValue_4 = R"doc()doc";
+
+static const char *__doc_Type_NumericValue_NumericValue_5 = R"doc()doc";
+
+static const char *__doc_Type_NumericValue_cast = R"doc()doc";
+
+static const char *__doc_Type_NumericValue_get = R"doc()doc";
+
+static const char *__doc_Type_NumericValue_m_Value = R"doc()doc";
+
+static const char *__doc_Type_NumericValue_operator_eq = R"doc()doc";
+
+static const char *__doc_Type_NumericValue_operator_ge = R"doc()doc";
+
+static const char *__doc_Type_NumericValue_operator_gt = R"doc()doc";
+
+static const char *__doc_Type_NumericValue_operator_le = R"doc()doc";
+
+static const char *__doc_Type_NumericValue_operator_lt = R"doc()doc";
+
+static const char *__doc_Type_NumericValue_operator_ne = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_Function = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_Function_Function = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_Function_Function_2 = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_Function_argTypes = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_Function_flags = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_Function_hasFlag = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_Function_operator_assign = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_Function_operator_eq = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_Function_operator_lt = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_Function_operator_ne = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_Function_returnType = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_Numeric = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_Numeric_fixedPoint = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_Numeric_isIntegral = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_Numeric_isSaturating = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_Numeric_isSigned = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_Numeric_literalSuffix = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_Numeric_lowest = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_Numeric_max = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_Numeric_maxDigits10 = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_Numeric_min = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_Numeric_operator_eq = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_Numeric_operator_lt = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_Numeric_operator_ne = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_Numeric_rank = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_Pointer = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_Pointer_Pointer = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_Pointer_Pointer_2 = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_Pointer_operator_assign = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_Pointer_operator_eq = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_Pointer_operator_lt = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_Pointer_operator_ne = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_Pointer_valueType = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_ResolvedType = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_ResolvedType_2 = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_ResolvedType_3 = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_ResolvedType_4 = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_ResolvedType_5 = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_Value = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_Value_device = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_Value_ffiType = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_Value_isWriteOnly = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_Value_name = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_Value_numeric = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_Value_operator_eq = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_Value_operator_lt = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_Value_operator_ne = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_Value_size = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_addConst = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_addWriteOnly = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_createFixedPointNumeric = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_createFunction = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_createNumeric = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_createPointer = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_createValue = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_createValue_2 = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_detail = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_getFFIType = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_getFunction = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_getName = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_getNumeric = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_getPointer = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_getSize = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_getValue = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_isConst = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_isFunction = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_isNumeric = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_isPointer = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_isPointerToPointer = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_isScalar = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_isValue = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_isVoid = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_operator_eq = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_operator_lt = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_operator_ne = R"doc()doc";
+
+static const char *__doc_Type_ResolvedType_removeConst = R"doc()doc";
+
+static const char *__doc_Type_UnresolvedType = R"doc()doc";
+
+static const char *__doc_Type_UnresolvedType_UnresolvedType = R"doc()doc";
+
+static const char *__doc_Type_UnresolvedType_UnresolvedType_2 = R"doc()doc";
+
+static const char *__doc_Type_UnresolvedType_detail = R"doc()doc";
+
+static const char *__doc_Type_UnresolvedType_operator_eq = R"doc()doc";
+
+static const char *__doc_Type_UnresolvedType_operator_lt = R"doc()doc";
+
+static const char *__doc_Type_UnresolvedType_operator_ne = R"doc()doc";
+
+static const char *__doc_Type_UnresolvedType_resolve = R"doc()doc";
+
+static const char *__doc_Type_getAddToPrePost = R"doc(Get type to add a weight type)doc";
+
+static const char *__doc_Type_getAddToPrePostDelay = R"doc(Get type to add a weight type with delay)doc";
+
+static const char *__doc_Type_getArraySubscript = R"doc(Get type for array subscript overload functions)doc";
+
+static const char *__doc_Type_getCommonType = R"doc(Apply C rules to get common type between numeric types a and b)doc";
+
+static const char *__doc_Type_getPromotedType = R"doc(Apply C type promotion rules to numeric type)doc";
+
+static const char *__doc_Type_operator_band = R"doc()doc";
+
+static const char *__doc_Type_operator_bor = R"doc()doc";
+
+static const char *__doc_Type_serialiseNumeric = R"doc(Serialise numeric value to bytes)doc";
+
+static const char *__doc_Type_updateHash = R"doc()doc";
+
+static const char *__doc_Type_updateHash_2 = R"doc()doc";
+
+static const char *__doc_Type_updateHash_3 = R"doc()doc";
+
+static const char *__doc_Type_updateHash_4 = R"doc()doc";
+
+static const char *__doc_Type_updateHash_5 = R"doc()doc";
+
+static const char *__doc_Type_updateHash_6 = R"doc()doc";
+
+static const char *__doc_Type_updateHash_7 = R"doc()doc";
+
+static const char *__doc_Type_writeNumeric = R"doc(Write numeric value to string, formatting correctly for type)doc";
+
 static const char *__doc_URAMAllocator = R"doc()doc";
 
 static const char *__doc_URAMAllocator_URAMAllocator = R"doc()doc";
