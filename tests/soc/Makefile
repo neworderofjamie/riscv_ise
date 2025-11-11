@@ -5,7 +5,7 @@ include ../../src/MakefileCommon
 SOC_TEST_PATH		:=$(RISCV_DIR)/tests/soc
 OBJECT_DIRECTORY	:=$(OBJECT_DIRECTORY)/tests/soc
 
-SOURCES			:=$(GTEST_DIR)/src/gtest-all.cc $(GTEST_DIR)/src/gtest_main.cc $(wildcard *.cc)
+SOURCES			:=$(GTEST_DIR)/src/gtest-all.cc $(wildcard *.cc)
 OBJECTS			:=$(SOURCES:%.cc=$(OBJECT_DIRECTORY)/%.o)
 DEPS			:=$(OBJECTS:.o=.d)
 

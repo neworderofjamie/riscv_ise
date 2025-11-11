@@ -4,9 +4,7 @@
 #include <random>
 
 // PLOG includes
-#include <plog/Log.h>
 #include <plog/Severity.h>
-#include <plog/Appenders/ConsoleAppender.h>
 
 // Google test includes
 #include "gtest/gtest.h"
@@ -90,10 +88,6 @@ bool checkScalarData(const volatile int16_t *scalarInputData,
 //--------------------------------------------------------------------------
 TEST_P(DeviceSimTest, LaneLocal)
 {
-    // Configure logging
-    plog::ConsoleAppender<plog::TxtFormatter> consoleAppender;
-    plog::init(plog::debug, &consoleAppender);
-
     // Create memory contents
     std::vector<uint8_t> scalarInitData;
     std::vector<int16_t> vectorInitData;
@@ -231,10 +225,6 @@ TEST_P(DeviceSimTest, LaneLocal)
 
 TEST_P(DeviceSimTest, URAM)
 {
-    // Configure logging
-    plog::ConsoleAppender<plog::TxtFormatter> consoleAppender;
-    plog::init(plog::debug, &consoleAppender);
-    
     // Create memory contents
     std::vector<uint8_t> scalarInitData;
     std::vector<int16_t> vectorInitData;

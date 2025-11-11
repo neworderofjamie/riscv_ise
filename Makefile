@@ -28,9 +28,6 @@ backend: assembler common compiler disassembler genn ise
 
 assembly_examples:
 	$(MAKE) -C src/alif
-	$(MAKE) -C src/dma_test
-	$(MAKE) -C src/dma_test_fenn
-	$(MAKE) -C src/dma_test_read_csr
 	$(MAKE) -C src/lif
 	$(MAKE) -C src/mnist
 	$(MAKE) -C src/poisson
