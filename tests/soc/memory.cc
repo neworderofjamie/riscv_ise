@@ -24,12 +24,12 @@
 #include "ise/riscv.h"
 #include "ise/vector_processor.h"
 
+// SoC test includes
+#include "fixtures.h"
+
+// Anonymous namespace
 namespace
 {
-class DeviceSimTest : public testing::TestWithParam<bool> 
-{
-};
-
 bool checkLaneLocalData(const std::vector<int16_t> &address, const volatile int16_t *scalarOutputData)
 {
     // Loop through COLUMNS of data
@@ -84,6 +84,7 @@ bool checkScalarData(const volatile int16_t *scalarInputData,
     return correct;
 }
 }
+
 //--------------------------------------------------------------------------
 // Tests
 //--------------------------------------------------------------------------
