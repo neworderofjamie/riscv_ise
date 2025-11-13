@@ -117,16 +117,8 @@ TEST_P(TransferSizeTest, HostDMA)
     }
     std::cout << std::endl;
                     
-  
-    // Open memory
-    // **NOTE** O_SYNC turns of caching
-    int memory = open("/dev/mem", O_RDWR | O_SYNC);
-    if(memory == -1) {
-        throw std::runtime_error("/dev/mem open failure (" + std::to_string(errno) + " = " + strerror(errno) + ")");
-    }
-
     // Create DMA controller
-    DMAController dmaController(memory, 0x80300000);
+    DMAController dmaController("dm_cmd_and_fsm");
     
     // Issue interleaved reads and writes
     for(size_t offsetBytes = 0; offsetBytes < (2 * transferHalfWords); offsetBytes+=(std::get<1>(GetParam()) * 2)) {
@@ -154,7 +146,6 @@ TEST_P(TransferSizeTest, HostDMA)
     else {
         LOGI << "Copy successful!";
     }
-    close(memory);
 }
 
 TEST(DMAController, ReadCSR)
