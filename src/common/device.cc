@@ -27,23 +27,6 @@
 #include "common/utils.h"
 
 //----------------------------------------------------------------------------
-// Anonymous namespace
-//----------------------------------------------------------------------------
-namespace
-{
-constexpr off_t instructionOffset = 0x00000000;
-constexpr size_t instructionSize = 4 * 1024;
-
-constexpr off_t dataOffset = 0x00100000;
-constexpr size_t dataSize = 128 * 1024;
-
-constexpr off_t gpioOffset = 0x00200000;
-constexpr size_t gpioSize = 2 * 1024;
-
-constexpr off_t dmaControllerOffset = 0x00300000;
-}
-
-//----------------------------------------------------------------------------
 // Device
 //----------------------------------------------------------------------------
 Device::Device(int core, int numCores)
@@ -92,8 +75,8 @@ void Device::waitOnNonZero(uint32_t address) const
 void Device::uploadCode(const std::vector<uint32_t> &code)
 {
     // Check there is space
-    if(code.size() > (instructionSize / 4)) {
-        throw std::runtime_error("Insufficient code memory (" + std::to_string(instructionSize) + " bytes)");
+    if(code.size() > (m_InstructionMemoryUIO->getSize() / 4)) {
+        throw std::runtime_error("Insufficient code memory (" + std::to_string(m_InstructionMemoryUIO->getSize()) + " bytes)");
     }
 
     // Copy via volatile pointer to ensure no dumbness
@@ -106,7 +89,7 @@ void Device::uploadCode(const std::vector<uint32_t> &code)
 void Device::memcpyDataToDevice(size_t destinationOffset, const uint8_t *source, size_t count)
 {
     // Check destination offset is valid
-    if((destinationOffset + count) > dataSize) {
+    if((destinationOffset + count) > m_DataMemoryUIO->getSize()) {
         throw std::runtime_error("Destination address out of range");
     }
 
@@ -120,7 +103,7 @@ void Device::memcpyDataToDevice(size_t destinationOffset, const uint8_t *source,
 void Device::memcpyDataFromDevice(uint8_t *destination, size_t sourceOffset, size_t count) const
 {
     // Check source offset is valid
-    if((sourceOffset + count) > dataSize) {
+    if((sourceOffset + count) > m_DataMemoryUIO->getSize()) {
         throw std::runtime_error("Source address out of range");
     }
 
