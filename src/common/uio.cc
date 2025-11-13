@@ -1,8 +1,8 @@
 #include "common/uio.h"
 
 // Standard C++ includes
-#include <filesystem>
 #include <fstream>
+#include <optional>
 #include <stdexcept>
 #include <string>
 
@@ -26,18 +26,12 @@ namespace
 {
 std::optional<int> findUIO(const std::string &targetName)
 {
-    // If uio sysfs node doesn't exist, give error
-    const std::filesystem::path uio{"/sys/class/uio"};
-    if(!std::filesystem::exists(uio)) {
-        throw std::runtime_error("UIO driver is not installed");
-    }
-    
-    // Loop through UIO devices
-    int i = 0;
-    std::filesystem::directory_iterator u{uio};
-    for(;u != std::filesystem::directory_iterator(); u++,i++) {
+    for(int i = 0;;i++) {
         // Open name file
-        std::ifstream nameStream{u->path() / "name"};
+        std::ifstream nameStream("/sys/class/uio/uio" + std::to_string(i) + "/name");
+        if(!nameStream.good()) {
+            return std::nullopt;
+        }
         
         // Read name
         std::string name;
@@ -54,7 +48,7 @@ std::optional<int> findUIO(const std::string &targetName)
 std::optional<size_t> getUIOSize(int uioIndex)
 {
     // Open size file
-    std::ifstream sizeStream{"/sys/class/uio/uio" + std::to_string(uioIndex) + "/maps/map0/size"};
+    std::ifstream sizeStream("/sys/class/uio/uio" + std::to_string(uioIndex) + "/maps/map0/size");
     if(sizeStream.good()) {
         size_t size;
         sizeStream >> std::hex >> size;

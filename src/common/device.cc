@@ -23,7 +23,6 @@
 #include <plog/Log.h>
 
 // RISC-V common includes
-#include "common/dma_controller.h"
 #include "common/utils.h"
 
 //----------------------------------------------------------------------------

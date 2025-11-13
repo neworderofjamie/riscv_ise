@@ -10,10 +10,8 @@
 
 // Common includes
 #include "common/common_export.h"
+#include "common/dma_controller.h"
 #include "common/uio.h"
-
-// Forward declarations
-class DMAController;
 
 //----------------------------------------------------------------------------
 // Device
