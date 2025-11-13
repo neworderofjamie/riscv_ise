@@ -6,6 +6,7 @@
 
 // Common includes
 #include "common/common_export.h"
+#include "common/uio.h"
 
 // Forward declarations
 class DMABuffer;
@@ -16,8 +17,7 @@ class DMABuffer;
 class COMMON_EXPORT DMAController
 {
 public:
-    DMAController(int memory, size_t baseAddress);
-
+    DMAController(const std::string &uioName);
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
@@ -75,5 +75,5 @@ private:
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
-    uint32_t *m_Registers;
+    UIO m_RegisterUIO;
 };

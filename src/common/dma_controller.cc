@@ -10,35 +10,16 @@
 
 // PLOG includes
 #include <plog/Log.h>
-
-#ifdef __linux__     
-    // POSIX includes
-    #include <fcntl.h>
-    #include <unistd.h>
-    #include <errno.h>
-    #include <sys/mman.h>
-#endif
-
 // Common includes
 #include "common/dma_buffer.h"
 
 //----------------------------------------------------------------------------
 // DMAController
 //----------------------------------------------------------------------------
-DMAController::DMAController(int memory, size_t baseAddress)
+DMAController::DMAController(const std::string &uioName)
+:   m_RegisterUIO(uioName)
 {
-#ifdef __linux__ 
-    LOGI << "Creating DMA at  " << std::hex << baseAddress;
-
-    // Memory map DMA controller registers
-    m_Registers = reinterpret_cast<uint32_t*>(mmap(nullptr, 65535, PROT_READ | PROT_WRITE, MAP_SHARED, 
-                                                   memory, baseAddress));
-    if(m_Registers == MAP_FAILED) {
-        throw std::runtime_error("DMA register map failed (" + std::to_string(errno) + " = " + strerror(errno) + ")");
-    }
-#else
-    throw std::runtime_error("DMA controller interface only supports Linux");
-#endif  // __linux__
+    LOGI << "Creating DMA controller using UIO '" << uioName << "'";
 }
 //----------------------------------------------------------------------------
 void DMAController::startWrite(uint32_t destination, const DMABuffer &sourceBuffer, size_t sourceOffset, size_t size)
@@ -165,12 +146,12 @@ void DMAController::waitForReadComplete() const
 //----------------------------------------------------------------------------
 void DMAController::writeReg(Register reg, uint32_t val)
 { 
-    volatile uint32_t *registers = m_Registers;
+    volatile uint32_t *registers = m_RegisterUIO.getData<uint32_t>();
     registers[static_cast<int>(reg) / 4] = val; 
 }
 //----------------------------------------------------------------------------
 uint32_t DMAController::readReg(Register reg) const
 { 
-    volatile const uint32_t *registers = m_Registers;
+    volatile const uint32_t *registers = m_RegisterUIO.getData<uint32_t>();
     return registers[static_cast<int>(reg) / 4]; 
 }
