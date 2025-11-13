@@ -250,7 +250,7 @@ TEST_P(DeviceSimTest, URAM)
             // Generate memcpy from inputPtr to vectorPtr
             AssemblerUtils::generateScalarVectorMemcpy(c, vectorRegisterAllocator,
                                                        scalarRegisterAllocator,
-                                                       inputPtr, vectorPtr, 10);
+                                                       inputPtr, vectorPtr, 10u);
 
             // Generate memcpy back from vectorPtr to outputPtr
             AssemblerUtils::generateVectorScalarMemcpy(c, vectorRegisterAllocator,
