@@ -31,7 +31,7 @@ The following installation instructions are required both to use the Instruction
 ``pip install -e .[examples]``.
 
 ## Kria KV260 installation 
-To run examples on a Kria KV260, some other steps are required:
+To run examples on a Kria KV260, some additional steps are required:
 
 1. Build the udmabuf kernel module by navigating into the ``udmabuf`` folder and running ``make`` 
 2. Load the udmabuf kernel module with ``sudo insmod u-dma-buf.ko udmabuf0=8000000`` where 8000000 specifies an 128MByte buffer (in hexadecimal). It is possible to create larger buffers but, it tends to require killing all running applications to get enough memory. 
