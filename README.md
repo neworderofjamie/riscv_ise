@@ -13,7 +13,7 @@ The instruction set for the processor is described in ``docs/instruction_set.pdf
 The following installation instructions are required both to use the Instruction Set Simulator on a desktop computer and to
 
 1. Clone the repository, ensuring the submodules are fetched ``git clone https://github.com/neworderofjamie/riscv_ise.git --recurse-submodules``
-2. Build PyFeNN ``pip install -e .``. If you wish to also install the additional dependencies required to run the examples, you can this automatically with
+2. Build PyFeNN ``pip install -e .``. If you wish to also install the additional dependencies required to run the examples, you can do this automatically with
 ``pip install -e .[examples]``.
 
 ## Kria KV260 installation 
