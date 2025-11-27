@@ -137,7 +137,7 @@ if build_fenn_libs:
     else:
         # Define make arguments
         make_arguments = ["make", "backend", "DYNAMIC=1",
-                          f"LIBRARY_DIRECTORY={os.path.join(abs_genn_path, 'pyfenn')}",
+                          f"LIBRARY_DIRECTORY={os.path.join(abs_fenn_path, 'pyfenn')}",
                           f"--jobs={cpu_count(logical=False)}"]
         if debug_build:
             make_arguments.append("DEBUG=1")
