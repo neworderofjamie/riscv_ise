@@ -4,7 +4,7 @@ This is a first attempt at a toolchain to program our FeNN processor.
 It features:
 * An Instruction Set Simulator built on the carcass of [nedoPC-5](https://gitlab.com/nedopc/npc5/-/blob/master/emu-rv32i.c)
 * A C++ Just-in-Time assembler built on the carcass of [xbyak_riscv](https://github.com/herumi/xbyak_riscv)
-* A very primitive device interface which handles communicating with FeNN via ``/dev/mem``
+* A device interface which communicates with FeNN using [UIO](https://www.kernel.org/doc/html/v5.0/driver-api/uio-howto.html)
 * A Python interface for define models and interacting with both real FeNN hardware and the Instruction Set Simulator
 
 The instruction set for the processor is described in ``docs/instruction_set.pdf``.
@@ -13,15 +13,16 @@ The instruction set for the processor is described in ``docs/instruction_set.pdf
 The following installation instructions are required both to use the Instruction Set Simulator on a desktop computer and to
 
 1. Clone the repository, ensuring the submodules are fetched ``git clone https://github.com/neworderofjamie/riscv_ise.git --recurse-submodules``
-2. Install dependencies ``pip install numpy psutil pybind11``
-3. Build PyFeNN ``python setup.py develop``
+2. Build PyFeNN ``pip install -e .``. If you wish to also install the additional dependencies required to run the examples, you can this automatically with
+``pip install -e .[examples]``.
 
-## Device installation 
-To run examples on a Kria KV260, some other steps are required:
+## Kria KV260 installation 
+To run examples on a Kria KV260 running the [AMD Ubuntu image](https://ubuntu.com/download/amd#kria-k26), some other steps are required:
 
-1. Build the udmabuf driver by navigating into the ``udmabuf``, run ``make`` and then load the module with ``sudo insmod u-dma-buf.ko udmabuf0=8000000``
+1. Build the udmabuf driver by navigating into the ``udmabuf``, run ``make`` and then load the module with ``sudo insmod u-dma-buf.ko udmabuf0=8000000`` where 8000000 indicates an 128MByte buffer (in hexadecimal). It is possible to create larger buffers but it tends to require killing all running applications to get enough memory. 
 2. Download the bitstream associated with a software release and unzip into ``/lib/firmware/xilinx``
-3. Unload the default bitstream with ``sudo dfx-mgr -remove 0`` and load the newly downloaded one with ``sudo dfx-mgr -load fenn_0.01``
+3. Install the UDEV rules which allow FeNN to be used without sudo access by copying ``90-fenn-uio.rules`` from ``tools`` into ``/etc/udev/rules.d/``.
+4. Unload the default bitstream with ``sudo dfx-mgr -remove 0`` and load the newly downloaded one with ``sudo dfx-mgr -load fenn_0.01``
 
 # Tutorials
 Some basic tutorials are available to use on Google Collab:
@@ -29,3 +30,5 @@ Some basic tutorials are available to use on Google Collab:
 2. [Generate poisson noise using FeNN's hardware RNG](https://colab.research.google.com/github/neworderofjamie/riscv_ise/blob/master/tutorials/poisson.ipynb)
 3. [Classify MNIST](https://colab.research.google.com/github/neworderofjamie/riscv_ise/blob/master/tutorials/mnist_classifier.ipynb)
   
+# Examples
+The ``examples`` folder contains several examples, implemented in PyFeNN, including those presented in our paper(s). These all default to running on the simulator but, if you have installed the software on a Kria KV260 as described above, you can run them using the ``--device`` command line argument e.g. with ``python shd_lif_classifier.py --device``.
