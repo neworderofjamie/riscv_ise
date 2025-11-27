@@ -1,5 +1,5 @@
 # FPGA-Enhanced Neural Networks toolchain
-This is a first attempt at a toolchain to program our FeNN processor.
+This is a first attempt at a toolchain to program our FeNN processor. It currently supports 
 
 It features:
 * An Instruction Set Simulator built on the carcass of [nedoPC-5](https://gitlab.com/nedopc/npc5/-/blob/master/emu-rv32i.c)
@@ -9,15 +9,29 @@ It features:
 
 The instruction set for the processor is described in ``docs/instruction_set.pdf``.
 
+## Pre-installation
+Currently, the PyFeNN toolchain needs to be built from source. To prepare for this you need to do the following:
+
+1.  Install a C++ compiler on the machine, if not already present.
+    For Windows, Visual Studio 2019 or above is required. The Microsoft Visual Studio 
+    Community Edition can be downloaded from
+    https://www.visualstudio.com/en-us/downloads/download-visual-studio-vs.aspx.
+    When installing Visual Studio, one should select the 'Desktop 
+    development with C++' configuration. On Linux, the GNU Compiler 
+    Collection (GCC) 7.5 or above is required. This can be obtained from your
+    Linux distribution repository, for example on Ubuntu by running ``sudo apt-get install g++``, 
+    or alternatively from https://gcc.gnu.org/index.html.
+2. On Linux, install the development version of libffi. For example, on Ubuntu you can do this by running ``sudo apt-get install libffi-dev``.
+
 ## Installation
-The following installation instructions are required both to use the Instruction Set Simulator on a desktop computer and to
+The following installation instructions are required both to use the Instruction Set Simulator on a desktop computer and to use PyFeNN on a Kria KV260 running the [AMD Ubuntu image](https://ubuntu.com/download/amd#kria-k26):
 
 1. Clone the repository, ensuring the submodules are fetched ``git clone https://github.com/neworderofjamie/riscv_ise.git --recurse-submodules``
 2. Build PyFeNN ``pip install -e .``. If you wish to also install the additional dependencies required to run the examples, you can do this automatically with
 ``pip install -e .[examples]``.
 
 ## Kria KV260 installation 
-To run examples on a Kria KV260 running the [AMD Ubuntu image](https://ubuntu.com/download/amd#kria-k26), some other steps are required:
+To run examples on a Kria KV260, some other steps are required:
 
 1. Build the udmabuf kernel module by navigating into the ``udmabuf`` folder and running ``make`` 
 2. Load the udmabuf kernel module with ``sudo insmod u-dma-buf.ko udmabuf0=8000000`` where 8000000 specifies an 128MByte buffer (in hexadecimal). It is possible to create larger buffers but, it tends to require killing all running applications to get enough memory. 
