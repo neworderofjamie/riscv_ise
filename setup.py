@@ -1,4 +1,5 @@
 import os
+import pkgconfig
 import sys
 from copy import deepcopy
 from platform import system, uname
@@ -39,13 +40,14 @@ else:
     else:
         lib_suffix = "_dynamic"
 
+abs_fenn_path = os.path.dirname(os.path.abspath(__file__))
 fenn_path = os.path.dirname(os.path.abspath(__file__))
 
-pyfenn_path = os.path.join(fenn_path, "pyfenn")
+pyfenn_path = os.path.join(".", "pyfenn")
 pyfenn_src = os.path.join(pyfenn_path, "src")
-fenn_include = os.path.join(fenn_path, "include")
+fenn_include = os.path.join(".", "include")
 
-genn_path = os.path.join(fenn_path, "genn")
+genn_path = os.path.join(".", "genn")
 genn_include = os.path.join(genn_path, "include", "genn", "genn")
 genn_third_party_include = os.path.join(genn_path, "include", "genn", "third_party")
 
@@ -95,6 +97,11 @@ if WIN:
         for l in fenn_libraries)
 # Otherwise
 else:
+    # Add whatever configuration libffi requires
+    ffi_config = pkgconfig.parse("libffi")
+    for k, v in ffi_config.items():
+        fenn_extension_kwargs[k].extend(v)
+
     # Add GeNN library to dependencies
     fenn_extension_kwargs["depends"] = [os.path.join(pyfenn_path, "libgenn" + lib_suffix + ".so"),
                                         os.path.join(pyfenn_path, "docStrings.h")]
@@ -108,7 +115,6 @@ else:
     # directories so libGeNN and backends can be found wherever package is installed
     if LINUX:
         fenn_extension_kwargs["runtime_library_dirs"] = ["$ORIGIN"]
-        fenn_extension_kwargs["libraries"].append("ffi")
 
 ext_modules = [
     Pybind11Extension("_fenn",
@@ -120,18 +126,18 @@ if build_fenn_libs:
     # If compiler is MSVC
     if WIN:
         # **NOTE** ensure pygenn_path has trailing slash to make MSVC happy
-        out_dir = os.path.join(pyfenn_path, "")
+        out_dir = os.path.join(abs_fenn_path, "pyfenn", "")
 
         # Build all dependencies for FeNN backend
         check_call(["msbuild", "riscv_ise.sln", f"/t:backend",
                     f"/p:Configuration={lib_suffix[1:]}",
                     "/m", "/verbosity:quiet",
                     f"/p:OutDir={out_dir}"],
-                    cwd=fenn_path)
+                    cwd=abs_fenn_path)
     else:
         # Define make arguments
         make_arguments = ["make", "backend", "DYNAMIC=1",
-                          f"LIBRARY_DIRECTORY={pyfenn_path}",
+                          f"LIBRARY_DIRECTORY={os.path.join(abs_genn_path, 'pyfenn')}",
                           f"--jobs={cpu_count(logical=False)}"]
         if debug_build:
             make_arguments.append("DEBUG=1")
@@ -140,9 +146,9 @@ if build_fenn_libs:
             make_arguments.append("COVERAGE=1")
 
         # Build
-        check_call(make_arguments, cwd=fenn_path)
+        check_call(make_arguments, cwd=abs_fenn_path)
 # Read version from txt file
-with open(os.path.join(fenn_path, "version.txt")) as version_file:
+with open(os.path.join(abs_fenn_path, "version.txt")) as version_file:
     version = version_file.read().strip()
 
 setup(
@@ -155,7 +161,6 @@ setup(
     ext_package="pyfenn",
     ext_modules=ext_modules,
     zip_safe=False,
-    python_requires=">=3.6",
+    python_requires=">=3.8",
     install_requires=["numpy>=1.17", "psutil",
-                      "importlib-metadata>=1.0;python_version<'3.8'",
                       "setuptools"])

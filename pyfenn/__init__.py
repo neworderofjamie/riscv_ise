@@ -1,5 +1,5 @@
 # python imports
-import sys
+from importlib import metadata
 
 # pyfenn interface
 from ._fenn import (BackendFeNNHW, BackendFeNNSim, BroadcastProcess,  
@@ -19,10 +19,5 @@ __all__ = ["BackendFeNNHW", "BackendFeNNSim", "BroadcastProcess",
            "ProcessGroup", "RNGInitProcess", "RoundingMode", "Runtime",
            "Shape", "State", "UnresolvedType", "Variable",
            "disassemble", "init_logging", "models", "nir_import", "utils"]
-
-if sys.version_info >= (3, 8):
-    from importlib import metadata
-else:
-    import importlib_metadata as metadata
 
 __version__ = metadata.version("pyfenn")
