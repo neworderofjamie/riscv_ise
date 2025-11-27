@@ -24,6 +24,8 @@ To run examples on a Kria KV260 running the [AMD Ubuntu image](https://ubuntu.co
 3. Install the UDEV rules which allow FeNN to be used without sudo access by copying ``90-fenn-uio.rules`` from ``tools`` into ``/etc/udev/rules.d/``.
 4. Unload the default bitstream with ``sudo dfx-mgr -remove 0`` and load the newly downloaded one with ``sudo dfx-mgr -load fenn_0.01``
 
+Steps 1 and 4 need re-running if you reboot your Kria!
+
 # Tutorials
 Some basic tutorials are available to use on Google Collab:
 1. [Simulate a population of ALIF neurons](https://colab.research.google.com/github/neworderofjamie/riscv_ise/blob/master/tutorials/alif.ipynb)
