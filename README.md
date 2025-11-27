@@ -1,3 +1,4 @@
+[![DOI](https://zenodo.org/badge/824061946.svg)](https://doi.org/10.5281/zenodo.17739997)
 # FPGA-Enhanced Neural Networks toolchain
 This is a first attempt at a toolchain to program our FeNN processor. It currently supports 
 
