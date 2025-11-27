@@ -19,11 +19,11 @@ The following installation instructions are required both to use the Instruction
 ## Kria KV260 installation 
 To run examples on a Kria KV260 running the [AMD Ubuntu image](https://ubuntu.com/download/amd#kria-k26), some other steps are required:
 
-1. Build the udmabuf driver by navigating into the ``udmabuf``, run ``make`` 
-2. Load the udmabuf module with ``sudo insmod u-dma-buf.ko udmabuf0=8000000`` where 8000000 indicates an 128MByte buffer (in hexadecimal). It is possible to create larger buffers but it tends to require killing all running applications to get enough memory. 
+1. Build the udmabuf kernel module by navigating into the ``udmabuf`` folder and running ``make`` 
+2. Load the udmabuf kernel module with ``sudo insmod u-dma-buf.ko udmabuf0=8000000`` where 8000000 specifies an 128MByte buffer (in hexadecimal). It is possible to create larger buffers but, it tends to require killing all running applications to get enough memory. 
 3. Download the bitstream associated with a software release and unzip into ``/lib/firmware/xilinx``
 4. Install the UDEV rules which allow FeNN to be used without sudo access by copying ``90-fenn-uio.rules`` from ``tools`` into ``/etc/udev/rules.d/``.
-5. Unload the default bitstream with ``sudo dfx-mgr -remove 0`` and load the newly downloaded one with ``sudo dfx-mgr -load fenn_0.01``
+5. Unload the default bitstream with ``sudo dfx-mgr -remove 0`` and load the newly downloaded one with ``sudo dfx-mgr -load fenn_single_core``
 
 Steps 2 and 5 need re-running if you reboot your Kria!
 
