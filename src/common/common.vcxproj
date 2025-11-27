@@ -24,6 +24,7 @@
     <ClCompile Include="dma_buffer.cc" />
     <ClCompile Include="dma_controller.cc" />
     <ClCompile Include="isa.cc" />
+    <ClCompile Include="uio.cc" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\common\app_utils.h" />
