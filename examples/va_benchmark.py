@@ -74,7 +74,7 @@ parser = ArgumentParser("VA benchmark")
 parser.add_argument("--device", action="store_true", help="Run model on FeNN hardware")
 parser.add_argument("--time", action="store_true", help="Record detailed timings using performance counters")
 parser.add_argument("--disassemble", action="store_true", help="Disassemble generated code")
-parser.add_argument("--dram", action="store_true", help="Use DRAM to store weights")
+parser.add_argument("--uram", action="store_true", help="Use URAM to store weights (only for small models)")
 parser.add_argument("--num-excitatory", type=int, default=2048, help="Number of excitatory neurons to simulate")
 parser.add_argument("--num-timesteps", type=int, default=1000, help="Number of timesteps to simulate")
 parser.add_argument("--probability-connection", type=float, default=0.1, help="Probability to connect neurons with")
@@ -156,7 +156,7 @@ synapse_update_processes = ProcessGroup([ee_pop.process, ei_pop.process,
                                         PerformanceCounter() if args.time else None)
 
 # Create backend
-backend_kwargs = {"use_dram_for_weights": args.dram, "dma_buffer_size": 64 * 1024 * 1024}
+backend_kwargs = {"use_dram_for_weights": not args.uram, "dma_buffer_size": 64 * 1024 * 1024}
 backend = BackendFeNNHW(**backend_kwargs) if args.device else BackendFeNNSim(**backend_kwargs)
 
 # Create model
