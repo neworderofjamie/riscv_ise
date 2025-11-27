@@ -26,8 +26,8 @@ Currently, the PyFeNN toolchain needs to be built from source. To prepare for th
 ## Installation
 The following installation instructions are required both to use the Instruction Set Simulator on a desktop computer and to use PyFeNN on a Kria KV260 running the [AMD Ubuntu image](https://ubuntu.com/download/amd#kria-k26):
 
-1. Clone the repository, ensuring the submodules are fetched ``git clone https://github.com/neworderofjamie/riscv_ise.git --recurse-submodules``
-2. Build PyFeNN ``pip install -e .``. If you wish to also install the additional dependencies required to run the examples, you can do this automatically with
+1. Clone the repository, ensuring the submodules are fetched e.g. with ``git clone https://github.com/neworderofjamie/riscv_ise.git --recurse-submodules``
+2. Build PyFeNN using ``pip install -e .``. If you wish to also install the additional dependencies required to run the examples, you can do this automatically with
 ``pip install -e .[examples]``.
 
 ## Kria KV260 installation 
