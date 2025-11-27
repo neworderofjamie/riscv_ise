@@ -163,4 +163,6 @@ setup(
     zip_safe=False,
     python_requires=">=3.8",
     install_requires=["numpy>=1.17", "psutil",
-                      "setuptools"])
+                      "setuptools>=61"],
+    extras_require={
+        "examples": ["mnist", "tqdm", "matplotlib", "tonic"]})
