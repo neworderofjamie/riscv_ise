@@ -56,9 +56,9 @@ void RouterSim::tick()
         // Acquire slave spike queue mutex
         std::lock_guard<std::mutex> lock(m_SlaveSpikeQueueMutex);
 
-        // While there are spikes in the slave spike queue
+        // If there are any spikes in the slave spike queue
         uint32_t &address = m_Registers[static_cast<int>(Register::SLAVE_EVENT_ADDRESS)];
-        while(!m_SlaveSpikeQueue.empty()) {
+        if(!m_SlaveSpikeQueue.empty()) {
             // Write spike at front of queue to memory
             m_SpikeMemory.get().write32(address, m_SlaveSpikeQueue.front());
             
