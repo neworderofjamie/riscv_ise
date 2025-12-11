@@ -19,6 +19,9 @@ public:
     :   m_NumSlaves(numSlaves)
     {}
     
+    //------------------------------------------------------------------------
+    // Public API
+    //------------------------------------------------------------------------
     //! Called by master to broadcast value to all slaves
     //! Blocks until all slaves have received
     void send(uint32_t value);
@@ -28,6 +31,9 @@ public:
     uint32_t read();
     
 private:
+    //------------------------------------------------------------------------
+    // Members
+    //------------------------------------------------------------------------
     //! How many slaves are connected to bus
     uint32_t m_NumSlaves;
     
