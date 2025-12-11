@@ -12,6 +12,7 @@
 
 // RISC-V ISE include
 #include "ise/dma_controller_sim.h"
+#include "ise/router_sim.h"
 
 // RISC-V utils include
 #include "common/utils.h"
@@ -151,7 +152,8 @@ void ScalarDataMemory::setData(const std::vector<uint8_t> &data)
 //----------------------------------------------------------------------------
 RISCV::RISCV(size_t numInstructionWords, size_t numDataBytes)
 :   m_PC(0), m_NextPC(0), m_Reg{0}, m_InstructionMemory(numInstructionWords), 
-    m_ScalarDataMemory(numDataBytes), m_DMAController(nullptr), m_CountInhibit(0b101)
+    m_ScalarDataMemory(numDataBytes), m_DMAController(nullptr), m_Router(nullptr),
+    m_CountInhibit(0b101)
 {
     resetStats();
 }
@@ -641,6 +643,17 @@ std::optional<uint32_t> RISCV::readCSR(uint32_t csr, bool willWrite) const
                 return std::nullopt;                                                \
             }                                                                       \
         }
+    
+    #define IMPLEMENT_READ_ROUTER_REG(REG)                                             \
+        case CSR::REG:                                                              \
+        {                                                                           \
+            if(m_Router) {                                                   \
+                return m_Router->readReg(RouterSim::Register::REG);   \
+            }                                                                       \
+            else {                                                                  \
+                return std::nullopt;                                                \
+            }                                                                       \
+        }
 
     switch(static_cast<CSR>(csr)) {
     /*case CSR::MSTATUS:
@@ -701,6 +714,15 @@ bool RISCV::writeCSR(uint32_t csr, uint32_t val)
         {                                                                           \
             if(m_DMAController) {                                                   \
                 m_DMAController->writeReg(DMAControllerSim::Register::REG, val);    \
+            }                                                                       \
+            return true;                                                            \
+        }
+
+    #define IMPLEMENT_WRITE_ROUTER_REG(REG)                                            \
+        case CSR::REG:                                                              \
+        {                                                                           \
+            if(m_Router) {                                                   \
+                m_Router->writeReg(RouterSim::Register::REG, val);    \
             }                                                                       \
             return true;                                                            \
         }
@@ -1069,9 +1091,12 @@ void RISCV::executeInstruction(uint32_t inst)
         }
     }
 
-    // Tick DMA controller
+    // Tick DMA controller and router if present
     if(m_DMAController) {
         m_DMAController->tick();
+    }
+    if(m_Router) {
+        m_Router->tick();
     }
 
     // Extract 2-bit quadrant

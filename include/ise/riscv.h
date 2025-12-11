@@ -18,6 +18,7 @@
 
 // Forward declarations
 class DMAControllerSim;
+class RouterSim;
 
 //----------------------------------------------------------------------------
 // InstructionMemory
@@ -134,6 +135,7 @@ public:
     }
 
     void setDMAController(DMAControllerSim *dmaController){ m_DMAController = dmaController; };
+    void setRouter(RouterSim *router){ m_Router = router; };
     
     auto &getScalarDataMemory(){ return m_ScalarDataMemory; }
     const auto &getScalarDataMemory() const{ return m_ScalarDataMemory; }
@@ -183,6 +185,7 @@ private:
     std::unique_ptr<ICoprocessor> m_Coprocessors[3];
 
     DMAControllerSim *m_DMAController;
+    RouterSim *m_Router;
 
     // Stats
     uint64_t m_NumCycles;
