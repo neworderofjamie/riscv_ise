@@ -28,8 +28,9 @@ public:
     enum class Register : int
     {
         MASTER_EVENT_ID_BASE,   // Bits to OR with bitfield to get full event IDs
-        MASTER_EVENT_BITFIELD,  // Register to write event 
+        MASTER_EVENT_BITFIELD,  // Register to write event bitfields to
         SLAVE_EVENT_ADDRESS,    // Current address slave writes addresses to
+        SLAVE_BARRIER_ADDRESS,  // Address slave writes barrier to
         MAX,
     };
 

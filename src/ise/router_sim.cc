@@ -59,12 +59,19 @@ void RouterSim::tick()
         // If there are any spikes in the slave spike queue
         uint32_t &address = m_Registers[static_cast<int>(Register::SLAVE_EVENT_ADDRESS)];
         if(!m_SlaveSpikeQueue.empty()) {
-            // Write spike at front of queue to memory
-            m_SpikeMemory.get().write32(address, m_SlaveSpikeQueue.front());
+            // If ID is special barrier ID, increment barrier
+            if(m_SlaveSpikeQueue.front() == 0xFFFFFFFFull) {
+                const uint32_t barrierCount = m_SpikeMemory.get().read32(readReg(Register::SLAVE_BARRIER_ADDRESS));
+                m_SpikeMemory.get().write32(readReg(Register::SLAVE_BARRIER_ADDRESS), barrierCount + 1);
+            }
+            // Otherwise, write spike at front of queue to memory and increment address
+            else {
+                m_SpikeMemory.get().write32(address, m_SlaveSpikeQueue.front());
+                address += 4;
+            }
             
             // Pop queue and increment address
             m_SlaveSpikeQueue.pop_front();
-            address += 4;
         }
     }
 }
