@@ -710,6 +710,7 @@ std::optional<uint32_t> RISCV::readCSR(uint32_t csr, bool willWrite) const
     }
 
     #undef IMPLEMENT_READ_DMA_REG
+    #undef IMPLEMENT_READ_ROUTER_REG
 }
 //----------------------------------------------------------------------------
 bool RISCV::writeCSR(uint32_t csr, uint32_t val)
@@ -783,6 +784,7 @@ bool RISCV::writeCSR(uint32_t csr, uint32_t val)
     }
 
     #undef IMPLEMENT_WRITE_DMA_REG
+    #undef IMPLEMENT_WRITE_ROUTER_REG
 }
 //----------------------------------------------------------------------------
 void RISCV::executeStandardInstruction(uint32_t inst)
