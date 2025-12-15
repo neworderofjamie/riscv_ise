@@ -31,6 +31,8 @@ public:
     //! Blocks until there is a value to read or quit set
     std::optional<uint32_t> read(const std::atomic<bool> &shouldQuit);
     
+    void signalSlaves();
+
 private:
     //------------------------------------------------------------------------
     // Members

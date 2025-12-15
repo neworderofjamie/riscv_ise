@@ -34,13 +34,21 @@ RouterSim::~RouterSim()
     // Set flag to kill worker threads
     m_ShouldQuit = true;
 
-    // Join master thread
+    // If master thread is running
     if(m_MasterThread.joinable()) {
+        // Signal it
+        {
+            std::lock_guard<std::mutex> lock(m_MasterSpikeQueueMutex);
+            m_MasterSpikeQueueCV.notify_one();
+        }
+
+        // Join
         m_MasterThread.join();
     }
 
     // Join slave thread
     if(m_SlaveThread.joinable()) {
+        //m_SharedBus.get().signalSlaves();
         m_SlaveThread.join();
     }
 }
@@ -150,7 +158,7 @@ void RouterSim::masterThreadFunc()
                 spike.value().first >>= (numTZ + 1);
             } while(spike.value().first != 0);
         }
-        // Otherwise, if it's a barrier, send barrier event ID
+        // Otherwise, send barrier event ID
         else {
             m_SharedBus.get().send(barrierEventID);
         }

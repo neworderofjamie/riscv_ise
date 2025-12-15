@@ -18,7 +18,7 @@ void SharedBusSim::send(uint32_t value)
         m_Data = value;
 
         // Notify all slaves that there is data on bus
-        m_MasterSlaveCV.notify_all();
+        signalSlaves();
     }
 
     
@@ -31,7 +31,7 @@ void SharedBusSim::send(uint32_t value)
         m_Data = std::nullopt;
 
         // Notify all slaves that there is NO data on bus
-        m_MasterSlaveCV.notify_all();
+        signalSlaves();
     }
 }
 //----------------------------------------------------------------------------
@@ -59,4 +59,9 @@ std::optional<uint32_t> SharedBusSim::read(const std::atomic<bool> &shouldQuit)
     else {
         return std::nullopt;
     }
+}
+//----------------------------------------------------------------------------
+void SharedBusSim::signalSlaves()
+{
+    m_MasterSlaveCV.notify_all();
 }
