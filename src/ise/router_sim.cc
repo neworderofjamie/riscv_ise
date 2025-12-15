@@ -60,6 +60,8 @@ void RouterSim::tick()
         // Acquire master spike queue mutex
         std::lock_guard<std::mutex> lock(m_MasterSpikeQueueMutex);
 
+        LOGD << "Enqueuing bitfield " << readReg(Register::MASTER_EVENT_BITFIELD);
+
         // Add current bitfield and ID base to master queue
         m_MasterSpikeQueue.emplace_back(std::make_pair(readReg(Register::MASTER_EVENT_BITFIELD),
                                                        readReg(Register::MASTER_EVENT_ID_BASE)));
@@ -74,6 +76,8 @@ void RouterSim::tick()
     else if(readReg(Register::MASTER_SEND_BARRIER) != 0) {
         // Acquire master spike queue mutex
         std::lock_guard<std::mutex> lock(m_MasterSpikeQueueMutex);
+
+        LOGD << "Enqueuing barrier";
 
         // Add token to queue
         m_MasterSpikeQueue.emplace_back(std::nullopt);
@@ -94,10 +98,12 @@ void RouterSim::tick()
             // If ID is special barrier ID, increment barrier
             if(m_SlaveSpikeQueue.front() == barrierEventID) {
                 m_Registers[static_cast<int>(Register::SLAVE_BARRIER_COUNT)]++;
+                LOGD << "Incremented barrier " << m_Registers[static_cast<int>(Register::SLAVE_BARRIER_COUNT)];
             }
             // Otherwise, write spike at front of queue to memory and increment address
             else {
                 m_SpikeMemory.get().write32(address, m_SlaveSpikeQueue.front());
+                LOGD << "Writing event " << m_SlaveSpikeQueue.front() << " to " << address;
                 address += 4;
             }
             
@@ -140,6 +146,7 @@ void RouterSim::masterThreadFunc()
         // If event is a spike not a barrier
         if(spike) {
             // While there are bits in bitfield to process
+            LOGD << "Starting sending bitfield " << spike.value().first;
             uint32_t spikeID = 0;
             do {
                 // Count trailing zeros
@@ -149,7 +156,9 @@ void RouterSim::masterThreadFunc()
                 spikeID += numTZ;
 
                 // OR spike ID with base
-                m_SharedBus.get().send(spike.value().second | spikeID);
+                const uint32_t eventID = spike.value().second | spikeID;
+                LOGD << "Sending event " << eventID;
+                m_SharedBus.get().send(eventID);
 
                 // Increment spike ID to skip over spike
                 spikeID++;
@@ -160,6 +169,7 @@ void RouterSim::masterThreadFunc()
         }
         // Otherwise, send barrier event ID
         else {
+            LOGD << "Sending barrier";
             m_SharedBus.get().send(barrierEventID);
         }
     }
@@ -179,6 +189,7 @@ void RouterSim::slaveThreadFunc()
 
         // Acquire slave spike queue mutex and add spike to end of queue
         std::lock_guard<std::mutex> lock(m_SlaveSpikeQueueMutex);
+        LOGD << "Received event " << spike.value();
         m_SlaveSpikeQueue.push_back(spike.value());
     }
 }
