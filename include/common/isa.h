@@ -225,8 +225,9 @@ enum class CSR : uint32_t
     // Router CSRs
     MASTER_EVENT_ID_BASE    = 0xBE0,
     MASTER_EVENT_BITFIELD   = 0xBE1,
+    MASTER_SEND_BARRIER     = 0xBE2,
     SLAVE_EVENT_ADDRESS     = 0xBF0,
-    SLAVE_BARRIER_ADDRESS   = 0xBF1
+    SLAVE_BARRIER_COUNT     = 0xBF1
 };
 
 // funct7 rs2 rs1 funct3 rd

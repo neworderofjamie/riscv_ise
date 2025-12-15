@@ -11,6 +11,14 @@
 #include "ise/shared_bus_sim.h"
 
 //----------------------------------------------------------------------------
+// Anonymous namespace
+//----------------------------------------------------------------------------
+namespace
+{
+constexpr uint32_t barrierEventID = 0xFFFFFFFFull;
+}
+
+//----------------------------------------------------------------------------
 // RouterSim
 //----------------------------------------------------------------------------
 RouterSim::RouterSim(SharedBusSim &sharedBus, ScalarDataMemory &spikeMemory)
@@ -42,16 +50,29 @@ void RouterSim::tick()
         std::lock_guard<std::mutex> lock(m_MasterSpikeQueueMutex);
 
         // Add current bitfield and ID base to master queue
-        m_MasterSpikeQueue.emplace_back(readReg(Register::MASTER_EVENT_BITFIELD),
-                                        readReg(Register::MASTER_EVENT_ID_BASE));
+        m_MasterSpikeQueue.emplace_back(std::make_pair(readReg(Register::MASTER_EVENT_BITFIELD),
+                                                       readReg(Register::MASTER_EVENT_ID_BASE)));
 
         // Notify master thread
         m_MasterSpikeQueueCV.notify_one();
+
+        // Zero register
+        writeReg(Register::MASTER_EVENT_BITFIELD, 0);
     }
+    // Otherwise, if a barrier should be triggered
+    else if(readReg(Register::MASTER_SEND_BARRIER) != 0) {
+        // Acquire master spike queue mutex
+        std::lock_guard<std::mutex> lock(m_MasterSpikeQueueMutex);
 
-    // Zero register
-    writeReg(Register::MASTER_EVENT_BITFIELD, 0);
+        // Add token to queue
+        m_MasterSpikeQueue.emplace_back(std::nullopt);
 
+        // Notify master thread
+        m_MasterSpikeQueueCV.notify_one();
+
+        // Zero register
+        writeReg(Register::MASTER_SEND_BARRIER, 0);
+    }
     {
         // Acquire slave spike queue mutex
         std::lock_guard<std::mutex> lock(m_SlaveSpikeQueueMutex);
@@ -60,9 +81,8 @@ void RouterSim::tick()
         uint32_t &address = m_Registers[static_cast<int>(Register::SLAVE_EVENT_ADDRESS)];
         if(!m_SlaveSpikeQueue.empty()) {
             // If ID is special barrier ID, increment barrier
-            if(m_SlaveSpikeQueue.front() == 0xFFFFFFFFull) {
-                const uint32_t barrierCount = m_SpikeMemory.get().read32(readReg(Register::SLAVE_BARRIER_ADDRESS));
-                m_SpikeMemory.get().write32(readReg(Register::SLAVE_BARRIER_ADDRESS), barrierCount + 1);
+            if(m_SlaveSpikeQueue.front() == barrierEventID) {
+                m_Registers[static_cast<int>(Register::SLAVE_BARRIER_COUNT)]++;
             }
             // Otherwise, write spike at front of queue to memory and increment address
             else {
@@ -92,33 +112,45 @@ void RouterSim::masterThreadFunc()
     while(!m_ShouldQuit) {
         decltype(m_MasterSpikeQueue)::value_type spike;
         {
-            // Wait until there are events in master spike queue
+            // Wait until there are events in master spike queue or we should quit
             std::unique_lock<std::mutex> masterLock(m_MasterSpikeQueueMutex);
-            m_MasterSpikeQueueCV.wait(masterLock, [this](){ return !m_MasterSpikeQueue.empty(); });
+            m_MasterSpikeQueueCV.wait(masterLock, [this](){ return !m_MasterSpikeQueue.empty() || m_ShouldQuit; });
+
+            // Exit thread loop if we should quit
+            if(m_ShouldQuit) {
+                break;
+            }
 
             // Read and pop
             spike = m_MasterSpikeQueue.front();
             m_MasterSpikeQueue.pop_front();
         }
-        
-        // While there are bits in bitfield to process
-        uint32_t spikeID = 0;
-        do {
-            // Count trailing zeros
-            const uint32_t numTZ = ctz(spike.first);
+
+        // If event is a spike not a barrier
+        if(spike) {
+            // While there are bits in bitfield to process
+            uint32_t spikeID = 0;
+            do {
+                // Count trailing zeros
+                const uint32_t numTZ = ctz(spike.value().first);
             
-            // Add number of trailing zeros to spike ID
-            spikeID += numTZ;
+                // Add number of trailing zeros to spike ID
+                spikeID += numTZ;
 
-            // OR spike ID with base
-            m_SharedBus.get().send(spike.second | spikeID);
+                // OR spike ID with base
+                m_SharedBus.get().send(spike.value().second | spikeID);
 
-            // Increment spike ID to skip over spike
-            spikeID++;
+                // Increment spike ID to skip over spike
+                spikeID++;
 
-            // Shift off bits
-            spike.first >>= (numTZ + 1);
-        } while(spike.first != 0);
+                // Shift off bits
+                spike.value().first >>= (numTZ + 1);
+            } while(spike.value().first != 0);
+        }
+        // Otherwise, if it's a barrier, send barrier event ID
+        else {
+            m_SharedBus.get().send(barrierEventID);
+        }
     }
 }
 //------------------------------------------------------------------------
@@ -127,10 +159,15 @@ void RouterSim::slaveThreadFunc()
     // While we should keep running
     while(!m_ShouldQuit) {
         // Read spike from shared bus
-        const uint32_t spike = m_SharedBus.get().read();
+        const auto spike = m_SharedBus.get().read(m_ShouldQuit);
         
+        // Exit thread loop if we should quit
+        if(m_ShouldQuit) {
+            break;
+        }
+
         // Acquire slave spike queue mutex and add spike to end of queue
         std::lock_guard<std::mutex> lock(m_SlaveSpikeQueueMutex);
-        m_SlaveSpikeQueue.push_back(spike);
+        m_SlaveSpikeQueue.push_back(spike.value());
     }
 }

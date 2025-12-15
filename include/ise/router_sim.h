@@ -7,6 +7,7 @@
 #include <deque>
 #include <functional>
 #include <mutex>
+#include <optional>
 #include <thread>
 
 // Standard C includes
@@ -30,8 +31,9 @@ public:
     {
         MASTER_EVENT_ID_BASE,   // Bits to OR with bitfield to get full event IDs
         MASTER_EVENT_BITFIELD,  // Register to write event bitfields to
+        MASTER_SEND_BARRIER,    // Control register to send a barrier
         SLAVE_EVENT_ADDRESS,    // Current address slave writes addresses to
-        SLAVE_BARRIER_ADDRESS,  // Address slave writes barrier to
+        SLAVE_BARRIER_COUNT,    // Number of barrier events received
         MAX,
     };
 
@@ -75,7 +77,7 @@ private:
     std::atomic<bool> m_ShouldQuit;
 
     //! Queue of bases and bitfields to send via master interface
-    std::deque<std::pair<uint32_t, uint32_t>> m_MasterSpikeQueue;
+    std::deque<std::optional<std::pair<uint32_t, uint32_t>>> m_MasterSpikeQueue;
 
     //! Mutex guarding master spike queue
     std::mutex m_MasterSpikeQueueMutex;

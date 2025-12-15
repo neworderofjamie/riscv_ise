@@ -35,21 +35,28 @@ void SharedBusSim::send(uint32_t value)
     }
 }
 //----------------------------------------------------------------------------
-uint32_t SharedBusSim::read()
+std::optional<uint32_t> SharedBusSim::read(const std::atomic<bool> &shouldQuit)
 {
-    // Wait until there is data on bus
+    // Wait until there is data on bus or we should quit
     std::unique_lock<std::mutex> signalLock(m_SignalMutex);
-    m_MasterSlaveCV.wait(signalLock, [this]() { return m_Data.has_value(); });
+    m_MasterSlaveCV.wait(signalLock, [this, &shouldQuit]() { return m_Data.has_value() || shouldQuit; });
 
-    // Stash/print received data and increment read counter
-    const uint32_t value = m_Data.value();
-    m_ReadCount++;
+    // If there's data
+    if(m_Data.has_value()) {
+        // Stash/print received data and increment read counter
+        const uint32_t value = m_Data.value();
+        m_ReadCount++;
 
-    // Notify active master that read count has been updated
-    m_SlaveMasterCV.notify_one();
+        // Notify active master that read count has been updated
+        m_SlaveMasterCV.notify_one();
 
-    // Wait until master clears bus
-    m_MasterSlaveCV.wait(signalLock, [this]() { return !m_Data.has_value(); });
+        // Wait until master clears bus
+        m_MasterSlaveCV.wait(signalLock, [this]() { return !m_Data.has_value(); });
     
-    return value;
+        return value;
+    }
+    // Otherwise, return nullopt
+    else {
+        return std::nullopt;
+    }
 }
