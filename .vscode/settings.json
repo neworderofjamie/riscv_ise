@@ -1,10 +1,10 @@
 {
-    "testMate.cpp.test.executables": "${workspaceFolder}/tests/simulator/test*",
+    "testMate.cpp.test.executables": "${workspaceFolder}/tests/soc/test*",
     "testMate.cpp.debug.configTemplate": {
         "type": "cppdbg",
         "MIMode": "gdb",
-        "program": "${workspaceFolder}/tests/simulator/test_debug",
-        "cwd": "${workspaceFolder}/tests/simulator",
+        "program": "${workspaceFolder}/tests/soc/test_debug",
+        "cwd": "${workspaceFolder}/tests/soc",
     },
     "files.exclude": {
         "obj/": true,
