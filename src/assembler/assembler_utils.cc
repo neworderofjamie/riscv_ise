@@ -507,10 +507,10 @@ void generateRouterBarrier(CodeGenerator &c, ScalarRegisterAllocator &scalarRegi
     c.L(loop);
     {
         // Read barrier count register
-        c.csrr(*SNumMasters, CSR::SLAVE_BARRIER_COUNT);
+        c.csrr(*SBarrierCount, CSR::SLAVE_BARRIER_COUNT);
 
         // Loop while target count isn't reached
-        c.bne(*SNumMasters, *SNumMasters, loop);
+        c.bne(*SBarrierCount, *SNumMasters, loop);
     }
 
     // Clear barrier count
