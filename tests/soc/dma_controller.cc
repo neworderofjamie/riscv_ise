@@ -89,6 +89,9 @@ bool checkBuffer(const int16_t *bufferData, size_t transferHalfWords)
 //--------------------------------------------------------------------------
 TEST_P(TransferSizeTest, HostDMA)
 {
+#ifndef __linux__ 
+    GTEST_SKIP() << "Devie test only supported on Linux";
+#endif
     const size_t transferHalfWords = std::get<0>(GetParam()) * std::get<1>(GetParam());
 
     // Create DMA buffer
@@ -150,6 +153,9 @@ TEST_P(TransferSizeTest, HostDMA)
 
 TEST(DMAController, ReadCSR)
 {
+#ifndef __linux__ 
+    GTEST_SKIP() << "Device test only supported on Linux";
+#endif
     // Create DMA buffer
     DMABuffer dmaBuffer;
 
@@ -241,6 +247,11 @@ TEST(DMAController, ReadCSR)
 
 TEST_P(TransferSizeDeviceTest, FeNNDMA)
 {
+#ifndef __linux__ 
+    if(std::get<2>(GetParam())) {
+        GTEST_SKIP() << "Device test only supported on Linux";
+    }
+#endif
     // Check we're transferring complete
     assert((std::get<1>(GetParam()) % 32) == 0);
     const size_t transferHalfWords = std::get<0>(GetParam()) * std::get<1>(GetParam());

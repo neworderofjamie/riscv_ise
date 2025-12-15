@@ -88,6 +88,11 @@ bool checkScalarData(const volatile int16_t *scalarInputData,
 //--------------------------------------------------------------------------
 TEST_P(DeviceSimTest, LaneLocal)
 {
+#ifndef __linux__ 
+    if (GetParam()) {
+        GTEST_SKIP() << "Device test only supported on Linux";
+    }
+#endif
     // Create memory contents
     std::vector<uint8_t> scalarInitData;
     std::vector<int16_t> vectorInitData;
@@ -225,6 +230,11 @@ TEST_P(DeviceSimTest, LaneLocal)
 
 TEST_P(DeviceSimTest, URAM)
 {
+#ifndef __linux__ 
+    if (GetParam()) {
+        GTEST_SKIP() << "Device test only supported on Linux";
+    }
+#endif
     // Create memory contents
     std::vector<uint8_t> scalarInitData;
     std::vector<int16_t> vectorInitData;
