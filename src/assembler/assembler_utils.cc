@@ -492,4 +492,28 @@ ScalarRegisterAllocator::RegisterPtr generateDMAWaitForReadComplete(CodeGenerato
     // Return status register
     return SStatus;
 }
+//----------------------------------------------------------------------------
+void generateRouterBarrier(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator, uint32_t numMasters)
+{
+    // Send barrier event from this core
+    c.csrwi(CSR::MASTER_SEND_BARRIER, 1);
+
+    // Load target number of masters to wait for
+    ALLOCATE_SCALAR(SNumMasters);
+    ALLOCATE_SCALAR(SBarrierCount);
+    c.li(*SNumMasters, numMasters);
+
+    Label loop;
+    c.L(loop);
+    {
+        // Read barrier count register
+        c.csrr(*SNumMasters, CSR::SLAVE_BARRIER_COUNT);
+
+        // Loop while target count isn't reached
+        c.bne(*SNumMasters, *SNumMasters, loop);
+    }
+
+    // Clear barrier count
+    c.csrwi(CSR::SLAVE_BARRIER_COUNT, 0);
+}
 }

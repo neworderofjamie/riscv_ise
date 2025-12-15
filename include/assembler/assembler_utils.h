@@ -85,4 +85,7 @@ ASSEMBLER_EXPORT ScalarRegisterAllocator::RegisterPtr generateDMAWaitForWriteCom
 //! Generate code to (busy) wait until DMA read completes. Returns resulting status value
 ASSEMBLER_EXPORT ScalarRegisterAllocator::RegisterPtr generateDMAWaitForReadComplete(
     CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator);
+
+//! Generate code to (busy) wait on a router barrier
+ASSEMBLER_EXPORT void generateRouterBarrier(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator, uint32_t numCores);
 }
