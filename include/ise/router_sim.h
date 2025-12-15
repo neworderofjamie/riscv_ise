@@ -1,6 +1,7 @@
 #pragma once
 
 // Standard C++ includes
+#include <array>
 #include <atomic>
 #include <condition_variable>
 #include <deque>

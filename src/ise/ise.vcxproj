@@ -21,6 +21,8 @@
   <ItemGroup>
     <ClCompile Include="dma_controller_sim.cc" />
     <ClCompile Include="riscv.cc" />
+    <ClCompile Include="router_sim.cc" />
+    <ClCompile Include="shared_bus_sim.cc" />
     <ClCompile Include="vector_processor.cc" />
   </ItemGroup>
   <ItemGroup>
@@ -28,6 +30,8 @@
     <ClInclude Include="..\..\include\ise\fsm.h" />
     <ClInclude Include="..\..\include\ise\ise_export.h" />
     <ClInclude Include="..\..\include\ise\riscv.h" />
+    <ClInclude Include="..\..\include\ise\router_sim.h" />
+    <ClInclude Include="..\..\include\ise\shared_bus_sim.h" />
     <ClInclude Include="..\..\include\ise\vector_processor.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">

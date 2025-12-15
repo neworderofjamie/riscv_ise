@@ -20,6 +20,12 @@
     <ClCompile Include="dma_controller_sim.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="router_sim.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="shared_bus_sim.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\ise\riscv.h">
@@ -35,6 +41,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\ise\dma_controller_sim.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\ise\router_sim.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\ise\shared_bus_sim.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
