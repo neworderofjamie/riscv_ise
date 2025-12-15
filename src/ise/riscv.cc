@@ -644,11 +644,11 @@ std::optional<uint32_t> RISCV::readCSR(uint32_t csr, bool willWrite) const
             }                                                                       \
         }
     
-    #define IMPLEMENT_READ_ROUTER_REG(REG)                                             \
+    #define IMPLEMENT_READ_ROUTER_REG(REG)                                          \
         case CSR::REG:                                                              \
         {                                                                           \
-            if(m_Router) {                                                   \
-                return m_Router->readReg(RouterSim::Register::REG);   \
+            if(m_Router) {                                                          \
+                return m_Router->readReg(RouterSim::Register::REG);                 \
             }                                                                       \
             else {                                                                  \
                 return std::nullopt;                                                \
