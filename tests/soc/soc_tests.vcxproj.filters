@@ -23,5 +23,13 @@
     <ClCompile Include="$(GTEST_DIR)/src/gtest-all.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="router.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="fixtures.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
