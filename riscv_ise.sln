@@ -159,6 +159,13 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "genn", "genn\src\genn\genn\
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libffi", "genn\src\genn\third_party\libffi\libffi.vcxproj", "{20B1EFDE-150B-4BF5-988F-C1299D492D5D}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "soc_tests", "tests\soc\soc_tests.vcxproj", "{832F44F2-3875-4529-8381-10CC25918385}"
+	ProjectSection(ProjectDependencies) = postProject
+		{CD770F05-BCE1-4550-BDB0-87C804610716} = {CD770F05-BCE1-4550-BDB0-87C804610716}
+		{EF52D22C-C128-4A30-ABE2-C00ADDA02440} = {EF52D22C-C128-4A30-ABE2-C00ADDA02440}
+		{695590D3-FA1D-4CD7-9B12-B03F15FC98E6} = {695590D3-FA1D-4CD7-9B12-B03F15FC98E6}
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug_DLL|x64 = Debug_DLL|x64
@@ -337,6 +344,14 @@ Global
 		{20B1EFDE-150B-4BF5-988F-C1299D492D5D}.Release_DLL|x64.Build.0 = Release_DLL|x64
 		{20B1EFDE-150B-4BF5-988F-C1299D492D5D}.Release|x64.ActiveCfg = Release|x64
 		{20B1EFDE-150B-4BF5-988F-C1299D492D5D}.Release|x64.Build.0 = Release|x64
+		{832F44F2-3875-4529-8381-10CC25918385}.Debug_DLL|x64.ActiveCfg = Debug|x64
+		{832F44F2-3875-4529-8381-10CC25918385}.Debug_DLL|x64.Build.0 = Debug|x64
+		{832F44F2-3875-4529-8381-10CC25918385}.Debug|x64.ActiveCfg = Debug|x64
+		{832F44F2-3875-4529-8381-10CC25918385}.Debug|x64.Build.0 = Debug|x64
+		{832F44F2-3875-4529-8381-10CC25918385}.Release_DLL|x64.ActiveCfg = Release|x64
+		{832F44F2-3875-4529-8381-10CC25918385}.Release_DLL|x64.Build.0 = Release|x64
+		{832F44F2-3875-4529-8381-10CC25918385}.Release|x64.ActiveCfg = Release|x64
+		{832F44F2-3875-4529-8381-10CC25918385}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
