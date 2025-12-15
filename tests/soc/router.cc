@@ -14,6 +14,7 @@
 // RISC-V common includes
 #include "common/app_utils.h"
 #include "common/device.h"
+#include "common/utils.h"
 
 // RISC-V assembler includes
 #include "assembler/assembler.h"
@@ -143,6 +144,8 @@ TEST(Router, Test) {
                     std::ref(sharedBus), i << 14, spikeBitfield,
                     bitfieldPtr, eventIDBasePtr, spikeQueueEndPtr, 
                     spikeQueuePtr, std::ref(std::get<1>(coreData.back())));
+                
+                setThreadName(std::get<2>(coreData.back()), "Core " + std::to_string(i));
             }
 
             // Join all threads

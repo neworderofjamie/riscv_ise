@@ -27,6 +27,9 @@ RouterSim::RouterSim(SharedBusSim &sharedBus, ScalarDataMemory &spikeMemory)
     m_SlaveThread(&RouterSim::slaveThreadFunc, this),
     m_ShouldQuit(false), m_Registers{0}
 {
+    // Name threads
+    setThreadName(m_MasterThread, "Router master");
+    setThreadName(m_SlaveThread, "Router slave");
 }
 //----------------------------------------------------------------------------
 RouterSim::~RouterSim()

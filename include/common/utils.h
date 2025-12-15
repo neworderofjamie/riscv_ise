@@ -1,5 +1,8 @@
 #pragma once
 
+// Standard C++ includes
+#include <thread>
+
 // Standard C includes
 #include <cassert>
 #include <cmath>
@@ -10,6 +13,8 @@
 #include <intrin.h>
 #endif
 
+// Common includes
+#include "common/common_export.h"
 
 //! Divide two integers, rounding up i.e. effectively taking ceil
 template<typename A, typename B, typename = std::enable_if_t<std::is_integral_v<A> && std::is_integral_v<B>>>
@@ -89,3 +94,6 @@ inline int16_t convertFixedPoint(double x, uint32_t fixedPoint)
 
     return static_cast<int16_t>(rounded);
 }
+
+
+COMMON_EXPORT void setThreadName(std::thread &thread, const std::string &name);
