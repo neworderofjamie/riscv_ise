@@ -3,6 +3,7 @@
 #include <numeric>
 #include <random>
 #include <tuple>
+#include <thread>
 
 // PLOG includes
 #include <plog/Severity.h>
@@ -33,22 +34,20 @@
 //----------------------------------------------------------------------------
 namespace
 {
-void simRouterThread(const std::vector<uint32_t> &code, const std::vector<uint8_t> &scalarInitData, uint32_t core,
-                     SharedBusSim &sharedBus, uint32_t bitfieldPtr, uint32_t eventIDBasePtr, uint32_t spikeQueuePtr)
+void simRouterThread(const std::vector<uint32_t> &code, const std::vector<uint8_t> &scalarInitData,
+                     SharedBusSim &sharedBus, uint32_t coreEventIDBase, uint32_t spikeBitfield,
+                     uint32_t bitfieldPtr, uint32_t eventIDBasePtr, uint32_t spikeQueueEndPtr, 
+                     uint32_t spikeQueuePtr, std::vector<uint32_t> &receivedEvents)
 {
     // Create RISC-V core with instruction and scalar data
     RISCV riscV;
     riscV.setInstructions(code);
     riscV.getScalarDataMemory().setData(scalarInitData);
     
-    auto *scalarData = reinterpret_cast<uint32_t*>(riscV.getScalarDataMemory().getData());
-
-    // Write random bitfield to memory
-    std::random_device r;
-    scalarData[bitfieldPtr / 4] = r();
-
-    // Generate event ID base from core index
-    scalarData[eventIDBasePtr / 4] = (core << 14);
+    // Write bitfield and event ID base to memory
+    auto *scalarWordData = reinterpret_cast<uint32_t*>(riscV.getScalarDataMemory().getData());
+    scalarWordData[bitfieldPtr / 4] = spikeBitfield;
+    scalarWordData[eventIDBasePtr / 4] = coreEventIDBase;
 
     // Add vector co-processor
     riscV.addCoprocessor<VectorProcessor>(vectorQuadrant);
@@ -62,8 +61,11 @@ void simRouterThread(const std::vector<uint32_t> &code, const std::vector<uint8_
         FAIL();
     }
 
-    // Check results
-    checkBuffer(bufferData, transferHalfWords);
+    // Copy spikes received into vecto
+    const uint32_t spikeQueueEnd = scalarWordData[spikeQueueEndPtr / 4];
+    std::copy(scalarWordData + (spikeQueuePtr / 4), 
+              scalarWordData + (spikeQueueEnd / 4),
+              std::back_inserter(receivedEvents));
 }
 }
 
@@ -71,6 +73,8 @@ void simRouterThread(const std::vector<uint32_t> &code, const std::vector<uint8_
 // Tests
 //----------------------------------------------------------------------------
 TEST(Router, Test) {
+    const uint32_t numCores = 2;
+
     // Create memory contents
     std::vector<uint8_t> scalarInitData;
     std::vector<int16_t> vectorInitData;
@@ -110,8 +114,41 @@ TEST(Router, Test) {
             // Wait on barrier
             AssemblerUtils::generateRouterBarrier(c, scalarRegisterAllocator, 2);
 
-            c.
+            // Write end write address to memory
+            {
+                ALLOCATE_SCALAR(STmp);
+                c.csrw(CSR::SLAVE_EVENT_ADDRESS, *STmp);
+                c.sw(*STmp, Reg::X0, spikeQueueEndPtr);
+            }
         });
 
-    
+        // Simulation
+        if(true) {
+            // Create simulated shared bus to connect the cores
+            SharedBusSim sharedBus(numCores);
+
+            // Loop through cores
+            std::random_device d;
+            std::vector<std::tuple<uint32_t, std::vector<uint32_t>, std::thread>> coreData;
+            for(uint32_t i = 0; i < numCores; i++) {
+                // Generate spike bitfield for this core
+                const uint32_t spikeBitfield = d();
+
+                // Create data structure
+                coreData.emplace_back(spikeBitfield, std::vector<uint32_t>(), std::thread());
+
+                // Create thread
+                std::get<2>(coreData.back()) = std::thread(
+                    simRouterThread, std::cref(code), std::cref(scalarInitData),
+                    std::ref(sharedBus), i << 14, spikeBitfield,
+                    bitfieldPtr, eventIDBasePtr, spikeQueueEndPtr, 
+                    spikeQueuePtr, std::ref(std::get<1>(coreData.back())));
+            }
+
+            // Join all threads
+            for(auto &c : coreData) {
+                std::get<2>(c).join();
+            }
+
+        }
 }
