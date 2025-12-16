@@ -24,7 +24,7 @@ void SharedBusSim::send(uint32_t value)
         m_Data = value;
 
         // Notify all slaves that there is data on bus
-        signalSlaves();
+        m_MasterSlaveCV.notify_all();
     }
 
     
@@ -38,7 +38,7 @@ void SharedBusSim::send(uint32_t value)
         m_SlaveReadyCount = 0;
 
         // Notify all slaves that there is NO data on bus
-        signalSlaves();
+        m_MasterSlaveCV.notify_all();
     }
 }
 //----------------------------------------------------------------------------
@@ -79,5 +79,6 @@ std::optional<uint32_t> SharedBusSim::read(const std::atomic<bool> &shouldQuit)
 //----------------------------------------------------------------------------
 void SharedBusSim::signalSlaves()
 {
+    std::lock_guard<std::mutex> signalLock(m_SignalMutex);
     m_MasterSlaveCV.notify_all();
 }

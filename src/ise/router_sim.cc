@@ -51,7 +51,7 @@ RouterSim::~RouterSim()
 
     // Join slave thread
     if(m_SlaveThread.joinable()) {
-        //m_SharedBus.get().signalSlaves();
+        m_SharedBus.get().signalSlaves();
         m_SlaveThread.join();
     }
 }
