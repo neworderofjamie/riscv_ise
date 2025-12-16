@@ -17,7 +17,7 @@ class SharedBusSim
 {
 public:
     SharedBusSim(uint32_t numSlaves)
-    :   m_NumSlaves(numSlaves), m_ReadCount(0)
+    :   m_NumSlaves(numSlaves), m_SlaveReadyCount(0)
     {}
     
     //------------------------------------------------------------------------
@@ -55,6 +55,7 @@ private:
     //! Data currently on shared bus
     std::optional<uint32_t> m_Data;
     
-    //! How many slaves have read the data off the bus? 
-    uint32_t m_ReadCount;
+    //! How many slaves are ready? Used for counting that all slaves are
+    //! ready to receive data and for counting that they all have!
+    uint32_t m_SlaveReadyCount;
 };
