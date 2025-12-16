@@ -25,7 +25,7 @@ RouterSim::RouterSim(SharedBusSim &sharedBus, ScalarDataMemory &spikeMemory)
 :   m_SharedBus(sharedBus), m_SpikeMemory(spikeMemory), 
     m_MasterThread(&RouterSim::masterThreadFunc, this),
     m_SlaveThread(&RouterSim::slaveThreadFunc, this),
-    m_ShouldQuit(false), m_Registers{0}
+    m_ShouldQuit(false), m_Registers{0}, m_MasterReady(false)
 {
     // Name threads
     setThreadName(m_MasterThread, "Router master");
@@ -58,6 +58,12 @@ RouterSim::~RouterSim()
 //----------------------------------------------------------------------------
 void RouterSim::tick()
 {
+    // Ensure master thread is ready
+    {
+        std::unique_lock<std::mutex> masterLock(m_MasterSpikeQueueMutex);
+        m_MasterReadyCV.wait(masterLock, [this](){ return m_MasterReady; });
+    }
+
     // If a event bitfield has been written to the register
     if(readReg(Register::MASTER_EVENT_BITFIELD) != 0) {
         // Acquire master spike queue mutex
@@ -128,6 +134,13 @@ uint32_t RouterSim::readReg(Register reg) const
 //------------------------------------------------------------------------
 void RouterSim::masterThreadFunc()
 {
+    // Set master ready flag and notify main thread
+    {
+        std::lock_guard<std::mutex> masterLock(m_MasterSpikeQueueMutex);
+        m_MasterReady = true;
+        m_MasterReadyCV.notify_one();
+    }
+    
     // While we should keep running
     while(!m_ShouldQuit) {
         decltype(m_MasterSpikeQueue)::value_type spike;

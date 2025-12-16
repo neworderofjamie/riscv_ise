@@ -85,6 +85,12 @@ private:
     //! Condition variable used to signal master thread when there are spikes
     std::condition_variable m_MasterSpikeQueueCV;
 
+    //! Condition variable used by master thread to signal it's ready
+    std::condition_variable m_MasterReadyCV;
+
+    //! Is master thread ready?
+    bool m_MasterReady;
+
     //! Queue of spikes received via slave interface to write to BRAM
     std::deque<uint32_t> m_SlaveSpikeQueue;
 
