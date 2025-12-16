@@ -67,15 +67,6 @@ private:
     //! Spike memory to write spikes to
     std::reference_wrapper<ScalarDataMemory> m_SpikeMemory;
 
-    //! Master thread - handles writing data from spike queue to simulated bus
-    std::thread m_MasterThread;
-
-    //! Slave thread - handles reading packets from simulated bus
-    std::thread m_SlaveThread;
-
-    //! Signal used to kill master and slave threads
-    std::atomic<bool> m_ShouldQuit;
-
     //! Queue of bases and bitfields to send via master interface
     std::deque<std::optional<std::pair<uint32_t, uint32_t>>> m_MasterSpikeQueue;
 
@@ -99,4 +90,15 @@ private:
 
     // Registers
     std::array<uint32_t, static_cast<size_t>(Register::MAX)> m_Registers;
+
+    //! Signal used to kill master and slave threads
+    std::atomic<bool> m_ShouldQuit;
+    
+    //! Master thread - handles writing data from spike queue to simulated bus
+    std::thread m_MasterThread;
+
+    //! Slave thread - handles reading packets from simulated bus
+    std::thread m_SlaveThread;
+
+   
 };

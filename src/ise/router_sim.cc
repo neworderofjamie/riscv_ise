@@ -23,9 +23,9 @@ constexpr uint32_t barrierEventID = 0xFFFFFFFFull;
 //----------------------------------------------------------------------------
 RouterSim::RouterSim(SharedBusSim &sharedBus, ScalarDataMemory &spikeMemory)
 :   m_SharedBus(sharedBus), m_SpikeMemory(spikeMemory), 
+    m_MasterReady(false), m_ShouldQuit(false), m_Registers{0}, 
     m_MasterThread(&RouterSim::masterThreadFunc, this),
-    m_SlaveThread(&RouterSim::slaveThreadFunc, this),
-    m_ShouldQuit(false), m_Registers{0}, m_MasterReady(false)
+    m_SlaveThread(&RouterSim::slaveThreadFunc, this)
 {
     // Name threads
     setThreadName(m_MasterThread, "Router master");
