@@ -1,4 +1,5 @@
 // Standard C++ includes
+#include <algorithm>
 #include <fstream>
 #include <numeric>
 #include <random>
@@ -85,7 +86,7 @@ TEST(Router, Test) {
     const uint32_t bitfieldPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
     const uint32_t eventIDBasePtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
     const uint32_t spikeQueueEndPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
-    const uint32_t spikeQueuePtr = AppUtils::allocateScalarAndZero(4 * 32, scalarInitData);
+    const uint32_t spikeQueuePtr = AppUtils::allocateScalarAndZero(4 * 64, scalarInitData);
 
     // Generate code
     const auto code = AssemblerUtils::generateStandardKernel(
@@ -118,7 +119,7 @@ TEST(Router, Test) {
             // Write end write address to memory
             {
                 ALLOCATE_SCALAR(STmp);
-                c.csrw(CSR::SLAVE_EVENT_ADDRESS, *STmp);
+                c.csrr(*STmp, CSR::SLAVE_EVENT_ADDRESS);
                 c.sw(*STmp, Reg::X0, spikeQueueEndPtr);
             }
         });
@@ -128,24 +129,24 @@ TEST(Router, Test) {
             // Create simulated shared bus to connect the cores
             SharedBusSim sharedBus(numCores);
 
+            // Allocate vector with data for all cores
+            std::vector<std::tuple<uint32_t, std::vector<uint32_t>, std::thread>> coreData(numCores);
+
             // Loop through cores
             std::random_device d;
-            std::vector<std::tuple<uint32_t, std::vector<uint32_t>, std::thread>> coreData;
             for(uint32_t i = 0; i < numCores; i++) {
                 // Generate spike bitfield for this core
-                const uint32_t spikeBitfield = d();
-
-                // Create data structure
-                coreData.emplace_back(spikeBitfield, std::vector<uint32_t>(), std::thread());
+                std::get<0>(coreData[i]) = d();
 
                 // Create thread
-                std::get<2>(coreData.back()) = std::thread(
+                std::get<2>(coreData[i]) = std::thread(
                     simRouterThread, std::cref(code), std::cref(scalarInitData),
-                    std::ref(sharedBus), i << 14, spikeBitfield,
+                    std::ref(sharedBus), i << 14, std::get<0>(coreData[i]),
                     bitfieldPtr, eventIDBasePtr, spikeQueueEndPtr, 
-                    spikeQueuePtr, std::ref(std::get<1>(coreData.back())));
+                    spikeQueuePtr, std::ref(std::get<1>(coreData[i])));
                 
-                setThreadName(std::get<2>(coreData.back()), "Core " + std::to_string(i));
+                // Name thread
+                setThreadName(std::get<2>(coreData[i]), "Core " + std::to_string(i));
             }
 
             // Join all threads
@@ -153,5 +154,37 @@ TEST(Router, Test) {
                 std::get<2>(c).join();
             }
 
+            // Check all cores have received the same data
+            // **NOTE** may need to sort first on real hardware
+            const auto &core0Data = std::get<1>(coreData[0]);
+            for(uint32_t i = 1; i < numCores; i++) {
+                const auto &coreIData = std::get<1>(coreData[i]);
+                ASSERT_TRUE(std::equal(core0Data.cbegin(), core0Data.cend(),
+                                       coreIData.cbegin(), coreIData.cend()));
+            }
+
+            // Make a copy of each core's bitfield
+            std::vector<uint32_t> spikeBitfieldCopy;
+            std::transform(coreData.cbegin(), coreData.cend(), std::back_inserter(spikeBitfieldCopy),
+                           [](const auto &c){ return std::get<0>(c); });
+
+            // Loop through events received by one core
+            for(uint32_t s : std::get<1>(coreData[0])) {
+                // Split event into core and neuron
+                const uint32_t core = s >> 14;
+                const uint32_t neuron = s & ((1 << 14) - 1);
+                const uint32_t neuronBit = 1 << neuron;
+
+                // Check bit is still set in core's bitmask
+                ASSERT_NE(spikeBitfieldCopy[core] & neuronBit, 0);
+
+                // Clear BIT
+                spikeBitfieldCopy[core] &= ~neuronBit;
+            }
+
+            // Check all bits have been cleared i.e. received spikes match bitfield
+            for(uint32_t s : spikeBitfieldCopy) {
+                ASSERT_EQ(s, 0);
+            }
         }
 }
