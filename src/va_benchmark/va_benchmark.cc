@@ -593,17 +593,23 @@ int main(int argc, char** argv)
 #ifdef RECORD_V
             c.li(*SExcVRecordingBuffer, excVRecordingPtr);
 #endif
+            // Reset router slave to start writing at beginning of spike buffer
+            c.csrwi(CSR::SLAVE_EVENT_ADDRESS, spikeBufferPtr);
+
             // Loop over time
             c.L(timeLoop);
             {
                 {
                     Label spikeLoop;
+                    Label spikeLoopEnd;
 
                     // Load start and end of this timestep's spike buffer
                     c.li(*SSpikeBuffer, spikeBufferPtr);
                     c.csrr(*SSpikeBufferEnd, CSR::SLAVE_EVENT_ADDRESS);
 
+                    // While (spikeBuffer != spikeBufferEnd
                     c.L(spikeLoop);
+                    c.beq(*SSpikeBuffer, *SSpikeBufferEnd, spikeLoopEnd);
                     {
                         ALLOCATE_SCALAR(SPopulationID);
 
@@ -619,8 +625,9 @@ int main(int argc, char** argv)
 
                         // Loop until spikes are processed
                         c.addi(*SSpikeBuffer, *SSpikeBuffer, 4);
-                        c.bne(*SSpikeBuffer, *SSpikeBufferEnd, spikeLoop);
+                        c.j_(spikeLoop);
                     }
+                    c.L(spikeLoopEnd);
                 }
                
                 // Reset router slave to start writing at beginning of spike buffer
