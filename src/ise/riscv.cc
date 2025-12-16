@@ -823,14 +823,8 @@ void RISCV::executeStandardInstruction(uint32_t inst)
 
     case StandardOpCode::JAL:
     {
-        auto [imm, rd] = decodeUType(inst);
-        // **TODO** this is gross but I honestly don't understand this instruction format
-        imm = ((inst >> (31 - 20)) & (1 << 20)) |
-              ((inst >> (21 - 1)) & 0x7fe) |
-              ((inst >> (20 - 11)) & (1 << 11)) |
-              (inst & 0xff000);
-        imm = (imm << 11) >> 11;
-
+        const auto [imm, rd] = decodeJType(inst);
+        
         PLOGV << "JAL " << rd << " " << imm;
         PLOGV << "\t"  << rd;
 #ifdef DEBUG_EXTRA

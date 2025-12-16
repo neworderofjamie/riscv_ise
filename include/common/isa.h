@@ -285,6 +285,18 @@ inline std::tuple<int32_t, uint32_t> decodeUType(uint32_t inst)
     return std::make_tuple(imm, rd);
 }
 
+inline std::tuple<int32_t, uint32_t> decodeJType(uint32_t inst)
+{
+    int32_t imm = ((inst >> (31 - 20)) & (1 << 20)) |
+            ((inst >> (21 - 1)) & 0x7fe) |
+            ((inst >> (20 - 11)) & (1 << 11)) |
+            (inst & 0xff000);
+    imm = (imm << 11) >> 11;
+
+    const uint32_t rd = (inst >> 7) & 0x1f;
+    return std::make_tuple(imm, rd);
+}
+
 COMMON_EXPORT LoadType getLoadType(uint32_t funct3);
 
 COMMON_EXPORT StoreType getStoreType(uint32_t funct3);

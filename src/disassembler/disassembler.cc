@@ -8,8 +8,6 @@
 #include "common/isa.h"
 
 /*
-    JALR    = 0b11001,
-    JAL     = 0b11011,
     AUIPC   = 0b00101,
     SYSTEM  = 0b11100,*/
 // Anonymous namespace
@@ -36,6 +34,18 @@ void disassembleBranch(std::ostream &os, uint32_t inst)
     const auto [imm, rs2, rs1, funct3] = decodeBType(inst);
     const auto type = getBranchType(funct3);
     os << type._to_string() << " X" << rs1 << ", X" << rs2 << ", " << imm;
+}
+
+void disassembleJALR(std::ostream &os, uint32_t inst)
+{
+    const auto [imm, rs1, funct3, rd] = decodeIType(inst);
+    os << "JALR X" << rd << ", X" << rs1 << ", " << imm;
+}
+
+void disassembleJAL(std::ostream &os, uint32_t inst)
+{
+    const auto [imm, rd] = decodeJType(inst);
+    os << "JAL X" << rd << ", " << imm;
 }
 
 void disassembleOP(std::ostream &os, uint32_t inst)
@@ -186,6 +196,8 @@ const std::unordered_map<StandardOpCode, DisassembleFunc> standardInstructionDec
     {StandardOpCode::LOAD, &disassembleLoad},
     {StandardOpCode::STORE, &disassembleStore},
     {StandardOpCode::BRANCH, &disassembleBranch},
+    {StandardOpCode::JALR, &disassembleJALR},
+    {StandardOpCode::JAL, &disassembleJAL},
     {StandardOpCode::OP, &disassembleOP},
     {StandardOpCode::OP_IMM, &disassembleOPImm},
     {StandardOpCode::LUI, &disassembleLUI},
