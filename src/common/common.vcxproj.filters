@@ -29,6 +29,9 @@
     <ClCompile Include="uio.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="utils.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\common\isa.h">

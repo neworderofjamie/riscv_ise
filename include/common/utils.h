@@ -1,6 +1,7 @@
 #pragma once
 
 // Standard C++ includes
+#include <string>
 #include <thread>
 
 // Standard C includes
