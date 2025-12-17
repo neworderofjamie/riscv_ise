@@ -2,7 +2,7 @@
 include ../MakefileCommon
 
 # Add compiler and linker flags to link libGeNN and correct backend; and to configure generator to use backend
-LDFLAGS			+= -L$(LIBRARY_DIRECTORY) -lise$(PREFIX) -lcommon$(PREFIX) -lassembler$(PREFIX)
+LDFLAGS			+= -L$(LIBRARY_DIRECTORY) -lise$(PREFIX) -lcommon$(PREFIX) -lassembler$(PREFIX) -lpthread
 
 # Determine full path to test_mnist
 VA_BENCHMARK		:=$(BIN_DIRECTORY)/va_benchmark$(PREFIX)
