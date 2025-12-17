@@ -55,6 +55,14 @@ void genStaticPulse(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAll
                     ScalarRegisterAllocator &scalarRegisterAllocator,
                     Reg spikeReg, const std::vector<StaticPulseTarget> &targets)
 {   
+    // Mask out neuron ID from neuron
+    // **NOTE** it's fine to trash spikeReg
+    {
+        ALLOCATE_SCALAR(STemp);
+        c.li(*STemp, (1 << 18) - 1);
+        c.and_(spikeReg, spikeReg, *STemp);
+    }
+
     // Loop through postsynaptic targets
     for(size_t i = 0; i < targets.size(); i++) {
         const auto &t = targets[i];
@@ -64,11 +72,6 @@ void genStaticPulse(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAll
         c.li(*SPostIndBuffer, t.postIndPtr);
         {
             ALLOCATE_SCALAR(STemp);
-
-            // Mask out neuron ID from neuron
-            // **NOTE** it's fine to trash spikeReg
-            c.li(*STemp, (1 << 18) - 1);
-            c.and_(spikeReg, spikeReg, *STemp);
 
             // Multiply by stride to get address
             c.li(*STemp, t.maxRowLength * 2);
@@ -611,16 +614,17 @@ int main(int argc, char** argv)
                     c.L(spikeLoop);
                     c.beq(*SSpikeBuffer, *SSpikeBufferEnd, spikeLoopEnd);
                     {
-                        ALLOCATE_SCALAR(SPopulationID);
-
                         // Load spike from buffer
                         c.lw(*SSpike, *SSpikeBuffer);
 
-                        // Extract population ID
-                        c.srli(*SPopulationID, *SSpike, 19);
+                        {
+                            // Extract population ID
+                            ALLOCATE_SCALAR(SPopulationID);
+                            c.srli(*SPopulationID, *SSpike, 19);
 
-                        // Jump to correct population handler
-                        c.jalr(Reg::X0, *SPopulationID, jumpTable.getAddress());
+                            // Jump to correct population handler
+                            c.jalr(Reg::X0, *SPopulationID, jumpTable.getAddress());
+                        }
                         c.L(nextSpike);
 
                         // Loop until spikes are processed
