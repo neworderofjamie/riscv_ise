@@ -68,8 +68,8 @@ big_df["Theoretical GSOPs"] = big_df.apply(lambda r: (((CLOCK_HZ * 32) / (DENSE_
                                            axis="columns")
 
 big_df["xtick"] = big_df.apply(
-    lambda r: ("Uncompressed" if r["Dense connectivity"] 
-               else f"Compressed\n{(100.0 - (r['Probability of connection'] * 100)):.0f}%"),
+    lambda r: ("Dense" if r["Dense connectivity"] 
+               else f"Sparse\n{(100.0 - (r['Probability of connection'] * 100)):.0f}%"),
     axis="columns")
                        
 big_df = big_df[(big_df["Probability of connection"] != 0.25)
@@ -77,7 +77,7 @@ big_df = big_df[(big_df["Probability of connection"] != 0.25)
 
 print(big_df)
 
-fig, axes = plt.subplots(1, 3, figsize=(plot_settings.double_column_width, 2.5))
+fig, axes = plt.subplots(1, 3, figsize=(plot_settings.double_column_width, 2.75))
 
 # Plot example spike raster
 spikes = np.load("va_benchmark_spikes.npz")
@@ -96,7 +96,7 @@ inhibitory_actor.set_sizes([10])
 excitatory_actor.set_sizes([10])
 
 fig.legend([inhibitory_actor, excitatory_actor], ["Inhibitory", "Excitatory"], 
-           frameon=False, ncol=2, bbox_to_anchor=(0.19, 0.025), loc="lower center")
+           frameon=False, ncol=2, bbox_to_anchor=(0.19, 0.045), loc="lower center")
  
 # Plot throughput
 bar_x = np.arange(len(big_df))
@@ -119,8 +119,8 @@ axes[1].xaxis.grid(False)
 axes[1].set_title("B", loc="left")
 sns.despine(ax=axes[1])
 
-fig.legend([dense_dram_actor, sparse_dram_actor], ["Uncompressed", "Compressed"], 
-           frameon=False, ncol=2, bbox_to_anchor=(0.53, 0.025), loc="lower center")
+fig.legend([dense_dram_actor, sparse_dram_actor], ["Dense", "Sparse"], 
+           frameon=False, ncol=2, bbox_to_anchor=(0.53, 0.045), loc="lower center")
  
 
 
@@ -136,8 +136,8 @@ axes[2].xaxis.grid(False)
 axes[2].set_title("C", loc="left")
 sns.despine(ax=axes[2])
 
-fig.legend([true_actor, theory_actor, synapse_actor], ["Measured", "Theoretical", "Measured synapses"], 
-           frameon=False, ncol=2, bbox_to_anchor=(0.85, 0.0), loc="lower center", columnspacing=0.9)
+fig.legend([true_actor, theory_actor, synapse_actor], ["Measured", "Theoretical", "Measured\nsynapses"], 
+           frameon=False, ncol=2, bbox_to_anchor=(0.85, 0.0), loc="lower center")
 
 fig.tight_layout(pad=0, rect=[0.0, 0.125, 1.0, 1.0])
 fig.savefig("va_benchmark.pdf")

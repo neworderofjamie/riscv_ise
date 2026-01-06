@@ -23,5 +23,6 @@ sns.set_context(rc={"lines.markeredgewidth": 1.0})
 # Set palette
 sns.set_palette("deep")
 
-column_width = 9.19 if poster else 3.5
-double_column_width = 7.16
+mm_to_inches = 0.039370079
+column_width = 85.0 * mm_to_inches
+double_column_width = 150.0 * mm_to_inches
