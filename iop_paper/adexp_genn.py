@@ -79,7 +79,7 @@ def simulate_genn(params, num_timesteps=2000):
 
 
     # Create model
-    model = GeNNModel("float", "adexp", backend="single_threaded_cpu")
+    model = GeNNModel("double", "adexp", backend="single_threaded_cpu")
     model.dt = 0.1
 
     # Add facilitation population with 1 spike source which fires a single spike in first timestep
