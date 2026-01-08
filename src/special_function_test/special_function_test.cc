@@ -158,9 +158,10 @@ int main(int argc, char** argv)
                 c.addi(*SInputBuffer, *SInputBuffer, 64);       
                 
                 // START RANGE-REDUCTION
-                // VK = floor((VX * VInvLog) + 0.5).
-                c.vmul(14, *VK, *VX, *VInvLog);
-                c.vsrai_rn(inputFixedPoint, *VK, *VK);
+                // VK = floor((VX * VInvLog) + 0.5)
+                // **NOTE** extra integer bit required because VInvLog is 1.44 ish so multiplying by it can cause overflow
+                c.vmul(15, *VK, *VX, *VInvLog);
+                c.vsrai_rn(inputFixedPoint - 1, *VK, *VK);
 
                 // VR = VX - (VK * VLog2)
                 c.vmul_rn(15 - inputFixedPoint, *VR, *VK, *VLog2);

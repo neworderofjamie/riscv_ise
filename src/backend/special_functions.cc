@@ -118,9 +118,10 @@ void add(CodeGenerator &codeGenerator, ScalarRegisterAllocator &scalarRegisterAl
                                    auto VHalf = env.getVectorRegister("_exp_half");
 
                                    // START RANGE-REDUCTION
-                                   // VK = floor((VX * VInvLog) + 0.5) [aType]
-                                   c.vmul(14, *VK, *std::get<VectorRegisterAllocator::RegisterPtr>(args[0]), *VInvLog);
-                                   c.vsrai_rn(aFrac, *VK, *VK);
+                                   // VK = floor((VX * VInvLog) + 0.5) [aType with one extra integer bit]
+                                   // **NOTE** extra integer bit required because VInvLog is 1.44 ish so multiplying by it can cause overflow
+                                   c.vmul(15, *VK, *std::get<VectorRegisterAllocator::RegisterPtr>(args[0]), *VInvLog);
+                                   c.vsrai_rn(aFrac - 1, *VK, *VK);
 
                                    // VR = VX - (VK * VLog2) [aType]
                                    c.vmul_rn(15 - aFrac, *VR, *VK, *VLog2);
