@@ -35,5 +35,5 @@ fig.legend([fenn_rn_actor, fenn_rs_actor, genn_actor], ["FeNN (RN)", "FeNN (RS)"
            ncol=3, loc="lower center", frameon=False)
 
 fig.tight_layout(pad=0, rect=[0.0, 0.1, 1.0, 1.0])
-
+fig.savefig("adexp.pdf")
 plt.show()
