@@ -72,13 +72,11 @@ generate_exp_lut_and_push(lut_broadcast.lut, runtime)
 runtime.set_instructions(code)
 runtime.run()
 
-
+# Read exp(x) back from FeNN
 exp_array, exp_view = get_array_view(runtime, exp.val,
                                      np.int16)
 exp_array.pull_from_device()
 
-#exp_y_correct = np.rint(np.exp(exp_x) * out_fixed_point_one) / out_fixed_point_one
-
-# Convert x and ex
+# Convert x and exp(x) to float and save
 np.savez("exp_fenn.npz", x=(input_data / (2 ** 13)), 
          exp_x=(exp_view[:len(input_data)] / (2 ** 9)))
