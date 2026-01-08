@@ -1,6 +1,7 @@
 import math
 import numpy as np
 
+from enum import Enum
 from numbers import Number
 from collections import defaultdict
 from . import (EventContainer, EventPropagationProcess, NeuronUpdateProcess,
@@ -11,23 +12,30 @@ from .utils import ceil_divide
 try:
     import nir
     
+    class IntegrationMethod(str, Enum):
+        FORWARD_EULER = "forward_euler"
+        EXPONENTIAL_EULER = "exponential_euler"
+
+
     class InputSpikes:
         def __init__(self, name: str, node: nir.Input,
-                    fixed_point: int, num_timesteps: int, dt: float):
+                     fixed_point: int, num_timesteps: int, dt: float,
+                     integration_method: IntegrationMethod):
             self.shape = Shape(node.output_type["output"])
             self.out_spikes = EventContainer(self.shape, num_timesteps,
                                             f"{name}_out_spikes")
 
     class CubaLIF:
         def __init__(self, name: str, node: nir.CubaLIF,
-                    fixed_point: int, num_timesteps: int, dt: float):
+                     fixed_point: int, num_timesteps: int, dt: float,
+                     integration_method: IntegrationMethod):
             self.shape = Shape(node.output_type["output"])
             dtype = _get_type(fixed_point, True)
-            decay_dtype = "s1_14_sat_t"
+            decay_dtype = "s0_15_sat_t"
             self.v = Variable(self.shape, dtype, 1, f"{name}_v")
             self.i = Variable(self.shape, dtype, 1, f"{name}_i")
             self.out_spikes = EventContainer(self.shape, num_timesteps,
-                                            f"{name}_out_spikes")
+                                             f"{name}_out_spikes")
     
             # If all thresholds are the same, implement as parameter
             assert np.all(node.v_threshold == node.v_threshold[0])
@@ -35,39 +43,54 @@ try:
             assert np.all(node.tau_syn == node.tau_syn[0])
             assert np.all(node.r == node.r[0])
             assert np.all(node.w_in == node.w_in[0])
+            assert np.all(node.v_leak == 0)
+
+            # Calculate decay factors scaling factors             
+            if integration_method == IntegrationMethod.FORWARD_EULER:
+                alpha = 1 - dt / node.tau_mem[0]
+                beta = 1 - dt / node.tau_syn[0]
+
+                r_factor = (dt / node.tau_mem[0]) * node.r[0]
+                w_in_factor = (dt / node.tau_syn[0]) * node.w_in[0]
+            elif integration_method == IntegrationMethod.EXPONENTIAL_EULER:
+                alpha = np.exp(-dt / node.tau_mem[0])
+                beta = np.exp(-dt / node.tau_syn[0])
+                
+                r_factor = (1 - alpha) * node.r[0]
+                w_in_factor = (1 - beta) * node.w_in[0]
             
-            alpha = np.exp(-dt / node.tau_mem[0])
+            v_scale = 1.0 / r_factor
+            i_scale = 1.0 / w_in_factor
+            
             self.process = NeuronUpdateProcess(
                 f"""
-                V = (Alpha * V) + (IScale * I);
+                V = (Alpha * V) + I;
                 I *= Beta;
                 
                 if(V >= VThresh) {{
-                Spike();
-                V -= VThresh;
+                    Spike();
+                    V -= VThresh;
                 }}
                 """,
                 {"Alpha": Parameter(alpha, decay_dtype),
-                "IScale": Parameter((1.0 - alpha) * node.r[0] 
-                                    * node.w_in[0], dtype),
-                "Beta": Parameter(np.exp(-dt / node.tau_syn[0]), decay_dtype),
-                "VThresh": Parameter(node.v_threshold[0], dtype)},
+                "Beta": Parameter(beta, decay_dtype),
+                "VThresh": Parameter(node.v_threshold[0] * v_scale * i_scale, dtype)},
                 {"V": self.v, "I": self.i}, {"Spike": self.out_spikes}, name)
 
     class Linear:
         def __init__(self, name: str, node: nir.Linear, 
-                    source_event_container: EventContainer,
-                    target_variable: Variable,
-                    fixed_point: int):
+                     source_event_container: EventContainer,
+                     target_variable: Variable,
+                     fixed_point: int):
             self.shape = (source_event_container.shape.num_neurons,
-                        target_variable.shape.num_neurons)
+                          target_variable.shape.num_neurons)
             weight_dtype = _get_type(fixed_point, False)
 
             self.weight = Variable(self.shape, weight_dtype, 1,
-                                f"{name}_weight")
+                                   f"{name}_weight")
             self.process = EventPropagationProcess(source_event_container,
-                                                self.weight, target_variable,
-                                                name=name)
+                                                   self.weight, target_variable,
+                                                   name=name)
 
 
     def _get_type(frac_bits: int, saturation: bool):
@@ -114,8 +137,8 @@ try:
                         event_prop_nodes) -> str:
         # Build tuple of all supported node types
         supported_nodes = (tuple(neuron_update_nodes.keys())
-                        + tuple(event_prop_nodes.keys())
-                        + (nir.Output,))
+                           + tuple(event_prop_nodes.keys())
+                           + (nir.Output,))
         
         # Loop through nodes
         input_name = None
@@ -139,9 +162,10 @@ try:
 
     # Build neuron update processes from nodes in graph
     def _build_neuron_update_processes(graph: nir.NIRGraph, neuron_update_nodes,
-                                    event_prop_nodes, target_node_quant: dict,
-                                    num_timesteps: int, dt: float,
-                                    output_name: str) -> dict:
+                                       event_prop_nodes, target_node_quant: dict,
+                                       num_timesteps: int, dt: float,
+                                       integration_method: IntegrationMethod,
+                                       output_name: str) -> dict:
         # Loop through nodes
         node_processes = {}
         neuron_nodes_tuple = tuple(neuron_update_nodes.keys())
@@ -165,7 +189,8 @@ try:
                 elif name == output_name:
                     num_proc_timesteps = num_timesteps + 1
                 node_processes[name] = process_type(name, node, fixed_point,
-                                                    num_proc_timesteps, dt)
+                                                    num_proc_timesteps, dt,
+                                                    integration_method)
             elif not isinstance(node, event_prop_nodes_tuple
                                 + (nir.Output,)):
                 assert False
@@ -254,12 +279,12 @@ try:
                     and isinstance(target, nir.Output)):
                 if output_name is not None:
                     raise NotImplementedError("Multiple edges to output "
-                                            "node(s) encountered")
+                                              "node(s) encountered")
                 output_name = edge[0]
             else:
                 raise NotImplementedError(f"Node {source} cannot be "
-                                        f"directly connected to "
-                                        f"node {target}")
+                                          f"directly connected to "
+                                          f"node {target}")
 
         if output_name is None:
             raise RuntimeError("No output node encountered in graph")
@@ -268,7 +293,11 @@ try:
 
     # **TODO** return neuron and synapse update groups, input and output variables
     def parse(filename, num_timesteps: int, dt: float = 1.0, 
-            quant_percentile: float = 99.0, num_weight_bits: int = 8):
+              quant_percentile: float = 99.0, num_weight_bits: int = 8,
+              integration_method: str = "exponential_euler"):
+
+        integration_method = IntegrationMethod(integration_method)
+    
         neuron_update_nodes = {nir.CubaLIF: CubaLIF, nir.Input: InputSpikes}
         event_prop_nodes = {nir.Linear: Linear}
 
@@ -287,7 +316,7 @@ try:
         for target_node, source_nodes in node_inputs.items():
             # Flatten and concatenate weights and find scaling factors
             weights_concat = np.concatenate([graph.nodes[s].weight.flatten()
-                                            for s in source_nodes])
+                                             for s in source_nodes])
             target_node_quant[target_node] = _find_signed_scale(weights_concat,
                                                                 num_weight_bits,
                                                                 quant_percentile)
@@ -296,12 +325,12 @@ try:
         # Create neuron update processes from nodes
         # **NOTE** we need the target_node_quant to build these nodes with the right fixed point format
         neuron_node_processes = _build_neuron_update_processes(
-            graph, neuron_update_nodes, event_prop_nodes,
-            target_node_quant, num_timesteps, dt, output_name)
+            graph, neuron_update_nodes, event_prop_nodes, target_node_quant,
+            num_timesteps, dt, integration_method, output_name)
 
         print(f"Neuron node processes: {neuron_node_processes}")
         print(f"Input neuron node: '{input_name}', "
-            f"output neuron node: '{output_name}'")
+              f"output neuron node: '{output_name}'")
 
         # Create event propagation processes from nodes
         event_prop_node_processes, variable_values =\

@@ -4,7 +4,7 @@ import torch
 
 from argparse import ArgumentParser
 from pyfenn import (BackendFeNNHW, BackendFeNNSim, Model,
-                    ProcessGroup, Runtime)
+                    PlogSeverity, RoundingMode, Runtime)
 
 from pyfenn import disassemble, init_logging
 from pyfenn.utils import get_array_view, load_and_push, zero_and_push
@@ -31,12 +31,17 @@ test_spikes = [np.pad(s, ((0, 0), (0, 2))).view(np.uint32)
 num_timesteps = test_spikes[0].shape[0]
 print(f"{num_timesteps} timesteps")
 
+init_logging(PlogSeverity.INFO)
+
 # Load model
 (in_proc, out_proc, neuron_proc_group, syn_proc_group, var_vals, neuron_proc) =\
-    parse("braille_noDelay_noBias_subtract.nir", num_timesteps, 1e-4)
+    parse("braille_noDelay_noBias_subtract.nir", num_timesteps, 1e-4,
+          integration_method="forward_euler")
 
 # Create backend
-backend = BackendFeNNHW() if args.device else BackendFeNNSim()
+backend_kwargs = {"rounding_mode": RoundingMode.STOCHASTIC}
+backend = (BackendFeNNHW(**backend_kwargs) if args.device 
+           else BackendFeNNSim(**backend_kwargs))
 
 # Create model
 model = Model([neuron_proc_group, syn_proc_group], backend)
