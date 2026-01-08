@@ -36,7 +36,7 @@ init_logging(PlogSeverity.INFO)
 # Load model
 (in_proc, out_proc, neuron_proc_group, syn_proc_group, var_vals, neuron_proc) =\
     parse("braille_noDelay_noBias_subtract.nir", num_timesteps, 1e-4,
-          integration_method="forward_euler")
+          quant_percentile=100.0, num_weight_bits=14, integration_method="forward_euler")
 
 # Create backend
 backend_kwargs = {"rounding_mode": RoundingMode.STOCHASTIC}
