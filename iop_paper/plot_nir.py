@@ -24,7 +24,7 @@ pal = sns.color_palette()
 
 platform = ["Nengo", "Norse", "Rockpool", "snnTorch", "Spyx", "SpiNNaker2", "Xylo", "FeNN"]
 accuracy = [78.6, 93.57, 71.4, 92.1, 92.12, 93.57, 85.71, 92.86]
-colours = ([pal[0]] * 4) + ([pal[1]] * 3) + [pal[2]]
+colours = ([pal[0]] * 5) + ([pal[1]] * 2) + [pal[2]]
 
 bar_y = np.arange(len(platform))
 axes[1].barh(bar_y, accuracy, color=colours)
