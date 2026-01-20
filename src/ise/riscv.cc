@@ -51,90 +51,108 @@ void InstructionMemory::setInstructions(const std::vector<uint32_t> &instruction
 //----------------------------------------------------------------------------
 // ScalarDataMemory
 //----------------------------------------------------------------------------
-ScalarDataMemory::ScalarDataMemory(size_t numBytes) 
-:   m_Data(numBytes, 0xDE)
+ScalarDataMemory::ScalarDataMemory(size_t numBytes, size_t startAddressBytes, uint8_t poissonVal) 
+:   m_Data(numBytes, poissonVal), m_StartAddressBytes(startAddressBytes)
 {}
 //----------------------------------------------------------------------------
 uint32_t ScalarDataMemory::read32(uint32_t addr) const
 {
-    if (addr & 3) {
+    // Subtract start address from address
+    const uint32_t intAddr = addr - m_StartAddressBytes;
+
+    if (intAddr & 3) {
         throw Exception(Exception::Cause::MISALIGNED_LOAD, addr);
     }
 
-    if ((addr + 4) > m_Data.size())  {
+    if ((intAddr + 4) > m_Data.size())  {
         throw Exception(Exception::Cause::FAULT_LOAD, addr);
     } 
     else {
-        return m_Data[addr] | (m_Data[addr + 1] << 8) | (m_Data[addr + 2] << 16) | (m_Data[addr + 3] << 24);
+        return (m_Data[intAddr] | (m_Data[intAddr + 1] << 8)
+                | (m_Data[intAddr + 2] << 16) | (m_Data[intAddr + 3] << 24));
     }
 }
 //----------------------------------------------------------------------------
 void ScalarDataMemory::write32(uint32_t addr, uint32_t value)
 {
-    if (addr & 3) {
+    // Subtract start address from address
+    const uint32_t intAddr = addr - m_StartAddressBytes;
+
+    if (intAddr & 3) {
         throw Exception(Exception::Cause::MISALIGNED_LOAD, addr);
     }
 
-    if ((addr + 4) > m_Data.size())  {
+    if ((intAddr + 4) > m_Data.size())  {
         throw Exception(Exception::Cause::FAULT_STORE, addr);
     } 
     else {
-        m_Data[addr] = value & 0xff;
-        m_Data[addr + 1] = (value >> 8) & 0xff;
-        m_Data[addr + 2] = (value >> 16) & 0xff;
-        m_Data[addr + 3] = (value >> 24) & 0xff;
+        m_Data[intAddr] = value & 0xff;
+        m_Data[intAddr + 1] = (value >> 8) & 0xff;
+        m_Data[intAddr + 2] = (value >> 16) & 0xff;
+        m_Data[intAddr + 3] = (value >> 24) & 0xff;
 
     }
 }
 //----------------------------------------------------------------------------
 uint16_t ScalarDataMemory::read16(uint32_t addr) const
 {
-    if (addr & 1) {
+    // Subtract start address from address
+    const uint32_t intAddr = addr - m_StartAddressBytes;
+
+    if (intAddr & 1) {
         throw Exception(Exception::Cause::MISALIGNED_LOAD, addr);
     }
     
-    if ((addr + 2) > m_Data.size())  {
+    if ((intAddr + 2) > m_Data.size())  {
         throw Exception(Exception::Cause::FAULT_LOAD, addr);
     } 
     else {
-        return m_Data[addr] | (m_Data[addr + 1] << 8);
+        return m_Data[intAddr] | (m_Data[intAddr + 1] << 8);
     }
-
 }
 //----------------------------------------------------------------------------
 void ScalarDataMemory::write16(uint32_t addr, uint16_t value)
 {
-    if (addr & 1) {
+    // Subtract start address from address
+    const uint32_t intAddr = addr - m_StartAddressBytes;
+
+    if (intAddr & 1) {
         throw Exception(Exception::Cause::MISALIGNED_STORE, addr);
 
     }
-    if ((addr + 2) > m_Data.size()) {
+    if ((intAddr + 2) > m_Data.size()) {
         throw Exception(Exception::Cause::FAULT_STORE, addr);
     } 
     else {
-        m_Data[addr] = value & 0xff;
-        m_Data[addr + 1] = (value >> 8) & 0xff;
+        m_Data[intAddr] = value & 0xff;
+        m_Data[intAddr + 1] = (value >> 8) & 0xff;
     }
 }
 //----------------------------------------------------------------------------
 uint8_t ScalarDataMemory::read8(uint32_t addr) const
 {
-    if ((addr + 1) > m_Data.size()) {
+    // Subtract start address from address
+    const uint32_t intAddr = addr - m_StartAddressBytes;
+
+    if ((intAddr + 1) > m_Data.size()) {
         throw Exception(Exception::Cause::FAULT_LOAD, addr);
     } 
     else {
-        return m_Data[addr];
+        return m_Data[intAddr];
     }
 
 }
 //----------------------------------------------------------------------------
 void ScalarDataMemory::write8(uint32_t addr, uint8_t value)
 {
+    // Subtract start address from address
+    const uint32_t intAddr = addr - m_StartAddressBytes;
+
     if ((addr + 1) > m_Data.size()) {
         throw Exception(Exception::Cause::FAULT_STORE, addr);
     } 
     else {
-        m_Data[addr] = value;
+        m_Data[intAddr] = value;
     }
 }
 //----------------------------------------------------------------------------
@@ -150,10 +168,10 @@ void ScalarDataMemory::setData(const std::vector<uint8_t> &data)
 //----------------------------------------------------------------------------
 // RISCV
 //----------------------------------------------------------------------------
-RISCV::RISCV(size_t numInstructionWords, size_t numDataBytes)
+RISCV::RISCV(size_t numInstructionWords, size_t numDataBytes, size_t numSpikeBytes)
 :   m_PC(0), m_NextPC(0), m_Reg{0}, m_InstructionMemory(numInstructionWords), 
-    m_ScalarDataMemory(numDataBytes), m_DMAController(nullptr), m_Router(nullptr),
-    m_CountInhibit(0b101)
+    m_ScalarDataMemory(numDataBytes, 0, 0xDE), m_SpikeDataMemory(numSpikeBytes, numDataBytes, 0xAD), 
+    m_DMAController(nullptr), m_Router(nullptr), m_CountInhibit(0b101)
 {
     resetStats();
 }
@@ -584,36 +602,37 @@ uint32_t RISCV::calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs2, uint3
 uint32_t RISCV::loadValue(uint32_t inst, int32_t imm, uint32_t rs1, uint32_t funct3) const
 {
     const uint32_t addr = m_Reg[rs1] + imm;
+    const auto &memory = getScalarMemory(addr);
     switch(getLoadType(funct3)) {
     case LoadType::LB:
     {
         PLOGV << "LB " << rs1 << " " << imm;
-        return (int8_t)m_ScalarDataMemory.read8(addr);
+        return (int8_t)memory.read8(addr);
     }
 
     case LoadType::LH:
     {
         PLOGV << "LH " << rs1 << " " << imm;
-        return (int16_t)m_ScalarDataMemory.read16(addr);
+        return (int16_t)memory.read16(addr);
     }
 
     case LoadType::LW:
     {
         PLOGV << "LW " << rs1 << " " << imm;
-        return (int32_t)m_ScalarDataMemory.read32(addr);
+        return (int32_t)memory.read32(addr);
     }
     
     case LoadType::LBU:
     {
         PLOGV << "LBU " << rs1 << " " << imm;
-        return m_ScalarDataMemory.read8(addr);
+        return memory.read8(addr);
     }
     break;
 
     case LoadType::LHU:
     {
         PLOGV << "LHU " << rs1 << " " << imm;
-        return m_ScalarDataMemory.read16(addr);
+        return memory.read16(addr);
     }
 
     default:
@@ -886,26 +905,27 @@ void RISCV::executeStandardInstruction(uint32_t inst)
     {
         const auto [imm, rs2, rs1, funct3] = decodeSType(inst);
         const uint32_t addr = m_Reg[rs1] + imm;
+        auto &memory = getScalarMemory(addr);
         const uint32_t val = m_Reg[rs2];
         switch(getStoreType(funct3)) {
         case StoreType::SB:
         {
             PLOGV << "SB " << rs2 << " " << rs1 << " " << imm;
-            m_ScalarDataMemory.write8(addr, val);
+            memory.write8(addr, val);
             break;
         }
 
         case StoreType::SH:
         {
             PLOGV << "SH " << rs2 << " " << rs1 << " " << imm;
-            m_ScalarDataMemory.write16(addr, val);
+            memory.write16(addr, val);
             break;
         }
 
         case StoreType::SW:
         {
             PLOGV << "SW " << rs2 << " " << rs1 << " " << imm;
-            m_ScalarDataMemory.write32(addr, val);
+            memory.write32(addr, val);
             break;
         }
 

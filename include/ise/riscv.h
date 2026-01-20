@@ -44,7 +44,7 @@ private:
 class ISE_EXPORT ScalarDataMemory
 {
 public:
-    ScalarDataMemory(size_t numBytes);
+    ScalarDataMemory(size_t numBytes, size_t startAddressBytes, uint8_t poissonVal);
 
     uint32_t read32(uint32_t addr) const;
     void write32(uint32_t addr, uint32_t value);
@@ -60,7 +60,10 @@ public:
     const uint8_t *getData() const{ return m_Data.data(); }
     uint8_t *getData(){ return m_Data.data(); }
     
+    size_t getSizeBytes() const{ return m_Data.size(); }
+
 private:
+    size_t m_StartAddressBytes;
     std::vector<uint8_t> m_Data;
 };
 
@@ -111,7 +114,7 @@ public:
         virtual void dumpRegisters() const = 0;
     };
 
-    RISCV(size_t numInstructionWords = 1024, size_t numDataBytes = 131072);
+    RISCV(size_t numInstructionWords = 1024, size_t numDataBytes = 126976, size_t numSpikeBytes = 4096);
 
     bool run();
     void dumpRegisters() const;
@@ -139,6 +142,9 @@ public:
     
     auto &getScalarDataMemory(){ return m_ScalarDataMemory; }
     const auto &getScalarDataMemory() const{ return m_ScalarDataMemory; }
+
+    auto &getSpikeDataMemory(){ return m_SpikeDataMemory; }
+    const auto &getSpikeDataMemory() const{ return m_SpikeDataMemory; }
 
     void setPC(uint32_t pc){ m_PC = pc; }
     uint32_t getPC() const{ return m_PC; }
@@ -168,6 +174,16 @@ private:
     std::optional<uint32_t> readCSR(uint32_t csr, bool will_write) const;
     bool writeCSR(uint32_t csr, uint32_t val);
 
+    ScalarDataMemory &getScalarMemory(uint32_t addr)
+    {
+        return (addr < m_ScalarDataMemory.getSizeBytes()) ? m_ScalarDataMemory : m_SpikeDataMemory;
+    }
+
+    const ScalarDataMemory &getScalarMemory(uint32_t addr) const
+    {
+        return (addr < m_ScalarDataMemory.getSizeBytes()) ? m_ScalarDataMemory : m_SpikeDataMemory;
+    }
+
     void executeStandardInstruction(uint32_t inst);
     void executeInstruction(uint32_t inst);
 
@@ -181,6 +197,7 @@ private:
 
     InstructionMemory m_InstructionMemory;
     ScalarDataMemory m_ScalarDataMemory;
+    ScalarDataMemory m_SpikeDataMemory;
 
     std::unique_ptr<ICoprocessor> m_Coprocessors[3];
 
