@@ -36,9 +36,7 @@ public:
             m_Cond.notify_all();
         }
 
-        while (gen == m_Generation) {
-            m_Cond.wait(lock);
-        }
+        m_Cond.wait(lock, [gen, this](){ return gen != m_Generation; });
     }
 
 private:
