@@ -1,51 +1,14 @@
 #pragma once
 
 // Standard C++ includes
-//#include <barrier>
-#include <condition_variable>
 #include <optional>
-#include <thread>
 #include <vector>
 
 // Standard C includes
-#include <cassert>
 #include <cstdint>
 
-class Barrier
-{
-public:
-    Barrier(const Barrier&) = delete;
-
-    explicit Barrier(unsigned int count) : m_count(count), m_generation(0), m_resetCount(count)
-    {
-    }
-
-    void wait()
-    {
-        std::unique_lock<std::mutex> lock(m_mutex);
-        unsigned int gen = m_generation;
-
-        if (--m_count == 0)
-        {
-            m_generation++;
-            m_count = m_resetCount;
-            assert(m_count != 0);
-            lock.unlock();
-            m_cond.notify_all();
-        }
-
-        while (gen == m_generation) {
-            m_cond.wait(lock);
-        }
-    }
-
-private:
-    std::mutex m_mutex;
-    std::condition_variable m_cond;
-    unsigned int m_count;
-    unsigned int m_generation;
-    unsigned int m_resetCount;
-};
+// Common includes
+#include "common/barrier.h"
 
 //----------------------------------------------------------------------------
 // SharedBusSim
