@@ -375,7 +375,6 @@ int main(int argc, char** argv)
     const uint32_t inhRefracTimePtr = AppUtils::allocateVectorAndZero(numInh, vectorInitData);
     
     // Allocate scalar arrays
-    const uint32_t spikeBufferPtr = AppUtils::allocateScalarAndZero(4 * (size_t)std::round((numExc + numInh) * (8.0 / 1000.0) * 10), scalarInitData);
     const uint32_t readyFlagPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
 
 #ifdef RECORD_SPIKES
@@ -385,6 +384,9 @@ int main(int argc, char** argv)
 #ifdef RECORD_V
     const uint32_t excVRecordingPtr = AppUtils::allocateScalarAndZero(2 * numTimesteps, scalarInitData);
 #endif
+
+    // Create spike buffer at start of spike memory
+    const uint32_t spikeBufferPtr = 31 * 4096;
 
     const auto initCode = AssemblerUtils::generateStandardKernel(
         !device, readyFlagPtr,
@@ -533,6 +535,7 @@ int main(int argc, char** argv)
             ALLOCATE_SCALAR(SSpike);
 
             ALLOCATE_SCALAR(SSpikeBuffer);
+            ALLOCATE_SCALAR(SSpikeBufferStart);
             ALLOCATE_SCALAR(SSpikeBufferEnd);
 #ifdef RECORD_SPIKES
             ALLOCATE_SCALAR(SExcSpikeRecordingBuffer);
@@ -597,7 +600,8 @@ int main(int argc, char** argv)
             c.li(*SExcVRecordingBuffer, excVRecordingPtr);
 #endif
             // Reset router slave to start writing at beginning of spike buffer
-            c.csrwi(CSR::SLAVE_EVENT_ADDRESS, spikeBufferPtr);
+            c.li(*SSpikeBufferStart, spikeBufferPtr);
+            c.csrw(CSR::SLAVE_EVENT_ADDRESS, *SSpikeBufferStart);
 
             // Loop over time
             c.L(timeLoop);
@@ -607,7 +611,7 @@ int main(int argc, char** argv)
                     Label spikeLoopEnd;
 
                     // Load start and end of this timestep's spike buffer
-                    c.li(*SSpikeBuffer, spikeBufferPtr);
+                    c.mv(*SSpikeBuffer, *SSpikeBufferStart);
                     c.csrr(*SSpikeBufferEnd, CSR::SLAVE_EVENT_ADDRESS);
 
                     // While (spikeBuffer != spikeBufferEnd
@@ -635,7 +639,7 @@ int main(int argc, char** argv)
                 }
                
                 // Reset router slave to start writing at beginning of spike buffer
-                c.csrwi(CSR::SLAVE_EVENT_ADDRESS, spikeBufferPtr);
+                c.csrw(CSR::SLAVE_EVENT_ADDRESS, *SSpikeBufferStart);
 
                 // Wait for all routers to be reset
                 AssemblerUtils::generateRouterBarrier(c, scalarRegisterAllocator, 1);
@@ -774,7 +778,7 @@ int main(int argc, char** argv)
         riscV.addCoprocessor<VectorProcessor>(vectorQuadrant);
 
         // Create simulated DMA controller
-        RouterSim router(sharedBus, riscV.getScalarDataMemory(), 0);
+        RouterSim router(sharedBus, riscV.getSpikeDataMemory(), 0);
         riscV.setRouter(&router);
 
         // Set instructions and init data
