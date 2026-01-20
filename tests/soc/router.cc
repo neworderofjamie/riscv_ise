@@ -37,7 +37,7 @@
 namespace
 {
 void simRouterThread(const std::vector<uint32_t> &code, const std::vector<uint8_t> &scalarInitData,
-                     SharedBusSim &sharedBus, uint32_t coreEventIDBase, uint32_t spikeBitfield,
+                     SharedBusSim &sharedBus, uint32_t coreID, uint32_t spikeBitfield,
                      uint32_t bitfieldPtr, uint32_t eventIDBasePtr, uint32_t spikeQueueEndPtr, 
                      uint32_t spikeQueuePtr, std::vector<uint32_t> &receivedEvents)
 {
@@ -49,13 +49,13 @@ void simRouterThread(const std::vector<uint32_t> &code, const std::vector<uint8_
     // Write bitfield and event ID base to memory
     auto *scalarWordData = reinterpret_cast<uint32_t*>(riscV.getScalarDataMemory().getData());
     scalarWordData[bitfieldPtr / 4] = spikeBitfield;
-    scalarWordData[eventIDBasePtr / 4] = coreEventIDBase;
+    scalarWordData[eventIDBasePtr / 4] = (coreID << 14);
 
     // Add vector co-processor
     riscV.addCoprocessor<VectorProcessor>(vectorQuadrant);
         
     // Create simulated DMA controller
-    RouterSim router(sharedBus, riscV.getScalarDataMemory());
+    RouterSim router(sharedBus, riscV.getScalarDataMemory(), coreID);
     riscV.setRouter(&router);
      
     // Run!
@@ -141,7 +141,7 @@ TEST(Router, Test) {
                 // Create thread
                 std::get<2>(coreData[i]) = std::thread(
                     simRouterThread, std::cref(code), std::cref(scalarInitData),
-                    std::ref(sharedBus), i << 14, std::get<0>(coreData[i]),
+                    std::ref(sharedBus), i, std::get<0>(coreData[i]),
                     bitfieldPtr, eventIDBasePtr, spikeQueueEndPtr, 
                     spikeQueuePtr, std::ref(std::get<1>(coreData[i])));
                 

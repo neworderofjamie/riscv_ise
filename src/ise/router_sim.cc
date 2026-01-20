@@ -21,109 +21,130 @@ constexpr uint32_t barrierEventID = 0xFFFFFFFFull;
 //----------------------------------------------------------------------------
 // RouterSim
 //----------------------------------------------------------------------------
-RouterSim::RouterSim(SharedBusSim &sharedBus, ScalarDataMemory &spikeMemory)
-:   m_SharedBus(sharedBus), m_SpikeMemory(spikeMemory), 
-    m_MasterReady(false), m_ShouldQuit(false), m_Registers{0}, 
-    m_MasterThread(&RouterSim::masterThreadFunc, this),
-    m_SlaveThread(&RouterSim::slaveThreadFunc, this)
+RouterSim::RouterSim(SharedBusSim &sharedBus, ScalarDataMemory &spikeMemory, size_t routerIndex)
+:   m_SharedBus(sharedBus), m_SpikeMemory(spikeMemory), m_RouterIndex(routerIndex), m_Registers{0},
+    m_MasterFSM(MasterFSMState::IDLE), m_CurrentSpikeBitfield(0), m_CurrentEventIDBase(0), m_CurrentSpikeID(0)
 {
-    // Name threads
-    setThreadName(m_MasterThread, "Router master");
-    setThreadName(m_SlaveThread, "Router slave");
-}
-//----------------------------------------------------------------------------
-RouterSim::~RouterSim()
-{
-    // Set flag to kill worker threads
-    m_ShouldQuit = true;
-
-    // If master thread is running
-    if(m_MasterThread.joinable()) {
-        // Signal it
-        {
-            std::lock_guard<std::mutex> lock(m_MasterSpikeQueueMutex);
-            m_MasterSpikeQueueCV.notify_one();
-        }
-
-        // Join
-        m_MasterThread.join();
-    }
-
-    // Join slave thread
-    if(m_SlaveThread.joinable()) {
-        m_SharedBus.get().signalSlaves();
-        m_SlaveThread.join();
-    }
 }
 //----------------------------------------------------------------------------
 void RouterSim::tick()
 {
-    // Ensure master thread is ready
-    {
-        std::unique_lock<std::mutex> masterLock(m_MasterSpikeQueueMutex);
-        m_MasterReadyCV.wait(masterLock, [this](){ return m_MasterReady; });
-    }
+    // Tick MM2S FSM
+    m_MasterFSM.tick(
+        // Enter
+        [this](auto state)
+        {
+        },
+        // Tick
+        [this](auto state, auto transition)
+        {
+            if (state == MasterFSMState::IDLE) {
+                // Put no data on the bus
+                m_SharedBus.get().send(m_RouterIndex, std::nullopt);
 
-    // If a event bitfield has been written to the register
-    if(readReg(Register::MASTER_EVENT_BITFIELD) != 0) {
-        // Acquire master spike queue mutex
-        std::lock_guard<std::mutex> lock(m_MasterSpikeQueueMutex);
+                // Synchronise with other routers and write any received events to memory
+                writeReceivedEvent(m_SharedBus.get().synchronise(m_RouterIndex).first);
 
-        LOGV << "Enqueuing bitfield " << readReg(Register::MASTER_EVENT_BITFIELD);
+                // If a event bitfield has been written to the register
+                if (readReg(Register::MASTER_EVENT_BITFIELD) != 0) {
+                    LOGV << "Serialising bitfield " << readReg(Register::MASTER_EVENT_BITFIELD);
 
-        // Add current bitfield and ID base to master queue
-        m_MasterSpikeQueue.emplace_back(std::make_pair(readReg(Register::MASTER_EVENT_BITFIELD),
-                                                       readReg(Register::MASTER_EVENT_ID_BASE)));
+                    // Copy bitfield and event ID base from CSRs; and reset spike ID
+                    m_CurrentSpikeBitfield = readReg(Register::MASTER_EVENT_BITFIELD);
+                    m_CurrentEventIDBase = readReg(Register::MASTER_EVENT_ID_BASE);
+                    m_CurrentSpikeID = 0;
 
-        // Notify master thread
-        m_MasterSpikeQueueCV.notify_one();
+                    // Start extracting first bit
+                    transition(MasterFSMState::EXTRACT_BIT);
 
-        // Zero register
-        writeReg(Register::MASTER_EVENT_BITFIELD, 0);
-    }
-    // Otherwise, if a barrier should be triggered
-    else if(readReg(Register::MASTER_SEND_BARRIER) != 0) {
-        // Acquire master spike queue mutex
-        std::lock_guard<std::mutex> lock(m_MasterSpikeQueueMutex);
+                    // Zero register
+                    writeReg(Register::MASTER_EVENT_BITFIELD, 0);
+                }
+                // Otherwise, if a barrier should be triggered
+                // **NOTE** events have higher priority as barrier should come after all pending events
+                else if (readReg(Register::MASTER_SEND_BARRIER) != 0) {
+                    LOGV << "Sending barrier";
 
-        LOGV << "Enqueuing barrier";
+                    // Start trying to send barrier
+                    transition(MasterFSMState::WAIT_BARRIER_SENT);
 
-        // Add token to queue
-        m_MasterSpikeQueue.emplace_back(std::nullopt);
-
-        // Notify master thread
-        m_MasterSpikeQueueCV.notify_one();
-
-        // Zero register
-        writeReg(Register::MASTER_SEND_BARRIER, 0);
-    }
-    {
-        // Acquire slave spike queue mutex
-        std::lock_guard<std::mutex> lock(m_SlaveSpikeQueueMutex);
-
-        // If there are any spikes in the slave spike queue
-        uint32_t &address = m_Registers[static_cast<int>(Register::SLAVE_EVENT_ADDRESS)];
-        if(!m_SlaveSpikeQueue.empty()) {
-            // If ID is special barrier ID, increment barrier
-            if(m_SlaveSpikeQueue.front() == barrierEventID) {
-                m_Registers[static_cast<int>(Register::SLAVE_BARRIER_COUNT)]++;
-                PLOGV << "Incremented barrier " << m_Registers[static_cast<int>(Register::SLAVE_BARRIER_COUNT)];
+                    // Zero register
+                    writeReg(Register::MASTER_SEND_BARRIER, 0);
+                }
             }
-            // Otherwise, write spike at front of queue to memory and increment address
-            else {
-                m_SpikeMemory.get().write32(address, m_SlaveSpikeQueue.front());
-                PLOGV << "Writing event " << m_SlaveSpikeQueue.front() << " to " << address;
-                address += 4;
+            else if (state == MasterFSMState::EXTRACT_BIT) {
+                // Put no data on the bus
+                m_SharedBus.get().send(m_RouterIndex, std::nullopt);
+
+                // Synchronise with other routers and write any received events to memory
+                writeReceivedEvent(m_SharedBus.get().synchronise(m_RouterIndex).first);
+
+                // Count trailing zeros
+                const uint32_t numTZ = ctz(m_CurrentSpikeBitfield);
+
+                // Add number of trailing zeros to spike ID
+                m_CurrentSpikeID += numTZ;
+
+                // Shift off bits
+                m_CurrentSpikeBitfield = (numTZ == 31) ? 0 : (m_CurrentSpikeBitfield >> (numTZ + 1));
+
+                // Wait for spike to be sent
+                transition(MasterFSMState::WAIT_SPIKE_SENT);
             }
-            
-            // Pop queue and increment address
-            m_SlaveSpikeQueue.pop_front();
-        }
-    }
+            else if (state == MasterFSMState::WAIT_SPIKE_SENT) {
+                // OR current spike ID with base and put on the bus
+                m_SharedBus.get().send(m_RouterIndex, m_CurrentSpikeID | m_CurrentEventIDBase);
+
+                // Synchronise with other routers
+                const auto syncResult = m_SharedBus.get().synchronise(m_RouterIndex);
+
+                // Synchronise with bus and write any received events to memory
+                writeReceivedEvent(syncResult.first);
+
+                // If OUR event was sent successfully
+                if (syncResult.second) {
+                    // If no spikes left in bitfield, transition to idle
+                    if (m_CurrentSpikeBitfield == 0) {
+                        transition(MasterFSMState::IDLE);
+                    }
+                    // Otherwise
+                    else {
+                        // Increment spike ID to skip over spike
+                        m_CurrentSpikeID++;
+
+                        // Send next spike
+                        transition(MasterFSMState::EXTRACT_BIT);
+                    }
+                }
+            }
+            else if (state == MasterFSMState::WAIT_BARRIER_SENT) {
+                // Put current spike ID on the bus
+                m_SharedBus.get().send(m_RouterIndex, barrierEventID);
+
+                // Synchronise with other routers
+                const auto syncResult = m_SharedBus.get().synchronise(m_RouterIndex);
+
+                // Synchronise with bus and write any received events to memory
+                writeReceivedEvent(syncResult.first);
+
+                // If OUR barrier was sent successfully, go back to idle
+                if (syncResult.second) {
+                    transition(MasterFSMState::IDLE);
+                }
+            }
+        });
 }
 //----------------------------------------------------------------------------
 void RouterSim::writeReg(Register reg, uint32_t val)
 {
+    // Check for event and barrier dropping
+    if (reg == Register::MASTER_EVENT_BITFIELD && readReg(Register::MASTER_EVENT_BITFIELD) != 0) {
+        LOGW << "Writing bitfield when previous bitfield not processed - events will be dropped!";
+    }
+    else if (reg == Register::MASTER_SEND_BARRIER && readReg(Register::MASTER_SEND_BARRIER) != 0) {
+        LOGW << "Writing barrier when previous barrier not processed - deadlock immiment";
+    }
+
     m_Registers[static_cast<int>(reg)] = val;
 }
 //----------------------------------------------------------------------------
@@ -132,80 +153,20 @@ uint32_t RouterSim::readReg(Register reg) const
     return m_Registers[static_cast<int>(reg)];
 }
 //------------------------------------------------------------------------
-void RouterSim::masterThreadFunc()
+void RouterSim::writeReceivedEvent(std::optional<uint32_t> data)
 {
-    // Set master ready flag and notify main thread
-    {
-        std::lock_guard<std::mutex> masterLock(m_MasterSpikeQueueMutex);
-        m_MasterReady = true;
-        m_MasterReadyCV.notify_one();
-    }
-    
-    // While we should keep running
-    while(!m_ShouldQuit) {
-        decltype(m_MasterSpikeQueue)::value_type spike;
-        {
-            // Wait until there are events in master spike queue or we should quit
-            std::unique_lock<std::mutex> masterLock(m_MasterSpikeQueueMutex);
-            m_MasterSpikeQueueCV.wait(masterLock, [this](){ return !m_MasterSpikeQueue.empty() || m_ShouldQuit; });
-
-            // Exit thread loop if we should quit
-            if(m_ShouldQuit) {
-                break;
-            }
-
-            // Read and pop
-            spike = m_MasterSpikeQueue.front();
-            m_MasterSpikeQueue.pop_front();
+    if (data) {
+        // If ID is special barrier ID, increment barrier
+        if (data.value() == barrierEventID) {
+            m_Registers[static_cast<int>(Register::SLAVE_BARRIER_COUNT)]++;
+            PLOGV << "Incremented barrier " << m_Registers[static_cast<int>(Register::SLAVE_BARRIER_COUNT)];
         }
-
-        // If event is a spike not a barrier
-        if(spike) {
-            // While there are bits in bitfield to process
-            PLOGV << "Starting sending bitfield " << spike.value().first;
-            uint32_t spikeID = 0;
-            do {
-                // Count trailing zeros
-                const uint32_t numTZ = ctz(spike.value().first);
-            
-                // Add number of trailing zeros to spike ID
-                spikeID += numTZ;
-
-                // OR spike ID with base
-                const uint32_t eventID = spike.value().second | spikeID;
-                PLOGV << "Sending event " << eventID;
-                m_SharedBus.get().send(eventID);
-
-                // Increment spike ID to skip over spike
-                spikeID++;
-
-                // Shift off bits
-                spike.value().first = (numTZ == 31) ? 0 : (spike.value().first >> (numTZ + 1));
-            } while(spike.value().first != 0);
-        }
-        // Otherwise, send barrier event ID
+        // Otherwise, write spike at front of queue to memory and increment address
         else {
-            PLOGV << "Sending barrier";
-            m_SharedBus.get().send(barrierEventID);
+            uint32_t& address = m_Registers[static_cast<int>(Register::SLAVE_EVENT_ADDRESS)];
+            m_SpikeMemory.get().write32(address, data.value());
+            PLOGV << "Writing event " << data.value() << " to " << address;
+            address += 4;
         }
-    }
-}
-//------------------------------------------------------------------------
-void RouterSim::slaveThreadFunc()
-{
-    // While we should keep running
-    while(!m_ShouldQuit) {
-        // Read spike from shared bus
-        const auto spike = m_SharedBus.get().read(m_ShouldQuit);
-        
-        // Exit thread loop if we should quit
-        if(m_ShouldQuit) {
-            break;
-        }
-
-        // Acquire slave spike queue mutex and add spike to end of queue
-        std::lock_guard<std::mutex> lock(m_SlaveSpikeQueueMutex);
-        PLOGV << "Received event " << spike.value();
-        m_SlaveSpikeQueue.push_back(spike.value());
     }
 }

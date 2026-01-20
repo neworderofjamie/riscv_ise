@@ -1,14 +1,51 @@
 #pragma once
 
 // Standard C++ includes
-#include <atomic>
+//#include <barrier>
 #include <condition_variable>
 #include <optional>
 #include <thread>
+#include <vector>
 
 // Standard C includes
+#include <cassert>
 #include <cstdint>
 
+class Barrier
+{
+public:
+    Barrier(const Barrier&) = delete;
+
+    explicit Barrier(unsigned int count) : m_count(count), m_generation(0), m_resetCount(count)
+    {
+    }
+
+    void wait()
+    {
+        std::unique_lock<std::mutex> lock(m_mutex);
+        unsigned int gen = m_generation;
+
+        if (--m_count == 0)
+        {
+            m_generation++;
+            m_count = m_resetCount;
+            assert(m_count != 0);
+            lock.unlock();
+            m_cond.notify_all();
+        }
+
+        while (gen == m_generation) {
+            m_cond.wait(lock);
+        }
+    }
+
+private:
+    std::mutex m_mutex;
+    std::condition_variable m_cond;
+    unsigned int m_count;
+    unsigned int m_generation;
+    unsigned int m_resetCount;
+};
 
 //----------------------------------------------------------------------------
 // SharedBusSim
@@ -16,46 +53,32 @@
 class SharedBusSim
 {
 public:
-    SharedBusSim(uint32_t numSlaves)
-    :   m_NumSlaves(numSlaves), m_SlaveReadyCount(0)
+    SharedBusSim(size_t numRouters)
+    :   m_NumRouters(numRouters), m_SendData(numRouters), m_NextRouter(0), m_Barrier(m_NumRouters)
     {}
     
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
-    //! Called by master to broadcast value to all slaves
-    //! Blocks until all slaves have received
-    void send(uint32_t value);
+    //! Sets value a router should TRY and transmit
+    void send(size_t routerIndex, std::optional<uint32_t> value) { m_SendData.at(routerIndex) = value; }
     
-    //! Called by slave to read value off bus
-    //! Blocks until there is a value to read or quit set
-    std::optional<uint32_t> read(const std::atomic<bool> &shouldQuit);
-    
-    void signalSlaves();
-
+    //! Read value of shared bus and updates round-robin logic
+    //! **NOTE** blocks until all threads reach this point and read value
+    std::pair<std::optional<uint32_t>, bool> synchronise(size_t routerIndex);
+   
 private:
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
-    //! How many slaves are connected to bus
-    uint32_t m_NumSlaves;
-    
-    //! Mutex, locked by active master for duration of bus write
-    std::mutex m_MasterMutex;
-    
-    //! Mutex used with conditional variables for signalling
-    std::mutex m_SignalMutex;
-    
-    //! Condition variable used by active master to signal slaves that there is data on the bus
-    std::condition_variable m_MasterSlaveCV;
+    //! How many routers are connected to bus
+    size_t m_NumRouters;
 
-    //! Condition variable used by slaves to signal active master that they have read data
-    std::condition_variable m_SlaveMasterCV;
-    
-    //! Data currently on shared bus
-    std::optional<uint32_t> m_Data;
-    
-    //! How many slaves are ready? Used for counting that all slaves are
-    //! ready to receive data and for counting that they all have!
-    uint32_t m_SlaveReadyCount;
+    //! Data each master is trying to transmit
+    std::vector<std::optional<uint32_t>> m_SendData;
+
+    //! Next router to give a chance to send data
+    size_t m_NextRouter;
+
+    Barrier m_Barrier;
 };

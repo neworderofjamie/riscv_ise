@@ -4,81 +4,30 @@
 //----------------------------------------------------------------------------
 // SharedBusSim
 //----------------------------------------------------------------------------
-void SharedBusSim::send(uint32_t value)
+std::pair<std::optional<uint32_t>, bool> SharedBusSim::synchronise(size_t routerIndex)
 {
-    // Try and acquire bus master mutex
-    std::lock_guard<std::mutex> masterLock(m_MasterMutex);
+    m_Barrier.wait();
 
-    // Wait until all slaves are ready
-    {
-        std::unique_lock<std::mutex> signalLock(m_SignalMutex);
-        m_SlaveMasterCV.wait(signalLock, [this]() { return m_SlaveReadyCount == m_NumSlaves; });
+    // Loop through routers
+    std::optional<uint32_t> data;
+    std::optional<size_t> readRouterIndex;
+    for (size_t i = 0; i < m_NumRouters; i++) {
+        // If this router has data
+        const size_t roundRobinIndex = (i + m_NextRouter) % m_NumRouters;
+        data = m_SendData.at(roundRobinIndex);
+        if (data) {
+            // Set index of read master and stop searching
+            readRouterIndex = roundRobinIndex;
+            break;
+        }
     }
-
-    // Send data to slaves
-    {
-        std::lock_guard<std::mutex> signalLock(m_SignalMutex);
-        
-        // Copy value to bus and zero ready count
-        m_SlaveReadyCount = 0;
-        m_Data = value;
-
-        // Notify all slaves that there is data on bus
-        m_MasterSlaveCV.notify_all();
-    }
-
     
-    // Wait until all slaves have read bus value
-    {
-        std::unique_lock<std::mutex> signalLock(m_SignalMutex);
-        m_SlaveMasterCV.wait(signalLock, [this]() { return m_SlaveReadyCount == m_NumSlaves; });
-
-        // Clear bus and zero ready count
-        m_Data = std::nullopt;
-        m_SlaveReadyCount = 0;
-
-        // Notify all slaves that there is NO data on bus
-        m_MasterSlaveCV.notify_all();
-    }
-}
-//----------------------------------------------------------------------------
-std::optional<uint32_t> SharedBusSim::read(const std::atomic<bool> &shouldQuit)
-{
-    // Signal master that we're ready
-    {
-        std::lock_guard<std::mutex> signalLock(m_SignalMutex);
-        m_SlaveReadyCount++;
-
-        // Notify active master that read count has been updated
-        m_SlaveMasterCV.notify_one();
+    // If the event that got sent was ours, update next router
+    // **NOTE** this is an arbitrary choice of thread to update this
+    if (readRouterIndex == routerIndex) {
+        m_NextRouter = (readRouterIndex.value() + 1) % m_NumRouters;
     }
 
-    // Wait until there is data on bus or we should quit
-    std::unique_lock<std::mutex> signalLock(m_SignalMutex);
-    m_MasterSlaveCV.wait(signalLock, [this, &shouldQuit]() { return m_Data.has_value() || shouldQuit; });
-
-    // If there's data
-    if(m_Data.has_value()) {
-        // Stash/print received data and increment read counter
-        const uint32_t value = m_Data.value();
-        m_SlaveReadyCount++;
-
-        // Notify active master that read count has been updated
-        m_SlaveMasterCV.notify_one();
-
-        // Wait until master clears bus
-        m_MasterSlaveCV.wait(signalLock, [this]() { return !m_Data.has_value(); });
-    
-        return value;
-    }
-    // Otherwise, return nullopt
-    else {
-        return std::nullopt;
-    }
-}
-//----------------------------------------------------------------------------
-void SharedBusSim::signalSlaves()
-{
-    std::lock_guard<std::mutex> signalLock(m_SignalMutex);
-    m_MasterSlaveCV.notify_all();
+    // Return read data and whether the event that got send was 'ours'
+    return std::make_pair(data, readRouterIndex == routerIndex);
 }

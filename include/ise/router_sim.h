@@ -2,16 +2,15 @@
 
 // Standard C++ includes
 #include <array>
-#include <atomic>
-#include <condition_variable>
-#include <deque>
 #include <functional>
-#include <mutex>
 #include <optional>
-#include <thread>
 
 // Standard C includes
 #include <cstdint>
+
+// ISE includes
+#include "ise/fsm.h"
+#include "ise/ise_export.h"
 
 // Forward declarations
 class ScalarDataMemory;
@@ -20,7 +19,7 @@ class SharedBusSim;
 //----------------------------------------------------------------------------
 // RouterSim
 //----------------------------------------------------------------------------
-class RouterSim
+class ISE_EXPORT RouterSim
 {
 public:
     //------------------------------------------------------------------------
@@ -37,8 +36,7 @@ public:
         MAX,
     };
 
-    RouterSim(SharedBusSim &sharedBus, ScalarDataMemory &spikeMemory);
-    ~RouterSim();
+    RouterSim(SharedBusSim &sharedBus, ScalarDataMemory &spikeMemory, size_t routerIndex);
 
     // Update state every clock cycle
     void tick();
@@ -51,12 +49,20 @@ public:
 
 private:
     //------------------------------------------------------------------------
-    // Private methods
+    // Enumerations
     //------------------------------------------------------------------------
-    void masterThreadFunc();
-    
-    //! Thread functin
-    void slaveThreadFunc();
+    enum class MasterFSMState
+    {
+        IDLE,
+        EXTRACT_BIT,
+        WAIT_SPIKE_SENT,
+        WAIT_BARRIER_SENT,
+    };
+
+    //------------------------------------------------------------------------
+    // Methods
+    //------------------------------------------------------------------------
+    void writeReceivedEvent(std::optional<uint32_t> data);
 
     //------------------------------------------------------------------------
     // Members
@@ -67,38 +73,21 @@ private:
     //! Spike memory to write spikes to
     std::reference_wrapper<ScalarDataMemory> m_SpikeMemory;
 
-    //! Queue of bases and bitfields to send via master interface
-    std::deque<std::optional<std::pair<uint32_t, uint32_t>>> m_MasterSpikeQueue;
+    //! Index of this router on shared bus
+    size_t m_RouterIndex;
 
-    //! Mutex guarding master spike queue
-    std::mutex m_MasterSpikeQueueMutex;
+    // FSMs
+    FSM<MasterFSMState> m_MasterFSM;
 
-    //! Condition variable used to signal master thread when there are spikes
-    std::condition_variable m_MasterSpikeQueueCV;
-
-    //! Condition variable used by master thread to signal it's ready
-    std::condition_variable m_MasterReadyCV;
-
-    //! Is master thread ready?
-    bool m_MasterReady;
-
-    //! Queue of spikes received via slave interface to write to BRAM
-    std::deque<uint32_t> m_SlaveSpikeQueue;
-
-    //! Mutex guarding slave spike queue
-    std::mutex m_SlaveSpikeQueueMutex;
-
-    // Registers
+    //! Registers
     std::array<uint32_t, static_cast<size_t>(Register::MAX)> m_Registers;
 
-    //! Signal used to kill master and slave threads
-    std::atomic<bool> m_ShouldQuit;
-    
-    //! Master thread - handles writing data from spike queue to simulated bus
-    std::thread m_MasterThread;
+    //! Bitfield currently being decoded
+    uint32_t m_CurrentSpikeBitfield;
 
-    //! Slave thread - handles reading packets from simulated bus
-    std::thread m_SlaveThread;
+    //!
+    uint32_t m_CurrentEventIDBase;
 
-   
+    //! Spike router is currently waiting to write
+    uint32_t m_CurrentSpikeID;
 };
