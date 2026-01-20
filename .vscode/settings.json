@@ -5,6 +5,9 @@
         "MIMode": "gdb",
         "program": "${workspaceFolder}/tests/soc/test_debug",
         "cwd": "${workspaceFolder}/tests/soc",
+        "setupCommands": [
+            { "text": "-enable-pretty-printing", "description": "enable pretty printing", "ignoreFailures": true },
+        ]
     },
     "files.exclude": {
         "obj/": true,
