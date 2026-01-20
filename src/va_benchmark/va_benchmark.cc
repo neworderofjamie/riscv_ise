@@ -774,7 +774,7 @@ int main(int argc, char** argv)
         riscV.addCoprocessor<VectorProcessor>(vectorQuadrant);
 
         // Create simulated DMA controller
-        RouterSim router(sharedBus, riscV.getScalarDataMemory());
+        RouterSim router(sharedBus, riscV.getScalarDataMemory(), 0);
         riscV.setRouter(&router);
 
         // Set instructions and init data
