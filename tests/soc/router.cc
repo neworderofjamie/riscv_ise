@@ -55,7 +55,7 @@ void simRouterThread(const std::vector<uint32_t> &code, const std::vector<uint8_
     riscV.addCoprocessor<VectorProcessor>(vectorQuadrant);
         
     // Create simulated DMA controller
-    RouterSim router(sharedBus, riscV.getScalarDataMemory(), coreID);
+    RouterSim router(sharedBus, riscV.getSpikeDataMemory(), coreID);
     riscV.setRouter(&router);
      
     // Run!
@@ -63,10 +63,11 @@ void simRouterThread(const std::vector<uint32_t> &code, const std::vector<uint8_
         FAIL();
     }
 
-    // Copy spikes received into vecto
+    // Copy spikes received into vector
+    const auto *spikeWordData = reinterpret_cast<uint32_t*>(riscV.getSpikeDataMemory().getData());
     const uint32_t spikeQueueEnd = scalarWordData[spikeQueueEndPtr / 4];
-    std::copy(scalarWordData + (spikeQueuePtr / 4), 
-              scalarWordData + (spikeQueueEnd / 4),
+    std::copy(spikeWordData + ((spikeQueuePtr - riscV.getScalarDataMemory().getSizeBytes()) / 4), 
+              spikeWordData + ((spikeQueueEnd - riscV.getScalarDataMemory().getSizeBytes())/ 4),
               std::back_inserter(receivedEvents));
 }
 }
@@ -86,7 +87,7 @@ TEST(Router, Test) {
     const uint32_t bitfieldPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
     const uint32_t eventIDBasePtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
     const uint32_t spikeQueueEndPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
-    const uint32_t spikeQueuePtr = AppUtils::allocateScalarAndZero(4 * 64, scalarInitData);
+    const uint32_t spikeQueuePtr = 31 * 4096;
 
     // Generate code
     const auto code = AssemblerUtils::generateStandardKernel(
@@ -101,7 +102,11 @@ TEST(Router, Test) {
             }
 
             // Configure spike queue address
-            c.csrwi(CSR::SLAVE_EVENT_ADDRESS, spikeQueuePtr);
+            {
+                ALLOCATE_SCALAR(STmp);
+                c.li(*STmp, spikeQueuePtr);
+                c.csrw(CSR::SLAVE_EVENT_ADDRESS, *STmp);
+            }
 
             // Wait on barrier
             AssemblerUtils::generateRouterBarrier(c, scalarRegisterAllocator, 2);
