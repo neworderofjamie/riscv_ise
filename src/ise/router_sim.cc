@@ -32,7 +32,7 @@ void RouterSim::tick()
     // Tick MM2S FSM
     m_MasterFSM.tick(
         // Enter
-        [this](auto state)
+        [this](auto)
         {
         },
         // Tick
@@ -58,7 +58,7 @@ void RouterSim::tick()
                     transition(MasterFSMState::EXTRACT_BIT);
 
                     // Zero register
-                    writeReg(Register::MASTER_EVENT_BITFIELD, 0);
+                    writeRegInternal(Register::MASTER_EVENT_BITFIELD, 0);
                 }
                 // Otherwise, if a barrier should be triggered
                 // **NOTE** events have higher priority as barrier should come after all pending events
@@ -69,7 +69,7 @@ void RouterSim::tick()
                     transition(MasterFSMState::WAIT_BARRIER_SENT);
 
                     // Zero register
-                    writeReg(Register::MASTER_SEND_BARRIER, 0);
+                    writeRegInternal(Register::MASTER_SEND_BARRIER, 0);
                 }
             }
             else if (state == MasterFSMState::EXTRACT_BIT) {
@@ -144,8 +144,7 @@ void RouterSim::writeReg(Register reg, uint32_t val)
     else if (reg == Register::MASTER_SEND_BARRIER && readReg(Register::MASTER_SEND_BARRIER) != 0) {
         LOGW << "Writing barrier when previous barrier not processed - deadlock immiment";
     }
-
-    m_Registers[static_cast<int>(reg)] = val;
+    writeRegInternal(reg, val);
 }
 //----------------------------------------------------------------------------
 uint32_t RouterSim::readReg(Register reg) const
@@ -169,4 +168,9 @@ void RouterSim::writeReceivedEvent(std::optional<uint32_t> data)
             address += 4;
         }
     }
+}
+//----------------------------------------------------------------------------
+void RouterSim::writeRegInternal(Register reg, uint32_t val)
+{
+    m_Registers[static_cast<int>(reg)] = val;
 }

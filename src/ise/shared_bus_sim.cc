@@ -6,6 +6,7 @@
 //----------------------------------------------------------------------------
 std::pair<std::optional<uint32_t>, bool> SharedBusSim::synchronise(size_t routerIndex)
 {
+    // Wait until all threads have written data
     m_Barrier.wait();
 
     // Loop through routers
@@ -27,6 +28,9 @@ std::pair<std::optional<uint32_t>, bool> SharedBusSim::synchronise(size_t router
     if (readRouterIndex == routerIndex) {
         m_NextRouter = (readRouterIndex.value() + 1) % m_NumRouters;
     }
+
+    // Wait until next router has definitely been updated
+    m_Barrier.wait();
 
     // Return read data and whether the event that got send was 'ours'
     return std::make_pair(data, readRouterIndex == routerIndex);
