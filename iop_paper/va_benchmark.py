@@ -18,14 +18,14 @@ from time import perf_counter
 
 class CUBALIF:
     def __init__(self, shape, tau_m: float, tau_syn_exc: float, tau_syn_inh, 
-                 tau_refrac: int, v_thresh: float, i_offset: float = 0.0,
-                 num_timesteps: int = 1, name: str = ""):
+                 tau_refrac: int, v_thresh: float, weight_dtype: str, 
+                 i_offset: float = 0.0, num_timesteps: int = 1, name: str = ""):
         self.shape = shape
         dtype = "s5_10_sat_t"
         decay_dtype = "s0_15_sat_t"
         self.v = Variable(self.shape, dtype, name=f"{name}_V")
-        self.i_exc = Variable(self.shape, "s2_13_sat_t", name=f"{name}_IExc")
-        self.i_inh = Variable(self.shape, "s2_13_sat_t", name=f"{name}_IInh")
+        self.i_exc = Variable(self.shape, weight_dtype, name=f"{name}_IExc")
+        self.i_inh = Variable(self.shape, weight_dtype, name=f"{name}_IInh")
         self.refrac_time = Variable(self.shape, "int16_t", 
                                     name=f"{name}_RefracTime")
         self.out_spikes = EventContainer(self.shape, num_timesteps + 1)
@@ -78,7 +78,8 @@ def build_dense_connectivity(row_ind, weight, num_post):
     return weights
     
 def simulate_fenn(device, num_excitatory=2048, num_timesteps=1000, dense=False,
-                  probability_connection = 0.1, use_dram_for_weights=True, disassemble_code=False):
+                  probability_connection = 0.1, use_dram_for_weights=True, disassemble_code=False,
+                  weight_bits=13, i_offset=0.55):
     
     excitatory_inhibitory_ratio = 4
     num_inhibitory = num_excitatory // excitatory_inhibitory_ratio
@@ -101,57 +102,58 @@ def simulate_fenn(device, num_excitatory=2048, num_timesteps=1000, dense=False,
     ee_conn = generate_fixed_prob(num_excitatory, num_excitatory, probability_connection)
     ei_conn = generate_fixed_prob(num_excitatory, num_inhibitory, probability_connection)
 
-    print(f"\tWeight inhibitory: {int(round(inh_weight * 2**13))} ({inh_weight}), excitatory: {int(round(exc_weight * 2**13))} ({exc_weight})")
+    print(f"\tWeight inhibitory: {int(round(inh_weight * 2**weight_bits))} ({inh_weight}), excitatory: {int(round(exc_weight * 2**weight_bits))} ({exc_weight})")
     
     if dense:
-        ie_conn = build_dense_connectivity(ie_conn, int(round(inh_weight * 2**13)), num_excitatory)
-        ii_conn = build_dense_connectivity(ii_conn, int(round(inh_weight * 2**13)), num_inhibitory)
-        ee_conn = build_dense_connectivity(ee_conn, int(round(exc_weight * 2**13)), num_excitatory)
-        ei_conn = build_dense_connectivity(ei_conn, int(round(exc_weight * 2**13)), num_inhibitory)
+        ie_conn = build_dense_connectivity(ie_conn, int(round(inh_weight * 2**weight_bits)), num_excitatory)
+        ii_conn = build_dense_connectivity(ii_conn, int(round(inh_weight * 2**weight_bits)), num_inhibitory)
+        ee_conn = build_dense_connectivity(ee_conn, int(round(exc_weight * 2**weight_bits)), num_excitatory)
+        ei_conn = build_dense_connectivity(ei_conn, int(round(exc_weight * 2**weight_bits)), num_inhibitory)
     else:
-        ie_conn = build_sparse_connectivity(ie_conn, int(round(inh_weight * 2**13)), num_exc_sparse_connectivity_bits)
-        ii_conn = build_sparse_connectivity(ii_conn, int(round(inh_weight * 2**13)), num_inh_sparse_connectivity_bits)
-        ee_conn = build_sparse_connectivity(ee_conn, int(round(exc_weight * 2**13)), num_exc_sparse_connectivity_bits)
-        ei_conn = build_sparse_connectivity(ei_conn, int(round(exc_weight * 2**13)), num_inh_sparse_connectivity_bits)
+        ie_conn = build_sparse_connectivity(ie_conn, int(round(inh_weight * 2**weight_bits)), num_exc_sparse_connectivity_bits)
+        ii_conn = build_sparse_connectivity(ii_conn, int(round(inh_weight * 2**weight_bits)), num_inh_sparse_connectivity_bits)
+        ee_conn = build_sparse_connectivity(ee_conn, int(round(exc_weight * 2**weight_bits)), num_exc_sparse_connectivity_bits)
+        ei_conn = build_sparse_connectivity(ei_conn, int(round(exc_weight * 2**weight_bits)), num_inh_sparse_connectivity_bits)
 
         print(f"\tNum sparse connectivity bits excitatory: {num_exc_sparse_connectivity_bits}, inhibitory: {num_inh_sparse_connectivity_bits}")
         print(f"\tMean row length ee:{np.average(ee_conn[:,0]) * 32} ei:{np.average(ei_conn[:,0]) * 32} ii:{np.average(ii_conn[:,0]) * 32} ie:{np.average(ie_conn[:,0]) * 32}")
     print(f"\tStride ee:{ee_conn.shape[1]} ei:{ei_conn.shape[1]} ii:{ii_conn.shape[1]} ie:{ie_conn.shape[1]}")
 
     # Neurons
+    weight_dtype = f"s{15-weight_bits}_{weight_bits}_sat_t"
     e_pop = CUBALIF(num_excitatory, tau_m=20.0, tau_syn_exc=5.0, tau_syn_inh=10.0,
-                    tau_refrac=5, v_thresh=10, i_offset=0.55,
-                    num_timesteps=num_timesteps_per_block, name="E")
+                    tau_refrac=5, v_thresh=10, i_offset=i_offset,
+                    num_timesteps=num_timesteps_per_block, weight_dtype=weight_dtype, name="E")
 
     i_pop = CUBALIF(num_inhibitory, tau_m=20.0, tau_syn_exc=5.0, tau_syn_inh=10.0,
-                    tau_refrac=5, v_thresh=10, i_offset=0.55,
-                    num_timesteps=num_timesteps_per_block, name="I")
+                    tau_refrac=5, v_thresh=10, i_offset=i_offset,
+                    num_timesteps=num_timesteps_per_block, weight_dtype=weight_dtype, name="I")
 
     # Synapses
     if dense:
         ee_pop = Linear(e_pop.out_spikes, e_pop.i_exc,
-                        weight_dtype="s2_13_sat_t", name="EE")
+                        weight_dtype=weight_dtype, name="EE")
         ei_pop = Linear(e_pop.out_spikes, i_pop.i_exc,
-                        weight_dtype="s2_13_sat_t", name="EI")
+                        weight_dtype=weight_dtype, name="EI")
         ii_pop = Linear(i_pop.out_spikes, i_pop.i_inh,
-                        weight_dtype="s2_13_sat_t", name="II")
+                        weight_dtype=weight_dtype, name="II")
         ie_pop = Linear(i_pop.out_spikes, e_pop.i_inh,
-                        weight_dtype="s2_13_sat_t", name="IE")
+                        weight_dtype=weight_dtype, name="IE")
     else:
         ee_pop = Linear(e_pop.out_spikes, e_pop.i_exc,
-                        weight_dtype="s2_13_sat_t", max_row_length=ee_conn.shape[1],
+                        weight_dtype=weight_dtype, max_row_length=ee_conn.shape[1],
                         num_sparse_connectivity_bits=None if dense else num_exc_sparse_connectivity_bits, 
                         name="EE")
         ei_pop = Linear(e_pop.out_spikes, i_pop.i_exc,
-                        weight_dtype="s2_13_sat_t", max_row_length=ei_conn.shape[1],
+                        weight_dtype=weight_dtype, max_row_length=ei_conn.shape[1],
                         num_sparse_connectivity_bits=None if dense else num_inh_sparse_connectivity_bits, 
                         name="EI")
         ii_pop = Linear(i_pop.out_spikes, i_pop.i_inh,
-                        weight_dtype="s2_13_sat_t", max_row_length=ii_conn.shape[1],
+                        weight_dtype=weight_dtype, max_row_length=ii_conn.shape[1],
                         num_sparse_connectivity_bits=num_inh_sparse_connectivity_bits, 
                         name="II")
         ie_pop = Linear(i_pop.out_spikes, e_pop.i_inh,
-                        weight_dtype="s2_13_sat_t", max_row_length=ie_conn.shape[1],
+                        weight_dtype=weight_dtype, max_row_length=ie_conn.shape[1],
                         num_sparse_connectivity_bits=num_exc_sparse_connectivity_bits, 
                         name="IE")
 
@@ -165,7 +167,7 @@ def simulate_fenn(device, num_excitatory=2048, num_timesteps=1000, dense=False,
     i_zero_processes = ProcessGroup([ee_zero.process, ei_zero.process,
                                     ie_zero.process, ii_zero.process])
     neuron_update_processes = ProcessGroup([e_pop.process, i_pop.process],
-                                        PerformanceCounter())
+                                           PerformanceCounter())
     synapse_update_processes = ProcessGroup([ee_pop.process, ei_pop.process,
                                             ii_pop.process, ie_pop.process],
                                             PerformanceCounter())
@@ -294,15 +296,15 @@ with open(f"va_benchmark_{device}_perf.csv", "w") as csv_file:
                          "Num neuron update cycles", "Num event processing cycles", "EE stride", "EI stride", "II stride", "IE stride"])
 
     # Build configs
-    configs = ([(256, True, 0.1), (256, False, 0.1)]                # URAM configurations
-               + [(e, True, 0.1) for e in range(512, 12801, 512)]   # 90% sparse DRAM configurations
-               + [(12800, True, 0.25), (10000, True, 0.01)])        # Configurations for comparison with other systems
+    configs = ([(256, True, 0.1, 13, 0.55), (256, False, 0.1, 13, 0.55)]        # URAM configurations
+               + [(e, True, 0.1, 13, 0.55) for e in range(512, 12801, 512)]     # 90% sparse DRAM configurations
+               + [(12800, True, 0.25, 13, 0.55), (10000, True, 0.01, 10, 0.8)]) # Configurations for comparison with other systems
     
     if plot:
         fig, axes = plt.subplots(2, len(configs), sharex="col")
     
     # Loop through configurations
-    for j, (num_excitatory, use_dram_for_weights, probability_connection) in enumerate(configs):
+    for j, (num_excitatory, use_dram_for_weights, probability_connection, weight_bits, i_offset) in enumerate(configs):
         # Run simulation
         print(f"{num_excitatory} neurons using {'DRAM' if use_dram_for_weights else 'URAM'} for weights")
         
@@ -310,7 +312,8 @@ with open(f"va_benchmark_{device}_perf.csv", "w") as csv_file:
         for i, dense in enumerate([True, False]):
             data = simulate_fenn(device, num_excitatory=num_excitatory, num_timesteps=1000,
                                  dense=dense, probability_connection=probability_connection,
-                                 use_dram_for_weights=use_dram_for_weights, disassemble_code=False)
+                                 use_dram_for_weights=use_dram_for_weights, weight_bits=weight_bits,
+                                 i_offset=i_offset, disassemble_code=False)
             
             # Write CSV
             csv_writer.writerow([num_excitatory, use_dram_for_weights, dense, probability_connection,
