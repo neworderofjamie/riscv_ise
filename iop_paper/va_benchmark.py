@@ -298,7 +298,7 @@ with open(f"va_benchmark_{device}_perf.csv", "w") as csv_file:
     # Build configs
     configs = ([(256, True, 0.1, 13, 0.55), (256, False, 0.1, 13, 0.55)]        # URAM configurations
                + [(e, True, 0.1, 13, 0.55) for e in range(512, 12801, 512)]     # 90% sparse DRAM configurations
-               + [(12800, True, 0.25, 13, 0.55), (10000, True, 0.01, 10, 0.8)]) # Configurations for comparison with other systems
+               + [(12800, True, 0.25, 13, 0.55), (8000, True, 0.01, 10, 0.8)]) # Configurations for comparison with other systems
     
     if plot:
         fig, axes = plt.subplots(2, len(configs), sharex="col")
