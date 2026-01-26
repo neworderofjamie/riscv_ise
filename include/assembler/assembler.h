@@ -106,7 +106,7 @@ public:
         reset();
     }
 
-     ~CodeGenerator()
+    ~CodeGenerator()
     {
         resetLabelPtrList();
     }
@@ -117,7 +117,7 @@ public:
     Label L() { Label label; L(label); return label; }
   
     bool hasUndefinedLabel() const { return hasUndefClabel(); }
-    const auto &getCode() const{ return code_; }
+    const auto &getCode() const{ return m_Code; }
 
     void add(Reg rd, Reg rs1, Reg rs2) { Rtype(StandardOpCode::OP, 0, 0x0, rd, rs1, rs2); }
     void sub(Reg rd, Reg rs1, Reg rs2) { Rtype(StandardOpCode::OP, 0, 0x20, rd, rs1, rs2); }
@@ -346,52 +346,62 @@ private:
     //------------------------------------------------------------------------
     void reset()
     {
-        labelId_ = 1;
-        clabelDefList_.clear();
-        clabelUndefList_.clear();
+        m_LabelID = 1;
+        m_LabelDefList.clear();
+        m_LabelUndefList.clear();
         resetLabelPtrList();
     }
     void defineClabel(Label& label)
     {
-        define_inner(clabelDefList_, clabelUndefList_, getId(label), getCurr());
+        define_inner(m_LabelDefList, m_LabelUndefList, getId(label), getCurr());
         label.cg = this;
-        labelPtrList_.insert(&label);
+        m_LabelPtrList.insert(&label);
     }
     void assign(Label& dst, const Label& src)
     {
-        ClabelDefList::const_iterator i = clabelDefList_.find(src.id);
-        if (i == clabelDefList_.end()) throw Error(ERR_LABEL_IS_NOT_SET_BY_L);
-        define_inner(clabelDefList_, clabelUndefList_, dst.id, i->second.addr);
-        dst.cg = this;
-        labelPtrList_.insert(&dst);
+        const auto i = m_LabelDefList.find(src.id);
+        if (i == m_LabelDefList.end()) {
+            throw Error(ERR_LABEL_IS_NOT_SET_BY_L);
+        }
+        else {
+            define_inner(m_LabelDefList, m_LabelUndefList, dst.id, i->second.addr);
+            dst.cg = this;
+            m_LabelPtrList.insert(&dst);
+        }
     }
     // return 0 unless label exists
     uint32_t getAddr(const Label& label) const
     {
-        ClabelDefList::const_iterator i = clabelDefList_.find(getId(label));
-        if (i == clabelDefList_.end()) return 0;
-        return i->second.addr;
+        const auto  i = m_LabelDefList.find(getId(label));
+        if (i == m_LabelDefList.end()) {
+            return 0;
+        }
+        else {
+            return i->second.addr;
+        }
     }
     void addUndefinedLabel(const Label& label, const Jmp& jmp)
     {
-        clabelUndefList_.insert(ClabelUndefList::value_type(label.id, jmp));
+        m_LabelUndefList.insert(ClabelUndefList::value_type(label.id, jmp));
     }
-    bool hasUndefClabel() const { return hasUndefinedLabel_inner(clabelUndefList_); }
+    bool hasUndefClabel() const { return hasUndefinedLabel_inner(m_LabelUndefList); }
     
     int getId(const Label& label) const
     {
-        if (label.id == 0) label.id = labelId_++;
+        if (label.id == 0) label.id = m_LabelID++;
         return label.id;
     }
     void define_inner(ClabelDefList& defList, ClabelUndefList& undefList, int labelId, uint32_t addr)
     {
         // add label
         ClabelDefList::value_type item(labelId, addr);
-        std::pair<ClabelDefList::iterator, bool> ret = defList.insert(item);
-        if (!ret.second) throw Error(ERR_LABEL_IS_REDEFINED);
+        const auto ret = defList.insert(item);
+        if (!ret.second) {
+            throw Error(ERR_LABEL_IS_REDEFINED);
+        }
         // search undefined label
         for (;;) {
-            ClabelUndefList::iterator itr = undefList.find(labelId);
+            const auto itr = undefList.find(labelId);
             if (itr == undefList.end()) break;
             const Jmp& jmp = itr->second;
             jmp.update(this);
@@ -401,18 +411,23 @@ private:
 
     void incRefCount(int id, Label *label)
     {
-        clabelDefList_[id].refCount++;
-        labelPtrList_.insert(label);
+        m_LabelDefList[id].refCount++;
+        m_LabelPtrList.insert(label);
     }
     void decRefCount(int id, Label *label)
     {
-        labelPtrList_.erase(label);
-        ClabelDefList::iterator i = clabelDefList_.find(id);
-        if (i == clabelDefList_.end()) return;
-        if (i->second.refCount == 1) {
-            clabelDefList_.erase(id);
-        } else {
-            --i->second.refCount;
+        m_LabelPtrList.erase(label);
+        ClabelDefList::iterator i = m_LabelDefList.find(id);
+        if (i == m_LabelDefList.end()) {
+            return;
+        }
+        else {
+            if (i->second.refCount == 1) {
+                m_LabelDefList.erase(id);
+            }
+            else {
+                --i->second.refCount;
+            }
         }
     }
 
@@ -424,22 +439,22 @@ private:
     // detach all labels linked to LabelManager
     void resetLabelPtrList()
     {
-        for (LabelPtrList::iterator i = labelPtrList_.begin(), ie = labelPtrList_.end(); i != ie; ++i) {
+        for (LabelPtrList::iterator i = m_LabelPtrList.begin(), ie = m_LabelPtrList.end(); i != ie; ++i) {
             (*i)->clear();
         }
-        labelPtrList_.clear();
+        m_LabelPtrList.clear();
     }
 
-    void append4B(uint32_t code) { code_.push_back(code); }
+    void append4B(uint32_t code) { m_Code.push_back(code); }
     
     void write4B(size_t offset, uint32_t v) 
     {
         assert((offset & 3) == 0);
-        code_.at(offset / 4) = v; 
+        m_Code.at(offset / 4) = v; 
     }
 
     // **TODO**  add code base address
-    uint32_t getCurr() const{ return static_cast<uint32_t>(code_.size()) * 4; }
+    uint32_t getCurr() const{ return static_cast<uint32_t>(m_Code.size()) * 4; }
     
     void opJmp(const Label& label, const Jmp& jmp)
     {
@@ -510,10 +525,10 @@ private:
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
-    std::vector<uint32_t> code_;    
-    mutable int labelId_;
-    ClabelDefList clabelDefList_;
-    ClabelUndefList clabelUndefList_;
-    LabelPtrList labelPtrList_;
+    std::vector<uint32_t> m_Code;
+    mutable int m_LabelID;
+    ClabelDefList m_LabelDefList;
+    ClabelUndefList m_LabelUndefList;
+    LabelPtrList m_LabelPtrList;
 };
 

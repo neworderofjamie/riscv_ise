@@ -139,7 +139,8 @@ uint32_t CodeGenerator::Jmp::encode(uint32_t addr) const
             throw Error(ERR_INVALID_IMM_OF_JAL);
         }
         return get20_10to1_11_19to12_z12(imm) | encoded;
-    } else {
+    } 
+    else {
         if (!isValidImm(imm, 12)) {
             throw Error(ERR_INVALID_IMM_OF_JAL);
         }
