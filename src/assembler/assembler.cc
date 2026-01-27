@@ -45,6 +45,33 @@ const char *Error::what() const noexcept
 //----------------------------------------------------------------------------
 // CodeGenerator
 //----------------------------------------------------------------------------
+CodeGenerator &CodeGenerator::operator += (const CodeGenerator& other)
+{
+    // Get address of end of code
+    const uint32_t curr = getCurr();
+
+    // Concatenate code
+    m_Code.reserve(m_Code.size() + other.m_Code.size());
+    m_Code.insert(m_Code.end(), other.m_Code.cbegin(), other.m_Code.cend());
+
+    // Loop through addresses of labels declared in other code generator
+    for (auto l : other.m_LabelAddresses) {
+        // Try and add to our label addresses, updating with address
+        if (!m_LabelAddresses.try_emplace(l.first, l.second + curr).second) {
+            throw Error(AssemblerError::LABEL_IS_REDEFINED);
+        }
+    }
+
+    // Loop through jumps declared in other code generator and copy, updating addresses
+    for (auto l : other.m_LabelJumps) {
+        m_LabelJumps.emplace(std::piecewise_construct,
+                             std::forward_as_tuple(l.first),
+                             std::forward_as_tuple(l.second, curr));
+    }
+    
+    return *this;
+}
+//----------------------------------------------------------------------------
 std::vector<uint32_t> CodeGenerator::getCode() const
 {
     // Copy code

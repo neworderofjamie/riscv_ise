@@ -93,6 +93,8 @@ public:
             return i->second;
         }
     }
+
+    CodeGenerator &operator += (const CodeGenerator& other);
   
     std::vector<uint32_t> getCode() const;
 
@@ -275,6 +277,11 @@ private:
         Jmp(uint32_t from, Bit<7> opcode, uint32_t funct3, Reg src1, Reg src2)
         :   m_Type(Type::BTYPE), m_From(from),
             m_Encoded((static_cast<uint32_t>(src2) << 20) | (static_cast<uint32_t>(src1) << 15) | (funct3 << 12) | opcode)
+        {
+        }
+
+        Jmp(const Jmp &other, uint32_t offset)
+        :   m_From(other.m_From + offset), m_Encoded(other.m_Encoded), m_Type(other.m_Type)
         {
         }
 
