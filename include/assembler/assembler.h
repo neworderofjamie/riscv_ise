@@ -34,8 +34,8 @@
 // Forward declarations
 class CodeGenerator;
 
-BETTER_ENUM(AssemblerError, int, OFFSET_IS_TOO_BIG, IMM_IS_TOO_BIG, INVALID_IMM_OF_JAL, INVALID_IMM_OF_BTYPE,
-            LABEL_IS_NOT_FOUND, LABEL_IS_REDEFINED, LABEL_IS_NOT_SET_BY_L, LABEL_IS_ALREADY_SET_BY_L, INTERNAL)
+BETTER_ENUM(AssemblerError, int, OFFSET_IS_TOO_BIG, IMM_IS_TOO_BIG, INVALID_IMM_OF_JAL, 
+            INVALID_IMM_OF_BTYPE, LABEL_IS_NOT_FOUND, LABEL_IS_REDEFINED)
 
 //----------------------------------------------------------------------------
 // Error
@@ -67,7 +67,14 @@ public:
         return std::make_shared<std::byte>(std::byte{0});
     }
 
-    void L(Label label) { defineClabel(label); }
+    void L(Label label)
+    {
+        const auto ret = m_LabelAddresses.try_emplace(label, getCurr());
+        if (!ret.second) {
+            throw Error(AssemblerError::LABEL_IS_REDEFINED);
+        }
+    }
+
     Label L()
     { 
         auto label = createLabel(); 
@@ -87,8 +94,7 @@ public:
         }
     }
   
-    bool hasUndefinedLabel() const { return !m_UndefinedLabelJumps.empty(); }
-    const auto &getCode() const{ return m_Code; }
+    std::vector<uint32_t> getCode() const;
 
     void add(Reg rd, Reg rs1, Reg rs2) { Rtype(StandardOpCode::OP, 0, 0x0, rd, rs1, rs2); }
     void sub(Reg rd, Reg rs1, Reg rs2) { Rtype(StandardOpCode::OP, 0, 0x20, rd, rs1, rs2); }
@@ -257,7 +263,6 @@ private:
         {
             JAL,
             BTYPE,
-            RAW_ADDRESS,
         };
 
     public:
@@ -272,13 +277,8 @@ private:
             m_Encoded((static_cast<uint32_t>(src2) << 20) | (static_cast<uint32_t>(src1) << 15) | (funct3 << 12) | opcode)
         {
         }
-        // raw address
-        explicit Jmp(uint32_t from)
-        :   m_Type(Type::RAW_ADDRESS), m_From(from), m_Encoded(0)
-        {
-        }
 
-        uint32_t encode(std::optional<uint32_t> addr) const;
+        uint32_t encode(uint32_t addr) const;
         uint32_t getFrom() const { return m_From; };
 
     private:
@@ -294,41 +294,20 @@ private:
     void reset()
     {
         m_LabelAddresses.clear();
-        m_UndefinedLabelJumps.clear();
+        m_LabelJumps.clear();
     }
-    void defineClabel(Label label)
-    {
-        const auto ret = m_LabelAddresses.try_emplace(label, getCurr());
-        if (!ret.second) {
-            throw Error(AssemblerError::LABEL_IS_REDEFINED);
-        }
-        // search undefined label
-        const auto undefLabels = m_UndefinedLabelJumps.equal_range(label);
-        for (auto itr = undefLabels.first; itr != undefLabels.second; itr++) {
-            const Jmp &jmp = itr->second;
-            write4B(jmp.getFrom(), jmp.encode(getCurr()));
-            m_UndefinedLabelJumps.erase(itr);
-        }
-    }
-
+ 
     void append4B(uint32_t code) { m_Code.push_back(code); }
     
-    void write4B(size_t offset, uint32_t v) 
-    {
-        assert((offset & 3) == 0);
-        m_Code.at(offset / 4) = v; 
-    }
 
     // **TODO**  add code base address
     uint32_t getCurr() const{ return static_cast<uint32_t>(m_Code.size()) * 4; }
     
     void opJmp(Label label, const Jmp& jmp)
     {
-        const auto addr = getAddress(label);
-        append4B(jmp.encode(addr));
-        if (!addr) {
-            m_UndefinedLabelJumps.emplace(label, jmp);
-        }
+        // Append placeholder and add jump to map
+        append4B(0);
+        m_LabelJumps.emplace(label, jmp);
     }
     uint32_t enc2(uint32_t a, uint32_t b) const { return (a<<7) | (b<<15); }
     uint32_t enc3(uint32_t a, uint32_t b, uint32_t c) const { return enc2(a, b) | (c<<20); }
@@ -392,6 +371,6 @@ private:
     //------------------------------------------------------------------------
     std::vector<uint32_t> m_Code;
     std::unordered_map<Label, uint32_t> m_LabelAddresses;
-    std::unordered_multimap<Label, Jmp> m_UndefinedLabelJumps;
+    std::unordered_multimap<Label, Jmp> m_LabelJumps;
 };
 
