@@ -11,11 +11,12 @@
 // Copyright (C), 2023, KNS Group LLC (YADRO)
 
 // Standard C++ includes
+#include <algorithm>
 #include <iostream>
 #include <iomanip>
 #include <list>
+#include <optional>
 #include <string>
-#include <algorithm>
 #include <unordered_set>
 #include <unordered_map>
 
@@ -354,22 +355,24 @@ private:
         }
     }
     // return 0 unless label exists
-    uint32_t getAddr(const Label& label) const
+    std::optional<uint32_t> getAddr(const Label& label) const
     {
         const auto  i = m_LabelDefList.find(getId(label));
         if (i == m_LabelDefList.end()) {
-            return 0;
+            return std::nullopt;
         }
         else {
             return i->second.addr;
         }
     }
+
     void addUndefinedLabel(const Label& label, const Jmp& jmp)
     {
         m_LabelUndefList.emplace(label.id, jmp);
     }
-    bool hasUndefClabel() const { return hasUndefinedLabel_inner(m_LabelUndefList); }
-    
+
+    bool hasUndefClabel() const { return !m_LabelUndefList.empty(); }
+
     int getId(const Label& label) const
     {
         if (label.id == 0) {
@@ -378,6 +381,7 @@ private:
 
         return label.id;
     }
+
     void define_inner(int labelId, uint32_t addr)
     {
         const auto ret = m_LabelDefList.try_emplace(labelId, addr);
@@ -401,6 +405,7 @@ private:
         m_LabelDefList[id].refCount++;
         m_LabelPtrList.insert(label);
     }
+
     void decRefCount(int id, Label *label)
     {
         m_LabelPtrList.erase(label);
@@ -418,11 +423,6 @@ private:
         }
     }
 
-    template<class T>
-    bool hasUndefinedLabel_inner(const T& list) const
-    {
-        return !list.empty();
-    }
     // detach all labels linked to LabelManager
     void resetLabelPtrList()
     {
@@ -445,12 +445,14 @@ private:
     
     void opJmp(const Label& label, const Jmp& jmp)
     {
-        const uint32_t addr = getAddr(label);
-        jmp.appendCode(this, addr);
+        const auto addr = getAddr(label);
+        jmp.appendCode(this, addr.value_or(0));
         if (addr) {
             return;
         }
-        addUndefinedLabel(label, jmp);
+        else {
+            addUndefinedLabel(label, jmp);
+        }
     }
     uint32_t enc2(uint32_t a, uint32_t b) const { return (a<<7) | (b<<15); }
     uint32_t enc3(uint32_t a, uint32_t b, uint32_t c) const { return enc2(a, b) | (c<<20); }
