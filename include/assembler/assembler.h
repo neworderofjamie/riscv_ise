@@ -24,6 +24,7 @@
 #include <cstdint>
 
 // RISC-V common includes
+#include "common/enum.h"
 #include "common/isa.h"
 
 // Assembler includes
@@ -32,37 +33,20 @@
 // Forward declarations
 class CodeGenerator;
 
-enum {
-    ERR_NONE,
-    ERR_OFFSET_IS_TOO_BIG,
-    ERR_CODE_IS_TOO_BIG,
-    ERR_IMM_IS_TOO_BIG,
-    ERR_INVALID_IMM_OF_JAL,
-    ERR_INVALID_IMM_OF_BTYPE,
-    ERR_LABEL_IS_NOT_FOUND,
-    ERR_LABEL_IS_REDEFINED,
-    ERR_LABEL_IS_TOO_FAR,
-    ERR_LABEL_IS_NOT_SET_BY_L,
-    ERR_LABEL_IS_ALREADY_SET_BY_L,
-    ERR_CANT_PROTECT,
-    ERR_CANT_ALLOC,
-    ERR_BAD_PARAMETER,
-    ERR_MUNMAP,
-    ERR_INTERNAL,
-    ERR_MAX,
-};
+BETTER_ENUM(AssemblerError, int, OFFSET_IS_TOO_BIG, IMM_IS_TOO_BIG, INVALID_IMM_OF_JAL, INVALID_IMM_OF_BTYPE,
+            LABEL_IS_NOT_FOUND, LABEL_IS_REDEFINED, LABEL_IS_NOT_SET_BY_L, LABEL_IS_ALREADY_SET_BY_L, INTERNAL)
 
 //----------------------------------------------------------------------------
 // Error
 //----------------------------------------------------------------------------
 class ASSEMBLER_EXPORT Error : public std::exception {
 public:
-    explicit Error(int err);
-    operator int() const { return err_; }
+    explicit Error(AssemblerError err);
+    operator AssemblerError() const { return m_Err; }
     const char *what() const noexcept;
 
 private:
-    int err_;
+    AssemblerError m_Err;
 };
 
 //----------------------------------------------------------------------------
@@ -295,31 +279,31 @@ private:
     //----------------------------------------------------------------------------
     struct Jmp 
     {
-        enum Type {
-            tJal,
-            tBtype,
-            tRawAddress,
+        enum class Type {
+            JAL,
+            BTYPE,
+            RAW_ADDRESS,
         } type;
         const uint32_t from; /* address of the jmp mnemonic */
         uint32_t encoded;
 
         // jal
         Jmp(uint32_t from, Bit<7> opcode, Reg rd)
-            : type(tJal)
+            : type(Type::JAL)
             , from(from)
             , encoded((static_cast<uint32_t>(rd) << 7) | opcode)
         {
         }
         // B-type
         Jmp(uint32_t from, Bit<7> opcode, uint32_t funct3, Reg src1, Reg src2)
-            : type(tBtype)
+            : type(Type::BTYPE)
             , from(from)
             , encoded((static_cast<uint32_t>(src2) << 20) | (static_cast<uint32_t>(src1) << 15) | (funct3 << 12) | opcode)
         {
         }
         // raw address
         explicit Jmp(uint32_t from)
-            : type(tRawAddress)
+            : type(Type::RAW_ADDRESS)
             , from(from)
             , encoded(0)
         {
@@ -361,7 +345,7 @@ private:
     {
         const auto i = m_LabelDefList.find(src.id);
         if (i == m_LabelDefList.end()) {
-            throw Error(ERR_LABEL_IS_NOT_SET_BY_L);
+            throw Error(AssemblerError::LABEL_IS_NOT_SET_BY_L);
         }
         else {
             define_inner(m_LabelDefList, m_LabelUndefList, dst.id, i->second.addr);
@@ -397,7 +381,7 @@ private:
         ClabelDefList::value_type item(labelId, addr);
         const auto ret = defList.insert(item);
         if (!ret.second) {
-            throw Error(ERR_LABEL_IS_REDEFINED);
+            throw Error(AssemblerError::LABEL_IS_REDEFINED);
         }
         // search undefined label
         for (;;) {
@@ -476,7 +460,7 @@ private:
     void Itype(Bit<7> opcode, Bit<3> funct3, Bit<5> rd, Bit<5> rs1, int imm)
     {
         if (!inSBit(imm, 12)) {
-            throw Error(ERR_IMM_IS_TOO_BIG);
+            throw Error(AssemblerError::IMM_IS_TOO_BIG);
         }
         uint32_t v = (imm<<20) | (funct3<<12) | opcode | enc2(rd, rs1);
         append4B(v);
@@ -484,7 +468,7 @@ private:
     void Stype(Bit<7> opcode, Bit<3> funct3, Bit<5> rs1, Bit<5> rs2, int imm)
     {
         if (!inSBit(imm, 12)) {
-            throw Error(ERR_IMM_IS_TOO_BIG);
+            throw Error(AssemblerError::IMM_IS_TOO_BIG);
         }
         uint32_t v = ((imm>>5)<<25) | (funct3<<12) | opcode | enc3(imm & mask(5), rs1, rs2);
         append4B(v);
@@ -492,7 +476,7 @@ private:
     void Utype(Bit<7> opcode, Bit<5> rd, uint32_t imm)
     {
         if (imm >= (1u << 20)) {
-            throw Error(ERR_IMM_IS_TOO_BIG);
+            throw Error(AssemblerError::IMM_IS_TOO_BIG);
         }
         uint32_t v = (imm<<12) | opcode | (rd<<7);
         append4B(v);
@@ -503,7 +487,7 @@ private:
             range = 5;
         }
         if (shamt >= (1u << range)) {
-            throw Error(ERR_IMM_IS_TOO_BIG);
+            throw Error(AssemblerError::IMM_IS_TOO_BIG);
         }
         uint32_t v = (pre<<25) | (funct3<<12) | opcode | enc3(rd, rs1, shamt);
         append4B(v);
