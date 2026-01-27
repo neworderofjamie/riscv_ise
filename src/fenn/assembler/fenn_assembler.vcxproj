@@ -19,20 +19,22 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="utils.cc" />
+    <ClInclude Include="..\..\..\include\fenn\assembler\assembler.h" />
+    <ClInclude Include="..\..\..\include\fenn\assembler\assembler_export.h" />
+    <ClInclude Include="..\..\..\include\fenn\assembler\assembler_utils.h" />
+    <ClInclude Include="..\..\..\include\fenn\assembler\register_allocator.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\include\common\CLI11.hpp" />
-    <ClInclude Include="..\..\include\common\common_export.h" />
-    <ClInclude Include="..\..\include\common\utils.h" />
+    <ClCompile Include="assembler.cc" />
+    <ClCompile Include="assembler_utils.cc" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
-    <ProjectGuid>{EFAC73D6-02AA-4302-A9A1-F73F2757A502}</ProjectGuid>
+    <ProjectGuid>{EF52D22C-C128-4A30-ABE2-C00ADDA02440}</ProjectGuid>
     <RootNamespace>riscvise</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
-    <ProjectName>common</ProjectName>
+    <ProjectName>fenn_assembler</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Label="Configuration">
@@ -68,8 +70,8 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">_DEBUG;WIN32_LEAN_AND_MEAN;NOMINMAX;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NDEBUG;WIN32_LEAN_AND_MEAN;NOMINMAX;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug_DLL|x64'">_DEBUG;WIN32_LEAN_AND_MEAN;NOMINMAX;_CONSOLE;BUILDING_COMMON_DLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release_DLL|x64'">NDEBUG;WIN32_LEAN_AND_MEAN;NOMINMAX;_CONSOLE;BUILDING_COMMON_DLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug_DLL|x64'">_DEBUG;WIN32_LEAN_AND_MEAN;NOMINMAX;_CONSOLE;BUILDING_ASSEMBLER_DLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release_DLL|x64'">NDEBUG;WIN32_LEAN_AND_MEAN;NOMINMAX;_CONSOLE;BUILDING_ASSEMBLER_DLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <DisableSpecificWarnings Condition=" $(Configuration.Contains('DLL')) ">4251</DisableSpecificWarnings>
       <LanguageStandard>stdcpp17</LanguageStandard>
@@ -79,7 +81,7 @@
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation Condition=" $(Configuration.Contains('Release')) ">true</GenerateDebugInformation>
       <EnableCOMDATFolding Condition=" $(Configuration.Contains('Release')) ">true</EnableCOMDATFolding>
-      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <OptimizeReferences>true</OptimizeReferences>
       <AdditionalLibraryDirectories>$(OutDir);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>

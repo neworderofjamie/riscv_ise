@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+	<ItemGroup Label="ProjectConfigurations">
+		<ProjectConfiguration Include="Debug|x64">
+			<Configuration>Debug</Configuration>
+			<Platform>x64</Platform>
+		</ProjectConfiguration>
+		<ProjectConfiguration Include="Release|x64">
+			<Configuration>Release</Configuration>
+			<Platform>x64</Platform>
+		</ProjectConfiguration>
+	</ItemGroup>
+	<PropertyGroup Label="Globals">
+		<RootNamespace>runner</RootNamespace>
+	</PropertyGroup>
+	<Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+	<PropertyGroup Label="Configuration">
+		<ConfigurationType>DynamicLibrary</ConfigurationType>
+		<UseDebugLibraries Condition="'$(Configuration)'=='Release'">false</UseDebugLibraries>
+		<UseDebugLibraries Condition="'$(Configuration)'=='Debug'">true</UseDebugLibraries>
+		<CharacterSet>MultiByte</CharacterSet>
+		<PlatformToolset>$(DefaultPlatformToolset)</PlatformToolset>
+		<PreferredToolArchitecture>x64</PreferredToolArchitecture>
+	</PropertyGroup>
+	<Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+	<ImportGroup Label="PropertySheets">
+		<Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+	</ImportGroup>
+	<PropertyGroup>
+		<LinkIncremental Condition="'$(Configuration)'=='Debug'">true</LinkIncremental>
+		<OutDir>../</OutDir>
+		<TargetName>runner_adexp_$(Configuration)</TargetName>
+		<TargetExt>.dll</TargetExt>
+	</PropertyGroup>
+	<ItemDefinitionGroup>
+		<ClCompile>
+			<WarningLevel>Level3</WarningLevel>
+			<Optimization Condition="'$(Configuration)'=='Release'">MaxSpeed</Optimization>
+			<Optimization Condition="'$(Configuration)'=='Debug'">Disabled</Optimization>
+			<FunctionLevelLinking Condition="'$(Configuration)'=='Release'">true</FunctionLevelLinking>
+			<IntrinsicFunctions Condition="'$(Configuration)'=='Release'">true</IntrinsicFunctions>
+			<ExceptionHandling>SyncCThrow</ExceptionHandling>
+			<PreprocessorDefinitions Condition="'$(Configuration)'=='Release'">WIN32;WIN64;NDEBUG;_CONSOLE;BUILDING_GENERATED_CODE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+			<PreprocessorDefinitions Condition="'$(Configuration)'=='Debug'">WIN32;WIN64;_DEBUG;_CONSOLE;BUILDING_GENERATED_CODE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+			<FloatingPointModel>Precise</FloatingPointModel>
+			<MultiProcessorCompilation>true</MultiProcessorCompilation>
+		</ClCompile>
+		<Link>
+			<GenerateDebugInformation>true</GenerateDebugInformation>
+			<EnableCOMDATFolding Condition="'$(Configuration)'=='Release'">true</EnableCOMDATFolding>
+			<OptimizeReferences Condition="'$(Configuration)'=='Release'">true</OptimizeReferences>
+			<SubSystem>Console</SubSystem>
+			<AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+		</Link>
+	</ItemDefinitionGroup>
+	<ItemGroup>
+		<ClCompile Include="customUpdate.cc" />
+		<ClCompile Include="neuronUpdate.cc" />
+		<ClCompile Include="synapseUpdate.cc" />
+		<ClCompile Include="init.cc" />
+		<ClCompile Include="runner.cc" />
+	</ItemGroup>
+<Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

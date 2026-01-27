@@ -19,20 +19,30 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="utils.cc" />
+    <ClCompile Include="app_utils.cc" />
+    <ClCompile Include="device.cc" />
+    <ClCompile Include="dma_buffer.cc" />
+    <ClCompile Include="dma_controller.cc" />
+    <ClCompile Include="isa.cc" />
+    <ClCompile Include="uio.cc" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\include\common\CLI11.hpp" />
-    <ClInclude Include="..\..\include\common\common_export.h" />
-    <ClInclude Include="..\..\include\common\utils.h" />
+    <ClInclude Include="..\..\..\include\fenn\common\app_utils.h" />
+    <ClInclude Include="..\..\..\include\fenn\common\device.h" />
+    <ClInclude Include="..\..\..\include\fenn\common\dma_buffer.h" />
+    <ClInclude Include="..\..\..\include\fenn\common\dma_controller.h" />
+    <ClInclude Include="..\..\..\include\fenn\common\fenn_common_export.h" />
+    <ClInclude Include="..\..\..\include\fenn\common\isa.h" />
+    <ClInclude Include="..\..\..\include\fenn\common\u-dma-buf-ioctl.h" />
+    <ClInclude Include="..\..\..\include\fenn\common\uio.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
-    <ProjectGuid>{EFAC73D6-02AA-4302-A9A1-F73F2757A502}</ProjectGuid>
+    <ProjectGuid>{53A2D845-8B52-4D84-ABFC-FD7356CA28A1}</ProjectGuid>
     <RootNamespace>riscvise</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
-    <ProjectName>common</ProjectName>
+    <ProjectName>fenn_common</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Label="Configuration">

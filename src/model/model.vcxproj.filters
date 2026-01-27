@@ -2,54 +2,54 @@
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <Filter Include="Source Files">
-      <UniqueIdentifier>{48E3B209-FF4E-4B4D-9F23-0E7E90FC5A41}</UniqueIdentifier>
+      <UniqueIdentifier>{4338DC7F-386A-4464-9160-F23EDA4537EB}</UniqueIdentifier>
       <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
     </Filter>
     <Filter Include="Header Files">
-      <UniqueIdentifier>{8C6AA1E5-3604-4A55-BF36-BDD1BEDE2866}</UniqueIdentifier>
+      <UniqueIdentifier>{0906EFFF-E45B-41AC-9AAC-804DBD2C1171}</UniqueIdentifier>
       <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="utils.cc">
+    <ClCompile Include="model.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="device_control.cc">
+    <ClCompile Include="process.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="genx_320.cc">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="i2c_interface.cc">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="mipi_csi2_receiver.cc">
+    <ClCompile Include="shape.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\include\common\utils.h">
+    <ClInclude Include="..\..\include\model\event_container.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\include\common\CLI11.hpp">
+    <ClInclude Include="..\..\include\model\model.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\include\common\common_export.h">
+    <ClInclude Include="..\..\include\model\model_component.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\include\common\device_control.h">
+    <ClInclude Include="..\..\include\model\model_export.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\include\common\genx_320.h">
+    <ClInclude Include="..\..\include\model\parameter.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\include\common\genx320_reg.h">
+    <ClInclude Include="..\..\include\model\performance_counter.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\include\common\i2c_interface.h">
+    <ClInclude Include="..\..\include\model\process.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\include\common\mipi_csi2_receiver.h">
+    <ClInclude Include="..\..\include\model\process_group.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\model\shape.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\model\variable.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
