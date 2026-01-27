@@ -789,14 +789,14 @@ int main(int argc, char** argv)
             ALLOCATE_SCALAR(SExcVRecordingBuffer);
 #endif
             // Labels
-            Label timeLoop;
-            Label spinLoop;
-            Label jumpTable;
-            Label rowReturn;
-            Label excRow;
-            Label inhRow;
-            Label start;
-            Label nextSpike;
+            auto timeLoop = createLabel();
+            auto spinLoop = createLabel();
+            auto jumpTable = createLabel();
+            auto rowReturn = createLabel();
+            auto excRow = createLabel();
+            auto inhRow = createLabel();
+            auto start = createLabel();
+            auto nextSpike = createLabel();
             
             // Jump over jump table etc to start
             // **TODO** configurable start and interrupt addresses
@@ -851,8 +851,8 @@ int main(int argc, char** argv)
             c.L(timeLoop);
             {
                 {
-                    Label spikeLoop;
-                    Label spikeLoopEnd;
+                    auto spikeLoop = createLabel();
+                    auto spikeLoopEnd = createLabel();
 
                     // Wait for all events to be communicated
                     AssemblerUtils::generateRouterBarrier(c, scalarRegisterAllocator, numCores);
@@ -874,7 +874,7 @@ int main(int argc, char** argv)
                             c.srli(*SPopulationID, *SSpike, 19);
 
                             // Jump to correct population handler
-                            c.jalr(Reg::X0, *SPopulationID, jumpTable.getAddress());
+                            c.jalr(Reg::X0, *SPopulationID, jumpTable);
                         }
                         c.L(nextSpike);
 
