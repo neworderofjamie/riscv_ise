@@ -77,8 +77,8 @@ public:
     std::optional<uint32_t> getAddress(Label label) const
     {
         // If label isn't defined, it doesn't yet have an address
-        const auto  i = m_LabelDefList.find(label);
-        if (i == m_LabelDefList.end()) {
+        const auto  i = m_LabelAddresses.find(label);
+        if (i == m_LabelAddresses.end()) {
             return std::nullopt;
         }
         // Otherwise, return address
@@ -87,7 +87,7 @@ public:
         }
     }
   
-    bool hasUndefinedLabel() const { return !m_LabelUndefList.empty(); }
+    bool hasUndefinedLabel() const { return !m_UndefinedLabelJumps.empty(); }
     const auto &getCode() const{ return m_Code; }
 
     void add(Reg rd, Reg rs1, Reg rs2) { Rtype(StandardOpCode::OP, 0, 0x0, rd, rs1, rs2); }
@@ -263,62 +263,51 @@ private:
     public:
         // jal
         Jmp(uint32_t from, Bit<7> opcode, Reg rd)
-        :   type(Type::JAL), from(from), encoded((static_cast<uint32_t>(rd) << 7) | opcode)
+        :   m_Type(Type::JAL), m_From(from), m_Encoded((static_cast<uint32_t>(rd) << 7) | opcode)
         {
         }
         // B-type
         Jmp(uint32_t from, Bit<7> opcode, uint32_t funct3, Reg src1, Reg src2)
-        :   type(Type::BTYPE), from(from)
-            , encoded((static_cast<uint32_t>(src2) << 20) | (static_cast<uint32_t>(src1) << 15) | (funct3 << 12) | opcode)
+        :   m_Type(Type::BTYPE), m_From(from),
+            m_Encoded((static_cast<uint32_t>(src2) << 20) | (static_cast<uint32_t>(src1) << 15) | (funct3 << 12) | opcode)
         {
         }
         // raw address
         explicit Jmp(uint32_t from)
-        :   type(Type::RAW_ADDRESS), from(from), encoded(0)
+        :   m_Type(Type::RAW_ADDRESS), m_From(from), m_Encoded(0)
         {
         }
 
         uint32_t encode(std::optional<uint32_t> addr) const;
-
-        // update jmp address by base->getCurr()
-        void update(CodeGenerator *base) const;
-
-        // append jmp opcode with addr
-        void appendCode(CodeGenerator *base, std::optional<uint32_t> addr) const;
+        uint32_t getFrom() const { return m_From; };
 
     private:
-        const uint32_t from; /* address of the jmp mnemonic */
-        uint32_t encoded;
-        Type type;
-
+        // Address of the jmp mnemonic
+        uint32_t m_From;
+        uint32_t m_Encoded;
+        Type m_Type;
     };
-
-    //------------------------------------------------------------------------
-    // Typedefines
-    //------------------------------------------------------------------------
-    typedef std::unordered_map<Label, uint32_t> ClabelDefList;
-    typedef std::unordered_multimap<Label, Jmp> ClabelUndefList;
 
     //------------------------------------------------------------------------
     // Private methods
     //------------------------------------------------------------------------
     void reset()
     {
-        m_LabelDefList.clear();
-        m_LabelUndefList.clear();
+        m_LabelAddresses.clear();
+        m_UndefinedLabelJumps.clear();
     }
     void defineClabel(Label label)
     {
-        const auto ret = m_LabelDefList.try_emplace(label, getCurr());
+        const auto ret = m_LabelAddresses.try_emplace(label, getCurr());
         if (!ret.second) {
             throw Error(AssemblerError::LABEL_IS_REDEFINED);
         }
         // search undefined label
-        const auto undefLabels = m_LabelUndefList.equal_range(label);
+        const auto undefLabels = m_UndefinedLabelJumps.equal_range(label);
         for (auto itr = undefLabels.first; itr != undefLabels.second; itr++) {
-            const Jmp& jmp = itr->second;
-            jmp.update(this);
-            m_LabelUndefList.erase(itr);
+            const Jmp &jmp = itr->second;
+            write4B(jmp.getFrom(), jmp.encode(getCurr()));
+            m_UndefinedLabelJumps.erase(itr);
         }
     }
 
@@ -336,9 +325,9 @@ private:
     void opJmp(Label label, const Jmp& jmp)
     {
         const auto addr = getAddress(label);
-        jmp.appendCode(this, addr);
+        append4B(jmp.encode(addr));
         if (!addr) {
-            m_LabelUndefList.emplace(label, jmp);
+            m_UndefinedLabelJumps.emplace(label, jmp);
         }
     }
     uint32_t enc2(uint32_t a, uint32_t b) const { return (a<<7) | (b<<15); }
@@ -402,7 +391,7 @@ private:
     // Members
     //------------------------------------------------------------------------
     std::vector<uint32_t> m_Code;
-    ClabelDefList m_LabelDefList;
-    ClabelUndefList m_LabelUndefList;
+    std::unordered_map<Label, uint32_t> m_LabelAddresses;
+    std::unordered_multimap<Label, Jmp> m_UndefinedLabelJumps;
 };
 
