@@ -16,7 +16,10 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\include\ise\disassembler.h">
+    <ClInclude Include="..\..\..\include\fenn\disassembler\disassembler.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\fenn\disassembler\disassembler_export.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

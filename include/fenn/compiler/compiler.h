@@ -19,17 +19,21 @@
 #include "fenn/compiler/fenn_compiler_export.h"
 
 // Forward declarations
+namespace FeNN::Assembler
+{
 class CodeGenerator;
-class EnvironmentBase;
+}
 
-//----------------------------------------------------------------------------
-// GeNN::CodeGenerator::FeNN::Compiler
-//----------------------------------------------------------------------------
-using RegisterPtr = std::variant<ScalarRegisterAllocator::RegisterPtr, VectorRegisterAllocator::RegisterPtr>;
-using FunctionGenerator = std::function<std::pair<RegisterPtr, bool>(EnvironmentBase&, VectorRegisterAllocator&,
-                                                                     ScalarRegisterAllocator&, 
-                                                                     ScalarRegisterAllocator::RegisterPtr, 
+namespace FeNN::Compiler
+{
+class EnvironmentBase;
+using RegisterPtr = std::variant<FeNN::Assembler::ScalarRegisterAllocator::RegisterPtr, 
+                                 FeNN::Assembler::VectorRegisterAllocator::RegisterPtr>;
+using FunctionGenerator = std::function<std::pair<RegisterPtr, bool>(EnvironmentBase&, FeNN::Assembler::VectorRegisterAllocator&, 
+                                                                     FeNN::Assembler::ScalarRegisterAllocator&, 
+                                                                     FeNN::Assembler::ScalarRegisterAllocator::RegisterPtr, 
                                                                      const std::vector<RegisterPtr>&)>;
+
 using EnvironmentItem = std::variant<RegisterPtr, FunctionGenerator>;
 
 // What rounding mode to use for multiplication
@@ -56,7 +60,7 @@ public:
     virtual EnvironmentItem getItem(const std::string &name, std::optional<GeNN::Type::ResolvedType> type = std::nullopt) = 0;
 
     //! Get stream to write code within this environment to
-    virtual CodeGenerator &getCodeGenerator() = 0;
+    virtual FeNN::Assembler::CodeGenerator &getCodeGenerator() = 0;
 
     //------------------------------------------------------------------------
     // Public API
@@ -71,14 +75,14 @@ public:
         return std::get<FunctionGenerator>(getItem(name, type));
     }
 
-    ScalarRegisterAllocator::RegisterPtr getScalarRegister(const std::string &name)
+    FeNN::Assembler::ScalarRegisterAllocator::RegisterPtr getScalarRegister(const std::string &name)
     {
-        return std::get<ScalarRegisterAllocator::RegisterPtr>(getRegister(name));
+        return std::get<FeNN::Assembler::ScalarRegisterAllocator::RegisterPtr>(getRegister(name));
     }
 
-    VectorRegisterAllocator::RegisterPtr getVectorRegister(const std::string &name)
+    FeNN::Assembler::VectorRegisterAllocator::RegisterPtr getVectorRegister(const std::string &name)
     {
-        return std::get<VectorRegisterAllocator::RegisterPtr>(getRegister(name));
+        return std::get<FeNN::Assembler::VectorRegisterAllocator::RegisterPtr>(getRegister(name));
     }
 
     //------------------------------------------------------------------------
@@ -108,7 +112,7 @@ public:
 
     virtual EnvironmentItem getItem(const std::string &name, std::optional<GeNN::Type::ResolvedType> type = std::nullopt) final;
 
-    virtual CodeGenerator &getCodeGenerator() final;
+    virtual FeNN::Assembler::CodeGenerator &getCodeGenerator() final;
 
 private:
     //---------------------------------------------------------------------------
@@ -123,6 +127,7 @@ private:
 //---------------------------------------------------------------------------
 FENN_COMPILER_EXPORT void compile(const GeNN::Transpiler::Statement::StatementList &statements, EnvironmentInternal &environment,
                                   const GeNN::Type::TypeContext &context, const GeNN::Transpiler::TypeChecker::ResolvedTypeMap &resolvedTypes,
-                                  GeNN::Transpiler::ErrorHandlerBase &errorHandler, const std::unordered_map<int16_t, VectorRegisterAllocator::RegisterPtr> &literalPool,
-                                  ScalarRegisterAllocator::RegisterPtr maskRegister, RoundingMode roundingMode,
-                                  ScalarRegisterAllocator &scalarRegisterAllocator, VectorRegisterAllocator &vectorRegisterAllocator);
+                                  GeNN::Transpiler::ErrorHandlerBase &errorHandler, const std::unordered_map<int16_t, FeNN::Assembler::VectorRegisterAllocator::RegisterPtr> &literalPool,
+                                  FeNN::Assembler::ScalarRegisterAllocator::RegisterPtr maskRegister, RoundingMode roundingMode,
+                                  FeNN::Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, FeNN::Assembler::VectorRegisterAllocator &vectorRegisterAllocator);
+}   // namespace FeNN::Compiler

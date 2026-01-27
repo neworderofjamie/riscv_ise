@@ -22,7 +22,8 @@
     <ClCompile Include="disassembler.cc" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\include\ise\disassembler.h" />
+    <ClInclude Include="..\..\..\include\fenn\disassembler\disassembler.h" />
+    <ClInclude Include="..\..\..\include\fenn\disassembler\disassembler_export.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>

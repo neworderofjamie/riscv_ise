@@ -16,12 +16,14 @@
 // ISE includes
 #include "fenn/ise/ise_export.h"
 
+namespace FeNN::ISE
+{
 // Forward declarations
 class DMAControllerSim;
 class RouterSim;
 
 //----------------------------------------------------------------------------
-// InstructionMemory
+// FeNN::ISE::InstructionMemory
 //----------------------------------------------------------------------------
 class ISE_EXPORT InstructionMemory
 {
@@ -39,7 +41,7 @@ private:
 };
 
 //----------------------------------------------------------------------------
-// ScalarDataMemory
+// FeNN::ISE::ScalarDataMemory
 //----------------------------------------------------------------------------
 class ISE_EXPORT ScalarDataMemory
 {
@@ -69,7 +71,7 @@ private:
 };
 
 //----------------------------------------------------------------------------
-// Exception
+// FeNN::ISE::Exception
 //----------------------------------------------------------------------------
 class ISE_EXPORT Exception : std::exception
 {
@@ -99,7 +101,7 @@ private:
 };
 
 //----------------------------------------------------------------------------
-// RISCV
+// FeNN::ISE::RISCV
 //----------------------------------------------------------------------------
 class ISE_EXPORT RISCV
 {
@@ -156,7 +158,7 @@ public:
     const auto &getNumOpCodesExecuted() const{ return m_NumOpCodesExecuted; }
     std::array<size_t, 32> getNumCoprocessorInstructionsExecuted(uint32_t quadrant) const;
     const std::vector<size_t> &getInstructionHeatmap() const{ return m_InstructionHeatmap; }
-    size_t getNumInstructionsExecuted(StandardOpCode opCode) const;
+    size_t getNumInstructionsExecuted(FeNN::Common::StandardOpCode opCode) const;
     size_t getTotalNumInstructionsExecuted() const;
     size_t getTotalNumCoprocessorInstructionsExecuted(uint32_t quadrant) const;
     size_t getNumTrueBranches() const{ return m_NumTrueBranches; }
@@ -214,3 +216,4 @@ private:
     size_t m_NumTrueBranches;
     size_t m_NumFalseBranches;
 };
+}   // namespace FeNN::ISE

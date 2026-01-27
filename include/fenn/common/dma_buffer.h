@@ -7,9 +7,11 @@
 #include "fenn/common/fenn_common_export.h"
 
 //----------------------------------------------------------------------------
-// DMABuffer
+// FeNN::Common::DMABuffer
 //----------------------------------------------------------------------------
 //! Thin wrapper around
+namespace FeNN::Common
+{
 class FENN_COMMON_EXPORT DMABuffer
 {
 public:
@@ -34,3 +36,4 @@ private:
     uint64_t m_Size;
     bool m_UnmapData;
 };
+}   // namespace FeNN::Common

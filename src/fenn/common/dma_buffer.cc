@@ -36,8 +36,10 @@ T getIOCtl(int file, unsigned long op)
 }
 
 //----------------------------------------------------------------------------
-// DMABuffer
+// FeNN::Common::DMABuffer
 //----------------------------------------------------------------------------
+namespace FeNN::Common
+{
 DMABuffer::DMABuffer(int index)
 :   m_UnmapData(true), m_Data(nullptr), m_PhysicalAddress(0), m_Size(0)
 {
@@ -108,4 +110,4 @@ DMABuffer::~DMABuffer()
     }
 #endif  // __linux__
 }
-
+}   // namespace FeNN::Common

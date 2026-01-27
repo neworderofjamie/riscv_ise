@@ -61,8 +61,10 @@ std::optional<size_t> getUIOSize(int uioIndex)
 }
 
 //----------------------------------------------------------------------------
-// UIO
+// FeNN::Common::UIO
 //----------------------------------------------------------------------------
+namespace FeNN::Common
+{
 UIO::UIO(const std::string &uioName)
 :   m_Data(nullptr), m_Size(0)
 {
@@ -109,4 +111,4 @@ UIO::~UIO()
     munmap(m_Data, m_Size);
 #endif
 }
-//----------------------------------------------------------------------------
+}   // namespace FeNN::Common

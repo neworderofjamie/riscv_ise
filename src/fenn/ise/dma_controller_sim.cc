@@ -7,84 +7,16 @@
 #include "fenn/ise/vector_processor.h"
 
 //----------------------------------------------------------------------------
-// DMAControllerSim
+// FeNN::ISE::DMAControllerSim
 //----------------------------------------------------------------------------
+namespace FeNN::ISE
+{
 DMAControllerSim::DMAControllerSim(VectorDataMemory &vectorDataMemory, size_t bufferSize)
 :   m_VectorDataMemory(vectorDataMemory), m_Data(bufferSize), m_MM2SDelay(0),
     m_S2MMDelay(0), m_MM2SFSM(FSMState::IDLE), m_S2MMFSM(FSMState::IDLE), m_Registers{0}
 {
 
 }
-//----------------------------------------------------------------------------
-/*void DMAControllerSim::startWrite(uint32_t destination, uint32_t source, uint32_t size)
-{
-    LOGD << "Starting " << size << " byte DMA write from " << std::hex << source;
-    if((destination & 63) != 0) {
-        throw std::runtime_error("DMA writes to URAM must be 64 byte aligned");
-    }
-
-    if((source & 63) != 0) {
-        throw std::runtime_error("DMA reads from mapped memory must be 64 byte aligned");
-    }
-
-    if((source + size) > m_Data.size()) {
-        throw std::runtime_error("DMA cannot read from beyond buffer");
-    }
-    
-    if(size >= ((1 << 19) - 1)) {
-        LOGE << "Maximum size of hardware DMA exceeded";
-    }
-
-    // Write source and destination addresses to registers
-    writeReg(Register::MM2S_SRC_ADDR, source);
-    writeReg(Register::MM2S_DST_ADDR, destination);
-
-    // Write count to registers
-    writeReg(Register::MM2S_COUNT, size);
-
-    // Run
-    writeReg(Register::MM2S_CONTROL, 1);
-}
-//----------------------------------------------------------------------------
-void DMAControllerSim::startRead(uint32_t destination, uint32_t source, uint32_t size)
-{
-    LOGD << "Starting " << size << " byte DMA read to " << std::hex << destination;
-    if((source & 63) != 0) {
-        throw std::runtime_error("DMA reads from URAM must be 64 byte aligned");
-    }
-
-    if((destination & 63) != 0) {
-        throw std::runtime_error("DMA writes to mapped memory must be 64 byte aligned");
-    }
-
-    if((destination + size) > m_Data.size()) {
-        throw std::runtime_error("DMA cannot write beyond buffer");
-    }
-    
-    if(size >= ((1 << 19) - 1)) {
-        LOGE << "Maximum size of hardware DMA exceeded";
-    }
-
-    // Write source and destination addresses to registers
-    writeReg(Register::S2MM_SRC_ADDR, source);
-    writeReg(Register::S2MM_DST_ADDR, destination);
-
-    // Write count to registers
-    writeReg(Register::S2MM_COUNT, size);
-
-    // Run
-    writeReg(Register::S2MM_CONTROL, 1);
-}
-//----------------------------------------------------------------------------
-void DMAControllerSim::waitForWriteComplete() const
-{
-
-}
-//----------------------------------------------------------------------------
-void DMAControllerSim::waitForReadComplete() const
-{
-
-}*/
 //----------------------------------------------------------------------------
 void DMAControllerSim::writeReg(Register reg, uint32_t val)
 {
@@ -266,3 +198,4 @@ void DMAControllerSim::tick()
             }
         });
 }
+}   // namespace FeNN::ISE

@@ -17,9 +17,12 @@
 #include "fenn/common/fenn_common_export.h"
 
 // Forward declations
+namespace FeNN::Assembler
+{
 class CodeGenerator;
 class ScalarRegisterAllocator;
 class VectorRegisterAllocator;
+}
 
 //----------------------------------------------------------------------------
 // AppUtils

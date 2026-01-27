@@ -3,6 +3,9 @@
 // Standard C++ includes
 #include <tuple>
 
+//----------------------------------------------------------------------------
+// Anonymous namespace
+//----------------------------------------------------------------------------
 namespace
 {
 // split x to hi20bits and low12bits
@@ -24,28 +27,27 @@ std::optional<std::tuple<int, int>> split32bit(int x)
 
 inline uint32_t get20_10to1_11_19to12_z12(uint32_t v) { return ((v & (1<<20)) << 11)| ((v & (1023<<1)) << 20)| ((v & (1<<11)) << 9)| (v & (255<<12)); }
 inline uint32_t get12_10to5_z13_4to1_11_z7(uint32_t v) { return ((v & (1<<12)) << 19)| ((v & (63<<5)) << 20)| ((v & (15<<1)) << 7)| ((v & (1<<11)) >> 4); }
-
-
-
 }
 
 //----------------------------------------------------------------------------
-// Error
+// FeNN::Assembler::Error
 //----------------------------------------------------------------------------
+namespace FeNN::Assembler
+{
 Error::Error(AssemblerError err) : m_Err(err)
 {
     std::cout << "Error:" << err._to_string() << std::endl;
 }
 //----------------------------------------------------------------------------
-const char *Error::what() const noexcept
+const char* Error::what() const noexcept
 {
     return m_Err._to_string();
 }
 
 //----------------------------------------------------------------------------
-// CodeGenerator
+// FeNN::Assembler::CodeGenerator
 //----------------------------------------------------------------------------
-CodeGenerator &CodeGenerator::operator += (const CodeGenerator& other)
+CodeGenerator& CodeGenerator::operator += (const CodeGenerator& other)
 {
     // Get address of end of code
     const uint32_t curr = getCurr();
@@ -65,10 +67,10 @@ CodeGenerator &CodeGenerator::operator += (const CodeGenerator& other)
     // Loop through jumps declared in other code generator and copy, updating addresses
     for (auto l : other.m_LabelJumps) {
         m_LabelJumps.emplace(std::piecewise_construct,
-                             std::forward_as_tuple(l.first),
-                             std::forward_as_tuple(l.second, curr));
+            std::forward_as_tuple(l.first),
+            std::forward_as_tuple(l.second, curr));
     }
-    
+
     return *this;
 }
 //----------------------------------------------------------------------------
@@ -104,11 +106,11 @@ void CodeGenerator::li(Reg rd, int imm)
         lui(rd, std::get<0>(highLow.value()));
         addi(rd, rd, std::get<1>(highLow.value()));
     }
-    
+
 }
 
 //----------------------------------------------------------------------------
-// CodeGenerator::Jmp
+// FeNN::Assembler::CodeGenerator::Jmp
 //----------------------------------------------------------------------------
 uint32_t CodeGenerator::Jmp::encode(uint32_t addr) const
 {
@@ -136,4 +138,5 @@ uint32_t CodeGenerator::Jmp::encode(uint32_t addr) const
             return get12_10to5_z13_4to1_11_z7(imm) | m_Encoded;
         }
     }
+}
 }

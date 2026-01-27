@@ -10,6 +10,12 @@
 #include <plog/Log.h>
 #include <plog/Severity.h>
 
+using namespace FeNN::Common;
+using namespace FeNN::ISE;
+
+//----------------------------------------------------------------------------
+// Anonymous namespace
+//----------------------------------------------------------------------------
 namespace
 {
 inline int16_t saturate(int val) 
@@ -69,8 +75,10 @@ uint32_t maskOp(const Vector &val, const Vector &val2, F func)
 }
 
 //----------------------------------------------------------------------------
-// VectorDataMemory
+// FeNN::ISE::VectorDataMemory
 //----------------------------------------------------------------------------
+namespace FeNN::ISE
+{
 VectorDataMemory::VectorDataMemory(size_t numHalfWords)
 :   m_Data(numHalfWords, static_cast<int16_t>(0xDEAD))
 {
@@ -120,7 +128,7 @@ void VectorDataMemory::setData(const std::vector<int16_t> &data)
 }
 
 //----------------------------------------------------------------------------
-// LaneLocalMemory
+// FeNN::ISE::LaneLocalMemory
 //----------------------------------------------------------------------------
 LaneLocalMemory::LaneLocalMemory(size_t numEntries)
 :   m_Data(numEntries, static_cast<int16_t>(0xDEAD))
@@ -155,7 +163,7 @@ void LaneLocalMemory::write(uint32_t addr, int16_t data)
 }
 
 //----------------------------------------------------------------------------
-// VectorProcessor
+// FeNN::ISE::VectorProcessor
 //----------------------------------------------------------------------------
 VectorProcessor::VectorProcessor(size_t vectorMemoryHalfWords, size_t laneLocalMemoryHalfWords)
 :   m_VectorDataMemory(vectorMemoryHalfWords), m_VRegDelay{0}
@@ -675,3 +683,4 @@ const Vector &VectorProcessor::readVReg(size_t reg) const
 
     return m_VReg[reg];
 }
+}   // namespace FeNN::ISE::

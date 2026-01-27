@@ -4,8 +4,10 @@
 #include <cassert>
 
 //----------------------------------------------------------------------------
-// SharedBusSim
+// FeNN::ISE::SharedBusSim
 //----------------------------------------------------------------------------
+namespace FeNN::ISE
+{
 std::pair<std::optional<uint32_t>, bool> SharedBusSim::synchronise(size_t routerIndex, bool lastTick)
 {
     // Wait until all threads have written data
@@ -50,4 +52,5 @@ std::pair<std::optional<uint32_t>, bool> SharedBusSim::synchronise(size_t router
 
     // Return read data and whether the event that got send was 'ours'
     return std::make_pair(data, readRouterIndex == routerIndex);
+}
 }
