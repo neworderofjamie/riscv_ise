@@ -18,7 +18,6 @@
 #include <memory>
 #include <optional>
 #include <string>
-#include <unordered_set>
 #include <unordered_map>
 
 // Standard C includes
@@ -51,39 +50,9 @@ private:
     AssemblerError m_Err;
 };
 
-/*class ASSEMBLER_EXPORT Label 
-{
-public:
-    Label() : cg(nullptr), id(0) {}
-    Label(const Label& rhs);
-    Label& operator=(const Label& rhs);
-    ~Label();
-
-    //------------------------------------------------------------------------
-    // Public API
-    //------------------------------------------------------------------------
-    uint32_t getAddress() const;
-
-private:
-    friend CodeGenerator;
-
-    //------------------------------------------------------------------------
-    // Private methods
-    //------------------------------------------------------------------------
-    void clear() { cg = nullptr; id = 0; }
-    int getId() const { return id; }
-
-    //------------------------------------------------------------------------
-    // Members
-    //------------------------------------------------------------------------
-    mutable CodeGenerator *cg;
-    mutable int id;
-};*/
-
 class ASSEMBLER_EXPORT CodeGenerator
 {
-    enum class LabelID : int {};
-    using Label = std::shared_ptr<const LabelID>;
+    using Label = std::shared_ptr<std::byte>;
 public:
     // constructor
     CodeGenerator()
@@ -95,7 +64,7 @@ public:
 
     Label createLabel() const
     {
-        return std::make_shared<LabelID>(LabelID{m_LabelID++});
+        return std::make_shared<std::byte>(std::byte{0});
     }
 
     void L(Label label) { defineClabel(label); }
@@ -107,12 +76,14 @@ public:
     }
     std::optional<uint32_t> getAddress(Label label) const
     {
-        const auto  i = m_LabelDefList.find(*label);
+        // If label isn't defined, it doesn't yet have an address
+        const auto  i = m_LabelDefList.find(label);
         if (i == m_LabelDefList.end()) {
             return std::nullopt;
         }
+        // Otherwise, return address
         else {
-            return i->second.addr;
+            return i->second;
         }
     }
   
@@ -277,20 +248,6 @@ public:
     void vstorel(VReg rs, VReg addr, int imm = 0){ Stype(VectorOpCode::VSTORE, 0b010, addr, rs, imm); }
 
 private:
-    friend Label;
-
-    //------------------------------------------------------------------------
-    // ClabelVal
-    //------------------------------------------------------------------------
-    // for Label class
-    struct ClabelVal 
-    {
-        ClabelVal(uint32_t addr = 0) : addr(addr), refCount(1) {}
-        const uint32_t addr;
-        int refCount;
-    };
-
-    
     //----------------------------------------------------------------------------
     // Jmp
     //----------------------------------------------------------------------------
@@ -321,13 +278,13 @@ private:
         {
         }
 
-        uint32_t encode(uint32_t addr) const;
+        uint32_t encode(std::optional<uint32_t> addr) const;
 
         // update jmp address by base->getCurr()
         void update(CodeGenerator *base) const;
 
         // append jmp opcode with addr
-        void appendCode(CodeGenerator *base, uint32_t addr) const;
+        void appendCode(CodeGenerator *base, std::optional<uint32_t> addr) const;
 
     private:
         const uint32_t from; /* address of the jmp mnemonic */
@@ -339,34 +296,26 @@ private:
     //------------------------------------------------------------------------
     // Typedefines
     //------------------------------------------------------------------------
-    typedef std::unordered_map<LabelID, ClabelVal> ClabelDefList;
-    typedef std::unordered_multimap<LabelID, Jmp> ClabelUndefList;
-    typedef std::unordered_set<Label> LabelPtrList;
+    typedef std::unordered_map<Label, uint32_t> ClabelDefList;
+    typedef std::unordered_multimap<Label, Jmp> ClabelUndefList;
 
     //------------------------------------------------------------------------
     // Private methods
     //------------------------------------------------------------------------
     void reset()
     {
-        m_LabelID = 1;
         m_LabelDefList.clear();
         m_LabelUndefList.clear();
     }
     void defineClabel(Label label)
     {
-        define_inner(*label, getCurr());
-        m_LabelPtrList.insert(label);
-    }
-
-    void define_inner(LabelID labelId, uint32_t addr)
-    {
-        const auto ret = m_LabelDefList.try_emplace(labelId, addr);
+        const auto ret = m_LabelDefList.try_emplace(label, getCurr());
         if (!ret.second) {
             throw Error(AssemblerError::LABEL_IS_REDEFINED);
         }
         // search undefined label
-        const auto undefLabels = m_LabelUndefList.equal_range(labelId);
-        for(auto itr = undefLabels.first; itr != undefLabels.second; itr++) {
+        const auto undefLabels = m_LabelUndefList.equal_range(label);
+        for (auto itr = undefLabels.first; itr != undefLabels.second; itr++) {
             const Jmp& jmp = itr->second;
             jmp.update(this);
             m_LabelUndefList.erase(itr);
@@ -387,12 +336,9 @@ private:
     void opJmp(Label label, const Jmp& jmp)
     {
         const auto addr = getAddress(label);
-        jmp.appendCode(this, addr.value_or(0));
-        if (addr) {
-            return;
-        }
-        else {
-            m_LabelUndefList.emplace(*label, jmp);
+        jmp.appendCode(this, addr);
+        if (!addr) {
+            m_LabelUndefList.emplace(label, jmp);
         }
     }
     uint32_t enc2(uint32_t a, uint32_t b) const { return (a<<7) | (b<<15); }
@@ -456,9 +402,7 @@ private:
     // Members
     //------------------------------------------------------------------------
     std::vector<uint32_t> m_Code;
-    mutable int m_LabelID;
     ClabelDefList m_LabelDefList;
     ClabelUndefList m_LabelUndefList;
-    LabelPtrList m_LabelPtrList;
 };
 

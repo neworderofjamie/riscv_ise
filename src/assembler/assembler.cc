@@ -61,26 +61,30 @@ void CodeGenerator::li(Reg rd, int imm)
 //----------------------------------------------------------------------------
 // CodeGenerator::Jmp
 //----------------------------------------------------------------------------
-uint32_t CodeGenerator::Jmp::encode(uint32_t addr) const
+uint32_t CodeGenerator::Jmp::encode(std::optional<uint32_t> addr) const
 {
-    if (addr == 0) {
-        return 0;
-    }
-    if (type == Type::RAW_ADDRESS) {
-        return addr;
-    }
-    const int imm = addr - from;
-    if (type == Type::JAL) {
-        if (!isValidImm(imm, 20)) {
-            throw Error(AssemblerError::INVALID_IMM_OF_JAL);
+    if (addr.has_value()) {
+        if (type == Type::RAW_ADDRESS) {
+            return addr.value();
         }
-        return get20_10to1_11_19to12_z12(imm) | encoded;
-    } 
+        else {
+            const int imm = addr.value() - from;
+            if (type == Type::JAL) {
+                if (!isValidImm(imm, 20)) {
+                    throw Error(AssemblerError::INVALID_IMM_OF_JAL);
+                }
+                return get20_10to1_11_19to12_z12(imm) | encoded;
+            }
+            else {
+                if (!isValidImm(imm, 12)) {
+                    throw Error(AssemblerError::INVALID_IMM_OF_JAL);
+                }
+                return get12_10to5_z13_4to1_11_z7(imm) | encoded;
+            }
+        }
+    }
     else {
-        if (!isValidImm(imm, 12)) {
-            throw Error(AssemblerError::INVALID_IMM_OF_JAL);
-        }
-        return get12_10to5_z13_4to1_11_z7(imm) | encoded;
+        return 0;
     }
 }
 //----------------------------------------------------------------------------
@@ -89,7 +93,7 @@ void CodeGenerator::Jmp::update(CodeGenerator *base) const
     base->write4B(from, encode(base->getCurr()));
 }
 //----------------------------------------------------------------------------
-void CodeGenerator::Jmp::appendCode(CodeGenerator *base, uint32_t addr) const
+void CodeGenerator::Jmp::appendCode(CodeGenerator *base, std::optional<uint32_t> addr) const
 {
     base->append4B(encode(addr));
 }
