@@ -13,6 +13,11 @@
 // FeNN common includes
 #include "fenn/common/fenn_common_export.h"
 
+//----------------------------------------------------------------------------
+// FeNN::Common
+//----------------------------------------------------------------------------
+namespace FeNN::Common
+{
 inline constexpr uint32_t mask(uint32_t n)
 {
     assert (n <= 32);
@@ -360,3 +365,4 @@ public:
 private:
     uint32_t v;
 };
+}   // FeNN::Common

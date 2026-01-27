@@ -12,6 +12,8 @@
 // FeNN backend includes
 #include "fenn/assembler/assembler.h"
 
+using namespace FeNN::Assembler;
+using namespace FeNN::Compiler;
 using namespace GeNN;
 using namespace GeNN::Transpiler;
 
@@ -20,7 +22,6 @@ using namespace GeNN::Transpiler;
 //---------------------------------------------------------------------------
 namespace
 {
-
 //---------------------------------------------------------------------------
 // CompilerError
 //---------------------------------------------------------------------------
@@ -920,8 +921,10 @@ private:
 }
 
 //---------------------------------------------------------------------------
-// GeNN::CodeGenerator::FeNN::Compiler::EnvironmentInternal
+// FeNN::Compiler::EnvironmentInternal
 //---------------------------------------------------------------------------
+namespace FeNN::Compiler
+{
 void EnvironmentInternal::define(const std::string &name, RegisterPtr reg)
 {
     if(!m_LocalVariables.emplace(name, reg).second) {
@@ -955,3 +958,4 @@ void compile(const Statement::StatementList &statements, EnvironmentInternal &en
                     maskRegister, roundingMode,
                     scalarRegisterAllocator, vectorRegisterAllocator);
 }
+}   // namespace FeNN::Compiler

@@ -9,10 +9,12 @@
 #include "fenn/ise/riscv.h"
 #include "fenn/ise/ise_export.h"
 
+namespace FeNN::ISE
+{
 using Vector = std::array<int16_t, 32>;
 
 //----------------------------------------------------------------------------
-// VectorDataMemory
+// FeNN::ISE::VectorDataMemory
 //----------------------------------------------------------------------------
 class ISE_EXPORT VectorDataMemory
 {
@@ -32,7 +34,7 @@ private:
 };
 
 //----------------------------------------------------------------------------
-// LaneLocalMemory
+// FeNN::ISE::LaneLocalMemory
 //----------------------------------------------------------------------------
 class ISE_EXPORT LaneLocalMemory
 {
@@ -50,7 +52,7 @@ private:
 };
 
 //----------------------------------------------------------------------------
-// VectorProcessor
+// FeNN::ISE::VectorProcessor
 //----------------------------------------------------------------------------
 class ISE_EXPORT VectorProcessor : public RISCV::ICoprocessor
 {
@@ -74,7 +76,7 @@ public:
     auto &getLaneLocalMemory(size_t lane) { return m_LaneLocalMemories.at(lane); }
     const auto &getLaneLocalMemory(size_t lane) const { return m_LaneLocalMemories.at(lane); }
     
-    size_t getNumInstructionsExecuted(const std::array<size_t, 32> &counts, VectorOpCode opCode) const;
+    size_t getNumInstructionsExecuted(const std::array<size_t, 32> &counts, FeNN::Common::VectorOpCode opCode) const;
     size_t getNumMemory(const std::array<size_t, 32> &counts) const;
     size_t getNumALU(const std::array<size_t, 32> &counts) const;
 
@@ -102,3 +104,4 @@ private:
     Vector m_S0;
     Vector m_S1;
 };
+}   // namespace FeNN::ISE

@@ -12,12 +12,14 @@
 #include "fenn/ise/fsm.h"
 #include "fenn/ise/ise_export.h"
 
+namespace FeNN::ISE
+{
 // Forward declarations
 class ScalarDataMemory;
 class SharedBusSim;
 
 //----------------------------------------------------------------------------
-// RouterSim
+// FeNN::ISE::RouterSim
 //----------------------------------------------------------------------------
 class ISE_EXPORT RouterSim
 {
@@ -94,3 +96,4 @@ private:
     //! Spike router is currently waiting to write
     uint32_t m_CurrentSpikeID;
 };
+}   // namespace FeNN::ISE

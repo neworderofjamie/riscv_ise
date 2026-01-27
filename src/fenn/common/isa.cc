@@ -1,8 +1,10 @@
 #include "fenn/common/isa.h"
 
 //----------------------------------------------------------------------------
-// ISA
+// FeNN::Common
 //----------------------------------------------------------------------------
+namespace FeNN::Common
+{
 LoadType getLoadType(uint32_t funct3)
 {
     switch(funct3) {
@@ -395,4 +397,5 @@ VSpcType getVSpcType(uint32_t funct3)
     default:
         return VSpcType::INVALID;
     }
+}
 }

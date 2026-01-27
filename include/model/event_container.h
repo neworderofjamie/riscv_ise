@@ -11,6 +11,8 @@
 //----------------------------------------------------------------------------
 // EventContainer
 //----------------------------------------------------------------------------
+namespace Model
+{
 class EventContainer : public AcceptableModelComponent<EventContainer, State>
 {
 public:
@@ -41,3 +43,4 @@ private:
     Shape m_Shape;
     size_t m_NumBufferTimesteps;
 };
+}   // namespace Model

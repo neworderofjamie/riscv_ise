@@ -19,8 +19,10 @@ constexpr uint32_t barrierEventID = 0xFFFFFFFFull;
 }
 
 //----------------------------------------------------------------------------
-// RouterSim
+// FeNN::ISE::RouterSim
 //----------------------------------------------------------------------------
+namespace FeNN::ISE
+{
 RouterSim::RouterSim(SharedBusSim &sharedBus, ScalarDataMemory &spikeMemory, size_t routerIndex)
 :   m_SharedBus(sharedBus), m_SpikeMemory(spikeMemory), m_RouterIndex(routerIndex), m_Registers{0},
     m_MasterFSM(MasterFSMState::IDLE), m_CurrentSpikeBitfield(0), m_CurrentEventIDBase(0), m_CurrentSpikeID(0)
@@ -80,7 +82,7 @@ void RouterSim::tick()
                 writeReceivedEvent(m_SharedBus.get().synchronise(m_RouterIndex).first);
 
                 // Count trailing zeros
-                const uint32_t numTZ = ctz(m_CurrentSpikeBitfield);
+                const uint32_t numTZ = ::Common::Utils::ctz(m_CurrentSpikeBitfield);
 
                 // Add number of trailing zeros to spike ID
                 m_CurrentSpikeID += numTZ;
@@ -173,4 +175,5 @@ void RouterSim::writeReceivedEvent(std::optional<uint32_t> data)
 void RouterSim::writeRegInternal(Register reg, uint32_t val)
 {
     m_Registers[static_cast<int>(reg)] = val;
+}
 }

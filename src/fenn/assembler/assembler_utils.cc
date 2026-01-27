@@ -1,9 +1,9 @@
 #include "fenn/assembler/assembler_utils.h"
 
 //----------------------------------------------------------------------------
-// AssemblerUtils
+// FeNN::Assembler::Utils
 //----------------------------------------------------------------------------
-namespace AssemblerUtils
+namespace FeNN::Assembler::Utils
 {
 void generateScalarVectorMemcpy(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator,
                                 ScalarRegisterAllocator &scalarRegisterAllocator,

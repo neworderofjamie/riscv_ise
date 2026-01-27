@@ -11,8 +11,10 @@
 #include "common/barrier.h"
 
 //----------------------------------------------------------------------------
-// SharedBusSim
+// FeNN::ISE::SharedBusSim
 //----------------------------------------------------------------------------
+namespace FeNN::ISE
+{
 class SharedBusSim
 {
 public:
@@ -45,3 +47,4 @@ private:
 
     Barrier m_Barrier;
 };
+}   // namespace FeNN::ISE

@@ -26,8 +26,10 @@
 #include "common/utils.h"
 
 //----------------------------------------------------------------------------
-// Device
+// FeNN::Common::Device
 //----------------------------------------------------------------------------
+namespace FeNN::Common
+{
 Device::Device(int core, int numCores)
 {
 #ifdef __linux__ 
@@ -125,4 +127,4 @@ std::optional<unsigned int> Device::getSOCPower() const
         return std::nullopt;
     }
 }
-
+}   // namespace FeNN::Common

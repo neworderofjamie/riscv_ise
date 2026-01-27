@@ -33,13 +33,18 @@
 // Assembler includes
 #include "fenn/assembler/assembler_export.h"
 
+//----------------------------------------------------------------------------
+// FeNN::Assembler
+//----------------------------------------------------------------------------
+namespace FeNN::Assembler
+{
 // Forward declarations
 class CodeGenerator;
 
-BETTER_ENUM(AssemblerError, int, OFFSET_IS_TOO_BIG, IMM_IS_TOO_BIG, INVALID_IMM_OF_JAL, 
-            INVALID_IMM_OF_JALR, INVALID_IMM_OF_BRANCH, LABEL_IS_NOT_FOUND, LABEL_IS_REDEFINED)
+BETTER_ENUM(AssemblerError, int, OFFSET_IS_TOO_BIG, IMM_IS_TOO_BIG, INVALID_IMM_OF_JAL,
+    INVALID_IMM_OF_JALR, INVALID_IMM_OF_BRANCH, LABEL_IS_NOT_FOUND, LABEL_IS_REDEFINED)
 
-using Label = std::shared_ptr<std::byte>;
+    using Label = std::shared_ptr<std::byte>;
 
 //----------------------------------------------------------------------------
 // Error
@@ -48,7 +53,7 @@ class ASSEMBLER_EXPORT Error : public std::exception {
 public:
     explicit Error(AssemblerError err);
     operator AssemblerError() const { return m_Err; }
-    const char *what() const noexcept;
+    const char* what() const noexcept;
 
 private:
     AssemblerError m_Err;
@@ -59,9 +64,11 @@ inline Label createLabel()
     return std::make_shared<std::byte>(std::byte{ 0 });
 }
 
+//----------------------------------------------------------------------------
+// CodeGenerator
+//----------------------------------------------------------------------------
 class ASSEMBLER_EXPORT CodeGenerator
 {
-    
 public:
     // constructor
     CodeGenerator()
@@ -81,10 +88,10 @@ public:
     }
 
     Label L()
-    { 
-        auto label = createLabel(); 
-        L(label); 
-        return label; 
+    {
+        auto label = createLabel();
+        L(label);
+        return label;
     }
     std::optional<uint32_t> getAddress(Label label) const
     {
@@ -99,8 +106,8 @@ public:
         }
     }
 
-    CodeGenerator &operator += (const CodeGenerator& other);
-  
+    CodeGenerator& operator += (const CodeGenerator& other);
+
     std::vector<uint32_t> getCode() const;
 
     void add(Reg rd, Reg rs1, Reg rs2) { Rtype(StandardOpCode::OP, 0, 0x0, rd, rs1, rs2); }
@@ -211,63 +218,63 @@ public:
     // FeNN vector processor
 
     // VSOP
-    void vadd(VReg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VSOP, 0b000, 0b0000000, rd, rs1, rs2); }
-    void vadd_s(VReg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VSOP, 0b000, 0b1000000, rd, rs1, rs2); }
-    void vsub(VReg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VSOP, 0b010, 0b0000000, rd, rs1, rs2); }
-    void vsub_s(VReg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VSOP, 0b010, 0b1000000, rd, rs1, rs2); }
-    void vand(VReg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VSOP, 0b011, 0b0000000, rd, rs1, rs2); }
-    void vsll(VReg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VSOP, 0b001, 0b0000000, rd, rs1, rs2); }
-    void vsra(VReg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VSOP, 0b101, 0b0000000, rd, rs1, rs2); }
-    void vmul(Bit<4> shift, VReg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VSOP, 0b100, shift, rd, rs1, rs2); }
-    void vmul_rn(Bit<4> shift, VReg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VSOP, 0b100, shift | 0b0010000, rd, rs1, rs2); }
-    void vmul_rs(Bit<4> shift, VReg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VSOP, 0b100, shift | 0b0100000, rd, rs1, rs2); }
-    void vmul_s(Bit<4> shift, VReg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VSOP, 0b100, shift | 0b1000000, rd, rs1, rs2); }
-    void vmul_s_rn(Bit<4> shift, VReg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VSOP, 0b100, shift | 0b1010000, rd, rs1, rs2); }
-    void vmul_s_rs(Bit<4> shift, VReg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VSOP, 0b100, shift | 0b1100000, rd, rs1, rs2); }
-    
+    void vadd(VReg rd, VReg rs1, VReg rs2) { Rtype(VectorOpCode::VSOP, 0b000, 0b0000000, rd, rs1, rs2); }
+    void vadd_s(VReg rd, VReg rs1, VReg rs2) { Rtype(VectorOpCode::VSOP, 0b000, 0b1000000, rd, rs1, rs2); }
+    void vsub(VReg rd, VReg rs1, VReg rs2) { Rtype(VectorOpCode::VSOP, 0b010, 0b0000000, rd, rs1, rs2); }
+    void vsub_s(VReg rd, VReg rs1, VReg rs2) { Rtype(VectorOpCode::VSOP, 0b010, 0b1000000, rd, rs1, rs2); }
+    void vand(VReg rd, VReg rs1, VReg rs2) { Rtype(VectorOpCode::VSOP, 0b011, 0b0000000, rd, rs1, rs2); }
+    void vsll(VReg rd, VReg rs1, VReg rs2) { Rtype(VectorOpCode::VSOP, 0b001, 0b0000000, rd, rs1, rs2); }
+    void vsra(VReg rd, VReg rs1, VReg rs2) { Rtype(VectorOpCode::VSOP, 0b101, 0b0000000, rd, rs1, rs2); }
+    void vmul(Bit<4> shift, VReg rd, VReg rs1, VReg rs2) { Rtype(VectorOpCode::VSOP, 0b100, shift, rd, rs1, rs2); }
+    void vmul_rn(Bit<4> shift, VReg rd, VReg rs1, VReg rs2) { Rtype(VectorOpCode::VSOP, 0b100, shift | 0b0010000, rd, rs1, rs2); }
+    void vmul_rs(Bit<4> shift, VReg rd, VReg rs1, VReg rs2) { Rtype(VectorOpCode::VSOP, 0b100, shift | 0b0100000, rd, rs1, rs2); }
+    void vmul_s(Bit<4> shift, VReg rd, VReg rs1, VReg rs2) { Rtype(VectorOpCode::VSOP, 0b100, shift | 0b1000000, rd, rs1, rs2); }
+    void vmul_s_rn(Bit<4> shift, VReg rd, VReg rs1, VReg rs2) { Rtype(VectorOpCode::VSOP, 0b100, shift | 0b1010000, rd, rs1, rs2); }
+    void vmul_s_rs(Bit<4> shift, VReg rd, VReg rs1, VReg rs2) { Rtype(VectorOpCode::VSOP, 0b100, shift | 0b1100000, rd, rs1, rs2); }
+
     // VSOP-IMM
-    void vslli(Bit<4> shift, VReg rd, VReg rs1){ Itype(VectorOpCode::VSOP_IMM, 0b000, rd, rs1, shift); }
-    void vsrai(Bit<4> shift, VReg rd, VReg rs1){ Itype(VectorOpCode::VSOP_IMM, 0b001, rd, rs1, shift); }
-    void vsrai_rn(Bit<4> shift, VReg rd, VReg rs1){ Itype(VectorOpCode::VSOP_IMM, 0b001, rd, rs1, shift | 0b000000010000); }
-    void vsrai_rs(Bit<4> shift, VReg rd, VReg rs1){ Itype(VectorOpCode::VSOP_IMM, 0b001, rd, rs1, shift | 0b000000100000); }
+    void vslli(Bit<4> shift, VReg rd, VReg rs1) { Itype(VectorOpCode::VSOP_IMM, 0b000, rd, rs1, shift); }
+    void vsrai(Bit<4> shift, VReg rd, VReg rs1) { Itype(VectorOpCode::VSOP_IMM, 0b001, rd, rs1, shift); }
+    void vsrai_rn(Bit<4> shift, VReg rd, VReg rs1) { Itype(VectorOpCode::VSOP_IMM, 0b001, rd, rs1, shift | 0b000000010000); }
+    void vsrai_rs(Bit<4> shift, VReg rd, VReg rs1) { Itype(VectorOpCode::VSOP_IMM, 0b001, rd, rs1, shift | 0b000000100000); }
 
     // VTST
-    void vteq(Reg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VTST, 0b000, 0x0, rd, rs1, rs2); }
-    void vtne(Reg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VTST, 0b010, 0x0, rd, rs1, rs2); }
-    void vtlt(Reg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VTST, 0b100, 0x0, rd, rs1, rs2); }
-    void vtge(Reg rd, VReg rs1, VReg rs2){ Rtype(VectorOpCode::VTST, 0b110, 0x0, rd, rs1, rs2); }
+    void vteq(Reg rd, VReg rs1, VReg rs2) { Rtype(VectorOpCode::VTST, 0b000, 0x0, rd, rs1, rs2); }
+    void vtne(Reg rd, VReg rs1, VReg rs2) { Rtype(VectorOpCode::VTST, 0b010, 0x0, rd, rs1, rs2); }
+    void vtlt(Reg rd, VReg rs1, VReg rs2) { Rtype(VectorOpCode::VTST, 0b100, 0x0, rd, rs1, rs2); }
+    void vtge(Reg rd, VReg rs1, VReg rs2) { Rtype(VectorOpCode::VTST, 0b110, 0x0, rd, rs1, rs2); }
 
     // VSEL
-    void vsel(VReg rd, const Reg &rs1, VReg rs2){ Rtype(VectorOpCode::VSEL, 0b000, 0b0000000, rd, rs1, rs2); }
+    void vsel(VReg rd, const Reg& rs1, VReg rs2) { Rtype(VectorOpCode::VSEL, 0b000, 0b0000000, rd, rs1, rs2); }
 
     // VLUI
-    void vlui(VReg rd, uint32_t imm){ Utype(VectorOpCode::VLUI, rd, imm); }
+    void vlui(VReg rd, uint32_t imm) { Utype(VectorOpCode::VLUI, rd, imm); }
 
     // VMOV
-    void vfill(VReg rd, Reg rs){ Itype(VectorOpCode::VMOV, 0b000, rd, rs, 0); }
-    void vextract(Reg rd, VReg rs, Bit<5> lane){ Itype(VectorOpCode::VMOV, 0b001, rd, rs, lane); }
+    void vfill(VReg rd, Reg rs) { Itype(VectorOpCode::VMOV, 0b000, rd, rs, 0); }
+    void vextract(Reg rd, VReg rs, Bit<5> lane) { Itype(VectorOpCode::VMOV, 0b001, rd, rs, lane); }
 
     // VSPC
-    void vrng(VReg rd){ Rtype(VectorOpCode::VSPC, 0b000, 0x0, rd, 0, 0);}
-    void vandadd(Bit<4> shift, VReg rd, VReg rs1, Reg rs2){ Rtype(VectorOpCode::VSPC, 0b001, shift, rd, rs1, rs2); }
+    void vrng(VReg rd) { Rtype(VectorOpCode::VSPC, 0b000, 0x0, rd, 0, 0); }
+    void vandadd(Bit<4> shift, VReg rd, VReg rs1, Reg rs2) { Rtype(VectorOpCode::VSPC, 0b001, shift, rd, rs1, rs2); }
 
     // VLOAD
-    void vloadv(VReg rd, Reg addr, int imm = 0){ Itype(VectorOpCode::VLOAD, 0b000, rd, addr, imm); }
-    void vloadl(VReg rd, VReg addr, int imm = 0){ Itype(VectorOpCode::VLOAD, 0b010, rd, addr, imm); }
-    void vloadr0(Reg addr, int imm = 0){ Itype(VectorOpCode::VLOAD, 0b001, 0, addr, imm); }
-    void vloadr1(Reg addr, int imm = 0){ Itype(VectorOpCode::VLOAD, 0b101, 0, addr, imm); }
-    
+    void vloadv(VReg rd, Reg addr, int imm = 0) { Itype(VectorOpCode::VLOAD, 0b000, rd, addr, imm); }
+    void vloadl(VReg rd, VReg addr, int imm = 0) { Itype(VectorOpCode::VLOAD, 0b010, rd, addr, imm); }
+    void vloadr0(Reg addr, int imm = 0) { Itype(VectorOpCode::VLOAD, 0b001, 0, addr, imm); }
+    void vloadr1(Reg addr, int imm = 0) { Itype(VectorOpCode::VLOAD, 0b101, 0, addr, imm); }
+
     // VSTORE
-    void vstore(VReg rs, Reg addr, int imm = 0){ Stype(VectorOpCode::VSTORE, 0b000, addr, rs, imm); }
-    void vstorel(VReg rs, VReg addr, int imm = 0){ Stype(VectorOpCode::VSTORE, 0b010, addr, rs, imm); }
+    void vstore(VReg rs, Reg addr, int imm = 0) { Stype(VectorOpCode::VSTORE, 0b000, addr, rs, imm); }
+    void vstorel(VReg rs, VReg addr, int imm = 0) { Stype(VectorOpCode::VSTORE, 0b010, addr, rs, imm); }
 
 private:
     //----------------------------------------------------------------------------
     // Jmp
     //----------------------------------------------------------------------------
-    class Jmp 
+    class Jmp
     {
-        enum class Type 
+        enum class Type
         {
             JAL,
             JALR,
@@ -277,26 +284,26 @@ private:
     public:
         // JAL
         Jmp(uint32_t from, Reg rd)
-        :   m_Type(Type::JAL), m_From(from), m_Encoded((static_cast<uint32_t>(rd) << 7) | addQuadrant(StandardOpCode::JAL))
+            : m_Type(Type::JAL), m_From(from), m_Encoded((static_cast<uint32_t>(rd) << 7) | addQuadrant(StandardOpCode::JAL))
         {
         }
 
         // JALR
         Jmp(uint32_t from, Reg rd, Reg src)
-        :   m_Type(Type::JALR), m_From(from), 
+            : m_Type(Type::JALR), m_From(from),
             m_Encoded((static_cast<uint32_t>(src) << 15) | (static_cast<uint32_t>(rd) << 7) | addQuadrant(StandardOpCode::JALR))
         {
         }
 
         // BRANCH
         Jmp(uint32_t from, Bit<7> opcode, uint32_t funct3, Reg src1, Reg src2)
-        :   m_Type(Type::BRANCH), m_From(from),
+            : m_Type(Type::BRANCH), m_From(from),
             m_Encoded((static_cast<uint32_t>(src2) << 20) | (static_cast<uint32_t>(src1) << 15) | (funct3 << 12) | opcode)
         {
         }
 
-        Jmp(const Jmp &other, uint32_t offset)
-        :   m_From(other.m_From + offset), m_Encoded(other.m_Encoded), m_Type(other.m_Type)
+        Jmp(const Jmp& other, uint32_t offset)
+            : m_From(other.m_From + offset), m_Encoded(other.m_Encoded), m_Type(other.m_Type)
         {
         }
 
@@ -318,25 +325,25 @@ private:
         m_LabelAddresses.clear();
         m_LabelJumps.clear();
     }
- 
+
     void append4B(uint32_t code) { m_Code.push_back(code); }
-    
+
 
     // **TODO**  add code base address
-    uint32_t getCurr() const{ return static_cast<uint32_t>(m_Code.size()) * 4; }
-    
+    uint32_t getCurr() const { return static_cast<uint32_t>(m_Code.size()) * 4; }
+
     void opJmp(Label label, const Jmp& jmp)
     {
         // Append placeholder and add jump to map
         append4B(0);
         m_LabelJumps.emplace(label, jmp);
     }
-    uint32_t enc2(uint32_t a, uint32_t b) const { return (a<<7) | (b<<15); }
-    uint32_t enc3(uint32_t a, uint32_t b, uint32_t c) const { return enc2(a, b) | (c<<20); }
+    uint32_t enc2(uint32_t a, uint32_t b) const { return (a << 7) | (b << 15); }
+    uint32_t enc3(uint32_t a, uint32_t b, uint32_t c) const { return enc2(a, b) | (c << 20); }
 
     void Rtype(Bit<7> opcode, Bit<3> funct3, Bit<7> funct7, Bit<5> rd, Bit<5> rs1, Bit<5> rs2)
     {
-        uint32_t v = (funct7<<25) | (funct3<<12) | opcode | enc3(rd, rs1, rs2);
+        uint32_t v = (funct7 << 25) | (funct3 << 12) | opcode | enc3(rd, rs1, rs2);
         append4B(v);
     }
     void Itype(Bit<7> opcode, Bit<3> funct3, Bit<5> rd, Bit<5> rs1, int imm)
@@ -344,7 +351,7 @@ private:
         if (!inSBit(imm, 12)) {
             throw Error(AssemblerError::IMM_IS_TOO_BIG);
         }
-        uint32_t v = (imm<<20) | (funct3<<12) | opcode | enc2(rd, rs1);
+        uint32_t v = (imm << 20) | (funct3 << 12) | opcode | enc2(rd, rs1);
         append4B(v);
     }
     void Stype(Bit<7> opcode, Bit<3> funct3, Bit<5> rs1, Bit<5> rs2, int imm)
@@ -352,7 +359,7 @@ private:
         if (!inSBit(imm, 12)) {
             throw Error(AssemblerError::IMM_IS_TOO_BIG);
         }
-        uint32_t v = ((imm>>5)<<25) | (funct3<<12) | opcode | enc3(imm & mask(5), rs1, rs2);
+        uint32_t v = ((imm >> 5) << 25) | (funct3 << 12) | opcode | enc3(imm & mask(5), rs1, rs2);
         append4B(v);
     }
     void Utype(Bit<7> opcode, Bit<5> rd, uint32_t imm)
@@ -360,7 +367,7 @@ private:
         if (imm >= (1u << 20)) {
             throw Error(AssemblerError::IMM_IS_TOO_BIG);
         }
-        uint32_t v = (imm<<12) | opcode | (rd<<7);
+        uint32_t v = (imm << 12) | opcode | (rd << 7);
         append4B(v);
     }
     void opShift(Bit<7> pre, Bit<3> funct3, Bit<7> opcode, Bit<5> rd, Bit<5> rs1, uint32_t shamt, int range = 0)
@@ -371,10 +378,10 @@ private:
         if (shamt >= (1u << range)) {
             throw Error(AssemblerError::IMM_IS_TOO_BIG);
         }
-        uint32_t v = (pre<<25) | (funct3<<12) | opcode | enc3(rd, rs1, shamt);
+        uint32_t v = (pre << 25) | (funct3 << 12) | opcode | enc3(rd, rs1, shamt);
         append4B(v);
     }
-    
+
     void opCSR(Bit<32> baseValue, Bit<12> csr, Bit<5> rs1_uimm, Bit<5> rd)
     {
         /*
@@ -383,7 +390,7 @@ private:
 
             func3 and opcode must be encoded in the baseValue
         */
-        uint32_t v = (csr<<20) | (rs1_uimm<<15) | (rd<<7);
+        uint32_t v = (csr << 20) | (rs1_uimm << 15) | (rd << 7);
         v |= baseValue; // force-encode base value
         append4B(v);
     }
@@ -395,4 +402,4 @@ private:
     std::unordered_map<Label, uint32_t> m_LabelAddresses;
     std::unordered_multimap<Label, Jmp> m_LabelJumps;
 };
-
+}   // namespace FeNN::Assembler

@@ -1,12 +1,15 @@
-#include "disassembler/disassembler.h"
+#include "fenn/disassembler/disassembler.h"
 
 // Standard C++ includes
 #include <functional>
 #include <unordered_map>
 
-// Common include
-#include "common/isa.h"
+// FeNN common include
+#include "fenn/common/isa.h"
 
+//----------------------------------------------------------------------------
+// Anonymous namespace
+//----------------------------------------------------------------------------
 /*
     AUIPC   = 0b00101,
     SYSTEM  = 0b11100,*/
@@ -217,16 +220,21 @@ const std::unordered_map<VectorOpCode, DisassembleFunc> vectorInstructionDecoder
 };
 }
 
-void disassemble(std::ostream &os, uint32_t inst)
+//----------------------------------------------------------------------------
+// FeNN::Disassembler
+//----------------------------------------------------------------------------
+namespace FeNN::Disassembler
+{
+void disassemble(std::ostream& os, uint32_t inst)
 {
     // Extract 2-bit quadrant
     const uint32_t quadrant = inst & 0b11;
     const uint32_t opCode = (inst & 0b1111100) >> 2;
 
     // If instruction is in standard quadrant
-    if(quadrant == standardQuadrant) {
+    if (quadrant == standardQuadrant) {
         const auto i = standardInstructionDecoders.find(static_cast<StandardOpCode>(opCode));
-        if(i != standardInstructionDecoders.cend()) {
+        if (i != standardInstructionDecoders.cend()) {
             i->second(os, inst);
         }
         else {
@@ -234,9 +242,9 @@ void disassemble(std::ostream &os, uint32_t inst)
         }
     }
     // Otherwise, if it is from vector quadrant
-    else if(quadrant == vectorQuadrant){
+    else if (quadrant == vectorQuadrant) {
         const auto i = vectorInstructionDecoders.find(static_cast<VectorOpCode>(opCode));
-        if(i != vectorInstructionDecoders.cend()) {
+        if (i != vectorInstructionDecoders.cend()) {
             i->second(os, inst);
         }
         else {
@@ -248,3 +256,4 @@ void disassemble(std::ostream &os, uint32_t inst)
         throw std::runtime_error("Unsupported quadrant");
     }
 }
+}   // namespace FeNN::disassembler

@@ -13,11 +13,13 @@
 #include "fenn/ise/fsm.h"
 #include "fenn/ise/ise_export.h"
 
+namespace FeNN::ISE
+{
 // Forward declarations
 class VectorDataMemory;
 
 //----------------------------------------------------------------------------
-// DMAControllerSim
+// FeNN::ISE::DMAControllerSim
 //----------------------------------------------------------------------------
 class ISE_EXPORT DMAControllerSim
 {
@@ -47,18 +49,6 @@ public:
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
-    //! Start write (from source DMA buffer to URAM)
-    /*void startWrite(uint32_t destination, uint32_t source, uint32_t size);
-    
-    //! Start read (from URAM to DMA buffer)
-    void startRead(uint32_t destination, uint32_t source, uint32_t size);
-
-    //! Wait for write channel to goto idle
-    void waitForWriteComplete() const;
-
-    //! Wait for read channel to goto idle
-    void waitForReadComplete() const;*/
-
     //! Write to register
     void writeReg(Register reg, uint32_t val);
 
@@ -131,3 +121,4 @@ private:
     // Registers
     std::array<uint32_t, static_cast<size_t>(Register::MAX)> m_Registers;
 };
+}   // namespace FeNN::ISE

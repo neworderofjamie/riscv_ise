@@ -17,8 +17,13 @@
 // Common includes
 #include "common/common_export.h"
 
+//----------------------------------------------------------------------------
+// Common::Utils
+//----------------------------------------------------------------------------
+namespace Common::Utils
+{
 //! Divide two integers, rounding up i.e. effectively taking ceil
-template<typename A, typename B, typename = std::enable_if_t<std::is_integral_v<A> && std::is_integral_v<B>>>
+template<typename A, typename B, typename = std::enable_if_t<std::is_integral_v<A>&& std::is_integral_v<B>>>
 constexpr inline auto ceilDivide(A numerator, B denominator)
 {
     return ((numerator + denominator - 1) / denominator);
@@ -41,7 +46,7 @@ inline int clz(uint32_t value)
 {
 #ifdef _WIN32
     unsigned long leadingZero = 0;
-    if(_BitScanReverse(&leadingZero, value)) {
+    if (_BitScanReverse(&leadingZero, value)) {
         return 31 - leadingZero;
     }
     else {
@@ -56,7 +61,7 @@ inline int ctz(uint32_t value)
 {
 #ifdef _WIN32
     unsigned long trailingZero = 0;
-    if(_BitScanForward(&trailingZero, value)) {
+    if (_BitScanForward(&trailingZero, value)) {
         return trailingZero;
     }
     else {
@@ -96,5 +101,5 @@ inline int16_t convertFixedPoint(double x, uint32_t fixedPoint)
     return static_cast<int16_t>(rounded);
 }
 
-
-COMMON_EXPORT void setThreadName(std::thread &thread, const std::string &name);
+COMMON_EXPORT void setThreadName(std::thread& thread, const std::string& name);
+}   // namespace Common::Utils

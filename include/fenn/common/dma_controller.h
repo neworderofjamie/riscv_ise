@@ -8,11 +8,13 @@
 #include "fenn/common/fenn_common_export.h"
 #include "fenn/common/uio.h"
 
+namespace FeNN::Common
+{
 // Forward declarations
 class DMABuffer;
 
 //----------------------------------------------------------------------------
-// DMAController
+// FeNN::Common::DMAController
 //----------------------------------------------------------------------------
 class FENN_COMMON_EXPORT DMAController
 {
@@ -77,3 +79,4 @@ private:
     //------------------------------------------------------------------------
     UIO m_RegisterUIO;
 };
+}   // namespace FeNN::Common

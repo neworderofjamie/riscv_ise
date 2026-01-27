@@ -15,8 +15,10 @@
 #include "fenn/common/dma_buffer.h"
 
 //----------------------------------------------------------------------------
-// DMAController
+// FeNN::Common::DMAController
 //----------------------------------------------------------------------------
+namespace FeNN::Common
+{
 DMAController::DMAController(const std::string &uioName)
 :   m_RegisterUIO(uioName)
 {
@@ -156,3 +158,4 @@ uint32_t DMAController::readReg(Register reg) const
     volatile const uint32_t *registers = m_RegisterUIO.getData<uint32_t>();
     return registers[static_cast<int>(reg) / 4]; 
 }
+}   // namespace FeNN::Common

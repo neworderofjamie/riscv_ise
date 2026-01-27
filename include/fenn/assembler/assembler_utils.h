@@ -16,13 +16,12 @@
 #include "fenn/assembler/register_allocator.h"
 
 //----------------------------------------------------------------------------
-// AssemblerUtils
+// FeNN::Assembler::Utils
 //----------------------------------------------------------------------------
 //! Utility functions for generating useful bits of FeNN assembly language
 //! Used both by compiler/FeNN backend and applications written in assembly
-namespace AssemblerUtils
+namespace FeNN::Assembler::Utils
 {
-
 // Generate
 ASSEMBLER_EXPORT void generateScalarVectorMemcpy(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator,
                                                  ScalarRegisterAllocator &scalarRegisterAllocator,
@@ -88,4 +87,4 @@ ASSEMBLER_EXPORT ScalarRegisterAllocator::RegisterPtr generateDMAWaitForReadComp
 
 //! Generate code to (busy) wait on a router barrier
 ASSEMBLER_EXPORT void generateRouterBarrier(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator, uint32_t numCores);
-}
+}   // namespace FeNN::Assembler::Utils

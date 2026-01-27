@@ -7,8 +7,10 @@
 #include "fenn/common/fenn_common_export.h"
 
 //----------------------------------------------------------------------------
-// UIO
+// FeNN::Common::UIO
 //----------------------------------------------------------------------------
+namespace FeNN::Common
+{
 class FENN_COMMON_EXPORT UIO
 {
 public:
@@ -33,3 +35,4 @@ private:
     void *m_Data;
     size_t m_Size;
 };
+}   // namespace FeNN::Common

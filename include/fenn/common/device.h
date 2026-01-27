@@ -14,8 +14,10 @@
 #include "fenn/common/uio.h"
 
 //----------------------------------------------------------------------------
-// Device
+// FeNN::Common::Device
 //----------------------------------------------------------------------------
+namespace FeNN::Common
+{
 class FENN_COMMON_EXPORT Device
 {
 public:
@@ -56,3 +58,4 @@ private:
     
     std::unique_ptr<DMAController> m_DMAController;
 };
+}

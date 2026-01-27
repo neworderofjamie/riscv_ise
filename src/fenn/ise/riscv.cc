@@ -17,9 +17,13 @@
 #include "fenn/ise/dma_controller_sim.h"
 #include "fenn/ise/router_sim.h"
 
+using namespace FeNN::Common;
+
 //----------------------------------------------------------------------------
-// InstructionMemory
+// FeNN::ISE::InstructionMemory
 //----------------------------------------------------------------------------
+namespace FeNN::ISE
+{
 InstructionMemory::InstructionMemory(size_t numWords)
 :   m_Instructions(numWords, 0xDEADBEEF)
 {
@@ -49,7 +53,7 @@ void InstructionMemory::setInstructions(const std::vector<uint32_t> &instruction
 }
 
 //----------------------------------------------------------------------------
-// ScalarDataMemory
+// FeNN::ISE::ScalarDataMemory
 //----------------------------------------------------------------------------
 ScalarDataMemory::ScalarDataMemory(size_t numBytes, size_t startAddressBytes, uint8_t poissonVal) 
 :   m_Data(numBytes, poissonVal), m_StartAddressBytes(startAddressBytes)
@@ -166,7 +170,7 @@ void ScalarDataMemory::setData(const std::vector<uint8_t> &data)
 }
 
 //----------------------------------------------------------------------------
-// RISCV
+// FeNN::ISE::RISCV
 //----------------------------------------------------------------------------
 RISCV::RISCV(size_t numInstructionWords, size_t numDataBytes, size_t numSpikeBytes)
 :   m_PC(0), m_NextPC(0), m_Reg{0}, m_InstructionMemory(numInstructionWords), 
@@ -444,19 +448,19 @@ uint32_t RISCV::calcOpImmResult(uint32_t inst, int32_t imm, uint32_t rs1, uint32
     case OpImmType::CLZ:
     {
         PLOGV << "CLZ " << rs1;
-        return (val == 0) ? 32 : clz(val);
+        return (val == 0) ? 32 : ::Common::Utils::clz(val);
     }
 
     case OpImmType::CTZ:
     {
         PLOGV << "CTZ " << rs1;
-        return (val == 0) ? 32 : ctz(val);
+        return (val == 0) ? 32 : ::Common::Utils::ctz(val);
     }
 
     case OpImmType::CPOP:
     {
         PLOGV << "CPOP " << rs1;
-        return popCount(val);
+        return ::Common::Utils::popCount(val);
     }
 
     case OpImmType::SEXT_B:
@@ -1051,7 +1055,7 @@ void RISCV::executeStandardInstruction(uint32_t inst)
                 throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
             }
             else {
-                breakPoint();
+                ::Common::Utils::breakPoint();
             }
             break;
         }
@@ -1153,3 +1157,4 @@ void RISCV::executeInstruction(uint32_t inst)
         m_NumInstructionsExecuted++;
     }
 }
+}   // namespace FeNN::ISE

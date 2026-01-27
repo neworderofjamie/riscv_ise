@@ -7,6 +7,12 @@
 #include <cstdint>
 
 // Disassembler includes
-#include "disassembler/disassembler_export.h"
+#include "fenn/disassembler/disassembler_export.h"
 
-DISASSEMBLER_EXPORT void disassemble(std::ostream &os, uint32_t inst);
+//----------------------------------------------------------------------------
+// FeNN::Disassembler
+//----------------------------------------------------------------------------
+namespace FeNN::Disassembler
+{
+DISASSEMBLER_EXPORT void disassemble(std::ostream& os, uint32_t inst);
+}

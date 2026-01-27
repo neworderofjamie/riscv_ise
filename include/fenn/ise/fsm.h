@@ -7,8 +7,10 @@
 #include <cassert>
 
 //----------------------------------------------------------------------------
-// FSM
+// FeNN::ISE::FSM
 //----------------------------------------------------------------------------
+namespace FeNN::ISE
+{
 template<typename S>
 class FSM
 {
@@ -50,3 +52,4 @@ private:
     S m_CurrentState;
     std::optional<S> m_NextState;
 };
+}   // namespace FeNN::ISE
