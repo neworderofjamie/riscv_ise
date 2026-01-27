@@ -337,7 +337,7 @@ private:
     }
     void defineClabel(Label& label)
     {
-        define_inner(m_LabelDefList, m_LabelUndefList, getId(label), getCurr());
+        define_inner(getId(label), getCurr());
         label.cg = this;
         m_LabelPtrList.insert(&label);
     }
@@ -348,7 +348,7 @@ private:
             throw Error(AssemblerError::LABEL_IS_NOT_SET_BY_L);
         }
         else {
-            define_inner(m_LabelDefList, m_LabelUndefList, dst.id, i->second.addr);
+            define_inner(dst.id, i->second.addr);
             dst.cg = this;
             m_LabelPtrList.insert(&dst);
         }
@@ -366,30 +366,33 @@ private:
     }
     void addUndefinedLabel(const Label& label, const Jmp& jmp)
     {
-        m_LabelUndefList.insert(ClabelUndefList::value_type(label.id, jmp));
+        m_LabelUndefList.emplace(label.id, jmp);
     }
     bool hasUndefClabel() const { return hasUndefinedLabel_inner(m_LabelUndefList); }
     
     int getId(const Label& label) const
     {
-        if (label.id == 0) label.id = m_LabelID++;
+        if (label.id == 0) {
+            label.id = m_LabelID++;
+        }
+
         return label.id;
     }
-    void define_inner(ClabelDefList& defList, ClabelUndefList& undefList, int labelId, uint32_t addr)
+    void define_inner(int labelId, uint32_t addr)
     {
-        // add label
-        ClabelDefList::value_type item(labelId, addr);
-        const auto ret = defList.insert(item);
+        const auto ret = m_LabelDefList.try_emplace(labelId, addr);
         if (!ret.second) {
             throw Error(AssemblerError::LABEL_IS_REDEFINED);
         }
         // search undefined label
         for (;;) {
-            const auto itr = undefList.find(labelId);
-            if (itr == undefList.end()) break;
+            const auto itr = m_LabelUndefList.find(labelId);
+            if (itr == m_LabelUndefList.end()) {
+                break;
+            }
             const Jmp& jmp = itr->second;
             jmp.update(this);
-            undefList.erase(itr);
+            m_LabelUndefList.erase(itr);
         }
     }
 
