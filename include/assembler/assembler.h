@@ -268,7 +268,8 @@ private:
     // ClabelVal
     //------------------------------------------------------------------------
     // for Label class
-    struct ClabelVal {
+    struct ClabelVal 
+    {
         ClabelVal(uint32_t addr = 0) : addr(addr), refCount(1) {}
         const uint32_t addr;
         int refCount;
@@ -278,16 +279,16 @@ private:
     //----------------------------------------------------------------------------
     // Jmp
     //----------------------------------------------------------------------------
-    struct Jmp 
+    class Jmp 
     {
-        enum class Type {
+        enum class Type 
+        {
             JAL,
             BTYPE,
             RAW_ADDRESS,
-        } type;
-        const uint32_t from; /* address of the jmp mnemonic */
-        uint32_t encoded;
+        };
 
+    public:
         // jal
         Jmp(uint32_t from, Bit<7> opcode, Reg rd)
             : type(Type::JAL)
@@ -317,6 +318,12 @@ private:
 
         // append jmp opcode with addr
         void appendCode(CodeGenerator *base, uint32_t addr) const;
+
+    private:
+        const uint32_t from; /* address of the jmp mnemonic */
+        uint32_t encoded;
+        Type type;
+
     };
 
     //------------------------------------------------------------------------
@@ -389,11 +396,8 @@ private:
             throw Error(AssemblerError::LABEL_IS_REDEFINED);
         }
         // search undefined label
-        for (;;) {
-            const auto itr = m_LabelUndefList.find(labelId);
-            if (itr == m_LabelUndefList.end()) {
-                break;
-            }
+        const auto undefLabels = m_LabelUndefList.equal_range(labelId);
+        for(auto itr = undefLabels.first; itr != undefLabels.second; itr++) {
             const Jmp& jmp = itr->second;
             jmp.update(this);
             m_LabelUndefList.erase(itr);
