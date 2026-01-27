@@ -42,48 +42,6 @@ const char *Error::what() const noexcept
     return m_Err._to_string();
 }
 
-
-//----------------------------------------------------------------------------
-// Label
-//----------------------------------------------------------------------------
-Label::Label(const Label& rhs)
-{
-    id = rhs.id;
-    cg = rhs.cg;
-    if (cg) {
-        cg->incRefCount(id, this);
-    }
-}
-//----------------------------------------------------------------------------
-Label& Label::operator=(const Label& rhs)
-{
-    if (id) {
-        throw Error(AssemblerError::LABEL_IS_ALREADY_SET_BY_L);
-    }
-    id = rhs.id;
-    cg = rhs.cg;
-    if (cg) {
-        cg->incRefCount(id, this);
-    }
-    return *this;
-}
-//----------------------------------------------------------------------------
-Label::~Label()
-{
-    if (id && cg) {
-        cg->decRefCount(id, this);
-    }
-}
-//----------------------------------------------------------------------------
-uint32_t Label::getAddress() const
-{
-    if (cg == nullptr) {
-        return 0;
-    }
-    return cg->getAddr(*this).value();
-}
-
-
 //----------------------------------------------------------------------------
 // CodeGenerator
 //----------------------------------------------------------------------------
