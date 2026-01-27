@@ -1,5 +1,4 @@
 import numpy as np
-import mnist
 
 from argparse import ArgumentParser
 from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer, Model, ProcessGroup,
