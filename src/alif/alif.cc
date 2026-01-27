@@ -97,7 +97,7 @@ std::vector<uint32_t> generateCode(bool simulate, size_t numTimesteps, bool satu
                                                : &CodeGenerator::vmul));
 
             // Loop over time
-            Label loop;
+            auto loop = createLabel();
             c.L(loop);
             {
                 // Register allocation

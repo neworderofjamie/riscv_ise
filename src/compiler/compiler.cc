@@ -601,7 +601,7 @@ private:
         }
 
         // Start loop
-        Label doLoop;
+        auto doLoop = createLabel();
         m_Environment.get().getCodeGenerator().L(doLoop);
         {
             // Generate body
@@ -765,8 +765,8 @@ private:
         }
 
         // Start loop
-        Label whileLoopStart;
-        Label whileLoopEnd;
+        auto whileLoopStart = createLabel();
+        auto whileLoopEnd = createLabel();
         m_Environment.get().getCodeGenerator().L(whileLoopStart);
         {
             // And mask register with result of evaluating condition

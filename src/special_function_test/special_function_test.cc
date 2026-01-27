@@ -127,7 +127,7 @@ int main(int argc, char** argv)
             ALLOCATE_VECTOR(VHalf);
 
             // Labels
-            Label vectorLoop;
+            auto vectorLoop = createLabel();
 
             // Load addresses
             c.li(*SInputBuffer, inputDataPtr);

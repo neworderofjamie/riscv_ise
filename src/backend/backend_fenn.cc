@@ -1507,7 +1507,7 @@ private:
         ALLOCATE_VECTOR(VTwo);
 
         // Labels
-        Label halfWordLoop;
+        auto halfWordLoop = createLabel();
 
         // Get fields associated with this process
         const auto &stateFields = m_Model.get().getStatefulFields().at(broadcastProcess);
@@ -1740,12 +1740,12 @@ private:
         ALLOCATE_SCALAR(SEventWord);
 
         // Labels
-        Label wordLoop;
-        Label bitLoopStart;
-        Label bitLoopBody;
-        Label bitLoopEnd;
-        Label zeroSpikeWord;
-        Label wordEnd;
+        auto wordLoop = createLabel();
+        auto bitLoopStart = createLabel();
+        auto bitLoopBody = createLabel();
+        auto bitLoopEnd = createLabel();
+        auto zeroSpikeWord = createLabel();
+        auto wordEnd = createLabel();
 
         // Load some useful constants
         c.li(*SConst1, 1);
@@ -1845,8 +1845,8 @@ private:
         ALLOCATE_SCALAR(SRowBufferB);
 
         // Labels
-        Label tail;
-        Label end;
+        auto tail = createLabel();
+        auto end = createLabel();
 
         // Do we have an even number of rows? This dictates whether swap is required
         const bool evenNumRows = ((rowGenerators.size() % 2) == 0);
@@ -1868,9 +1868,9 @@ private:
             ALLOCATE_SCALAR(SPrefetchCurrentWordStartID);
 
             // Labels
-            Label prefetchLoop;
-            Label prefetchWord;
-            Label prefetchZeroEventWord;
+            auto prefetchLoop = createLabel();
+            auto prefetchWord = createLabel();
+            auto prefetchZeroEventWord = createLabel();
 
             c.L(prefetchLoop);
 
@@ -1944,10 +1944,10 @@ private:
         //--------------------------------------------------------------------
         {
             // Labels
-            Label zeroEventWord;
-            Label wordLoop;
-            Label processBit;
-            Label nextEventWord;
+            auto zeroEventWord = createLabel();
+            auto wordLoop = createLabel();
+            auto processBit = createLabel();
+            auto nextEventWord = createLabel();
 
             c.L(zeroEventWord);
             
@@ -2276,7 +2276,7 @@ std::vector<uint32_t> BackendFeNN::generateSimulationKernel(const std::vector<st
             ALLOCATE_SCALAR(STimeEnd);
 
             // Labels
-            Label timeLoop;
+            auto timeLoop = createLabel();
             
             // If performance counters are enabled, disinhibit them
             // **NOTE** on device, this takes a few cycles to make it through the pipeline so we do it well before we try and access counters
