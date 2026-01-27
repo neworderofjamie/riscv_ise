@@ -45,6 +45,28 @@ const char *Error::what() const noexcept
 //----------------------------------------------------------------------------
 // CodeGenerator
 //----------------------------------------------------------------------------
+std::vector<uint32_t> CodeGenerator::getCode() const
+{
+    // Copy code
+    auto code = m_Code;
+
+    // Loop through labels and jumps
+    for (auto l : m_LabelJumps) {
+        // Get address of the target label
+        auto addressIter = m_LabelAddresses.find(l.first);
+        if (addressIter == m_LabelAddresses.cend()) {
+            throw Error(AssemblerError::LABEL_IS_NOT_FOUND);
+        }
+
+        // Ensure from is aligned and update jump instruction
+        const uint32_t from = l.second.getFrom();
+        assert((from & 3) == 0);
+        code.at(from / 4) = l.second.encode(addressIter->second);
+    }
+
+    return code;
+}
+//----------------------------------------------------------------------------
 void CodeGenerator::li(Reg rd, int imm)
 {
     auto highLow = split32bit(imm);
@@ -61,29 +83,19 @@ void CodeGenerator::li(Reg rd, int imm)
 //----------------------------------------------------------------------------
 // CodeGenerator::Jmp
 //----------------------------------------------------------------------------
-uint32_t CodeGenerator::Jmp::encode(std::optional<uint32_t> addr) const
+uint32_t CodeGenerator::Jmp::encode(uint32_t addr) const
 {
-    if (addr.has_value()) {
-        if (m_Type == Type::RAW_ADDRESS) {
-            return addr.value();
+        const int imm = addr - m_From;
+        if (m_Type == Type::JAL) {
+            if (!isValidImm(imm, 20)) {
+                throw Error(AssemblerError::INVALID_IMM_OF_JAL);
+            }
+            return get20_10to1_11_19to12_z12(imm) | m_Encoded;
         }
         else {
-            const int imm = addr.value() - m_From;
-            if (m_Type == Type::JAL) {
-                if (!isValidImm(imm, 20)) {
-                    throw Error(AssemblerError::INVALID_IMM_OF_JAL);
-                }
-                return get20_10to1_11_19to12_z12(imm) | m_Encoded;
+            if (!isValidImm(imm, 12)) {
+                throw Error(AssemblerError::INVALID_IMM_OF_JAL);
             }
-            else {
-                if (!isValidImm(imm, 12)) {
-                    throw Error(AssemblerError::INVALID_IMM_OF_JAL);
-                }
-                return get12_10to5_z13_4to1_11_z7(imm) | m_Encoded;
-            }
+            return get12_10to5_z13_4to1_11_z7(imm) | m_Encoded;
         }
-    }
-    else {
-        return 0;
-    }
 }
