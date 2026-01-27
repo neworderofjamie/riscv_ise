@@ -54,12 +54,12 @@ void genStaticPulse(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAll
     ALLOCATE_SCALAR(SSpikeWord);
 
     // Labels
-    Label wordLoop;
-    Label bitLoopStart;
-    Label bitLoopBody;
-    Label bitLoopEnd;
-    Label zeroSpikeWord;
-    Label wordEnd;
+    auto wordLoop = c.createLabel();
+    auto bitLoopStart = c.createLabel();
+    auto bitLoopBody = c.createLabel();
+    auto bitLoopEnd = c.createLabel();
+    auto zeroSpikeWord = c.createLabel();
+    auto wordEnd = c.createLabel();
 
     // If literal is provided for start of presynapric spike buffer, allocate register and load immediate into it
     ScalarRegisterAllocator::RegisterPtr SSpikeBuffer;
@@ -320,13 +320,13 @@ int main(int argc, char** argv)
             ALLOCATE_SCALAR(STimeEnd);
 
             // Labels
-            Label timeLoop;
-            Label spinLoop;
-            Label inputSpikeStart;
-            Label hiddenSpikeStart;
-            Label hiddenNeuronStart;
-            Label outputNeuronStart;
-            Label outputNeuronEnd;
+            auto timeLoop = c.createLabel();
+            auto spinLoop = c.createLabel();
+            auto inputSpikeStart = c.createLabel();
+            auto hiddenSpikeStart = c.createLabel();
+            auto hiddenNeuronStart = c.createLabel();
+            auto outputNeuronStart = c.createLabel();
+            auto outputNeuronEnd = c.createLabel();
 
             // Set timestep range and load ready flag pointer
             c.li(*STime, 0);
@@ -636,11 +636,11 @@ int main(int argc, char** argv)
                 c.vstore(*VVSum, *SVSumBuffer, 0);
             }
 
-            LOGI << "Input spike start:" << inputSpikeStart.getAddress();
-            LOGI << "Hidden spike start:" << hiddenSpikeStart.getAddress();
-            LOGI << "Hidden neuron start:" << hiddenNeuronStart.getAddress();
-            LOGI << "Output neuron start:" << outputNeuronStart.getAddress();
-            LOGI << "Output neuron end:" << outputNeuronEnd.getAddress();
+            LOGI << "Input spike start:" << c.getAddress(inputSpikeStart).value();
+            LOGI << "Hidden spike start:" << c.getAddress(hiddenSpikeStart).value();
+            LOGI << "Hidden neuron start:" << c.getAddress(hiddenNeuronStart).value();
+            LOGI << "Output neuron start:" << c.getAddress(outputNeuronStart).value();
+            LOGI << "Output neuron end:" << c.getAddress(outputNeuronEnd).value();
         });
 
     // Assemble instructions
