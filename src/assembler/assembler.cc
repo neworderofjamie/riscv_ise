@@ -1,7 +1,6 @@
 #include "assembler/assembler.h"
 
 // Standard C++ includes
-#include <optional>
 #include <tuple>
 
 namespace
@@ -81,7 +80,7 @@ uint32_t Label::getAddress() const
     if (cg == nullptr) {
         return 0;
     }
-    return cg->getAddr(*this);
+    return cg->getAddr(*this).value();
 }
 
 
