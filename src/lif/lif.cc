@@ -49,7 +49,7 @@ std::vector<uint32_t> generateCode(uint32_t numTimesteps, uint32_t inputCurrentV
             ALLOCATE_VECTOR(VI);
 
             // Labels
-            Label loop;
+            auto loop = createLabel();
 
             // Write instructions retired and cycle counts to memory
             AssemblerUtils::generatePerformanceCountWrite(c, scalarRegisterAllocator,

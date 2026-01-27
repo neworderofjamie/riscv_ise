@@ -40,10 +40,10 @@ std::vector<uint32_t> generateCode(bool simulate, uint32_t numTimesteps, uint32_
             ALLOCATE_VECTOR(VOne);
 
             // Labels
-            Label timeLoop;
-            Label poissonLoop;
-            Label poissonStart;
-            Label poissonEnd;
+            auto timeLoop = createLabel();
+            auto poissonLoop = createLabel();
+            auto poissonStart = createLabel();
+            auto poissonEnd = createLabel();
 
             // Load RNG seed from first 128 bytes of vector memory
             {

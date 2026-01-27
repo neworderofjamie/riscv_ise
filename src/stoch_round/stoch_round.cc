@@ -37,7 +37,7 @@ std::vector<uint32_t> generateCode(bool simulate, unsigned int numVectorMultiply
             ALLOCATE_SCALAR(SOne);
 
             // Labels
-            Label mulLoop;
+            auto mulLoop = createLabel();
 
             // Load RNG seed
             {

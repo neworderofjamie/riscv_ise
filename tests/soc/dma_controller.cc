@@ -274,7 +274,7 @@ TEST_P(TransferSizeDeviceTest, FeNNDMA)
             ALLOCATE_SCALAR(STransferSizeBytes);
             ALLOCATE_SCALAR(SBaseAddress);
 
-            Label loop;
+            auto loop = createLabel();
 
             c.li(*SOffsetBytes, 0);
             c.li(*SWriteEndBytes, transferHalfWords * 2);

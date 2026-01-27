@@ -52,11 +52,11 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
     assert(numPost == 32);
 
     // Labels
-    Label bitLoopStart;
-    Label bitLoopBody;
-    Label prefetchBody;
-    Label zeroSpikeWord;
-    Label wordEnd;
+    auto bitLoopStart = createLabel();
+    auto bitLoopBody = createLabel();
+    auto prefetchBody = createLabel();
+    auto zeroSpikeWord = createLabel();
+    auto wordEnd = createLabel();
 
     // If literal is provided for start of presynapric spike buffer, allocate register and load immediate into it
     ScalarRegisterAllocator::RegisterPtr SSpikeBuffer;

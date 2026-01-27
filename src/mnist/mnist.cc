@@ -52,12 +52,12 @@ void genStaticPulse(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAll
     ALLOCATE_SCALAR(SISynBuffer);
 
     // Labels
-    Label wordLoop;
-    Label bitLoopStart;
-    Label bitLoopBody;
-    Label bitLoopEnd;
-    Label zeroSpikeWord;
-    Label wordEnd;
+    auto wordLoop = createLabel();
+    auto bitLoopStart = createLabel();
+    auto bitLoopBody = createLabel();
+    auto bitLoopEnd = createLabel();
+    auto zeroSpikeWord = createLabel();
+    auto wordEnd = createLabel();
 
     // If literal is provided for start of presynapric spike buffer, allocate register and load immediate into it
     ScalarRegisterAllocator::RegisterPtr SSpikeBuffer;
@@ -295,8 +295,8 @@ int main(int argc, char** argv)
             ALLOCATE_SCALAR(SOutputVarRecordingBuffer);
 #endif
             // Labels
-            Label timeLoop;
-            Label spinLoop;
+            auto timeLoop = createLabel();
+            auto spinLoop = createLabel();
 
             // Set timestep range and load ready flag pointer
             c.li(*STime, 0);

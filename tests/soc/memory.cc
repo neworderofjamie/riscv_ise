@@ -134,7 +134,7 @@ TEST_P(DeviceSimTest, LaneLocal)
                                                        addressPtr, addressVectorPtr, 1u);
 
             // Labels
-            Label loop;
+            auto loop = createLabel();
 
             {
                 // Register allocation
