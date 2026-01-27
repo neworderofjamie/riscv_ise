@@ -35,7 +35,9 @@
 class CodeGenerator;
 
 BETTER_ENUM(AssemblerError, int, OFFSET_IS_TOO_BIG, IMM_IS_TOO_BIG, INVALID_IMM_OF_JAL, 
-            INVALID_IMM_OF_BTYPE, LABEL_IS_NOT_FOUND, LABEL_IS_REDEFINED)
+            INVALID_IMM_OF_JALR, INVALID_IMM_OF_BRANCH, LABEL_IS_NOT_FOUND, LABEL_IS_REDEFINED)
+
+using Label = std::shared_ptr<std::byte>;
 
 //----------------------------------------------------------------------------
 // Error
@@ -50,9 +52,14 @@ private:
     AssemblerError m_Err;
 };
 
+inline Label createLabel()
+{
+    return std::make_shared<std::byte>(std::byte{ 0 });
+}
+
 class ASSEMBLER_EXPORT CodeGenerator
 {
-    using Label = std::shared_ptr<std::byte>;
+    
 public:
     // constructor
     CodeGenerator()
@@ -62,13 +69,9 @@ public:
 
     CodeGenerator operator=(const CodeGenerator&) = delete;
 
-    Label createLabel() const
-    {
-        return std::make_shared<std::byte>(std::byte{0});
-    }
-
     void L(Label label)
     {
+        assert(label);
         const auto ret = m_LabelAddresses.try_emplace(label, getCurr());
         if (!ret.second) {
             throw Error(AssemblerError::LABEL_IS_REDEFINED);
@@ -182,9 +185,10 @@ public:
     void sgtz(Reg rd, Reg rs) { slt(rd, Reg::X0, rs); }
     void fence() { append4B(0x0ff0000f); }
     void j_(const Label& label) { jal(Reg::X0, label); }
-    void jal(Reg rd, const Label& label) { Jmp jmp(getCurr(), 0x6f, rd); opJmp(label, jmp); }
+    void jal(Reg rd, const Label& label) { Jmp jmp(getCurr(), rd); opJmp(label, jmp); }
     void jr(Reg rs) { jalr(Reg::X0, rs, 0); }
     void jalr(Reg rs) { jalr(Reg::X1, rs, 0); }
+    void jalr(Reg rd, Reg rs, const Label& label) { Jmp jmp(getCurr(), rd, rs); opJmp(label, jmp); }
     void ret() { jalr(Reg::X0, Reg::X1); }
 
     void csrr(Reg rd, CSR csr) { csrrs(rd, csr, Reg::X0); }
@@ -264,18 +268,27 @@ private:
         enum class Type 
         {
             JAL,
-            BTYPE,
+            JALR,
+            BRANCH,
         };
 
     public:
-        // jal
-        Jmp(uint32_t from, Bit<7> opcode, Reg rd)
-        :   m_Type(Type::JAL), m_From(from), m_Encoded((static_cast<uint32_t>(rd) << 7) | opcode)
+        // JAL
+        Jmp(uint32_t from, Reg rd)
+        :   m_Type(Type::JAL), m_From(from), m_Encoded((static_cast<uint32_t>(rd) << 7) | addQuadrant(StandardOpCode::JAL))
         {
         }
-        // B-type
+
+        // JALR
+        Jmp(uint32_t from, Reg rd, Reg src)
+        :   m_Type(Type::JALR), m_From(from), 
+            m_Encoded((static_cast<uint32_t>(src) << 15) | (static_cast<uint32_t>(rd) << 7) | addQuadrant(StandardOpCode::JALR))
+        {
+        }
+
+        // BRANCH
         Jmp(uint32_t from, Bit<7> opcode, uint32_t funct3, Reg src1, Reg src2)
-        :   m_Type(Type::BTYPE), m_From(from),
+        :   m_Type(Type::BRANCH), m_From(from),
             m_Encoded((static_cast<uint32_t>(src2) << 20) | (static_cast<uint32_t>(src1) << 15) | (funct3 << 12) | opcode)
         {
         }

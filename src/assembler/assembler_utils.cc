@@ -16,7 +16,7 @@ void generateScalarVectorMemcpy(CodeGenerator &c, VectorRegisterAllocator &vecto
     ALLOCATE_SCALAR(SOne);
 
     // Labels
-    auto vectorLoop = c.createLabel();
+    auto vectorLoop = createLabel();
 
     // If literal is provided for scalar pointer, allocate register and load immediate into it
     ScalarRegisterAllocator::RegisterPtr SDataBuffer;
@@ -104,7 +104,7 @@ void generateVectorScalarMemcpy(CodeGenerator &c, VectorRegisterAllocator &vecto
     ALLOCATE_SCALAR(SVectorBufferEnd);
 
     // Labels
-    auto vectorLoop = c.createLabel();
+    auto vectorLoop = createLabel();
 
     c.li(*SVectorBuffer, vectorPtr);
     c.li(*SVectorBufferEnd, vectorPtr + (numVectors * 64));
@@ -156,7 +156,7 @@ void generateLaneLocalScalarMemcpy(CodeGenerator &c, VectorRegisterAllocator &ve
     ALLOCATE_VECTOR(VTwo);
 
     // Labels
-    auto vectorLoop = c.createLabel();
+    auto vectorLoop = createLabel();
 
     c.vlui(*VAddress, laneLocalPtr);
     c.vlui(*VTwo, 2);
@@ -206,7 +206,7 @@ void generateScalarLaneLocalBroadcast(CodeGenerator &c, VectorRegisterAllocator 
     ALLOCATE_VECTOR(VTwo);
 
     // Labels
-    auto halfWordLoop = c.createLabel();
+    auto halfWordLoop = createLabel();
 
     // Load lane local memory address and increment
     c.vlui(*VAddress, laneLocalPtr);
@@ -279,7 +279,7 @@ void unrollLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAll
             c.add(*STestBufferEndReg, *STestBufferEndReg, testBufferReg);
         }
 
-        auto loop = c.createLabel();
+        auto loop = createLabel();
         c.L(loop);
         {
             // Unroll loop
@@ -364,7 +364,7 @@ std::vector<uint32_t> generateStandardKernel(bool simulate, uint32_t readyFlagPt
         ALLOCATE_SCALAR(SReadyFlagBuffer);
 
         // Labels
-        auto spinLoop = c.createLabel();
+        auto spinLoop = createLabel();
 
         // Load ready flag
         c.li(*SReadyFlagBuffer, readyFlagPtr);
@@ -454,7 +454,7 @@ ScalarRegisterAllocator::RegisterPtr generateDMAWaitForWriteComplete(CodeGenerat
     ALLOCATE_SCALAR(SStatus);
     ALLOCATE_SCALAR(SIdle);
 
-    auto loop = c.createLabel();
+    auto loop = createLabel();
     c.L(loop);
     {
         // Read status register
@@ -476,7 +476,7 @@ ScalarRegisterAllocator::RegisterPtr generateDMAWaitForReadComplete(CodeGenerato
     ALLOCATE_SCALAR(SStatus);
     ALLOCATE_SCALAR(SIdle);
 
-    auto loop = c.createLabel();
+    auto loop = createLabel();
     c.L(loop);
     {
         // Read status register
@@ -503,7 +503,7 @@ void generateRouterBarrier(CodeGenerator &c, ScalarRegisterAllocator &scalarRegi
     ALLOCATE_SCALAR(SBarrierCount);
     c.li(*SNumMasters, numMasters);
 
-    auto loop = c.createLabel();
+    auto loop = createLabel();
     c.L(loop);
     {
         // Read barrier count register

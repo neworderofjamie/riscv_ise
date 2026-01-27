@@ -112,6 +112,16 @@ void CodeGenerator::li(Reg rd, int imm)
 //----------------------------------------------------------------------------
 uint32_t CodeGenerator::Jmp::encode(uint32_t addr) const
 {
+    if (m_Type == Type::JALR) {
+        // **NOTE** this is a strange way to use JALR e.g. for jump tables where the
+        // table is in the first 4k of memory and the label is used as an immediate
+        if (!isValidImm(addr, 12)) {
+            throw Error(AssemblerError::INVALID_IMM_OF_JALR);
+        }
+
+        return (addr << 20) | m_Encoded;
+    }
+    else {
         const int imm = addr - m_From;
         if (m_Type == Type::JAL) {
             if (!isValidImm(imm, 20)) {
@@ -121,8 +131,9 @@ uint32_t CodeGenerator::Jmp::encode(uint32_t addr) const
         }
         else {
             if (!isValidImm(imm, 12)) {
-                throw Error(AssemblerError::INVALID_IMM_OF_JAL);
+                throw Error(AssemblerError::INVALID_IMM_OF_BRANCH);
             }
             return get12_10to5_z13_4to1_11_z7(imm) | m_Encoded;
         }
+    }
 }

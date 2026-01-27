@@ -54,12 +54,12 @@ void genStaticPulse(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAll
     ALLOCATE_SCALAR(SSpikeWord);
 
     // Labels
-    auto wordLoop = c.createLabel();
-    auto bitLoopStart = c.createLabel();
-    auto bitLoopBody = c.createLabel();
-    auto bitLoopEnd = c.createLabel();
-    auto zeroSpikeWord = c.createLabel();
-    auto wordEnd = c.createLabel();
+    auto wordLoop = createLabel();
+    auto bitLoopStart = createLabel();
+    auto bitLoopBody = createLabel();
+    auto bitLoopEnd = createLabel();
+    auto zeroSpikeWord = createLabel();
+    auto wordEnd = createLabel();
 
     // If literal is provided for start of presynapric spike buffer, allocate register and load immediate into it
     ScalarRegisterAllocator::RegisterPtr SSpikeBuffer;
@@ -320,13 +320,13 @@ int main(int argc, char** argv)
             ALLOCATE_SCALAR(STimeEnd);
 
             // Labels
-            auto timeLoop = c.createLabel();
-            auto spinLoop = c.createLabel();
-            auto inputSpikeStart = c.createLabel();
-            auto hiddenSpikeStart = c.createLabel();
-            auto hiddenNeuronStart = c.createLabel();
-            auto outputNeuronStart = c.createLabel();
-            auto outputNeuronEnd = c.createLabel();
+            auto timeLoop = createLabel();
+            auto spinLoop = createLabel();
+            auto inputSpikeStart = createLabel();
+            auto hiddenSpikeStart = createLabel();
+            auto hiddenNeuronStart = createLabel();
+            auto outputNeuronStart = createLabel();
+            auto outputNeuronEnd = createLabel();
 
             // Set timestep range and load ready flag pointer
             c.li(*STime, 0);
