@@ -2,57 +2,24 @@
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <Filter Include="Source Files">
-      <UniqueIdentifier>{D737B4DF-4F50-4708-9EFA-667F3A55D607}</UniqueIdentifier>
+      <UniqueIdentifier>{48E3B209-FF4E-4B4D-9F23-0E7E90FC5A41}</UniqueIdentifier>
       <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
     </Filter>
     <Filter Include="Header Files">
-      <UniqueIdentifier>{58BA25B1-E2B8-41D9-938E-CBFE1C7AAA90}</UniqueIdentifier>
+      <UniqueIdentifier>{8C6AA1E5-3604-4A55-BF36-BDD1BEDE2866}</UniqueIdentifier>
       <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="app_utils.cc">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="device.cc">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="isa.cc">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="dma_buffer.cc">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="dma_controller.cc">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="uio.cc">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="utils.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\include\common\isa.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\include\common\app_utils.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\include\common\utils.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\common\CLI11.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\include\common\device.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\include\common\dma_buffer.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\include\common\dma_controller.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\common\common_export.h">
