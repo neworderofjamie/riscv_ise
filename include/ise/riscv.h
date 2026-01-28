@@ -114,7 +114,7 @@ public:
         virtual void dumpRegisters() const = 0;
     };
 
-    RISCV(size_t numInstructionWords = 1024, size_t numDataBytes = 126976, size_t numSpikeBytes = 4096);
+    RISCV(size_t numInstructionWords = 1024, size_t numDataBytes = (4096 * 32), size_t numSpikeBytes = 4096);
 
     bool run();
     void dumpRegisters() const;

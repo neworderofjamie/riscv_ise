@@ -386,7 +386,7 @@ int main(int argc, char** argv)
 #endif
 
     // Create spike buffer at start of spike memory
-    const uint32_t spikeBufferPtr = 31 * 4096;
+    const uint32_t spikeBufferPtr = 32 * 4096;
 
     const auto initCode = AssemblerUtils::generateStandardKernel(
         !device, readyFlagPtr,
