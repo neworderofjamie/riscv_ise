@@ -3,7 +3,7 @@ import numpy as np
 import seaborn as sns
 import plot_settings
 
-from copy import copy
+from copy import copy, deepcopy
 from pyfenn.utils import build_sparse_connectivity, generate_fixed_prob
 from pandas import read_csv
 
@@ -38,21 +38,24 @@ neurons_poly = fit_poly(sparse_df["Num neurons"], sparse_df["Num neuron update c
 dense_synapse_poly = fit_poly(dense_df["Num SOPS"], dense_df["Num event processing cycles"], 1)
 sparse_synapse_poly = fit_poly(sparse_df["Num SOPS"], sparse_df["Num event processing cycles"], 1)
 
-
 # How many SOPs does GABAN example represent
-gaban_num_neurons = 10000
-gaban_connectivity = generate_fixed_prob(gaban_num_neurons, gaban_num_neurons, 0.01)
-gaban_connectivity = build_sparse_connectivity(gaban_connectivity, 1, 10)
-gaban_stride = gaban_connectivity.shape[1]
-gaban_neuron_cycles = neurons_poly(gaban_num_neurons)
-gaban_num_sops = 24.7 * gaban_num_neurons * gaban_stride
-gaban_synapse_cycles = sparse_synapse_poly(gaban_num_sops)
-gaban_time = (gaban_neuron_cycles + gaban_synapse_cycles) / CLOCK_HZ
-print(f"Equivalent model to GABAN would simulate in {gaban_time}s (stride={gaban_stride})")
+#gaban_num_neurons = 10000
+#gaban_connectivity = generate_fixed_prob(gaban_num_neurons, gaban_num_neurons, 0.01)
+#gaban_connectivity = build_sparse_connectivity(gaban_connectivity, 1, 10)
+#gaban_stride = gaban_connectivity.shape[1]
+#gaban_neuron_cycles = neurons_poly(gaban_num_neurons)
+#gaban_num_sops = 24.7 * gaban_num_neurons * gaban_stride
+#gaban_synapse_cycles = sparse_synapse_poly(gaban_num_sops)
+#gaban_time = (gaban_neuron_cycles + gaban_synapse_cycles) / CLOCK_HZ
+#print(f"Equivalent model to GABAN would simulate in {gaban_time}s (stride={gaban_stride})")
+
+# Copy polynomial and increase per-neuron cost for Izhikevich
+izhikevich_neurons_poly = deepcopy(neurons_poly)
+izhikevich_neurons_poly[1] *= (13 / 5)
 
 # How many SOPs does BlueVec example represent
 bluevec_num_neurons = 64000
-bluevec_neuron_cycles = neurons_poly(bluevec_num_neurons) * (13 / 5)
+bluevec_neuron_cycles = izhikevich_neurons_poly(bluevec_num_neurons)
 bluevec_num_sops = 10.0 * bluevec_num_neurons * 1000
 bluevec_synapse_cycles = sparse_synapse_poly(bluevec_num_sops)
 bluevec_time = (bluevec_neuron_cycles + bluevec_synapse_cycles) / CLOCK_HZ
@@ -102,16 +105,16 @@ fig.legend([inhibitory_actor, excitatory_actor], ["Inhibitory", "Excitatory"],
 bar_x = np.arange(len(big_df))
 
 # Plot simulation time
-dense_dram_actor = axes[1].scatter(dense_df["Num neurons"], dense_df["Simulation time [s]"])
-sparse_dram_actor = axes[1].scatter(sparse_df["Num neurons"], sparse_df["Simulation time [s]"])
+dense_dram_actor = axes[1].scatter(dense_df["Num neurons"], dense_df["Simulation time [s]"], marker=".")
+sparse_dram_actor = axes[1].scatter(sparse_df["Num neurons"], sparse_df["Simulation time [s]"], marker=".")
 axes[1].plot(dense_df["Num neurons"], 
              (neurons_poly(dense_df["Num neurons"]) 
               + dense_synapse_poly(dense_df["Num SOPS"])) / CLOCK_HZ, 
-             color=dense_dram_actor.get_facecolor(), linestyle="--", alpha=0.5)
+             color=dense_dram_actor.get_facecolor(), alpha=0.5)
 axes[1].plot(dense_df["Num neurons"], 
              (neurons_poly(sparse_df["Num neurons"]) 
               + sparse_synapse_poly(sparse_df["Num SOPS"])) / CLOCK_HZ, 
-             color=sparse_dram_actor.get_facecolor(), linestyle="--", alpha=0.5)
+             color=sparse_dram_actor.get_facecolor(), alpha=0.5)
 axes[1].axhline(1.0, linestyle="--", color="gray")
 axes[1].set_xlabel("Number of neurons")
 axes[1].set_ylabel("Simulation time [s]")
