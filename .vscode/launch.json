@@ -38,6 +38,7 @@
       "description": "What example do you want to debug?",
       "options": [
         "alif",
+        "blank",
         "compiler_test",
         "decay",
         "dma_test_fenn",
