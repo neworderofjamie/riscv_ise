@@ -27,6 +27,37 @@
 #include "ise/shared_bus_sim.h"
 #include "ise/vector_processor.h"
 
+namespace
+{
+void checkOutput(const volatile uint32_t *wordData, uint32_t outputSpikeArrayEnd, uint32_t spikeArrayPtr,
+                 uint32_t outputSpikeArrayPtr)
+{
+    const uint32_t num = (wordData[outputSpikeArrayEnd / 4] - spikeArrayPtr) / 4;
+
+    // Loop through events received by one core
+    uint32_t bitfield = 0xDEADBEEF;
+    std::cout << num << " spikes received (" << popCount(bitfield) << " expected)" << std::endl;
+    for(uint32_t i = 0; i < num; i++) {
+        const uint32_t spike = wordData[i + (outputSpikeArrayPtr / 4)];
+        std::cout << std::hex << "\t" << spike << std::endl;
+
+        // Split event into core and neuron
+        const uint32_t base = spike >> 5;
+        const uint32_t neuron = spike & ((1 << 5) - 1);
+        const uint32_t neuronBit = 1 << neuron;
+        
+        // Check base is correct and bit is still set in core's bitmask
+        assert(base == 0x37AB);
+        assert(bitfield & neuronBit);
+
+        // Clear BIT
+        bitfield &= ~neuronBit;
+    }
+
+    // Check all bits have been zeroed
+    assert(bitfield == 0);
+}
+}
 int main(int argc, char** argv)
 {
     // Configure logging
@@ -142,6 +173,8 @@ int main(int argc, char** argv)
         device.setEnabled(false);
         LOGI << "Done";
 
+        const volatile uint32_t *wordData = reinterpret_cast<const volatile uint32_t*>(device.getDataMemory());
+        checkOutput(wordData, outputSpikeArrayEnd, spikeArrayPtr, outputSpikeArrayPtr);
     }
     else {
         // Create simulated shared bus to connect the cores
@@ -165,30 +198,7 @@ int main(int argc, char** argv)
         }
 
         const auto *wordData = reinterpret_cast<uint32_t*>(riscV.getScalarDataMemory().getData());
-        const uint32_t num = (wordData[outputSpikeArrayEnd / 4] - spikeArrayPtr) / 4;
-
-        // Loop through events received by one core
-        uint32_t bitfield = 0xDEADBEEF;
-        std::cout << num << " spikes received (" << popCount(bitfield) << " expected)" << std::endl;
-        for(uint32_t i = 0; i < num; i++) {
-            const uint32_t spike = wordData[i + (outputSpikeArrayPtr / 4)];
-            std::cout << std::hex << "\t" << spike << std::endl;
-
-            // Split event into core and neuron
-            const uint32_t base = spike >> 5;
-            const uint32_t neuron = spike & ((1 << 5) - 1);
-            const uint32_t neuronBit = 1 << neuron;
-            
-            // Check base is correct and bit is still set in core's bitmask
-            assert(base == 0x37AB);
-            assert(bitfield & neuronBit);
-
-            // Clear BIT
-            bitfield &= ~neuronBit;
-        }
-
-        // Check all bits have been zeroed
-        assert(bitfield == 0);
+        checkOutput(wordData, outputSpikeArrayEnd, spikeArrayPtr, outputSpikeArrayPtr);
     
     }
     return 0;
