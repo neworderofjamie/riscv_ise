@@ -19,7 +19,7 @@
     <ProjectGuid>{4C583405-19F4-44D8-B88F-AC0CB66D9C1D}</ProjectGuid>
     <RootNamespace>riscvise</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
-    <ProjectName>disassembler_cli</ProjectName>
+    <ProjectName>fenn_disassembler_cli</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
