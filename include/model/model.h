@@ -22,7 +22,7 @@ class Stateful;
 // Model
 //----------------------------------------------------------------------------
 //! Backend-agnostic datastructure build from processes user wishes to deploy
-class MODEL_EXPORT Model
+class MODEL_EXPORT Modely
 {
 public:
     // Mapping of state objects to field offset
@@ -37,8 +37,8 @@ public:
     // Mapping of state objects to processes which reference them
     using StateProcesses = std::unordered_map<std::shared_ptr<const State>, std::vector<std::shared_ptr<const Process>>>;
 
-    Model(const std::vector<std::shared_ptr<const ProcessGroup>> &processGroups, 
-          const BackendFeNN &backend);
+    Modely(const std::vector<std::shared_ptr<const ProcessGroup>> &processGroups, 
+           const BackendFeNN &backend);
 
     //------------------------------------------------------------------------
     // Public API

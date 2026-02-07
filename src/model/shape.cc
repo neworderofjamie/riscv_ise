@@ -6,8 +6,10 @@
 #include <sstream>
 
 //----------------------------------------------------------------------------
-// Shape
+// Model::Shape
 //----------------------------------------------------------------------------
+namespace Model
+{
 std::string Shape::toString() const
 {
     std::ostringstream shapeStream;
@@ -76,4 +78,5 @@ size_t Shape::getBatchSize() const
 size_t Shape::getFlattenedSize() const
 {
     return std::accumulate(m_Dims.cbegin(), m_Dims.cend(), 1, std::multiplies<size_t>());
+}
 }

@@ -45,6 +45,9 @@
 #include "fenn/backend/memory_allocator.h"
 #include "fenn/backend/special_function.h"
 
+using namespace FeNN::Assembler;
+using namespace FeNN::Backend;
+using namespace FeNN::Compiler;
 using namespace GeNN;
 using namespace GeNN::Transpiler;
 

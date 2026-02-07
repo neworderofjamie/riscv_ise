@@ -10,8 +10,10 @@
 #include "model/model_component.h"
 
 //----------------------------------------------------------------------------
-// Parameter
+// Model::Parameter
 //----------------------------------------------------------------------------
+namespace Model
+{
 class Parameter : public AcceptableModelComponent<Parameter, State>
 {
 public:
@@ -42,3 +44,4 @@ private:
     GeNN::Type::NumericValue m_Value;
     GeNN::Type::ResolvedType m_Type;
 };
+}

@@ -14,10 +14,15 @@
 #include "model/model_component.h"
 
 // Forward declarations
+namespace Model
+{
 class EventContainer;
 class Parameter;
 class Variable;
+}
 
+namespace Model
+{
 using VariablePtr = std::shared_ptr<const Variable>;
 using VariablePtrBackendState = std::variant<VariablePtr, int>;
 using EventContainerMap = std::unordered_map<std::string, std::shared_ptr<EventContainer>>;
@@ -26,7 +31,7 @@ using VariableMap = std::unordered_map<std::string, VariablePtr>;
 
 
 //----------------------------------------------------------------------------
-// NeuronUpdateProcess
+// Model::NeuronUpdateProcess
 //----------------------------------------------------------------------------
 class MODEL_EXPORT NeuronUpdateProcess : public AcceptableModelComponent<NeuronUpdateProcess, Process>
 {
@@ -70,7 +75,7 @@ private:
 };
 
 //----------------------------------------------------------------------------
-// EventPropagationProcess
+// Model::EventPropagationProcess
 //----------------------------------------------------------------------------
 class MODEL_EXPORT EventPropagationProcess : public AcceptableModelComponent<EventPropagationProcess, Process>
 {
@@ -124,7 +129,7 @@ private:
 };
 
 //----------------------------------------------------------------------------
-// RNGInitProcess
+// Model::RNGInitProcess
 //----------------------------------------------------------------------------
 class MODEL_EXPORT RNGInitProcess : public AcceptableModelComponent<RNGInitProcess, Process>
 {
@@ -152,7 +157,7 @@ private:
 };
 
 //----------------------------------------------------------------------------
-// MemsetProcess
+// Model::MemsetProcess
 //----------------------------------------------------------------------------
 //! Process for memsetting variables
 class MODEL_EXPORT MemsetProcess : public AcceptableModelComponent<MemsetProcess, Process>
@@ -181,7 +186,7 @@ private:
 };
 
 //----------------------------------------------------------------------------
-// BroadcastProcess
+// Model::BroadcastProcess
 //----------------------------------------------------------------------------
 //! Process for 'broadcasting' one scalar array across multiple vector lanes
 class MODEL_EXPORT BroadcastProcess : public AcceptableModelComponent<BroadcastProcess, Process>
@@ -211,3 +216,4 @@ private:
     VariablePtr m_Source;
     VariablePtrBackendState m_Target;
 };
+}

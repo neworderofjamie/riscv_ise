@@ -4,8 +4,10 @@
 #include "model/model_component.h"
 
 //----------------------------------------------------------------------------
-// PerformanceCounter
+// Model::PerformanceCounter
 //----------------------------------------------------------------------------
+namespace Model
+{
 class PerformanceCounter : public AcceptableModelComponent<PerformanceCounter, State>
 {
 public:
@@ -21,3 +23,4 @@ public:
         return std::make_shared<PerformanceCounter>(Private(), name);
     }
 };
+}

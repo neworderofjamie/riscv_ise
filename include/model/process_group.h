@@ -9,11 +9,16 @@
 #include "model/performance_counter.h"
 
 // Forward declarations
+namespace Model
+{
 class Process;
+}
 
 //----------------------------------------------------------------------------
-// ProcessGroup
+// Model::ProcessGroup
 //----------------------------------------------------------------------------
+namespace Model
+{
 class ProcessGroup : public AcceptableModelComponent<ProcessGroup, Stateful>
 {
 public:
@@ -48,3 +53,4 @@ private:
     std::vector<std::shared_ptr<const Process>> m_Processes;
     std::shared_ptr<const PerformanceCounter> m_PerformanceCounter;
 };
+}

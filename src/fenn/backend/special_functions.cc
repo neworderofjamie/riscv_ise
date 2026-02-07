@@ -1,4 +1,4 @@
-#include "backend/special_function.h"
+#include "fenn/backend/special_function.h"
 
 // Standard C includes
 #include <cmath>
@@ -11,18 +11,18 @@
 #include "common/utils.h"
 
 // Assembler includes
-#include "assembler/assembler.h"
-#include "assembler/register_allocator.h"
+#include "fenn/assembler/assembler.h"
+#include "fenn/assembler/register_allocator.h"
 
 // Backend includes
-#include "backend/environment.h"
+#include "fenn/backend/environment.h"
 
 using namespace GeNN;
 
 //----------------------------------------------------------------------------
 // SpecialFunctions::Exp
 //----------------------------------------------------------------------------
-namespace SpecialFunctions
+namespace FeNN::Backend::SpecialFunctions
 {
 // Constants
 constexpr size_t numBits = 15;
@@ -43,10 +43,14 @@ namespace Exp
 const double log2 = std::log(2.0);
 const double expMax = 0.5 * log2;
 
-void add(CodeGenerator &codeGenerator, ScalarRegisterAllocator &scalarRegisterAllocator, 
-         VectorRegisterAllocator &vectorRegisterAllocator, EnvironmentExternal &env,
+void add(Assembler::CodeGenerator &codeGenerator, Common::ScalarRegisterAllocator &scalarRegisterAllocator, 
+         Common::VectorRegisterAllocator &vectorRegisterAllocator, EnvironmentExternal &env,
          EnvironmentLibrary::Library &library, uint32_t lutField)
 {
+    using namespace Assembler;
+    using namespace Common;
+    using namespace ::Common;
+
     auto &c = codeGenerator;
 
     // Allocate registers for constants that can be shared 
