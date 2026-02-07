@@ -31,7 +31,7 @@
     <ProjectGuid>{0C12A6C5-7ED9-409A-9019-C8219DEF666A}</ProjectGuid>
     <RootNamespace>riscvise</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
-    <ProjectName>disassembler</ProjectName>
+    <ProjectName>fenn_disassembler</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Label="Configuration">
