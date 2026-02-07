@@ -40,7 +40,7 @@
     <ProjectGuid>{695590d3-fa1d-4cd7-9b12-b03f15fc98e6}</ProjectGuid>
     <RootNamespace>riscvise</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
-    <ProjectName>ise</ProjectName>
+    <ProjectName>fenn_ise</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Label="Configuration">
