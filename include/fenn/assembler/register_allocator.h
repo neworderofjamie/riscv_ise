@@ -70,14 +70,16 @@ public:
     //------------------------------------------------------------------------
     RegisterPtr getRegister(const char* context = nullptr)
     {
+        using namespace ::Common::Utils;
+
         if (m_FreeRegisters == 0) {
             throw std::runtime_error("Out of registers");
         }
         else {
-            const int n = Common::Utils::clz(m_FreeRegisters);
+            const int n = clz(m_FreeRegisters);
             m_FreeRegisters &= ~(0x80000000 >> n);
             m_MaxUsedRegisters = std::max(m_MaxUsedRegisters, 
-                                          32 - Common::Utils::popCount(m_FreeRegisters));
+                                          32 - popCount(m_FreeRegisters));
             return std::make_shared<Handle>(static_cast<T>(n), *this, context);
         }
     }
@@ -104,16 +106,16 @@ private:
     int m_MaxUsedRegisters;
 };
 
-class VectorRegisterAllocator : public RegisterAllocator<VReg>
+class VectorRegisterAllocator : public RegisterAllocator<Common::VReg>
 {
 public:
-    using RegisterAllocator<VReg>::RegisterAllocator;
+    using RegisterAllocator<Common::VReg>::RegisterAllocator;
 };
 
-class ScalarRegisterAllocator : public RegisterAllocator<Reg>
+class ScalarRegisterAllocator : public RegisterAllocator<Common::Reg>
 {
 public:
-    ScalarRegisterAllocator() : RegisterAllocator<Reg>(0x7FFFFFFFu)
+    ScalarRegisterAllocator() : RegisterAllocator<Common::Reg>(0x7FFFFFFFu)
     {
     }
 };

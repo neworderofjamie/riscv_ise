@@ -28,7 +28,7 @@ class VectorRegisterAllocator;
 // AppUtils
 //----------------------------------------------------------------------------
 //! Helper functions for building applications with FeNN
-namespace AppUtils
+namespace FeNN::Common::AppUtils
 {
 // Allocate vector-aligned memory to store halfwords and return start adddress
 FENN_COMMON_EXPORT uint32_t allocateVectorAndZero(size_t numHalfWords, std::vector<int16_t> &memory);

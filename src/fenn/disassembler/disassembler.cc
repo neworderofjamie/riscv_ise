@@ -7,6 +7,8 @@
 // FeNN common include
 #include "fenn/common/isa.h"
 
+using namespace FeNN::Common;
+
 //----------------------------------------------------------------------------
 // Anonymous namespace
 //----------------------------------------------------------------------------
