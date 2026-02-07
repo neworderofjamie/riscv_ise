@@ -5,6 +5,8 @@
 #include <string>
 
 // Forward declarations
+namespace Model
+{
 class EventContainer;
 class Parameter;
 class PerformanceCounter;
@@ -15,10 +17,13 @@ class RNGInitProcess;
 class BroadcastProcess;
 class MemsetProcess;
 class Variable;
+}
 
 //----------------------------------------------------------------------------
-// ModelComponent
+// Model::ModelComponent
 //----------------------------------------------------------------------------
+namespace Model
+{
 class ModelComponentVisitor
 {
 public:
@@ -35,7 +40,7 @@ public:
 };
 
 //----------------------------------------------------------------------------
-// ModelComponent
+// Model::ModelComponent
 //----------------------------------------------------------------------------
 //! Base class for things that can be added to models
 class ModelComponent : public std::enable_shared_from_this<ModelComponent>
@@ -68,7 +73,7 @@ private:
 };
 
 //----------------------------------------------------------------------------
-// Stateful
+// Model::Stateful
 //----------------------------------------------------------------------------
 class Stateful : public ModelComponent
 {
@@ -78,7 +83,7 @@ protected:
 
 
 //----------------------------------------------------------------------------
-// Process
+// Model::Process
 //----------------------------------------------------------------------------
 class Process : public Stateful
 {
@@ -87,7 +92,7 @@ protected:
 };
 
 //----------------------------------------------------------------------------
-// State
+// Model::State
 //----------------------------------------------------------------------------
 class State : public ModelComponent
 {
@@ -97,7 +102,7 @@ protected:
 
 
 //---------------------------------------------------------------------------
-// AcceptableModelComponent
+// Model::AcceptableModelComponent
 //---------------------------------------------------------------------------
 template<typename T, typename B = ModelComponent>
 class AcceptableModelComponent : public B
@@ -111,3 +116,4 @@ public:
 protected:
     using B::B;
 };
+}

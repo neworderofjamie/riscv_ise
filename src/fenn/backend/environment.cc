@@ -1,22 +1,24 @@
-#include "backend/environment.h"
+#include "fenn/backend/environment.h"
 
 // GeNN transpiler includes
 #include "transpiler/errorHandler.h"
 
 // Assembler includes
-#include "assembler/assembler.h"
+#include "fenn/assembler/assembler.h"
 
 using namespace GeNN;
 
 //----------------------------------------------------------------------------
-// EnvironmentExternalBase
+// FeNN::Backend::EnvironmentExternalBase
 //----------------------------------------------------------------------------
-void EnvironmentExternalBase::define(const std::string &, RegisterPtr)
+namespace FeNN::Backend
+{
+void EnvironmentExternalBase::define(const std::string &, Compiler::RegisterPtr)
 {
     throw std::runtime_error("Cannot declare variable in external environment");
 }
 //----------------------------------------------------------------------------
-CodeGenerator &EnvironmentExternalBase::getCodeGenerator()
+Assembler::CodeGenerator &EnvironmentExternalBase::getCodeGenerator()
 {
     // If context includes a code stream
     if (std::get<2>(m_Context)) {
@@ -38,8 +40,8 @@ void EnvironmentExternalBase::define(const Transpiler::Token &, const GeNN::Type
     throw std::runtime_error("Cannot declare variable in external environment");
 }
 //------------------------------------------------------------------------
-EnvironmentItem EnvironmentExternalBase::getContextItem(const std::string &name, 
-                                                        std::optional<Type::ResolvedType> type) const
+Compiler::EnvironmentItem EnvironmentExternalBase::getContextItem(const std::string &name, 
+                                                                  std::optional<Type::ResolvedType> type) const
 {
     // If context includes a pretty-printing environment, get name from it
     if (std::get<1>(m_Context)) {
@@ -67,9 +69,10 @@ std::vector<Type::ResolvedType> EnvironmentExternalBase::getContextTypes(const T
 
 
 //----------------------------------------------------------------------------
-// EnvironmentExternal
+// FeNN::Backend::EnvironmentExternal
 //----------------------------------------------------------------------------
-EnvironmentItem EnvironmentExternal::getItem(const std::string &name, std::optional<Type::ResolvedType> type)
+Compiler::EnvironmentItem EnvironmentExternal::getItem(const std::string &name, 
+                                                       std::optional<Type::ResolvedType> type)
 {
     // If name isn't found in environment
     auto env = m_Environment.find(name);
@@ -97,7 +100,7 @@ std::vector<Type::ResolvedType> EnvironmentExternal::getTypes(const Transpiler::
 }
 //----------------------------------------------------------------------------
 void EnvironmentExternal::add(const GeNN::Type::ResolvedType &type, const std::string &name,
-                              EnvironmentItem value)
+                              Compiler::EnvironmentItem value)
 {
     if(!m_Environment.try_emplace(name, type, value).second) {
         throw std::runtime_error("Redeclaration of '" + std::string{name} + "'");
@@ -106,9 +109,9 @@ void EnvironmentExternal::add(const GeNN::Type::ResolvedType &type, const std::s
 
 
 //----------------------------------------------------------------------------
-// EnvironmentLibrary
+// FeNN::Backend::EnvironmentLibrary
 //----------------------------------------------------------------------------
-EnvironmentItem EnvironmentLibrary::getItem(const std::string &name, std::optional<GeNN::Type::ResolvedType> type)
+Compiler::EnvironmentItem EnvironmentLibrary::getItem(const std::string &name, std::optional<GeNN::Type::ResolvedType> type)
 {
     const auto [libTypeBegin, libTypeEnd] = m_Library.get().equal_range(name);
     if (libTypeBegin == libTypeEnd) {
@@ -138,4 +141,5 @@ std::vector<Type::ResolvedType> EnvironmentLibrary::getTypes(const Transpiler::T
                         [](const auto &t) { return t.second.first; });
         return types;
     }
+}
 }

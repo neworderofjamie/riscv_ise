@@ -12,8 +12,10 @@
 #include "model/shape.h"
 
 //----------------------------------------------------------------------------
-// Variable
+// Model::Variable
 //----------------------------------------------------------------------------
+namespace Model
+{
 class Variable : public AcceptableModelComponent<Variable, State>
 {
 public:
@@ -47,3 +49,4 @@ private:
     GeNN::Type::ResolvedType m_Type;
     size_t m_NumBufferTimesteps;
 };
+}

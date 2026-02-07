@@ -19,7 +19,6 @@
 // Backend include
 #include "fenn/backend/backend_export.h"
 #include "fenn/backend/memory_allocator.h"
-#include "fenn/backend/memory_allocator.h"
 #include "fenn/backend/model.h"
 #include "fenn/backend/runtime.h"
 
@@ -27,9 +26,11 @@
 class ProcessGroup;
 
 //----------------------------------------------------------------------------
-// URAMArrayBase
+// FeNN::Backend::URAMArrayBase
 //----------------------------------------------------------------------------
 //! Base class for arrays located in FeNN's URAM
+namespace FeNN::Backend
+{
 class BACKEND_EXPORT URAMArrayBase : public ArrayBase
 {
 public:
@@ -66,7 +67,7 @@ private:
 };
 
 //----------------------------------------------------------------------------
-// BRAMArrayBase
+// FeNN::Backend::BRAMArrayBase
 //----------------------------------------------------------------------------
 //! Base class for arrays located in FeNN's BRAM
 class BACKEND_EXPORT BRAMArrayBase : public ArrayBase
@@ -100,7 +101,7 @@ private:
 
 
 //----------------------------------------------------------------------------
-// LLMArrayBase
+// FeNN::Backend::LLMArrayBase
 //----------------------------------------------------------------------------
 //! Base class for arrays located in FeNN's lane-local memories
 class BACKEND_EXPORT LLMArrayBase : public ArrayBase
@@ -139,7 +140,7 @@ private:
 };
 
 //----------------------------------------------------------------------------
-// DRAMArrayBase
+// FeNN::Backend::DRAMArrayBase
 //----------------------------------------------------------------------------
 //! Base class for arrays located in DRAM, accessed using DMA controller
 class BACKEND_EXPORT DRAMArrayBase : public ArrayBase
@@ -172,7 +173,7 @@ private:
 };
 
 //----------------------------------------------------------------------------
-// URAMLLMArrayBase
+// FeNN::Backend::URAMLLMArrayBase
 //----------------------------------------------------------------------------
 //! Base class for arrays which are allocated in URAM but also have a delayed input in LLM
 //! Typically used for implementing neuron variables with dendritically-delayed input
@@ -220,7 +221,7 @@ private:
 
 
 //------------------------------------------------------------------------
-// BRAMFieldArray
+// FeNN::Backend::BRAMFieldArray
 //------------------------------------------------------------------------
 template<typename T>
 class BRAMFieldArray : public IFieldArray, protected T
@@ -251,7 +252,7 @@ public:
 };
 
 //----------------------------------------------------------------------------
-// StateBase
+// FeNN::Backend::StateBase
 //----------------------------------------------------------------------------
 //! Base class for runtime state objects created by backend
 class StateBase
@@ -301,7 +302,7 @@ private:
 };
 
 //----------------------------------------------------------------------------
-// BackendFeNN
+// FeNN::Backend::BackendFeNN
 //----------------------------------------------------------------------------
 //! Base class for FeNN backends
 //! **NOTE** this is a temporary, simplified version of GeNN's BackendBase
@@ -309,7 +310,7 @@ class BACKEND_EXPORT BackendFeNN
 {
 public:
     BackendFeNN(bool useDRAMForWeights = false, bool keepParamsInRegisters = true,
-                RoundingMode neuronUpdateRoundingMode = RoundingMode::NEAREST)
+                Compiler::RoundingMode neuronUpdateRoundingMode = Compiler::RoundingMode::NEAREST)
     :   m_UseDRAMForWeights(useDRAMForWeights), m_KeepParamsInRegisters(keepParamsInRegisters),
         m_NeuronUpdateRoundingMode(neuronUpdateRoundingMode)
     {}
@@ -363,6 +364,7 @@ private:
     //------------------------------------------------------------------------
     bool m_UseDRAMForWeights;
     bool m_KeepParamsInRegisters;
-    RoundingMode m_NeuronUpdateRoundingMode;
+    Compiler::RoundingMode m_NeuronUpdateRoundingMode;
 
 };
+}

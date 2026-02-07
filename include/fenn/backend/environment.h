@@ -10,12 +10,17 @@
 #include "fenn/compiler/compiler.h"
 
 // Forward declarations
-class CodeGenerator;
+namespace FeNN::Assembler
+{
+    class CodeGenerator;
+}
 
 //----------------------------------------------------------------------------
-// EnvironmentExternalBase
+// FeNN::Backend::EnvironmentExternalBase
 //----------------------------------------------------------------------------
-class EnvironmentExternalBase : public ::EnvironmentBase, public GeNN::Transpiler::TypeChecker::EnvironmentBase
+namespace FeNN::Backend
+{
+class EnvironmentExternalBase : public Compiler::EnvironmentBase, public GeNN::Transpiler::TypeChecker::EnvironmentBase
 {
 public:
     explicit EnvironmentExternalBase(EnvironmentExternalBase &enclosing)
@@ -23,12 +28,12 @@ public:
     {
     }
 
-    explicit EnvironmentExternalBase(::EnvironmentBase &enclosing)
+    explicit EnvironmentExternalBase(Compiler::EnvironmentBase &enclosing)
     :   m_Context{nullptr, &enclosing, nullptr}
     {
     }
 
-    explicit EnvironmentExternalBase(CodeGenerator &os)
+    explicit EnvironmentExternalBase(Assembler::CodeGenerator &os)
     :   m_Context{nullptr, nullptr, &os}
     {
     }
@@ -36,10 +41,10 @@ public:
     //------------------------------------------------------------------------
     // Assembler::EnvironmentBase virtuals
     //------------------------------------------------------------------------
-    virtual void define(const std::string &, RegisterPtr) override;
+    virtual void define(const std::string &, Compiler::RegisterPtr) override;
 
     //! Get stream to write code within this environment to
-    virtual CodeGenerator &getCodeGenerator() final;
+    virtual Assembler::CodeGenerator &getCodeGenerator() final;
 
     //------------------------------------------------------------------------
     // TypeChecker::EnvironmentBase virtuals
@@ -51,7 +56,7 @@ protected:
     //------------------------------------------------------------------------
     // Protected API
     //------------------------------------------------------------------------
-    EnvironmentItem getContextItem(const std::string &name, 
+    Compiler::EnvironmentItem getContextItem(const std::string &name, 
                                    std::optional<GeNN::Type::ResolvedType> type = std::nullopt) const;
 
     //! Get vector of types from context if it provides this functionality
@@ -62,11 +67,12 @@ private:
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
-    std::tuple<GeNN::Transpiler::TypeChecker::EnvironmentBase*, ::EnvironmentBase*, CodeGenerator*> m_Context;
-};
+    std::tuple<GeNN::Transpiler::TypeChecker::EnvironmentBase*, 
+               Compiler::EnvironmentBase*, 
+               Assembler:: CodeGenerator*> m_Context;};
 
 //----------------------------------------------------------------------------
-// EnvironmentExternal
+// FeNN::Backend::EnvironmentExternal
 //----------------------------------------------------------------------------
 class EnvironmentExternal : public EnvironmentExternalBase
 {
@@ -81,12 +87,12 @@ public:
     {
     }
 
-    explicit EnvironmentExternal(::EnvironmentBase &enclosing)
+    explicit EnvironmentExternal(Compiler::EnvironmentBase &enclosing)
     :   EnvironmentExternalBase(enclosing)
     {
     }
 
-    explicit EnvironmentExternal(CodeGenerator &os)
+    explicit EnvironmentExternal(Assembler::CodeGenerator &os)
     :   EnvironmentExternalBase(os)
     {
     }
@@ -96,7 +102,8 @@ public:
     //------------------------------------------------------------------------
     // Assembler::EnvironmentBase virtuals
     //------------------------------------------------------------------------
-    virtual EnvironmentItem getItem(const std::string &name, std::optional<GeNN::Type::ResolvedType> type = std::nullopt) final;
+    virtual Compiler::EnvironmentItem getItem(const std::string &name, 
+                                              std::optional<GeNN::Type::ResolvedType> type = std::nullopt) final;
 
     //------------------------------------------------------------------------
     // TypeChecker::EnvironmentBase virtuals
@@ -108,35 +115,35 @@ public:
     // Public API
     //------------------------------------------------------------------------
     //! Map a type (for type-checking) and a value (for pretty-printing) to an identifier
-    void add(const GeNN::Type::ResolvedType &type, const std::string &name, EnvironmentItem value);
+    void add(const GeNN::Type::ResolvedType &type, const std::string &name, Compiler::EnvironmentItem value);
 
 private:
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
-    std::unordered_map<std::string, std::tuple<GeNN::Type::ResolvedType, EnvironmentItem>> m_Environment;
+    std::unordered_map<std::string, std::tuple<GeNN::Type::ResolvedType, Compiler::EnvironmentItem>> m_Environment;
 };
 
 
 //----------------------------------------------------------------------------
-// EnvironmentLibrary
+// FeNN::Backend::EnvironmentLibrary
 //----------------------------------------------------------------------------
 class EnvironmentLibrary : public EnvironmentExternalBase
 {
 public:
-    using Library = std::unordered_multimap<std::string, std::pair<GeNN::Type::ResolvedType, FunctionGenerator>>;
+    using Library = std::unordered_multimap<std::string, std::pair<GeNN::Type::ResolvedType, Compiler::FunctionGenerator>>;
 
     explicit EnvironmentLibrary(EnvironmentExternalBase &enclosing, const Library &library)
     :   EnvironmentExternalBase(enclosing), m_Library(library)
     {
     }
 
-    explicit EnvironmentLibrary(::EnvironmentBase &enclosing, const Library &library)
+    explicit EnvironmentLibrary(Compiler::EnvironmentBase &enclosing, const Library &library)
     :   EnvironmentExternalBase(enclosing), m_Library(library)
     {
     }
 
-    explicit EnvironmentLibrary(CodeGenerator &os, const Library &library)
+    explicit EnvironmentLibrary(Assembler::CodeGenerator &os, const Library &library)
     :   EnvironmentExternalBase(os), m_Library(library)
     {
     }
@@ -146,7 +153,7 @@ public:
     //------------------------------------------------------------------------
     // Assembler::EnvironmentBase virtuals
     //------------------------------------------------------------------------
-    virtual EnvironmentItem getItem(const std::string &name, std::optional<GeNN::Type::ResolvedType> type = std::nullopt) final;
+    virtual Compiler::EnvironmentItem getItem(const std::string &name, std::optional<GeNN::Type::ResolvedType> type = std::nullopt) final;
 
     //------------------------------------------------------------------------
     // TypeChecker::EnvironmentBase virtuals
@@ -157,3 +164,4 @@ public:
 private:
     std::reference_wrapper<const Library> m_Library;
 };
+}

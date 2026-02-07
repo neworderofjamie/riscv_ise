@@ -61,7 +61,7 @@ class ProcessVisitor : public ModelComponentVisitor
 {
 public:
     ProcessVisitor(const std::vector<std::shared_ptr<const ProcessGroup>> processGroups, 
-                   Model::StateProcesses &stateProcesses)
+                   Modely::StateProcesses &stateProcesses)
     :   m_StateProcesses(stateProcesses)
     {
         // Loop through all process groups and visit

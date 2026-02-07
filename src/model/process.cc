@@ -11,8 +11,10 @@
 #include "model/variable.h"
 
 //----------------------------------------------------------------------------
-// NeuronUpdateProcess
+// Model::NeuronUpdateProcess
 //----------------------------------------------------------------------------
+namespace Model
+{
 NeuronUpdateProcess::NeuronUpdateProcess(Private, const std::string &code, const ParameterMap &parameters, 
                                          const VariableMap &variables, const EventContainerMap &outputEvents,
                                          const std::string &name)
@@ -196,4 +198,5 @@ BroadcastProcess::BroadcastProcess(Private, VariablePtr source, VariablePtrBacke
             throw std::runtime_error("Broadcast process requires source and target with same shape");
         }
     }
+}
 }
