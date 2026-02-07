@@ -35,7 +35,7 @@ void seedRNG(int16_t *seedPointer, const std::optional<std::array<int16_t, 64>> 
 //----------------------------------------------------------------------------
 // AppUtils
 //----------------------------------------------------------------------------
-namespace AppUtils
+namespace FeNN::Common::AppUtils
 {
 uint32_t allocateVectorAndZero(size_t numHalfWords, std::vector<int16_t> &memory)
 {
@@ -43,7 +43,7 @@ uint32_t allocateVectorAndZero(size_t numHalfWords, std::vector<int16_t> &memory
     const size_t startHalfWords = memory.size();
     assert((startHalfWords % 32) == 0);
 
-    const auto numVectors = Common::Utils::ceilDivide(numHalfWords, 32);
+    const auto numVectors = ::Common::Utils::ceilDivide(numHalfWords, 32);
     LOGD << "Allocating " << numHalfWords << " halfwords into " << numVectors << " vectors of memory starting at " << startHalfWords * 2 << " bytes";
     
     // Allocate memory and zero
@@ -107,7 +107,7 @@ uint32_t allocateScalarAndZero(size_t numBytes, std::vector<uint8_t> &memory)
 
     // Allocate memory and zero
     LOGD << "Allocating " << numBytes << " bytes of memory starting at " << startBytes << " bytes";
-    memory.resize(startBytes + Common::Utils::padSize(numBytes, 4), 0);
+    memory.resize(startBytes + ::Common::Utils::padSize(numBytes, 4), 0);
 
     // Return start address
     return static_cast<uint32_t>(startBytes);
@@ -152,7 +152,7 @@ void writeSpikes(std::ofstream &os, const volatile uint32_t *data,
         unsigned int n = (i * 32) + 31;
         while(w != 0) {
             // Count leading zeros
-            unsigned int numLZ = Common::Utils::clz(w);
+            unsigned int numLZ = ::Common::Utils::clz(w);
 
             // Shift off leading zeros
             w = (numLZ == 31) ? 0 : (w << (numLZ + 1));

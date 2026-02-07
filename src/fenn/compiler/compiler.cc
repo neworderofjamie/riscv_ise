@@ -13,6 +13,7 @@
 #include "fenn/assembler/assembler.h"
 
 using namespace FeNN::Assembler;
+using namespace FeNN::Common;
 using namespace FeNN::Compiler;
 using namespace GeNN;
 using namespace GeNN::Transpiler;

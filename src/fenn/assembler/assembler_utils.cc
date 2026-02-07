@@ -242,7 +242,7 @@ void generateScalarLaneLocalBroadcast(CodeGenerator &c, VectorRegisterAllocator 
 }
 //----------------------------------------------------------------------------
 void generatePerformanceCountWrite(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator,
-                                   CSR lowCSR, CSR highCSR, uint32_t scalarPtr)
+                                   Common::CSR lowCSR, Common::CSR highCSR, uint32_t scalarPtr)
 {
     ALLOCATE_SCALAR(SAddress);
     ALLOCATE_SCALAR(SValue);
@@ -256,7 +256,7 @@ void generatePerformanceCountWrite(CodeGenerator &c, ScalarRegisterAllocator &sc
 //----------------------------------------------------------------------------
 void unrollLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator, 
                     uint32_t numIterations, uint32_t maxUnroll, uint32_t iterationBytes,
-                    Reg testBufferReg, bool alwaysGenerateTail,
+                    Common::Reg testBufferReg, bool alwaysGenerateTail,
                     std::function<void(CodeGenerator&, uint32_t, bool)> genBodyFn, 
                     std::function<void(CodeGenerator&, uint32_t)> genTailFn)
 {
@@ -271,7 +271,7 @@ void unrollLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAll
         // Calculate end of unrolled section of buffer
         ALLOCATE_SCALAR(STestBufferEndReg);
         const size_t stride = iterationBytes * numUnrolls.quot * maxUnroll;
-        if(inSBit(stride, 12)) {
+        if(Common::inSBit(stride, 12)) {
             c.addi(*STestBufferEndReg, testBufferReg, stride);
         }
         else {
@@ -315,7 +315,7 @@ void unrollLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAll
 }
 //----------------------------------------------------------------------------
 void unrollVectorLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator, 
-                          uint32_t numIterations, uint32_t maxUnroll, Reg testBufferReg,
+                          uint32_t numIterations, uint32_t maxUnroll, Common::Reg testBufferReg,
                           std::function<void(CodeGenerator&, uint32_t, bool, ScalarRegisterAllocator::RegisterPtr)> genBodyFn, 
                           std::function<void(CodeGenerator&, uint32_t)> genTailFn)
 {
@@ -349,6 +349,8 @@ void unrollVectorLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegis
 std::vector<uint32_t> generateStandardKernel(bool simulate, uint32_t readyFlagPtr, 
                                              std::function<void(CodeGenerator&, VectorRegisterAllocator&, ScalarRegisterAllocator&)> genBodyFn)
 {
+    using namespace Common;
+
     CodeGenerator c;
     VectorRegisterAllocator vectorRegisterAllocator;
     ScalarRegisterAllocator scalarRegisterAllocator;
@@ -398,7 +400,7 @@ std::vector<uint32_t> generateStandardKernel(bool simulate, uint32_t readyFlagPt
 }
 //----------------------------------------------------------------------------
 void generateSubtractUint64(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator,
-                            Reg destLow, Reg destHigh, Reg subtractLow, Reg subtractHigh)
+                            Common::Reg destLow, Common::Reg destHigh, Common::Reg subtractLow, Common::Reg subtractHigh)
 {
     ALLOCATE_SCALAR(STemp);
 
@@ -410,7 +412,7 @@ void generateSubtractUint64(CodeGenerator &c, ScalarRegisterAllocator &scalarReg
 }
 //----------------------------------------------------------------------------
 void generateAddUint64(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator,
-                       Reg destLow, Reg destHigh, Reg addLow, Reg addHigh)
+                       Common::Reg destLow, Common::Reg destHigh, Common::Reg addLow, Common::Reg addHigh)
 {
     ALLOCATE_SCALAR(STemp);
 
@@ -421,8 +423,10 @@ void generateAddUint64(CodeGenerator &c, ScalarRegisterAllocator &scalarRegister
     c.add(destHigh, *STemp, destHigh);
 }
 //----------------------------------------------------------------------------
-void generateDMAStartWrite(CodeGenerator &c, Reg destination, Reg source, Reg size)
+void generateDMAStartWrite(CodeGenerator &c, Common::Reg destination, Common::Reg source, Common::Reg size)
 {
+    using namespace Common;
+
     // Write source and destination addresses to CSRs
     c.csrw(CSR::MM2S_SRC_ADDR, source);
     c.csrw(CSR::MM2S_DST_ADDR, destination);
@@ -435,8 +439,10 @@ void generateDMAStartWrite(CodeGenerator &c, Reg destination, Reg source, Reg si
     c.csrwi(CSR::MM2S_CONTROL, 1);
 }
 //----------------------------------------------------------------------------
-void generateDMAStartRead(CodeGenerator &c, Reg destination, Reg source, Reg size)
+void generateDMAStartRead(CodeGenerator &c, Common::Reg destination, Common::Reg source, Common::Reg size)
 {
+    using namespace Common;
+
     // Write source and destination addresses to CSRs
     c.csrw(CSR::S2MM_SRC_ADDR, source);
     c.csrw(CSR::S2MM_DST_ADDR, destination);
@@ -451,6 +457,8 @@ void generateDMAStartRead(CodeGenerator &c, Reg destination, Reg source, Reg siz
 //----------------------------------------------------------------------------
 ScalarRegisterAllocator::RegisterPtr generateDMAWaitForWriteComplete(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator)
 {
+    using namespace Common;
+
     ALLOCATE_SCALAR(SStatus);
     ALLOCATE_SCALAR(SIdle);
 
@@ -473,6 +481,8 @@ ScalarRegisterAllocator::RegisterPtr generateDMAWaitForWriteComplete(CodeGenerat
 //----------------------------------------------------------------------------
 ScalarRegisterAllocator::RegisterPtr generateDMAWaitForReadComplete(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator)
 {
+    using namespace Common;
+
     ALLOCATE_SCALAR(SStatus);
     ALLOCATE_SCALAR(SIdle);
 
@@ -495,6 +505,8 @@ ScalarRegisterAllocator::RegisterPtr generateDMAWaitForReadComplete(CodeGenerato
 //----------------------------------------------------------------------------
 void generateRouterBarrier(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator, uint32_t numMasters)
 {
+    using namespace Common;
+
     // Send barrier event from this core
     c.csrwi(CSR::MASTER_SEND_BARRIER, 1);
 

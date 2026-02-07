@@ -43,18 +43,18 @@ ASSEMBLER_EXPORT void generateScalarLaneLocalBroadcast(CodeGenerator &c, VectorR
 
 // Generate code to copy 64-bit performance counter value from pair of CSR registers to scalar memory
 ASSEMBLER_EXPORT void generatePerformanceCountWrite(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator,
-                                                    CSR lowCSR, CSR highCSR, uint32_t scalarPtr);
+                                                    Common::CSR lowCSR, Common::CSR highCSR, uint32_t scalarPtr);
 
 // Generate an unrolled loop body
 ASSEMBLER_EXPORT void unrollLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator,
                                      uint32_t numIterations, uint32_t maxUnroll, uint32_t iterationBytes,
-                                     Reg testBufferReg, bool alwaysGenerateTail,
+                                     Common::Reg testBufferReg, bool alwaysGenerateTail,
                                      std::function<void(CodeGenerator&, uint32_t, bool)> genBodyFn, 
                                      std::function<void(CodeGenerator&, uint32_t)> genTailFn);
 
 // Generate an unrolled loop body for a vectorised loop
 ASSEMBLER_EXPORT void unrollVectorLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator, 
-                                           uint32_t numIterations, uint32_t maxUnroll, Reg testBufferReg,
+                                           uint32_t numIterations, uint32_t maxUnroll, Common::Reg testBufferReg,
                                            std::function<void(CodeGenerator&, uint32_t, bool, ScalarRegisterAllocator::RegisterPtr)> genBodyFn, 
                                            std::function<void(CodeGenerator&, uint32_t)> genTailFn);
 
@@ -65,17 +65,17 @@ ASSEMBLER_EXPORT std::vector<uint32_t> generateStandardKernel(bool simulate, uin
 
 //! Generate code to calculate dest -= subtract in Uint64
 ASSEMBLER_EXPORT void generateSubtractUint64(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator,
-                                             Reg destLow, Reg destHigh, Reg subtractLow, Reg subtractHigh);
+                                             Common::Reg destLow, Common::Reg destHigh, Common::Reg subtractLow, Common::Reg subtractHigh);
 
 //! Generate code to calculate dest += subtract in Uint64
 ASSEMBLER_EXPORT void generateAddUint64(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator,
-                                        Reg destLow, Reg destHigh, Reg addLow, Reg addHigh);
+                                        Common::Reg destLow, Common::Reg destHigh, Common::Reg addLow, Common::Reg addHigh);
 
 //! Generate code to initiate a DMA write
-ASSEMBLER_EXPORT void generateDMAStartWrite(CodeGenerator &c, Reg destination, Reg source, Reg size);
+ASSEMBLER_EXPORT void generateDMAStartWrite(CodeGenerator &c, Common::Reg destination, Common::Reg source, Common::Reg size);
 
 //! Generate code to initiate a DMA read
-ASSEMBLER_EXPORT void generateDMAStartRead(CodeGenerator &c, Reg destination, Reg source, Reg size);
+ASSEMBLER_EXPORT void generateDMAStartRead(CodeGenerator &c, Common::Reg destination, Common::Reg source, Common::Reg size);
 
 //! Generate code to (busy) wait until DMA write completes. Returns resulting status value
 ASSEMBLER_EXPORT ScalarRegisterAllocator::RegisterPtr generateDMAWaitForWriteComplete(
