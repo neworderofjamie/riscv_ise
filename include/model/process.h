@@ -1,9 +1,9 @@
 #pragma once
 
 // Standard C++ includes
+#include <map>
 #include <memory>
 #include <string>
-#include <unordered_map>
 #include <variant>
 
 // GeNN includes
@@ -25,9 +25,9 @@ namespace Model
 {
 using VariablePtr = std::shared_ptr<const Variable>;
 using VariablePtrBackendState = std::variant<VariablePtr, int>;
-using EventContainerMap = std::unordered_map<std::string, std::shared_ptr<EventContainer>>;
-using ParameterMap = std::unordered_map<std::string, std::shared_ptr<const Parameter>>;
-using VariableMap = std::unordered_map<std::string, VariablePtr>;
+using EventContainerMap = std::map<std::string, std::shared_ptr<EventContainer>>;
+using ParameterMap = std::map<std::string, std::shared_ptr<const Parameter>>;
+using VariableMap = std::map<std::string, VariablePtr>;
 
 
 //----------------------------------------------------------------------------
@@ -39,6 +39,11 @@ public:
     NeuronUpdateProcess(Private, const std::string &code, const ParameterMap &parameters, 
                         const VariableMap &variables, const EventContainerMap &outputEvents,
                         const std::string &name);
+
+    //------------------------------------------------------------------------
+    // Process virtuals
+    //------------------------------------------------------------------------
+    virtual boost::uuids::detail::sha1::digest_type getMergeHashDigest() const override final;
 
     //------------------------------------------------------------------------
     // Public API
@@ -84,6 +89,11 @@ public:
                             VariablePtr weight, VariablePtr target,
                             size_t numSparseConnectivityBits, size_t numDelayBits,
                             const std::string &name);
+
+    //------------------------------------------------------------------------
+    // Process virtuals
+    //------------------------------------------------------------------------
+    virtual boost::uuids::detail::sha1::digest_type getMergeHashDigest() const override final;
 
     //------------------------------------------------------------------------
     // Public API
@@ -137,6 +147,11 @@ public:
     RNGInitProcess(Private, VariablePtr seed, const std::string &name);
 
     //------------------------------------------------------------------------
+    // Process virtuals
+    //------------------------------------------------------------------------
+    virtual boost::uuids::detail::sha1::digest_type getMergeHashDigest() const override final;
+
+    //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
     const auto getSeed() const{ return m_Seed; }
@@ -166,6 +181,11 @@ public:
     MemsetProcess(Private, VariablePtrBackendState target, const std::string &name);
 
     //------------------------------------------------------------------------
+    // Process virtuals
+    //------------------------------------------------------------------------
+    virtual boost::uuids::detail::sha1::digest_type getMergeHashDigest() const override final;
+
+    //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
     const auto getTarget() const{ return m_Target; }
@@ -193,6 +213,11 @@ class MODEL_EXPORT BroadcastProcess : public AcceptableModelComponent<BroadcastP
 {
 public:
     BroadcastProcess(Private, VariablePtr source, VariablePtrBackendState target, const std::string &name);
+
+    //------------------------------------------------------------------------
+    // Process virtuals
+    //------------------------------------------------------------------------
+    virtual boost::uuids::detail::sha1::digest_type getMergeHashDigest() const override final;
 
     //------------------------------------------------------------------------
     // Public API

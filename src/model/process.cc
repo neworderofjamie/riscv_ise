@@ -51,6 +51,30 @@ NeuronUpdateProcess::NeuronUpdateProcess(Private, const std::string &code, const
     // Batched = any output events batched
     // 
 }
+//----------------------------------------------------------------------------
+boost::uuids::detail::sha1::digest_type NeuronUpdateProcess::getMergeHashDigest() const
+{
+    using namespace GeNN::Utils;
+    boost::uuids::detail::sha1 hash;
+
+    // Parameters
+    updateHash(getParameters().size(), hash);
+    for(const auto &p : getParameters()) {
+        updateHash(p.first, hash);
+        p.second->updateMergeHash(hash);
+    }
+
+    // Variables
+    updateHash(getVariables().size(), hash);
+    for(const auto &v : getVariables()) {
+        updateHash(v.first, hash);
+        v.second->updateMergeHash(hash);
+    }
+
+    // Output events
+    //updateHash()
+    return hash.get_digest();
+}
 
 //----------------------------------------------------------------------------
 // EventPropagationProcess
@@ -123,7 +147,10 @@ EventPropagationProcess::EventPropagationProcess(Private, std::shared_ptr<const 
                                      "match specified number of delay bits");
         }
     }
-    
+}
+//----------------------------------------------------------------------------
+boost::uuids::detail::sha1::digest_type EventPropagationProcess::getMergeHashDigest() const
+{
 }
 
 //----------------------------------------------------------------------------
@@ -135,6 +162,10 @@ RNGInitProcess::RNGInitProcess(Private, VariablePtr seed, const std::string &nam
     if(m_Seed == nullptr) {
         throw std::runtime_error("RNG init process requires seed");
     }
+}
+//----------------------------------------------------------------------------
+boost::uuids::detail::sha1::digest_type NeuronUpdateProcess::getMergeHashDigest() const
+{
 }
 
 //----------------------------------------------------------------------------
@@ -151,6 +182,10 @@ MemsetProcess::MemsetProcess(Private, VariablePtrBackendState target, const std:
             throw std::runtime_error("Memset process requires target");
         }
     }
+}
+//----------------------------------------------------------------------------
+boost::uuids::detail::sha1::digest_type MemsetProcess::getMergeHashDigest() const
+{
 }
 
 //----------------------------------------------------------------------------
@@ -198,5 +233,9 @@ BroadcastProcess::BroadcastProcess(Private, VariablePtr source, VariablePtrBacke
             throw std::runtime_error("Broadcast process requires source and target with same shape");
         }
     }
+}
+//----------------------------------------------------------------------------
+boost::uuids::detail::sha1::digest_type BroadcastProcess::getMergeHashDigest() const
+{
 }
 }

@@ -32,6 +32,8 @@ public:
     const auto &getType() const{ return m_Type; }
     size_t getNumBufferTimesteps() const { return m_NumBufferTimesteps; }
 
+    void updateMergeHash(boost::uuids::detail::sha1 &hash) const;
+
     //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------

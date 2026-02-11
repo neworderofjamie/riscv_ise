@@ -20,6 +20,12 @@
     <ClCompile Include="shape.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="model_component.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="parameter.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\model\event_container.h">

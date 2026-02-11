@@ -17,7 +17,7 @@ namespace
 //----------------------------------------------------------------------------
 // VariableFieldSizeVisitor
 //----------------------------------------------------------------------------
-class VariableFieldSizeVisitor : public ModelComponentVisitor
+/*class VariableFieldSizeVisitor : public ModelComponentVisitor
 {
 public:
      VariableFieldSizeVisitor(std::shared_ptr<const Variable> variable, const Model::StateProcesses::mapped_type &processes)
@@ -51,16 +51,16 @@ private:
     //------------------------------------------------------------------------
     std::shared_ptr<const Variable> m_Variable;
     uint32_t m_FieldSize;
-};
+};*/
 
 //----------------------------------------------------------------------------
 // ProcessVisitor
 //----------------------------------------------------------------------------
 //! Visitor to determine which 
-class ProcessVisitor : public ModelComponentVisitor
+class ProcessVisitor : public Model::ModelComponentVisitor
 {
 public:
-    ProcessVisitor(const std::vector<std::shared_ptr<const ProcessGroup>> processGroups, 
+    ProcessVisitor(const std::vector<std::shared_ptr<const Model::ProcessGroup>> processGroups, 
                    Modely::StateProcesses &stateProcesses)
     :   m_StateProcesses(stateProcesses)
     {
@@ -74,7 +74,7 @@ private:
     //------------------------------------------------------------------------
     // ModelComponentVisitor virtuals
     //------------------------------------------------------------------------
-    virtual void visit(std::shared_ptr<const ProcessGroup> processGroup)
+    virtual void visit(std::shared_ptr<const Model::ProcessGroup> processGroup)
     {
         LOGD << "Process group '" << processGroup->getName() << "'";
        
@@ -90,7 +90,7 @@ private:
         }
     }
 
-    virtual void visit(std::shared_ptr<const NeuronUpdateProcess> neuronUpdateProcess)
+    virtual void visit(std::shared_ptr<const Model::NeuronUpdateProcess> neuronUpdateProcess)
     {
         LOGD << "\tNeuron update process '" << neuronUpdateProcess->getName() << "'";
         
@@ -105,7 +105,7 @@ private:
         }
     }
 
-    virtual void visit(std::shared_ptr<const EventPropagationProcess> eventPropagationProcess)
+    virtual void visit(std::shared_ptr<const Model::EventPropagationProcess> eventPropagationProcess)
     {
         LOGD << "\tEvent propagation process '" << eventPropagationProcess->getName() << "'";
 
@@ -115,7 +115,7 @@ private:
         m_StateProcesses.get()[eventPropagationProcess->getTarget()].push_back(eventPropagationProcess);
     }
 
-    virtual void visit(std::shared_ptr<const RNGInitProcess> rngInitProcess)
+    virtual void visit(std::shared_ptr<const Model::RNGInitProcess> rngInitProcess)
     {
         LOGD << "\tRNG init process '" << rngInitProcess->getName() << "'";
 
@@ -123,26 +123,26 @@ private:
         m_StateProcesses.get()[rngInitProcess->getSeed()].push_back(rngInitProcess);
     }
 
-    virtual void visit(std::shared_ptr<const BroadcastProcess> broadcastProcess)
+    virtual void visit(std::shared_ptr<const Model::BroadcastProcess> broadcastProcess)
     {
         LOGD << "\tBroadcast process '" << broadcastProcess->getName() << "'";
     
         // Add back-references in state processes
         m_StateProcesses.get()[broadcastProcess->getSource()].push_back(broadcastProcess);
 
-         // If target is a variable reference, add back-references in state 
-        if(std::holds_alternative<VariablePtr>(broadcastProcess->getTarget())) {
-            auto target = std::get<VariablePtr>(broadcastProcess->getTarget());
+        // If target is a variable reference, add back-references in state 
+        if(std::holds_alternative<Model::VariablePtr>(broadcastProcess->getTarget())) {
+            auto target = std::get<Model::VariablePtr>(broadcastProcess->getTarget());
             m_StateProcesses.get()[target].push_back(broadcastProcess);
         }
     }
 
-    virtual void visit(std::shared_ptr<const MemsetProcess> memsetProcess)
+    virtual void visit(std::shared_ptr<const Model::MemsetProcess> memsetProcess)
     {
         LOGD << "\tMemset process '" << memsetProcess->getName() << "'";
         
         // If target is a variable reference, add back-references in state 
-        if(std::holds_alternative<VariablePtr>(memsetProcess->getTarget())) {
+        if(std::holds_alternative<Model::VariablePtr>(memsetProcess->getTarget())) {
             auto target = std::get<VariablePtr>(memsetProcess->getTarget());
             m_StateProcesses.get()[target].push_back(memsetProcess);
         }
@@ -157,7 +157,7 @@ private:
 //----------------------------------------------------------------------------
 // FieldVisitor
 //----------------------------------------------------------------------------
-class FieldVisitor : public ModelComponentVisitor
+/*class FieldVisitor : public ModelComponentVisitor
 {
 public:
     FieldVisitor(const std::vector<std::shared_ptr<const ProcessGroup>> processGroups, 
@@ -406,7 +406,7 @@ private:
     Model::StateFields m_CurrentProcessFields;
     Model::StateFields m_CurrentProcessGroupFields;
     uint32_t m_FieldSize;
-};
+};*/
 }
 
 //----------------------------------------------------------------------------

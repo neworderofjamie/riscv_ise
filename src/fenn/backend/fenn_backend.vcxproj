@@ -25,6 +25,7 @@
     <ClInclude Include="..\..\..\include\fenn\backend\backend_fenn_sim.h" />
     <ClInclude Include="..\..\..\include\fenn\backend\environment.h" />
     <ClInclude Include="..\..\..\include\fenn\backend\memory_allocator.h" />
+    <ClInclude Include="..\..\..\include\fenn\backend\process.h" />
     <ClInclude Include="..\..\..\include\fenn\backend\runtime.h" />
     <ClInclude Include="..\..\..\include\fenn\backend\special_function.h" />
   </ItemGroup>
@@ -34,7 +35,7 @@
     <ClCompile Include="backend_fenn_sim.cc" />
     <ClCompile Include="environment.cc" />
     <ClCompile Include="memory_allocator.cc" />
-    <ClCompile Include="model.cc" />
+    <ClCompile Include="process.cc" />
     <ClCompile Include="runtime.cc" />
     <ClCompile Include="special_functions.cc" />
   </ItemGroup>
