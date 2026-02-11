@@ -89,6 +89,8 @@ class Process : public Stateful
 {
 protected:
     using Stateful::Stateful;
+
+    virtual boost::uuids::detail::sha1::digest_type getMergeHashDigest() const = 0;
 };
 
 //----------------------------------------------------------------------------

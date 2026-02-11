@@ -3,6 +3,15 @@
 // Model includes
 #include "model/process.h"
 
+// Assembler includes
+#include "fenn/assembler/register_allocator.h"
+
+// Forward declarations
+namespace FeNN::Assembler
+{
+class CodeGenerator;
+}
+
 //----------------------------------------------------------------------------
 // FeNN::Backend::IProcessImplementation
 //----------------------------------------------------------------------------
@@ -34,6 +43,11 @@ public:
     }
 
     //virtual void updateLUTObjectIDs(std::unordered_set<Model::StateObjectID> m_LUTObjectIDs;)
+
+    //! Generate code to implement process
+    virtual void generateCode(Assembler::CodeGenerator &codeGenerator,
+                              Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
+                              Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const = 0;
 };
 
 //----------------------------------------------------------------------------
@@ -50,6 +64,11 @@ public:
     //! Update the memory compatibility of a variable associated with this process
     virtual void updateMemSpaceCompatibility(Model::VariablePtr variable, 
                                            MemSpaceCompatibility &memSpaceCompatibility) const override final;
+
+    //! Generate code to implement process
+    virtual void generateCode(Assembler::CodeGenerator &codeGenerator,
+                              Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
+                              Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;
 
     //------------------------------------------------------------------------
     // Static API
@@ -80,6 +99,11 @@ public:
     //! Update the max-row length to support this process
     virtual void updateMaxRowLength(size_t &maxRowLength) const override final;
 
+    //! Generate code to implement process
+    virtual void generateCode(Assembler::CodeGenerator &codeGenerator,
+                              Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
+                              Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;
+
     //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------
@@ -109,6 +133,11 @@ public:
     virtual void updateMemSpaceCompatibility(Model::VariablePtr variable, 
                                            MemSpaceCompatibility &memSpaceCompatibility) const override final;
 
+    //! Generate code to implement process
+    virtual void generateCode(Assembler::CodeGenerator &codeGenerator,
+                              Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
+                              Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;
+
     //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------
@@ -133,13 +162,31 @@ public:
     virtual void updateMemSpaceCompatibility(Model::VariablePtr variable, 
                                            MemSpaceCompatibility &memSpaceCompatibility) const override final;
 
+    //! Generate code to implement process
+    virtual void generateCode(Assembler::CodeGenerator &codeGenerator,
+                              Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
+                              Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;
+
     //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------
-    static std::shared_ptr<MemsetProcess> create(Model::VariablePtrBackendState target, const std::string &name = "")
+    static std::shared_ptr<Model::MemsetProcess> create(Model::VariablePtrBackendState target, const std::string &name = "")
     {
         return std::make_shared<MemsetProcess>(Private(), target, name);
     }
+
+private:
+    //------------------------------------------------------------------------
+    // Private methods
+    //------------------------------------------------------------------------
+    void generateURAMMemset(Assembler::CodeGenerator &codeGenerator,
+                            Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
+                            Assembler::VectorRegisterAllocator &vectorRegisterAllocator,
+                            size_t numVectors, Assembler::ScalarRegisterAllocator::RegisterPtr targetReg) const;
+    void generateLLMMemset(Assembler::CodeGenerator &codeGenerator,
+                           Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
+                           Assembler::VectorRegisterAllocator &vectorRegisterAllocator,
+                           size_t numVectors, Assembler::ScalarRegisterAllocator::RegisterPtr targetReg) const;
 };
 
 //----------------------------------------------------------------------------
@@ -156,6 +203,11 @@ public:
     //! Update the memory compatibility of a variable associated with this process
     virtual void updateMemSpaceCompatibility(Model::VariablePtr variable, 
                                            MemSpaceCompatibility &memSpaceCompatibility) const override final;
+
+    //! Generate code to implement process
+    virtual void generateCode(Assembler::CodeGenerator &codeGenerator,
+                              Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
+                              Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;
 
     //------------------------------------------------------------------------
     // Static API

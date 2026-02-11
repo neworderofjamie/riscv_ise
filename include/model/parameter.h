@@ -9,6 +9,12 @@
 // Compiler includes
 #include "model/model_component.h"
 
+// Forward declarations
+namespace boost::uuids::detail
+{
+class sha1;
+}
+
 //----------------------------------------------------------------------------
 // Model::Parameter
 //----------------------------------------------------------------------------
@@ -27,6 +33,8 @@ public:
     //------------------------------------------------------------------------
     const auto &getValue() const{ return m_Value; }
     const auto &getType() const{ return m_Type; }
+
+    void updateMergeHash(boost::uuids::detail::sha1 &hash) const;
 
     //------------------------------------------------------------------------
     // Static API

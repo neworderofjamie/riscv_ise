@@ -20,6 +20,8 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="model.cc" />
+    <ClCompile Include="model_component.cc" />
+    <ClCompile Include="parameter.cc" />
     <ClCompile Include="process.cc" />
     <ClCompile Include="shape.cc" />
   </ItemGroup>
