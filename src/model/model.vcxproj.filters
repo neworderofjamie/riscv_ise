@@ -26,6 +26,9 @@
     <ClCompile Include="parameter.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="event_container.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\model\event_container.h">

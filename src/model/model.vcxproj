@@ -19,6 +19,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="event_container.cc" />
     <ClCompile Include="model.cc" />
     <ClCompile Include="model_component.cc" />
     <ClCompile Include="parameter.cc" />
