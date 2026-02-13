@@ -72,7 +72,11 @@ boost::uuids::detail::sha1::digest_type NeuronUpdateProcess::getMergeHashDigest(
     }
 
     // Output events
-    //updateHash()
+    updateHash(getOutputEvents().size(), hash);
+    for(const auto &e : getOutputEvents()) {
+        updateHash(e.first, hash);
+        e.second->updateMergeHash(hash);
+    }
     return hash.get_digest();
 }
 
@@ -151,6 +155,21 @@ EventPropagationProcess::EventPropagationProcess(Private, std::shared_ptr<const 
 //----------------------------------------------------------------------------
 boost::uuids::detail::sha1::digest_type EventPropagationProcess::getMergeHashDigest() const
 {
+    using namespace GeNN::Utils;
+    boost::uuids::detail::sha1 hash;
+
+    // Input events
+    getInputEvents()->updateMergeHash(hash);
+
+    // Weights and targets
+    getWeight()->updateMergeHash(hash);
+    getTarget()->updateMergeHash(hash);
+
+    // Formats
+    updateHash(getNumDelayBits(), hash);
+    updateHash(getNumSparseConnectivityBits(), hash);
+
+    return hash.get_digest();
 }
 
 //----------------------------------------------------------------------------
@@ -166,6 +185,8 @@ RNGInitProcess::RNGInitProcess(Private, VariablePtr seed, const std::string &nam
 //----------------------------------------------------------------------------
 boost::uuids::detail::sha1::digest_type NeuronUpdateProcess::getMergeHashDigest() const
 {
+    boost::uuids::detail::sha1 hash;
+    return hash.get_digest();
 }
 
 //----------------------------------------------------------------------------
@@ -186,6 +207,8 @@ MemsetProcess::MemsetProcess(Private, VariablePtrBackendState target, const std:
 //----------------------------------------------------------------------------
 boost::uuids::detail::sha1::digest_type MemsetProcess::getMergeHashDigest() const
 {
+    boost::uuids::detail::sha1 hash;
+    return hash.get_digest();
 }
 
 //----------------------------------------------------------------------------
@@ -237,5 +260,8 @@ BroadcastProcess::BroadcastProcess(Private, VariablePtr source, VariablePtrBacke
 //----------------------------------------------------------------------------
 boost::uuids::detail::sha1::digest_type BroadcastProcess::getMergeHashDigest() const
 {
+    boost::uuids::detail::sha1 hash;
+
+    return hash.get_digest();
 }
 }
