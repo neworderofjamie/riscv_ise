@@ -43,19 +43,19 @@ public:
     //------------------------------------------------------------------------
     //! Update the memory compatibility of a variable associated with this process
     virtual void updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, 
-                                             MemSpaceCompatibility &memSpaceCompatibility) const = 0;
+                                             bool useDRAMForWeights, MemSpaceCompatibility &memSpaceCompatibility) const = 0;
 
     //! Update the max-row length to support this process
-    virtual void updateMaxRowLength(size_t &maxRowLength) const
+    virtual void updateMaxDMABufferSize(size_t &maxRowLength) const
     {
     }
 
     //virtual void updateLUTObjectIDs(std::unordered_set<Model::StateObjectID> m_LUTObjectIDs;)
 
     //! Generate code to implement process
-    virtual void generateCode(Assembler::CodeGenerator &codeGenerator,
+    /*virtual void generateCode(Assembler::CodeGenerator &codeGenerator,
                               Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
-                              Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const = 0;
+                              Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const = 0;*/
 };
 
 //----------------------------------------------------------------------------
@@ -76,12 +76,12 @@ public:
     //------------------------------------------------------------------------
     //! Update the memory compatibility of a variable associated with this process
     virtual void updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, 
-                                             MemSpaceCompatibility &memSpaceCompatibility) const override final;
+                                             bool useDRAMForWeights, MemSpaceCompatibility &memSpaceCompatibility) const override final;
 
     //! Generate code to implement process
-    virtual void generateCode(Assembler::CodeGenerator &codeGenerator,
+    /*virtual void generateCode(Assembler::CodeGenerator &codeGenerator,
                               Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
-                              Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;
+                              Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;*/
 
     //------------------------------------------------------------------------
     // Static API
@@ -107,15 +107,15 @@ public:
     //------------------------------------------------------------------------
     //! Update the memory compatibility of a variable associated with this process
     virtual void updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state,
-                                             MemSpaceCompatibility &memSpaceCompatibility) const override final;
+                                             bool useDRAMForWeights, MemSpaceCompatibility &memSpaceCompatibility) const override final;
 
-    //! Update the max-row length to support this process
-    virtual void updateMaxRowLength(size_t &maxRowLength) const override final;
+    //! Update the maximum DMA buffer size to support this process
+    virtual void updateMaxDMABufferSize(size_t &maxRowLength) const override final;
 
     //! Generate code to implement process
-    virtual void generateCode(Assembler::CodeGenerator &codeGenerator,
+    /*virtual void generateCode(Assembler::CodeGenerator &codeGenerator,
                               Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
-                              Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;
+                              Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;*/
 
     //------------------------------------------------------------------------
     // Static API
@@ -144,12 +144,12 @@ public:
     //------------------------------------------------------------------------
     //! Update the memory compatibility of a variable associated with this process
     virtual void updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, 
-                                             MemSpaceCompatibility &memSpaceCompatibility) const override final;
+                                             bool useDRAMForWeights, MemSpaceCompatibility &memSpaceCompatibility) const override final;
 
     //! Generate code to implement process
-    virtual void generateCode(Assembler::CodeGenerator &codeGenerator,
+    /*virtual void generateCode(Assembler::CodeGenerator &codeGenerator,
                               Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
-                              Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;
+                              Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;*/
 
     //------------------------------------------------------------------------
     // Static API
@@ -173,12 +173,12 @@ public:
     //------------------------------------------------------------------------
     //! Update the memory compatibility of a variable associated with this process
     virtual void updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, 
-                                             MemSpaceCompatibility &memSpaceCompatibility) const override final;
+                                             bool useDRAMForWeights, MemSpaceCompatibility &memSpaceCompatibility) const override final;
 
     //! Generate code to implement process
-    virtual void generateCode(Assembler::CodeGenerator &codeGenerator,
+    /*virtual void generateCode(Assembler::CodeGenerator &codeGenerator,
                               Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
-                              Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;
+                              Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;*/
 
     //------------------------------------------------------------------------
     // Static API
@@ -216,12 +216,12 @@ public:
     //------------------------------------------------------------------------
     //! Update the memory compatibility of a variable associated with this process
     virtual void updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, 
-                                             MemSpaceCompatibility &memSpaceCompatibility) const override final;
+                                             bool useDRAMForWeights, MemSpaceCompatibility &memSpaceCompatibility) const override final;
 
     //! Generate code to implement process
-    virtual void generateCode(Assembler::CodeGenerator &codeGenerator,
+    /*virtual void generateCode(Assembler::CodeGenerator &codeGenerator,
                               Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
-                              Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;
+                              Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;*/
 
     //------------------------------------------------------------------------
     // Static API

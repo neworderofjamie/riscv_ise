@@ -16,6 +16,10 @@ class Process;
 //----------------------------------------------------------------------------
 // Model::Model
 //----------------------------------------------------------------------------
+//! A model encompasses of a number of graphs which share the same state.
+//! It also contains any additional data structures required BEFORE merging.
+//! If a backend requires additional data to calculate mergibility, 
+//! it needs to be added to a class derived from Model
 namespace Model
 {
 class Model

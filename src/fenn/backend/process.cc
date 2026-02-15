@@ -20,7 +20,7 @@ using namespace FeNN::Common;
 //----------------------------------------------------------------------------
 // Anonymous namespace
 //----------------------------------------------------------------------------
-namespace
+/*namespace
 {
 //------------------------------------------------------------------------
 // NeuronVarBase
@@ -584,7 +584,7 @@ private:
     uint32_t m_TargetAddress;
     VectorRegisterAllocator::RegisterPtr m_VectorTimeReg;
 };
-}
+}*/
 //----------------------------------------------------------------------------
 // FeNN::Backend::NeuronUpdateProcess
 //----------------------------------------------------------------------------
@@ -601,7 +601,8 @@ void NeuronUpdateProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, cons
     }
 }
 //----------------------------------------------------------------------------
-void NeuronUpdateProcess::updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, MemSpaceCompatibility &memSpaceCompatibility) const
+void NeuronUpdateProcess::updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, 
+                                                      bool, MemSpaceCompatibility &memSpaceCompatibility) const
 {
     const auto var = std::find_if(getVariables().cbegin(), getVariables().cend(),
                                   [&state](const auto &v){ return v.second == state; });
@@ -618,16 +619,17 @@ void NeuronUpdateProcess::updateMemSpaceCompatibility(std::shared_ptr<const ::Mo
     }
 }
 //----------------------------------------------------------------------------
-void NeuronUpdateProcess::generateCode(Assembler::CodeGenerator &codeGenerator,
+/*void NeuronUpdateProcess::generateCode(Assembler::CodeGenerator &codeGenerator,
                                        Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                        Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
-}
+}*/
 
 //----------------------------------------------------------------------------
 // FeNN::Backend::EventPropagationProcess
 //----------------------------------------------------------------------------
-void EventPropagationProcess::updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, MemSpaceCompatibility &memSpaceCompatibility) const
+void EventPropagationProcess::updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, 
+                                                          bool useDRAMForWeights, MemSpaceCompatibility &memSpaceCompatibility) const
 {
     // If variable is weight, it can only be located in URAM
     if(state == getWeight()) {
@@ -635,7 +637,7 @@ void EventPropagationProcess::updateMemSpaceCompatibility(std::shared_ptr<const 
         memSpaceCompatibility.bram = false;
         memSpaceCompatibility.uramLLM = false;
 
-        if(m_UseDRAMForWeights) {
+        if(useDRAMForWeights) {
             memSpaceCompatibility.uram = false;
 
             if(!memSpaceCompatibility.dram) {
@@ -688,21 +690,22 @@ void EventPropagationProcess::updateMemSpaceCompatibility(std::shared_ptr<const 
     }
 }
 //----------------------------------------------------------------------------
-void EventPropagationProcess::updateMaxRowLength(size_t &maxRowLength) const
+void EventPropagationProcess::updateMaxDMABufferSize(size_t &maxRowLength) const
 {
     maxRowLength = std::max(maxRowLength, getMaxRowLength());
 }
 //----------------------------------------------------------------------------
-void EventPropagationProcess::generateCode(Assembler::CodeGenerator &codeGenerator,
+/*void EventPropagationProcess::generateCode(Assembler::CodeGenerator &codeGenerator,
                                            Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                            Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
-}
+}*/
 
 //----------------------------------------------------------------------------
 // FeNN::Backend::RNGInitProcess
 //----------------------------------------------------------------------------
-void RNGInitProcess::updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, MemSpaceCompatibility &memSpaceCompatibility) const
+void RNGInitProcess::updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, 
+                                                 bool, MemSpaceCompatibility &memSpaceCompatibility) const
 {
     assert (state == rngInitProcess->getSeed());
 
@@ -719,7 +722,7 @@ void RNGInitProcess::updateMemSpaceCompatibility(std::shared_ptr<const ::Model::
     }
 }
 //----------------------------------------------------------------------------
-void RNGInitProcess::generateCode(Assembler::CodeGenerator &codeGenerator,
+/*void RNGInitProcess::generateCode(Assembler::CodeGenerator &codeGenerator,
                                   Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                   Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
@@ -739,12 +742,13 @@ void RNGInitProcess::generateCode(Assembler::CodeGenerator &codeGenerator,
     // Load seed into RNG registers
     c.vloadr0(*SReg);
     c.vloadr1(*SReg, 64);
-}
+}*/
 
 //----------------------------------------------------------------------------
 // FeNN::Backend::MemsetProcess
 //----------------------------------------------------------------------------
-void MemsetProcess::updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, MemSpaceCompatibility &memSpaceCompatibility) const
+void MemsetProcess::updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, 
+                                                bool, MemSpaceCompatibility &memSpaceCompatibility) const
 {
     const auto target = std::get<Model::VariablePtr>(getTarget());
     assert(state == target);
@@ -760,7 +764,7 @@ void MemsetProcess::updateMemSpaceCompatibility(std::shared_ptr<const ::Model::S
     }
 }
 //----------------------------------------------------------------------------
-void MemsetProcess::generateCode(Assembler::CodeGenerator &codeGenerator,
+/*void MemsetProcess::generateCode(Assembler::CodeGenerator &codeGenerator,
                                  Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                  Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
@@ -797,8 +801,8 @@ void MemsetProcess::generateCode(Assembler::CodeGenerator &codeGenerator,
             codeGenerator.lw(*STargetBuffer, Reg::X0, stateFields.at(target) + 4);
             generateLLMMemset(numVecs, STargetBuffer);
         }
-        /*else if(visitor.isBRAMCompatible()) {
-        }*/
+        //else if(visitor.isBRAMCompatible()) {
+        //}
         else {
             assert(false);
         }
@@ -829,7 +833,7 @@ void MemsetProcess::generateCode(Assembler::CodeGenerator &codeGenerator,
                                      + std::to_string(target));
         }
     }
-}
+}*/
 //----------------------------------------------------------------------------
 void MemsetProcess::generateLLMMemset(Assembler::CodeGenerator &codeGenerator,
                                       Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
@@ -896,7 +900,8 @@ void MemsetProcess::generateURAMMemset(Assembler::CodeGenerator &codeGenerator,
 //----------------------------------------------------------------------------
 // FeNN::Backend::BroadcastProcess
 //----------------------------------------------------------------------------
-void BroadcastProcess::updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, MemSpaceCompatibility &memSpaceCompatibility) const
+void BroadcastProcess::updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, 
+                                                   bool, MemSpaceCompatibility &memSpaceCompatibility) const
 {
     // If variable is source, it can only be located in BRAM
     if(state == getSource()) {
@@ -929,7 +934,7 @@ void BroadcastProcess::updateMemSpaceCompatibility(std::shared_ptr<const ::Model
     }
 }
 //----------------------------------------------------------------------------
-void BroadcastProcess::generateCode(Assembler::CodeGenerator &codeGenerator,
+/*void BroadcastProcess::generateCode(Assembler::CodeGenerator &codeGenerator,
                                     Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                     Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
@@ -1013,5 +1018,5 @@ void BroadcastProcess::generateCode(Assembler::CodeGenerator &codeGenerator,
         // Loop
         c.bne(*SDataBuffer, *SDataBufferEnd, halfWordLoop);
     }
-}
+}*/
 }
