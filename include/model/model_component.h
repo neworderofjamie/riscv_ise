@@ -14,6 +14,7 @@ class EventContainer;
 class Parameter;
 class PerformanceCounter;
 class ProcessGroup;
+class Model;
 class NeuronUpdateProcess;
 class EventPropagationProcess;
 class RNGInitProcess;
@@ -109,7 +110,7 @@ class Process : public Stateful
 protected:
     using Stateful::Stateful;
 
-    virtual boost::uuids::detail::sha1::digest_type getMergeHashDigest() const = 0;
+    virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const Model &model) const = 0;
 };
 
 

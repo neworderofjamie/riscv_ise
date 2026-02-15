@@ -54,7 +54,7 @@ NeuronUpdateProcess::NeuronUpdateProcess(Private, const std::string &code, const
     // 
 }
 //----------------------------------------------------------------------------
-std::vector<std::shared_ptr<const State>> NeuronUpdateProcess::getState() const
+std::vector<std::shared_ptr<const State>> NeuronUpdateProcess::getAllState() const
 {
     std::vector<std::shared_ptr<const State>> state;
     std::transform(getVariables().cbegin(), getVariables().cend(), std::back_inserter(state),
@@ -64,11 +64,9 @@ std::vector<std::shared_ptr<const State>> NeuronUpdateProcess::getState() const
     return state;
 }
 //----------------------------------------------------------------------------
-boost::uuids::detail::sha1::digest_type NeuronUpdateProcess::getMergeHashDigest() const
+void NeuronUpdateProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Model &model) const
 {
     using namespace GeNN::Utils;
-    boost::uuids::detail::sha1 hash;
-
     UPDATE_HASH_CLASS_NAME(NeuronUpdateProcess);
 
     // Parameters
@@ -91,7 +89,6 @@ boost::uuids::detail::sha1::digest_type NeuronUpdateProcess::getMergeHashDigest(
         updateHash(e.first, hash);
         e.second->updateMergeHash(hash);
     }
-    return hash.get_digest();
 }
 
 //----------------------------------------------------------------------------
@@ -167,16 +164,14 @@ EventPropagationProcess::EventPropagationProcess(Private, std::shared_ptr<const 
     }
 }
 //----------------------------------------------------------------------------
-std::vector<std::shared_ptr<const State>> EventPropagationProcess::getState() const
+std::vector<std::shared_ptr<const State>> EventPropagationProcess::getAllState() const
 {
     return {getInputEvents(), getWeight(), getTarget()};
 }
 //----------------------------------------------------------------------------
-boost::uuids::detail::sha1::digest_type EventPropagationProcess::getMergeHashDigest() const
+void EventPropagationProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Model &model) const
 {
     using namespace GeNN::Utils;
-    boost::uuids::detail::sha1 hash;
-
     UPDATE_HASH_CLASS_NAME(EventPropagationProcess);
 
     // Input events
@@ -189,8 +184,6 @@ boost::uuids::detail::sha1::digest_type EventPropagationProcess::getMergeHashDig
     // Formats
     updateHash(getNumDelayBits(), hash);
     updateHash(getNumSparseConnectivityBits(), hash);
-
-    return hash.get_digest();
 }
 
 //----------------------------------------------------------------------------
@@ -204,16 +197,14 @@ RNGInitProcess::RNGInitProcess(Private, VariablePtr seed, const std::string &nam
     }
 }
 //----------------------------------------------------------------------------
-std::vector<std::shared_ptr<const State>> RNGInitProcess::getState() const
+std::vector<std::shared_ptr<const State>> RNGInitProcess::getAllState() const
 {
     return {getSeed()};
 }
 //----------------------------------------------------------------------------
-boost::uuids::detail::sha1::digest_type RNGInitProcess::getMergeHashDigest() const
+void RNGInitProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Model &model) const
 {
-    boost::uuids::detail::sha1 hash;
     UPDATE_HASH_CLASS_NAME(RNGInitProcess);
-    return hash.get_digest();
 }
 
 //----------------------------------------------------------------------------
@@ -232,9 +223,9 @@ MemsetProcess::MemsetProcess(Private, VariablePtrBackendState target, const std:
     }
 }
 //----------------------------------------------------------------------------
-std::vector<std::shared_ptr<const State>> MemsetProcess::getState() const
+std::vector<std::shared_ptr<const State>> MemsetProcess::getAllState() const
 {
-    if(std::holds_alternative<Model::VariablePtr>(getTarget())) {
+    if(std::holds_alternative<VariablePtr>(getTarget())) {
         return {std::get<VariablePtr>(getTarget())};
     }
     else {
@@ -242,11 +233,9 @@ std::vector<std::shared_ptr<const State>> MemsetProcess::getState() const
     }
 }
 //----------------------------------------------------------------------------
-boost::uuids::detail::sha1::digest_type MemsetProcess::getMergeHashDigest() const
+void MemsetProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Model &model) const
 {
-    boost::uuids::detail::sha1 hash;
     UPDATE_HASH_CLASS_NAME(MemsetProcess);
-    return hash.get_digest();
 }
 
 //----------------------------------------------------------------------------
@@ -296,21 +285,19 @@ BroadcastProcess::BroadcastProcess(Private, VariablePtr source, VariablePtrBacke
     }
 }
 //----------------------------------------------------------------------------
-std::vector<std::shared_ptr<const State>> BroadcastProcess::getState() const
+std::vector<std::shared_ptr<const State>> BroadcastProcess::getAllState() const
 {
     std::vector<std::shared_ptr<const State>> state{getSource()};
 
-    if(std::holds_alternative<Model::VariablePtr>(getTarget())) {
+    if(std::holds_alternative<VariablePtr>(getTarget())) {
         state.push_back(std::get<VariablePtr>(getTarget()));
     }
     
     return state;
 }
 //----------------------------------------------------------------------------
-boost::uuids::detail::sha1::digest_type BroadcastProcess::getMergeHashDigest() const
+void BroadcastProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Model &model) const
 {
-    boost::uuids::detail::sha1 hash;
     UPDATE_HASH_CLASS_NAME(BroadcastProcess);
-    return hash.get_digest();
 }
 }
