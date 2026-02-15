@@ -12,29 +12,37 @@ namespace FeNN::Assembler
 class CodeGenerator;
 }
 
+
+//----------------------------------------------------------------------------
+// FeNN::Backend::MemSpaceCompatibility
+//----------------------------------------------------------------------------
+//! Structure specifying which memory spaces a variable can be implemented in
+namespace FeNN::Backend
+{
+struct MemSpaceCompatibility
+{
+    MemSpaceCompatibility()
+        :   llm(true), uram(true), bram(true), dram(true), uramLLM(true)
+    {}
+
+    bool llm;
+    bool uram;
+    bool bram;
+    bool dram;
+    bool uramLLM;
+};
+
 //----------------------------------------------------------------------------
 // FeNN::Backend::ProcessImplementation
 //----------------------------------------------------------------------------
-namespace FeNN::Backend
-{
 class ProcessImplementation
 {
 public:
-    //! Structure specifying which memory spaces a variable can be implemented in
-    struct MemSpaceCompatibility
-    {
-        bool llm;
-        bool uram;
-        bool bram;
-        bool dram;
-        bool uramLLM;
-    };
-
     //------------------------------------------------------------------------
     // Declared virtuals
     //------------------------------------------------------------------------
     //! Update the memory compatibility of a variable associated with this process
-    virtual void updateMemSpaceCompatibility(Model::VariablePtr variable, 
+    virtual void updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, 
                                              MemSpaceCompatibility &memSpaceCompatibility) const = 0;
 
     //! Update the max-row length to support this process
@@ -53,17 +61,22 @@ public:
 //----------------------------------------------------------------------------
 // FeNN::Backend::NeuronUpdateProcess
 //----------------------------------------------------------------------------
-class NeuronUpdateProcess : public ProcessImplementation, public Model::NeuronUpdateProcess
+class NeuronUpdateProcess : public ProcessImplementation, public ::Model::NeuronUpdateProcess
 {
 public:
-    using Model::NeuronUpdateProcess::NeuronUpdateProcess;
+    using ::Model::NeuronUpdateProcess::NeuronUpdateProcess;
+
+    //------------------------------------------------------------------------
+    // Process virtuals
+    //------------------------------------------------------------------------
+    virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const ::Model::Model &model) const override final;
 
     //------------------------------------------------------------------------
     // ProcessImplementation virtuals
     //------------------------------------------------------------------------
     //! Update the memory compatibility of a variable associated with this process
-    virtual void updateMemSpaceCompatibility(Model::VariablePtr variable, 
-                                           MemSpaceCompatibility &memSpaceCompatibility) const override final;
+    virtual void updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, 
+                                             MemSpaceCompatibility &memSpaceCompatibility) const override final;
 
     //! Generate code to implement process
     virtual void generateCode(Assembler::CodeGenerator &codeGenerator,
@@ -73,8 +86,8 @@ public:
     //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------
-    static std::shared_ptr<NeuronUpdateProcess> create(const std::string &code, const Model::ParameterMap &parameters, 
-                                                       const Model::VariableMap &variables, const Model::EventContainerMap &outputEvents = {},
+    static std::shared_ptr<NeuronUpdateProcess> create(const std::string &code, const ::Model::ParameterMap &parameters, 
+                                                       const ::Model::VariableMap &variables, const ::Model::EventContainerMap &outputEvents = {},
                                                        const std::string &name = "")
     {
         return std::make_shared<NeuronUpdateProcess>(Private(), code, parameters, variables, outputEvents, name);
@@ -84,17 +97,17 @@ public:
 //----------------------------------------------------------------------------
 // FeNN::Backend::EventPropagationProcess
 //----------------------------------------------------------------------------
-class EventPropagationProcess : public ProcessImplementation, public Model::EventPropagationProcess
+class EventPropagationProcess : public ProcessImplementation, public ::Model::EventPropagationProcess
 {
 public:
-    using Model::EventPropagationProcess::EventPropagationProcess;
+    using ::Model::EventPropagationProcess::EventPropagationProcess;
 
     //------------------------------------------------------------------------
     // ProcessImplementation virtuals
     //------------------------------------------------------------------------
     //! Update the memory compatibility of a variable associated with this process
-    virtual void updateMemSpaceCompatibility(Model::VariablePtr variable,
-                                           MemSpaceCompatibility &memSpaceCompatibility) const override final;
+    virtual void updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state,
+                                             MemSpaceCompatibility &memSpaceCompatibility) const override final;
 
     //! Update the max-row length to support this process
     virtual void updateMaxRowLength(size_t &maxRowLength) const override final;
@@ -107,8 +120,8 @@ public:
     //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------
-    static std::shared_ptr<EventPropagationProcess> create(std::shared_ptr<const Model::EventContainer> inputEvents, 
-                                                           Model::VariablePtr weight, Model::VariablePtr target, 
+    static std::shared_ptr<EventPropagationProcess> create(std::shared_ptr<const ::Model::EventContainer> inputEvents, 
+                                                           ::Model::VariablePtr weight, ::Model::VariablePtr target, 
                                                            size_t numSparseConnectivityBits = 0,
                                                            size_t numDelayBits = 0,
                                                            const std::string &name = "")
@@ -121,17 +134,17 @@ public:
 //----------------------------------------------------------------------------
 // FeNN::Backend::RNGInitProcess
 //----------------------------------------------------------------------------
-class RNGInitProcess : public ProcessImplementation, public Model::RNGInitProcess
+class RNGInitProcess : public ProcessImplementation, public ::Model::RNGInitProcess
 {
 public:
-    using Model::RNGInitProcess::RNGInitProcess;
+    using ::Model::RNGInitProcess::RNGInitProcess;
 
     //------------------------------------------------------------------------
     // ProcessImplementation virtuals
     //------------------------------------------------------------------------
     //! Update the memory compatibility of a variable associated with this process
-    virtual void updateMemSpaceCompatibility(Model::VariablePtr variable, 
-                                           MemSpaceCompatibility &memSpaceCompatibility) const override final;
+    virtual void updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, 
+                                             MemSpaceCompatibility &memSpaceCompatibility) const override final;
 
     //! Generate code to implement process
     virtual void generateCode(Assembler::CodeGenerator &codeGenerator,
@@ -141,7 +154,7 @@ public:
     //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------
-    static std::shared_ptr<RNGInitProcess> create(Model::VariablePtr seed, const std::string &name = "")
+    static std::shared_ptr<RNGInitProcess> create(::Model::VariablePtr seed, const std::string &name = "")
     {
         return std::make_shared<RNGInitProcess>(Private(), seed, name);
     }
@@ -150,17 +163,17 @@ public:
 //----------------------------------------------------------------------------
 // FeNN::Backend::MemsetProcess
 //----------------------------------------------------------------------------
-class MemsetProcess : public ProcessImplementation, public Model::MemsetProcess
+class MemsetProcess : public ProcessImplementation, public ::Model::MemsetProcess
 {
 public:
-    using Model::MemsetProcess::MemsetProcess;
+    using ::Model::MemsetProcess::MemsetProcess;
 
     //------------------------------------------------------------------------
     // ProcessImplementation virtuals
     //------------------------------------------------------------------------
     //! Update the memory compatibility of a variable associated with this process
-    virtual void updateMemSpaceCompatibility(Model::VariablePtr variable, 
-                                           MemSpaceCompatibility &memSpaceCompatibility) const override final;
+    virtual void updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, 
+                                             MemSpaceCompatibility &memSpaceCompatibility) const override final;
 
     //! Generate code to implement process
     virtual void generateCode(Assembler::CodeGenerator &codeGenerator,
@@ -170,7 +183,8 @@ public:
     //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------
-    static std::shared_ptr<Model::MemsetProcess> create(Model::VariablePtrBackendState target, const std::string &name = "")
+    static std::shared_ptr<::Model::MemsetProcess> create(::Model::VariablePtrBackendState target,
+                                                          const std::string &name = "")
     {
         return std::make_shared<MemsetProcess>(Private(), target, name);
     }
@@ -192,16 +206,16 @@ private:
 //----------------------------------------------------------------------------
 // FeNN::Backend::BroadcastProcess
 //----------------------------------------------------------------------------
-class BroadcastProcess : public ProcessImplementation, public Model::BroadcastProcess
+class BroadcastProcess : public ProcessImplementation, public ::Model::BroadcastProcess
 {
 public:
-    using Model::BroadcastProcess::BroadcastProcess;
+    using ::Model::BroadcastProcess::BroadcastProcess;
 
     //------------------------------------------------------------------------
     // ProcessImplementation virtuals
     //------------------------------------------------------------------------
     //! Update the memory compatibility of a variable associated with this process
-    virtual void updateMemSpaceCompatibility(Model::VariablePtr variable, 
+    virtual void updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, 
                                              MemSpaceCompatibility &memSpaceCompatibility) const override final;
 
     //! Generate code to implement process
@@ -212,7 +226,7 @@ public:
     //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------
-    static std::shared_ptr<BroadcastProcess> create(Model::VariablePtr source, Model::VariablePtrBackendState target,
+    static std::shared_ptr<BroadcastProcess> create(::Model::VariablePtr source, ::Model::VariablePtrBackendState target,
                                                     const std::string &name = "")
     {
         return std::make_shared<BroadcastProcess>(Private(), source, target, name);

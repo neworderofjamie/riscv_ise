@@ -41,6 +41,9 @@
     <ClInclude Include="..\..\..\include\fenn\backend\graph.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\include\fenn\backend\model.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="backend_fenn_hw.cc">
@@ -68,6 +71,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="graph.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="model.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
