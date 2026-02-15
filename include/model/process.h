@@ -41,6 +41,11 @@ public:
                         const std::string &name);
 
     //------------------------------------------------------------------------
+    // Stateful virtuals
+    //------------------------------------------------------------------------
+    virtual std::vector<std::shared_ptr<const State>> getState() const override final;
+
+    //------------------------------------------------------------------------
     // Process virtuals
     //------------------------------------------------------------------------
     virtual boost::uuids::detail::sha1::digest_type getMergeHashDigest() const override final;
@@ -79,6 +84,11 @@ public:
                             VariablePtr weight, VariablePtr target,
                             size_t numSparseConnectivityBits, size_t numDelayBits,
                             const std::string &name);
+
+    //------------------------------------------------------------------------
+    // Stateful virtuals
+    //------------------------------------------------------------------------
+    virtual std::vector<std::shared_ptr<const State>> getState() const override final;
 
     //------------------------------------------------------------------------
     // Process virtuals
@@ -124,6 +134,11 @@ public:
     RNGInitProcess(Private, VariablePtr seed, const std::string &name);
 
     //------------------------------------------------------------------------
+    // Stateful virtuals
+    //------------------------------------------------------------------------
+    virtual std::vector<std::shared_ptr<const State>> getState() const override final;
+
+    //------------------------------------------------------------------------
     // Process virtuals
     //------------------------------------------------------------------------
     virtual boost::uuids::detail::sha1::digest_type getMergeHashDigest() const override final;
@@ -150,6 +165,11 @@ public:
     MemsetProcess(Private, VariablePtrBackendState target, const std::string &name);
 
     //------------------------------------------------------------------------
+    // Stateful virtuals
+    //------------------------------------------------------------------------
+    virtual std::vector<std::shared_ptr<const State>> getState() const override final;
+
+    //------------------------------------------------------------------------
     // Process virtuals
     //------------------------------------------------------------------------
     virtual boost::uuids::detail::sha1::digest_type getMergeHashDigest() const override final;
@@ -174,6 +194,11 @@ class MODEL_EXPORT BroadcastProcess : public AcceptableModelComponent<BroadcastP
 {
 public:
     BroadcastProcess(Private, VariablePtr source, VariablePtrBackendState target, const std::string &name);
+
+    //------------------------------------------------------------------------
+    // Stateful virtuals
+    //------------------------------------------------------------------------
+    virtual std::vector<std::shared_ptr<const State>> getState() const override final;
 
     //------------------------------------------------------------------------
     // Process virtuals

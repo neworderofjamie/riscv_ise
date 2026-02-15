@@ -202,7 +202,7 @@ public:
     //------------------------------------------------------------------------
     //! Update the memory compatibility of a variable associated with this process
     virtual void updateMemSpaceCompatibility(Model::VariablePtr variable, 
-                                           MemSpaceCompatibility &memSpaceCompatibility) const override final;
+                                             MemSpaceCompatibility &memSpaceCompatibility) const override final;
 
     //! Generate code to implement process
     virtual void generateCode(Assembler::CodeGenerator &codeGenerator,

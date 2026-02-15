@@ -4,6 +4,9 @@
 #include <memory>
 #include <string>
 
+// Boost includes
+#include <sha1.hpp>
+
 // Forward declarations
 namespace Model
 {
@@ -73,10 +76,26 @@ private:
 };
 
 //----------------------------------------------------------------------------
+// Model::State
+//----------------------------------------------------------------------------
+class State : public ModelComponent
+{
+protected:
+    using ModelComponent::ModelComponent;
+};
+
+
+//----------------------------------------------------------------------------
 // Model::Stateful
 //----------------------------------------------------------------------------
 class Stateful : public ModelComponent
 {
+public:
+    //------------------------------------------------------------------------
+    // Declared virtuals
+    //------------------------------------------------------------------------
+    virtual std::vector<std::shared_ptr<const State>> getAllState() const = 0;
+
 protected:
     using ModelComponent::ModelComponent;
 };
@@ -91,15 +110,6 @@ protected:
     using Stateful::Stateful;
 
     virtual boost::uuids::detail::sha1::digest_type getMergeHashDigest() const = 0;
-};
-
-//----------------------------------------------------------------------------
-// Model::State
-//----------------------------------------------------------------------------
-class State : public ModelComponent
-{
-protected:
-    using ModelComponent::ModelComponent;
 };
 
 

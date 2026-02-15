@@ -27,6 +27,12 @@ class Graph : public Stateful
 {
 public:
     using Stateful::Stateful;
+
+    //----------------------------------------------------------------------------
+    // Declared virtuals
+    //----------------------------------------------------------------------------
+    //! Get all process groups in graph
+    virtual ProcessGroupVector getAllProcessGroups() const = 0;
 };
 
 //----------------------------------------------------------------------------
@@ -38,6 +44,12 @@ public:
     SimpleGraph(Private, const ProcessGroupVector &processGroups, const std::string &name)
     :   Graph(name), m_ProcessGroups(processGroups)
     {}
+
+    //----------------------------------------------------------------------------
+    // Declared virtuals
+    //----------------------------------------------------------------------------
+    //! Get all process groups in graph
+    virtual ProcessGroupVector getAllProcessGroups() const override final;
 
     //------------------------------------------------------------------------
     // Public API
@@ -64,6 +76,12 @@ public:
     :   Graph(name), m_NumTimesteps(numTimesteps), m_TimestepProcessGroups(timestepProcessGroups),
         m_BeginProcessGroups(beginProcessGroups), m_EndProcessGroups(endProcessGroups)
     {}
+
+    //----------------------------------------------------------------------------
+    // Declared virtuals
+    //----------------------------------------------------------------------------
+    //! Get all process groups in graph
+    virtual ProcessGroupVector getAllProcessGroups() const override final;
 
     //------------------------------------------------------------------------
     // Public API
