@@ -13,7 +13,7 @@ class CodeGenerator;
 }
 
 //----------------------------------------------------------------------------
-// FeNN::Backend::IProcessImplementation
+// FeNN::Backend::ProcessImplementation
 //----------------------------------------------------------------------------
 namespace FeNN::Backend
 {

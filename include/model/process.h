@@ -43,12 +43,12 @@ public:
     //------------------------------------------------------------------------
     // Stateful virtuals
     //------------------------------------------------------------------------
-    virtual std::vector<std::shared_ptr<const State>> getState() const override final;
+    virtual std::vector<std::shared_ptr<const State>> getAllState() const override final;
 
     //------------------------------------------------------------------------
     // Process virtuals
     //------------------------------------------------------------------------
-    virtual boost::uuids::detail::sha1::digest_type getMergeHashDigest() const override final;
+    virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const Model &model) const override final;
 
     //------------------------------------------------------------------------
     // Public API
@@ -88,12 +88,12 @@ public:
     //------------------------------------------------------------------------
     // Stateful virtuals
     //------------------------------------------------------------------------
-    virtual std::vector<std::shared_ptr<const State>> getState() const override final;
+    virtual std::vector<std::shared_ptr<const State>> getAllState() const override final;
 
     //------------------------------------------------------------------------
     // Process virtuals
     //------------------------------------------------------------------------
-    virtual boost::uuids::detail::sha1::digest_type getMergeHashDigest() const override final;
+    virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const Model &model) const override final;
 
     //------------------------------------------------------------------------
     // Public API
@@ -136,12 +136,12 @@ public:
     //------------------------------------------------------------------------
     // Stateful virtuals
     //------------------------------------------------------------------------
-    virtual std::vector<std::shared_ptr<const State>> getState() const override final;
+    virtual std::vector<std::shared_ptr<const State>> getAllState() const override final;
 
     //------------------------------------------------------------------------
     // Process virtuals
     //------------------------------------------------------------------------
-    virtual boost::uuids::detail::sha1::digest_type getMergeHashDigest() const override final;
+    virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const Model &model) const override final;
 
     //------------------------------------------------------------------------
     // Public API
@@ -167,12 +167,12 @@ public:
     //------------------------------------------------------------------------
     // Stateful virtuals
     //------------------------------------------------------------------------
-    virtual std::vector<std::shared_ptr<const State>> getState() const override final;
+    virtual std::vector<std::shared_ptr<const State>> getAllState() const override final;
 
     //------------------------------------------------------------------------
     // Process virtuals
     //------------------------------------------------------------------------
-    virtual boost::uuids::detail::sha1::digest_type getMergeHashDigest() const override final;
+    virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const Model &model) const override final;
 
     //------------------------------------------------------------------------
     // Public API
@@ -198,12 +198,12 @@ public:
     //------------------------------------------------------------------------
     // Stateful virtuals
     //------------------------------------------------------------------------
-    virtual std::vector<std::shared_ptr<const State>> getState() const override final;
+    virtual std::vector<std::shared_ptr<const State>> getAllState() const override final;
 
     //------------------------------------------------------------------------
     // Process virtuals
     //------------------------------------------------------------------------
-    virtual boost::uuids::detail::sha1::digest_type getMergeHashDigest() const override final;
+    virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const Model &model) const override final;
 
     //------------------------------------------------------------------------
     // Public API

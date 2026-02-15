@@ -5,56 +5,39 @@
 #include <unordered_map>
 #include <vector>
 
-// Standard C includes
-#include <cstdint>
-
-// Backend includes
-#include "model/model_export.h"
-
 // Forward declarations
-class BackendFeNN;
-class Process;
-class ProcessGroup;
+namespace Model
+{
+class Graph;
 class State;
-class Stateful;
+class Process;
+}
 
 //----------------------------------------------------------------------------
-// Model
+// Model::Model
 //----------------------------------------------------------------------------
-//! Backend-agnostic datastructure build from processes user wishes to deploy
-class MODEL_EXPORT Modely
+namespace Model
+{
+class Model
 {
 public:
-    // Mapping of state objects to field offset
-    using StateFields = std::unordered_map<std::shared_ptr<const State>, uint32_t>;
-
-    // Mapping of stateful model objects to their fields
-    using StatefulFields = std::unordered_map<std::shared_ptr<const Stateful>, StateFields>;
-
-    // Mapping of backend-specific ID to state objects and field
-    using BackendFields = std::unordered_map<int, std::tuple<std::shared_ptr<const State>, uint32_t>>;
-
     // Mapping of state objects to processes which reference them
     using StateProcesses = std::unordered_map<std::shared_ptr<const State>, std::vector<std::shared_ptr<const Process>>>;
+    using GraphVector = std::vector<std::shared_ptr<const Graph>>;
 
-    Modely(const std::vector<std::shared_ptr<const ProcessGroup>> &processGroups, 
-           const BackendFeNN &backend);
+    Model(const GraphVector &graphs);
 
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
-    const auto &getProcessGroups() const{ return m_ProcessGroups; }
-    const auto &getStatefulFields() const{ return m_StatefulFields; }
+    const auto &getGraphs() const{ return m_Graphs; }
     const auto &getStateProcesses() const{ return m_StateProcesses; }
-    const auto &getBackendFields() const { return m_BackendFields; }
-
-    uint32_t getNumFieldBytes() const { return m_NumFieldBytes; }
 
 private:
-    std::vector<std::shared_ptr<const ProcessGroup>> m_ProcessGroups;
-    StatefulFields m_StatefulFields;
+    //----------------------------------------------------------------------------
+    // Members
+    //----------------------------------------------------------------------------
+    GraphVector m_Graphs;
     StateProcesses m_StateProcesses;
-    BackendFields m_BackendFields;
-
-    uint32_t m_NumFieldBytes;
 };
+}
