@@ -590,10 +590,21 @@ private:
 //----------------------------------------------------------------------------
 namespace FeNN::Backend
 {
-void NeuronUpdateProcess::updateMemSpaceCompatibility(Model::VariablePtr variable, MemSpaceCompatibility &memSpaceCompatibility) const
+void NeuronUpdateProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Model::Model &model) const
+{
+    // Superclass
+    Model::NeuronUpdateProcess::updateMergeHash(hash, model);
+
+    const auto allState = getAllState();
+    for (const auto &s : allState) {
+
+    }
+}
+//----------------------------------------------------------------------------
+void NeuronUpdateProcess::updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, MemSpaceCompatibility &memSpaceCompatibility) const
 {
     const auto var = std::find_if(getVariables().cbegin(), getVariables().cend(),
-                                  [&variable](const auto &v){ return v.second == variable; });
+                                  [&state](const auto &v){ return v.second == state; });
     assert(var != neuronUpdateProcess->getVariables().cend());
 
     // Neuron variables can be located in URAM, LLM or both
@@ -602,7 +613,7 @@ void NeuronUpdateProcess::updateMemSpaceCompatibility(Model::VariablePtr variabl
 
     if(!memSpaceCompatibility.uram && !memSpaceCompatibility.llm && !memSpaceCompatibility.uram) {
         throw std::runtime_error("Neuron update process '" + getName()
-                                 + "' variable array '" + variable->getName()
+                                 + "' variable array '" + state->getName()
                                  + "' shared with incompatible processes");
     }
 }
@@ -616,10 +627,10 @@ void NeuronUpdateProcess::generateCode(Assembler::CodeGenerator &codeGenerator,
 //----------------------------------------------------------------------------
 // FeNN::Backend::EventPropagationProcess
 //----------------------------------------------------------------------------
-void EventPropagationProcess::updateMemSpaceCompatibility(Model::VariablePtr variable, MemSpaceCompatibility &memSpaceCompatibility) const
+void EventPropagationProcess::updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, MemSpaceCompatibility &memSpaceCompatibility) const
 {
     // If variable is weight, it can only be located in URAM
-    if(variable == getWeight()) {
+    if(state == getWeight()) {
         memSpaceCompatibility.llm = false;
         memSpaceCompatibility.bram = false;
         memSpaceCompatibility.uramLLM = false;
@@ -644,7 +655,7 @@ void EventPropagationProcess::updateMemSpaceCompatibility(Model::VariablePtr var
         }
     }
     // Otherwise, if variable's target
-    else if(variable == getTarget()) {
+    else if(state == getTarget()) {
         // It can't be located in BRAM or DRAM
         memSpaceCompatibility.bram = false;
         memSpaceCompatibility.dram = false;
@@ -691,9 +702,9 @@ void EventPropagationProcess::generateCode(Assembler::CodeGenerator &codeGenerat
 //----------------------------------------------------------------------------
 // FeNN::Backend::RNGInitProcess
 //----------------------------------------------------------------------------
-void RNGInitProcess::updateMemSpaceCompatibility(Model::VariablePtr variable, MemSpaceCompatibility &memSpaceCompatibility) const
+void RNGInitProcess::updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, MemSpaceCompatibility &memSpaceCompatibility) const
 {
-    assert (m_Variable == rngInitProcess->getSeed());
+    assert (state == rngInitProcess->getSeed());
 
     // Seeds can only be stored in URAM
     memSpaceCompatibility.llm = false;
@@ -733,10 +744,10 @@ void RNGInitProcess::generateCode(Assembler::CodeGenerator &codeGenerator,
 //----------------------------------------------------------------------------
 // FeNN::Backend::MemsetProcess
 //----------------------------------------------------------------------------
-void MemsetProcess::updateMemSpaceCompatibility(Model::VariablePtr variable, MemSpaceCompatibility &memSpaceCompatibility) const
+void MemsetProcess::updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, MemSpaceCompatibility &memSpaceCompatibility) const
 {
     const auto target = std::get<Model::VariablePtr>(getTarget());
-    assert(m_Variable == target);
+    assert(state == target);
 
     // **TODO** memset could handle anything
     memSpaceCompatibility.bram = false;
@@ -885,10 +896,10 @@ void MemsetProcess::generateURAMMemset(Assembler::CodeGenerator &codeGenerator,
 //----------------------------------------------------------------------------
 // FeNN::Backend::BroadcastProcess
 //----------------------------------------------------------------------------
-void BroadcastProcess::updateMemSpaceCompatibility(Model::VariablePtr variable, MemSpaceCompatibility &memSpaceCompatibility) const
+void BroadcastProcess::updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, MemSpaceCompatibility &memSpaceCompatibility) const
 {
     // If variable is source, it can only be located in BRAM
-    if(variable == getSource()) {
+    if(state == getSource()) {
         memSpaceCompatibility.llm = false;
         memSpaceCompatibility.uram = false;
         memSpaceCompatibility.dram = false;
@@ -904,7 +915,7 @@ void BroadcastProcess::updateMemSpaceCompatibility(Model::VariablePtr variable, 
         // Otherwise, if variable's target, it can only located in LLM or URAMLLM
         // **TODO** URAM would also be sensible IN THEORY 
         const auto target = std::get<Model::VariablePtr>(getTarget());
-        assert(m_Variable == target);
+        assert(state == target);
 
         memSpaceCompatibility.bram = false;
         memSpaceCompatibility.uram = false;

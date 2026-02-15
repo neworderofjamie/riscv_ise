@@ -48,7 +48,7 @@ public:
     //------------------------------------------------------------------------
     // Process virtuals
     //------------------------------------------------------------------------
-    virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const Model &model) const override final;
+    virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const Model &model) const override;
 
     //------------------------------------------------------------------------
     // Public API
@@ -93,7 +93,7 @@ public:
     //------------------------------------------------------------------------
     // Process virtuals
     //------------------------------------------------------------------------
-    virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const Model &model) const override final;
+    virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const Model &model) const override;
 
     //------------------------------------------------------------------------
     // Public API
@@ -141,7 +141,7 @@ public:
     //------------------------------------------------------------------------
     // Process virtuals
     //------------------------------------------------------------------------
-    virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const Model &model) const override final;
+    virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const Model &model) const override;
 
     //------------------------------------------------------------------------
     // Public API
@@ -172,7 +172,7 @@ public:
     //------------------------------------------------------------------------
     // Process virtuals
     //------------------------------------------------------------------------
-    virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const Model &model) const override final;
+    virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const Model &model) const override;
 
     //------------------------------------------------------------------------
     // Public API
@@ -203,7 +203,7 @@ public:
     //------------------------------------------------------------------------
     // Process virtuals
     //------------------------------------------------------------------------
-    virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const Model &model) const override final;
+    virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const Model &model) const override;
 
     //------------------------------------------------------------------------
     // Public API

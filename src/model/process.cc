@@ -64,7 +64,7 @@ std::vector<std::shared_ptr<const State>> NeuronUpdateProcess::getAllState() con
     return state;
 }
 //----------------------------------------------------------------------------
-void NeuronUpdateProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Model &model) const
+void NeuronUpdateProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Model&) const
 {
     using namespace GeNN::Utils;
     UPDATE_HASH_CLASS_NAME(NeuronUpdateProcess);
@@ -169,7 +169,7 @@ std::vector<std::shared_ptr<const State>> EventPropagationProcess::getAllState()
     return {getInputEvents(), getWeight(), getTarget()};
 }
 //----------------------------------------------------------------------------
-void EventPropagationProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Model &model) const
+void EventPropagationProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Model&) const
 {
     using namespace GeNN::Utils;
     UPDATE_HASH_CLASS_NAME(EventPropagationProcess);
@@ -202,7 +202,7 @@ std::vector<std::shared_ptr<const State>> RNGInitProcess::getAllState() const
     return {getSeed()};
 }
 //----------------------------------------------------------------------------
-void RNGInitProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Model &model) const
+void RNGInitProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Model&) const
 {
     UPDATE_HASH_CLASS_NAME(RNGInitProcess);
 }
@@ -233,7 +233,7 @@ std::vector<std::shared_ptr<const State>> MemsetProcess::getAllState() const
     }
 }
 //----------------------------------------------------------------------------
-void MemsetProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Model &model) const
+void MemsetProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Model&) const
 {
     UPDATE_HASH_CLASS_NAME(MemsetProcess);
 }
@@ -296,7 +296,7 @@ std::vector<std::shared_ptr<const State>> BroadcastProcess::getAllState() const
     return state;
 }
 //----------------------------------------------------------------------------
-void BroadcastProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Model &model) const
+void BroadcastProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Model&) const
 {
     UPDATE_HASH_CLASS_NAME(BroadcastProcess);
 }
