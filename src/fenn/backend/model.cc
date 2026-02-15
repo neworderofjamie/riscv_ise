@@ -1,11 +1,29 @@
 #include "fenn/backend/model.h"
 
+// GeNN includes
+#include "gennUtils.h"
+
+// FeNN backend includes
+#include "fenn/backend/process.h"
+
 //----------------------------------------------------------------------------
-// FeNN::Backend::Model
+// FeNN::Backend::MemSpaceCompatibility
 //----------------------------------------------------------------------------
 namespace FeNN::Backend
 {
-Model::Model(const Model::GraphVector &graphs)
+void MemSpaceCompatibility::updateHash(boost::uuids::detail::sha1 &hash) const
+{
+    GeNN::Utils::updateHash(bram, hash);
+    GeNN::Utils::updateHash(dram, hash);
+    GeNN::Utils::updateHash(llm, hash);
+    GeNN::Utils::updateHash(uram, hash);
+    GeNN::Utils::updateHash(uramLLM, hash);
+}
+
+//----------------------------------------------------------------------------
+// FeNN::Backend::Model
+//----------------------------------------------------------------------------
+Model::Model(const Model::GraphVector &graphs, bool useDRAMForWeights)
 :   ::Model::Model(graphs)
 {
     // Loop through all model state
@@ -20,7 +38,7 @@ Model::Model(const Model::GraphVector &graphs)
             }
 
             // Update memory space compatiblity
-            pi->updateMemSpaceCompatibility(s.first, m);
+            pi->updateMemSpaceCompatibility(s.first, useDRAMForWeights, m);
         }
 
         // Add memory compatibility of state to map

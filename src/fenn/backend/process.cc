@@ -12,7 +12,11 @@
 #include "fenn/assembler/register_allocator.h"
 
 // Model includes
+#include "model/event_container.h"
 #include "model/variable.h"
+
+// FeNN backend includes
+#include "fenn/backend/model.h"
 
 using namespace FeNN::Assembler;
 using namespace FeNN::Common;
@@ -20,13 +24,13 @@ using namespace FeNN::Common;
 //----------------------------------------------------------------------------
 // Anonymous namespace
 //----------------------------------------------------------------------------
-/*namespace
+namespace
 {
 //------------------------------------------------------------------------
 // NeuronVarBase
 //------------------------------------------------------------------------
 //! Base class for helper classes used to manage memory access to neuron variables
-class NeuronVarBase
+/*class NeuronVarBase
 {
 public:
     //! Generate code to load vector register reg from memory before unrolled loop iteration r
@@ -583,24 +587,13 @@ private:
     size_t m_DelayStride;
     uint32_t m_TargetAddress;
     VectorRegisterAllocator::RegisterPtr m_VectorTimeReg;
-};
-}*/
+};*/
+}
 //----------------------------------------------------------------------------
 // FeNN::Backend::NeuronUpdateProcess
 //----------------------------------------------------------------------------
 namespace FeNN::Backend
 {
-void NeuronUpdateProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Model::Model &model) const
-{
-    // Superclass
-    Model::NeuronUpdateProcess::updateMergeHash(hash, model);
-
-    const auto allState = getAllState();
-    for (const auto &s : allState) {
-
-    }
-}
-//----------------------------------------------------------------------------
 void NeuronUpdateProcess::updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, 
                                                       bool, MemSpaceCompatibility &memSpaceCompatibility) const
 {
@@ -750,7 +743,7 @@ void RNGInitProcess::updateMemSpaceCompatibility(std::shared_ptr<const ::Model::
 void MemsetProcess::updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, 
                                                 bool, MemSpaceCompatibility &memSpaceCompatibility) const
 {
-    const auto target = std::get<Model::VariablePtr>(getTarget());
+    const auto target = std::get<::Model::VariablePtr>(getTarget());
     assert(state == target);
 
     // **TODO** memset could handle anything
@@ -919,7 +912,7 @@ void BroadcastProcess::updateMemSpaceCompatibility(std::shared_ptr<const ::Model
     else {
         // Otherwise, if variable's target, it can only located in LLM or URAMLLM
         // **TODO** URAM would also be sensible IN THEORY 
-        const auto target = std::get<Model::VariablePtr>(getTarget());
+        const auto target = std::get<::Model::VariablePtr>(getTarget());
         assert(state == target);
 
         memSpaceCompatibility.bram = false;

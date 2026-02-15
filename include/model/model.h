@@ -30,6 +30,7 @@ public:
     using GraphVector = std::vector<std::shared_ptr<const Graph>>;
 
     Model(const GraphVector &graphs);
+    virtual ~Model() = default;
 
     //------------------------------------------------------------------------
     // Public API

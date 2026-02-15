@@ -3,8 +3,11 @@
 // Model includes
 #include "model/process.h"
 
-// Assembler includes
+// FeNN Assembler includes
 #include "fenn/assembler/register_allocator.h"
+
+// FeNN backend includes
+#include "fenn/backend/model.h"
 
 // Forward declarations
 namespace FeNN::Assembler
@@ -14,27 +17,10 @@ class CodeGenerator;
 
 
 //----------------------------------------------------------------------------
-// FeNN::Backend::MemSpaceCompatibility
-//----------------------------------------------------------------------------
-//! Structure specifying which memory spaces a variable can be implemented in
-namespace FeNN::Backend
-{
-struct MemSpaceCompatibility
-{
-    MemSpaceCompatibility()
-        :   llm(true), uram(true), bram(true), dram(true), uramLLM(true)
-    {}
-
-    bool llm;
-    bool uram;
-    bool bram;
-    bool dram;
-    bool uramLLM;
-};
-
-//----------------------------------------------------------------------------
 // FeNN::Backend::ProcessImplementation
 //----------------------------------------------------------------------------
+namespace FeNN::Backend
+{
 class ProcessImplementation
 {
 public:
@@ -59,17 +45,39 @@ public:
 };
 
 //----------------------------------------------------------------------------
-// FeNN::Backend::NeuronUpdateProcess
+// FeNN::Backend::ProcessImplementationBase
 //----------------------------------------------------------------------------
-class NeuronUpdateProcess : public ProcessImplementation, public ::Model::NeuronUpdateProcess
+//! Helper class which automatically adds memory space compatibility 
+//! information for all process state to merge hash
+template<typename P>
+class ProcessImplementationBase : public ProcessImplementation, public P
 {
 public:
-    using ::Model::NeuronUpdateProcess::NeuronUpdateProcess;
+    using P::P;
 
-    //------------------------------------------------------------------------
-    // Process virtuals
-    //------------------------------------------------------------------------
-    virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const ::Model::Model &model) const override final;
+    virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const ::Model::Model &model) const override final
+    {
+        // Superclass
+        P::updateMergeHash(hash, model);
+
+        // Get all  state associated with this process
+        const auto allState = this->getAllState();
+
+        // Update hash with memory space compatibility of all state
+        const auto &fennModel = dynamic_cast<const Model&>(model);
+        for(const auto &s : allState) {
+            fennModel.getStateMemSpaceCompatibility().at(s).updateHash(hash);
+        }
+    }
+};
+
+//----------------------------------------------------------------------------
+// FeNN::Backend::NeuronUpdateProcess
+//----------------------------------------------------------------------------
+class NeuronUpdateProcess : public ProcessImplementationBase<::Model::NeuronUpdateProcess>
+{
+public:
+    using ProcessImplementationBase<::Model::NeuronUpdateProcess>::ProcessImplementationBase;
 
     //------------------------------------------------------------------------
     // ProcessImplementation virtuals
@@ -97,10 +105,10 @@ public:
 //----------------------------------------------------------------------------
 // FeNN::Backend::EventPropagationProcess
 //----------------------------------------------------------------------------
-class EventPropagationProcess : public ProcessImplementation, public ::Model::EventPropagationProcess
+class EventPropagationProcess : public ProcessImplementationBase<::Model::EventPropagationProcess>
 {
 public:
-    using ::Model::EventPropagationProcess::EventPropagationProcess;
+    using ProcessImplementationBase<::Model::EventPropagationProcess>::ProcessImplementationBase;
 
     //------------------------------------------------------------------------
     // ProcessImplementation virtuals
@@ -134,10 +142,10 @@ public:
 //----------------------------------------------------------------------------
 // FeNN::Backend::RNGInitProcess
 //----------------------------------------------------------------------------
-class RNGInitProcess : public ProcessImplementation, public ::Model::RNGInitProcess
+class RNGInitProcess : public ProcessImplementationBase<::Model::RNGInitProcess>
 {
 public:
-    using ::Model::RNGInitProcess::RNGInitProcess;
+    using ProcessImplementationBase<::Model::RNGInitProcess>::ProcessImplementationBase;
 
     //------------------------------------------------------------------------
     // ProcessImplementation virtuals
@@ -163,10 +171,10 @@ public:
 //----------------------------------------------------------------------------
 // FeNN::Backend::MemsetProcess
 //----------------------------------------------------------------------------
-class MemsetProcess : public ProcessImplementation, public ::Model::MemsetProcess
+class MemsetProcess : public ProcessImplementationBase<::Model::MemsetProcess>
 {
 public:
-    using ::Model::MemsetProcess::MemsetProcess;
+    using ProcessImplementationBase<::Model::MemsetProcess>::ProcessImplementationBase;
 
     //------------------------------------------------------------------------
     // ProcessImplementation virtuals
@@ -206,10 +214,10 @@ private:
 //----------------------------------------------------------------------------
 // FeNN::Backend::BroadcastProcess
 //----------------------------------------------------------------------------
-class BroadcastProcess : public ProcessImplementation, public ::Model::BroadcastProcess
+class BroadcastProcess : public ProcessImplementationBase<::Model::BroadcastProcess>
 {
 public:
-    using ::Model::BroadcastProcess::BroadcastProcess;
+    using ProcessImplementationBase<::Model::BroadcastProcess>::ProcessImplementationBase;
 
     //------------------------------------------------------------------------
     // ProcessImplementation virtuals
