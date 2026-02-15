@@ -9,6 +9,7 @@
 
 // Model includes
 #include "model/model_component.h"
+#include "model/model_export.h"
 #include "model/shape.h"
 
 //----------------------------------------------------------------------------
@@ -16,7 +17,7 @@
 //----------------------------------------------------------------------------
 namespace Model
 {
-class Variable : public AcceptableModelComponent<Variable, State>
+class MODEL_EXPORT Variable : public AcceptableModelComponent<Variable, State>
 {
 public:
     Variable(Private, const Shape &shape, const GeNN::Type::UnresolvedType &type, 

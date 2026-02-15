@@ -6,6 +6,7 @@
 
 // Model includes
 #include "model/model_component.h"
+#include "model/model_export.h"
 #include "model/shape.h"
 
 //----------------------------------------------------------------------------
@@ -13,7 +14,7 @@
 //----------------------------------------------------------------------------
 namespace Model
 {
-class EventContainer : public AcceptableModelComponent<EventContainer, State>
+class MODEL_EXPORT EventContainer : public AcceptableModelComponent<EventContainer, State>
 {
 public:
     EventContainer(Private, const Shape &shape, size_t numBufferTimesteps, const std::string &name)

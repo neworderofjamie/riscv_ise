@@ -8,6 +8,7 @@
 
 // Compiler includes
 #include "model/model_component.h"
+#include "model/model_export.h"
 
 // Forward declarations
 namespace boost::uuids::detail
@@ -20,7 +21,7 @@ class sha1;
 //----------------------------------------------------------------------------
 namespace Model
 {
-class Parameter : public AcceptableModelComponent<Parameter, State>
+class MODEL_EXPORT Parameter : public AcceptableModelComponent<Parameter, State>
 {
 public:
     Parameter(Private, const GeNN::Type::NumericValue &value,

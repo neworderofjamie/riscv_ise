@@ -56,16 +56,6 @@ public:
 
     size_t getNumNeurons() const{ return m_NumNeurons; }
 
-    //------------------------------------------------------------------------
-    // Static API
-    //------------------------------------------------------------------------
-    static std::shared_ptr<NeuronUpdateProcess> create(const std::string &code, const ParameterMap &parameters, 
-                                                       const VariableMap &variables, const EventContainerMap &outputEvents = {},
-                                                       const std::string &name = "")
-    {
-        return std::make_shared<NeuronUpdateProcess>(Private(), code, parameters, variables, outputEvents, name);
-    }
-
 private:
     //------------------------------------------------------------------------
     // Members
@@ -108,19 +98,6 @@ public:
 
     size_t getNumSparseConnectivityBits() const{ return m_NumSparseConnectivityBits; }
     size_t getNumDelayBits() const{ return m_NumDelayBits; }
-    
-    //------------------------------------------------------------------------
-    // Static API
-    //------------------------------------------------------------------------
-    static std::shared_ptr<EventPropagationProcess> create(std::shared_ptr<const EventContainer> inputEvents, 
-                                                           VariablePtr weight, VariablePtr target, 
-                                                           size_t numSparseConnectivityBits = 0,
-                                                           size_t numDelayBits = 0,
-                                                           const std::string &name = "")
-    {
-        return std::make_shared<EventPropagationProcess>(Private(), inputEvents, weight, target, 
-                                                         numSparseConnectivityBits, numDelayBits, name);
-    }
 
 private:
     //------------------------------------------------------------------------
@@ -155,14 +132,6 @@ public:
     // Public API
     //------------------------------------------------------------------------
     const auto getSeed() const{ return m_Seed; }
-    
-    //------------------------------------------------------------------------
-    // Static API
-    //------------------------------------------------------------------------
-    static std::shared_ptr<RNGInitProcess> create(VariablePtr seed, const std::string &name = "")
-    {
-        return std::make_shared<RNGInitProcess>(Private(), seed, name);
-    }
 
 private:
     //------------------------------------------------------------------------
@@ -190,14 +159,6 @@ public:
     //------------------------------------------------------------------------
     const auto getTarget() const{ return m_Target; }
 
-    //------------------------------------------------------------------------
-    // Static API
-    //------------------------------------------------------------------------
-    static std::shared_ptr<MemsetProcess> create(VariablePtrBackendState target, const std::string &name = "")
-    {
-        return std::make_shared<MemsetProcess>(Private(), target, name);
-    }
-
 private:
     //------------------------------------------------------------------------
     // Members
@@ -224,15 +185,6 @@ public:
     //------------------------------------------------------------------------
     const auto getSource() const{ return m_Source; }
     const auto getTarget() const{ return m_Target; }
-    
-    //------------------------------------------------------------------------
-    // Static API
-    //------------------------------------------------------------------------
-    static std::shared_ptr<BroadcastProcess> create(VariablePtr source, VariablePtrBackendState target,
-                                                    const std::string &name = "")
-    {
-        return std::make_shared<BroadcastProcess>(Private(), source, target, name);
-    }
 
 private:
     //------------------------------------------------------------------------
