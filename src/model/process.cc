@@ -10,6 +10,8 @@
 #include "model/process.h"
 #include "model/variable.h"
 
+#define UPDATE_HASH_CLASS_NAME(CLASS_NAME) GeNN::Utils::updateHash(#CLASS_NAME, hash);
+
 //----------------------------------------------------------------------------
 // Model::NeuronUpdateProcess
 //----------------------------------------------------------------------------
@@ -52,10 +54,22 @@ NeuronUpdateProcess::NeuronUpdateProcess(Private, const std::string &code, const
     // 
 }
 //----------------------------------------------------------------------------
+std::vector<std::shared_ptr<const State>> NeuronUpdateProcess::getState() const
+{
+    std::vector<std::shared_ptr<const State>> state;
+    std::transform(getVariables().cbegin(), getVariables().cend(), std::back_inserter(state),
+                   [](const auto &v){ return v.second; });
+    std::transform(getOutputEvents().cbegin(), getOutputEvents().cend(), std::back_inserter(state),
+                   [](const auto &o){ return o.second; });
+    return state;
+}
+//----------------------------------------------------------------------------
 boost::uuids::detail::sha1::digest_type NeuronUpdateProcess::getMergeHashDigest() const
 {
     using namespace GeNN::Utils;
     boost::uuids::detail::sha1 hash;
+
+    UPDATE_HASH_CLASS_NAME(NeuronUpdateProcess);
 
     // Parameters
     updateHash(getParameters().size(), hash);
@@ -153,10 +167,17 @@ EventPropagationProcess::EventPropagationProcess(Private, std::shared_ptr<const 
     }
 }
 //----------------------------------------------------------------------------
+std::vector<std::shared_ptr<const State>> EventPropagationProcess::getState() const
+{
+    return {getInputEvents(), getWeight(), getTarget()};
+}
+//----------------------------------------------------------------------------
 boost::uuids::detail::sha1::digest_type EventPropagationProcess::getMergeHashDigest() const
 {
     using namespace GeNN::Utils;
     boost::uuids::detail::sha1 hash;
+
+    UPDATE_HASH_CLASS_NAME(EventPropagationProcess);
 
     // Input events
     getInputEvents()->updateMergeHash(hash);
@@ -183,9 +204,15 @@ RNGInitProcess::RNGInitProcess(Private, VariablePtr seed, const std::string &nam
     }
 }
 //----------------------------------------------------------------------------
-boost::uuids::detail::sha1::digest_type NeuronUpdateProcess::getMergeHashDigest() const
+std::vector<std::shared_ptr<const State>> RNGInitProcess::getState() const
+{
+    return {getSeed()};
+}
+//----------------------------------------------------------------------------
+boost::uuids::detail::sha1::digest_type RNGInitProcess::getMergeHashDigest() const
 {
     boost::uuids::detail::sha1 hash;
+    UPDATE_HASH_CLASS_NAME(RNGInitProcess);
     return hash.get_digest();
 }
 
@@ -205,9 +232,20 @@ MemsetProcess::MemsetProcess(Private, VariablePtrBackendState target, const std:
     }
 }
 //----------------------------------------------------------------------------
+std::vector<std::shared_ptr<const State>> MemsetProcess::getState() const
+{
+    if(std::holds_alternative<Model::VariablePtr>(getTarget())) {
+        return {std::get<VariablePtr>(getTarget())};
+    }
+    else {
+        return {};
+    }
+}
+//----------------------------------------------------------------------------
 boost::uuids::detail::sha1::digest_type MemsetProcess::getMergeHashDigest() const
 {
     boost::uuids::detail::sha1 hash;
+    UPDATE_HASH_CLASS_NAME(MemsetProcess);
     return hash.get_digest();
 }
 
@@ -258,10 +296,21 @@ BroadcastProcess::BroadcastProcess(Private, VariablePtr source, VariablePtrBacke
     }
 }
 //----------------------------------------------------------------------------
+std::vector<std::shared_ptr<const State>> BroadcastProcess::getState() const
+{
+    std::vector<std::shared_ptr<const State>> state{getSource()};
+
+    if(std::holds_alternative<Model::VariablePtr>(getTarget())) {
+        state.push_back(std::get<VariablePtr>(getTarget()));
+    }
+    
+    return state;
+}
+//----------------------------------------------------------------------------
 boost::uuids::detail::sha1::digest_type BroadcastProcess::getMergeHashDigest() const
 {
     boost::uuids::detail::sha1 hash;
-
+    UPDATE_HASH_CLASS_NAME(BroadcastProcess);
     return hash.get_digest();
 }
 }
