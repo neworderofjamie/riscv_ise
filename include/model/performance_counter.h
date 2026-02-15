@@ -8,11 +8,11 @@
 //----------------------------------------------------------------------------
 namespace Model
 {
-class PerformanceCounter : public AcceptableModelComponent<PerformanceCounter, State>
+class PerformanceCounter : public State
 {
 public:
     PerformanceCounter(Private, const std::string &name)
-    :   AcceptableModelComponent<PerformanceCounter, State>(name)
+    :   State(name)
     {}
 
     //------------------------------------------------------------------------

@@ -20,9 +20,6 @@
     <ClCompile Include="shape.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="parameter.cc">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="event_container.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -47,9 +44,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\model\model_export.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\include\model\parameter.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\model\performance_counter.h">

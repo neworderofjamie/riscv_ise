@@ -26,19 +26,17 @@ namespace Model
 using VariablePtr = std::shared_ptr<const Variable>;
 using VariablePtrBackendState = std::variant<VariablePtr, int>;
 using EventContainerMap = std::map<std::string, std::shared_ptr<EventContainer>>;
-using ParameterMap = std::map<std::string, std::shared_ptr<const Parameter>>;
 using VariableMap = std::map<std::string, VariablePtr>;
 
 
 //----------------------------------------------------------------------------
 // Model::NeuronUpdateProcess
 //----------------------------------------------------------------------------
-class MODEL_EXPORT NeuronUpdateProcess : public AcceptableModelComponent<NeuronUpdateProcess, Process>
+class MODEL_EXPORT NeuronUpdateProcess : public Process
 {
 public:
-    NeuronUpdateProcess(Private, const std::string &code, const ParameterMap &parameters, 
-                        const VariableMap &variables, const EventContainerMap &outputEvents,
-                        const std::string &name);
+    NeuronUpdateProcess(Private, const std::string &code, const VariableMap &variables, 
+                        const EventContainerMap &outputEvents, const std::string &name);
 
     //------------------------------------------------------------------------
     // Stateful virtuals
@@ -53,7 +51,6 @@ public:
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
-    const auto &getParameters() const{ return m_Parameters; }
     const auto &getVariables() const{ return m_Variables; }
     const auto &getOutputEvents() const{ return m_OutputEvents; }
 
@@ -65,7 +62,6 @@ private:
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
-    ParameterMap m_Parameters;
     VariableMap m_Variables;
     EventContainerMap m_OutputEvents;
 
@@ -77,7 +73,7 @@ private:
 //----------------------------------------------------------------------------
 // Model::EventPropagationProcess
 //----------------------------------------------------------------------------
-class MODEL_EXPORT EventPropagationProcess : public AcceptableModelComponent<EventPropagationProcess, Process>
+class MODEL_EXPORT EventPropagationProcess : public Process
 {
 public:
     EventPropagationProcess(Private, std::shared_ptr<const EventContainer> inputEvents, 
@@ -128,7 +124,7 @@ private:
 //----------------------------------------------------------------------------
 // Model::RNGInitProcess
 //----------------------------------------------------------------------------
-class MODEL_EXPORT RNGInitProcess : public AcceptableModelComponent<RNGInitProcess, Process>
+class MODEL_EXPORT RNGInitProcess : public Process
 {
 public:
     RNGInitProcess(Private, VariablePtr seed, const std::string &name);
@@ -159,7 +155,7 @@ private:
 // Model::MemsetProcess
 //----------------------------------------------------------------------------
 //! Process for memsetting variables
-class MODEL_EXPORT MemsetProcess : public AcceptableModelComponent<MemsetProcess, Process>
+class MODEL_EXPORT MemsetProcess : public Process
 {
 public:
     MemsetProcess(Private, VariablePtrBackendState target, const std::string &name);
@@ -190,7 +186,7 @@ private:
 // Model::BroadcastProcess
 //----------------------------------------------------------------------------
 //! Process for 'broadcasting' one scalar array across multiple vector lanes
-class MODEL_EXPORT BroadcastProcess : public AcceptableModelComponent<BroadcastProcess, Process>
+class MODEL_EXPORT BroadcastProcess : public Process
 {
 public:
     BroadcastProcess(Private, VariablePtr source, VariablePtrBackendState target, const std::string &name);

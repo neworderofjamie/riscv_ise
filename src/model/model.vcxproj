@@ -22,7 +22,6 @@
     <ClCompile Include="event_container.cc" />
     <ClCompile Include="graph.cc" />
     <ClCompile Include="model.cc" />
-    <ClCompile Include="parameter.cc" />
     <ClCompile Include="process.cc" />
     <ClCompile Include="process_group.cc" />
     <ClCompile Include="shape.cc" />
@@ -34,7 +33,6 @@
     <ClInclude Include="..\..\include\model\model.h" />
     <ClInclude Include="..\..\include\model\model_component.h" />
     <ClInclude Include="..\..\include\model\model_export.h" />
-    <ClInclude Include="..\..\include\model\parameter.h" />
     <ClInclude Include="..\..\include\model\performance_counter.h" />
     <ClInclude Include="..\..\include\model\process.h" />
     <ClInclude Include="..\..\include\model\process_group.h" />

@@ -19,14 +19,13 @@ class Process;
 //----------------------------------------------------------------------------
 namespace Model
 {
-class ProcessGroup : public AcceptableModelComponent<ProcessGroup, Stateful>
+class ProcessGroup : public Stateful
 {
 public:
     ProcessGroup(Private, const std::vector<std::shared_ptr<const Process>> &processes, 
                  std::shared_ptr<const PerformanceCounter> performanceCounter, 
                  const std::string &name)
-    :   AcceptableModelComponent<ProcessGroup, Stateful>(name), m_Processes(processes),
-        m_PerformanceCounter(performanceCounter)
+    :   Stateful(name), m_Processes(processes), m_PerformanceCounter(performanceCounter)
     {
     }
 

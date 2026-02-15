@@ -94,11 +94,10 @@ public:
     //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------
-    static std::shared_ptr<NeuronUpdateProcess> create(const std::string &code, const ::Model::ParameterMap &parameters, 
-                                                       const ::Model::VariableMap &variables, const ::Model::EventContainerMap &outputEvents = {},
-                                                       const std::string &name = "")
+    static std::shared_ptr<NeuronUpdateProcess> create(const std::string &code, const ::Model::VariableMap &variables, 
+                                                       const ::Model::EventContainerMap &outputEvents = {}, const std::string &name = "")
     {
-        return std::make_shared<NeuronUpdateProcess>(Private(), code, parameters, variables, outputEvents, name);
+        return std::make_shared<NeuronUpdateProcess>(Private(), code, variables, outputEvents, name);
     }
 };
 

@@ -6,7 +6,6 @@
 
 // Compiler includes
 #include "model/event_container.h"
-#include "model/parameter.h"
 #include "model/process.h"
 #include "model/variable.h"
 
@@ -17,11 +16,9 @@
 //----------------------------------------------------------------------------
 namespace Model
 {
-NeuronUpdateProcess::NeuronUpdateProcess(Private, const std::string &code, const ParameterMap &parameters, 
-                                         const VariableMap &variables, const EventContainerMap &outputEvents,
-                                         const std::string &name)
-:   AcceptableModelComponent<NeuronUpdateProcess, Process>(name), m_Parameters(parameters), 
-    m_Variables(variables), m_OutputEvents(outputEvents)
+NeuronUpdateProcess::NeuronUpdateProcess(Private, const std::string &code, const VariableMap &variables, 
+                                         const EventContainerMap &outputEvents, const std::string &name)
+:   Process(name), m_Variables(variables), m_OutputEvents(outputEvents)
 {
     if(m_Variables.empty() && m_OutputEvents.empty()) {
         throw std::runtime_error("Neuron update process requires at least one variable or output event");
@@ -50,6 +47,12 @@ NeuronUpdateProcess::NeuronUpdateProcess(Private, const std::string &code, const
     // Parse code
     m_Tokens = GeNN::Utils::scanCode(code, "NeuronUpdateProcess");
 
+    // Loop through tokens
+    for (size_t i = 0; i < m_Tokens.size(); i++) {
+        // If this token is a numeric literal,
+        if (m_Tokens[i].type == GeNN::Transpiler::Token::Type::NUMBER) {
+        }
+    }
     // Batched = any output events batched
     // 
 }
@@ -69,13 +72,6 @@ void NeuronUpdateProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, cons
     using namespace GeNN::Utils;
     UPDATE_HASH_CLASS_NAME(NeuronUpdateProcess);
 
-    // Parameters
-    updateHash(getParameters().size(), hash);
-    for(const auto &p : getParameters()) {
-        updateHash(p.first, hash);
-        p.second->updateMergeHash(hash);
-    }
-
     // Variables
     updateHash(getVariables().size(), hash);
     for(const auto &v : getVariables()) {
@@ -89,6 +85,19 @@ void NeuronUpdateProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, cons
         updateHash(e.first, hash);
         e.second->updateMergeHash(hash);
     }
+
+    // Tokens
+    updateHash(getTokens().size(), hash);
+    for(const auto &t : getTokens()) {
+        updateHash(t.type, hash);
+        updateHash(t.numberType, hash);
+
+        // If this is a numeric literal, don't include it's value
+        // Literals can vary between merged processes
+        if (t.type != GeNN::Transpiler::Token::Type::NUMBER) {
+            updateHash(t.lexeme, hash);
+        }
+    }
 }
 
 //----------------------------------------------------------------------------
@@ -97,9 +106,8 @@ void NeuronUpdateProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, cons
 EventPropagationProcess::EventPropagationProcess(Private, std::shared_ptr<const EventContainer> inputEvents, 
                                                  VariablePtr weight, VariablePtr target, size_t numSparseConnectivityBits, 
                                                  size_t numDelayBits, const std::string &name)
-:   AcceptableModelComponent<EventPropagationProcess, Process>(name), m_InputEvents(inputEvents), 
-    m_Weight(weight), m_Target(target), m_NumSparseConnectivityBits(numSparseConnectivityBits),
-    m_NumDelayBits(numDelayBits)
+:   Process(name), m_InputEvents(inputEvents), m_Weight(weight), m_Target(target), 
+    m_NumSparseConnectivityBits(numSparseConnectivityBits), m_NumDelayBits(numDelayBits)
 {
     if(m_InputEvents == nullptr) {
         throw std::runtime_error("Event propagation process requires input events");
@@ -190,7 +198,7 @@ void EventPropagationProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, 
 // RNGInitProcess
 //----------------------------------------------------------------------------
 RNGInitProcess::RNGInitProcess(Private, VariablePtr seed, const std::string &name)
-:   AcceptableModelComponent<RNGInitProcess, Process>(name), m_Seed(seed)
+:   Process(name), m_Seed(seed)
 {
     if(m_Seed == nullptr) {
         throw std::runtime_error("RNG init process requires seed");
@@ -211,7 +219,7 @@ void RNGInitProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Mod
 // MemsetProcess
 //----------------------------------------------------------------------------
 MemsetProcess::MemsetProcess(Private, VariablePtrBackendState target, const std::string &name)
-:   AcceptableModelComponent<MemsetProcess, Process>(name), m_Target(target)
+:   Process(name), m_Target(target)
 {
     // If target is a variable
     // **NOTE** if target is a backend-specific state object, there's nothing we can check yet
@@ -242,7 +250,7 @@ void MemsetProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Mode
 // BroadcastProcess
 //----------------------------------------------------------------------------
 BroadcastProcess::BroadcastProcess(Private, VariablePtr source, VariablePtrBackendState target, const std::string &name)
-:   AcceptableModelComponent<BroadcastProcess, Process>(name), m_Source(source), m_Target(target)
+:   Process(name), m_Source(source), m_Target(target)
 {
     if(m_Source == nullptr) {
         throw std::runtime_error("Broadcast process requires source");
