@@ -24,8 +24,9 @@ constexpr uint32_t barrierEventID = 0xFFFFFFFFull;
 namespace FeNN::ISE
 {
 RouterSim::RouterSim(SharedBusSim &sharedBus, ScalarDataMemory &spikeMemory, size_t routerIndex)
-:   m_SharedBus(sharedBus), m_SpikeMemory(spikeMemory), m_RouterIndex(routerIndex), m_Registers{0},
-    m_MasterFSM(MasterFSMState::IDLE), m_CurrentSpikeBitfield(0), m_CurrentEventIDBase(0), m_CurrentSpikeID(0)
+:   m_SharedBus(sharedBus), m_SpikeMemory(spikeMemory), m_RouterIndex(routerIndex), 
+    m_MasterFSM(MasterFSMState::IDLE), m_Registers{0}, m_CurrentSpikeBitfield(0), 
+    m_CurrentEventIDBase(0), m_CurrentSpikeID(0)
 {
 }
 //----------------------------------------------------------------------------

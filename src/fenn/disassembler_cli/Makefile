@@ -1,27 +1,27 @@
 # Include common makefile
-include ../MakefileCommon
+include ../../MakefileCommon
 
 # Add compiler and linker flags to link libGeNN and correct backend; and to configure generator to use backend
-LDFLAGS			+= -L$(LIBRARY_DIRECTORY) -ldisassembler$(PREFIX) -lcommon$(PREFIX)
+LDFLAGS			+= -L$(LIBRARY_DIRECTORY) -lfenn_disassembler$(PREFIX) -lfenn_common$(PREFIX)
 
 # Determine full path to test
 DISASSEMBLER_CLI	:=$(BIN_DIRECTORY)/disassembler_cli$(PREFIX)
 
-.PHONY: all clean libcommon libdisassembler
+.PHONY: all clean libfenn_common libfenn_disassembler
 
 all: $(DISASSEMBLER_CLI)
 
 -include disassembler_cli.d
 
-$(DISASSEMBLER_CLI): disassembler_cli.cc libcommon libdisassembler
+$(DISASSEMBLER_CLI): disassembler_cli.cc libfenn_common libfenn_disassembler
 	mkdir -p $(@D)
 	$(CXX) $(CXXFLAGS) disassembler_cli.cc -o $@ $(LDFLAGS)
 
-libdisassembler:
-	if [ -w $(LIBRARY_DIRECTORY) ]; then $(MAKE) -C $(RISCV_DIR)/src/disassembler; fi;
+libfenn_disassembler:
+	if [ -w $(LIBRARY_DIRECTORY) ]; then $(MAKE) -C $(RISCV_DIR)/src/fenn/disassembler; fi;
 
-libcommon:
-	if [ -w $(LIBRARY_DIRECTORY) ]; then $(MAKE) -C $(RISCV_DIR)/src/common; fi;
+libfenn_common:
+	if [ -w $(LIBRARY_DIRECTORY) ]; then $(MAKE) -C $(RISCV_DIR)/src/fenn/common; fi;
 
 %.d: ;
 
