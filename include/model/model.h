@@ -8,7 +8,7 @@
 // Forward declarations
 namespace Model
 {
-class Graph;
+class Kernel;
 class State;
 class Process;
 }
@@ -27,22 +27,22 @@ class Model
 public:
     // Mapping of state objects to processes which reference them
     using StateProcesses = std::unordered_map<std::shared_ptr<const State>, std::vector<std::shared_ptr<const Process>>>;
-    using GraphVector = std::vector<std::shared_ptr<const Graph>>;
+    using KernelVector = std::vector<std::shared_ptr<const Kernel>>;
 
-    Model(const GraphVector &graphs);
+    Model(const KernelVector &kernels);
     virtual ~Model() = default;
 
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
-    const auto &getGraphs() const{ return m_Graphs; }
+    const auto &getKernels() const{ return m_Kernels; }
     const auto &getStateProcesses() const{ return m_StateProcesses; }
 
 private:
     //----------------------------------------------------------------------------
     // Members
     //----------------------------------------------------------------------------
-    GraphVector m_Graphs;
+    KernelVector m_Kernels;
     StateProcesses m_StateProcesses;
 };
 }
