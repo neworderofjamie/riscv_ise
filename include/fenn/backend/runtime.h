@@ -15,16 +15,24 @@
 #include "fenn/backend/backend_export.h"
 
 // Forward declarations
+namespace FeNN::Backend
+{
 class BackendFeNN;
+class StateBase;
+}
+namespace Model
+{
 class Model;
 class State;
-class StateBase;
+}
 
 //----------------------------------------------------------------------------
-// ArrayBase
+// FeNN::Backend::ArrayBase
 //----------------------------------------------------------------------------
 //! Base class for arrays created by backend
 //! **NOTE** this is a temporary, simplified version of GeNN's ArrayBase
+namespace FeNN::Backend
+{
 class BACKEND_EXPORT ArrayBase
 {
 public:
@@ -109,7 +117,7 @@ public:
 class BACKEND_EXPORT Runtime
 {
 public:
-    Runtime(const Model &model, const BackendFeNN &backend);
+    Runtime(const ::Model::Model &model, const BackendFeNN &backend);
     
     //------------------------------------------------------------------------
     // Public API
@@ -121,7 +129,7 @@ public:
     void startRun();
     void waitRun();
 
-    ArrayBase *getArray(std::shared_ptr<const State> variable) const;
+    ArrayBase *getArray(std::shared_ptr<const ::Model::State> variable) const;
 
     StateBase *getState() const{ return m_State.get(); }
 
@@ -132,8 +140,9 @@ private:
     // Members
     //------------------------------------------------------------------------
     std::unique_ptr<StateBase> m_State;
-    std::unordered_map<std::shared_ptr<const State>, std::unique_ptr<ArrayBase>> m_Arrays;
+    std::unordered_map<std::shared_ptr<const ::Model::State>, std::unique_ptr<ArrayBase>> m_Arrays;
     std::reference_wrapper<const BackendFeNN> m_Backend;
-    std::reference_wrapper<const Model> m_Model;
+    std::reference_wrapper<const ::Model::Model> m_Model;
     std::unique_ptr<IFieldArray> m_FieldArray;
 };
+}

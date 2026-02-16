@@ -1,60 +1,14 @@
-#include "backend/runtime.h"
+#include "fenn/backend/runtime.h"
 
 // Backend includes
-#include "backend/backend_fenn.h"
-#include "backend/model.h"
-
-//----------------------------------------------------------------------------
-// Anonymous namespace
-//----------------------------------------------------------------------------
-namespace
-{
-//----------------------------------------------------------------------------
-// Visitor
-//----------------------------------------------------------------------------
-class AllocatorVisitor : public ModelComponentVisitor
-{
-public:
-    AllocatorVisitor(const Model::StateProcesses::value_type &modelState, const BackendFeNN &backend, StateBase *state)
-    :   m_Backend(backend), m_Processes(modelState.second), m_State(state)
-    {
-        modelState.first->accept(*this);
-    }
-
-    auto &getArray() { return m_Array; }
-
-private:
-    //------------------------------------------------------------------------
-    // ModelComponentVisitor virtuals
-    //------------------------------------------------------------------------
-    virtual void visit(std::shared_ptr<const EventContainer> eventContainer)
-    {
-        m_Array = m_Backend.get().createArray(eventContainer, m_Processes.get(), m_State);
-    }
-
-    virtual void visit(std::shared_ptr<const Variable> variable)
-    {
-        m_Array = m_Backend.get().createArray(variable, m_Processes.get(), m_State);
-    }
-
-    virtual void visit(std::shared_ptr<const PerformanceCounter> performanceCounter)
-    {
-        m_Array = m_Backend.get().createArray(performanceCounter, m_Processes.get(), m_State);
-    }
-
-    //------------------------------------------------------------------------
-    // Members
-    //------------------------------------------------------------------------
-    std::reference_wrapper<const BackendFeNN> m_Backend;
-    std::unique_ptr<ArrayBase> m_Array;
-    std::reference_wrapper<const Model::StateProcesses::mapped_type> m_Processes;
-    StateBase *m_State;
-};
-}
+#include "fenn/backend/backend_fenn.h"
+#include "fenn/backend/model.h"
 
 //--------------------------------------------------------------------------
 // ArrayBase
 //--------------------------------------------------------------------------
+namespace FeNN::Backend
+{
 void ArrayBase::memsetHostPointer(int value)
 {
     std::memset(m_HostPointer, value, getSizeBytes());
@@ -63,7 +17,7 @@ void ArrayBase::memsetHostPointer(int value)
 //----------------------------------------------------------------------------
 // Runtime
 //----------------------------------------------------------------------------
-Runtime::Runtime(const Model &model, const BackendFeNN &backend)
+Runtime::Runtime(const ::Model::Model &model, const BackendFeNN &backend)
 :   m_Backend(backend), m_Model(model)
 {
     m_State = m_Backend.get().createState();
@@ -82,24 +36,25 @@ void Runtime::allocate()
     // Loop through state objects used by model
     for (const auto &s : m_Model.get().getStateProcesses()) {
         // Visit state process to allocate appropriate type of array
-        AllocatorVisitor visitor(s, m_Backend.get(), m_State.get());
+        //AllocatorVisitor visitor(s, m_Backend.get(), m_State.get());
+        // **TODO** virtual in state to create array using derived model
 
         // Take ownership of array and add to arrays map
-        if (!m_Arrays.try_emplace(s.first, std::move(visitor.getArray())).second) {
-            assert(false);
-        }
+        //if (!m_Arrays.try_emplace(s.first, std::move(visitor.getArray())).second) {
+        //    assert(false);
+        //}
     }
 
     // Loop through all stateful objects with fields that require population
-    for(const auto &p : m_Model.get().getStatefulFields()) {
+    /*for(const auto &p : m_Model.get().getStatefulFields()) {
         // Loop through all fields associated with stateful object and assign corresponding arrays to field
         for(const auto &s : p.second) {
             m_FieldArray->setFieldArray(s.second, getArray(s.first));
         }
-    }
+    }*/
 
     // Loop through all fields requested by the backend 
-    for(const auto &b : m_Model.get().getBackendFields()) {
+    /*for(const auto &b : m_Model.get().getBackendFields()) {
         // Create array
         auto fieldArray = m_Backend.get().createArray(std::get<0>(b.second), b.first, m_State.get());
         
@@ -110,7 +65,7 @@ void Runtime::allocate()
         if (!m_Arrays.try_emplace(std::get<0>(b.second), std::move(fieldArray)).second) {
             assert(false);
         }
-    }
+    }*/
 
     // Push populated fields to device
     m_FieldArray->pushFieldsToDevice();
@@ -132,7 +87,7 @@ void Runtime::waitRun()
     m_State->waitRun();
 }
 //----------------------------------------------------------------------------
-ArrayBase *Runtime::getArray(std::shared_ptr<const State> variable) const
+ArrayBase *Runtime::getArray(std::shared_ptr<const ::Model::State> variable) const
 {
     return m_Arrays.at(variable).get();
 }
@@ -140,4 +95,5 @@ ArrayBase *Runtime::getArray(std::shared_ptr<const State> variable) const
 std::optional<unsigned int> Runtime::getSOCPower() const
 {
     return m_State->getSOCPower();
+}
 }
