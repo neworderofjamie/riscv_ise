@@ -34,7 +34,6 @@
 
 // Model includes
 #include "model/event_container.h"
-#include "model/parameter.h"
 #include "model/process.h"
 #include "model/process_group.h"
 #include "model/variable.h"
