@@ -1,22 +1,22 @@
-#include "model/graph.h"
+#include "model/kernel.h"
 
 // Standard C++ includes
 #include <iterator>
 
 //----------------------------------------------------------------------------
-// Model::SimpleGraph
+// Model::SimpleKernel
 //----------------------------------------------------------------------------
 namespace Model
 {
-ProcessGroupVector SimpleGraph::getAllProcessGroups() const
+ProcessGroupVector SimpleKernel::getAllProcessGroups() const
 {
     return this->getProcessGroups();
 }
 
 //----------------------------------------------------------------------------
-// Model::SimulationLoopGraph
+// Model::SimulationLoopKernel
 //----------------------------------------------------------------------------
-ProcessGroupVector SimulationLoopGraph::getAllProcessGroups() const
+ProcessGroupVector SimulationLoopKernel::getAllProcessGroups() const
 {
     // Reserve vector
     ProcessGroupVector processGroups;

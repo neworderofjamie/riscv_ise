@@ -1,7 +1,5 @@
 #pragma once
 
-#pragma once
-
 // Standard C++ includes
 #include <memory>
 #include <vector>
@@ -21,9 +19,9 @@ namespace Model
 using ProcessGroupVector = std::vector<std::shared_ptr<const ProcessGroup>>;
 
 //----------------------------------------------------------------------------
-// Model::Graph
+// Model::Kernel
 //----------------------------------------------------------------------------
-class Graph : public Stateful
+class Kernel : public Stateful
 {
 public:
     using Stateful::Stateful;
@@ -36,13 +34,13 @@ public:
 };
 
 //----------------------------------------------------------------------------
-// Model::StandardGraph
+// Model::StandardKernel
 //----------------------------------------------------------------------------
-class SimpleGraph : public Graph
+class SimpleKernel : public Kernel
 {
 public:
-    SimpleGraph(Private, const ProcessGroupVector &processGroups, const std::string &name)
-    :   Graph(name), m_ProcessGroups(processGroups)
+    SimpleKernel(Private, const ProcessGroupVector &processGroups, const std::string &name)
+    :   Kernel(name), m_ProcessGroups(processGroups)
     {}
 
     //----------------------------------------------------------------------------
@@ -64,16 +62,16 @@ private:
 };
 
 //----------------------------------------------------------------------------
-// Model::SimulationLoopGraph
+// Model::SimulationLoopKernel
 //----------------------------------------------------------------------------
-class SimulationLoopGraph : public Graph
+class SimulationLoopKernel : public Kernel
 {
 public:
-    SimulationLoopGraph(Private, unsigned int numTimesteps, 
+    SimulationLoopKernel(Private, unsigned int numTimesteps, 
                         const ProcessGroupVector &timestepProcessGroups, 
                         const ProcessGroupVector &beginProcessGroups,
                         const ProcessGroupVector &endProcessGroups, const std::string &name)
-    :   Graph(name), m_NumTimesteps(numTimesteps), m_TimestepProcessGroups(timestepProcessGroups),
+    :   Kernel(name), m_NumTimesteps(numTimesteps), m_TimestepProcessGroups(timestepProcessGroups),
         m_BeginProcessGroups(beginProcessGroups), m_EndProcessGroups(endProcessGroups)
     {}
 

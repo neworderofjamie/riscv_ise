@@ -20,7 +20,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="event_container.cc" />
-    <ClCompile Include="graph.cc" />
+    <ClCompile Include="kernel.cc" />
     <ClCompile Include="model.cc" />
     <ClCompile Include="process.cc" />
     <ClCompile Include="process_group.cc" />
@@ -29,7 +29,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\model\event_container.h" />
-    <ClInclude Include="..\..\include\model\graph.h" />
+    <ClInclude Include="..\..\include\model\kernel.h" />
     <ClInclude Include="..\..\include\model\model.h" />
     <ClInclude Include="..\..\include\model\model_component.h" />
     <ClInclude Include="..\..\include\model\model_export.h" />

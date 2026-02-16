@@ -26,7 +26,7 @@
     <ClCompile Include="variable.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="graph.cc">
+    <ClCompile Include="kernel.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="process_group.cc">
@@ -61,7 +61,7 @@
     <ClInclude Include="..\..\include\model\variable.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\include\model\graph.h">
+    <ClInclude Include="..\..\include\model\kernel.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
