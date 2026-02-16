@@ -13,17 +13,26 @@
 // GeNN includes
 #include "type.h"
 
+// Model includes
+#include "model/model.h"
+
 // Compiler includes
 #include "fenn/compiler/compiler.h"
 
 // Backend include
 #include "fenn/backend/backend_export.h"
 #include "fenn/backend/memory_allocator.h"
-#include "fenn/backend/model.h"
 #include "fenn/backend/runtime.h"
 
 // Forward declarations
+namespace Model
+{
+class EventContainer;
+class PerformanceCounter;
 class ProcessGroup;
+class State;
+class Variable;
+}
 
 //----------------------------------------------------------------------------
 // FeNN::Backend::URAMArrayBase
@@ -275,7 +284,7 @@ public:
     virtual std::unique_ptr<ArrayBase> createDRAMArray(const GeNN::Type::ResolvedType &type, size_t count) = 0;
     virtual std::unique_ptr<ArrayBase> createURAMLLMArray(const GeNN::Type::ResolvedType &type,
                                                           size_t uramCount, size_t llmCount) = 0;
-    virtual std::unique_ptr<IFieldArray> createFieldArray(const Model &model) = 0;
+    virtual std::unique_ptr<IFieldArray> createFieldArray(const ::Model::Model &model) = 0;
 
     virtual std::optional<unsigned int> getSOCPower() const = 0;
 
@@ -326,30 +335,23 @@ public:
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
-    std::vector<uint32_t> generateSimulationKernel(const std::vector<std::shared_ptr<const ProcessGroup>> &timestepProcessGroups, 
-                                                   const std::vector <std::shared_ptr<const ProcessGroup>> &beginProcessGroups,
-                                                   const std::vector <std::shared_ptr<const ProcessGroup>> &endProcessGroups,
-                                                   uint32_t numTimesteps, const Model &model) const;
-
-    std::vector<uint32_t> generateKernel(const std::vector <std::shared_ptr<const ProcessGroup>> &processGroups, const Model &model) const;
-
-    std::unique_ptr<ArrayBase> createArray(std::shared_ptr<const Variable> variable, 
-                                           const Model::StateProcesses::mapped_type &processes,
+    std::unique_ptr<ArrayBase> createArray(std::shared_ptr<const ::Model::Variable> variable, 
+                                           const ::Model::Model::StateProcesses::mapped_type &processes,
                                            StateBase *state) const;
 
-    std::unique_ptr<ArrayBase> createArray(std::shared_ptr<const EventContainer> eventContainer, 
-                                           const Model::StateProcesses::mapped_type &processes,
+    std::unique_ptr<ArrayBase> createArray(std::shared_ptr<const ::Model::EventContainer> eventContainer, 
+                                           const ::Model::Model::StateProcesses::mapped_type &processes,
                                            StateBase *state) const;
 
-    std::unique_ptr<ArrayBase> createArray(std::shared_ptr<const PerformanceCounter> performanceCounter, 
-                                           const Model::StateProcesses::mapped_type &processes,
+    std::unique_ptr<ArrayBase> createArray(std::shared_ptr<const ::Model::PerformanceCounter> performanceCounter, 
+                                           const ::Model::Model::StateProcesses::mapped_type &processes,
                                            StateBase *state) const;
 
     std::unique_ptr<ArrayBase> createArray(std::shared_ptr<const State> state, 
                                            int stateID, StateBase *backendState) const;
 
     //! Get mapping of IDs to state objects for any backend-specific state this model is going to require
-    std::unordered_map<int, std::shared_ptr<State>> getRequiredStateObjects(const Model &model) const;
+    std::unordered_map<int, std::shared_ptr<::Model::State>> getRequiredStateObjects(const ::Model::Model &model) const;
 
 protected:
     //------------------------------------------------------------------------

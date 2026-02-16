@@ -9,15 +9,9 @@
 #include <cstddef>
 #include <cstdint>
 
-// Compiler includes
-#include "fenn/compiler/model_component.h"
-
 // Backend includes
 #include "fenn/backend/backend_export.h"
 
-// Forward declarations
-class EventContainer;
-class Variable;
 
 //----------------------------------------------------------------------------
 // MemoryAllocator

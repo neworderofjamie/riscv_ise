@@ -616,6 +616,279 @@ void NeuronUpdateProcess::updateMemSpaceCompatibility(std::shared_ptr<const ::Mo
                                        Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                        Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
+    auto &scalarRegisterAllocator = m_ScalarRegisterAllocator.get();
+    auto &c = m_CodeGenerator.get();
+
+    // Get fields associated with this process
+    const auto &stateFields = m_Model.get().getStatefulFields().at(neuronUpdateProcess);
+
+    // Build literal pool
+    std::unordered_map<int16_t, VectorRegisterAllocator::RegisterPtr> literalPool;
+    updateLiteralPool(neuronUpdateProcess->getTokens(), m_VectorRegisterAllocator.get(), literalPool);
+        
+    // Define type for event-emitting function
+    const auto emitEventFunctionType = Type::ResolvedType::createFunction(Type::Void, {});
+
+    // Load literals
+    for(const auto &l : literalPool) {
+        c.vlui(*l.second, (uint16_t)l.first);
+    }
+
+        // For now, unrollVectorLoopBody requires SOME buffers
+    assert(!neuronUpdateProcess->getVariables().empty());
+
+    std::unordered_map<std::shared_ptr<const Variable>, std::unique_ptr<NeuronVarBase>> varBuffers;
+    {
+        // If any variables have buffering, calculate stride in bytes
+        // **TODO** make set of non-1 bufferings and pre-multiply time by this
+        ALLOCATE_SCALAR(SNumVariableBytes);
+        if (std::any_of(neuronUpdateProcess->getVariables().cbegin(), neuronUpdateProcess->getVariables().cend(),
+                        [](const auto e) { return e.second->getNumBufferTimesteps() != 1; }))
+        {
+            c.li(*SNumVariableBytes, ceilDivide(neuronUpdateProcess->getNumNeurons(), 32) * 64);
+        }
+
+        // Loop through neuron variables
+        for(const auto &v : neuronUpdateProcess->getVariables()) {
+            // Visit all users of this variable to determine how it should be implemented
+            VariableImplementerVisitor visitor(v.second, m_Model.get().getStateProcesses().at(v.second),
+                                                m_UseDRAMForWeights);
+
+            // If variable can be implemented in URAM
+            if(visitor.isURAMCompatible()) {
+                varBuffers.emplace(v.second, 
+                                    std::make_unique<URAMNeuronVar>(v.first, v.second, c, scalarRegisterAllocator,
+                                                                    stateFields, m_NumTimesteps, m_TimeRegister, SNumVariableBytes));
+            }
+            // Otherwise, if variable is purely implemented in LLM
+            else if(visitor.isLLMCompatible()){
+                varBuffers.emplace(v.second, 
+                                    std::make_unique<LLMNeuronVar>(v.first, v.second, c, scalarRegisterAllocator,
+                                                                    m_VectorRegisterAllocator.get(), stateFields));
+            }
+            else if(visitor.isURAMLLMCompatible()) {
+                varBuffers.emplace(v.second, 
+                                    std::make_unique<URAMLLMNeuronVar>(v.first, v.second, c, scalarRegisterAllocator,
+                                                                        m_VectorRegisterAllocator.get(), stateFields, m_TimeRegister));
+            }
+            // Otherwise, 
+            else {
+                assert(false);
+            }
+        }
+    }
+
+    std::unordered_map<std::shared_ptr<const EventContainer>, ScalarRegisterAllocator::RegisterPtr> eventBufferRegisters;
+    {
+        // If any output events have buffering, calculate stride in bytes
+        // **TODO** make set of non-1 bufferings and pre-multiply time by this
+        ALLOCATE_SCALAR(SNumEventBytes);
+        if(std::any_of(neuronUpdateProcess->getOutputEvents().cbegin(), neuronUpdateProcess->getOutputEvents().cend(),
+                        [](const auto e){ return e.second->getNumBufferTimesteps() != 1; }))
+        {
+            c.li(*SNumEventBytes, ceilDivide(neuronUpdateProcess->getNumNeurons(), 32) * 4);
+        }
+
+        // Loop through neuron event outputs
+        for(const auto &e : neuronUpdateProcess->getOutputEvents()) {
+            // Allocate scalar register to hold address of variable
+            const auto reg = m_ScalarRegisterAllocator.get().getRegister((e.first + "Buffer X").c_str());
+
+            // Add register to map
+            eventBufferRegisters.try_emplace(e.second, reg);
+
+            // Generate code to load address
+            c.lw(*reg, Reg::X0, stateFields.at(e.second));
+
+            // If there are multiple timesteps, multiply timestep by stride and add to register
+            // **TODO** currently this just handles providing entire simulation kernel worth of event data or
+            // recording variables for entire simulation - extend to support axonal delays and ring-buffer recording
+            const size_t numBufferTimesteps = e.second->getNumBufferTimesteps();
+            if (numBufferTimesteps != 1) {
+                // Check there is a buffer entry for each timestep with one extra
+                // **NOTE** variables get read from timestep and written to timestep + 1 so extra buf
+                if(numBufferTimesteps < (m_NumTimesteps.value() + 1)) {
+                    throw std::runtime_error("Events need to be buffered for " + std::to_string(m_NumTimesteps.value() + 1u) + " timesteps");
+                }
+
+                // reg = stride * (time + 1)
+                ALLOCATE_SCALAR(STmp);
+                c.addi(*STmp, *m_TimeRegister, 1);
+                c.mul(*STmp, *STmp, *SNumEventBytes);
+                c.add(*reg, *reg, *STmp);
+            }
+        }
+    }
+    // Create code generation environment
+    Backend::EnvironmentExternal env(m_CodeGenerator.get());
+
+    // Loop through neuron parameters
+    for(const auto &p : neuronUpdateProcess->getParameters()) {
+        const auto &numericType = p.second->getType().getNumeric();
+        int64_t integerResult;
+        if(numericType.isIntegral) {
+            integerResult = p.second->getValue().cast<int64_t>();
+        }
+        // Otherwise, if it is fixed point
+        else if(numericType.fixedPoint) {
+            integerResult = std::round(p.second->getValue().cast<double>() * (1u << numericType.fixedPoint.value()));
+        }
+        else {
+            throw std::runtime_error("FeNN does not support floating point types");
+        }
+
+        // Check integer value can fit within 16-bit signed type
+        if(integerResult < std::numeric_limits<int16_t>::min() 
+            || integerResult > std::numeric_limits<int16_t>::max())
+        {
+            throw std::runtime_error("Parameter '" + p.first + "' out of range for type '"
+                                        +p.second->getType().getName() + "'");
+        }
+
+        // If we should keep parameters in registers
+        if(m_KeepParamsInRegisters) {
+            // Allocate vector register for parameter
+            const auto reg = m_VectorRegisterAllocator.get().getRegister((p.first + " V").c_str());
+
+            // Add to environment
+            env.add(p.second->getType(), p.first, reg);
+
+            // Generate code to load parameter
+            c.vlui(*reg, (uint16_t)integerResult);
+        }
+        // Otherwise
+        else {
+            // Generate code to VLUI parameter when required
+            // **YUCK** this is very innefficient
+            env.add(p.second->getType(), p.first,
+                    [&p, integerResult](auto &env, auto &vectorRegisterAllocator, auto&, auto, const auto&)
+                    {
+                        auto result = vectorRegisterAllocator.getRegister((p.first + " = V").c_str());
+                        env.getCodeGenerator().vlui(*result, (uint16_t)integerResult);
+                        return std::make_pair(result, true);
+                    }); 
+        }
+
+    }
+
+    env.add(Type::S8_7, "_zero", literalPool.at(0));
+
+    // Build library with fennrand function and stochastic multiplication
+    Backend::EnvironmentLibrary::Library functionLibrary;
+    functionLibrary.emplace(
+        "fennrand",
+        std::make_pair(Type::ResolvedType::createFunction(Type::S0_15, {}),
+                        [](auto &env, auto &vectorRegisterAllocator, auto&, auto, const auto&)
+                        {
+                            auto result = vectorRegisterAllocator.getRegister("fennrand = V");
+                            env.getCodeGenerator().vrng(*result);
+                            return std::make_pair(result, true);
+                        }));
+    addStochMulFunctions(functionLibrary);
+        
+    // If exp is called, add special function to environment
+    if(isExpCalled(neuronUpdateProcess->getTokens())) {
+        SpecialFunctions::Exp::add(c, scalarRegisterAllocator, m_VectorRegisterAllocator.get(),
+                                    env, functionLibrary, getBackendFieldOffset(StateObjectID::LUT_EXP));
+    }
+    // Insert environment with this library
+    EnvironmentLibrary envLibrary(env, functionLibrary);
+        
+    // **YUCK** find first scalar-addressed variable to use for loop check
+    auto firstScalarAddressRegister = std::find_if(varBuffers.cbegin(), varBuffers.cend(),
+                                                    [](const auto &v){ return v.second->getLoopCountScalarReg(); });
+    assert(firstScalarAddressRegister != varBuffers.cend());
+
+    // Build vectorised neuron loop
+    AssemblerUtils::unrollVectorLoopBody(
+        envLibrary.getCodeGenerator(), m_ScalarRegisterAllocator.get(),
+        neuronUpdateProcess->getNumNeurons(), 4, *firstScalarAddressRegister->second->getLoopCountScalarReg(),
+        [this, &envLibrary, &eventBufferRegisters, &literalPool, &neuronUpdateProcess,
+            &emitEventFunctionType, &varBuffers]
+        (CodeGenerator&, uint32_t r, bool, ScalarRegisterAllocator::RegisterPtr maskReg)
+        {
+            EnvironmentExternal unrollEnv(envLibrary);
+
+            // Loop through variables
+            for(const auto &v : neuronUpdateProcess->getVariables()) {
+                // Allocate vector register
+                const auto reg = m_VectorRegisterAllocator.get().getRegister((v.first + " V").c_str());
+
+                // Add to environment
+                unrollEnv.add(v.second->getType(), v.first, reg);
+
+                // Generate load
+                varBuffers.at(v.second)->genLoad(unrollEnv, reg, r);
+            }
+
+            // Loop through neuron event outputs
+            for(const auto &e : neuronUpdateProcess->getOutputEvents()) {
+                // Add function to environment to store current mask (inherently which neurons are spiking) to scalar memory
+                unrollEnv.add(emitEventFunctionType, e.first, 
+                                [e, maskReg, r, &eventBufferRegisters](auto &env, auto&, auto &scalarRegisterAllocator, auto spikeMaskReg, const auto&)
+                                {
+                                    // If this loop iteration has a mask, AND it with spike mask and store word
+                                    if(maskReg) {
+                                        ALLOCATE_SCALAR(STmp);
+                                        env.getCodeGenerator().and_(*STmp, *spikeMaskReg, *maskReg);
+                                        env.getCodeGenerator().sw(*STmp, *eventBufferRegisters.at(e.second), 4 * r);
+                                    }
+                                    // Otherwise, just store spike mask register
+                                    else {
+                                        env.getCodeGenerator().sw(*spikeMaskReg, *eventBufferRegisters.at(e.second), 4 * r);
+                                    }
+                                      
+                                    return std::make_pair(RegisterPtr{}, false);
+                                });
+            }
+
+            // **HACK** if you're unlucky, there can be a RAW hazard between last load and first instruction so nop
+            unrollEnv.getCodeGenerator().nop();
+
+            // Compile tokens
+            // **NOTE** we don't pass mask register through here - aside from blocking 
+            // spike generation, there's no need to mask EVERY assignement etc
+            {
+                TypeChecker::EnvironmentInternal typeCheckEnv(unrollEnv);
+                EnvironmentInternal compilerEnv(unrollEnv);
+                ErrorHandler errorHandler("Neuron update process '" + neuronUpdateProcess->getName() + "'");        
+                compileStatements(neuronUpdateProcess->getTokens(), {}, literalPool, typeCheckEnv, compilerEnv,
+                                    errorHandler, nullptr, nullptr, m_NeuronUpdateRoundingMode, 
+                                    m_ScalarRegisterAllocator.get(), m_VectorRegisterAllocator.get());
+            }
+
+            // Loop through variables
+            for(const auto &v : neuronUpdateProcess->getVariables()) {
+                // Get register
+                const auto reg = std::get<VectorRegisterAllocator::RegisterPtr>(unrollEnv.getRegister(v.first));
+                    
+                // Generate store
+                varBuffers.at(v.second)->genStore(unrollEnv, reg, r);
+            }
+        },
+        [this, &eventBufferRegisters, &neuronUpdateProcess, &varBuffers]
+        (CodeGenerator &c, uint32_t numUnrolls)
+        {
+            // If any variables have vector addresses i.e. are stored in LLM, load number of bytes to unroll
+            VectorRegisterAllocator::RegisterPtr numUnrollBytesReg;
+            if(std::any_of(varBuffers.cbegin(), varBuffers.cend(),
+                            [](const auto &v){ return v.second->needsNumUnrollBytesReg(); }))
+            {
+                numUnrollBytesReg = m_VectorRegisterAllocator.get().getRegister("NumUnrollBytes V");
+                c.vlui(*numUnrollBytesReg, numUnrolls * 2);
+            }
+            
+            // Loop through variables and increment buffers
+            for(const auto &v : neuronUpdateProcess->getVariables()) {
+                varBuffers.at(v.second)->genIncrement(c, numUnrolls, numUnrollBytesReg);
+            }
+
+            // Loop through output events and increment buffers
+            for(const auto &e : neuronUpdateProcess->getOutputEvents()) {
+                const auto bufferReg = eventBufferRegisters.at(e.second);
+                c.addi(*bufferReg, *bufferReg, 4 * numUnrolls);
+                }
+        });
 }*/
 
 //----------------------------------------------------------------------------
@@ -692,7 +965,441 @@ void EventPropagationProcess::updateMaxDMABufferSize(size_t &maxRowLength) const
                                            Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                            Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
-}*/
+    // Make some friendlier-named references
+    auto &c = m_CodeGenerator.get();
+
+    // Register allocation
+    ALLOCATE_SCALAR(SEventBuffer);
+    ALLOCATE_SCALAR(SEventBufferEnd);
+
+    // Generate code to load address of input event buffer
+    const auto &processFields = m_Model.get().getStatefulFields();
+    c.lw(*SEventBuffer, Reg::X0, processFields.at(processes.front()).at(processes.front()->getInputEvents()));
+
+    {
+        // Load immediate with number of words required to represent one timestep of input spikes
+        ALLOCATE_SCALAR(STmp);
+        c.li(*STmp, ceilDivide(processes.front()->getNumSourceNeurons(), 32) * 4);
+
+        // If there are multiple timesteps, multiply timestep by stride and add to event start pointer
+        // **TODO** currently this just handles providing entire simulation kernel worth of event data or
+        // recording events for entire simulation - extend to support axonal delays and ring-buffer recording
+        const size_t numBufferTimesteps = processes.front()->getInputEvents()->getNumBufferTimesteps();
+        if (numBufferTimesteps != 1) {
+            // Check there is a buffer entry for each timestep
+            // **NOTE** because event propagation processes only READ 
+            // events, there's no need for extra buffer entry to write into this timestep
+            if(numBufferTimesteps < m_NumTimesteps.value()) {
+                throw std::runtime_error("Events need to be buffered for " + std::to_string(m_NumTimesteps.value()) + " timesteps");
+            }
+
+            // Multiply time by stride and add to address
+            ALLOCATE_SCALAR(STmp2);
+            c.mul(*STmp2, *m_TimeRegister, *STmp);
+            c.add(*SEventBuffer, *SEventBuffer, *STmp2);
+        }
+
+        // Get address of end of input event buffer        
+        c.add(*SEventBufferEnd, *STmp, *SEventBuffer);
+    }
+
+    // If any processes have delay, load lower 16-bits of time into vector register
+    VectorRegisterAllocator::RegisterPtr vectorTimeReg;
+    if(std::any_of(processes.cbegin(), processes.cend(), 
+        [](const auto &p){ return (p->getNumDelayBits() > 0); }))
+    {
+        vectorTimeReg = vectorRegisterAllocator.getRegister("VTime V");
+        c.vfill(*vectorTimeReg, *m_TimeRegister);
+        c.vslli(1, *vectorTimeReg, *vectorTimeReg);
+    }
+
+    // Loop through postsynaptic targets and create appropriate row generator objects
+    std::vector<std::unique_ptr<RowGeneratorBase>> rowGenerators;
+    for(const auto &p : processes) {
+        if(p->getNumSparseConnectivityBits() > 0) { 
+            rowGenerators.emplace_back(
+                std::make_unique<SparseRowGenerator>(c, p, processFields.at(p), scalarRegisterAllocator, 
+                                                        vectorRegisterAllocator));
+        }
+        else if(p->getNumDelayBits() > 0) {
+            rowGenerators.emplace_back(
+                std::make_unique<DelayedRowGenerator>(c, p, processFields.at(p), vectorTimeReg,
+                                                        scalarRegisterAllocator, vectorRegisterAllocator));
+        }
+        else {
+            rowGenerators.emplace_back(
+                std::make_unique<DenseRowGenerator>(c, p, processFields.at(p), scalarRegisterAllocator, 
+                                                    vectorRegisterAllocator));
+        }
+    }
+    
+    // Generate correct loop depending on whether weights are in DRAM or URAM
+    if(m_UseDRAMForWeights) {
+        generateDRAMWordLoop(rowGenerators, SEventBuffer, SEventBufferEnd);
+    }
+    else {
+        generateURAMWordLoop(rowGenerators, SEventBuffer, SEventBufferEnd);
+    }
+}
+void generateURAMWordLoop(const std::vector<std::unique_ptr<RowGeneratorBase>> &rowGenerators, 
+                              ScalarRegisterAllocator::RegisterPtr eventBufferReg, 
+                              ScalarRegisterAllocator::RegisterPtr eventBufferEndReg)
+{
+    // Make some friendlier-named references
+    auto &scalarRegisterAllocator = m_ScalarRegisterAllocator.get();
+    auto &c = m_CodeGenerator.get();
+
+    ALLOCATE_SCALAR(SWordNStart);
+    ALLOCATE_SCALAR(SConst1);
+    ALLOCATE_SCALAR(SEventWord);
+
+    // Labels
+    auto wordLoop = createLabel();
+    auto bitLoopStart = createLabel();
+    auto bitLoopBody = createLabel();
+    auto bitLoopEnd = createLabel();
+    auto zeroSpikeWord = createLabel();
+    auto wordEnd = createLabel();
+
+    // Load some useful constants
+    c.li(*SConst1, 1);
+
+    // SWordNStart = 31
+    c.li(*SWordNStart, 31);
+        
+    // Outer word loop
+    c.L(wordLoop);
+    {
+        // Register allocation
+        ALLOCATE_SCALAR(SN);
+
+        // SEventWord = *SEventBuffer++
+        c.lw(*SEventWord, *eventBufferReg);
+        c.addi(*eventBufferReg, *eventBufferReg, 4);
+
+        // If SEventWord == 0, goto bitloop end
+        c.beq(*SEventWord, Reg::X0, bitLoopEnd);
+
+        // SN = SWordNStart
+        c.mv(*SN, *SWordNStart);
+
+        // Inner bit loop
+        c.L(bitLoopStart);
+        {
+            // Register allocation
+            ALLOCATE_SCALAR(SNumLZ);
+            ALLOCATE_SCALAR(SNumLZPlusOne);
+
+            // CNumLZ = clz(SEventWord);
+            c.clz(*SNumLZ, *SEventWord);
+
+            // If SEventWord == 1  i.e. CNumLZ == 31, goto zeroSpikeWord
+            c.beq(*SEventWord, *SConst1, zeroSpikeWord);
+            
+            // CNumLZPlusOne = CNumLZ + 1
+            c.addi(*SNumLZPlusOne, *SNumLZ, 1);
+
+            // SEventWord <<= CNumLZPlusOne
+            c.sll(*SEventWord, *SEventWord, *SNumLZPlusOne);
+
+            // SN -= SNumLZ
+            c.L(bitLoopBody);
+            c.sub(*SN, *SN, *SNumLZ);
+
+            // Loop through row generators and generate code to process rows
+            for(auto &r : rowGenerators) {
+                auto weightBufferReg = r->loadWeightBuffer(c, SN);
+                r->generateRow(c, weightBufferReg);
+            }
+
+            // SN --
+            c.addi(*SN, *SN, -1);
+            
+            // If SEventWord != 0, goto bitLoopStart
+            c.bne(*SEventWord, Reg::X0, bitLoopStart);
+        }
+
+        // SWordNStart += 32
+        c.L(bitLoopEnd);
+        c.addi(*SWordNStart, *SWordNStart, 32);
+            
+        // If SEventBuffer != SEventBufferEnd, goto wordloop
+        c.bne(*eventBufferReg, *eventBufferEndReg, wordLoop);
+
+        // Goto wordEnd
+        //c.j_(wordEnd);
+        c.beq(Reg::X0, Reg::X0, wordEnd);
+    }
+
+    // Zero event word
+    {
+        c.L(zeroSpikeWord);
+        c.li(*SEventWord, 0);
+        //c.j_(bitLoopBody);
+        c.beq(Reg::X0, Reg::X0, bitLoopBody);
+    }
+    
+    c.L(wordEnd);
+}
+
+void generateDRAMWordLoop(const std::vector<std::unique_ptr<RowGeneratorBase>> &rowGenerators, 
+                            ScalarRegisterAllocator::RegisterPtr eventBufferReg, 
+                            ScalarRegisterAllocator::RegisterPtr eventBufferEndReg)
+{
+    // Make some friendlier-named references
+    auto &scalarRegisterAllocator = m_ScalarRegisterAllocator.get();
+    auto &c = m_CodeGenerator.get();
+
+    ALLOCATE_SCALAR(SConst1);
+    ALLOCATE_SCALAR(SCurrentEventWord);
+    ALLOCATE_SCALAR(SCurrentWordStartID);
+    ALLOCATE_SCALAR(SIDPre);
+    ALLOCATE_SCALAR(SPrevIDPre);
+    ALLOCATE_SCALAR(SRowBufferA);
+    ALLOCATE_SCALAR(SRowBufferB);
+
+    // Labels
+    auto tail = createLabel();
+    auto end = createLabel();
+
+    // Do we have an even number of rows? This dictates whether swap is required
+    const bool evenNumRows = ((rowGenerators.size() % 2) == 0);
+
+    // Load row buffer pointers
+    c.lw(*SRowBufferA, Reg::X0, getBackendFieldOffset(StateObjectID::ROW_BUFFER_A));
+    c.lw(*SRowBufferB, Reg::X0, getBackendFieldOffset(StateObjectID::ROW_BUFFER_B));
+        
+    // Load some useful constants
+    c.li(*SConst1, 1);
+    c.li(*SCurrentWordStartID, 31);
+
+    //--------------------------------------------------------------------
+    // Prefetch
+    //--------------------------------------------------------------------
+    {
+        // Register allocation
+        ALLOCATE_SCALAR(SPrefetchEventWord);
+        ALLOCATE_SCALAR(SPrefetchCurrentWordStartID);
+
+        // Labels
+        auto prefetchLoop = createLabel();
+        auto prefetchWord = createLabel();
+        auto prefetchZeroEventWord = createLabel();
+
+        c.L(prefetchLoop);
+
+        // PrefetcEventWord = *eventBufferReg++
+        c.lw(*SPrefetchEventWord, *eventBufferReg);
+        c.addi(*eventBufferReg, *eventBufferReg, 4);
+
+        c.addi(*SPrefetchCurrentWordStartID, *SCurrentWordStartID, 32);
+
+        // If PrefetchEventWord != 0, goto prefetchWord
+        c.bne(*SPrefetchEventWord, Reg::X0, prefetchWord);
+
+        c.mv(*SIDPre, *SCurrentWordStartID);
+
+        // If eventWord == eventWordEnd, goto end
+        c.beq(*eventBufferReg, *eventBufferEndReg, end);
+
+        // CurrentWordStartID = PrefetchCurrentWordStartID
+        c.mv(*SCurrentWordStartID, *SPrefetchCurrentWordStartID);
+            
+        // Goto prefetch loop
+        // **YUCK** jump
+        c.beq(Reg::X0, Reg::X0, prefetchLoop);
+            
+        c.L(prefetchWord);
+
+        {
+            ALLOCATE_SCALAR(SNumLZ);
+            
+            // Zero current spike word
+            c.li(*SCurrentEventWord, 0);
+                
+            // Count leading zeros in prefetched word
+            c.clz(*SNumLZ, *SPrefetchEventWord);
+                
+            // If the word we prefetched is one, skip shifting and leave current spike word at 0
+            c.beq(*SPrefetchEventWord, *SConst1, prefetchZeroEventWord);
+ 
+            // SCurrentEventWord = SPrefetchEventWord << (NumLZ + 1)
+            c.addi(*SCurrentEventWord, *SNumLZ, 1);
+            c.sll(*SCurrentEventWord, *SPrefetchEventWord, *SCurrentEventWord);
+
+            c.L(prefetchZeroEventWord);
+
+            // PrevIDPre = CurrentWordStartID - NumLZ
+            c.sub(*SPrevIDPre, *SCurrentWordStartID, *SNumLZ);
+        }
+            
+        {
+            // Calculate weight buffer
+            auto prefetchWeightBuffer = rowGenerators[0]->loadWeightBuffer(c, SPrevIDPre);
+
+            // Start DMA write into RowBufferA
+            AssemblerUtils::generateDMAStartWrite(c, *SRowBufferA, *prefetchWeightBuffer, 
+                                                    *rowGenerators[0]->getStrideReg());
+        }
+
+        // IdPre = PrevIDPre -1
+        c.addi(*SIDPre, *SPrevIDPre, -1);
+
+        // WordStartID = PrefetchWordStartID
+        c.mv(*SCurrentWordStartID, *SPrefetchCurrentWordStartID);
+
+        // Goto tail
+        // **YUCK** jump
+        c.beq(Reg::X0, Reg::X0, tail);
+    }
+
+    //--------------------------------------------------------------------
+    // Iterate
+    //--------------------------------------------------------------------
+    {
+        // Labels
+        auto zeroEventWord = createLabel();
+        auto wordLoop = createLabel();
+        auto processBit = createLabel();
+        auto nextEventWord = createLabel();
+
+        c.L(zeroEventWord);
+            
+        // Zero event work and goto processBit
+        // **YUCK** jump
+        c.li(*SCurrentEventWord, 0);
+        c.beq(Reg::X0, Reg::X0, processBit);
+            
+        c.L(wordLoop);
+
+        // Loop through all but last row
+        for(size_t r = 0; r < (rowGenerators.size() - 1); r++) {
+            const bool evenRow = ((r % 2) == 0);
+            {
+                // Start DMA from weight buffer into correct buffer
+                auto fetchRowBuffer = evenRow ? SRowBufferB : SRowBufferA;
+                auto fetchWeightBuffer = rowGenerators[r + 1]->loadWeightBuffer(c, SPrevIDPre);
+                AssemblerUtils::generateDMAWaitForWriteComplete(c, scalarRegisterAllocator);
+                AssemblerUtils::generateDMAStartWrite(c, *fetchRowBuffer, *fetchWeightBuffer, 
+                                                        *rowGenerators[r + 1]->getStrideReg());
+            }
+
+            // Generate code to process row in other buffer
+            {
+                ALLOCATE_SCALAR(SRowBuffer);
+                c.mv(*SRowBuffer, evenRow ? *SRowBufferA : *SRowBufferB);
+                rowGenerators[r]->generateRow(c, SRowBuffer);
+            }
+        }    
+
+        {
+            ALLOCATE_SCALAR(SNumLZ);
+
+            // If CurrentSpikeWord == 1 i.e. NumLZ == 31, goto zeroEventWord
+            c.clz(*SNumLZ, *SCurrentEventWord);
+            c.beq(*SCurrentEventWord, *SConst1, zeroEventWord);
+
+            // CurrentEventWord = CurrentEventWord << (NumLZ + 1)
+            {
+                ALLOCATE_SCALAR(STmp);
+                c.addi(*STmp, *SNumLZ, 1);
+                c.sll(*SCurrentEventWord, *SCurrentEventWord, *STmp);
+            }
+                
+            c.L(processBit);
+
+            // IDPre -= NumLZ
+            c.sub(*SIDPre, *SIDPre, *SNumLZ);
+        }
+
+        {
+            // Start DMA write into correct buffer
+            auto fetchRowBuffer = evenNumRows ? SRowBufferA : SRowBufferB;
+            auto fetchWeightBuffer = rowGenerators[0]->loadWeightBuffer(c, SIDPre);
+            AssemblerUtils::generateDMAWaitForWriteComplete(c, scalarRegisterAllocator);
+            AssemblerUtils::generateDMAStartWrite(c, *fetchRowBuffer, *fetchWeightBuffer, 
+                                                    *rowGenerators[0]->getStrideReg());
+        }
+
+        // Generate code to process row in other buffer
+        {
+            ALLOCATE_SCALAR(SRowBuffer);
+            c.mv(*SRowBuffer, evenNumRows ? *SRowBufferB : *SRowBufferA);
+            rowGenerators.back()->generateRow(c, SRowBuffer);
+        }
+
+        // If we have an odd number of rows, swap buffers
+        if(!evenNumRows) {
+            ALLOCATE_SCALAR(STmp);
+            c.mv(*STmp, *SRowBufferA);
+            c.mv(*SRowBufferA, *SRowBufferB);
+            c.mv(*SRowBufferB, *STmp);
+        }
+            
+        // PrevIDPre = IDPre
+        c.mv(*SPrevIDPre, *SIDPre);
+
+        {
+            // Register allocation
+            ALLOCATE_SCALAR(SPrevWordStartID);
+            ALLOCATE_SCALAR(SNextEventBuffer);
+
+            c.mv(*SPrevWordStartID, *SCurrentWordStartID);
+            c.addi(*SCurrentWordStartID, *SIDPre, -1);
+
+            c.mv(*SNextEventBuffer, *eventBufferReg);
+                
+            c.L(nextEventWord);
+
+            c.mv(*SIDPre, *SCurrentWordStartID);
+            c.mv(*SCurrentWordStartID, *SPrevWordStartID);
+            c.mv(*eventBufferReg, *SNextEventBuffer);
+
+            c.L(tail);
+
+            // If CurrentEventWord != 0, goto wordLoop
+            c.bne(*SCurrentEventWord, Reg::X0, wordLoop);
+                
+            c.addi(*SNextEventBuffer, *eventBufferReg, 4);
+            c.lw(*SCurrentEventWord, *eventBufferReg);
+            c.addi(*SPrevWordStartID, *SCurrentWordStartID, 32);
+                
+            // If nextEventWord < eventWordEnd i.e. there is a next goto nextEventWord
+            c.bgeu(*eventBufferEndReg, *SNextEventBuffer, nextEventWord);
+        }
+            
+        // Loop through all but last row
+        for(size_t r = 0; r < (rowGenerators.size() - 1); r++) {
+            const bool evenRow = ((r % 2) == 0);
+            {
+                // Start DMA write into correct buffer
+                auto fetchRowBuffer = evenRow ? SRowBufferB : SRowBufferA;
+                auto fetchWeightBuffer = rowGenerators[r + 1]->loadWeightBuffer(c, SPrevIDPre);
+
+                // Start DMA write into RowBufferA
+                AssemblerUtils::generateDMAWaitForWriteComplete(c, scalarRegisterAllocator);
+                AssemblerUtils::generateDMAStartWrite(c, *fetchRowBuffer, *fetchWeightBuffer, 
+                                                    *rowGenerators[r + 1]->getStrideReg());
+            }
+
+            // Generate code to process row in other buffer
+            {
+                ALLOCATE_SCALAR(SRowBuffer);
+                c.mv(*SRowBuffer, evenRow ? *SRowBufferA : *SRowBufferB);
+                rowGenerators[r]->generateRow(c, SRowBuffer);
+            }
+
+        }
+
+        // Generate code to process final row
+        AssemblerUtils::generateDMAWaitForWriteComplete(c, scalarRegisterAllocator);
+        rowGenerators.back()->generateRow(c, evenNumRows ? SRowBufferB : SRowBufferA);
+
+    }
+
+    c.L(end);
+}
+*/
 
 //----------------------------------------------------------------------------
 // FeNN::Backend::RNGInitProcess
