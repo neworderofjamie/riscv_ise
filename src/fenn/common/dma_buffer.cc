@@ -41,7 +41,7 @@ T getIOCtl(int file, unsigned long op)
 namespace FeNN::Common
 {
 DMABuffer::DMABuffer(int index)
-:   m_UnmapData(true), m_Data(nullptr), m_PhysicalAddress(0), m_Size(0)
+:   m_Data(nullptr), m_PhysicalAddress(0), m_Size(0), m_UnmapData(true)
 {
 #ifdef __linux__ 
     LOGI << "Creating DMA buffer " << index;
@@ -72,7 +72,7 @@ DMABuffer::DMABuffer(int index)
 }
 //----------------------------------------------------------------------------
 DMABuffer::DMABuffer(DMABuffer &parent, uint64_t physicalStartAddress, uint64_t physicalEndAddress)
-:   m_UnmapData(false), m_Data(nullptr), m_PhysicalAddress(0), m_Size(0)
+:   m_Data(nullptr), m_PhysicalAddress(0), m_Size(0), m_UnmapData(false)
 {
 #ifdef __linux__ 
     LOGI << "Creating child DMA buffer with target physical memory region: " << std::hex << physicalStartAddress << " - " << physicalEndAddress;
