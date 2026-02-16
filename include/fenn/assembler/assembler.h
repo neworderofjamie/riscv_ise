@@ -284,26 +284,26 @@ private:
     public:
         // JAL
         Jmp(uint32_t from, Common::Reg rd)
-            : m_Type(Type::JAL), m_From(from), m_Encoded((static_cast<uint32_t>(rd) << 7) | addQuadrant(Common::StandardOpCode::JAL))
+        :   m_Type(Type::JAL), m_From(from), m_Encoded((static_cast<uint32_t>(rd) << 7) | addQuadrant(Common::StandardOpCode::JAL))
         {
         }
 
         // JALR
         Jmp(uint32_t from, Common::Reg rd, Common::Reg src)
-            : m_Type(Type::JALR), m_From(from),
+        :   m_Type(Type::JALR), m_From(from),
             m_Encoded((static_cast<uint32_t>(src) << 15) | (static_cast<uint32_t>(rd) << 7) | addQuadrant(Common::StandardOpCode::JALR))
         {
         }
 
         // BRANCH
         Jmp(uint32_t from, Common::Bit<7> opcode, uint32_t funct3, Common::Reg src1, Common::Reg src2)
-            : m_Type(Type::BRANCH), m_From(from),
+        :   m_Type(Type::BRANCH), m_From(from),
             m_Encoded((static_cast<uint32_t>(src2) << 20) | (static_cast<uint32_t>(src1) << 15) | (funct3 << 12) | opcode)
         {
         }
 
         Jmp(const Jmp& other, uint32_t offset)
-            : m_From(other.m_From + offset), m_Encoded(other.m_Encoded), m_Type(other.m_Type)
+        :   m_Type(other.m_Type), m_From(other.m_From + offset), m_Encoded(other.m_Encoded)
         {
         }
 
@@ -312,9 +312,9 @@ private:
 
     private:
         // Address of the jmp mnemonic
+        Type m_Type;
         uint32_t m_From;
         uint32_t m_Encoded;
-        Type m_Type;
     };
 
     //------------------------------------------------------------------------
