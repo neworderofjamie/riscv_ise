@@ -19,35 +19,21 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\..\include\fenn\backend\backend_export.h" />
-    <ClInclude Include="..\..\..\include\fenn\backend\backend_fenn.h" />
-    <ClInclude Include="..\..\..\include\fenn\backend\backend_fenn_hw.h" />
-    <ClInclude Include="..\..\..\include\fenn\backend\backend_fenn_sim.h" />
-    <ClInclude Include="..\..\..\include\fenn\backend\environment.h" />
-    <ClInclude Include="..\..\..\include\fenn\backend\graph.h" />
-    <ClInclude Include="..\..\..\include\fenn\backend\memory_allocator.h" />
-    <ClInclude Include="..\..\..\include\fenn\backend\model.h" />
-    <ClInclude Include="..\..\..\include\fenn\backend\process.h" />
-    <ClInclude Include="..\..\..\include\fenn\backend\special_function.h" />
+    <ClCompile Include="merged_model.cc" />
+    <ClCompile Include="runtime.cc" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="backend_fenn.cc" />
-    <ClCompile Include="backend_fenn_hw.cc" />
-    <ClCompile Include="backend_fenn_sim.cc" />
-    <ClCompile Include="environment.cc" />
-    <ClCompile Include="graph.cc" />
-    <ClCompile Include="memory_allocator.cc" />
-    <ClCompile Include="model.cc" />
-    <ClCompile Include="process.cc" />
-    <ClCompile Include="special_functions.cc" />
+    <ClInclude Include="..\..\include\backend\backend_export.h" />
+    <ClInclude Include="..\..\include\backend\merged_model.h" />
+    <ClInclude Include="..\..\include\backend\runtime.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
-    <ProjectGuid>{61937C8F-FB31-471A-9032-1D883A26E0EF}</ProjectGuid>
+    <ProjectGuid>{92374D07-3B09-41F2-9622-B87DDB21AA8B}</ProjectGuid>
     <RootNamespace>riscvise</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
-    <ProjectName>fenn_backend</ProjectName>
+    <ProjectName>backend</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Label="Configuration">
@@ -81,23 +67,21 @@
       <FunctionLevelLinking Condition=" $(Configuration.Contains('Release')) ">true</FunctionLevelLinking>
       <IntrinsicFunctions Condition=" $(Configuration.Contains('Release')) ">true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">_DEBUG;WIN32_LEAN_AND_MEAN;NOMINMAX;_CONSOLE;FFI_BUILDING;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NDEBUG;WIN32_LEAN_AND_MEAN;NOMINMAX;_CONSOLE;FFI_BUILDING;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug_DLL|x64'">_DEBUG;WIN32_LEAN_AND_MEAN;NOMINMAX;_CONSOLE;LINKING_ASSEMBLER_DLL;LINKING_COMMON_DLL;LINKING_COMPILER_DLL;LINKING_ISE_DLL;LINKING_GENN_DLL;BUILDING_BACKEND_DLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release_DLL|x64'">NDEBUG;WIN32_LEAN_AND_MEAN;NOMINMAX;_CONSOLE;LINKING_ASSEMBLER_DLL;LINKING_COMMON_DLL;LINKING_COMPILER_DLL;LINKING_ISE_DLL;LINKING_GENN_DLL;BUILDING_BACKEND_DLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">_DEBUG;WIN32_LEAN_AND_MEAN;NOMINMAX;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NDEBUG;WIN32_LEAN_AND_MEAN;NOMINMAX;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug_DLL|x64'">_DEBUG;WIN32_LEAN_AND_MEAN;NOMINMAX;_CONSOLE;BUILDING_COMMON_DLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release_DLL|x64'">NDEBUG;WIN32_LEAN_AND_MEAN;NOMINMAX;_CONSOLE;BUILDING_COMMON_DLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <DisableSpecificWarnings Condition=" $(Configuration.Contains('DLL')) ">4251</DisableSpecificWarnings>
       <LanguageStandard>stdcpp17</LanguageStandard>
-      <AdditionalIncludeDirectories>$(SolutionDir)include;$(SolutionDir)genn/include/genn/third_party;$(SolutionDir)genn/include/genn/genn;$(SolutionDir)genn/include/genn/third_party/libffi;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)include;$(SolutionDir)genn\include\genn\genn;$(SolutionDir)genn\include\genn\third_party;$(SolutionDir)genn\include\genn\third_party\libffi;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation Condition=" $(Configuration.Contains('Release')) ">true</GenerateDebugInformation>
       <EnableCOMDATFolding Condition=" $(Configuration.Contains('Release')) ">true</EnableCOMDATFolding>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>assembler_$(Configuration).lib;common_$(Configuration).lib;compiler_$(Configuration).lib;common_$(Configuration).lib;ise_$(Configuration).lib;genn_$(Configuration).lib;libffi_$(Configuration).lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories Condition=" !$(Configuration.Contains('DLL')) ">$(OutDir);$(SolutionDir)genn/lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalLibraryDirectories Condition=" $(Configuration.Contains('DLL')) ">$(OutDir);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(OutDir);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

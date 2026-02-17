@@ -347,7 +347,7 @@ public:
                                            const ::Model::Model::StateProcesses::mapped_type &processes,
                                            StateBase *state) const;
 
-    std::unique_ptr<ArrayBase> createArray(std::shared_ptr<const State> state, 
+    std::unique_ptr<ArrayBase> createArray(std::shared_ptr<const ::Model::State> state, 
                                            int stateID, StateBase *backendState) const;
 
     //! Get mapping of IDs to state objects for any backend-specific state this model is going to require

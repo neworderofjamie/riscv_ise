@@ -1,4 +1,4 @@
-#include "backend/backend_fenn_sim.h"
+#include "fenn/backend/backend_fenn_sim.h"
 
 // Standard C++ includes
 #include <stdexcept>
@@ -9,13 +9,13 @@
 // Common includes
 #include "common/utils.h"
 
-// ISE includes
-#include "ise/dma_controller_sim.h"
-#include "ise/riscv.h"
-#include "ise/vector_processor.h"
+// FeNN ISE includes
+#include "fenn/ise/dma_controller_sim.h"
+#include "fenn/ise/riscv.h"
+#include "fenn/ise/vector_processor.h"
 
-// Backend includes
-#include "backend/memory_allocator.h"
+// FeNN backend includes
+#include "fenn/backend/memory_allocator.h"
 
 
 //------------------------------------------------------------------------
