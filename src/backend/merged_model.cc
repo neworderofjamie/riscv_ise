@@ -15,6 +15,7 @@
 namespace Backend
 {
 MergedModel::MergedModel(const ::Model::Model &model)
+:   m_Model(model)
 {
     // Loop through all kernels in model
     for(const auto &k : model.getKernels()) {

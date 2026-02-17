@@ -13,6 +13,7 @@
 
 // Backend includes
 #include "backend/backend_export.h"
+#include "backend/merged_model.h"
 
 // Forward declarations
 namespace Model
@@ -118,27 +119,43 @@ public:
     //------------------------------------------------------------------------
     // Declared virtuals
     //------------------------------------------------------------------------
-    //! Run kernel
+    //! Run kernel on device
     virtual void run(std::shared_ptr<const ::Model::Kernel> kernel) = 0;
 
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
-    //! Allocate memory for model
+    //! Allocate memory for model on device
     void allocate();
    
     // Get array associated with model state
-    ArrayBase *getArray(std::shared_ptr<const ::Model::State> variable) const;
+    ArrayBase *getArray(std::shared_ptr<const ::Model::State> state) const;
 
 
     //std::optional<unsigned int> getSOCPower() const;
+    
+protected:
+    //------------------------------------------------------------------------
+    // Declared virtuals
+    //------------------------------------------------------------------------
+    //! Backend-specific logic to run at beginning of allocate function
+    virtual void allocatePreamble() {}
 
+    //! Backend-specific logic to run at end of allocate function
+    virtual void allocatePostamble() {}
+
+    //! Create suitable array for model state
+    virtual std::unique_ptr<ArrayBase> createArray(std::shared_ptr<const ::Model::State> state) const = 0;
+
+    //! Set the fields associated with a merged process
+    virtual void setMergedProcessFields(const MergedProcess &mergedProcess) const = 0;
 private:
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
     std::unordered_map<std::shared_ptr<const ::Model::State>, std::unique_ptr<ArrayBase>> m_Arrays;
-    std::reference_wrapper<const ::Model::Model> m_Model;
+    
+    MergedModel m_MergedModel;
     //std::unique_ptr<IFieldArray> m_FieldArray;
 };
 }
