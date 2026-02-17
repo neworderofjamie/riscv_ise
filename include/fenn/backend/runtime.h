@@ -300,13 +300,15 @@ protected:
     //! Create suitable array for variable
     virtual std::unique_ptr<::Backend::ArrayBase> createArray(std::shared_ptr<const ::Model::Variable> variable) const override final;
 
+    //------------------------------------------------------------------------
+    // Protected API
+    //------------------------------------------------------------------------
+    const auto &getKernelCode(KernelPtr kernel) const{ return m_KernelCode.at(kernel); }
+
 private:
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
-    //! Currently loaded kernel
-    KernelPtr m_CurrentLoadedKernel;
-
     // Map of kernel pointers to code
     std::unordered_map<KernelPtr, std::vector<uint32_t>> m_KernelCode;
 
