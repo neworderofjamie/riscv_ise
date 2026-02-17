@@ -1,5 +1,8 @@
 #include "backend/runtime.h"
 
+// Standard C includes
+#include <cstring>
+
 // Model includes
 #include "model/model.h"
 #include "model/model_component.h"
