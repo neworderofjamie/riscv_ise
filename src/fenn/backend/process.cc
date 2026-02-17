@@ -595,7 +595,7 @@ private:
 namespace FeNN::Backend
 {
 void NeuronUpdateProcess::updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, 
-                                                      bool, MemSpaceCompatibility &memSpaceCompatibility) const
+                                                      MemSpaceCompatibility &memSpaceCompatibility) const
 {
     const auto var = std::find_if(getVariables().cbegin(), getVariables().cend(),
                                   [&state](const auto &v){ return v.second == state; });
@@ -895,31 +895,18 @@ void NeuronUpdateProcess::updateMemSpaceCompatibility(std::shared_ptr<const ::Mo
 // FeNN::Backend::EventPropagationProcess
 //----------------------------------------------------------------------------
 void EventPropagationProcess::updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, 
-                                                          bool useDRAMForWeights, MemSpaceCompatibility &memSpaceCompatibility) const
+                                                          MemSpaceCompatibility &memSpaceCompatibility) const
 {
-    // If variable is weight, it can only be located in URAM
+    // If variable is weight, it can  be located in URAM or DRAM
     if(state == getWeight()) {
         memSpaceCompatibility.llm = false;
         memSpaceCompatibility.bram = false;
         memSpaceCompatibility.uramLLM = false;
 
-        if(useDRAMForWeights) {
-            memSpaceCompatibility.uram = false;
-
-            if(!memSpaceCompatibility.dram) {
-                throw std::runtime_error("Event propagation process '" + getName() 
-                                         + "' weight array '" + getWeight()->getName()
-                                         + "' shared with incompatible processes");
-            }
-        }
-        else {
-            memSpaceCompatibility.dram = false;
-
-            if(!memSpaceCompatibility.uram) {
-                throw std::runtime_error("Event propagation process '" + getName() 
-                                         + "' weight array '" + getWeight()->getName()
-                                         + "' shared with incompatible processes");
-            }
+        if(!memSpaceCompatibility.dram || !memSpaceCompatibility.uram) {
+            throw std::runtime_error("Event propagation process '" + getName() 
+                                        + "' weight array '" + getWeight()->getName()
+                                        + "' shared with incompatible processes");
         }
     }
     // Otherwise, if variable's target
@@ -1405,7 +1392,7 @@ void generateDRAMWordLoop(const std::vector<std::unique_ptr<RowGeneratorBase>> &
 // FeNN::Backend::RNGInitProcess
 //----------------------------------------------------------------------------
 void RNGInitProcess::updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, 
-                                                 bool, MemSpaceCompatibility &memSpaceCompatibility) const
+                                                 MemSpaceCompatibility &memSpaceCompatibility) const
 {
     assert (state == rngInitProcess->getSeed());
 
@@ -1448,7 +1435,7 @@ void RNGInitProcess::updateMemSpaceCompatibility(std::shared_ptr<const ::Model::
 // FeNN::Backend::MemsetProcess
 //----------------------------------------------------------------------------
 void MemsetProcess::updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, 
-                                                bool, MemSpaceCompatibility &memSpaceCompatibility) const
+                                                MemSpaceCompatibility &memSpaceCompatibility) const
 {
     const auto target = std::get<::Model::VariablePtr>(getTarget());
     assert(state == target);
@@ -1601,7 +1588,7 @@ void MemsetProcess::generateURAMMemset(Assembler::CodeGenerator &codeGenerator,
 // FeNN::Backend::BroadcastProcess
 //----------------------------------------------------------------------------
 void BroadcastProcess::updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, 
-                                                   bool, MemSpaceCompatibility &memSpaceCompatibility) const
+                                                   MemSpaceCompatibility &memSpaceCompatibility) const
 {
     // If variable is source, it can only be located in BRAM
     if(state == getSource()) {

@@ -45,7 +45,7 @@ public:
     using StateMemSpaceCompatibility = std::unordered_map<std::shared_ptr<const ::Model::State>, 
                                                           MemSpaceCompatibility>;
 
-    Model(const Model::KernelVector &graphs, bool useDRAMForWeights = true);
+    Model(const Model::KernelVector &graphs);
 
     //------------------------------------------------------------------------
     // Public API
