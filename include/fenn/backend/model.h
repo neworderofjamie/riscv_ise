@@ -50,7 +50,10 @@ public:
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
-    const auto &getStateMemSpaceCompatibility() const{ return m_StateMemSpaceCompatibility; }
+    const auto &getStateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state) const
+    {
+        return m_StateMemSpaceCompatibility.at(state);
+    }
 
 private:
     //------------------------------------------------------------------------

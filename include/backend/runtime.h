@@ -18,9 +18,12 @@
 // Forward declarations
 namespace Model
 {
+class EventContainer;
 class Kernel;
 class Model;
+class PerformanceCounter;
 class State;
+class Variable;
 }
 
 //----------------------------------------------------------------------------
@@ -144,12 +147,26 @@ protected:
     //! Backend-specific logic to run at end of allocate function
     virtual void allocatePostamble() {}
 
-    //! Create suitable array for model state
-    virtual std::unique_ptr<ArrayBase> createArray(std::shared_ptr<const ::Model::State> state) const = 0;
+    //! Create suitable array for event container
+    virtual std::unique_ptr<ArrayBase> createArray(std::shared_ptr<const ::Model::EventContainer> eventContainer) const = 0;
+
+    //! Create suitable array for performance counter
+    virtual std::unique_ptr<ArrayBase> createArray(std::shared_ptr<const ::Model::PerformanceCounter> performanceCounter) const = 0;
+
+    //! Create suitable array for variable
+    virtual std::unique_ptr<ArrayBase> createArray(std::shared_ptr<const ::Model::Variable> variable) const = 0;
 
     //! Set the fields associated with a merged process
     virtual void setMergedProcessFields(const MergedProcess &mergedProcess) const = 0;
+
+    //------------------------------------------------------------------------
+    // Protected API
+    //------------------------------------------------------------------------
+    const auto &getMergedModel() const{ return m_MergedModel; }
+
 private:
+    std::unique_ptr<ArrayBase> createArray(std::shared_ptr<const ::Model::State> state) const;
+
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------

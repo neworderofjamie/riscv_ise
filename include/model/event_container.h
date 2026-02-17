@@ -14,11 +14,11 @@
 //----------------------------------------------------------------------------
 namespace Model
 {
-class MODEL_EXPORT EventContainer : public State
+class MODEL_EXPORT EventContainer : public AcceptableState<EventContainer>
 {
 public:
     EventContainer(Private, const Shape &shape, size_t numBufferTimesteps, const std::string &name)
-    :   State(name), m_Shape(shape),
+    :   AcceptableState<EventContainer>(name), m_Shape(shape),
         m_NumBufferTimesteps(numBufferTimesteps)
     {}
 
