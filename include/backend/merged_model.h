@@ -22,7 +22,7 @@ class MergedProcess
 {
 public:
     MergedProcess(size_t index, const std::vector<std::shared_ptr<::Model::Process const>> &processes)
-    :   m_Index(index), m_Processes(std::move(processes))
+    :   m_Index(index), m_Processes(processes)
     {}
 
     //------------------------------------------------------------------------
@@ -52,13 +52,20 @@ class MergedModel
 public:
     MergedModel(const ::Model::Model &model);
 
+    //----------------------------------------------------------------------------
+    // Public API
+    //----------------------------------------------------------------------------
+    const auto &getModel() const{ return m_Model.get(); }
+
     //! Get map of process groups to merged processes
     const auto &getMergedProcessGroups() const{ return m_MergedProcessGroups; }
 
 private:
     //----------------------------------------------------------------------------
     // Members
-    // //----------------------------------------------------------------------------
+    //----------------------------------------------------------------------------
+    std::reference_wrapper<const ::Model::Model> m_Model;
+    
     // Map of process groups to vector of mergeable processes
     std::unordered_map<std::shared_ptr<::Model::ProcessGroup const>, 
                        std::vector<MergedProcess>> m_MergedProcessGroups;

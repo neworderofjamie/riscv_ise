@@ -2,10 +2,7 @@
 
 // Model includes
 #include "model/model.h"
-
-// Backend includes
-#include "backend/backend_fenn.h"
-//#include "fenn/backend/model.h"
+#include "model/model_component.h"
 
 //--------------------------------------------------------------------------
 // Backend::ArrayBase
@@ -21,27 +18,41 @@ void ArrayBase::memsetHostPointer(int value)
 // Runtime
 //----------------------------------------------------------------------------
 Runtime::Runtime(const ::Model::Model &model)
-:   m_Model(model)
+:   m_MergedModel(model)
 {
+    // 1) Generate code - fields must be allocated here
+    // 2) Build code
 }
 //----------------------------------------------------------------------------
 void Runtime::allocate()
 {
     // Create special array to hold field information
+    // **THINK** fields need to have been allocated at this point
     //m_FieldArray = m_State->createFieldArray(m_Model.get());
+    // Perform backend-specific logic
+    allocatePreamble();
 
     // Loop through state objects used by model
-    for (const auto &s : m_Model.get().getStateProcesses()) {
-        // Visit state process to allocate appropriate type of array
-        //AllocatorVisitor visitor(s, m_Backend.get(), m_State.get());
-        // **TODO** virtual in state to create array using derived model
+    for (const auto &s : m_MergedModel.getModel().getStateProcesses()) {
+        // Create array
+        auto array = createArray(s.first);
 
         // Take ownership of array and add to arrays map
-        //if (!m_Arrays.try_emplace(s.first, std::move(visitor.getArray())).second) {
-        //    assert(false);
-        //}
+        if (!m_Arrays.try_emplace(s.first, std::move(array)).second) {
+            throw std::runtime_error("Duplicate array found for state '" + s.first->getName() + "'");
+        }
     }
 
+    // Loop through all process groups
+    for(const auto &g : m_MergedModel.getMergedProcessGroups()) {
+        // Loop through all merged processes and setup fields
+        for (const auto &m : g.second) {
+            setMergedProcessFields(m);
+        }
+    }
+
+    // Perform backend-specific logic
+    allocatePostamble();
     // Loop through all stateful objects with fields that require population
     /*for(const auto &p : m_Model.get().getStatefulFields()) {
         // Loop through all fields associated with stateful object and assign corresponding arrays to field
