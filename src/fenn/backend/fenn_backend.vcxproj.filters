@@ -14,15 +14,6 @@
     <ClInclude Include="..\..\..\include\fenn\backend\backend_export.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\include\fenn\backend\backend_fenn.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\include\fenn\backend\backend_fenn_hw.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\include\fenn\backend\backend_fenn_sim.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\..\include\fenn\backend\environment.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -41,18 +32,18 @@
     <ClInclude Include="..\..\..\include\fenn\backend\model.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\include\fenn\backend\runtime.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\fenn\backend\runtime_hw.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\fenn\backend\runtime_sim.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="backend_fenn_hw.cc">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="backend_fenn_sim.cc">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="memory_allocator.cc">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="backend_fenn.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="environment.cc">
@@ -68,6 +59,15 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="model.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="runtime_sim.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="runtime.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="runtime_hw.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
