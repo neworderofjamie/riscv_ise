@@ -17,12 +17,12 @@
 //----------------------------------------------------------------------------
 namespace Model
 {
-class MODEL_EXPORT Variable : public State
+class MODEL_EXPORT Variable : public AcceptableState<Variable>
 {
 public:
     Variable(Private, const Shape &shape, const GeNN::Type::UnresolvedType &type, 
              size_t numBufferTimesteps, const std::string &name)
-    :   State(name), m_Shape(shape), 
+    :   AcceptableState<Variable>(name), m_Shape(shape), 
         m_Type(type.resolve({})), m_NumBufferTimesteps(numBufferTimesteps)
     {}
 

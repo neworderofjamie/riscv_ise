@@ -1,11 +1,62 @@
 #include "backend/runtime.h"
 
+// Standard C++ includes
+#include <functional>
+
 // Standard C includes
 #include <cstring>
 
 // Model includes
 #include "model/model.h"
 #include "model/model_component.h"
+
+namespace
+{
+class LambdaVariableVisitor : public Model::StateVisitor
+{
+    using Return = std::unique_ptr<Backend::ArrayBase>;
+
+    template<typename T>
+    using Handler = std::function<Return(std::shared_ptr<const T>)>;
+
+    using EventContainerHandler = Handler<Model::EventContainer>;
+    using PerformanceCounterHandler = Handler<Model::PerformanceCounter>;
+    using VariableHandler = Handler<Model::Variable>;
+
+public:
+    LambdaVariableVisitor(std::shared_ptr<const Model::State> state,
+                          EventContainerHandler handleEventContainer,
+                          PerformanceCounterHandler handlePerformanceCounter,
+                          VariableHandler handleVariable)
+    :   m_HandleEventContainer(handleEventContainer), 
+        m_HandlePerformanceCounter(handlePerformanceCounter),
+        m_HandleVariable(handleVariable)
+    {
+        state->accept(*this);
+    }
+
+    Return &getReturn()
+    {
+        return m_Return;
+    }
+
+private:
+    #define IMPLEMENT_VISIT(TYPE)   \
+        virtual void visit(std::shared_ptr<const Model::TYPE> state) override final    \
+        {                                                                           \
+            m_Return = std::move(m_Handle##TYPE(state));                                          \
+        }                                                                           \
+        TYPE##Handler m_Handle##TYPE
+
+    IMPLEMENT_VISIT(EventContainer);
+    IMPLEMENT_VISIT(PerformanceCounter);
+    IMPLEMENT_VISIT(Variable);
+
+    #undef IMPLEMENT_VISIT
+
+    Return m_Return;
+};
+}
 
 //--------------------------------------------------------------------------
 // Backend::ArrayBase
@@ -91,4 +142,22 @@ ArrayBase *Runtime::getArray(std::shared_ptr<const ::Model::State> variable) con
 {
     return m_State->getSOCPower();
 }*/
+//----------------------------------------------------------------------------
+std::unique_ptr<ArrayBase> Runtime::createArray(std::shared_ptr<const ::Model::State> state) const
+{
+    LambdaVariableVisitor v(state,
+                            [this](auto eventContainer)
+                            {
+                                return createArray(eventContainer);
+                            },
+                            [this](auto performanceCounter)
+                            {
+                                return createArray(performanceCounter);
+                            },
+                            [this](auto variable)
+                            {
+                                return createArray(variable);
+                            });
+    return std::move(v.getReturn());
+}
 }

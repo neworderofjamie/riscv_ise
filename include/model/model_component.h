@@ -10,7 +10,10 @@
 // Forward declarations
 namespace Model
 {
+class EventContainer;
 class Model;
+class PerformanceCounter;
+class Variable;
 }
 
 //----------------------------------------------------------------------------
@@ -49,12 +52,44 @@ private:
 //----------------------------------------------------------------------------
 // Model::State
 //----------------------------------------------------------------------------
+class StateVisitor
+{
+public:
+    virtual void visit(std::shared_ptr<const EventContainer>){}
+    virtual void visit(std::shared_ptr<const PerformanceCounter>){}
+    virtual void visit(std::shared_ptr<const Variable>){}
+};
+
+//----------------------------------------------------------------------------
+// Model::State
+//----------------------------------------------------------------------------
 class State : public ModelComponent
 {
+public:
+    //------------------------------------------------------------------------
+    // Declared virtuals
+    //------------------------------------------------------------------------
+    virtual void accept(StateVisitor &visitor) const = 0;
+
 protected:
     using ModelComponent::ModelComponent;
 };
 
+//---------------------------------------------------------------------------
+// AcceptableState
+//---------------------------------------------------------------------------
+template<typename T>
+class AcceptableState : public State
+{
+public:
+    virtual void accept(StateVisitor &visitor) const final
+    {
+        visitor.visit(std::static_pointer_cast<const T>(this->shared_from_this()));
+    }
+
+protected:
+    using State::State;
+};
 
 //----------------------------------------------------------------------------
 // Model::Stateful
