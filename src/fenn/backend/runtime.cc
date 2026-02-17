@@ -98,6 +98,13 @@ void URAMLLMArrayBase::serialiseDeviceObject(std::vector<std::byte> &bytes) cons
 //----------------------------------------------------------------------------
 // FeNN::Backend::Runtime
 //----------------------------------------------------------------------------
+Runtime::Runtime(const ::Model::Model &model, size_t numCores, bool useDRAMForWeights , bool keepParamsInRegisters, 
+                 Compiler::RoundingMode neuronUpdateRoundingMode)
+:   ::Backend::Runtime(model), m_NumCores(numCores), m_UseDRAMForWeights(useDRAMForWeights), 
+    m_KeepParamsInRegisters(keepParamsInRegisters), m_NeuronUpdateRoundingMode(neuronUpdateRoundingMode)
+{
+}
+//----------------------------------------------------------------------------
 std::unique_ptr<::Backend::ArrayBase> Runtime::createArray(std::shared_ptr<const ::Model::EventContainer> eventContainer) const
 {
     LOGI << "Creating event container '" << eventContainer->getName() << "' array in BRAM";
@@ -123,6 +130,7 @@ std::unique_ptr<::Backend::ArrayBase> Runtime::createArray(std::shared_ptr<const
     // **THINK** how much of this belongs in Shape?
     // **TODO** more information is required here to seperate variables with
     // shape (B,) which shouldn't be padded from (N,) variables which should
+    // **TODO** split variable across cores - may need to happen in Model
     auto varDims = variable->getShape().getDims();
     varDims.back() = ::Common::Utils::padSize(varDims.back(), 32);
 
@@ -135,30 +143,26 @@ std::unique_ptr<::Backend::ArrayBase> Runtime::createArray(std::shared_ptr<const
     const auto &model = dynamic_cast<const Model&>(getModelMerged().getModel());
     const auto &memSpaceCompatibility = model.getStateMemSpaceCompatibility();
     
-
-    // Create URAM array if variable can be implemented there
-    if(memSpaceCompatibility.uram) {
-        LOGI << "Creating variable '" << variable->getName() << "' array in URAM";
-        return createURAMArray(variable->getType(), count);
+    // Create array in correct memory space depending on compatibility
+    if(memSpaceCompatibility.dram && m_UseDRAMForWeights) {
+        LOGI << "Creating variable '" << variable->getName() << "' array in DRAM";
+        return createDRAMArray(variable->getType(), count, 0);
     }
-    // Otherwise, create LLM array if variable can be implemented there
+    else if(memSpaceCompatibility.uram) {
+        LOGI << "Creating variable '" << variable->getName() << "' array in URAM";
+        return createURAMArray(variable->getType(), count, 0);
+    }
     else if(memSpaceCompatibility.llm) {
         LOGI << "Creating variable '" << variable->getName() << "' array in LLM";
-        return createLLMArray(variable->getType(), count);
+        return createLLMArray(variable->getType(), count, 0);
     }
     else if(memSpaceCompatibility.uramLLM) {
         LOGI << "Creating variable '" << variable->getName() << "' array in URAM and LLM";
-        return createURAMLLMArray(variable->getType(), countOneTimestep, count);
+        return createURAMLLMArray(variable->getType(), countOneTimestep, count, 0);
     }
-    // Otherwise, create BRAM array if variable can be implemented there
     else if(memSpaceCompatibility.bram) {
         LOGI << "Creating variable '" << variable->getName() << "' array in BRAM";
-        return createBRAMArray(variable->getType(), count);
-    }
-    // Otherwise, create DRAM array if variable can be implemented there
-    else if(memSpaceCompatibility.dram) {
-        LOGI << "Creating variable '" << variable->getName() << "' array in DRAM";
-        return createDRAMArray(variable->getType(), count);
+        return createBRAMArray(variable->getType(), count, 0);
     }
     else {
         throw std::runtime_error("Variable '" + variable->getName() + "' is not compatible "

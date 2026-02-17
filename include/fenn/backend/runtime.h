@@ -6,6 +6,13 @@
 // Backend includes
 #include "backend/runtime.h"
 
+// FeNN compiler includes
+#include "fenn/compiler/compiler.h"
+
+// FeNN backend includes
+#include "fenn/backend/backend_export.h"
+#include "fenn/backend/memory_allocator.h"
+
 //----------------------------------------------------------------------------
 // FeNN::Backend::URAMArrayBase
 //----------------------------------------------------------------------------
@@ -27,7 +34,7 @@ public:
     uint32_t getURAMPointer() const{ return m_URAMPointer.value(); }
 
 protected:
-    URAMArrayBase(const GeNN::Type::ResolvedType &type, size_t count)
+    URAMArrayBase(const GeNN::Type::ResolvedType &type, size_t count, size_t core)
     :   ArrayBase(type, count)
     {
         if(type.getSize(0) != 2) {
@@ -233,23 +240,53 @@ public:
 };*/
 
 //----------------------------------------------------------------------------
+// FeNN::Backend::CoreStateBase
+//----------------------------------------------------------------------------
+class CoreStateBase
+{
+public:
+    //------------------------------------------------------------------------
+    // Public API
+    //------------------------------------------------------------------------
+    const auto &getBRAMAllocator() const{ return m_BRAMAllocator; }
+    auto &getBRAMAllocator(){ return m_BRAMAllocator; }
+
+    const auto &getURAMAllocator() const{ return m_URAMAllocator; }
+    auto &getURAMAllocator(){ return m_URAMAllocator; }
+
+    const auto &getLLMAllocator() const{ return m_LLMAllocator; }
+    auto &getLLMAllocator(){ return m_LLMAllocator; }
+
+private:
+    //------------------------------------------------------------------------
+    // Members
+    //------------------------------------------------------------------------
+    //! Allocators for BRAM, URAM and Lane-Local Memories
+    BRAMAllocator m_BRAMAllocator;
+    URAMAllocator m_URAMAllocator;
+    LLMAllocator m_LLMAllocator;
+};
+
+//----------------------------------------------------------------------------
 // FeNN::Backend::Runtime
 //----------------------------------------------------------------------------
 class FENN_BACKEND_EXPORT Runtime : public ::Backend::Runtime
 {
     using KernelPtr = std::shared_ptr<const ::Model::Kernel>;
 public:
-   
+   Runtime(const ::Model::Model &model, size_t numCores, bool useDRAMForWeights = false, bool keepParamsInRegisters = true, 
+           Compiler::RoundingMode neuronUpdateRoundingMode = Compiler::RoundingMode::NEAREST);
+
 protected:
     //------------------------------------------------------------------------
     // Declared virtuals
     //------------------------------------------------------------------------
-    virtual std::unique_ptr<::Backend::ArrayBase> createURAMArray(const GeNN::Type::ResolvedType &type, size_t count) const = 0;
-    virtual std::unique_ptr<::Backend::ArrayBase> createBRAMArray(const GeNN::Type::ResolvedType &type, size_t count) const = 0;
-    virtual std::unique_ptr<::Backend::ArrayBase> createLLMArray(const GeNN::Type::ResolvedType &type, size_t count) const = 0;
-    virtual std::unique_ptr<::Backend::ArrayBase> createDRAMArray(const GeNN::Type::ResolvedType &type, size_t count) const = 0;
+    virtual std::unique_ptr<::Backend::ArrayBase> createURAMArray(const GeNN::Type::ResolvedType &type, size_t count, size_t core) const = 0;
+    virtual std::unique_ptr<::Backend::ArrayBase> createBRAMArray(const GeNN::Type::ResolvedType &type, size_t count, size_t core) const = 0;
+    virtual std::unique_ptr<::Backend::ArrayBase> createLLMArray(const GeNN::Type::ResolvedType &type, size_t count, size_t core) const = 0;
+    virtual std::unique_ptr<::Backend::ArrayBase> createDRAMArray(const GeNN::Type::ResolvedType &type, size_t count, size_t core) const = 0;
     virtual std::unique_ptr<::Backend::ArrayBase> createURAMLLMArray(const GeNN::Type::ResolvedType &type,
-                                                                     size_t uramCount, size_t llmCount) const = 0;
+                                                                     size_t uramCount, size_t llmCount, size_t core) const = 0;
     
     //------------------------------------------------------------------------
     // Runtime virtuals
@@ -272,5 +309,10 @@ private:
 
     // Map of kernel pointers to code
     std::unordered_map<KernelPtr, std::vector<uint32_t>> m_KernelCode;
+
+    size_t m_NumCores;
+    bool m_UseDRAMForWeights;
+    bool m_KeepParamsInRegisters;
+    Compiler::RoundingMode m_NeuronUpdateRoundingMode;
 };
 }

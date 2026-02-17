@@ -14,8 +14,10 @@
 #include "ise/dma_controller_sim.h"
 
 //----------------------------------------------------------------------------
-// MemoryAllocator
+// FeNN::Backend::MemoryAllocator
 //----------------------------------------------------------------------------
+namespace FeNN::Backend
+{
 size_t MemoryAllocator::allocate(size_t sizeBytes)
 {
     assert(m_HighWaterBytes % m_AlignementBytes == 0);
@@ -35,4 +37,5 @@ size_t MemoryAllocator::allocate(size_t sizeBytes)
     const size_t address = m_HighWaterBytes;
     m_HighWaterBytes = newHighWaterBytes;
     return address;
+}
 }

@@ -14,9 +14,11 @@
 
 
 //----------------------------------------------------------------------------
-// MemoryAllocator
+// FeNN::Backend::MemoryAllocator
 //----------------------------------------------------------------------------
-class MemoryAllocator
+namespace FeNN::Backend
+{
+class FENN_BACKEND_EXPORT MemoryAllocator
 {
 public:
     MemoryAllocator(size_t sizeBytes, size_t alignementBytes, const std::string &context)
@@ -36,7 +38,7 @@ private:
 };
 
 //----------------------------------------------------------------------------
-// BRAMAllocator
+// FeNN::Backend::BRAMAllocator
 //----------------------------------------------------------------------------
 class BRAMAllocator : public MemoryAllocator
 {
@@ -46,7 +48,7 @@ public:
 };
 
 //----------------------------------------------------------------------------
-// URAMAllocator
+// FeNN::Backend::URAMAllocator
 //----------------------------------------------------------------------------
 class URAMAllocator : public MemoryAllocator
 {
@@ -56,7 +58,7 @@ public:
 };
 
 //----------------------------------------------------------------------------
-// LLMAllocator
+// FeNN::Backend::LLMAllocator
 //----------------------------------------------------------------------------
 class LLMAllocator : public MemoryAllocator
 {
@@ -66,11 +68,12 @@ public:
 };
 
 //----------------------------------------------------------------------------
-// DMABufferAllocator
+// FeNN::Backend::DMABufferAllocator
 //----------------------------------------------------------------------------
-class BACKEND_EXPORT DMABufferAllocator : public MemoryAllocator
+class DMABufferAllocator : public MemoryAllocator
 {
 public:
     DMABufferAllocator(size_t bufferSize) : MemoryAllocator(bufferSize, 64, "DMA buffer")
     {}
 };
+}
