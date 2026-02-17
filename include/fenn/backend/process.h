@@ -29,7 +29,7 @@ public:
     //------------------------------------------------------------------------
     //! Update the memory compatibility of a variable associated with this process
     virtual void updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, 
-                                             bool useDRAMForWeights, MemSpaceCompatibility &memSpaceCompatibility) const = 0;
+                                             MemSpaceCompatibility &memSpaceCompatibility) const = 0;
 
     //! Update the max-row length to support this process
     virtual void updateMaxDMABufferSize(size_t &maxRowLength) const
@@ -87,7 +87,7 @@ public:
     //------------------------------------------------------------------------
     //! Update the memory compatibility of a variable associated with this process
     virtual void updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, 
-                                             bool useDRAMForWeights, MemSpaceCompatibility &memSpaceCompatibility) const override final;
+                                             MemSpaceCompatibility &memSpaceCompatibility) const override final;
 
     //! Generate code to implement process
     /*virtual void generateCode(Assembler::CodeGenerator &codeGenerator,
@@ -117,7 +117,7 @@ public:
     //------------------------------------------------------------------------
     //! Update the memory compatibility of a variable associated with this process
     virtual void updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state,
-                                             bool useDRAMForWeights, MemSpaceCompatibility &memSpaceCompatibility) const override final;
+                                             MemSpaceCompatibility &memSpaceCompatibility) const override final;
 
     //! Update the maximum DMA buffer size to support this process
     virtual void updateMaxDMABufferSize(size_t &maxRowLength) const override final;
@@ -154,7 +154,7 @@ public:
     //------------------------------------------------------------------------
     //! Update the memory compatibility of a variable associated with this process
     virtual void updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, 
-                                             bool useDRAMForWeights, MemSpaceCompatibility &memSpaceCompatibility) const override final;
+                                             MemSpaceCompatibility &memSpaceCompatibility) const override final;
 
     //! Generate code to implement process
     /*virtual void generateCode(Assembler::CodeGenerator &codeGenerator,
@@ -183,7 +183,7 @@ public:
     //------------------------------------------------------------------------
     //! Update the memory compatibility of a variable associated with this process
     virtual void updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, 
-                                             bool useDRAMForWeights, MemSpaceCompatibility &memSpaceCompatibility) const override final;
+                                             MemSpaceCompatibility &memSpaceCompatibility) const override final;
 
     //! Generate code to implement process
     /*virtual void generateCode(Assembler::CodeGenerator &codeGenerator,
@@ -226,7 +226,7 @@ public:
     //------------------------------------------------------------------------
     //! Update the memory compatibility of a variable associated with this process
     virtual void updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, 
-                                             bool useDRAMForWeights, MemSpaceCompatibility &memSpaceCompatibility) const override final;
+                                             MemSpaceCompatibility &memSpaceCompatibility) const override final;
 
     //! Generate code to implement process
     /*virtual void generateCode(Assembler::CodeGenerator &codeGenerator,

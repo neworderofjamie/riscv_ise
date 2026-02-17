@@ -23,7 +23,7 @@ void MemSpaceCompatibility::updateHash(boost::uuids::detail::sha1 &hash) const
 //----------------------------------------------------------------------------
 // FeNN::Backend::Model
 //----------------------------------------------------------------------------
-Model::Model(const Model::KernelVector &graphs, bool useDRAMForWeights)
+Model::Model(const Model::KernelVector &graphs)
 :   ::Model::Model(graphs)
 {
     // Loop through all model state
@@ -38,7 +38,7 @@ Model::Model(const Model::KernelVector &graphs, bool useDRAMForWeights)
             }
 
             // Update memory space compatiblity
-            pi->updateMemSpaceCompatibility(s.first, useDRAMForWeights, m);
+            pi->updateMemSpaceCompatibility(s.first, m);
         }
 
         // Add memory compatibility of state to map
