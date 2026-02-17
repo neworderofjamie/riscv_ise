@@ -103,6 +103,7 @@ Runtime::Runtime(const ::Model::Model &model, size_t numCores, bool useDRAMForWe
 :   ::Backend::Runtime(model), m_NumCores(numCores), m_UseDRAMForWeights(useDRAMForWeights), 
     m_KeepParamsInRegisters(keepParamsInRegisters), m_NeuronUpdateRoundingMode(neuronUpdateRoundingMode)
 {
+    // **TODO** generate code!
 }
 //----------------------------------------------------------------------------
 std::unique_ptr<::Backend::ArrayBase> Runtime::createArray(std::shared_ptr<const ::Model::EventContainer> eventContainer) const

@@ -422,6 +422,10 @@ CoreState::CoreState(size_t dmaBufferSize)
     m_DMAController = std::make_unique<DMAControllerSim>(m_RISCV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getVectorDataMemory(),
                                                          dmaBufferSize);
     m_RISCV.setDMAController(m_DMAController.get());
+
+    // Create simulated DMA controller
+    RouterSim router(sharedBus, m_RISCV.getSpikeDataMemory(), coreID);
+    m_RISCV.setRouter(&router);
 }
 
 //----------------------------------------------------------------------------
@@ -430,7 +434,7 @@ CoreState::CoreState(size_t dmaBufferSize)
 RuntimeSim::RuntimeSim(const ::Model::Model &model, size_t numCores, bool useDRAMForWeights, 
                        bool keepParamsInRegisters, Compiler::RoundingMode neuronUpdateRoundingMode, 
                        size_t dmaBufferSize)
-:   Runtime(model, useDRAMForWeights, keepParamsInRegisters, neuronUpdateRoundingMode),
+:   Runtime(model, numCores, useDRAMForWeights, keepParamsInRegisters, neuronUpdateRoundingMode),
     m_SharedBus(numCores)
 {
     // Create core state objects
@@ -438,6 +442,27 @@ RuntimeSim::RuntimeSim(const ::Model::Model &model, size_t numCores, bool useDRA
     for(size_t i = 0; i < numCores; i++) {
         m_CoreState.emplace_back(dmaBufferSize);
     }
+}
+//------------------------------------------------------------------------
+void RuntimeSim::run(std::shared_ptr<const ::Model::Kernel> kernel)
+{
+    // If kernel change is required
+    if(kernel != m_CurrentKernelCode) {
+        // Get code
+        const auto &code = getKernelCode(kernel);
+        
+        // Set instructions on all cores
+        // **OPTIMISE** use worker threads
+        for(auto &c : m_CoreState) {
+            c.getRISCV().setInstructions(code);
+        }
+    
+        // Update current kernel pointer
+        m_CurrentKernelCode = kernel;
+    }
+
+    m_RISCV.setPC(0);
+    m_RISCV.run();
 }
 //------------------------------------------------------------------------
 std::unique_ptr<::Backend::ArrayBase> RuntimeSim::createURAMArray(const GeNN::Type::ResolvedType &type, size_t count) const

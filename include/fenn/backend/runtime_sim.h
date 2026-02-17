@@ -54,6 +54,12 @@ public:
                size_t dmaBufferSize = 512 * 1024);
     
     //------------------------------------------------------------------------
+    // Runtime virtuals
+    //------------------------------------------------------------------------
+    //! Run kernel on device
+    virtual void run(std::shared_ptr<const ::Model::Kernel> kernel) override final;
+
+    //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
     const auto &getCoreState(size_t core) const{ return m_CoreState.at(core); }
@@ -76,5 +82,6 @@ private:
     //------------------------------------------------------------------------
     std::vector<CoreState> m_CoreState;
     ISE::SharedBusSim m_SharedBus;
+    KernelPtr m_CurrentKernelCode;
 };
 }
