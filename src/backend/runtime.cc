@@ -1,13 +1,16 @@
-#include "fenn/backend/runtime.h"
+#include "backend/runtime.h"
+
+// Model includes
+#include "model/model.h"
 
 // Backend includes
-#include "fenn/backend/backend_fenn.h"
-#include "fenn/backend/model.h"
+#include "backend/backend_fenn.h"
+//#include "fenn/backend/model.h"
 
 //--------------------------------------------------------------------------
-// ArrayBase
+// Backend::ArrayBase
 //--------------------------------------------------------------------------
-namespace FeNN::Backend
+namespace Backend
 {
 void ArrayBase::memsetHostPointer(int value)
 {
@@ -17,21 +20,15 @@ void ArrayBase::memsetHostPointer(int value)
 //----------------------------------------------------------------------------
 // Runtime
 //----------------------------------------------------------------------------
-Runtime::Runtime(const ::Model::Model &model, const BackendFeNN &backend)
-:   m_Backend(backend), m_Model(model)
+Runtime::Runtime(const ::Model::Model &model)
+:   m_Model(model)
 {
-    m_State = m_Backend.get().createState();
-}
-//----------------------------------------------------------------------------
-void Runtime::setInstructions(const std::vector<uint32_t> &instructions)
-{
-    m_State->setInstructions(instructions);
 }
 //----------------------------------------------------------------------------
 void Runtime::allocate()
 {
     // Create special array to hold field information
-    m_FieldArray = m_State->createFieldArray(m_Model.get());
+    //m_FieldArray = m_State->createFieldArray(m_Model.get());
 
     // Loop through state objects used by model
     for (const auto &s : m_Model.get().getStateProcesses()) {
@@ -68,23 +65,7 @@ void Runtime::allocate()
     }*/
 
     // Push populated fields to device
-    m_FieldArray->pushFieldsToDevice();
-}
-//----------------------------------------------------------------------------
-void Runtime::run()
-{
-    startRun();
-    waitRun();
-}
-//----------------------------------------------------------------------------
-void Runtime::startRun()
-{
-    m_State->startRun();
-}
-//----------------------------------------------------------------------------
-void Runtime::waitRun()
-{
-    m_State->waitRun();
+    //m_FieldArray->pushFieldsToDevice();
 }
 //----------------------------------------------------------------------------
 ArrayBase *Runtime::getArray(std::shared_ptr<const ::Model::State> variable) const
@@ -92,8 +73,8 @@ ArrayBase *Runtime::getArray(std::shared_ptr<const ::Model::State> variable) con
     return m_Arrays.at(variable).get();
 }
 //----------------------------------------------------------------------------
-std::optional<unsigned int> Runtime::getSOCPower() const
+/*std::optional<unsigned int> Runtime::getSOCPower() const
 {
     return m_State->getSOCPower();
-}
+}*/
 }

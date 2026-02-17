@@ -23,7 +23,7 @@ void MemSpaceCompatibility::updateHash(boost::uuids::detail::sha1 &hash) const
 //----------------------------------------------------------------------------
 // FeNN::Backend::Model
 //----------------------------------------------------------------------------
-Model::Model(const Model::GraphVector &graphs, bool useDRAMForWeights)
+Model::Model(const Model::KernelVector &graphs, bool useDRAMForWeights)
 :   ::Model::Model(graphs)
 {
     // Loop through all model state

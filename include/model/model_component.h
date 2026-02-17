@@ -77,9 +77,13 @@ protected:
 //----------------------------------------------------------------------------
 class Process : public Stateful
 {
+public:
+    //------------------------------------------------------------------------
+    // Declared virtuals
+    //------------------------------------------------------------------------
+    virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const Model &model) const = 0;
+
 protected:
     using Stateful::Stateful;
-
-    virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const Model &model) const = 0;
 };
 }

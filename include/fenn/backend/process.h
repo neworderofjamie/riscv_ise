@@ -55,6 +55,9 @@ class ProcessImplementationBase : public ProcessImplementation, public P
 public:
     using P::P;
 
+    //------------------------------------------------------------------------
+    // P virtuals
+    //------------------------------------------------------------------------
     virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const ::Model::Model &model) const override final
     {
         // Superclass

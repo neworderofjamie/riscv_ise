@@ -1,4 +1,4 @@
-#include "backend/backend_fenn_hw.h"
+#include "fenn/backend/backend_fenn_hw.h"
 
 // Standard C++ includes
 #include <optional>
@@ -7,13 +7,13 @@
 // PLOG includes
 #include <plog/Log.h>
 
-// Common includes
-#include "common/device.h"
-#include "common/dma_buffer.h"
-#include "common/dma_controller.h"
+// FeNN common includes
+#include "fenn/common/device.h"
+#include "fenn/common/dma_buffer.h"
+#include "fenn/common/dma_controller.h"
 
-// Backend includes
-#include "backend/memory_allocator.h"
+// FeNN backend includes
+#include "fenn/backend/memory_allocator.h"
 
 //------------------------------------------------------------------------
 // Anonymous namespace
