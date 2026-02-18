@@ -157,11 +157,26 @@ OpType getOpType(int32_t funct7, uint32_t funct3)
         return OpType::INVALID;
     }
     
+    // M-extension
     if(funct7 == 0x1) {
         if (funct3 == 0) {
             return OpType::MUL;
         }
     }
+    // B-extension
+    else if (funct7 == 0x5) {
+        switch(funct3) {
+        case 0b110:
+            return OpType::MAX;
+        case 0b111:
+            return OpType::MAXU;
+        case 0b100:
+            return OpType::MIN;
+        case 0b101:
+            return OpType::MINU;
+        }
+    }
+    // Standard
     else {
         switch(funct3) {
         case 0:
