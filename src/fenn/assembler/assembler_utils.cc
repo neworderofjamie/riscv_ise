@@ -314,6 +314,74 @@ void unrollLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAll
     }
 }
 //----------------------------------------------------------------------------
+void unrollLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator, 
+                    Common::Reg count, uint32_t maxUnroll, uint32_t iterationBytes,
+                    Common::Reg testBufferReg, bool alwaysGenerateTail,
+                    std::function<void(CodeGenerator&, uint32_t, bool)> genBodyFn, 
+                    std::function<void(CodeGenerator&, uint32_t)> genTailFn)
+{
+    // Evenness of iterations can only be determined with even numbers of unrolls
+    assert((maxUnroll % 2) == 0);
+
+    // Generate unrolled loop
+    size_t startCodeSize = c.getCodeSize();
+    std::optional<size_t> bodySize;
+    for(uint32_t r = 0; r < maxUnroll; r++) {
+        
+        genBodyFn(c, r, (r % 2) == 0);
+        
+    }
+
+    c.j
+   
+    // If there are are complete unrolls
+    if(numUnrolls.quot != 0) {
+        // Calculate end of unrolled section of buffer
+        ALLOCATE_SCALAR(STestBufferEndReg);
+        const size_t stride = iterationBytes * numUnrolls.quot * maxUnroll;
+        if(Common::inSBit(stride, 12)) {
+            c.addi(*STestBufferEndReg, testBufferReg, stride);
+        }
+        else {
+            c.li(*STestBufferEndReg, stride);
+            c.add(*STestBufferEndReg, *STestBufferEndReg, testBufferReg);
+        }
+
+        auto loop = createLabel();
+        c.L(loop);
+        {
+            // Unroll loop
+            for(uint32_t r = 0; r < maxUnroll; r++) {
+                genBodyFn(c, r, (r % 2) == 0);
+            }
+
+            // If more than 1 unroll is required or there are more iterations, generate tail
+            if(numUnrolls.quot > 1 || numUnrolls.rem != 0 || alwaysGenerateTail) {
+                genTailFn(c, maxUnroll);
+            }
+
+            // If more than 1 unroll is required, generate loop
+            if(numUnrolls.quot > 1) {
+                c.bne(testBufferReg, *STestBufferEndReg, loop);
+            }
+        }
+    }
+
+    // If there is a remainder
+    if(numUnrolls.rem != 0) {
+        // Unroll tail
+        for(uint32_t r = 0; r < numUnrolls.rem; r++) {
+            genBodyFn(c, r, (r % 2) == 0);
+        }
+
+        // If we should always generate a tail, do so
+        if(alwaysGenerateTail) {
+            genTailFn(c, numUnrolls.rem);
+        }
+
+    }
+}
+//----------------------------------------------------------------------------
 void unrollVectorLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator, 
                           uint32_t numIterations, uint32_t maxUnroll, Common::Reg testBufferReg,
                           std::function<void(CodeGenerator&, uint32_t, bool, ScalarRegisterAllocator::RegisterPtr)> genBodyFn, 

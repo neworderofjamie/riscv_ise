@@ -9,9 +9,10 @@
 // GeNN includes
 #include "transpiler/token.h"
 
-// Compiler includes
+// Model includes
 #include "model/model_export.h"
 #include "model/model_component.h"
+#include "model/shape.h"
 
 // Forward declarations
 namespace Model
@@ -23,11 +24,45 @@ class Variable;
 
 namespace Model
 {
+//----------------------------------------------------------------------------
+// Model::Sliced
+//----------------------------------------------------------------------------
+template<typename T>
+class Sliced
+{
+public:
+    Sliced(std::shared_ptr<const T> underlying, bool timeSlice = false)
+    :   m_Variable(underlying), m_TimeSlice(timeSlice)
+    {}
+
+    auto getUnderlying() const{ return m_Underlying; }
+    Shape getShape() const
+    {
+        auto &shape = m_Underlying->getShape();
+        if (m_TimeSlice) {
+            const auto &dims = shape.getDims();
+            if (dims.size() == 1) {
+                return Shape(1);
+            }
+            else {
+                std::vector<size_t> slicedDims(dims.cbegin() + 1, dims.cend());
+                return Shape(slicedDims);
+            }
+        }
+        else {
+            return shape;
+        }
+    }
+
+private:
+    std::shared_ptr<const T> m_Underlying;
+    bool m_TimeSlice;
+};
+
 using VariablePtr = std::shared_ptr<const Variable>;
 using VariablePtrBackendState = std::variant<VariablePtr, int>;
-using EventContainerMap = std::map<std::string, std::shared_ptr<EventContainer>>;
-using VariableMap = std::map<std::string, VariablePtr>;
-
+using EventContainerMap = std::map<std::string, Sliced<EventContainer>>;
+using VariableMap = std::map<std::string, Sliced<Variable>>;
 
 //----------------------------------------------------------------------------
 // Model::NeuronUpdateProcess
@@ -56,7 +91,7 @@ public:
 
     const auto &getTokens() const{ return m_Tokens; }
 
-    size_t getNumNeurons() const{ return m_NumNeurons; }
+    const auto &getShape() const{ return m_Shape; }
 
 private:
     //------------------------------------------------------------------------
@@ -67,7 +102,7 @@ private:
 
     std::vector<GeNN::Transpiler::Token> m_Tokens;
 
-    size_t m_NumNeurons;
+    Shape m_Shape;
 };
 
 //----------------------------------------------------------------------------
@@ -76,8 +111,8 @@ private:
 class MODEL_EXPORT EventPropagationProcess : public Process
 {
 public:
-    EventPropagationProcess(Private, std::shared_ptr<const EventContainer> inputEvents, 
-                            VariablePtr weight, VariablePtr target,
+    EventPropagationProcess(Private, Sliced<EventContainer> inputEvents, 
+                            VariablePtr weight, Sliced<Variable> target,
                             size_t numSparseConnectivityBits, size_t numDelayBits,
                             const std::string &name);
 
@@ -98,8 +133,8 @@ public:
     const auto getWeight() const{ return m_Weight; }
     const auto getTarget() const{ return m_Target; }
 
-    size_t getNumSourceNeurons() const{ return m_NumSourceNeurons; }
-    size_t getNumTargetNeurons() const{ return m_NumTargetNeurons; }
+    const auto &getSourceShape() const{ return m_InputEvents.getShape(); }
+    const auto &getTargetShape() const{ return m_Target.getShape(); }
     size_t getMaxRowLength() const{ return m_MaxRowLength; }
 
     size_t getNumSparseConnectivityBits() const{ return m_NumSparseConnectivityBits; }
@@ -109,9 +144,9 @@ private:
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
-    std::shared_ptr<const EventContainer> m_InputEvents;
+    Sliced<EventContainer> m_InputEvents;
     VariablePtr m_Weight;
-    VariablePtr m_Target;
+    Sliced<Variable> m_Target;
     
     size_t m_NumSourceNeurons;
     size_t m_NumTargetNeurons;
@@ -158,7 +193,7 @@ private:
 class MODEL_EXPORT MemsetProcess : public Process
 {
 public:
-    MemsetProcess(Private, VariablePtrBackendState target, const std::string &name);
+    MemsetProcess(Private, Sliced<Variable> target, const std::string &name);
 
     //------------------------------------------------------------------------
     // Stateful virtuals
@@ -179,7 +214,7 @@ private:
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
-    VariablePtrBackendState m_Target;
+    Sliced<Variable> m_Target;
 };
 
 //----------------------------------------------------------------------------

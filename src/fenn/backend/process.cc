@@ -910,7 +910,7 @@ void EventPropagationProcess::updateMemSpaceCompatibility(std::shared_ptr<const 
         }
     }
     // Otherwise, if variable's target
-    else if(state == getTarget()) {
+    else if(state == getTarget().getUnderlying()) {
         // It can't be located in BRAM or DRAM
         memSpaceCompatibility.bram = false;
         memSpaceCompatibility.dram = false;

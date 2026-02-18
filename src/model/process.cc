@@ -24,23 +24,40 @@ NeuronUpdateProcess::NeuronUpdateProcess(Private, const std::string &code, const
         throw std::runtime_error("Neuron update process requires at least one variable or output event");
     }
 
-    // Get number of neurons from arbitrary variable or output event
-    m_NumNeurons = (m_Variables.empty() ? m_OutputEvents.cbegin()->second->getShape().getNumNeurons() 
-                    : m_Variables.cbegin()->second->getShape().getNumNeurons());
+    // If one of the variables has a non-scalar shape, use that
+    auto firstNonScalarVar = std::find_if(getVariables().cbegin(), getVariables().cend(),
+                                          [](const auto &v){ return !v.second.getShape().isScalar(); });
+    if(firstNonScalarVar != getVariables().cend()) {
+        m_Shape = firstNonScalarVar->second.getShape();
+    }
+    // Otherwise
+    else {
+        // If one of the output event containers has a non-scalar shape, use that
+        auto firstNonScalarEvent = std::find_if(getOutputEvents().cbegin(), getOutputEvents().cend(),
+                                                [](const auto &e){ return !e.second.getShape().isScalar(); });
+        if(firstNonScalarEvent != getOutputEvents().cend()) {
+            m_Shape = firstNonScalarEvent->second.getShape();
+        }
+        // Otherwise, shape really must be scalar!
+        else {
+            m_Shape = Shape(1);
+        }
+    }
+   
 
     // Check all variables have same number of neurons
     for(const auto &v : m_Variables) {
-        if(v.second->getShape().getNumNeurons() != m_NumNeurons) {
-            throw std::runtime_error("Variable '" + v.first + "' with shape: " + v.second->getShape().toString() 
-                                     + " is not compatible with neuron update process with " + std::to_string(m_NumNeurons) + " neurons");
+        if(v.second.getShape() != m_Shape) {
+            throw std::runtime_error("Variable '" + v.first + "' with shape: " + v.second.getShape().toString() 
+                                     + " is not compatible with neuron update process with shape: " + m_Shape.toString());
         }
     }
 
     // Check all output have same number of neurons
     for(const auto &o : m_OutputEvents) {
-        if(o.second->getShape().getNumNeurons() != m_NumNeurons) {
-            throw std::runtime_error("Output events '" + o.first + "' with shape: " + o.second->getShape().toString()
-                                     + " is not compatible with neuron update process with " + std::to_string(m_NumNeurons) + " neurons");
+        if(o.second.getShape() != m_Shape) {
+            throw std::runtime_error("Output events '" + o.first + "' with shape: " + o.second.getShape().toString()
+                                     + " is not compatible with neuron update process with shape: " + m_Shape.toString());
         }
     }
     
@@ -61,9 +78,9 @@ std::vector<std::shared_ptr<const State>> NeuronUpdateProcess::getAllState() con
 {
     std::vector<std::shared_ptr<const State>> state;
     std::transform(getVariables().cbegin(), getVariables().cend(), std::back_inserter(state),
-                   [](const auto &v){ return v.second; });
+                   [](const auto &v){ return v.second.getUnderlying(); });
     std::transform(getOutputEvents().cbegin(), getOutputEvents().cend(), std::back_inserter(state),
-                   [](const auto &o){ return o.second; });
+                   [](const auto &o){ return o.second.getUnderlying(); });
     return state;
 }
 //----------------------------------------------------------------------------
@@ -76,14 +93,14 @@ void NeuronUpdateProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, cons
     updateHash(getVariables().size(), hash);
     for(const auto &v : getVariables()) {
         updateHash(v.first, hash);
-        v.second->updateMergeHash(hash);
+        v.second.getUnderlying()->updateMergeHash(hash);
     }
 
     // Output events
     updateHash(getOutputEvents().size(), hash);
     for(const auto &e : getOutputEvents()) {
         updateHash(e.first, hash);
-        e.second->updateMergeHash(hash);
+        e.second.getUnderlying()->updateMergeHash(hash);
     }
 
     // Tokens
@@ -103,13 +120,13 @@ void NeuronUpdateProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, cons
 //----------------------------------------------------------------------------
 // EventPropagationProcess
 //----------------------------------------------------------------------------
-EventPropagationProcess::EventPropagationProcess(Private, std::shared_ptr<const EventContainer> inputEvents, 
-                                                 VariablePtr weight, VariablePtr target, size_t numSparseConnectivityBits, 
+EventPropagationProcess::EventPropagationProcess(Private, Sliced<EventContainer> inputEvents, 
+                                                 VariablePtr weight, Sliced<Variable> target, size_t numSparseConnectivityBits, 
                                                  size_t numDelayBits, const std::string &name)
 :   Process(name), m_InputEvents(inputEvents), m_Weight(weight), m_Target(target), 
     m_NumSparseConnectivityBits(numSparseConnectivityBits), m_NumDelayBits(numDelayBits)
 {
-    if(m_InputEvents == nullptr) {
+    if(m_InputEvents.getUnderlying() == nullptr) {
         throw std::runtime_error("Event propagation process requires input events");
     }
 
@@ -117,24 +134,28 @@ EventPropagationProcess::EventPropagationProcess(Private, std::shared_ptr<const 
         throw std::runtime_error("Event propagation process requires weight variable");
     }
 
-    if(m_Target == nullptr) {
+    if(m_Target.getUnderlying() == nullptr) {
         throw std::runtime_error("Event propagation process requires target variable");
     }
 
-    // Get number of source neurons from input events
-    m_NumSourceNeurons = m_InputEvents->getShape().getNumNeurons();
+    if (getSourceShape().getDims().size() != 1) {
+        throw std::runtime_error("Event propagation process requires source events with a 1D shape");
+    }
 
-    // Get number of target neurons from target variable
-    m_NumTargetNeurons = m_Target->getShape().getNumNeurons();
+    if (getWeight()->getShape().getDims().size() != 2) {
+        throw std::runtime_error("Event propagation process requires weight variable with a 2D shape");
+    }
 
+  
     // Get maximum row length from weight variable shape
-    m_MaxRowLength = m_Weight->getShape().getNumTargetNeurons();
+    const auto &weightDims = m_Weight->getShape().getDims();
+    m_MaxRowLength = weightDims[1];
 
     // Check weight number of source neurons matches
-    if(m_Weight->getShape().getNumSourceNeurons() != m_NumSourceNeurons) {
+    if(weightDims[0] != getSourceShape().getLast()) {
         throw std::runtime_error("Weight with shape: " + weight->getShape().toString() 
                                  + " is not compatible with event propagation process with " 
-                                 + std::to_string(m_NumSourceNeurons) + " source neurons");
+                                 + std::to_string(getSourceShape().getLast()) + " source neurons");
     }
 
     // Check delays and sparsity are not being combined
@@ -144,37 +165,37 @@ EventPropagationProcess::EventPropagationProcess(Private, std::shared_ptr<const 
     }
 
     // Check weight number of target neurons matches if no sparsity
-    if(m_NumSparseConnectivityBits == 0 && m_MaxRowLength != m_NumTargetNeurons) {
+    if(m_NumSparseConnectivityBits == 0 && m_MaxRowLength != getTargetShape().getLast()) {
         throw std::runtime_error("Weight with shape: " + weight->getShape().toString() 
                                  + " is not compatible with dense event propagation process with " 
-                                 + std::to_string(m_NumTargetNeurons) + " target neurons");
+                                 + std::to_string(getTargetShape().getLast()) + " target neurons");
     }
 
-    if (m_Weight->getNumBufferTimesteps() != 1) {
-        throw std::runtime_error("Weight has more than 1 buffer timestep which isn't "
-                                 "currently supported by event propagation processes");
-    }
-
-    // If there are no delays, check target only has one buffer timestep
+    // If there are no delays, check time 
     if (m_NumDelayBits == 0) {
-        if(m_Target->getNumBufferTimesteps() != 1) {
-            throw std::runtime_error("Target has more than 1 buffer timestep "
-                                     "but no delay bits are specified");
+        if (getTargetShape().getDims().size() != 1) {
+            throw std::runtime_error("Non-delayed event propagation process "
+                                     "requires target variable with a 1D shape");
         }
     }
     // Otherwise, check buffer size matches
-    // **YUCK** the fact delays are actually addresses to 2 byte things is very FeNN-specific
     else {
-        if(m_Target->getNumBufferTimesteps() != (1 << (m_NumDelayBits - 1))) {
-            throw std::runtime_error("Number of target buffer timestep does not "
+        if (getTargetShape().getDims().size() != 2) {
+            throw std::runtime_error("Delayed event propagation process "
+                                     "requires target variable with a 2D shape");
+        }
+
+        if(getTargetShape().getFirst() != (1 << (m_NumDelayBits - 1))) {
+            throw std::runtime_error("Shape of target buffer does not "
                                      "match specified number of delay bits");
         }
     }
+    
 }
 //----------------------------------------------------------------------------
 std::vector<std::shared_ptr<const State>> EventPropagationProcess::getAllState() const
 {
-    return {getInputEvents(), getWeight(), getTarget()};
+    return {getInputEvents().getUnderlying(), getWeight(), getTarget().getUnderlying()};
 }
 //----------------------------------------------------------------------------
 void EventPropagationProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Model&) const
@@ -218,27 +239,27 @@ void RNGInitProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Mod
 //----------------------------------------------------------------------------
 // MemsetProcess
 //----------------------------------------------------------------------------
-MemsetProcess::MemsetProcess(Private, VariablePtrBackendState target, const std::string &name)
+MemsetProcess::MemsetProcess(Private, Sliced<Variable> target, const std::string &name)
 :   Process(name), m_Target(target)
 {
     // If target is a variable
     // **NOTE** if target is a backend-specific state object, there's nothing we can check yet
-    if(std::holds_alternative<VariablePtr>(m_Target)) {
-        auto targetVar = std::get<VariablePtr>(m_Target);
-        if(targetVar == nullptr) {
+    //if(std::holds_alternative<VariablePtr>(m_Target)) {
+        //auto targetVar = std::get<VariablePtr>(m_Target);
+        if(getTarget().getUnderlying() == nullptr) {
             throw std::runtime_error("Memset process requires target");
         }
-    }
+    //}
 }
 //----------------------------------------------------------------------------
 std::vector<std::shared_ptr<const State>> MemsetProcess::getAllState() const
 {
-    if(std::holds_alternative<VariablePtr>(getTarget())) {
-        return {std::get<VariablePtr>(getTarget())};
-    }
-    else {
-        return {};
-    }
+    //if(std::holds_alternative<VariablePtr>(getTarget())) {
+        return {getTarget().getUnderlying()};
+    //}
+    //else {
+    //    return {};
+    //}
 }
 //----------------------------------------------------------------------------
 void MemsetProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Model&) const
@@ -256,11 +277,6 @@ BroadcastProcess::BroadcastProcess(Private, VariablePtr source, VariablePtrBacke
         throw std::runtime_error("Broadcast process requires source");
     }
 
-    if (m_Source->getNumBufferTimesteps() != 1) {
-        throw std::runtime_error("Broadcast process source has more than 1 buffer "
-                                 "timestep which isn't currently supported");
-    }
-
     if(m_Source->getShape().getDims().size() != 1) {
         throw std::runtime_error("Multi-dimensional sources aren't currently "
                                  "supported by broadcast processes");
@@ -274,16 +290,11 @@ BroadcastProcess::BroadcastProcess(Private, VariablePtr source, VariablePtrBacke
             throw std::runtime_error("Broadcast process requires target");
         }
 
-        if (targetVar->getNumBufferTimesteps() != 1) {
-            throw std::runtime_error("Broadcast process target has more than 1 buffer "
-                                     "timestep which isn't currently supported");
-        }
-
         if(targetVar->getShape().getDims().size() != 2) {
             throw std::runtime_error("Broadcast process currently required 2 dimensional target");
         }
 
-        if(targetVar->getShape().getDims().at(0) != m_Source->getShape().getDims().at(0)) {
+        if(targetVar->getShape().getFirst() != m_Source->getShape().getFirst()) {
             throw std::runtime_error("Broadcast process requires first dimension of source and target to match");
         }
 
