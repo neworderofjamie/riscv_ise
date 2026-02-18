@@ -46,7 +46,7 @@ private:
 class ISE_EXPORT ScalarDataMemory
 {
 public:
-    ScalarDataMemory(size_t numBytes, size_t startAddressBytes, uint8_t poissonVal);
+    ScalarDataMemory(size_t numBytes, uint32_t startAddressBytes, uint8_t poissonVal);
 
     uint32_t read32(uint32_t addr) const;
     void write32(uint32_t addr, uint32_t value);
@@ -66,7 +66,7 @@ public:
     size_t getStartAddressBytes() const{ return m_StartAddressBytes; }
     
 private:
-    size_t m_StartAddressBytes;
+    uint32_t m_StartAddressBytes;
     std::vector<uint8_t> m_Data;
 };
 

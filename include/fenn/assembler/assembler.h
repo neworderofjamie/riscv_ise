@@ -109,6 +109,7 @@ public:
     CodeGenerator& operator += (const CodeGenerator& other);
 
     std::vector<uint32_t> getCode() const;
+    size_t getCodeSize() const{ return m_Code.size(); }
 
     void add(Common::Reg rd, Common::Reg rs1, Common::Reg rs2) { Rtype(Common::StandardOpCode::OP, 0, 0x0, rd, rs1, rs2); }
     void sub(Common::Reg rd, Common::Reg rs1, Common::Reg rs2) { Rtype(Common::StandardOpCode::OP, 0, 0x20, rd, rs1, rs2); }
@@ -214,6 +215,10 @@ public:
     void cpop(Common::Reg rd, Common::Reg rs) { opShift(0x30, 1, Common::StandardOpCode::OP_IMM, rd, rs, 2); }
     void sextb(Common::Reg rd, Common::Reg rs) { opShift(0x30, 1, Common::StandardOpCode::OP_IMM, rd, rs, 4); }
     void sexth(Common::Reg rd, Common::Reg rs) { opShift(0x30, 1, Common::StandardOpCode::OP_IMM, rd, rs, 5); }
+    void max(Common::Reg rd, Common::Reg rs1, Common::Reg rs2) { Rtype(Common::StandardOpCode::OP, 0b110, 0b0000101, rd, rs1, rs2); }
+    void maxu(Common::Reg rd, Common::Reg rs1, Common::Reg rs2) { Rtype(Common::StandardOpCode::OP, 0b111, 0b0000101, rd, rs1, rs2); }
+    void min(Common::Reg rd, Common::Reg rs1, Common::Reg rs2) { Rtype(Common::StandardOpCode::OP, 0b100, 0b0000101, rd, rs1, rs2); }
+    void minu(Common::Reg rd, Common::Reg rs1, Common::Reg rs2) { Rtype(Common::StandardOpCode::OP, 0b101, 0b0000101, rd, rs1, rs2); }
 
     // FeNN vector processor
 

@@ -55,7 +55,7 @@ void InstructionMemory::setInstructions(const std::vector<uint32_t> &instruction
 //----------------------------------------------------------------------------
 // FeNN::ISE::ScalarDataMemory
 //----------------------------------------------------------------------------
-ScalarDataMemory::ScalarDataMemory(size_t numBytes, size_t startAddressBytes, uint8_t poissonVal) 
+ScalarDataMemory::ScalarDataMemory(size_t numBytes, uint32_t startAddressBytes, uint8_t poissonVal) 
 :   m_Data(numBytes, poissonVal), m_StartAddressBytes(startAddressBytes)
 {}
 //----------------------------------------------------------------------------
@@ -432,82 +432,71 @@ uint32_t RISCV::calcOpImmResult(uint32_t inst, int32_t imm, uint32_t rs1, uint32
 {
     const uint32_t val = m_Reg[rs1];
     const uint32_t shamt = imm & 0b11111;
-    switch(getOpImmType(imm, funct3)) {
+    const auto opType = getOpImmType(imm, funct3);
+    PLOGV << opType._to_string() << " " << rs1 << " " << imm;
+    switch(opType) {
     case OpImmType::ADDI:
     {
-        PLOGV << "ADDI " << rs1 << " " << imm;
         return (int32_t)(val + imm);
     }
 
     case OpImmType::SLLI:
     {
-        PLOGV << "SLLI " << rs1 << " " << imm;
         return (int32_t)(val << shamt);
     }
 
     case OpImmType::CLZ:
     {
-        PLOGV << "CLZ " << rs1;
         return (val == 0) ? 32 : ::Common::Utils::clz(val);
     }
 
     case OpImmType::CTZ:
     {
-        PLOGV << "CTZ " << rs1;
         return (val == 0) ? 32 : ::Common::Utils::ctz(val);
     }
 
     case OpImmType::CPOP:
     {
-        PLOGV << "CPOP " << rs1;
         return ::Common::Utils::popCount(val);
     }
 
     case OpImmType::SEXT_B:
     {
-        PLOGV << "SEXT.B " << rs1;
         return (int32_t)(val << 24) >> 24;
     }
 
     case OpImmType::SEXT_H:
     {
-        PLOGV << "SEXT.H " << rs1;
         return (int32_t)(val << 16) >> 16;
     }
     
     case OpImmType::SLTI:
     {
-        PLOGV << "SLTI " << rs1 << " " << imm;
         return ((int32_t)val < (int32_t)imm);
     }
 
     case OpImmType::SLTIU:
     {
-        PLOGV << "SLTIU " << rs1 << " " << imm;
         return (val < (uint32_t)imm);
     }
 
     case OpImmType::XORI:
     {
-        PLOGV << "XORI " << rs1 << " " << imm;
         return (val ^ imm);
     }
 
     case OpImmType::SRAI:
     {
-        PLOGV << "SRAI " << rs1 << " " << imm;
         return ((int32_t)val >> (imm & 31));
     }
 
     case OpImmType::SRLI:
     {
-        PLOGV << "SRLI " << rs1 << " " << imm;
         return (int32_t)((uint32_t)val >> (imm & 31));
     }
     
     case OpImmType::ORI:
     {
-        PLOGV << "ORI " << rs1 << " " << imm;
         return (val | imm);
     }
 
@@ -529,71 +518,82 @@ uint32_t RISCV::calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs2, uint3
     const uint32_t val = m_Reg[rs1];
     const uint32_t val2 = m_Reg[rs2];
 
-    switch(getOpType(funct7, funct3)) {
+    const auto opType = getOpType(funct7, funct3);
+    PLOGV << opType._to_string() << " " << rs1 << " " << rs2;
+    switch(opType) {
     case OpType::ADD:
     {
-        PLOGV << "ADD " << rs1 << " " << rs2;
         return (int32_t)(val + val2);
     }
     
     case OpType::SUB:
     {
-        PLOGV << "SUB " << rs1 << " " << rs2;
         return (int32_t)(val - val2);
     }
 
     case OpType::SLL:
     {
-        PLOGV << "SLL " << rs1 << " " << rs2;
         return (int32_t)(val << (val2 & 31));
     }
 
     case OpType::SLT:
     {
-        PLOGV << "SLT " << rs1 << " " << rs2;
         return (int32_t)val < (int32_t)val2;
     }
 
     case OpType::SLTU:
     {
-        PLOGV << "SLTU " << rs1 << " " << rs2;
         return val < val2;
     }
 
     case OpType::XOR:
     {
-        PLOGV << "XOR " << rs1 << " " << rs2;
         return val ^ val2;
     }
 
     case OpType::SRL:
     {
-        PLOGV << "SRL " << rs1 << " " << rs2;
         return (int32_t)((uint32_t)val >> (val2 & 31));
     }
 
     case OpType::SRA:
     {
-        PLOGV << "SRA " << rs1 << " " << rs2;
         return (int32_t)val >> (val2 & 31);
     }
     
     case OpType::OR:
     {
-        PLOGV << "OR " << rs1 << " " << rs2;
         return val | val2;
     }
 
     case OpType::AND:
     {
-        PLOGV << "AND " << rs1 << " " << rs2;
         return val & val2;
     }
 
     case OpType::MUL:
     {
-        PLOGV << "MUL " << rs1 << " " << rs2;
         return (int32_t)((int32_t)val * (int32_t)val2);
+    }
+
+    case OpType::MAX:
+    {
+        return std::max((int32_t)val, (int32_t)val2);
+    }
+
+    case OpType::MAXU:
+    {
+        return std::max(val, val2);
+    }
+
+    case OpType::MIN:
+    {
+        return std::min((int32_t)val, (int32_t)val2);
+    }
+
+    case OpType::MINU:
+    {
+        return std::min(val, val2);
     }
 
     default:
@@ -607,35 +607,31 @@ uint32_t RISCV::loadValue(uint32_t inst, int32_t imm, uint32_t rs1, uint32_t fun
 {
     const uint32_t addr = m_Reg[rs1] + imm;
     const auto &memory = getScalarMemory(addr);
-    switch(getLoadType(funct3)) {
+    const auto loadType = getLoadType(funct3);
+    PLOGV << loadType._to_string() << " " << rs1 << " " << imm;
+    switch(loadType) {
     case LoadType::LB:
     {
-        PLOGV << "LB " << rs1 << " " << imm;
         return (int8_t)memory.read8(addr);
     }
 
     case LoadType::LH:
     {
-        PLOGV << "LH " << rs1 << " " << imm;
         return (int16_t)memory.read16(addr);
     }
 
     case LoadType::LW:
     {
-        PLOGV << "LW " << rs1 << " " << imm;
         return (int32_t)memory.read32(addr);
     }
     
     case LoadType::LBU:
     {
-        PLOGV << "LBU " << rs1 << " " << imm;
         return memory.read8(addr);
     }
-    break;
 
     case LoadType::LHU:
     {
-        PLOGV << "LHU " << rs1 << " " << imm;
         return memory.read16(addr);
     }
 
