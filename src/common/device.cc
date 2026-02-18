@@ -31,7 +31,7 @@
 Device::Device(int core, int numCores)
 {
 #ifdef __linux__ 
-    const std::string targetNamePrefix = (numCores == 1) ? "" : ("core_" + std::to_string(core) + "_");
+    const std::string targetNamePrefix = (numCores == 1) ? "" : ("core" + std::to_string(core) + "_");
     LOGI << "Creating Device for core  " << core << " / " << numCores;
     
     // Create UIO
