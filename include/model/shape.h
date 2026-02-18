@@ -15,6 +15,7 @@ namespace Model
 class MODEL_EXPORT Shape
 {
 public:
+    Shape() = default;
     Shape(const std::vector<size_t> &dims) : m_Dims(dims)
     {}
     Shape(size_t dims) : m_Dims{{dims}}
@@ -26,17 +27,19 @@ public:
     const auto &getDims() const{ return m_Dims; }
     std::string toString() const;
 
-    size_t getNumNeurons() const;
-    size_t getNumSourceNeurons() const;
-    size_t getNumTargetNeurons() const;
-    size_t getBatchSize() const;
+    const bool isScalar() const;
     size_t getFlattenedSize() const;
+    size_t getFirst() const{ return m_Dims.front(); }
+    size_t getLast() const{ return m_Dims.back(); }
 
     //------------------------------------------------------------------------
     // Operators
     //------------------------------------------------------------------------
     bool operator == (const Shape &other) const{ return (other.getDims() == getDims()); }
     bool operator != (const Shape &other) const{ return (other.getDims() != getDims()); }
+
+    size_t operator[](size_t i) const{ return m_Dims.at(i); }
+    size_t &operator[](size_t i) { return m_Dims.at(i); }
 
 private:
     //------------------------------------------------------------------------

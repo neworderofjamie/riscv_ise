@@ -1,6 +1,7 @@
 #include "model/shape.h"
 
 // Standard C++ includes
+#include <algorithm>
 #include <iterator>
 #include <numeric>
 #include <sstream>
@@ -20,59 +21,9 @@ std::string Shape::toString() const
     return shapeStream.str();
 }
 //----------------------------------------------------------------------------
-size_t Shape::getNumNeurons() const
+const bool Shape::isScalar() const
 {
-    // Non-batched neuron variable (N)
-    if(m_Dims.size() == 1) {
-        return m_Dims[0];
-    }
-    // Batched neuron variable (B, N)
-    else if(m_Dims.size() == 2) {
-        return m_Dims[1];
-    }
-    else {
-        throw std::runtime_error("Unsupported neuron shape: " + toString());
-    }
-}
-//----------------------------------------------------------------------------
-size_t Shape::getNumSourceNeurons() const
-{
-    // Non-batched synapse variable (S, T)
-    if(m_Dims.size() == 2) {
-        return m_Dims[0];
-    }
-    // Batched synapse variable (B, S, T)
-    else if(m_Dims.size() == 3) {
-        return m_Dims[1];
-    }
-    else {
-        throw std::runtime_error("Unsupported synapse shape: " + toString());
-    }
-}
-//----------------------------------------------------------------------------
-size_t Shape::getNumTargetNeurons() const
-{
-    // Non-batched synapse variable (S, T)
-    if(m_Dims.size() == 2) {
-        return m_Dims[1];
-    }
-    // Batched synapse variable (B, S, T)
-    else if(m_Dims.size() == 3) {
-        return m_Dims[2];
-    }
-    else {
-        throw std::runtime_error("Unsupported synapse shape: " + toString());
-    }
-}
-//----------------------------------------------------------------------------
-size_t Shape::getBatchSize() const
-{
-    if(m_Dims.size() > 1) {
-        return m_Dims[0];
-    }
-    else {
-        throw std::runtime_error("Unbatched shape: " + toString());
-    }
+    return std::all_of(m_Dims.cbegin(), m_Dims.cend(), [](size_t i){ return i == 1; });
 }
 //----------------------------------------------------------------------------
 size_t Shape::getFlattenedSize() const
