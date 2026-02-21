@@ -1,10 +1,13 @@
-#include "fenn/backend/graph.h"
+#include "fenn/backend/kernel.h"
 
 // Common include
 #include "common/utils.h"
 
 // FeNN common includes
 #include "fenn/common/isa.h"
+
+// FeNN model include
+#include "model/process_group.h"
 
 // Assembler includes
 #include "fenn/assembler/assembler.h"
@@ -26,13 +29,13 @@ bool arePerformanceCountersRequired(const Model::ProcessGroupVector &processGrou
 }
 
 //----------------------------------------------------------------------------
-// FeNN::Backend::SimpleGraph
+// FeNN::Backend::SimpleKernel
 //----------------------------------------------------------------------------
 namespace FeNN::Backend
 {
-void SimpleGraph::generateCode(Assembler::CodeGenerator &codeGenerator,
-                               Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
-                               Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
+void SimpleKernel::generateCode(Assembler::CodeGenerator &codeGenerator,
+                                Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
+                                Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
     auto &c = codeGenerator;
 
@@ -51,11 +54,11 @@ void SimpleGraph::generateCode(Assembler::CodeGenerator &codeGenerator,
     }
 }
 //----------------------------------------------------------------------------
-// FeNN::Backend::SimulationLoopGraph
+// FeNN::Backend::SimulationLoopKernel
 //----------------------------------------------------------------------------
-void SimulationLoopGraph::generateCode(Assembler::CodeGenerator &codeGenerator,
-                                       Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
-                                       Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
+void SimulationLoopKernel::generateCode(Assembler::CodeGenerator &codeGenerator,
+                                        Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
+                                        Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
     auto &c = codeGenerator;
 
@@ -81,6 +84,7 @@ void SimulationLoopGraph::generateCode(Assembler::CodeGenerator &codeGenerator,
 
     // Visit begin process group
     for (const auto &p : getBeginProcessGroups()) {
+
         //CodeGeneratorVisitor visitor(p, nullptr, std::nullopt, c, vectorRegisterAllocator,
         //                             scalarRegisterAllocator, model,
         //                             m_UseDRAMForWeights, m_KeepParamsInRegisters,

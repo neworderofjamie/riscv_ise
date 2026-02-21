@@ -21,16 +21,17 @@ using ProcessGroupVector = std::vector<std::shared_ptr<const ProcessGroup>>;
 //----------------------------------------------------------------------------
 // Model::Kernel
 //----------------------------------------------------------------------------
-class Kernel : public Stateful
+class Kernel : public ModelComponent
 {
 public:
-    using Stateful::Stateful;
-
     //----------------------------------------------------------------------------
     // Declared virtuals
     //----------------------------------------------------------------------------
     //! Get all process groups in graph
     virtual ProcessGroupVector getAllProcessGroups() const = 0;
+
+protected:
+    using ModelComponent::ModelComponent;
 };
 
 //----------------------------------------------------------------------------

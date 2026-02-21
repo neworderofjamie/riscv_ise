@@ -26,7 +26,7 @@
     <ClInclude Include="..\..\..\include\fenn\backend\process.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\include\fenn\backend\graph.h">
+    <ClInclude Include="..\..\..\include\fenn\backend\kernel.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\include\fenn\backend\model.h">
@@ -55,7 +55,7 @@
     <ClCompile Include="process.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="graph.cc">
+    <ClCompile Include="kernel.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="model.cc">
