@@ -1,5 +1,8 @@
 #pragma once
 
+// Standard C++ includes
+#include <functional>
+
 // Model includes
 #include "model/kernel.h"
 
@@ -20,19 +23,24 @@ namespace FeNN::Backend
 class KernelImplementation
 {
 public:
+    using GenerateProcessGroupFn = std::function<void(std::shared_ptr<const ::Model::ProcessGroup>,
+                                                      Assembler::CodeGenerator&,
+                                                      Assembler::ScalarRegisterAllocator&,
+                                                      Assembler::VectorRegisterAllocator&)>;
     //! Generate code to implement process
     virtual void generateCode(Assembler::CodeGenerator &codeGenerator,
                               Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
-                              Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const = 0;
+                              Assembler::VectorRegisterAllocator &vectorRegisterAllocator,
+                              GenerateProcessGroupFn generateProcessGroup) const = 0;
 };
 
 //----------------------------------------------------------------------------
 // FeNN::Backend::SimpleKernel
 //----------------------------------------------------------------------------
-class SimpleKernel : public KernelImplementation, public Model::SimpleKernel
+class SimpleKernel : public KernelImplementation, public ::Model::SimpleKernel
 {
 public:
-    using Model::SimpleKernel::SimpleKernel;
+    using ::Model::SimpleKernel::SimpleKernel;
 
     //------------------------------------------------------------------------
     // GraphImplementation virtuals
@@ -40,12 +48,13 @@ public:
     //! Generate code to implement process
     virtual void generateCode(Assembler::CodeGenerator &codeGenerator,
                               Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
-                              Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;
+                              Assembler::VectorRegisterAllocator &vectorRegisterAllocator,
+                              GenerateProcessGroupFn generateProcessGroup) const override final;
 
     //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------
-    static std::shared_ptr<SimpleKernel> create(const Model::ProcessGroupVector &processGroups,
+    static std::shared_ptr<SimpleKernel> create(const ::Model::ProcessGroupVector &processGroups,
                                                 const std::string &name = "")
     {
         return std::make_shared<SimpleKernel>(Private(), processGroups, name);
@@ -55,10 +64,10 @@ public:
 //----------------------------------------------------------------------------
 // FeNN::Backend::SimulationLoopKernel
 //----------------------------------------------------------------------------
-class SimulationLoopKernel : public KernelImplementation, public Model::SimulationLoopKernel
+class SimulationLoopKernel : public KernelImplementation, public ::Model::SimulationLoopKernel
 {
 public:
-    using Model::SimulationLoopKernel::SimulationLoopKernel;
+    using ::Model::SimulationLoopKernel::SimulationLoopKernel;
 
 
     //------------------------------------------------------------------------
@@ -67,14 +76,15 @@ public:
     //! Generate code to implement process
     virtual void generateCode(Assembler::CodeGenerator &codeGenerator,
                               Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
-                              Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;
+                              Assembler::VectorRegisterAllocator &vectorRegisterAllocator,
+                              GenerateProcessGroupFn generateProcessGroup) const override final;
 
     //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------
-    static std::shared_ptr<SimulationLoopKernel> create(uint32_t numTimesteps, Model::ProcessGroupVector &timestepProcessGroups, 
-                                                        const Model::ProcessGroupVector &beginProcessGroups = {},
-                                                        const Model::ProcessGroupVector &endProcessGroups = {},
+    static std::shared_ptr<SimulationLoopKernel> create(uint32_t numTimesteps, ::Model::ProcessGroupVector &timestepProcessGroups, 
+                                                        const ::Model::ProcessGroupVector &beginProcessGroups = {},
+                                                        const ::Model::ProcessGroupVector &endProcessGroups = {},
                                                         const std::string &name = "")
     {
         return std::make_shared<SimulationLoopKernel>(Private(), numTimesteps, timestepProcessGroups,

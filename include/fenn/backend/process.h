@@ -36,6 +36,10 @@ public:
     {
     }
 
+    //! Does this process handle events
+    //! **NOTE** on FeNN, one process group needs to contain all processes which handle events;
+    virtual bool isEventHandler() const = 0;
+
     //virtual void updateLUTObjectIDs(std::unordered_set<Model::StateObjectID> m_LUTObjectIDs;)
 
     //! Generate code to implement process
@@ -94,6 +98,10 @@ public:
                               Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                               Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;*/
 
+    //! Does this process handle events
+    //! **NOTE** on FeNN, one process group needs to contain all processes which handle events;
+    virtual bool isEventHandler() const override final{ return false; }
+
     //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------
@@ -126,6 +134,10 @@ public:
     /*virtual void generateCode(Assembler::CodeGenerator &codeGenerator,
                               Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                               Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;*/
+
+    //! Does this process handle events
+    //! **NOTE** on FeNN, one process group needs to contain all processes which handle events;
+    virtual bool isEventHandler() const override final{ return true; }
 
     //------------------------------------------------------------------------
     // Static API
@@ -161,6 +173,10 @@ public:
                               Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                               Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;*/
 
+    //! Does this process handle events
+    //! **NOTE** on FeNN, one process group needs to contain all processes which handle events;
+    virtual bool isEventHandler() const override final{ return false; }
+
     //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------
@@ -189,6 +205,10 @@ public:
     /*virtual void generateCode(Assembler::CodeGenerator &codeGenerator,
                               Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                               Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;*/
+
+    //! Does this process handle events
+    //! **NOTE** on FeNN, one process group needs to contain all processes which handle events;
+    virtual bool isEventHandler() const override final{ return false; }
 
     //------------------------------------------------------------------------
     // Static API
@@ -233,6 +253,10 @@ public:
                               Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                               Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;*/
 
+    //! Does this process handle events
+    //! **NOTE** on FeNN, one process group needs to contain all processes which handle events;
+    virtual bool isEventHandler() const override final{ return false; }
+    
     //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------
