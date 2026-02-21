@@ -3,17 +3,20 @@
 // Common include
 #include "common/utils.h"
 
-// FeNN common includes
-#include "fenn/common/isa.h"
-
-// Assembler includes
-#include "fenn/assembler/assembler.h"
-#include "fenn/assembler/assembler_utils.h"
-#include "fenn/assembler/register_allocator.h"
-
 // Model includes
 #include "model/event_container.h"
 #include "model/variable.h"
+
+// Backend includes
+#include "backend/merged_model.h"
+
+// FeNN common includes
+#include "fenn/common/isa.h"
+
+// FeNN Assembler includes
+#include "fenn/assembler/assembler.h"
+#include "fenn/assembler/assembler_utils.h"
+#include "fenn/assembler/register_allocator.h"
 
 // FeNN backend includes
 #include "fenn/backend/model.h"
@@ -612,18 +615,110 @@ void NeuronUpdateProcess::updateMemSpaceCompatibility(std::shared_ptr<const ::Mo
     }
 }
 //----------------------------------------------------------------------------
-/*void NeuronUpdateProcess::generateCode(Assembler::CodeGenerator &codeGenerator,
+void NeuronUpdateProcess::generateCode(const ::Backend::MergedProcess &mergedProcess,
+                                       Assembler::CodeGenerator &codeGenerator,
                                        Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                        Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
-    auto &scalarRegisterAllocator = m_ScalarRegisterAllocator.get();
-    auto &c = m_CodeGenerator.get();
+    // Check that this is only being called on archetype
+    assert(mergedProcess.getArchetype() == this);
 
+    // Loop through merged processes
+    // **TODO** this is backend-agnostic - move into Model::NeuronUpdateProcess
+    std::optional<::Model::LiteralSet> literalValues;
+    mergedProcess.forEachProcess<NeuronUpdateProcess>(
+        [&literalValues](const auto &np)
+        {
+            // If this is the first process, use it's literals as starting point
+            if (!literalValues) {
+                literalValues = np->getLiterals();
+            }
+            // Otherwise
+            else {
+                // Build new set with intersection
+                ::Model::LiteralSet intersection;
+                std::set_intersection(literalValues->cbegin(), literalValues->cend(),
+                                      np->getLiterals().cbegin(), np->getLiterals().cend(),
+                                      std::inserter(intersection, intersection.begin()));
+
+                // Move intersection into main set
+                literalValues = std::move(intersection);
+            }
+        });
+
+    // Loop through literals shared across merged processes, check FeNN-compliance and load
+    auto &c = codeGenerator;
+    std::unordered_map<int16_t, VectorRegisterAllocator::RegisterPtr> literalPool;
+    for (const auto &l : literalValues.value()) {
+        // If literal is an integer, use value directly
+        int64_t integerResult;
+        const auto &numericType = l.first.getNumeric();
+        if(numericType.isIntegral) {
+            integerResult = l.second.cast<int64_t>();
+        }
+        // Otherwise, if it is fixed point, convert
+        else if(numericType.fixedPoint) {
+            integerResult = std::round(l.second.cast<double>() * (1u << numericType.fixedPoint.value()));
+        }
+        else {
+            throw std::runtime_error("FeNN does not support floating point types");
+        }
+
+        // Check integer value can fit within 16-bit signed type
+        if(integerResult < std::numeric_limits<int16_t>::min() 
+           || integerResult > std::numeric_limits<int16_t>::max())
+        {
+            throw std::runtime_error("Literal out of range for type '"
+                                     + l.first.getName() + "'");
+        }
+
+        // Attempt to add literal to pool
+        const auto l = literalPool.try_emplace(integerResult, vectorRegisterAllocator.getRegister((std::to_string(integerResult) + " V").c_str()));
+
+        // If successful, generate code to load value into newly allocated vector register
+        if(l.second) {
+            c.vlui(*l.first->second, l.first->first);
+        }
+    }
+    
+    //ALLOCATE_SCALAR(SFieldBase);
+
+
+    // Generate archetype code
+    //Assembler::CodeGenerator archetypeCodeGenerator;
+    //pi->generateCode(archetypeCodeGenerator, scalarRegisterAllocator, vectorRegisterAllocator);
+
+    // Generate loop over merged groups
+    ALLOCATE_SCALAR(SCount);
+    c.li(*SCount, mergedProcess.getProcesses().size());
+
+    // Start field base
+    c.li(*SFieldBase, TODO);
+    Label groupLoop = c.L();
+    {
+        // Add generated code to simulate archetype
+        c += archetypeCodeGenerator;
+
+        // Advance to next group's fields
+        c.addi(*SFieldBase, *SFieldBase, FIELD_SIZE);
+
+        // Keep looping
+        c.addi(*SCount, *SCount, -1);
+        c.bne(*SCount, Reg::X0, groupLoop);
+    }
+
+    
+}
+//----------------------------------------------------------------------------
+void NeuronUpdateProcess::generateArchetype(Assembler::CodeGenerator &codeGenerator,
+                                            Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
+                                            Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
+{
     // Get fields associated with this process
-    const auto &stateFields = m_Model.get().getStatefulFields().at(neuronUpdateProcess);
+    //const auto &stateFields = m_Model.get().getStatefulFields().at(neuronUpdateProcess);
 
     // Build literal pool
-    std::unordered_map<int16_t, VectorRegisterAllocator::RegisterPtr> literalPool;
+    /*std::unordered_map<int16_t, VectorRegisterAllocator::RegisterPtr> literalPool;
     updateLiteralPool(neuronUpdateProcess->getTokens(), m_VectorRegisterAllocator.get(), literalPool);
         
     // Define type for event-emitting function
@@ -634,7 +729,7 @@ void NeuronUpdateProcess::updateMemSpaceCompatibility(std::shared_ptr<const ::Mo
         c.vlui(*l.second, (uint16_t)l.first);
     }
 
-        // For now, unrollVectorLoopBody requires SOME buffers
+    // For now, unrollVectorLoopBody requires SOME buffers
     assert(!neuronUpdateProcess->getVariables().empty());
 
     std::unordered_map<std::shared_ptr<const Variable>, std::unique_ptr<NeuronVarBase>> varBuffers;
@@ -888,8 +983,8 @@ void NeuronUpdateProcess::updateMemSpaceCompatibility(std::shared_ptr<const ::Mo
                 const auto bufferReg = eventBufferRegisters.at(e.second);
                 c.addi(*bufferReg, *bufferReg, 4 * numUnrolls);
                 }
-        });
-}*/
+        });*/
+}
 
 //----------------------------------------------------------------------------
 // FeNN::Backend::EventPropagationProcess
@@ -922,7 +1017,7 @@ void EventPropagationProcess::updateMemSpaceCompatibility(std::shared_ptr<const 
 
             if(!memSpaceCompatibility.llm) {
                 throw std::runtime_error("Event propagation process '" + getName()
-                                         + "' target array '" + getTarget()->getName()
+                                         + "' target array '" + getTarget().getUnderlying()->getName()
                                          + "' shared with incompatible processes");
             }
         }
@@ -933,7 +1028,7 @@ void EventPropagationProcess::updateMemSpaceCompatibility(std::shared_ptr<const 
 
             if(!memSpaceCompatibility.uramLLM) {
                 throw std::runtime_error("Event propagation process '" + getName()
-                                         + "' target array '" + getTarget()->getName()
+                                         + "' target array '" + getTarget().getUnderlying()->getName()
                                          + "' shared with incompatible processes");
             }
         }
@@ -948,12 +1043,13 @@ void EventPropagationProcess::updateMaxDMABufferSize(size_t &maxRowLength) const
     maxRowLength = std::max(maxRowLength, getMaxRowLength());
 }
 //----------------------------------------------------------------------------
-/*void EventPropagationProcess::generateCode(Assembler::CodeGenerator &codeGenerator,
+void EventPropagationProcess::generateCode(const ::Backend::MergedProcess &mergedProcess,
+                                           Assembler::CodeGenerator &codeGenerator,
                                            Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                            Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
     // Make some friendlier-named references
-    auto &c = m_CodeGenerator.get();
+    /*auto &c = m_CodeGenerator.get();
 
     // Register allocation
     ALLOCATE_SCALAR(SEventBuffer);
@@ -1026,9 +1122,9 @@ void EventPropagationProcess::updateMaxDMABufferSize(size_t &maxRowLength) const
     }
     else {
         generateURAMWordLoop(rowGenerators, SEventBuffer, SEventBufferEnd);
-    }
+    }*/
 }
-void generateURAMWordLoop(const std::vector<std::unique_ptr<RowGeneratorBase>> &rowGenerators, 
+/*void generateURAMWordLoop(const std::vector<std::unique_ptr<RowGeneratorBase>> &rowGenerators, 
                               ScalarRegisterAllocator::RegisterPtr eventBufferReg, 
                               ScalarRegisterAllocator::RegisterPtr eventBufferEndReg)
 {
@@ -1409,11 +1505,12 @@ void RNGInitProcess::updateMemSpaceCompatibility(std::shared_ptr<const ::Model::
     }
 }
 //----------------------------------------------------------------------------
-/*void RNGInitProcess::generateCode(Assembler::CodeGenerator &codeGenerator,
+void RNGInitProcess::generateCode(const ::Backend::MergedProcess &mergedProcess,
+                                  Assembler::CodeGenerator &codeGenerator,
                                   Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                   Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
-    auto &c = codeGenerator;
+    /*auto &c = codeGenerator;
 
     //**TODO** check seed shape
 
@@ -1428,8 +1525,8 @@ void RNGInitProcess::updateMemSpaceCompatibility(std::shared_ptr<const ::Model::
 
     // Load seed into RNG registers
     c.vloadr0(*SReg);
-    c.vloadr1(*SReg, 64);
-}*/
+    c.vloadr1(*SReg, 64);*/
+}
 
 //----------------------------------------------------------------------------
 // FeNN::Backend::MemsetProcess
@@ -1437,8 +1534,7 @@ void RNGInitProcess::updateMemSpaceCompatibility(std::shared_ptr<const ::Model::
 void MemsetProcess::updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, 
                                                 MemSpaceCompatibility &memSpaceCompatibility) const
 {
-    const auto target = std::get<::Model::VariablePtr>(getTarget());
-    assert(state == target);
+    assert(state == getTarget().getUnderlying());
 
     // **TODO** memset could handle anything
     memSpaceCompatibility.bram = false;
@@ -1446,17 +1542,18 @@ void MemsetProcess::updateMemSpaceCompatibility(std::shared_ptr<const ::Model::S
 
     if(!memSpaceCompatibility.llm && !memSpaceCompatibility.uram && !memSpaceCompatibility.uramLLM) {
         throw std::runtime_error("Memset process '" + getName()
-                                 + "' target array '" + target->getName()
+                                 + "' target array '" + getTarget().getUnderlying()->getName()
                                  + "' shared with incompatible processes");
     }
 }
 //----------------------------------------------------------------------------
-/*void MemsetProcess::generateCode(Assembler::CodeGenerator &codeGenerator,
+void MemsetProcess::generateCode(const ::Backend::MergedProcess &mergedProcess,
+                                 Assembler::CodeGenerator &codeGenerator,
                                  Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                  Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
     // Get fields associated with this process
-    const auto &stateFields = m_Model.get().getStatefulFields().at(this);
+    /*const auto &stateFields = m_Model.get().getStatefulFields().at(this);
 
     // If target is a variable reference
     if(std::holds_alternative<Model::VariablePtr>(getTarget())) {
@@ -1519,8 +1616,8 @@ void MemsetProcess::updateMemSpaceCompatibility(std::shared_ptr<const ::Model::S
                                      + "' targets incompatible backend state object "
                                      + std::to_string(target));
         }
-    }
-}*/
+    }*/
+}
 //----------------------------------------------------------------------------
 void MemsetProcess::generateLLMMemset(Assembler::CodeGenerator &codeGenerator,
                                       Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
@@ -1621,11 +1718,12 @@ void BroadcastProcess::updateMemSpaceCompatibility(std::shared_ptr<const ::Model
     }
 }
 //----------------------------------------------------------------------------
-/*void BroadcastProcess::generateCode(Assembler::CodeGenerator &codeGenerator,
+void BroadcastProcess::generateCode(const ::Backend::MergedProcess &mergedProcess,
+                                    Assembler::CodeGenerator &codeGenerator,
                                     Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                     Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
-    auto &c = codeGenerator;
+    /*auto &c = codeGenerator;
 
     // Register allocation
     ALLOCATE_SCALAR(SDataBuffer);
@@ -1704,6 +1802,6 @@ void BroadcastProcess::updateMemSpaceCompatibility(std::shared_ptr<const ::Model
 
         // Loop
         c.bne(*SDataBuffer, *SDataBufferEnd, halfWordLoop);
-    }
-}*/
+    }*/
+}
 }

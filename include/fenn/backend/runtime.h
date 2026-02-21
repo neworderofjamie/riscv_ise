@@ -307,24 +307,6 @@ protected:
 
 private:
     //------------------------------------------------------------------------
-    // Private API
-    //------------------------------------------------------------------------
-    void generateStandardProcessGroup(const std::vector<::Backend::MergedProcess> &mergedProcesses,
-                                      Assembler::CodeGenerator &codeGenerator,
-                                      Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
-                                      Assembler::VectorRegisterAllocator &vectorRegisterAllocator);
-
-    void generateEventHandlingProcessGroup(const std::vector<::Backend::MergedProcess> &mergedProcesses,
-                                           Assembler::CodeGenerator &codeGenerator,
-                                           Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
-                                           Assembler::VectorRegisterAllocator &vectorRegisterAllocator);
-
-    void generateProcessGroup(std::shared_ptr<const ::Model::ProcessGroup> processGroup,
-                              Assembler::CodeGenerator &codeGenerator,
-                              Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
-                              Assembler::VectorRegisterAllocator &vectorRegisterAllocator);
-
-    //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
     // Map of kernel pointers to code

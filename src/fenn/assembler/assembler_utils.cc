@@ -323,16 +323,32 @@ void unrollLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAll
     // Evenness of iterations can only be determined with even numbers of unrolls
     assert((maxUnroll % 2) == 0);
 
+    ALLOCATE_SCALAR(SIndex);
+    ALLOCATE_SCALAR(SUnroll);
+    c.li(*SUnroll, maxUnroll);
+    c.addi(*SIndex, count, 0);
+
     // Generate unrolled loop
-    size_t startCodeSize = c.getCodeSize();
+    size_t bodyStart = c.getCodeSize();
     std::optional<size_t> bodySize;
     for(uint32_t r = 0; r < maxUnroll; r++) {
-        
         genBodyFn(c, r, (r % 2) == 0);
-        
-    }
+        const size_t bodyEnd = c.getCodeSize();
+        if (!bodySize) {
+            bodySize = bodyEnd - bodyStart;
+        }
+        else {
+            assert(bodySize.value() == (bodyEnd - bodyStart));
+        }
+        bodyStart = bodyEnd;
 
-    c.j
+        c.sub(*SIndex, *SIndex, -*SUnroll * iterationBytes);
+    }
+    ALLOCATE_SCALAR(STarget);
+    c.min(*STarget, *SIndex, maxUnroll);
+    c.auipc(*STarget, 0);
+    // Target -= rem * bodysize
+    // jump target
    
     // If there are are complete unrolls
     if(numUnrolls.quot != 0) {

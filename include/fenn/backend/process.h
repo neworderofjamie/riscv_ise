@@ -10,6 +10,10 @@
 #include "fenn/backend/model.h"
 
 // Forward declarations
+namespace Backend
+{
+class MergedProcess;
+}
 namespace FeNN::Assembler
 {
 class CodeGenerator;
@@ -36,16 +40,13 @@ public:
     {
     }
 
-    //! Does this process handle events
-    //! **NOTE** on FeNN, one process group needs to contain all processes which handle events;
-    virtual bool isEventHandler() const = 0;
-
     //virtual void updateLUTObjectIDs(std::unordered_set<Model::StateObjectID> m_LUTObjectIDs;)
 
     //! Generate code to implement process
-    /*virtual void generateCode(Assembler::CodeGenerator &codeGenerator,
+    virtual void generateCode(const ::Backend::MergedProcess &mergedProcess,
+                              Assembler::CodeGenerator &codeGenerator,
                               Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
-                              Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const = 0;*/
+                              Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const = 0;
 };
 
 //----------------------------------------------------------------------------
@@ -94,13 +95,10 @@ public:
                                              MemSpaceCompatibility &memSpaceCompatibility) const override final;
 
     //! Generate code to implement process
-    /*virtual void generateCode(Assembler::CodeGenerator &codeGenerator,
+    virtual void generateCode(const ::Backend::MergedProcess &mergedProcess,
+                              Assembler::CodeGenerator &codeGenerator,
                               Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
-                              Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;*/
-
-    //! Does this process handle events
-    //! **NOTE** on FeNN, one process group needs to contain all processes which handle events;
-    virtual bool isEventHandler() const override final{ return false; }
+                              Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;
 
     //------------------------------------------------------------------------
     // Static API
@@ -110,6 +108,11 @@ public:
     {
         return std::make_shared<NeuronUpdateProcess>(Private(), code, variables, outputEvents, name);
     }
+
+protected:
+    void generateArchetype(Assembler::CodeGenerator &codeGenerator, 
+                           Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
+                           Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const;
 };
 
 //----------------------------------------------------------------------------
@@ -131,13 +134,10 @@ public:
     virtual void updateMaxDMABufferSize(size_t &maxRowLength) const override final;
 
     //! Generate code to implement process
-    /*virtual void generateCode(Assembler::CodeGenerator &codeGenerator,
+    virtual void generateCode(const ::Backend::MergedProcess &mergedProcess,
+                              Assembler::CodeGenerator &codeGenerator,
                               Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
-                              Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;*/
-
-    //! Does this process handle events
-    //! **NOTE** on FeNN, one process group needs to contain all processes which handle events;
-    virtual bool isEventHandler() const override final{ return true; }
+                              Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;
 
     //------------------------------------------------------------------------
     // Static API
@@ -169,13 +169,10 @@ public:
                                              MemSpaceCompatibility &memSpaceCompatibility) const override final;
 
     //! Generate code to implement process
-    /*virtual void generateCode(Assembler::CodeGenerator &codeGenerator,
+    virtual void generateCode(const ::Backend::MergedProcess &mergedProcess,
+                              Assembler::CodeGenerator &codeGenerator,
                               Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
-                              Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;*/
-
-    //! Does this process handle events
-    //! **NOTE** on FeNN, one process group needs to contain all processes which handle events;
-    virtual bool isEventHandler() const override final{ return false; }
+                              Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;
 
     //------------------------------------------------------------------------
     // Static API
@@ -202,13 +199,10 @@ public:
                                              MemSpaceCompatibility &memSpaceCompatibility) const override final;
 
     //! Generate code to implement process
-    /*virtual void generateCode(Assembler::CodeGenerator &codeGenerator,
+    virtual void generateCode(const ::Backend::MergedProcess &mergedProcess,
+                              Assembler::CodeGenerator &codeGenerator,
                               Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
-                              Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;*/
-
-    //! Does this process handle events
-    //! **NOTE** on FeNN, one process group needs to contain all processes which handle events;
-    virtual bool isEventHandler() const override final{ return false; }
+                              Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;
 
     //------------------------------------------------------------------------
     // Static API
@@ -249,14 +243,11 @@ public:
                                              MemSpaceCompatibility &memSpaceCompatibility) const override final;
 
     //! Generate code to implement process
-    /*virtual void generateCode(Assembler::CodeGenerator &codeGenerator,
+    virtual void generateCode(const ::Backend::MergedProcess &mergedProcess,
+                              Assembler::CodeGenerator &codeGenerator,
                               Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
-                              Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;*/
+                              Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;
 
-    //! Does this process handle events
-    //! **NOTE** on FeNN, one process group needs to contain all processes which handle events;
-    virtual bool isEventHandler() const override final{ return false; }
-    
     //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------

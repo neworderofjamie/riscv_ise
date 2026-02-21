@@ -36,6 +36,20 @@ public:
     //! Get vector of merged processes
     const auto &getProcesses() const{ return m_Processes; }
 
+    template<typename P, typename F>
+    void forEachProcess(F func) const
+    {
+        // Loop through processes
+        for (const auto &p : getProcesses()) {
+            // Cast to desired type
+            auto derivedP = std::dynamic_pointer_cast<const P>(p);
+            assert(derivedP);
+            
+            // Call function
+            func(derivedP);
+        }
+    }
+
 private:
     //------------------------------------------------------------------------
     // Members
