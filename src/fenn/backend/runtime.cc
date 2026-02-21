@@ -15,10 +15,16 @@
 // Model includes
 #include "model/event_container.h"
 #include "model/performance_counter.h"
+#include "model/process_group.h"
 #include "model/variable.h"
+
+// Assembler includes
+#include "fenn/assembler/assembler_utils.h"
 
 // FeNN backend includes
 #include "fenn/backend/model.h"
+#include "fenn/backend/process.h"
+#include "fenn/backend/kernel.h"
 
 //------------------------------------------------------------------------
 // FeNN::Backend::URAMArrayBase
@@ -103,7 +109,34 @@ Runtime::Runtime(const ::Model::Model &model, size_t numCores, bool useDRAMForWe
 :   ::Backend::Runtime(model), m_NumCores(numCores), m_UseDRAMForWeights(useDRAMForWeights), 
     m_KeepParamsInRegisters(keepParamsInRegisters), m_NeuronUpdateRoundingMode(neuronUpdateRoundingMode)
 {
-    // **TODO** generate code!
+    using namespace std::placeholders; 
+
+    // **TODO** fields
+    // **TODO** create device state objects to start allocating BRAM for
+    
+    //! Same ready flag is used by all kernels and located at BRAM address zero
+    constexpr uint32_t readyFlagPtr = 0;
+    
+    // Loop through kernels
+    for (const auto &k : getMergedModel().getModel().getKernels()) {
+        // Generate kernel
+        const auto code = Assembler::Utils::generateStandardKernel(
+            true/*shouldGenerateSimulationKernels()*/, readyFlagPtr,
+            [&k, this](Assembler::CodeGenerator &c, Assembler::VectorRegisterAllocator &vectorRegisterAllocator, 
+                       Assembler::ScalarRegisterAllocator &scalarRegisterAllocator)
+            {
+                // Ensure kernel has proper base class
+                auto ki = std::dynamic_pointer_cast<const KernelImplementation>(k);
+                if (!ki) {
+                    throw std::runtime_error("FeNN backend runtime used with incompatible kernel");
+                }
+
+                // Generate code
+                // **TODO** fields
+                ki->generateCode(c, scalarRegisterAllocator, vectorRegisterAllocator,
+                                 std::bind(&Runtime::generateProcessGroup, this, _1, _2, _3, _4));
+            });
+    }
 }
 //----------------------------------------------------------------------------
 std::unique_ptr<::Backend::ArrayBase> Runtime::createArray(std::shared_ptr<const ::Model::EventContainer> eventContainer) const
@@ -169,5 +202,68 @@ std::unique_ptr<::Backend::ArrayBase> Runtime::createArray(std::shared_ptr<const
         throw std::runtime_error("Variable '" + variable->getName() + "' is not compatible "
                                  "with any memory spaces available on FeNN");
     }
+}
+//----------------------------------------------------------------------------
+void Runtime::generateStandardProcessGroup(const std::vector<::Backend::MergedProcess> &mergedProcesses,
+                                           Assembler::CodeGenerator &codeGenerator,
+                                           Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
+                                           Assembler::VectorRegisterAllocator &vectorRegisterAllocator)
+{
+    // Loop through merged processes
+    for(const auto &m : mergedProcesses) {
+        ALLOCATE_SCALAR(SFieldBase);
+
+        Assembler::CodeGenerator archetypeCodeGenerator;
+        //m.getArchetype()->
+        // 1) Generate archetype code - determines fields etc
+        // 2) Generate loop over processes, updating base pointer to fields
+        
+    }
+}
+//----------------------------------------------------------------------------
+void Runtime::generateEventHandlingProcessGroup(const std::vector<::Backend::MergedProcess> &mergedProcesses,
+                                                Assembler::CodeGenerator &codeGenerator,
+                                                Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
+                                                Assembler::VectorRegisterAllocator &vectorRegisterAllocator)
+{
+}
+//----------------------------------------------------------------------------
+void Runtime::generateProcessGroup(std::shared_ptr<const ::Model::ProcessGroup> processGroup,
+                                   Assembler::CodeGenerator &codeGenerator,
+                                   Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
+                                   Assembler::VectorRegisterAllocator &vectorRegisterAllocator)
+{
+    // Function to test whether a process is an eventhandler or not
+    auto isEventHandlerFn =
+        [](const std::shared_ptr<const ::Model::Process> &p)
+        {
+            // Ensure process has proper base class
+            auto pi = std::dynamic_pointer_cast<const ProcessImplementation>(p);
+            if (!pi) {
+                throw std::runtime_error("FeNN backend runtime used with incompatible process");
+            }
+            return pi->isEventHandler();
+        };
+
+    // Classify process group
+    // **TODO** we also want to check that there is only one event handling group
+    const bool eventHandler = std::all_of(processGroup->getProcesses().cbegin(), processGroup->getProcesses().cend(), isEventHandlerFn);
+    const bool standard = std::none_of(processGroup->getProcesses().cbegin(), processGroup->getProcesses().cend(), isEventHandlerFn);
+    if (!eventHandler && !standard) {
+        throw std::runtime_error("FeNN backend requires that event handling and non-event "
+                                 "handling processes are not mixed in the same process group");
+    }
+
+    // Get merged groups and generate appropriate code
+    const auto &mergedProcesses = getMergedModel().getMergedProcessGroups().at(processGroup);
+    if (eventHandler) {
+        generateEventHandlingProcessGroup(mergedProcesses, codeGenerator, 
+                                          scalarRegisterAllocator, vectorRegisterAllocator);
+    }
+    else {
+        generateStandardProcessGroup(mergedProcesses, codeGenerator, 
+                                     scalarRegisterAllocator, vectorRegisterAllocator);
+    }
+
 }
 }

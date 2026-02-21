@@ -35,7 +35,8 @@ namespace FeNN::Backend
 {
 void SimpleKernel::generateCode(Assembler::CodeGenerator &codeGenerator,
                                 Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
-                                Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
+                                Assembler::VectorRegisterAllocator &vectorRegisterAllocator,
+                                GenerateProcessGroupFn generateProcessGroup) const
 {
     auto &c = codeGenerator;
 
@@ -47,10 +48,7 @@ void SimpleKernel::generateCode(Assembler::CodeGenerator &codeGenerator,
 
     // Visit process groups
     for (const auto &p : getProcessGroups()) {
-        /*CodeGeneratorVisitor visitor(p, nullptr, std::nullopt, c, vectorRegisterAllocator,
-                                     scalarRegisterAllocator, model,
-                                     m_UseDRAMForWeights, m_KeepParamsInRegisters,
-                                     m_NeuronUpdateRoundingMode);*/
+        generateProcessGroup(p, c, scalarRegisterAllocator, vectorRegisterAllocator);
     }
 }
 //----------------------------------------------------------------------------
@@ -58,7 +56,8 @@ void SimpleKernel::generateCode(Assembler::CodeGenerator &codeGenerator,
 //----------------------------------------------------------------------------
 void SimulationLoopKernel::generateCode(Assembler::CodeGenerator &codeGenerator,
                                         Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
-                                        Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
+                                        Assembler::VectorRegisterAllocator &vectorRegisterAllocator,
+                                        GenerateProcessGroupFn generateProcessGroup) const
 {
     auto &c = codeGenerator;
 
@@ -84,11 +83,7 @@ void SimulationLoopKernel::generateCode(Assembler::CodeGenerator &codeGenerator,
 
     // Visit begin process group
     for (const auto &p : getBeginProcessGroups()) {
-
-        //CodeGeneratorVisitor visitor(p, nullptr, std::nullopt, c, vectorRegisterAllocator,
-        //                             scalarRegisterAllocator, model,
-        //                             m_UseDRAMForWeights, m_KeepParamsInRegisters,
-        //                             m_NeuronUpdateRoundingMode);
+        generateProcessGroup(p, c, scalarRegisterAllocator, vectorRegisterAllocator);
     }
 
     // Loop over time
@@ -96,10 +91,7 @@ void SimulationLoopKernel::generateCode(Assembler::CodeGenerator &codeGenerator,
     {
         // Visit timestep process group
         for (const auto &p : getTimestepProcessGroups()) {
-            //CodeGeneratorVisitor visitor(p, STime, numTimesteps, c, vectorRegisterAllocator,
-            //                             scalarRegisterAllocator, model,
-            //                             m_UseDRAMForWeights, m_KeepParamsInRegisters,
-            //                             m_NeuronUpdateRoundingMode);
+            generateProcessGroup(p, c, scalarRegisterAllocator, vectorRegisterAllocator);
         }
 
         c.addi(*STime, *STime, 1);
@@ -108,10 +100,7 @@ void SimulationLoopKernel::generateCode(Assembler::CodeGenerator &codeGenerator,
 
     // Visit end process group
     for (const auto &p : getEndProcessGroups()) {
-        //CodeGeneratorVisitor visitor(p, nullptr, std::nullopt, c, vectorRegisterAllocator,
-        //                             scalarRegisterAllocator, model,
-        //                             m_UseDRAMForWeights, m_KeepParamsInRegisters,
-        //                             m_NeuronUpdateRoundingMode);
+        generateProcessGroup(p, c, scalarRegisterAllocator, vectorRegisterAllocator);
     }
 }
 
