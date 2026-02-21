@@ -1,7 +1,7 @@
 #pragma once
 
 // Model includes
-#include "model/graph.h"
+#include "model/kernel.h"
 
 // Assembler includes
 #include "fenn/assembler/register_allocator.h"
@@ -13,11 +13,11 @@ class CodeGenerator;
 }
 
 //----------------------------------------------------------------------------
-// FeNN::Backend::GraphImplementation
+// FeNN::Backend::KernelImplementation
 //----------------------------------------------------------------------------
 namespace FeNN::Backend
 {
-class GraphImplementation
+class KernelImplementation
 {
 public:
     //! Generate code to implement process
@@ -27,12 +27,12 @@ public:
 };
 
 //----------------------------------------------------------------------------
-// FeNN::Backend::SimpleGraph
+// FeNN::Backend::SimpleKernel
 //----------------------------------------------------------------------------
-class SimpleGraph : public GraphImplementation, public Model::SimpleGraph
+class SimpleKernel : public KernelImplementation, public Model::SimpleKernel
 {
 public:
-    using Model::SimpleGraph::SimpleGraph;
+    using Model::SimpleKernel::SimpleKernel;
 
     //------------------------------------------------------------------------
     // GraphImplementation virtuals
@@ -45,20 +45,20 @@ public:
     //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------
-    static std::shared_ptr<SimpleGraph> create(const Model::ProcessGroupVector &processGroups,
-                                               const std::string &name = "")
+    static std::shared_ptr<SimpleKernel> create(const Model::ProcessGroupVector &processGroups,
+                                                const std::string &name = "")
     {
-        return std::make_shared<SimpleGraph>(Private(), processGroups, name);
+        return std::make_shared<SimpleKernel>(Private(), processGroups, name);
     }
 };
 
 //----------------------------------------------------------------------------
-// FeNN::Backend::SimulationLoopGraph
+// FeNN::Backend::SimulationLoopKernel
 //----------------------------------------------------------------------------
-class SimulationLoopGraph : public GraphImplementation, public Model::SimulationLoopGraph
+class SimulationLoopKernel : public KernelImplementation, public Model::SimulationLoopKernel
 {
 public:
-    using Model::SimulationLoopGraph::SimulationLoopGraph;
+    using Model::SimulationLoopKernel::SimulationLoopKernel;
 
 
     //------------------------------------------------------------------------
@@ -72,13 +72,13 @@ public:
     //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------
-    static std::shared_ptr<SimulationLoopGraph> create(uint32_t numTimesteps, Model::ProcessGroupVector &timestepProcessGroups, 
-                                                       const Model::ProcessGroupVector &beginProcessGroups = {},
-                                                       const Model::ProcessGroupVector &endProcessGroups = {},
-                                                       const std::string &name = "")
+    static std::shared_ptr<SimulationLoopKernel> create(uint32_t numTimesteps, Model::ProcessGroupVector &timestepProcessGroups, 
+                                                        const Model::ProcessGroupVector &beginProcessGroups = {},
+                                                        const Model::ProcessGroupVector &endProcessGroups = {},
+                                                        const std::string &name = "")
     {
-        return std::make_shared<SimulationLoopGraph>(Private(), numTimesteps, timestepProcessGroups,
-                                                     beginProcessGroups, endProcessGroups, name);
+        return std::make_shared<SimulationLoopKernel>(Private(), numTimesteps, timestepProcessGroups,
+                                                      beginProcessGroups, endProcessGroups, name);
     }
 };
 }

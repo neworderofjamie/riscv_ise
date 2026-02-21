@@ -21,7 +21,7 @@
   <ItemGroup>
     <ClInclude Include="..\..\..\include\fenn\backend\backend_export.h" />
     <ClInclude Include="..\..\..\include\fenn\backend\environment.h" />
-    <ClInclude Include="..\..\..\include\fenn\backend\graph.h" />
+    <ClInclude Include="..\..\..\include\fenn\backend\kernel.h" />
     <ClInclude Include="..\..\..\include\fenn\backend\memory_allocator.h" />
     <ClInclude Include="..\..\..\include\fenn\backend\model.h" />
     <ClInclude Include="..\..\..\include\fenn\backend\process.h" />
@@ -32,7 +32,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="environment.cc" />
-    <ClCompile Include="graph.cc" />
+    <ClCompile Include="kernel.cc" />
     <ClCompile Include="memory_allocator.cc" />
     <ClCompile Include="model.cc" />
     <ClCompile Include="process.cc" />
