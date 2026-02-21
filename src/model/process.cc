@@ -1,6 +1,9 @@
 // Standard C++ includes
 #include <stdexcept>
 
+// Fast float includes
+#include <fast_float/fast_float.h>
+
 // GeNN includes
 #include "gennUtils.h"
 
@@ -65,9 +68,50 @@ NeuronUpdateProcess::NeuronUpdateProcess(Private, const std::string &code, const
     m_Tokens = GeNN::Utils::scanCode(code, "NeuronUpdateProcess");
 
     // Loop through tokens
-    for (size_t i = 0; i < m_Tokens.size(); i++) {
+    for(const auto &t: getTokens()) {
         // If this token is a numeric literal,
-        if (m_Tokens[i].type == GeNN::Transpiler::Token::Type::NUMBER) {
+        if (t.type == GeNN::Transpiler::Token::Type::NUMBER) {
+            // Get start and end of lexeme
+            const auto lexeme = t.lexeme;
+            const char *lexemeBegin = lexeme.c_str();
+            const char *lexemeEnd = lexemeBegin + lexeme.size();
+
+            // Get it's type (scalar if not specified)
+            const auto &numericType = t.numberType.value().getNumeric();
+            if(numericType.isIntegral) {
+                if(numericType.isSigned) {
+                    int64_t result;
+                    auto answer = fast_float::from_chars(lexemeBegin, lexemeEnd, result);
+                    if(answer.ec == std::errc()) {
+                        m_Literals.emplace(t.numberType.value(), result);
+                    }
+                    else {
+                        throw std::runtime_error("Unable to pass numeric literal '" + lexeme + "'");
+                    }
+                    
+                }
+                else {
+                    uint64_t result;
+                    auto answer = fast_float::from_chars(lexemeBegin, lexemeEnd, result);
+                    if(answer.ec == std::errc()) {
+                        m_Literals.emplace(t.numberType.value(), result);
+                    }
+                    else {
+                        throw std::runtime_error("Unable to pass numeric literal '" + lexeme + "'");
+                    }
+                }
+            }
+            // Otherwise, if it is fixed point or floating point
+            else {
+                double result;
+                auto answer = fast_float::from_chars(lexemeBegin, lexemeEnd, result);
+                if(answer.ec == std::errc()) {
+                    m_Literals.emplace(t.numberType.value(), result);
+                }
+                else {
+                    throw std::runtime_error("Unable to pass numeric literal '" + lexeme + "'");
+                }
+            }
         }
     }
     // Batched = any output events batched
@@ -204,11 +248,11 @@ void EventPropagationProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, 
     UPDATE_HASH_CLASS_NAME(EventPropagationProcess);
 
     // Input events
-    getInputEvents()->updateMergeHash(hash);
+    getInputEvents().getUnderlying()->updateMergeHash(hash);
 
     // Weights and targets
     getWeight()->updateMergeHash(hash);
-    getTarget()->updateMergeHash(hash);
+    getTarget().getUnderlying()->updateMergeHash(hash);
 
     // Formats
     updateHash(getNumDelayBits(), hash);

@@ -38,9 +38,9 @@ public:
     // Static API
     //------------------------------------------------------------------------
     static std::shared_ptr<Variable> create(const Shape &shape, const GeNN::Type::UnresolvedType &type, 
-                                            size_t numBufferTimesteps = 1, const std::string &name = "")
+                                            const std::string &name = "")
     {
-        return std::make_shared<Variable>(Private(), shape, type, numBufferTimesteps, name);
+        return std::make_shared<Variable>(Private(), shape, type, name);
     }
 
 private:

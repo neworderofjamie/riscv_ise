@@ -3,10 +3,14 @@
 // Standard C++ includes
 #include <map>
 #include <memory>
+#include <set>
 #include <string>
 #include <variant>
 
 // GeNN includes
+#include "type.h"
+
+// GeNN transpiler includes
 #include "transpiler/token.h"
 
 // Model includes
@@ -32,7 +36,7 @@ class Sliced
 {
 public:
     Sliced(std::shared_ptr<const T> underlying, bool timeSlice = false)
-    :   m_Variable(underlying), m_TimeSlice(timeSlice)
+    :   m_Underlying(underlying), m_TimeSlice(timeSlice)
     {}
 
     auto getUnderlying() const{ return m_Underlying; }
@@ -63,6 +67,7 @@ using VariablePtr = std::shared_ptr<const Variable>;
 using VariablePtrBackendState = std::variant<VariablePtr, int>;
 using EventContainerMap = std::map<std::string, Sliced<EventContainer>>;
 using VariableMap = std::map<std::string, Sliced<Variable>>;
+using LiteralSet = std::set<std::pair<GeNN::Type::ResolvedType, GeNN::Type::NumericValue>>;
 
 //----------------------------------------------------------------------------
 // Model::NeuronUpdateProcess
@@ -93,6 +98,8 @@ public:
 
     const auto &getShape() const{ return m_Shape; }
 
+    const auto &getLiterals() const{ return m_Literals; }
+
 private:
     //------------------------------------------------------------------------
     // Members
@@ -100,6 +107,10 @@ private:
     VariableMap m_Variables;
     EventContainerMap m_OutputEvents;
 
+    //! Set of literal types and numeric values built from code
+    LiteralSet m_Literals;
+
+    //! Tokens built from code
     std::vector<GeNN::Transpiler::Token> m_Tokens;
 
     Shape m_Shape;
