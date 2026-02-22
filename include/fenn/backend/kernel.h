@@ -28,7 +28,7 @@ public:
                                                       Assembler::ScalarRegisterAllocator&,
                                                       Assembler::VectorRegisterAllocator&)>;
     //! Generate code to implement process
-    virtual void generateCode(Assembler::CodeGenerator &codeGenerator,
+    virtual void generateCode(Assembler::CodeGenerator &c,
                               Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                               Assembler::VectorRegisterAllocator &vectorRegisterAllocator,
                               GenerateProcessGroupFn generateProcessGroup) const = 0;
@@ -46,7 +46,7 @@ public:
     // GraphImplementation virtuals
     //------------------------------------------------------------------------
     //! Generate code to implement process
-    virtual void generateCode(Assembler::CodeGenerator &codeGenerator,
+    virtual void generateCode(Assembler::CodeGenerator &c,
                               Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                               Assembler::VectorRegisterAllocator &vectorRegisterAllocator,
                               GenerateProcessGroupFn generateProcessGroup) const override final;
@@ -74,7 +74,7 @@ public:
     // GraphImplementation virtuals
     //------------------------------------------------------------------------
     //! Generate code to implement process
-    virtual void generateCode(Assembler::CodeGenerator &codeGenerator,
+    virtual void generateCode(Assembler::CodeGenerator &c,
                               Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                               Assembler::VectorRegisterAllocator &vectorRegisterAllocator,
                               GenerateProcessGroupFn generateProcessGroup) const override final;

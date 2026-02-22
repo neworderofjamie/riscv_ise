@@ -33,13 +33,11 @@ bool arePerformanceCountersRequired(const Model::ProcessGroupVector &processGrou
 //----------------------------------------------------------------------------
 namespace FeNN::Backend
 {
-void SimpleKernel::generateCode(Assembler::CodeGenerator &codeGenerator,
+void SimpleKernel::generateCode(Assembler::CodeGenerator &c,
                                 Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                 Assembler::VectorRegisterAllocator &vectorRegisterAllocator,
                                 GenerateProcessGroupFn generateProcessGroup) const
 {
-    auto &c = codeGenerator;
-
     // If performance counters are enabled, disinhibit them
     // **NOTE** on device, this takes a few cycles to make it through the pipeline so we do it well before we try and access counters
     if(arePerformanceCountersRequired(getProcessGroups())) {
@@ -54,13 +52,11 @@ void SimpleKernel::generateCode(Assembler::CodeGenerator &codeGenerator,
 //----------------------------------------------------------------------------
 // FeNN::Backend::SimulationLoopKernel
 //----------------------------------------------------------------------------
-void SimulationLoopKernel::generateCode(Assembler::CodeGenerator &codeGenerator,
+void SimulationLoopKernel::generateCode(Assembler::CodeGenerator &c,
                                         Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                         Assembler::VectorRegisterAllocator &vectorRegisterAllocator,
                                         GenerateProcessGroupFn generateProcessGroup) const
 {
-    auto &c = codeGenerator;
-
     // Register allocation
     ALLOCATE_SCALAR(STime);
     ALLOCATE_SCALAR(STimeEnd);

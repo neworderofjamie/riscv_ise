@@ -64,7 +64,6 @@ private:
 };
 
 using VariablePtr = std::shared_ptr<const Variable>;
-using VariablePtrBackendState = std::variant<VariablePtr, int>;
 using EventContainerMap = std::map<std::string, Sliced<EventContainer>>;
 using VariableMap = std::map<std::string, Sliced<Variable>>;
 using LiteralSet = std::set<std::pair<GeNN::Type::ResolvedType, GeNN::Type::NumericValue>>;
@@ -235,7 +234,7 @@ private:
 class MODEL_EXPORT BroadcastProcess : public Process
 {
 public:
-    BroadcastProcess(Private, VariablePtr source, VariablePtrBackendState target, const std::string &name);
+    BroadcastProcess(Private, VariablePtr source, VariablePtr target, const std::string &name);
 
     //------------------------------------------------------------------------
     // Stateful virtuals
@@ -258,6 +257,6 @@ private:
     // Members
     //------------------------------------------------------------------------
     VariablePtr m_Source;
-    VariablePtrBackendState m_Target;
+    VariablePtr m_Target;
 };
 }

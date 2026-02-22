@@ -19,6 +19,8 @@
 #include "fenn/assembler/register_allocator.h"
 
 // FeNN backend includes
+#include "fenn/backend/environment.h"
+#include "fenn/backend/fields.h"
 #include "fenn/backend/model.h"
 
 using namespace FeNN::Assembler;
@@ -593,15 +595,57 @@ private:
 };*/
 }
 //----------------------------------------------------------------------------
-// FeNN::Backend::NeuronUpdateProcess
+// FeNN::Backend::TimeDrivenProcessImplementation
 //----------------------------------------------------------------------------
 namespace FeNN::Backend
 {
+void TimeDrivenProcessImplementation::generateCode(const ::Backend::MergedProcess &mergedProcess,
+                                                   Assembler::CodeGenerator &c,
+                                                   Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
+                                                   Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
+{
+    // Allocate base register
+    ALLOCATE_SCALAR(SFieldBase);
+    ALLOCATE_SCALAR(SFieldBaseEnd);
+
+    // Create environment with base register
+    EnvironmentExternal environment(c);
+    environment.add(GeNN::Type::Uint32.addConst(), "_field_base", SFieldBase);
+
+    // Generate preamble code to setup state shared across merged group
+    generateMergedPreambleCode(mergedProcess, environment, c, 
+                               scalarRegisterAllocator, vectorRegisterAllocator);
+
+    // Generate archetype code
+    MergedFields mergedFields;
+    Assembler::CodeGenerator archetypeCodeGenerator;
+    generateArchetypeCode(mergedProcess, environment, mergedFields,
+                          archetypeCodeGenerator, scalarRegisterAllocator, 
+                          vectorRegisterAllocator);
+
+    // Generate loop over merged groups
+    c.li(*SFieldBase, TODO);
+    c.addi(*SFieldBaseEnd, *SFieldBase, mergedProcess.getProcesses().size() * mergedFields.getSize());
+    Label groupLoop = c.L();
+    {
+        // Insert generated code to simulate archetype
+        c += archetypeCodeGenerator;
+
+        // Advance to next group's fields
+        c.addi(*SFieldBase, *SFieldBase, mergedFields.getSize());
+
+        // Keep looping
+        c.bne(*SFieldBase, *SFieldBaseEnd, groupLoop);
+    }
+}
+//----------------------------------------------------------------------------
+// FeNN::Backend::NeuronUpdateProcess
+//----------------------------------------------------------------------------
 void NeuronUpdateProcess::updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, 
                                                       MemSpaceCompatibility &memSpaceCompatibility) const
 {
     const auto var = std::find_if(getVariables().cbegin(), getVariables().cend(),
-                                  [&state](const auto &v){ return v.second == state; });
+                                  [&state](const auto &v){ return v.second.getUnderlying() == state; });
     assert(var != neuronUpdateProcess->getVariables().cend());
 
     // Neuron variables can be located in URAM, LLM or both
@@ -616,7 +660,7 @@ void NeuronUpdateProcess::updateMemSpaceCompatibility(std::shared_ptr<const ::Mo
 }
 //----------------------------------------------------------------------------
 void NeuronUpdateProcess::generateCode(const ::Backend::MergedProcess &mergedProcess,
-                                       Assembler::CodeGenerator &codeGenerator,
+                                       Common::Reg fieldBaseReg, Assembler::CodeGenerator &c,
                                        Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                        Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
@@ -647,7 +691,6 @@ void NeuronUpdateProcess::generateCode(const ::Backend::MergedProcess &mergedPro
         });
 
     // Loop through literals shared across merged processes, check FeNN-compliance and load
-    auto &c = codeGenerator;
     std::unordered_map<int16_t, VectorRegisterAllocator::RegisterPtr> literalPool;
     for (const auto &l : literalValues.value()) {
         // If literal is an integer, use value directly
@@ -689,7 +732,7 @@ void NeuronUpdateProcess::generateCode(const ::Backend::MergedProcess &mergedPro
     //pi->generateCode(archetypeCodeGenerator, scalarRegisterAllocator, vectorRegisterAllocator);
 
     // Generate loop over merged groups
-    ALLOCATE_SCALAR(SCount);
+    /*ALLOCATE_SCALAR(SCount);
     c.li(*SCount, mergedProcess.getProcesses().size());
 
     // Start field base
@@ -705,12 +748,12 @@ void NeuronUpdateProcess::generateCode(const ::Backend::MergedProcess &mergedPro
         // Keep looping
         c.addi(*SCount, *SCount, -1);
         c.bne(*SCount, Reg::X0, groupLoop);
-    }
+    }*/
 
     
 }
 //----------------------------------------------------------------------------
-void NeuronUpdateProcess::generateArchetype(Assembler::CodeGenerator &codeGenerator,
+void NeuronUpdateProcess::generateArchetype(Assembler::CodeGenerator &c,
                                             Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
                                             Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
@@ -1044,14 +1087,11 @@ void EventPropagationProcess::updateMaxDMABufferSize(size_t &maxRowLength) const
 }
 //----------------------------------------------------------------------------
 void EventPropagationProcess::generateCode(const ::Backend::MergedProcess &mergedProcess,
-                                           Assembler::CodeGenerator &codeGenerator,
+                                           Common::Reg fieldBaseReg, Assembler::CodeGenerator &c,
                                            Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                            Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
-    // Make some friendlier-named references
-    /*auto &c = m_CodeGenerator.get();
-
-    // Register allocation
+    /*    // Register allocation
     ALLOCATE_SCALAR(SEventBuffer);
     ALLOCATE_SCALAR(SEventBufferEnd);
 
@@ -1505,27 +1545,25 @@ void RNGInitProcess::updateMemSpaceCompatibility(std::shared_ptr<const ::Model::
     }
 }
 //----------------------------------------------------------------------------
-void RNGInitProcess::generateCode(const ::Backend::MergedProcess &mergedProcess,
-                                  Assembler::CodeGenerator &codeGenerator,
-                                  Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
-                                  Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
+void RNGInitProcess::generateArchetypeCode(const ::Backend::MergedProcess &mergedProcess,
+                                           EnvironmentExternal &environment, 
+                                           MergedFields &fields, Assembler::CodeGenerator &c,
+                                           Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
+                                           Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
-    /*auto &c = codeGenerator;
-
-    //**TODO** check seed shape
-
-    // Get fields associated with this process
-    const auto &stateFields = m_Model.get().getStatefulFields().at(rngInitProcess);
+    // Allocate fields
+    const uint32_t seedFieldOffset = fields.addField<RNGInitProcess>(
+        mergedProcess, [](const auto &p){ return p->getSeed(); });
 
     // Allocate scalar register to hold address of seed buffer
     ALLOCATE_SCALAR(SReg);
 
     // Generate code to load address of seed
-    c.lw(*SReg, Reg::X0, stateFields.at(getSeed()));
+    c.lw(*SReg, *environment.getScalarRegister("_field_base"), seedFieldOffset);
 
     // Load seed into RNG registers
     c.vloadr0(*SReg);
-    c.vloadr1(*SReg, 64);*/
+    c.vloadr1(*SReg, 64);
 }
 
 //----------------------------------------------------------------------------
@@ -1547,79 +1585,41 @@ void MemsetProcess::updateMemSpaceCompatibility(std::shared_ptr<const ::Model::S
     }
 }
 //----------------------------------------------------------------------------
-void MemsetProcess::generateCode(const ::Backend::MergedProcess &mergedProcess,
-                                 Assembler::CodeGenerator &codeGenerator,
-                                 Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
-                                 Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
+void MemsetProcess::generateArchetypeCode(const ::Backend::MergedProcess &mergedProcess,
+                                          EnvironmentExternal &environment, 
+                                          MergedFields &fields, Assembler::CodeGenerator &c,
+                                          Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
+                                          Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
-    // Get fields associated with this process
-    /*const auto &stateFields = m_Model.get().getStatefulFields().at(this);
+    // Visit all users of this variable to determine how it has been be implemented
+    /*VariableImplementerVisitor visitor(target, m_Model.get().getStateProcesses().at(target),
+                                       m_UseDRAMForWeights);
 
-    // If target is a variable reference
-    if(std::holds_alternative<Model::VariablePtr>(getTarget())) {
-        auto target = std::get<Model::VariablePtr>(getTarget());
+    // Determine how many vectors we're memsetting
+    const size_t numVecsOneTimestep = Utils::ceilDivide(target->getShape().getFlattenedSize(), 32);
+    const size_t numVecs = numVecsOneTimestep * target->getNumBufferTimesteps();
 
-        // Visit all users of this variable to determine how it has been be implemented
-        VariableImplementerVisitor visitor(target, m_Model.get().getStateProcesses().at(target),
-                                           m_UseDRAMForWeights);
+    // Allocate register for target address
+    ALLOCATE_SCALAR(STargetBuffer);
 
-        // Determine how many vectors we're memsetting
-        const size_t numVecsOneTimestep = Utils::ceilDivide(target->getShape().getFlattenedSize(), 32);
-        const size_t numVecs = numVecsOneTimestep * target->getNumBufferTimesteps();
-
-        // Allocate register for target address
-        ALLOCATE_SCALAR(STargetBuffer);
-
-        if(visitor.isURAMCompatible()) {
-            codeGenerator.lw(*STargetBuffer, Reg::X0, stateFields.at(target));
-            generateURAMMemset(numVecs, STargetBuffer);
-        }
-        else if(visitor.isLLMCompatible()) {
-            codeGenerator.lw(*STargetBuffer, Reg::X0, stateFields.at(target));
-            generateLLMMemset(numVecs, STargetBuffer);
-        }
-        else if(visitor.isURAMLLMCompatible()) {
-            codeGenerator.lw(*STargetBuffer, Reg::X0, stateFields.at(target));
-            generateURAMMemset(numVecsOneTimestep, STargetBuffer);
-
-            codeGenerator.lw(*STargetBuffer, Reg::X0, stateFields.at(target) + 4);
-            generateLLMMemset(numVecs, STargetBuffer);
-        }
-        //else if(visitor.isBRAMCompatible()) {
-        //}
-        else {
-            assert(false);
-        }
+    if(visitor.isURAMCompatible()) {
+        codeGenerator.lw(*STargetBuffer, Reg::X0, stateFields.at(target));
+        generateURAMMemset(numVecs, STargetBuffer);
     }
-    // Otherwise
-    else {
-        // Get state object ID
-        const int target = std::get<int>(getTarget());
+    else if(visitor.isLLMCompatible()) {
+        codeGenerator.lw(*STargetBuffer, Reg::X0, stateFields.at(target));
+        generateLLMMemset(numVecs, STargetBuffer);
+    }
+    else if(visitor.isURAMLLMCompatible()) {
+        codeGenerator.lw(*STargetBuffer, Reg::X0, stateFields.at(target));
+        generateURAMMemset(numVecsOneTimestep, STargetBuffer);
 
-        // Get target field
-        // **NOTE** model already checks validity of taret
-        const auto &targetField = m_Model.get().getBackendFields().at(target);
-
-        // If target is a LUT i.e. in lane-local memory
-        if(static_cast<StateObjectID>(target) == StateObjectID::LUT_EXP) {    
-            // Load target address
-            ALLOCATE_SCALAR(STargetBuffer);
-            c.lw(*STargetBuffer, Reg::X0, std::get<1>(targetField));
-
-            // **YUCK** cast to variable and generate lane-local memory memset
-            auto targetVar = std::static_pointer_cast<const Variable>(std::get<0>(targetField));
-            generateLLMMemset(ceilDivide(targetVar->getShape().getFlattenedSize(), 32),
-                              STargetBuffer);
-        }
-        else {
-            throw std::runtime_error("Memset process '" + getName() 
-                                     + "' targets incompatible backend state object "
-                                     + std::to_string(target));
-        }
+        codeGenerator.lw(*STargetBuffer, Reg::X0, stateFields.at(target) + 4);
+        generateLLMMemset(numVecs, STargetBuffer);
     }*/
 }
 //----------------------------------------------------------------------------
-void MemsetProcess::generateLLMMemset(Assembler::CodeGenerator &codeGenerator,
+void MemsetProcess::generateLLMMemset(Assembler::CodeGenerator &c,
                                       Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
                                       Assembler::VectorRegisterAllocator &vectorRegisterAllocator,
                                       size_t numVectors, Assembler::ScalarRegisterAllocator::RegisterPtr targetReg) const
@@ -1629,14 +1629,14 @@ void MemsetProcess::generateLLMMemset(Assembler::CodeGenerator &codeGenerator,
     ALLOCATE_VECTOR(VNumUnrollBytes);
 
     // Load value to memset
-    codeGenerator.vlui(*VValue, 0);
+    c.vlui(*VValue, 0);
 
     // Broadcast address
-    codeGenerator.vfill(*VLLMAddress, *targetReg);
+    c.vfill(*VLLMAddress, *targetReg);
 
     // Generate unrolled loop 
     Assembler::Utils::unrollVectorLoopBody(
-        codeGenerator, scalarRegisterAllocator, numVectors * 32, 4, *targetReg,
+        c, scalarRegisterAllocator, numVectors * 32, 4, *targetReg,
         [VLLMAddress, VValue]
         (CodeGenerator &c, uint32_t r, uint32_t, ScalarRegisterAllocator::RegisterPtr)
         {
@@ -1655,7 +1655,7 @@ void MemsetProcess::generateLLMMemset(Assembler::CodeGenerator &codeGenerator,
         });
 }
 //----------------------------------------------------------------------------
-void MemsetProcess::generateURAMMemset(Assembler::CodeGenerator &codeGenerator,
+void MemsetProcess::generateURAMMemset(Assembler::CodeGenerator &c,
                                        Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                        Assembler::VectorRegisterAllocator &vectorRegisterAllocator,
                                        size_t numVectors, Assembler::ScalarRegisterAllocator::RegisterPtr targetReg) const
@@ -1664,11 +1664,11 @@ void MemsetProcess::generateURAMMemset(Assembler::CodeGenerator &codeGenerator,
 
     // Load value to memset and calculate unroll bytes
     // **TODO** parameterise
-    codeGenerator.vlui(*VValue, 0);
+    c.vlui(*VValue, 0);
 
     // Generate unrolled loop 
     Assembler::Utils::unrollVectorLoopBody(
-        codeGenerator, scalarRegisterAllocator, numVectors * 32, 4, *targetReg,
+        c, scalarRegisterAllocator, numVectors * 32, 4, *targetReg,
         [targetReg, VValue]
         (CodeGenerator &c, uint32_t r, uint32_t, ScalarRegisterAllocator::RegisterPtr)
         {
@@ -1702,9 +1702,7 @@ void BroadcastProcess::updateMemSpaceCompatibility(std::shared_ptr<const ::Model
     }
     else {
         // Otherwise, if variable's target, it can only located in LLM or URAMLLM
-        // **TODO** URAM would also be sensible IN THEORY 
-        const auto target = std::get<::Model::VariablePtr>(getTarget());
-        assert(state == target);
+        assert(state == getTarget());
 
         memSpaceCompatibility.bram = false;
         memSpaceCompatibility.uram = false;
@@ -1712,76 +1710,60 @@ void BroadcastProcess::updateMemSpaceCompatibility(std::shared_ptr<const ::Model
 
         if(!memSpaceCompatibility.llm && !memSpaceCompatibility.uramLLM) {
             throw std::runtime_error("Broadcast process '" + getName()
-                                     + "' target array '" + target->getName()
+                                     + "' target array '" + getTarget()->getName()
                                      + "' shared with incompatible processes");
         }
     }
 }
 //----------------------------------------------------------------------------
-void BroadcastProcess::generateCode(const ::Backend::MergedProcess &mergedProcess,
-                                    Assembler::CodeGenerator &codeGenerator,
-                                    Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
-                                    Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
+void BroadcastProcess::generateMergedPreambleCode(const ::Backend::MergedProcess &mergedProcess,
+                                                  EnvironmentExternal &environment, 
+                                                  Assembler::CodeGenerator &c,
+                                                  Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
+                                                  Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
-    /*auto &c = codeGenerator;
+    ALLOCATE_VECTOR(VTwo);
+    c.vlui(*VTwo, 2);
+    environment.add(GeNN::Type::Uint16.addConst(), "_v_two", VTwo);
+}
+//----------------------------------------------------------------------------
+void BroadcastProcess::generateArchetypeCode(const ::Backend::MergedProcess &mergedProcess,
+                                             EnvironmentExternal &environment, 
+                                             MergedFields &fields, Assembler::CodeGenerator &c,
+                                             Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
+                                             Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
+{
+    // Allocate fields
+    const uint32_t sourceFieldOffset = fields.addField<BroadcastProcess>(
+        mergedProcess, [](const auto &p){ return p->getSource(); });
+    const uint32_t targetFieldOffset = fields.addField<BroadcastProcess>(
+        mergedProcess, [](const auto &p){ return p->getTarget(); });
+    const uint32_t numBytesFieldOffset = fields.addField<BroadcastProcess>(
+        mergedProcess, [](const auto &p){ return 2 * p->getSource()->getShape().getDims()[0]; });
 
     // Register allocation
     ALLOCATE_SCALAR(SDataBuffer);
     ALLOCATE_SCALAR(SDataBufferEnd);
     ALLOCATE_VECTOR(VAddress)
-        ALLOCATE_VECTOR(VTwo);
-
-    // Labels
-    auto halfWordLoop = createLabel();
-
-    // Get fields associated with this process
-    const auto &stateFields = m_Model.get().getStatefulFields().at(broadcastProcess);
-
-    // Load increment
-    c.vlui(*VTwo, 2);
 
     // If target is a variable reference
     {
         ALLOCATE_SCALAR(SLLMAddress)
-
-        if(std::holds_alternative<Model::VariablePtr>(getTarget())) {
-            auto target = std::get<Model::VariablePtr>(getTarget());
-
-            c.lw(*SLLMAddress, Reg::X0, stateFields.at(target));
-        }
-        // Otherwise
-        else {
-            // Get state object ID
-            const int target = std::get<int>(broadcastProcess->getTarget());
-
-            // Get target field
-            // **NOTE** model already checks validity of taret
-            const auto &targetField = m_Model.get().getBackendFields().at(target);
-
-            // If target is a LUT i.e. in lane-local memory, load target field
-            if(static_cast<StateObjectID>(target) == StateObjectID::LUT_EXP) {    
-                c.lw(*SLLMAddress, Reg::X0, std::get<1>(targetField));
-            }
-            else {
-                throw std::runtime_error("Broadcast process '" + broadcastProcess->getName() 
-                                            + "' targets incompatible backend state object "
-                                            + std::to_string(target));
-            }
-        }
+        c.lw(*SLLMAddress, *environment.getScalarRegister("_field_base"), targetFieldOffset);
 
         // Fill vector register with LLM address
         c.vfill(*VAddress, *SLLMAddress);
     }
 
     // SDataBuffer = scalarPtr
-    c.lw(*SDataBuffer, Reg::X0, stateFields.at(getSource()));
+    c.lw(*SDataBuffer, *environment.getScalarRegister("_field_base"), sourceFieldOffset);
 
     // Load size in bytes and add to scalar buffer to get end
-    c.li(*SDataBufferEnd, 2 * getSource()->getShape().getDims().at(0));
+    c.lw(*SDataBufferEnd, *environment.getScalarRegister("_field_base"), numBytesFieldOffset);
     c.add(*SDataBufferEnd, *SDataBufferEnd, *SDataBuffer);
 
     // Loop over vectors
-    c.L(halfWordLoop);
+    auto halfWordLoop = c.L();
     {
         // Register allocation
         ALLOCATE_VECTOR(VVector);
@@ -1798,10 +1780,10 @@ void BroadcastProcess::generateCode(const ::Backend::MergedProcess &mergedProces
 
         // Write to all lane local memories and increment address
         c.vstorel(*VVector, *VAddress);
-        c.vadd(*VAddress, *VAddress, *VTwo);
+        c.vadd(*VAddress, *VAddress, *environment.getVectorRegister("_v_two"));
 
         // Loop
         c.bne(*SDataBuffer, *SDataBufferEnd, halfWordLoop);
-    }*/
+    }
 }
 }

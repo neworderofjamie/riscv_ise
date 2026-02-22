@@ -21,6 +21,7 @@
   <ItemGroup>
     <ClInclude Include="..\..\..\include\fenn\backend\backend_export.h" />
     <ClInclude Include="..\..\..\include\fenn\backend\environment.h" />
+    <ClInclude Include="..\..\..\include\fenn\backend\fields.h" />
     <ClInclude Include="..\..\..\include\fenn\backend\kernel.h" />
     <ClInclude Include="..\..\..\include\fenn\backend\memory_allocator.h" />
     <ClInclude Include="..\..\..\include\fenn\backend\model.h" />

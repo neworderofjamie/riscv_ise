@@ -314,7 +314,7 @@ void MemsetProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Mode
 //----------------------------------------------------------------------------
 // BroadcastProcess
 //----------------------------------------------------------------------------
-BroadcastProcess::BroadcastProcess(Private, VariablePtr source, VariablePtrBackendState target, const std::string &name)
+BroadcastProcess::BroadcastProcess(Private, VariablePtr source, VariablePtr target, const std::string &name)
 :   Process(name), m_Source(source), m_Target(target)
 {
     if(m_Source == nullptr) {
@@ -327,36 +327,26 @@ BroadcastProcess::BroadcastProcess(Private, VariablePtr source, VariablePtrBacke
     }
 
     // If target is a variable
-    // **NOTE** if target is a backend-specific state object, there's nothing we can check yet
-    if(std::holds_alternative<VariablePtr>(m_Target)) {
-        auto targetVar = std::get<VariablePtr>(m_Target);
-        if(targetVar == nullptr) {
-            throw std::runtime_error("Broadcast process requires target");
-        }
+    if(m_Target == nullptr) {
+        throw std::runtime_error("Broadcast process requires target");
+    }
 
-        if(targetVar->getShape().getDims().size() != 2) {
-            throw std::runtime_error("Broadcast process currently required 2 dimensional target");
-        }
+    if(m_Target->getShape().getDims().size() != 2) {
+        throw std::runtime_error("Broadcast process currently required 2 dimensional target");
+    }
 
-        if(targetVar->getShape().getFirst() != m_Source->getShape().getFirst()) {
-            throw std::runtime_error("Broadcast process requires first dimension of source and target to match");
-        }
+    if(m_Target->getShape().getFirst() != m_Source->getShape().getFirst()) {
+        throw std::runtime_error("Broadcast process requires first dimension of source and target to match");
+    }
 
-        if (m_Source->getType() != targetVar->getType()) {
-            throw std::runtime_error("Broadcast process requires source and target with same shape");
-        }
+    if (m_Source->getType() != m_Target->getType()) {
+        throw std::runtime_error("Broadcast process requires source and target with same shape");
     }
 }
 //----------------------------------------------------------------------------
 std::vector<std::shared_ptr<const State>> BroadcastProcess::getAllState() const
 {
-    std::vector<std::shared_ptr<const State>> state{getSource()};
-
-    if(std::holds_alternative<VariablePtr>(getTarget())) {
-        state.push_back(std::get<VariablePtr>(getTarget()));
-    }
-    
-    return state;
+    return {getSource(), getTarget()};
 }
 //----------------------------------------------------------------------------
 void BroadcastProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Model&) const
