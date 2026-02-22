@@ -109,14 +109,6 @@ Runtime::Runtime(const ::Model::Model &model, size_t numCores, bool useDRAMForWe
 :   ::Backend::Runtime(model), m_NumCores(numCores), m_UseDRAMForWeights(useDRAMForWeights), 
     m_KeepParamsInRegisters(keepParamsInRegisters), m_NeuronUpdateRoundingMode(neuronUpdateRoundingMode)
 {
-    using namespace std::placeholders; 
-
-    // Mapping of state objects to field offset
-    using StateFields = std::unordered_map<std::shared_ptr<const ::Model::State>, uint32_t>;
-
-    // Mapping of stateful model objects to their fields
-    using StatefulFields = std::unordered_map<std::shared_ptr<const ::Model::Stateful>, StateFields>;
-
     // **TODO** fields
     // **TODO** create device state objects to start allocating BRAM for
     
@@ -149,8 +141,8 @@ Runtime::Runtime(const ::Model::Model &model, size_t numCores, bool useDRAMForWe
                                              throw std::runtime_error("FeNN backend runtime used with incompatible process");
                                          }
 
+                                         // Generate code
                                          pi->generateCode(m, codeGenerator, scalarRegisterAllocator, vectorRegisterAllocator);
-
                                      }
                                  });
             });

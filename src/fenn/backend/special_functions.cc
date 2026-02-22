@@ -43,7 +43,7 @@ namespace Exp
 const double log2 = std::log(2.0);
 const double expMax = 0.5 * log2;
 
-void add(Assembler::CodeGenerator &codeGenerator, Common::ScalarRegisterAllocator &scalarRegisterAllocator, 
+void add(Assembler::CodeGenerator &c, Common::ScalarRegisterAllocator &scalarRegisterAllocator, 
          Common::VectorRegisterAllocator &vectorRegisterAllocator, EnvironmentExternal &env,
          EnvironmentLibrary::Library &library, uint32_t lutField)
 {

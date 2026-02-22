@@ -3,7 +3,10 @@
 // Model includes
 #include "model/process.h"
 
-// FeNN Assembler includes
+// FeNN common includes
+#include "fenn/common/isa.h"
+
+// FeNN assembler includes
 #include "fenn/assembler/register_allocator.h"
 
 // FeNN backend includes
@@ -17,6 +20,11 @@ class MergedProcess;
 namespace FeNN::Assembler
 {
 class CodeGenerator;
+}
+namespace FeNN::Backend
+{
+class EnvironmentExternal;
+class MergedFields;
 }
 
 
@@ -44,18 +52,57 @@ public:
 
     //! Generate code to implement process
     virtual void generateCode(const ::Backend::MergedProcess &mergedProcess,
-                              Assembler::CodeGenerator &codeGenerator,
+                              Assembler::CodeGenerator &c,
                               Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                               Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const = 0;
+
+    //! Generate code to implement code to update merged
+    virtual void generateArchetypeCode(const ::Backend::MergedProcess &mergedProcess,
+                                       Common::Reg fieldBaseReg, MergedFields &fields,
+                                       Assembler::CodeGenerator &c,
+                                       Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
+                                       Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const = 0;
 };
+
+//----------------------------------------------------------------------------
+// FeNN::Backend::TimeDrivenProcessImplementation
+//----------------------------------------------------------------------------
+class TimeDrivenProcessImplementation : public ProcessImplementation
+{
+public:
+    //----------------------------------------------------------------------------
+    // Declared virtuals
+    //----------------------------------------------------------------------------
+    virtual void generateMergedPreambleCode(const ::Backend::MergedProcess &mergedProcess,
+                                            EnvironmentExternal &environment, 
+                                            Assembler::CodeGenerator &c,
+                                            Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
+                                            Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
+    {}
+
+    virtual void generateArchetypeCode(const ::Backend::MergedProcess &mergedProcess,
+                                       EnvironmentExternal &environment, 
+                                       MergedFields &fields, Assembler::CodeGenerator &c,
+                                       Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
+                                       Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const = 0;
+
+    //----------------------------------------------------------------------------
+    // ProcessImplementation virtuals
+    //----------------------------------------------------------------------------
+    virtual void generateCode(const ::Backend::MergedProcess &mergedProcess,
+                              Assembler::CodeGenerator &c,
+                              Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
+                              Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;
+};
+
 
 //----------------------------------------------------------------------------
 // FeNN::Backend::ProcessImplementationBase
 //----------------------------------------------------------------------------
 //! Helper class which automatically adds memory space compatibility 
 //! information for all process state to merge hash
-template<typename P>
-class ProcessImplementationBase : public ProcessImplementation, public P
+template<typename P, typename B = TimeDrivenProcessImplementation>
+class ProcessImplementationBase : public B, public P
 {
 public:
     using P::P;
@@ -74,7 +121,7 @@ public:
         // Update hash with memory space compatibility of all state
         const auto &fennModel = dynamic_cast<const Model&>(model);
         for(const auto &s : allState) {
-            fennModel.getStateMemSpaceCompatibility().at(s).updateHash(hash);
+            fennModel.getStateMemSpaceCompatibility(s).updateHash(hash);
         }
     }
 };
@@ -96,7 +143,7 @@ public:
 
     //! Generate code to implement process
     virtual void generateCode(const ::Backend::MergedProcess &mergedProcess,
-                              Assembler::CodeGenerator &codeGenerator,
+                              Common::Reg fieldBaseReg, Assembler::CodeGenerator &c,
                               Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                               Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;
 
@@ -110,7 +157,7 @@ public:
     }
 
 protected:
-    void generateArchetype(Assembler::CodeGenerator &codeGenerator, 
+    void generateArchetype(Assembler::CodeGenerator &c, 
                            Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                            Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const;
 };
@@ -135,7 +182,7 @@ public:
 
     //! Generate code to implement process
     virtual void generateCode(const ::Backend::MergedProcess &mergedProcess,
-                              Assembler::CodeGenerator &codeGenerator,
+                              Common::Reg fieldBaseReg, Assembler::CodeGenerator &c,
                               Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                               Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;
 
@@ -168,11 +215,14 @@ public:
     virtual void updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, 
                                              MemSpaceCompatibility &memSpaceCompatibility) const override final;
 
-    //! Generate code to implement process
-    virtual void generateCode(const ::Backend::MergedProcess &mergedProcess,
-                              Assembler::CodeGenerator &codeGenerator,
-                              Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
-                              Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;
+    //------------------------------------------------------------------------
+    // TimeDrivenProcessImplementation virtuals
+    //------------------------------------------------------------------------ 
+    virtual void generateArchetypeCode(const ::Backend::MergedProcess &mergedProcess,
+                                       EnvironmentExternal &environment, 
+                                       MergedFields &fields, Assembler::CodeGenerator &c,
+                                       Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
+                                       Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;
 
     //------------------------------------------------------------------------
     // Static API
@@ -198,16 +248,19 @@ public:
     virtual void updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, 
                                              MemSpaceCompatibility &memSpaceCompatibility) const override final;
 
-    //! Generate code to implement process
-    virtual void generateCode(const ::Backend::MergedProcess &mergedProcess,
-                              Assembler::CodeGenerator &codeGenerator,
-                              Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
-                              Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;
+    //------------------------------------------------------------------------
+    // TimeDrivenProcessImplementation virtuals
+    //------------------------------------------------------------------------ 
+    virtual void generateArchetypeCode(const ::Backend::MergedProcess &mergedProcess,
+                                       EnvironmentExternal &environment, 
+                                       MergedFields &fields, Assembler::CodeGenerator &c,
+                                       Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
+                                       Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;
 
     //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------
-    static std::shared_ptr<::Model::MemsetProcess> create(::Model::VariablePtrBackendState target,
+    static std::shared_ptr<::Model::MemsetProcess> create(::Model::VariablePtr target,
                                                           const std::string &name = "")
     {
         return std::make_shared<MemsetProcess>(Private(), target, name);
@@ -217,11 +270,11 @@ private:
     //------------------------------------------------------------------------
     // Private methods
     //------------------------------------------------------------------------
-    void generateURAMMemset(Assembler::CodeGenerator &codeGenerator,
+    void generateURAMMemset(Assembler::CodeGenerator &c,
                             Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                             Assembler::VectorRegisterAllocator &vectorRegisterAllocator,
                             size_t numVectors, Assembler::ScalarRegisterAllocator::RegisterPtr targetReg) const;
-    void generateLLMMemset(Assembler::CodeGenerator &codeGenerator,
+    void generateLLMMemset(Assembler::CodeGenerator &c,
                            Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                            Assembler::VectorRegisterAllocator &vectorRegisterAllocator,
                            size_t numVectors, Assembler::ScalarRegisterAllocator::RegisterPtr targetReg) const;
@@ -242,16 +295,25 @@ public:
     virtual void updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, 
                                              MemSpaceCompatibility &memSpaceCompatibility) const override final;
 
-    //! Generate code to implement process
-    virtual void generateCode(const ::Backend::MergedProcess &mergedProcess,
-                              Assembler::CodeGenerator &codeGenerator,
-                              Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
-                              Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;
+    //------------------------------------------------------------------------
+    // TimeDrivenProcessImplementation virtuals
+    //------------------------------------------------------------------------ 
+    virtual void generateMergedPreambleCode(const ::Backend::MergedProcess &mergedProcess,
+                                            EnvironmentExternal &environment, 
+                                            Assembler::CodeGenerator &c,
+                                            Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
+                                            Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;
+
+    virtual void generateArchetypeCode(const ::Backend::MergedProcess &mergedProcess,
+                                       EnvironmentExternal &environment, 
+                                       MergedFields &fields, Assembler::CodeGenerator &c,
+                                       Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
+                                       Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;
 
     //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------
-    static std::shared_ptr<BroadcastProcess> create(::Model::VariablePtr source, ::Model::VariablePtrBackendState target,
+    static std::shared_ptr<BroadcastProcess> create(::Model::VariablePtr source, ::Model::VariablePtr target,
                                                     const std::string &name = "")
     {
         return std::make_shared<BroadcastProcess>(Private(), source, target, name);
