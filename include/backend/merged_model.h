@@ -36,6 +36,13 @@ public:
     //! Get 'archetype' process - it's properties represent those of all other merged processes
     const auto &getArchetype() const { return m_Processes.front(); }
 
+    //! Get 'archetype' process - it's properties represent those of all other merged processes
+    template<typename P>
+    const auto &getArchetype() const 
+    { 
+        return std::dynamic_pointer_cast<const P>(getArchetype());
+    }
+
     //! Get vector of merged processes
     const auto &getProcesses() const{ return m_Processes; }
 
