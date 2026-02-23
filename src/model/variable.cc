@@ -3,7 +3,7 @@
 // GeNN includes
 #include "gennUtils.h"
 
-using namespace GeNN::Utils;
+using namespace GeNN;
 
 //----------------------------------------------------------------------------
 // Model::Variable
@@ -12,6 +12,6 @@ namespace Model
 {
 void Variable::updateMergeHash(boost::uuids::detail::sha1 &hash) const
 {
-    updateHash(getType(), hash);
+    Utils::updateHash(getType(), hash);
 }
 }
