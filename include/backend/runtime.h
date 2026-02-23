@@ -1,7 +1,10 @@
 #pragma once
 
 // Standard C++ includes
+#include <atomic>
+#include <condition_variable>
 #include <memory>
+#include <thread>
 #include <unordered_map>
 #include <vector>
 
@@ -91,6 +94,55 @@ private:
 };
 
 //----------------------------------------------------------------------------
+// Backend::DeviceBase
+//----------------------------------------------------------------------------
+//! Interface Runtime classes use to communicate with state on individual devices
+class BACKEND_EXPORT DeviceBase
+{
+public:
+    DeviceBase(size_t deviceIndex)
+    :   m_DeviceIndex(deviceIndex)
+    {}
+
+    virtual ~DeviceBase() = default;
+
+    //------------------------------------------------------------------------
+    // Declared virtuals
+    //------------------------------------------------------------------------
+    //! Load kernel onto device
+    virtual void loadKernel(std::shared_ptr<const ::Model::Kernel> kernel) = 0;
+
+    //! Run kernel on device
+    virtual void runKernel(std::shared_ptr<const ::Model::Kernel> kernel) = 0;
+
+    //! Create suitable array for event container on this device
+    virtual std::unique_ptr<ArrayBase> createArray(std::shared_ptr<const ::Model::EventContainer> eventContainer) const = 0;
+
+    //! Create suitable array for performance counter on this device
+    virtual std::unique_ptr<ArrayBase> createArray(std::shared_ptr<const ::Model::PerformanceCounter> performanceCounter) const = 0;
+
+    //! Create suitable array for variable on this device
+    virtual std::unique_ptr<ArrayBase> createArray(std::shared_ptr<const ::Model::Variable> variable) const = 0;
+
+    //------------------------------------------------------------------------
+    // Public API
+    //------------------------------------------------------------------------
+    //! Create array to provide storage for model state
+    void createArray(std::shared_ptr<const ::Model::State> state) const;
+
+    //! Get array associated with model state
+    ArrayBase *getArray(std::shared_ptr<const ::Model::State> state) const;
+
+private:
+    //------------------------------------------------------------------------
+    // Members
+    //------------------------------------------------------------------------
+    std::unordered_map<std::shared_ptr<const ::Model::State>, std::unique_ptr<ArrayBase>> m_Arrays;
+    size_t m_DeviceIndex;
+    
+};
+
+//----------------------------------------------------------------------------
 // IFieldArray
 //----------------------------------------------------------------------------
 //! Interface for object, probably backed by some sort of array,
@@ -117,13 +169,14 @@ public:
 class BACKEND_EXPORT Runtime
 {
 public:
-    Runtime(const ::Model::Model &model);
-   
+    Runtime(const ::Model::Model &model, size_t numDevices);
+    virtual ~Runtime();
+
     //------------------------------------------------------------------------
     // Declared virtuals
     //------------------------------------------------------------------------
     //! Run kernel on device
-    virtual void run(std::shared_ptr<const ::Model::Kernel> kernel) = 0;
+    void run(std::shared_ptr<const ::Model::Kernel> kernel) = 0;
 
     //------------------------------------------------------------------------
     // Public API
@@ -131,12 +184,10 @@ public:
     //! Allocate memory for model on device
     void allocate();
    
-    // Get array associated with model state
-    ArrayBase *getArray(std::shared_ptr<const ::Model::State> state) const;
-
-
     //std::optional<unsigned int> getSOCPower() const;
     
+    size_t getNumDevices() const{ return m_NumDevices; }
+
 protected:
     //------------------------------------------------------------------------
     // Declared virtuals
@@ -146,33 +197,90 @@ protected:
 
     //! Backend-specific logic to run at end of allocate function
     virtual void allocatePostamble() {}
-
-    //! Create suitable array for event container
-    virtual std::unique_ptr<ArrayBase> createArray(std::shared_ptr<const ::Model::EventContainer> eventContainer) const = 0;
-
-    //! Create suitable array for performance counter
-    virtual std::unique_ptr<ArrayBase> createArray(std::shared_ptr<const ::Model::PerformanceCounter> performanceCounter) const = 0;
-
-    //! Create suitable array for variable
-    virtual std::unique_ptr<ArrayBase> createArray(std::shared_ptr<const ::Model::Variable> variable) const = 0;
-
+    
     //! Set the fields associated with a merged process
     virtual void setMergedProcessFields(const MergedProcess &mergedProcess) const = 0;
+
+    //! Create suitable device
+    virtual std::unique_ptr<DeviceBase> createDevice(size_t deviceIndex) const = 0;
 
     //------------------------------------------------------------------------
     // Protected API
     //------------------------------------------------------------------------
     const auto &getMergedModel() const{ return m_MergedModel; }
 
+    auto &getDevices(){ return m_Devices; }
+
 private:
-    std::unique_ptr<ArrayBase> createArray(std::shared_ptr<const ::Model::State> state) const;
+    class Command
+    {
+    public:
+        virtual void execute(DeviceBase *device) const = 0;
+    };
+
+    class LoadKernelCommand : public Command
+    {
+    public:
+        LoadKernelCommand(std::shared_ptr<const ::Model::Kernel> kernel)
+        :   m_Kernel(kernel)
+        {}
+
+        virtual void execute(DeviceBase *device) const override final
+        {
+            device->loadKernel(m_Kernel);
+        }
+
+    private:
+        std::shared_ptr<const ::Model::Kernel> m_Kernel;
+    };
+
+    class PushStateCommand : public Command
+    {
+    public:
+        PushStateCommand(std::shared_ptr<const ::Model::State> state)
+        :   m_State(state)
+        {}
+
+        virtual void execute(DeviceBase *device) const override final
+        {
+            device->getArray(m_State)->pushToDevice();
+        }
+
+    private:
+        std::shared_ptr<const ::Model::State> m_State;
+    };
+
+    //------------------------------------------------------------------------
+    // Private methods
+    //------------------------------------------------------------------------
+    //! Run command on all worker threads
+    void runCommand(Command *command);
+
+    //! Thread function run on each worker thread to execute commands on device
+    void threadFunction(DeviceBase *device);
 
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
-    std::unordered_map<std::shared_ptr<const ::Model::State>, std::unique_ptr<ArrayBase>> m_Arrays;
+    std::vector<std::unique_ptr<DeviceBase>> m_Devices;
     
+    // Worker threads
+    std::vector<std::thread> m_WorkerThreads;
+
     MergedModel m_MergedModel;
-    //std::unique_ptr<IFieldArray> m_FieldArray;
+
+    size_t m_NumDevices;
+
+    size_t m_WorkersReady;
+
+    std::atomic<bool> m_WorkerRun;
+
+    // Current command being executed by workers
+    Command *m_Command;
+
+    // Mutex and condition variables for signal
+    std::mutex m_Mutex;
+    std::condition_variable m_MainToWorkerCond;
+    std::condition_variable m_WorkerToMainCond;
 };
 }

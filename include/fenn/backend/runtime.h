@@ -34,7 +34,7 @@ public:
     uint32_t getURAMPointer() const{ return m_URAMPointer.value(); }
 
 protected:
-    URAMArrayBase(const GeNN::Type::ResolvedType &type, size_t count, size_t core)
+    URAMArrayBase(const GeNN::Type::ResolvedType &type, size_t count)
     :   ArrayBase(type, count)
     {
         if(type.getSize(0) != 2) {
@@ -240,11 +240,34 @@ public:
 };*/
 
 //----------------------------------------------------------------------------
-// FeNN::Backend::CoreStateBase
+// FeNN::Backend::DeviceFeNN
 //----------------------------------------------------------------------------
-class CoreStateBase
+class FENN_BACKEND_EXPORT DeviceFeNN : public ::Backend::DeviceBase
 {
 public:
+    using ::Backend::DeviceBase::DeviceBase;
+
+    //------------------------------------------------------------------------
+    // Declared virtuals
+    //------------------------------------------------------------------------
+    virtual std::unique_ptr<::Backend::ArrayBase> createURAMArray(const GeNN::Type::ResolvedType &type, size_t count) const = 0;
+    virtual std::unique_ptr<::Backend::ArrayBase> createBRAMArray(const GeNN::Type::ResolvedType &type, size_t count) const = 0;
+    virtual std::unique_ptr<::Backend::ArrayBase> createLLMArray(const GeNN::Type::ResolvedType &type, size_t count) const = 0;
+    virtual std::unique_ptr<::Backend::ArrayBase> createDRAMArray(const GeNN::Type::ResolvedType &type, size_t count) const = 0;
+    virtual std::unique_ptr<::Backend::ArrayBase> createURAMLLMArray(const GeNN::Type::ResolvedType &type,
+                                                                     size_t uramCount, size_t llmCount) const = 0;
+    //------------------------------------------------------------------------
+    // DeviceBase virtuals
+    //------------------------------------------------------------------------
+    //! Create suitable array for event container on this device
+    virtual std::unique_ptr<::Backend::ArrayBase> createArray(std::shared_ptr<const ::Model::EventContainer> eventContainer) const override final;
+
+    //! Create suitable array for performance counter on this device
+    virtual std::unique_ptr<::Backend::ArrayBase> createArray(std::shared_ptr<const ::Model::PerformanceCounter> performanceCounter) const override final;
+
+    //! Create suitable array for variable on this device
+    virtual std::unique_ptr<::Backend::ArrayBase> createArray(std::shared_ptr<const ::Model::Variable> variable) const override final;
+
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
@@ -282,25 +305,11 @@ protected:
     //------------------------------------------------------------------------
     // Declared virtuals
     //------------------------------------------------------------------------
-    virtual std::unique_ptr<::Backend::ArrayBase> createURAMArray(const GeNN::Type::ResolvedType &type, size_t count, size_t core) const = 0;
-    virtual std::unique_ptr<::Backend::ArrayBase> createBRAMArray(const GeNN::Type::ResolvedType &type, size_t count, size_t core) const = 0;
-    virtual std::unique_ptr<::Backend::ArrayBase> createLLMArray(const GeNN::Type::ResolvedType &type, size_t count, size_t core) const = 0;
-    virtual std::unique_ptr<::Backend::ArrayBase> createDRAMArray(const GeNN::Type::ResolvedType &type, size_t count, size_t core) const = 0;
-    virtual std::unique_ptr<::Backend::ArrayBase> createURAMLLMArray(const GeNN::Type::ResolvedType &type,
-                                                                     size_t uramCount, size_t llmCount, size_t core) const = 0;
     
     //------------------------------------------------------------------------
     // Runtime virtuals
     //------------------------------------------------------------------------
-    //! Create suitable array for event container
-    virtual std::unique_ptr<::Backend::ArrayBase> createArray(std::shared_ptr<const ::Model::EventContainer> eventContainer) const override final;
-
-    //! Create suitable array for performance counter
-    virtual std::unique_ptr<::Backend::ArrayBase> createArray(std::shared_ptr<const ::Model::PerformanceCounter> performanceCounter) const override final;
-
-    //! Create suitable array for variable
-    virtual std::unique_ptr<::Backend::ArrayBase> createArray(std::shared_ptr<const ::Model::Variable> variable) const override final;
-
+    
     //------------------------------------------------------------------------
     // Protected API
     //------------------------------------------------------------------------
@@ -313,7 +322,6 @@ private:
     // Map of kernel pointers to code
     std::unordered_map<KernelPtr, std::vector<uint32_t>> m_KernelCode;
 
-    size_t m_NumCores;
     bool m_UseDRAMForWeights;
     bool m_KeepParamsInRegisters;
     Compiler::RoundingMode m_NeuronUpdateRoundingMode;
