@@ -3,7 +3,7 @@
 // GeNN includes
 #include "gennUtils.h"
 
-using namespace GeNN::Utils;
+using namespace GeNN;
 
 //----------------------------------------------------------------------------
 // Model::EventContainer

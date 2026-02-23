@@ -12,7 +12,9 @@
 #include "model/process.h"
 #include "model/variable.h"
 
-#define UPDATE_HASH_CLASS_NAME(CLASS_NAME) GeNN::Utils::updateHash(#CLASS_NAME, hash);
+#define UPDATE_HASH_CLASS_NAME(CLASS_NAME) Utils::updateHash(#CLASS_NAME, hash);
+
+using namespace GeNN;
 
 //----------------------------------------------------------------------------
 // Model::NeuronUpdateProcess
@@ -130,33 +132,32 @@ std::vector<std::shared_ptr<const State>> NeuronUpdateProcess::getAllState() con
 //----------------------------------------------------------------------------
 void NeuronUpdateProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Model&) const
 {
-    using namespace GeNN::Utils;
     UPDATE_HASH_CLASS_NAME(NeuronUpdateProcess);
 
     // Variables
-    updateHash(getVariables().size(), hash);
+    Utils::updateHash(getVariables().size(), hash);
     for(const auto &v : getVariables()) {
-        updateHash(v.first, hash);
+        Utils::updateHash(v.first, hash);
         v.second.getUnderlying()->updateMergeHash(hash);
     }
 
     // Output events
-    updateHash(getOutputEvents().size(), hash);
+    Utils::updateHash(getOutputEvents().size(), hash);
     for(const auto &e : getOutputEvents()) {
-        updateHash(e.first, hash);
+        Utils::updateHash(e.first, hash);
         e.second.getUnderlying()->updateMergeHash(hash);
     }
 
     // Tokens
-    updateHash(getTokens().size(), hash);
+    Utils::updateHash(getTokens().size(), hash);
     for(const auto &t : getTokens()) {
-        updateHash(t.type, hash);
-        updateHash(t.numberType, hash);
+        Utils::updateHash(t.type, hash);
+        Utils::updateHash(t.numberType, hash);
 
         // If this is a numeric literal, don't include it's value
         // Literals can vary between merged processes
         if (t.type != GeNN::Transpiler::Token::Type::NUMBER) {
-            updateHash(t.lexeme, hash);
+            Utils::updateHash(t.lexeme, hash);
         }
     }
 }
