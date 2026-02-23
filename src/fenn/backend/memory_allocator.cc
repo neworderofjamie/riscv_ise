@@ -1,4 +1,4 @@
-#include "backend/memory_allocator.h"
+#include "fenn/backend/memory_allocator.h"
 
 // Standard C includes
 #include <cstdint>
@@ -7,11 +7,13 @@
 #include <plog/Log.h>
 
 // Common includes
-#include "common/dma_buffer.h"
 #include "common/utils.h"
 
-// ISE includes
-#include "ise/dma_controller_sim.h"
+// FeNN common includes
+#include "fenn/common/dma_buffer.h"
+
+// FeNN ISE includes
+#include "fenn/ise/dma_controller_sim.h"
 
 //----------------------------------------------------------------------------
 // FeNN::Backend::MemoryAllocator

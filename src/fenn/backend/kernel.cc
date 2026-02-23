@@ -13,8 +13,7 @@
 #include "fenn/assembler/assembler.h"
 #include "fenn/assembler/register_allocator.h"
 
-using namespace FeNN::Assembler;
-using namespace FeNN::Common;
+using namespace FeNN;
 
 //----------------------------------------------------------------------------
 // FeNN::Backend::SimpleGraph
@@ -41,7 +40,7 @@ void SimpleKernel::generateCode(Assembler::CodeGenerator &c,
     // If performance counters are enabled, disinhibit them
     // **NOTE** on device, this takes a few cycles to make it through the pipeline so we do it well before we try and access counters
     if(arePerformanceCountersRequired(getProcessGroups())) {
-        c.csrw(CSR::MCOUNTINHIBIT, Reg::X0);
+        c.csrw(Common::CSR::MCOUNTINHIBIT, Common::Reg::X0);
     }
 
     // Visit process groups
@@ -61,16 +60,13 @@ void SimulationLoopKernel::generateCode(Assembler::CodeGenerator &c,
     ALLOCATE_SCALAR(STime);
     ALLOCATE_SCALAR(STimeEnd);
 
-    // Labels
-    auto timeLoop = createLabel();
-
     // If performance counters are enabled, disinhibit them
     // **NOTE** on device, this takes a few cycles to make it through the pipeline so we do it well before we try and access counters
     if(arePerformanceCountersRequired(getTimestepProcessGroups()) 
        || arePerformanceCountersRequired(getBeginProcessGroups())
        || arePerformanceCountersRequired(getEndProcessGroups())) 
     {
-        c.csrw(CSR::MCOUNTINHIBIT, Reg::X0);
+        c.csrw(Common::CSR::MCOUNTINHIBIT, Common::Reg::X0);
     }
 
     // Set timestep range and load ready flag pointer
@@ -83,7 +79,7 @@ void SimulationLoopKernel::generateCode(Assembler::CodeGenerator &c,
     }
 
     // Loop over time
-    c.L(timeLoop);
+    auto timeLoop = c.L();
     {
         // Visit timestep process group
         for (const auto &p : getTimestepProcessGroups()) {

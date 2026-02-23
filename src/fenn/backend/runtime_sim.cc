@@ -12,13 +12,15 @@
 // FeNN ISE includes
 #include "fenn/ise/dma_controller_sim.h"
 #include "fenn/ise/riscv.h"
+#include "fenn/ise/router_sim.h"
 #include "fenn/ise/vector_processor.h"
 
 // FeNN backend includes
 #include "fenn/backend/memory_allocator.h"
 
-using namespace Common::Utils;
+using namespace FeNN;
 using namespace FeNN::Backend;
+using namespace GeNN;
 
 //------------------------------------------------------------------------
 // Anonymous namespace
@@ -33,7 +35,7 @@ namespace
 class URAMArray : public URAMArrayBase
 {
 public:
-    URAMArray(const GeNN::Type::ResolvedType &type, size_t count, RuntimeSim *runtime)
+    URAMArray(const Type::ResolvedType &type, size_t count, RuntimeSim *runtime)
     :   URAMArrayBase(type, count), m_Runtime(runtime)
     {
         // Allocate if count is specified
@@ -61,7 +63,7 @@ public:
     virtual void pushToDevice() final override
     {
         // Copy correct number of int16_t from host pointer to vector data memory
-        auto &vectorDataMemory = m_Runtime->getRISCV().getCoprocessor<VectorProcessor>(vectorQuadrant)->getVectorDataMemory();
+        auto &vectorDataMemory = m_Runtime->getRISCV().getCoprocessor<ISE::VectorProcessor>(vectorQuadrant)->getVectorDataMemory();
         std::copy_n(getHostPointer<int16_t>(), getCount(), 
                     vectorDataMemory.getData() + (getURAMPointer() / 2));
     }
@@ -70,7 +72,7 @@ public:
     virtual void pullFromDevice() final override
     {
         // Copy correct number of int16_t from vector data memory to host pointer
-        const auto &vectorDataMemory = m_Runtime->getRISCV().getCoprocessor<VectorProcessor>(vectorQuadrant)->getVectorDataMemory();
+        const auto &vectorDataMemory = m_Runtime->getRISCV().getCoprocessor<ISE::VectorProcessor>(vectorQuadrant)->getVectorDataMemory();
         std::copy_n(vectorDataMemory.getData() + (getURAMPointer() / 2), getCount(), 
                     getHostPointer<int16_t>());
     }
@@ -153,8 +155,8 @@ public:
             setLLMPointer(m_Runtime->getLLMAllocator().allocate(getSizeBytes()));
         }
     }
-    //------------------------------------------------------------------------
-    LLMArray::~LLMArray()
+
+    ~LLMArray()
     {
         if(getCount() > 0) {
             delete [] getHostPointer();
@@ -170,9 +172,9 @@ public:
     virtual void pushToDevice() final override
     {
         LOGW << "Copying LLM buffers is implemented in simulation for convenience but is not possible on device";
-        const size_t numRows = ceilDivide(getCount(), 32);
+        const size_t numRows = ::Common::Utils::ceilDivide(getCount(), 32);
         for(size_t l = 0; l < 32; l++) {
-            auto &laneLocalMemory = m_Runtime->getRISCV().getCoprocessor<VectorProcessor>(vectorQuadrant)->getLaneLocalMemory(l);    
+            auto &laneLocalMemory = m_Runtime->getRISCV().getCoprocessor<ISE::VectorProcessor>(vectorQuadrant)->getLaneLocalMemory(l);    
             int16_t *llmPointer = laneLocalMemory.getData() + (getLLMPointer() / 2);
             for(size_t r = 0; r < numRows; r++) {
                 *llmPointer++ = getHostPointer<int16_t>()[(r * 32) + l];
@@ -185,9 +187,9 @@ public:
     {
         LOGW << "Copying LLM buffers is implemented in simulation for convenience but is not possible on device";
             
-        const size_t numRows = ceilDivide(getCount(), 32);
+        const size_t numRows = ::Common::Utils::ceilDivide(getCount(), 32);
         for(size_t l = 0; l < 32; l++) {
-            const auto &laneLocalMemory = m_Runtime->getRISCV().getCoprocessor<VectorProcessor>(vectorQuadrant)->getLaneLocalMemory(l);    
+            const auto &laneLocalMemory = m_Runtime->getRISCV().getCoprocessor<ISE::VectorProcessor>(vectorQuadrant)->getLaneLocalMemory(l);    
             const int16_t *llmPointer = laneLocalMemory.getData() + (getLLMPointer() / 2);
             for(size_t r = 0; r < numRows; r++) {
                 getHostPointer<int16_t>()[(r * 32) + l] = *llmPointer++;
@@ -295,7 +297,7 @@ public:
     virtual void pushToDevice() final override
     {
         // Copy correct number of int16_t from host pointer to vector data memory
-        auto &vectorDataMemory = m_Runtime->getRISCV().getCoprocessor<VectorProcessor>(vectorQuadrant)->getVectorDataMemory();
+        auto &vectorDataMemory = m_Runtime->getRISCV().getCoprocessor<ISE::VectorProcessor>(FeNN::Common::vectorQuadrant)->getVectorDataMemory();
         std::copy_n(getHostPointer<int16_t>(), getCount(), 
                     vectorDataMemory.getData() + (getURAMPointer() / 2));
     }
@@ -304,7 +306,7 @@ public:
     virtual void pullFromDevice() final override
     {
         // Copy correct number of int16_t from vector data memory to host pointer
-        const auto &vectorDataMemory = m_Runtime->getRISCV().getCoprocessor<VectorProcessor>(vectorQuadrant)->getVectorDataMemory();
+        const auto &vectorDataMemory = m_Runtime->getRISCV().getCoprocessor<ISE::VectorProcessor>(FeNN::Common::vectorQuadrant)->getVectorDataMemory();
         std::copy_n(vectorDataMemory.getData() + (getURAMPointer() / 2), getCount(), 
                     getHostPointer<int16_t>());
     }
@@ -414,17 +416,16 @@ namespace FeNN::Backend
 CoreState::CoreState(size_t dmaBufferSize)
 :   m_DMABufferAllocator(dmaBufferSize)
 {
-    using namespace Common;
-    using namespace ISE;
-    m_RISCV.addCoprocessor<ISE::VectorProcessor>(vectorQuadrant);
+    m_RISCV.addCoprocessor<ISE::VectorProcessor>(FeNN::Common::vectorQuadrant);
 
     // Create simulated DMA controller
-    m_DMAController = std::make_unique<DMAControllerSim>(m_RISCV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getVectorDataMemory(),
-                                                         dmaBufferSize);
+    m_DMAController = std::make_unique<ISE::DMAControllerSim>(
+        m_RISCV.getCoprocessor<ISE::VectorProcessor>(FeNN::Common::vectorQuadrant)->getVectorDataMemory(),
+        dmaBufferSize);
     m_RISCV.setDMAController(m_DMAController.get());
 
     // Create simulated DMA controller
-    RouterSim router(sharedBus, m_RISCV.getSpikeDataMemory(), coreID);
+    ISE::RouterSim router(sharedBus, m_RISCV.getSpikeDataMemory(), coreID);
     m_RISCV.setRouter(&router);
 }
 
