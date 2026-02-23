@@ -69,13 +69,63 @@ void ArrayBase::memsetHostPointer(int value)
 }
 
 //----------------------------------------------------------------------------
+// Backend::DeviceBase
+//----------------------------------------------------------------------------
+void DeviceBase::createArray(std::shared_ptr<const ::Model::State> state) const
+{
+    LambdaVariableVisitor v(state,
+                            [this](auto eventContainer)
+                            {
+                                return createArray(eventContainer);
+                            },
+                            [this](auto performanceCounter)
+                            {
+                                return createArray(performanceCounter);
+                            },
+                            [this](auto variable)
+                            {
+                                return createArray(variable);
+                            });
+
+
+    // Take ownership of array and add to arrays map
+    if (!m_Arrays.try_emplace(state, std::move(v.getReturn())).second) {
+        throw std::runtime_error("Duplicate array found for state '" + state->getName() + "'");
+    }
+}
+//----------------------------------------------------------------------------
+ArrayBase *DeviceBase::getArray(std::shared_ptr<const ::Model::State> state) const
+{
+    return m_Arrays.at(state).get();
+}
+
+//----------------------------------------------------------------------------
 // Runtime
 //----------------------------------------------------------------------------
-Runtime::Runtime(const ::Model::Model &model)
-:   m_MergedModel(model)
+Runtime::Runtime(const ::Model::Model &model, size_t numDevices)
+:   m_Devices(numDevices), m_MergedModel(model), m_NumDevices(numDevices), 
+    m_WorkerRun(true), m_Command(nullptr)
 {
-    // 1) Generate code - fields must be allocated here
-    // 2) Build code
+    // Loop through devices
+    m_WorkerThreads.reserve(numDevices);
+    for(size_t i = 0; i < getNumDevices(); i++) {
+        // Create device object and move into vector
+        m_Devices[i] = std::move(createDevice(i));
+
+        // Create worker thread
+        m_WorkerThreads.emplace_back(threadFunction, m_Devices[i].get());
+    }
+}
+//----------------------------------------------------------------------------
+Runtime::~Runtime()
+{
+    // Join all worker threads
+    m_WorkerRun = false;
+    for(auto &w : m_WorkerThreads) {
+        if(w.joinable()) {
+            w.join();
+        }
+    }
 }
 //----------------------------------------------------------------------------
 void Runtime::allocate()
@@ -86,14 +136,10 @@ void Runtime::allocate()
     // Perform backend-specific logic
     allocatePreamble();
 
-    // Loop through state objects used by model
+    // Loop through state objects used by model and create suitable array on each device
     for (const auto &s : m_MergedModel.getModel().getStateProcesses()) {
-        // Create array
-        auto array = createArray(s.first);
-
-        // Take ownership of array and add to arrays map
-        if (!m_Arrays.try_emplace(s.first, std::move(array)).second) {
-            throw std::runtime_error("Duplicate array found for state '" + s.first->getName() + "'");
+        for(auto &d : getDevices()) {
+            d->createArray(s.first);
         }
     }
 
@@ -133,31 +179,55 @@ void Runtime::allocate()
     //m_FieldArray->pushFieldsToDevice();
 }
 //----------------------------------------------------------------------------
-ArrayBase *Runtime::getArray(std::shared_ptr<const ::Model::State> variable) const
+void Runtime::runCommand(Command *command)
 {
-    return m_Arrays.at(variable).get();
+    // Set command and notify all workers
+    {
+        std::lock_guard<std::mutex> lock(m_Mutex);
+        m_Command = command;
+        m_WorkersReady = 0;
+        m_MainToWorkerCond.notify_all();
+    }
+
+    // Wait until all devices complete
+    {
+        std::unique_lock<std::mutex> lock(m_Mutex);
+        m_WorkerToMainCond.wait(lock, [this](){ return m_WorkersReady == getNumDevices(); });
+    }
+
+    // Set command and notify all workers
+    {
+        std::lock_guard<std::mutex> lock(m_Mutex);
+        m_Command = nullptr;
+        m_MainToWorkerCond.notify_all();
+    }
 }
 //----------------------------------------------------------------------------
-/*std::optional<unsigned int> Runtime::getSOCPower() const
+void Runtime::threadFunction(DeviceBase *device)
 {
-    return m_State->getSOCPower();
-}*/
-//----------------------------------------------------------------------------
-std::unique_ptr<ArrayBase> Runtime::createArray(std::shared_ptr<const ::Model::State> state) const
-{
-    LambdaVariableVisitor v(state,
-                            [this](auto eventContainer)
-                            {
-                                return createArray(eventContainer);
-                            },
-                            [this](auto performanceCounter)
-                            {
-                                return createArray(performanceCounter);
-                            },
-                            [this](auto variable)
-                            {
-                                return createArray(variable);
-                            });
-    return std::move(v.getReturn());
+    // While workers should run
+    while(m_WorkerRun) {
+        // Wait for command
+        {
+            std::unique_lock<std::mutex> lock(m_Mutex);
+            m_MainToWorkerCond.wait(lock, [this](){ return m_Command != nullptr; });
+        }
+
+        // Execute command on device
+        m_Command->execute(device);
+
+        // Signal main
+        {
+            std::lock_guard<std::mutex> lock(m_Mutex);
+            m_WorkersReady++;
+            m_WorkerToMainCond.notify_one();
+        }
+
+        // Wait for all workers to process
+        {
+            std::unique_lock<std::mutex> lock(m_Mutex);
+            m_MainToWorkerCond.wait(lock, [this](){ return m_Command == nullptr; });
+        }
+    }
 }
 }

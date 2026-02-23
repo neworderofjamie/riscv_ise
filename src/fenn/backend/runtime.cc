@@ -102,11 +102,79 @@ void URAMLLMArrayBase::serialiseDeviceObject(std::vector<std::byte> &bytes) cons
 }
 
 //----------------------------------------------------------------------------
+// FeNN::Backend::DeviceFeNN
+//----------------------------------------------------------------------------
+//----------------------------------------------------------------------------
+std::unique_ptr<::Backend::ArrayBase> DeviceFeNN::createArray(std::shared_ptr<const ::Model::EventContainer> eventContainer) const
+{
+    LOGI << "Creating event container '" << eventContainer->getName() << "' array in BRAM";
+
+    // Event containers are always implemented as BRAM bitfields
+    const size_t numSpikeWords = ::Common::Utils::ceilDivide(eventContainer->getShape().getFlattenedSize(), 32) * eventContainer->getNumBufferTimesteps();
+    return createBRAMArray(GeNN::Type::Uint32, numSpikeWords);
+}
+//----------------------------------------------------------------------------
+std::unique_ptr<::Backend::ArrayBase> DeviceFeNN::createArray(std::shared_ptr<const ::Model::PerformanceCounter> performanceCounter) const
+{
+    LOGI << "Creating performance counter '" << performanceCounter->getName() << "' array in BRAM";
+
+    // Performance counter contains a 64-bit number for 
+    // instructions retired and one for number of cycles 
+    return createBRAMArray(GeNN::Type::Uint64, 2);
+}
+//----------------------------------------------------------------------------
+std::unique_ptr<::Backend::ArrayBase> DeviceFeNN::createArray(std::shared_ptr<const ::Model::Variable> variable) const
+{
+    
+    // Pad last dimension to multiplies of 32
+    // **THINK** how much of this belongs in Shape?
+    // **TODO** more information is required here to seperate variables with
+    // shape (B,) which shouldn't be padded from (N,) variables which should
+    // **TODO** split variable across cores - may need to happen in Model
+    auto varDims = variable->getShape().getDims();
+    varDims.back() = ::Common::Utils::padSize(varDims.back(), 32);
+
+    // Multiple padded dimensions together
+    const size_t countOneTimestep = std::accumulate(varDims.cbegin(), varDims.cend(), 
+                                                    1, std::multiplies<size_t>());
+    const size_t count = countOneTimestep * variable->getNumBufferTimesteps();
+
+    // Upcast model to FeNN-model and determine what memory-space this variable lives in
+    const auto &model = dynamic_cast<const Model&>(getMergedModel().getModel());
+    const auto &memSpaceCompatibility = model.getStateMemSpaceCompatibility();
+    
+    // Create array in correct memory space depending on compatibility
+    if(memSpaceCompatibility.dram && m_UseDRAMForWeights) {
+        LOGI << "Creating variable '" << variable->getName() << "' array in DRAM";
+        return createDRAMArray(variable->getType(), count);
+    }
+    else if(memSpaceCompatibility.uram) {
+        LOGI << "Creating variable '" << variable->getName() << "' array in URAM";
+        return createURAMArray(variable->getType(), count);
+    }
+    else if(memSpaceCompatibility.llm) {
+        LOGI << "Creating variable '" << variable->getName() << "' array in LLM";
+        return createLLMArray(variable->getType(), count);
+    }
+    else if(memSpaceCompatibility.uramLLM) {
+        LOGI << "Creating variable '" << variable->getName() << "' array in URAM and LLM";
+        return createURAMLLMArray(variable->getType(), countOneTimestep, count, 0);
+    }
+    else if(memSpaceCompatibility.bram) {
+        LOGI << "Creating variable '" << variable->getName() << "' array in BRAM";
+        return createBRAMArray(variable->getType(), count);
+    }
+    else {
+        throw std::runtime_error("Variable '" + variable->getName() + "' is not compatible "
+                                 "with any memory spaces available on FeNN");
+    }
+}
+//----------------------------------------------------------------------------
 // FeNN::Backend::Runtime
 //----------------------------------------------------------------------------
-Runtime::Runtime(const ::Model::Model &model, size_t numCores, bool useDRAMForWeights , bool keepParamsInRegisters, 
+Runtime::Runtime(const ::Model::Model &model, size_t numDevices, bool useDRAMForWeights , bool keepParamsInRegisters, 
                  Compiler::RoundingMode neuronUpdateRoundingMode)
-:   ::Backend::Runtime(model), m_NumCores(numCores), m_UseDRAMForWeights(useDRAMForWeights), 
+:   ::Backend::Runtime(model, numDevices), m_UseDRAMForWeights(useDRAMForWeights), 
     m_KeepParamsInRegisters(keepParamsInRegisters), m_NeuronUpdateRoundingMode(neuronUpdateRoundingMode)
 {
     // **TODO** fields
@@ -151,71 +219,6 @@ Runtime::Runtime(const ::Model::Model &model, size_t numCores, bool useDRAMForWe
                                      }
                                  });
             });
-    }
-}
-//----------------------------------------------------------------------------
-std::unique_ptr<::Backend::ArrayBase> Runtime::createArray(std::shared_ptr<const ::Model::EventContainer> eventContainer) const
-{
-    LOGI << "Creating event container '" << eventContainer->getName() << "' array in BRAM";
-
-    // Event containers are always implemented as BRAM bitfields
-    const size_t numSpikeWords = ::Common::Utils::ceilDivide(eventContainer->getShape().getFlattenedSize(), 32) * eventContainer->getNumBufferTimesteps();
-    return createBRAMArray(GeNN::Type::Uint32, numSpikeWords);
-}
-//----------------------------------------------------------------------------
-std::unique_ptr<::Backend::ArrayBase> Runtime::createArray(std::shared_ptr<const ::Model::PerformanceCounter> performanceCounter) const
-{
-    LOGI << "Creating performance counter '" << performanceCounter->getName() << "' array in BRAM";
-
-    // Performance counter contains a 64-bit number for 
-    // instructions retired and one for number of cycles 
-    return createBRAMArray(GeNN::Type::Uint64, 2);
-}
-//----------------------------------------------------------------------------
-std::unique_ptr<::Backend::ArrayBase> Runtime::createArray(std::shared_ptr<const ::Model::Variable> variable) const
-{
-    
-    // Pad last dimension to multiplies of 32
-    // **THINK** how much of this belongs in Shape?
-    // **TODO** more information is required here to seperate variables with
-    // shape (B,) which shouldn't be padded from (N,) variables which should
-    // **TODO** split variable across cores - may need to happen in Model
-    auto varDims = variable->getShape().getDims();
-    varDims.back() = ::Common::Utils::padSize(varDims.back(), 32);
-
-    // Multiple padded dimensions together
-    const size_t countOneTimestep = std::accumulate(varDims.cbegin(), varDims.cend(), 
-                                                    1, std::multiplies<size_t>());
-    const size_t count = countOneTimestep * variable->getNumBufferTimesteps();
-
-    // Upcast model to FeNN-model and determine what memory-space this variable lives in
-    const auto &model = dynamic_cast<const Model&>(getMergedModel().getModel());
-    const auto &memSpaceCompatibility = model.getStateMemSpaceCompatibility();
-    
-    // Create array in correct memory space depending on compatibility
-    if(memSpaceCompatibility.dram && m_UseDRAMForWeights) {
-        LOGI << "Creating variable '" << variable->getName() << "' array in DRAM";
-        return createDRAMArray(variable->getType(), count, 0);
-    }
-    else if(memSpaceCompatibility.uram) {
-        LOGI << "Creating variable '" << variable->getName() << "' array in URAM";
-        return createURAMArray(variable->getType(), count, 0);
-    }
-    else if(memSpaceCompatibility.llm) {
-        LOGI << "Creating variable '" << variable->getName() << "' array in LLM";
-        return createLLMArray(variable->getType(), count, 0);
-    }
-    else if(memSpaceCompatibility.uramLLM) {
-        LOGI << "Creating variable '" << variable->getName() << "' array in URAM and LLM";
-        return createURAMLLMArray(variable->getType(), countOneTimestep, count, 0);
-    }
-    else if(memSpaceCompatibility.bram) {
-        LOGI << "Creating variable '" << variable->getName() << "' array in BRAM";
-        return createBRAMArray(variable->getType(), count, 0);
-    }
-    else {
-        throw std::runtime_error("Variable '" + variable->getName() + "' is not compatible "
-                                 "with any memory spaces available on FeNN");
     }
 }
 }

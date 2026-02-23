@@ -35,8 +35,8 @@ namespace
 class URAMArray : public URAMArrayBase
 {
 public:
-    URAMArray(const Type::ResolvedType &type, size_t count, RuntimeSim *runtime)
-    :   URAMArrayBase(type, count), m_Runtime(runtime)
+    URAMArray(const Type::ResolvedType &type, size_t count, DeviceFeNNSim &device)
+    :   URAMArrayBase(type, count), m_Device(device)
     {
         // Allocate if count is specified
         if(count > 0) {
@@ -44,7 +44,7 @@ public:
             setHostPointer(new uint8_t[getSizeBytes()]);
 
             // Allocate URAM
-            setURAMPointer(m_Runtime->getURAMAllocator().allocate(getSizeBytes()));
+            setURAMPointer(m_Device.get().getURAMAllocator().allocate(getSizeBytes()));
         }
     }
     virtual ~URAMArray()
@@ -63,7 +63,7 @@ public:
     virtual void pushToDevice() final override
     {
         // Copy correct number of int16_t from host pointer to vector data memory
-        auto &vectorDataMemory = m_Runtime->getRISCV().getCoprocessor<ISE::VectorProcessor>(vectorQuadrant)->getVectorDataMemory();
+        auto &vectorDataMemory = m_Device.get().getRISCV().getCoprocessor<ISE::VectorProcessor>(FeNN::Common::vectorQuadrant)->getVectorDataMemory();
         std::copy_n(getHostPointer<int16_t>(), getCount(), 
                     vectorDataMemory.getData() + (getURAMPointer() / 2));
     }
@@ -72,13 +72,13 @@ public:
     virtual void pullFromDevice() final override
     {
         // Copy correct number of int16_t from vector data memory to host pointer
-        const auto &vectorDataMemory = m_Runtime->getRISCV().getCoprocessor<ISE::VectorProcessor>(vectorQuadrant)->getVectorDataMemory();
+        const auto &vectorDataMemory = m_Device.get().getRISCV().getCoprocessor<ISE::VectorProcessor>(FeNN::Common::vectorQuadrant)->getVectorDataMemory();
         std::copy_n(vectorDataMemory.getData() + (getURAMPointer() / 2), getCount(), 
                     getHostPointer<int16_t>());
     }
 
 private:
-    RuntimeSim *m_Runtime;
+    std::reference_wrapper<DeviceFeNNSim> m_Device;
 };
 
 //------------------------------------------------------------------------
@@ -89,8 +89,8 @@ private:
 class BRAMArray : public FeNN::Backend::BRAMArrayBase
 {
 public:
-    BRAMArray(const GeNN::Type::ResolvedType &type, size_t count, RuntimeSim *runtime)
-    :   BRAMArrayBase(type, count), m_Runtime(runtime)
+    BRAMArray(const GeNN::Type::ResolvedType &type, size_t count, DeviceFeNNSim &device)
+    :   BRAMArrayBase(type, count), m_Device(device)
     {
         // Allocate if count is specified
         if(count > 0) {
@@ -98,7 +98,7 @@ public:
             setHostPointer(new uint8_t[getSizeBytes()]);
 
             // Allocate BRAM
-            setBRAMPointer(m_Runtime->getBRAMAllocator().allocate(getSizeBytes()));
+            setBRAMPointer(m_Device.get().getBRAMAllocator().allocate(getSizeBytes()));
         }
     }
 
@@ -118,7 +118,7 @@ public:
     virtual void pushToDevice() final override
     {
         // Copy correct number of int16_t from host pointer to vector data memory
-        auto &scalarDataMemory = m_Runtime->getRISCV().getScalarDataMemory();
+        auto &scalarDataMemory = m_Device.get().getRISCV().getScalarDataMemory();
         std::copy_n(getHostPointer<uint8_t>(), getSizeBytes(), 
                     scalarDataMemory.getData() + getBRAMPointer());
     }
@@ -127,13 +127,13 @@ public:
     virtual void pullFromDevice() final override
     {
         // Copy correct number of int16_t from vector data memory to host pointer
-        const auto &scalarDataMemory = m_Runtime->getRISCV().getScalarDataMemory();
+        const auto &scalarDataMemory = m_Device.get().getRISCV().getScalarDataMemory();
         std::copy_n(scalarDataMemory.getData() + getBRAMPointer(), getSizeBytes(), 
                     getHostPointer<uint8_t>());
     }
 
 private:
-    RuntimeSim *m_Runtime;
+    std::reference_wrapper<DeviceFeNNSim> m_Device;
 };
 
 //------------------------------------------------------------------------
@@ -143,8 +143,8 @@ private:
 class LLMArray : public FeNN::Backend::LLMArrayBase
 {
 public:
-    LLMArray(const GeNN::Type::ResolvedType &type, size_t count, RuntimeSim *runtime)
-    :   LLMArrayBase(type, count), m_Runtime(runtime)
+    LLMArray(const GeNN::Type::ResolvedType &type, size_t count, DeviceFeNNSim &device)
+    :   LLMArrayBase(type, count), m_Device(device)
     {
         // Allocate if count is specified
         if(count > 0) {
@@ -152,7 +152,7 @@ public:
             setHostPointer(nullptr);
 
             // Allocate LLM
-            setLLMPointer(m_Runtime->getLLMAllocator().allocate(getSizeBytes()));
+            setLLMPointer(m_Device.get().getLLMAllocator().allocate(getSizeBytes()));
         }
     }
 
@@ -174,7 +174,7 @@ public:
         LOGW << "Copying LLM buffers is implemented in simulation for convenience but is not possible on device";
         const size_t numRows = ::Common::Utils::ceilDivide(getCount(), 32);
         for(size_t l = 0; l < 32; l++) {
-            auto &laneLocalMemory = m_Runtime->getRISCV().getCoprocessor<ISE::VectorProcessor>(vectorQuadrant)->getLaneLocalMemory(l);    
+            auto &laneLocalMemory = m_Device.get().getRISCV().getCoprocessor<ISE::VectorProcessor>(FeNN::Common::vectorQuadrant)->getLaneLocalMemory(l);    
             int16_t *llmPointer = laneLocalMemory.getData() + (getLLMPointer() / 2);
             for(size_t r = 0; r < numRows; r++) {
                 *llmPointer++ = getHostPointer<int16_t>()[(r * 32) + l];
@@ -189,7 +189,7 @@ public:
             
         const size_t numRows = ::Common::Utils::ceilDivide(getCount(), 32);
         for(size_t l = 0; l < 32; l++) {
-            const auto &laneLocalMemory = m_Runtime->getRISCV().getCoprocessor<ISE::VectorProcessor>(vectorQuadrant)->getLaneLocalMemory(l);    
+            const auto &laneLocalMemory = m_Device.get().getRISCV().getCoprocessor<ISE::VectorProcessor>(FeNN::Common::vectorQuadrant)->getLaneLocalMemory(l);    
             const int16_t *llmPointer = laneLocalMemory.getData() + (getLLMPointer() / 2);
             for(size_t r = 0; r < numRows; r++) {
                 getHostPointer<int16_t>()[(r * 32) + l] = *llmPointer++;
@@ -198,7 +198,7 @@ public:
     }
 
 private:
-    RuntimeSim *m_Runtime;
+    std::reference_wrapper<DeviceFeNNSim> m_Device;
 };
 
 //------------------------------------------------------------------------
@@ -208,16 +208,16 @@ private:
 class DRAMArray : public DRAMArrayBase
 {
 public:
-    DRAMArray(const GeNN::Type::ResolvedType &type, size_t count, RuntimeSim *runtime)
-    :   DRAMArrayBase(type, count), m_Runtime(runtime)
+    DRAMArray(const GeNN::Type::ResolvedType &type, size_t count, DeviceFeNNSim &device)
+    :   DRAMArrayBase(type, count), m_Device(device)
     {
         // Allocate if count is specified
         if(count > 0) {
             // Allocate block of DMA buffer
-            const size_t offset = m_Runtime->getDMABufferAllocator().allocate(getSizeBytes());
+            const size_t offset = m_Device.get().getDMABufferAllocator().allocate(getSizeBytes());
 
             // Add to virtual address of DMA buffer data to get host pointer
-            setHostPointer(m_State->getDMAController()->getData() + offset);
+            setHostPointer(m_Device.get().getDMAController()->getData() + offset);
 
             // Use directly as device pointer
             // **NOTE** simulated DMA controller has a physical address of 0
@@ -248,7 +248,7 @@ public:
     }
 
 private:
-    RuntimeSim *m_Runtime;
+    std::reference_wrapper<DeviceFeNNSim> m_Device;
 };
 
 //------------------------------------------------------------------------
@@ -259,21 +259,21 @@ private:
 class URAMLLMArray : public URAMLLMArrayBase
 {
 public:
-    URAMLLMArray(const GeNN::Type::ResolvedType &type, size_t uramCount, size_t llmCount,
-                 RuntimeSim *runtime)
-    :   URAMLLMArrayBase(type, uramCount, llmCount), m_Runtime(runtime)
+    URAMLLMArray(const GeNN::Type::ResolvedType &type, size_t uramCount, 
+                 size_t llmCount, DeviceFeNNSim &device)
+    :   URAMLLMArrayBase(type, uramCount, llmCount), m_Device(device)
     {
         if(uramCount > 0) {
             // Allocate memory for host pointer
             setHostPointer(new uint8_t[getSizeBytes()]);
 
             // Allocate URAM
-            setURAMPointer(m_Runtime->getURAMAllocator().allocate(getSizeBytes()));
+            setURAMPointer(m_Device.get().getURAMAllocator().allocate(getSizeBytes()));
         }
 
         // Allocate LLM
         if(llmCount > 0) {
-            setLLMPointer(m_Runtime->getLLMAllocator().allocate(getLLMSizeBytes()));
+            setLLMPointer(m_Device.get().getLLMAllocator().allocate(getLLMSizeBytes()));
         }
     }
 
@@ -297,7 +297,7 @@ public:
     virtual void pushToDevice() final override
     {
         // Copy correct number of int16_t from host pointer to vector data memory
-        auto &vectorDataMemory = m_Runtime->getRISCV().getCoprocessor<ISE::VectorProcessor>(FeNN::Common::vectorQuadrant)->getVectorDataMemory();
+        auto &vectorDataMemory = m_Device.get().getRISCV().getCoprocessor<ISE::VectorProcessor>(FeNN::Common::vectorQuadrant)->getVectorDataMemory();
         std::copy_n(getHostPointer<int16_t>(), getCount(), 
                     vectorDataMemory.getData() + (getURAMPointer() / 2));
     }
@@ -306,14 +306,15 @@ public:
     virtual void pullFromDevice() final override
     {
         // Copy correct number of int16_t from vector data memory to host pointer
-        const auto &vectorDataMemory = m_Runtime->getRISCV().getCoprocessor<ISE::VectorProcessor>(FeNN::Common::vectorQuadrant)->getVectorDataMemory();
+        const auto &vectorDataMemory = m_Device.get().getRISCV().getCoprocessor<ISE::VectorProcessor>(FeNN::Common::vectorQuadrant)->getVectorDataMemory();
         std::copy_n(vectorDataMemory.getData() + (getURAMPointer() / 2), getCount(), 
                     getHostPointer<int16_t>());
     }
 
 private:
-    RuntimeSim *m_Runtime;
+    std::reference_wrapper<DeviceFeNNSim> m_Device;
 };
+
 
 //----------------------------------------------------------------------------
 // SimState
@@ -409,12 +410,12 @@ private:
 }
 
 //----------------------------------------------------------------------------
-// FeNN::Backend::CoreState
+// FeNN::Backend::DeviceFeNNSim
 //----------------------------------------------------------------------------
 namespace FeNN::Backend
 {
-CoreState::CoreState(size_t dmaBufferSize)
-:   m_DMABufferAllocator(dmaBufferSize)
+DeviceFeNNSim::DeviceFeNNSim(size_t deviceIndex, size_t dmaBufferSize, ISE::SharedBusSim &sharedBus)
+:   DeviceFeNN(deviceIndex), m_DMABufferAllocator(dmaBufferSize)
 {
     m_RISCV.addCoprocessor<ISE::VectorProcessor>(FeNN::Common::vectorQuadrant);
 
@@ -425,8 +426,39 @@ CoreState::CoreState(size_t dmaBufferSize)
     m_RISCV.setDMAController(m_DMAController.get());
 
     // Create simulated DMA controller
-    ISE::RouterSim router(sharedBus, m_RISCV.getSpikeDataMemory(), coreID);
-    m_RISCV.setRouter(&router);
+    m_Router = std::make_unique<ISE::RouterSim>(sharedBus, m_RISCV.getSpikeDataMemory(), deviceIndex);
+    m_RISCV.setRouter(m_Router.get());
+}
+//----------------------------------------------------------------------------
+void DeviceFeNNSim::loadKernel(std::shared_ptr<const ::Model::Kernel> kernel)
+{
+    // **TODO** get code from runtime
+    getRISCV().setInstructions(code);
+}
+//----------------------------------------------------------------------------
+void DeviceFeNNSim::runKernel(std::shared_ptr<const ::Model::Kernel> kernel)
+{
+}
+//----------------------------------------------------------------------------
+std::unique_ptr<::Backend::ArrayBase> DeviceFeNNSim::createURAMArray(const GeNN::Type::ResolvedType &type, size_t count) const
+{
+}
+//----------------------------------------------------------------------------
+std::unique_ptr<::Backend::ArrayBase> DeviceFeNNSim::createBRAMArray(const GeNN::Type::ResolvedType &type, size_t count) const
+{
+}
+//----------------------------------------------------------------------------
+std::unique_ptr<::Backend::ArrayBase> DeviceFeNNSim::createLLMArray(const GeNN::Type::ResolvedType &type, size_t count) const
+{
+}
+//----------------------------------------------------------------------------
+std::unique_ptr<::Backend::ArrayBase> DeviceFeNNSim::createDRAMArray(const GeNN::Type::ResolvedType &type, size_t count) const
+{
+}
+//----------------------------------------------------------------------------
+std::unique_ptr<::Backend::ArrayBase> DeviceFeNNSim::createURAMLLMArray(const GeNN::Type::ResolvedType &type,
+                                                                        size_t uramCount, size_t llmCount) const
+{
 }
 
 //----------------------------------------------------------------------------
@@ -436,13 +468,8 @@ RuntimeSim::RuntimeSim(const ::Model::Model &model, size_t numCores, bool useDRA
                        bool keepParamsInRegisters, Compiler::RoundingMode neuronUpdateRoundingMode, 
                        size_t dmaBufferSize)
 :   Runtime(model, numCores, useDRAMForWeights, keepParamsInRegisters, neuronUpdateRoundingMode),
-    m_SharedBus(numCores)
+    m_SharedBus(numCores), m_DMABufferSize(dmaBufferSize)
 {
-    // Create core state objects
-    m_CoreState.reserve(numCores);
-    for(size_t i = 0; i < numCores; i++) {
-        m_CoreState.emplace_back(dmaBufferSize);
-    }
 }
 //------------------------------------------------------------------------
 void RuntimeSim::run(std::shared_ptr<const ::Model::Kernel> kernel)
@@ -462,30 +489,13 @@ void RuntimeSim::run(std::shared_ptr<const ::Model::Kernel> kernel)
         m_CurrentKernelCode = kernel;
     }
 
-    m_RISCV.setPC(0);
-    m_RISCV.run();
+    
 }
 //------------------------------------------------------------------------
-std::unique_ptr<::Backend::ArrayBase> RuntimeSim::createURAMArray(const GeNN::Type::ResolvedType &type, size_t count) const
+std::unique_ptr<::Backend::DeviceBase> RuntimeSim::createDevice(size_t deviceIndex) const
 {
-    return std::make_unique<::URAMArray>(type, count, this);
+    return std::make_unique<DeviceFeNNSim>(deviceIndex, m_DMABufferSize, m_SharedBus);
 }
-//------------------------------------------------------------------------
-std::unique_ptr<::Backend::ArrayBase> RuntimeSim::createBRAMArray(const GeNN::Type::ResolvedType &type, size_t count) const
-{
-}
-//------------------------------------------------------------------------
-std::unique_ptr<::Backend::ArrayBase> RuntimeSim::createLLMArray(const GeNN::Type::ResolvedType &type, size_t count) const
-{
-}
-//------------------------------------------------------------------------
-std::unique_ptr<::Backend::ArrayBase> RuntimeSim::createDRAMArray(const GeNN::Type::ResolvedType &type, size_t count) const
-{
-}
-//------------------------------------------------------------------------
-std::unique_ptr<::Backend::ArrayBase> RuntimeSim::createURAMLLMArray(const GeNN::Type::ResolvedType &type,
-                                                                     size_t uramCount, size_t llmCount) const
-{
-}
+
 
 }
