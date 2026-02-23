@@ -17,7 +17,7 @@
 #include "fenn/ise/dma_controller_sim.h"
 #include "fenn/ise/router_sim.h"
 
-using namespace FeNN::Common;
+using namespace FeNN;
 
 //----------------------------------------------------------------------------
 // FeNN::ISE::InstructionMemory
@@ -348,13 +348,15 @@ std::array<size_t, 32> RISCV::getNumCoprocessorInstructionsExecuted(uint32_t qua
     return num;
 }
 //----------------------------------------------------------------------------
-size_t RISCV::getNumInstructionsExecuted(StandardOpCode opCode) const
+size_t RISCV::getNumInstructionsExecuted(Common::StandardOpCode opCode) const
 {
-    return m_NumOpCodesExecuted[(static_cast<uint32_t>(opCode) << 2) | standardQuadrant];
+    return m_NumOpCodesExecuted[(static_cast<uint32_t>(opCode) << 2) | Common::standardQuadrant];
 }
 //----------------------------------------------------------------------------
 size_t RISCV::getNumJumps() const
 {
+    using namespace Common;
+
     return (getNumInstructionsExecuted(StandardOpCode::JAL) + 
             getNumInstructionsExecuted(StandardOpCode::JALR) + 
             getNumInstructionsExecuted(StandardOpCode::BRANCH));
@@ -362,12 +364,16 @@ size_t RISCV::getNumJumps() const
 //----------------------------------------------------------------------------
 size_t RISCV::getNumMemory() const
 {
+    using namespace Common;
+
     return (getNumInstructionsExecuted(StandardOpCode::LOAD) + 
             getNumInstructionsExecuted(StandardOpCode::STORE));
 }
 //----------------------------------------------------------------------------
 size_t RISCV::getNumALU() const
 {
+    using namespace Common;
+
     return (getNumInstructionsExecuted(StandardOpCode::OP) + 
             getNumInstructionsExecuted(StandardOpCode::OP_IMM));
 }
@@ -387,6 +393,8 @@ void RISCV::setNextPC(uint32_t nextPC)
 //----------------------------------------------------------------------------
 bool RISCV::calcBranchCondition(uint32_t inst, uint32_t rs2, uint32_t rs1, uint32_t funct3) const
 {
+    using namespace Common;
+
     switch(getBranchType(funct3)) {
     case BranchType::BEQ:
     {
@@ -430,6 +438,8 @@ bool RISCV::calcBranchCondition(uint32_t inst, uint32_t rs2, uint32_t rs1, uint3
 //----------------------------------------------------------------------------
 uint32_t RISCV::calcOpImmResult(uint32_t inst, int32_t imm, uint32_t rs1, uint32_t funct3) const
 {
+    using namespace Common;
+
     const uint32_t val = m_Reg[rs1];
     const uint32_t shamt = imm & 0b11111;
     const auto opType = getOpImmType(imm, funct3);
@@ -515,6 +525,8 @@ uint32_t RISCV::calcOpImmResult(uint32_t inst, int32_t imm, uint32_t rs1, uint32
 //----------------------------------------------------------------------------
 uint32_t RISCV::calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs2, uint32_t rs1, uint32_t funct3) const
 {
+    using namespace Common;
+
     const uint32_t val = m_Reg[rs1];
     const uint32_t val2 = m_Reg[rs2];
 
@@ -605,6 +617,8 @@ uint32_t RISCV::calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs2, uint3
 //----------------------------------------------------------------------------
 uint32_t RISCV::loadValue(uint32_t inst, int32_t imm, uint32_t rs1, uint32_t funct3) const
 {
+    using namespace Common;
+
     const uint32_t addr = m_Reg[rs1] + imm;
     const auto &memory = getScalarMemory(addr);
     const auto loadType = getLoadType(funct3);
@@ -644,6 +658,8 @@ uint32_t RISCV::loadValue(uint32_t inst, int32_t imm, uint32_t rs1, uint32_t fun
 //----------------------------------------------------------------------------
 std::optional<uint32_t> RISCV::readCSR(uint32_t csr, bool willWrite) const
 {
+    using namespace Common;
+
 #ifdef DEBUG_EXTRA
     printf("csr_read: csr=0x%03x %i\n", csr, willWrite);
 #endif
@@ -735,6 +751,8 @@ std::optional<uint32_t> RISCV::readCSR(uint32_t csr, bool willWrite) const
 //----------------------------------------------------------------------------
 bool RISCV::writeCSR(uint32_t csr, uint32_t val)
 {
+    using namespace Common;
+
     #define IMPLEMENT_WRITE_DMA_REG(REG)                                            \
         case CSR::REG:                                                              \
         {                                                                           \
@@ -810,6 +828,8 @@ bool RISCV::writeCSR(uint32_t csr, uint32_t val)
 //----------------------------------------------------------------------------
 void RISCV::executeStandardInstruction(uint32_t inst)
 {
+    using namespace Common;
+
     const auto opcode = static_cast<StandardOpCode>((inst & 0b1111100) >> 2);
     switch(opcode) {
     case StandardOpCode::LUI:
@@ -1131,7 +1151,7 @@ void RISCV::executeInstruction(uint32_t inst)
     const uint32_t quadrant = inst & 0b11;
 
     // If instruction is in standard quadrant
-    if(quadrant == standardQuadrant) {
+    if(quadrant == Common::standardQuadrant) {
         executeStandardInstruction(inst); 
     }
     // Otherwise, if there is a co-processor defined to handle this quadrant
