@@ -7,6 +7,9 @@
 // PLOG includes
 #include <plog/Log.h>
 
+// GeNN includes
+#include "type.h"
+
 // FeNN common includes
 #include "fenn/common/device.h"
 #include "fenn/common/dma_buffer.h"
@@ -14,6 +17,10 @@
 
 // FeNN backend includes
 #include "fenn/backend/memory_allocator.h"
+
+using namespace FeNN;
+using namespace FeNN::Backend;
+using namespace GeNN;
 
 //------------------------------------------------------------------------
 // Anonymous namespace
@@ -31,7 +38,7 @@ class HWState;
 class URAMArray : public URAMArrayBase
 {
 public:
-    URAMArray(const GeNN::Type::ResolvedType &type, size_t count, HWState *state);
+    URAMArray(const Type::ResolvedType &type, size_t count, HWState *state);
     virtual ~URAMArray();
 
     //------------------------------------------------------------------------

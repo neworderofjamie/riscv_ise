@@ -272,12 +272,13 @@ private:
 //----------------------------------------------------------------------------
 class FENN_BACKEND_EXPORT Runtime : public ::Backend::Runtime
 {
-    using KernelPtr = std::shared_ptr<const ::Model::Kernel>;
 public:
    Runtime(const ::Model::Model &model, size_t numCores, bool useDRAMForWeights = false, bool keepParamsInRegisters = true, 
            Compiler::RoundingMode neuronUpdateRoundingMode = Compiler::RoundingMode::NEAREST);
 
 protected:
+    using KernelPtr = std::shared_ptr<const ::Model::Kernel>;
+
     //------------------------------------------------------------------------
     // Declared virtuals
     //------------------------------------------------------------------------

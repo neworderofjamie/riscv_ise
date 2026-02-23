@@ -115,12 +115,15 @@ Runtime::Runtime(const ::Model::Model &model, size_t numCores, bool useDRAMForWe
     //! Same ready flag is used by all kernels and located at BRAM address zero
     constexpr uint32_t readyFlagPtr = 0;
     
+    // Cast model to FenN model
+    const auto &fennModel = dynamic_cast<const Model&>(model);
+
     // Loop through kernels
     for (const auto &k : getMergedModel().getModel().getKernels()) {
         // Generate kernel
         const auto code = Assembler::Utils::generateStandardKernel(
             true/*shouldGenerateSimulationKernels()*/, readyFlagPtr,
-            [&k, this](Assembler::CodeGenerator &c, Assembler::VectorRegisterAllocator &vectorRegisterAllocator, 
+            [&fennModel, &k, this](Assembler::CodeGenerator &c, Assembler::VectorRegisterAllocator &vectorRegisterAllocator, 
                        Assembler::ScalarRegisterAllocator &scalarRegisterAllocator)
             {
                 // Ensure kernel has proper base class
@@ -131,7 +134,8 @@ Runtime::Runtime(const ::Model::Model &model, size_t numCores, bool useDRAMForWe
 
                 // Generate code for kernel
                 ki->generateCode(c, scalarRegisterAllocator, vectorRegisterAllocator,
-                                 [this](auto processGroup, auto &codeGenerator, auto &scalarRegisterAllocator, auto &vectorRegisterAllocator)
+                                 [&fennModel, this]
+                                 (auto processGroup, auto &codeGenerator, auto &scalarRegisterAllocator, auto &vectorRegisterAllocator)
                                  {
                                      // Loop through merged processes
                                      for(const auto &m : getMergedModel().getMergedProcessGroups().at(processGroup)) {
@@ -142,7 +146,8 @@ Runtime::Runtime(const ::Model::Model &model, size_t numCores, bool useDRAMForWe
                                          }
 
                                          // Generate code
-                                         pi->generateCode(m, codeGenerator, scalarRegisterAllocator, vectorRegisterAllocator);
+                                         pi->generateCode(m, fennModel, codeGenerator, scalarRegisterAllocator,
+                                                          vectorRegisterAllocator);
                                      }
                                  });
             });
@@ -184,7 +189,7 @@ std::unique_ptr<::Backend::ArrayBase> Runtime::createArray(std::shared_ptr<const
     const size_t count = countOneTimestep * variable->getNumBufferTimesteps();
 
     // Upcast model to FeNN-model and determine what memory-space this variable lives in
-    const auto &model = dynamic_cast<const Model&>(getModelMerged().getModel());
+    const auto &model = dynamic_cast<const Model&>(getMergedModel().getModel());
     const auto &memSpaceCompatibility = model.getStateMemSpaceCompatibility();
     
     // Create array in correct memory space depending on compatibility

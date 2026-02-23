@@ -3,7 +3,7 @@
 // Standard C++ includes
 #include <tuple>
 
-using namespace FeNN::Common;
+using namespace FeNN;
 
 //----------------------------------------------------------------------------
 // Anonymous namespace
@@ -14,14 +14,14 @@ namespace
 // return false if x in 12-bit signed integer
 std::optional<std::tuple<int, int>> split32bit(int x)
 {
-    if (inSBit(x, 12)) {
+    if (Common::inSBit(x, 12)) {
         return std::nullopt;
     }
-    int H = (x >> 12) & mask(20);
-    int L = x & mask(12);
+    int H = (x >> 12) & Common::mask(20);
+    int L = x & Common::mask(12);
     if (x & (1 << 11)) {
         H++;
-        L = L | (mask(20) << 12);
+        L = L | (Common::mask(20) << 12);
     }
 
     return std::make_tuple(H, L);
@@ -98,11 +98,11 @@ std::vector<uint32_t> CodeGenerator::getCode() const
     return code;
 }
 //----------------------------------------------------------------------------
-void CodeGenerator::li(Reg rd, int imm)
+void CodeGenerator::li(Common::Reg rd, int imm)
 {
     auto highLow = split32bit(imm);
     if (!highLow) {
-        addi(rd, Reg::X0, imm);
+        addi(rd, Common::Reg::X0, imm);
     }
     else {
         lui(rd, std::get<0>(highLow.value()));
@@ -119,7 +119,7 @@ uint32_t CodeGenerator::Jmp::encode(uint32_t addr) const
     if (m_Type == Type::JALR) {
         // **NOTE** this is a strange way to use JALR e.g. for jump tables where the
         // table is in the first 4k of memory and the label is used as an immediate
-        if (!isValidImm(addr, 12)) {
+        if (!Common::isValidImm(addr, 12)) {
             throw Error(AssemblerError::INVALID_IMM_OF_JALR);
         }
 
@@ -128,13 +128,13 @@ uint32_t CodeGenerator::Jmp::encode(uint32_t addr) const
     else {
         const int imm = addr - m_From;
         if (m_Type == Type::JAL) {
-            if (!isValidImm(imm, 20)) {
+            if (!Common::isValidImm(imm, 20)) {
                 throw Error(AssemblerError::INVALID_IMM_OF_JAL);
             }
             return get20_10to1_11_19to12_z12(imm) | m_Encoded;
         }
         else {
-            if (!isValidImm(imm, 12)) {
+            if (!Common::isValidImm(imm, 12)) {
                 throw Error(AssemblerError::INVALID_IMM_OF_BRANCH);
             }
             return get12_10to5_z13_4to1_11_z7(imm) | m_Encoded;
