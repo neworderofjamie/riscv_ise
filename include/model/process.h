@@ -66,7 +66,7 @@ private:
 using VariablePtr = std::shared_ptr<const Variable>;
 using EventContainerMap = std::map<std::string, Sliced<EventContainer>>;
 using VariableMap = std::map<std::string, Sliced<Variable>>;
-using LiteralSet = std::set<std::pair<GeNN::Type::ResolvedType, GeNN::Type::NumericValue>>;
+using Literals = std::vector<std::pair<GeNN::Type::ResolvedType, GeNN::Type::NumericValue>>;
 
 //----------------------------------------------------------------------------
 // Model::NeuronUpdateProcess
@@ -106,8 +106,8 @@ private:
     VariableMap m_Variables;
     EventContainerMap m_OutputEvents;
 
-    //! Set of literal types and numeric values built from code
-    LiteralSet m_Literals;
+    //! Vector of literal types and numeric values built from code
+    Literals m_Literals;
 
     //! Tokens built from code
     std::vector<GeNN::Transpiler::Token> m_Tokens;
