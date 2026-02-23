@@ -10,7 +10,7 @@
 #include <plog/Log.h>
 #include <plog/Severity.h>
 
-using namespace FeNN::Common;
+using namespace FeNN;
 using namespace FeNN::ISE;
 
 //----------------------------------------------------------------------------
@@ -187,6 +187,8 @@ void VectorProcessor::tick()
 void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32], 
                                          ScalarDataMemory&, uint32_t pc)
 {
+    using namespace Common;
+
     const auto opcode = static_cast<VectorOpCode>((inst & 0b1111100) >> 2);
     switch(opcode) {
     case VectorOpCode::VLOAD:
@@ -426,20 +428,22 @@ void VectorProcessor::dumpRegisters() const
     }
 }
 //------------------------------------------------------------------------
-size_t VectorProcessor::getNumInstructionsExecuted(const std::array<size_t, 32> &counts, VectorOpCode opCode) const
+size_t VectorProcessor::getNumInstructionsExecuted(const std::array<size_t, 32> &counts, Common::VectorOpCode opCode) const
 {
     return counts[static_cast<uint32_t>(opCode)];
 }
 //------------------------------------------------------------------------
 size_t VectorProcessor::getNumMemory(const std::array<size_t, 32> &counts) const
 {
+    using namespace Common;
+
     return (getNumInstructionsExecuted(counts, VectorOpCode::VLOAD)
             + getNumInstructionsExecuted(counts, VectorOpCode::VSTORE));
 }
 //------------------------------------------------------------------------
 size_t VectorProcessor::getNumALU(const std::array<size_t, 32> &counts) const
 {
-    return getNumInstructionsExecuted(counts, VectorOpCode::VSOP);
+    return getNumInstructionsExecuted(counts, Common::VectorOpCode::VSOP);
 }
 //------------------------------------------------------------------------
 std::array<uint16_t, 32> VectorProcessor::sampleRNG()
@@ -469,6 +473,8 @@ std::array<uint16_t, 32> VectorProcessor::sampleRNG()
 //------------------------------------------------------------------------
 Vector VectorProcessor::calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs2, uint32_t rs1, uint32_t funct3)
 {
+    using namespace Common;
+
     const auto &val = readVReg(rs1);
     const auto &val2 = readVReg(rs2);
 
@@ -571,6 +577,8 @@ Vector VectorProcessor::calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs
 //------------------------------------------------------------------------
 Vector VectorProcessor::calcOpImmResult(uint32_t inst, int32_t imm, uint32_t rs1, uint32_t funct3)
 {
+    using namespace Common;
+
     const auto &val = readVReg(rs1);
 
     // Extract shift from immediate
@@ -636,6 +644,8 @@ Vector VectorProcessor::calcOpImmResult(uint32_t inst, int32_t imm, uint32_t rs1
 //------------------------------------------------------------------------
 uint32_t VectorProcessor::calcTestResult(uint32_t inst, uint32_t rs2, uint32_t rs1, uint32_t funct3) const
 {
+    using namespace Common;
+
     const auto &val = readVReg(rs1);
     const auto &val2 = readVReg(rs2);
     
