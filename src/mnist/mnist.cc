@@ -612,7 +612,9 @@ int main(int argc, char** argv)
 
     if(device) {
         LOGI << "Creating device";
-        Device device;
+		const unsigned int core = 0;
+		
+        Device device(core, 2);
 
         // Put core into reset state
         LOGI << "Resetting";
@@ -622,7 +624,9 @@ int main(int argc, char** argv)
             LOGI << "DMAing vector init data to device";
            
             // Create DMA buffer
-            DMABuffer dmaBuffer;
+			DMABuffer parentDMABuffer;
+            DMABuffer dmaBuffer(parentDMABuffer, 0x40000000 + (core * 0x10000000), 
+								0x50000000 + (core * 0x10000000));
 
             // Check there's enough space for vector init data
             assert(dmaBuffer.getSize() > (vectorInitData.size() * 2));
