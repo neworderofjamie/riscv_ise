@@ -104,7 +104,6 @@ void URAMLLMArrayBase::serialiseDeviceObject(std::vector<std::byte> &bytes) cons
 //----------------------------------------------------------------------------
 // FeNN::Backend::DeviceFeNN
 //----------------------------------------------------------------------------
-//----------------------------------------------------------------------------
 std::unique_ptr<::Backend::ArrayBase> DeviceFeNN::createArray(std::shared_ptr<const ::Model::EventContainer> eventContainer) const
 {
     LOGI << "Creating event container '" << eventContainer->getName() << "' array in BRAM";

@@ -11,6 +11,11 @@
 #include "fenn/backend/memory_allocator.h"
 #include "fenn/backend/runtime.h"
 
+// Forward declarations
+namespace FeNN::Backend
+{
+class RuntimeSim;
+}
 
 //----------------------------------------------------------------------------
 // FeNN::Backend::DeviceFeNNSim
@@ -20,7 +25,8 @@ namespace FeNN::Backend
 class DeviceFeNNSim : public DeviceFeNN
 {
 public:
-    DeviceFeNNSim(size_t deviceIndex, size_t dmaBufferSize, ISE::SharedBusSim &sharedBus);
+    DeviceFeNNSim(size_t deviceIndex, size_t dmaBufferSize, ISE::SharedBusSim &sharedBus,
+                  const RuntimeSim &runtime);
     
     //------------------------------------------------------------------------
     // Device virtuals
@@ -60,8 +66,10 @@ private:
     ISE::RISCV m_RISCV;
     std::unique_ptr<ISE::DMAControllerSim> m_DMAController;
     std::unique_ptr<ISE::RouterSim> m_Router;
+    std::reference_wrapper<const RuntimeSim> m_Runtime;
     DMABufferAllocator m_DMABufferAllocator;
 };
+
 //----------------------------------------------------------------------------
 // FeNN::Backend::RuntimeSim
 //----------------------------------------------------------------------------
@@ -72,13 +80,6 @@ public:
                Compiler::RoundingMode neuronUpdateRoundingMode = Compiler::RoundingMode::NEAREST,
                size_t dmaBufferSize = 512 * 1024);
     
-    //------------------------------------------------------------------------
-    // Runtime virtuals
-    //------------------------------------------------------------------------
-    //! Run kernel on device
-    virtual void run(std::shared_ptr<const ::Model::Kernel> kernel) override final;
-
-
 private:
     //------------------------------------------------------------------------
     // Runtime virtuals

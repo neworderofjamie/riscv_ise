@@ -180,6 +180,23 @@ void Runtime::allocate()
     //m_FieldArray->pushFieldsToDevice();
 }
 //----------------------------------------------------------------------------
+void Runtime::run(std::shared_ptr<const ::Model::Kernel> kernel)
+{
+    // If kernel isn't already loaded
+    if(kernel != m_CurrentKernel) {
+        // Run load command
+        LoadKernelCommand load(kernel);
+        runCommand(&load);
+
+        // Update current kernel
+        m_CurrentKernel = kernel;
+    }
+
+    // Run run command
+    RunKernelCommand run(kernel);
+    runCommand(&run);
+}
+//----------------------------------------------------------------------------
 void Runtime::runCommand(Command *command)
 {
     // Set command and notify all workers

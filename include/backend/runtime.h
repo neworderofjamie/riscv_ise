@@ -173,17 +173,14 @@ public:
     virtual ~Runtime();
 
     //------------------------------------------------------------------------
-    // Declared virtuals
-    //------------------------------------------------------------------------
-    //! Run kernel on device
-    void run(std::shared_ptr<const ::Model::Kernel> kernel) = 0;
-
-    //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
     //! Allocate memory for model on device
     void allocate();
    
+    //! Run kernel on device
+    void run(std::shared_ptr<const ::Model::Kernel> kernel);
+
     //std::optional<unsigned int> getSOCPower() const;
     
     size_t getNumDevices() const{ return m_NumDevices; }
@@ -212,12 +209,23 @@ protected:
     auto &getDevices(){ return m_Devices; }
 
 private:
+    //------------------------------------------------------------------------
+    // Command
+    //------------------------------------------------------------------------
+    //! Base class for commands to run on worker threads
     class Command
     {
     public:
+        //--------------------------------------------------------------------
+        // Declared virtuals
+        //--------------------------------------------------------------------
         virtual void execute(DeviceBase *device) const = 0;
     };
 
+    //------------------------------------------------------------------------
+    // LoadKernelCommand
+    //------------------------------------------------------------------------
+    //! Command for loading kernels onto devices
     class LoadKernelCommand : public Command
     {
     public:
@@ -225,15 +233,51 @@ private:
         :   m_Kernel(kernel)
         {}
 
+        //--------------------------------------------------------------------
+        // Command virtuals
+        //--------------------------------------------------------------------
         virtual void execute(DeviceBase *device) const override final
         {
             device->loadKernel(m_Kernel);
         }
 
     private:
+        //--------------------------------------------------------------------
+        // Members
+        //--------------------------------------------------------------------
         std::shared_ptr<const ::Model::Kernel> m_Kernel;
     };
 
+    //------------------------------------------------------------------------
+    // RunKernelCommand
+    //------------------------------------------------------------------------
+    //! Command for running kernel on all devices
+    class RunKernelCommand : public Command
+    {
+    public:
+        RunKernelCommand(std::shared_ptr<const ::Model::Kernel> kernel)
+        :   m_Kernel(kernel)
+        {}
+
+        //--------------------------------------------------------------------
+        // Command virtuals
+        //--------------------------------------------------------------------
+        virtual void execute(DeviceBase *device) const override final
+        {
+            device->runKernel(m_Kernel);
+        }
+
+    private:
+        //--------------------------------------------------------------------
+        // Members
+        //--------------------------------------------------------------------
+        std::shared_ptr<const ::Model::Kernel> m_Kernel;
+    };
+
+    //------------------------------------------------------------------------
+    // PushStateCommand
+    //------------------------------------------------------------------------
+    //! Command for pushing 
     class PushStateCommand : public Command
     {
     public:
@@ -241,12 +285,44 @@ private:
         :   m_State(state)
         {}
 
+        //--------------------------------------------------------------------
+        // Command virtuals
+        //--------------------------------------------------------------------
         virtual void execute(DeviceBase *device) const override final
         {
             device->getArray(m_State)->pushToDevice();
         }
 
     private:
+        //--------------------------------------------------------------------
+        // Members
+        //--------------------------------------------------------------------
+        std::shared_ptr<const ::Model::State> m_State;
+    };
+
+    //------------------------------------------------------------------------
+    // PullStateCommand
+    //------------------------------------------------------------------------
+    //! Command for pushing 
+    class PullStateCommand : public Command
+    {
+    public:
+        PullStateCommand(std::shared_ptr<const ::Model::State> state)
+        :   m_State(state)
+        {}
+
+        //--------------------------------------------------------------------
+        // Command virtuals
+        //--------------------------------------------------------------------
+        virtual void execute(DeviceBase *device) const override final
+        {
+            device->getArray(m_State)->pullFromDevice();
+        }
+
+    private:
+        //--------------------------------------------------------------------
+        // Members
+        //--------------------------------------------------------------------
         std::shared_ptr<const ::Model::State> m_State;
     };
 
@@ -268,6 +344,9 @@ private:
     std::vector<std::thread> m_WorkerThreads;
 
     MergedModel m_MergedModel;
+
+    //! Current kernel loaded onto all devices
+    std::shared_ptr<const ::Model::Kernel> m_CurrentKernel;
 
     size_t m_NumDevices;
 
