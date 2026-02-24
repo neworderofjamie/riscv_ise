@@ -414,8 +414,9 @@ private:
 //----------------------------------------------------------------------------
 namespace FeNN::Backend
 {
-DeviceFeNNSim::DeviceFeNNSim(size_t deviceIndex, size_t dmaBufferSize, ISE::SharedBusSim &sharedBus)
-:   DeviceFeNN(deviceIndex), m_DMABufferAllocator(dmaBufferSize)
+DeviceFeNNSim::DeviceFeNNSim(size_t deviceIndex, size_t dmaBufferSize, ISE::SharedBusSim &sharedBus,
+                             const RuntimeSim &runtime)
+:   DeviceFeNN(deviceIndex), m_DMABufferAllocator(dmaBufferSize), m_Runtime(runtime)
 {
     m_RISCV.addCoprocessor<ISE::VectorProcessor>(FeNN::Common::vectorQuadrant);
 
@@ -432,33 +433,41 @@ DeviceFeNNSim::DeviceFeNNSim(size_t deviceIndex, size_t dmaBufferSize, ISE::Shar
 //----------------------------------------------------------------------------
 void DeviceFeNNSim::loadKernel(std::shared_ptr<const ::Model::Kernel> kernel)
 {
-    // **TODO** get code from runtime
-    getRISCV().setInstructions(code);
+    // Get kernel code from runtime and load into ISE's instruction memory
+    getRISCV().setInstructions(m_Runtime.get().getKernelCode(kernel));
 }
 //----------------------------------------------------------------------------
 void DeviceFeNNSim::runKernel(std::shared_ptr<const ::Model::Kernel> kernel)
 {
+    // Reset program counter and run
+    m_RISCV.setPC(0);
+    m_RISCV.run();
 }
 //----------------------------------------------------------------------------
 std::unique_ptr<::Backend::ArrayBase> DeviceFeNNSim::createURAMArray(const GeNN::Type::ResolvedType &type, size_t count) const
 {
+    return std::make_unique<::URAMArray>(type, count, this);
 }
 //----------------------------------------------------------------------------
 std::unique_ptr<::Backend::ArrayBase> DeviceFeNNSim::createBRAMArray(const GeNN::Type::ResolvedType &type, size_t count) const
 {
+    return std::make_unique<::BRAMArray>(type, count, this);
 }
 //----------------------------------------------------------------------------
 std::unique_ptr<::Backend::ArrayBase> DeviceFeNNSim::createLLMArray(const GeNN::Type::ResolvedType &type, size_t count) const
 {
+    return std::make_unique<::LLMArray>(type, count, this);
 }
 //----------------------------------------------------------------------------
 std::unique_ptr<::Backend::ArrayBase> DeviceFeNNSim::createDRAMArray(const GeNN::Type::ResolvedType &type, size_t count) const
 {
+    return std::make_unique<::DRAMArray>(type, count, this);
 }
 //----------------------------------------------------------------------------
 std::unique_ptr<::Backend::ArrayBase> DeviceFeNNSim::createURAMLLMArray(const GeNN::Type::ResolvedType &type,
                                                                         size_t uramCount, size_t llmCount) const
 {
+    return std::make_unique<::URAMLLMArray>(type, uramCount, llmCount, this);
 }
 
 //----------------------------------------------------------------------------
@@ -470,26 +479,6 @@ RuntimeSim::RuntimeSim(const ::Model::Model &model, size_t numCores, bool useDRA
 :   Runtime(model, numCores, useDRAMForWeights, keepParamsInRegisters, neuronUpdateRoundingMode),
     m_SharedBus(numCores), m_DMABufferSize(dmaBufferSize)
 {
-}
-//------------------------------------------------------------------------
-void RuntimeSim::run(std::shared_ptr<const ::Model::Kernel> kernel)
-{
-    // If kernel change is required
-    if(kernel != m_CurrentKernelCode) {
-        // Get code
-        const auto &code = getKernelCode(kernel);
-        
-        // Set instructions on all cores
-        // **OPTIMISE** use worker threads
-        for(auto &c : m_CoreState) {
-            c.getRISCV().setInstructions(code);
-        }
-    
-        // Update current kernel pointer
-        m_CurrentKernelCode = kernel;
-    }
-
-    
 }
 //------------------------------------------------------------------------
 std::unique_ptr<::Backend::DeviceBase> RuntimeSim::createDevice(size_t deviceIndex) const

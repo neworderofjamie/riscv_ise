@@ -299,28 +299,21 @@ public:
    Runtime(const ::Model::Model &model, size_t numCores, bool useDRAMForWeights = false, bool keepParamsInRegisters = true, 
            Compiler::RoundingMode neuronUpdateRoundingMode = Compiler::RoundingMode::NEAREST);
 
+    //------------------------------------------------------------------------
+    // Public API
+    //------------------------------------------------------------------------
+    const auto &getKernelCode(std::shared_ptr<const ::Model::Kernel> kernel) const{ return m_KernelCode.at(kernel); }
+
 protected:
-    using KernelPtr = std::shared_ptr<const ::Model::Kernel>;
-
-    //------------------------------------------------------------------------
-    // Declared virtuals
-    //------------------------------------------------------------------------
     
-    //------------------------------------------------------------------------
-    // Runtime virtuals
-    //------------------------------------------------------------------------
     
-    //------------------------------------------------------------------------
-    // Protected API
-    //------------------------------------------------------------------------
-    const auto &getKernelCode(KernelPtr kernel) const{ return m_KernelCode.at(kernel); }
-
 private:
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
     // Map of kernel pointers to code
-    std::unordered_map<KernelPtr, std::vector<uint32_t>> m_KernelCode;
+    std::unordered_map<std::shared_ptr<const ::Model::Kernel>, 
+                       std::vector<uint32_t>> m_KernelCode;
 
     bool m_UseDRAMForWeights;
     bool m_KeepParamsInRegisters;
