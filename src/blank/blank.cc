@@ -250,6 +250,7 @@ int main(int argc, char** argv)
         for(uint32_t i = 0; i < numCores; i++) {
             // Generate spike bitfield for this core
             std::get<0>(coreData[i]) = d();
+			std::cout << "Core " << i << " data = " << std::hex << std::get<0>(coreData[i]) << std::endl;
 
             // Create thread
             std::get<2>(coreData[i]) = std::thread(
@@ -280,6 +281,7 @@ int main(int argc, char** argv)
         for(uint32_t i = 0; i < numCores; i++) {
             // Generate spike bitfield for this core
             std::get<0>(coreData[i]) = d();
+			std::cout << "Core " << i << " data = " << std::hex << std::get<0>(coreData[i]) << std::endl;
 
             // Create thread
             std::get<2>(coreData[i]) = std::thread(
