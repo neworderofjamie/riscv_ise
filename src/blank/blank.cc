@@ -16,6 +16,7 @@
 // RISC-V common includes
 #include "common/CLI11.hpp"
 #include "common/app_utils.h"
+#include "common/barrier.h"
 #include "common/device.h"
 #include "common/utils.h"
 
@@ -70,7 +71,7 @@ void simThread(const std::vector<uint32_t> &code, const std::vector<uint8_t> &sc
 }
 
 void deviceThread(const std::vector<uint32_t> &code, const std::vector<uint8_t> &scalarInitData,
-                  uint32_t coreID, uint32_t spikeBitfield,
+                  Barrier &barrier, uint32_t coreID, uint32_t spikeBitfield,
                   uint32_t bitfieldPtr, uint32_t eventIDBasePtr, uint32_t outputSpikeArrayEnd, 
                   uint32_t outputSpikeArrayPtr, uint32_t readyFlagPtr, std::vector<uint32_t> &receivedEvents)
 {
@@ -91,6 +92,7 @@ void deviceThread(const std::vector<uint32_t> &code, const std::vector<uint8_t> 
     wordData[bitfieldPtr / 4] = spikeBitfield;
     wordData[eventIDBasePtr / 4] = (coreID << 14);
 
+    barrier.wait();
     LOGI << "Enabling";
     // Put core into running state
     device.setEnabled(true);
@@ -102,7 +104,9 @@ void deviceThread(const std::vector<uint32_t> &code, const std::vector<uint8_t> 
     LOGI << "Done";
 
     // Copy spikes received into vector
+    LOGI << "Spike array end:" << wordData[outputSpikeArrayEnd / 4];
     const uint32_t num = (wordData[outputSpikeArrayEnd / 4] - spikeArrayPtr) / 4;
+    LOGI << num << " spikes, wordData = " << std::hex << (uint64_t)wordData;
     for(uint32_t i = 0; i < num; i++) {
         receivedEvents.push_back((uint32_t)wordData[i + (outputSpikeArrayPtr / 4)]);
     }
@@ -110,6 +114,12 @@ void deviceThread(const std::vector<uint32_t> &code, const std::vector<uint8_t> 
 
 void checkOutput(const CoreData &coreData)
 {
+    for(const auto &c : coreData) {
+         std::cout << "Core:" << std::endl;
+         for(uint32_t s : std::get<1>(c)) {
+             std::cout << "\t" << std::hex << s << std::endl;
+         }
+    }
     // Check all cores have received the same data
     const auto &core0Data = std::get<1>(coreData[0]);
     for(uint32_t i = 1; i < numCores; i++) {
@@ -222,7 +232,9 @@ int main(int argc, char** argv)
                 ALLOCATE_SCALAR(SSpikeOut);
                 c.li(*SSpikeOut, outputSpikeArrayPtr);
 
-                auto spikeLoop = c.L();
+                Label spikeLoopEnd;
+                auto spikeLoopStart = c.L();
+                c.beq(*SSpikeMemory, *SSpikeMemoryEnd, spikeLoopEnd);
                 {
                     // Load word from spike memory and store in data memory
                     ALLOCATE_SCALAR(STmp);
@@ -232,8 +244,11 @@ int main(int argc, char** argv)
                     // Loop until all spikes processed
                     c.addi(*SSpikeMemory, *SSpikeMemory, 4);
                     c.addi(*SSpikeOut, *SSpikeOut, 4);
-                    c.bne(*SSpikeMemory, *SSpikeMemoryEnd, spikeLoop);
+                    //c.bne(*SSpikeMemory, *SSpikeMemoryEnd, spikeLoop);
+                    c.j_(spikeLoopStart);
                 }
+                
+                c.L(spikeLoopEnd);
             }
         });
 
@@ -245,6 +260,8 @@ int main(int argc, char** argv)
         // Allocate vector with data for all cores
         CoreData coreData(numCores);
         
+        Barrier barrier(2);
+        
         // Loop through cores
         std::random_device d;
         for(uint32_t i = 0; i < numCores; i++) {
@@ -255,7 +272,7 @@ int main(int argc, char** argv)
             // Create thread
             std::get<2>(coreData[i]) = std::thread(
                 deviceThread, std::cref(code), std::cref(scalarInitData),
-                i, std::get<0>(coreData[i]), bitfieldPtr, eventIDBasePtr, outputSpikeArrayEnd, 
+                std::ref(barrier), i, std::get<0>(coreData[i]), bitfieldPtr, eventIDBasePtr, outputSpikeArrayEnd, 
                 outputSpikeArrayPtr, readyFlagPtr, std::ref(std::get<1>(coreData[i])));
             
             // Name thread
