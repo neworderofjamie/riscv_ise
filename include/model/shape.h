@@ -25,6 +25,7 @@ public:
     // Public API
     //------------------------------------------------------------------------
     const auto &getDims() const{ return m_Dims; }
+    size_t getNumDims() const{ return m_Dims.size(); }
     std::string toString() const;
 
     const bool isScalar() const;

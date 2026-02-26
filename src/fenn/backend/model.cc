@@ -27,6 +27,7 @@ Model::Model(const Model::KernelVector &graphs)
 :   ::Model::Model(graphs)
 {
     // Loop through all model state
+    // **THINK** this kinda only need to be variables
     for (const auto &s : getStateProcesses()) {
         // Loop through all processes using this state
         MemSpaceCompatibility m;
