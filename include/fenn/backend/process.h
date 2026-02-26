@@ -44,6 +44,10 @@ public:
     virtual void updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, 
                                              MemSpaceCompatibility &memSpaceCompatibility) const = 0;
 
+    //! Update which dimension variable associated with this process can be split down
+    virtual void updateDeviceSplit(std::shared_ptr<const ::Model::State> state,
+                                   std::vector<bool> &splits) const = 0;
+
     //! Update the max-row length to support this process
     virtual void updateMaxDMABufferSize(size_t &maxRowLength) const
     {
@@ -180,6 +184,9 @@ public:
     virtual void updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state,
                                              MemSpaceCompatibility &memSpaceCompatibility) const override final;
 
+                                             //! Update which dimension variable associated with this process can be split down
+    virtual void updateDeviceSplit(std::shared_ptr<const ::Model::State> state,
+                                   std::vector<bool> &splits) const override final;
     //! Update the maximum DMA buffer size to support this process
     virtual void updateMaxDMABufferSize(size_t &maxRowLength) const override final;
 
@@ -222,7 +229,7 @@ public:
     // TimeDrivenProcessImplementation virtuals
     //------------------------------------------------------------------------ 
     virtual void generateArchetypeCode(const ::Backend::MergedProcess &mergedProcess,
-                                       EnvironmentExternal &environment, 
+                                       const Model &model, EnvironmentExternal &environment, 
                                        MergedFields &fields, Assembler::CodeGenerator &c,
                                        Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                        Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;

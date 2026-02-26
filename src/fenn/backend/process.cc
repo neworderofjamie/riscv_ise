@@ -1145,6 +1145,48 @@ void EventPropagationProcess::updateMemSpaceCompatibility(std::shared_ptr<const 
     }
 }
 //----------------------------------------------------------------------------
+void EventPropagationProcess::updateDeviceSplit(std::shared_ptr<const ::Model::State> state,
+                                                std::vector<bool> &splits) const
+{
+    // If variable is weight, it can  be located in URAM or DRAM
+    if(state == getWeight()) {
+        // Weights cannot be split presynaptically
+        splits[0] = false;
+
+        // Weights must be splittable postsynaptically
+        if(!splits[1]) {
+            throw std::runtime_error("Event propagation process '" + getName()
+                                     + "' weight array '" + getWeight()->getName()
+                                     + "' shared with incompatible processes");
+        }
+
+    }
+    // Otherwise, if variable's target
+    else if(state == getTarget().getUnderlying()) {
+        // If it's delayed
+        if(getNumDelayBits() > 0) {
+            // Delay buffers can't be split down delay axis
+            splits[0] = false;
+
+            // Delay buffers must be splittable down neuron axis
+            if(!splits[1]) {
+                throw std::runtime_error("Event propagation process '" + getName()
+                                         + "' target array '" + getTarget().getUnderlying()->getName()
+                                         + "' shared with incompatible processes");
+            }
+        }
+        // Otherwise, targets must be splittable down neuron axis
+        else if(!splits[0]) {
+            throw std::runtime_error("Event propagation process '" + getName()
+                                     + "' target array '" + getTarget().getUnderlying()->getName()
+                                     + "' shared with incompatible processes");
+        }
+    }
+    else {
+        assert(false);
+    }
+}
+//----------------------------------------------------------------------------
 void EventPropagationProcess::updateMaxDMABufferSize(size_t &maxRowLength) const
 {
     maxRowLength = std::max(maxRowLength, getMaxRowLength());
@@ -1610,7 +1652,7 @@ void RNGInitProcess::updateMemSpaceCompatibility(std::shared_ptr<const ::Model::
 }
 //----------------------------------------------------------------------------
 void RNGInitProcess::generateArchetypeCode(const ::Backend::MergedProcess &mergedProcess,
-                                           EnvironmentExternal &environment, 
+                                           const Model &model, EnvironmentExternal &environment, 
                                            MergedFields &fields, Assembler::CodeGenerator &c,
                                            Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                            Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
