@@ -42,7 +42,7 @@ public:
     //------------------------------------------------------------------------
     //! Update the memory compatibility of a variable associated with this process
     virtual void updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, 
-                                             MemSpaceCompatibility &memSpaceCompatibility) const = 0;
+                                             MemSpace &compatibleMemSpaces) const = 0;
 
     //! Update which dimension variable associated with this process can be split down
     virtual void updateDeviceSplit(std::shared_ptr<const ::Model::State> state,
@@ -119,7 +119,7 @@ public:
         // Update hash with memory space compatibility of all state
         const auto &fennModel = dynamic_cast<const Model&>(model);
         for(const auto &s : allState) {
-            fennModel.getStateMemSpaceCompatibility(s).updateHash(hash);
+            GeNN::Utils::updateHash(fennModel.getStateMemSpace(s));
         }
     }
 };
@@ -137,7 +137,7 @@ public:
     //------------------------------------------------------------------------
     //! Update the memory compatibility of a variable associated with this process
     virtual void updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, 
-                                             MemSpaceCompatibility &memSpaceCompatibility) const override final;
+                                             MemSpace &compatibleMemSpaces) const override final;
 
     //------------------------------------------------------------------------
     // TimeDrivenProcessImplementation virtuals
@@ -182,7 +182,7 @@ public:
     //------------------------------------------------------------------------
     //! Update the memory compatibility of a variable associated with this process
     virtual void updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state,
-                                             MemSpaceCompatibility &memSpaceCompatibility) const override final;
+                                             MemSpace &compatibleMemSpaces) const override final;
 
                                              //! Update which dimension variable associated with this process can be split down
     virtual void updateDeviceSplit(std::shared_ptr<const ::Model::State> state,
@@ -223,7 +223,7 @@ public:
     //------------------------------------------------------------------------
     //! Update the memory compatibility of a variable associated with this process
     virtual void updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, 
-                                             MemSpaceCompatibility &memSpaceCompatibility) const override final;
+                                             MemSpace &compatibleMemSpaces) const override final;
 
     //------------------------------------------------------------------------
     // TimeDrivenProcessImplementation virtuals
@@ -256,7 +256,7 @@ public:
     //------------------------------------------------------------------------
     //! Update the memory compatibility of a variable associated with this process
     virtual void updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, 
-                                             MemSpaceCompatibility &memSpaceCompatibility) const override final;
+                                             MemSpace &compatibleMemSpaces) const override final;
 
     //------------------------------------------------------------------------
     // TimeDrivenProcessImplementation virtuals
@@ -303,7 +303,7 @@ public:
     //------------------------------------------------------------------------
     //! Update the memory compatibility of a variable associated with this process
     virtual void updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, 
-                                             MemSpaceCompatibility &memSpaceCompatibility) const override final;
+                                             MemSpace &compatibleMemSpaces) const override final;
 
     //------------------------------------------------------------------------
     // TimeDrivenProcessImplementation virtuals

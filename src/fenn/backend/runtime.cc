@@ -140,30 +140,36 @@ std::unique_ptr<::Backend::ArrayBase> DeviceFeNN::createArray(std::shared_ptr<co
 
     // Upcast model to FeNN-model and determine what memory-space this variable lives in
     const auto &model = dynamic_cast<const Model&>(getMergedModel().getModel());
-    const auto &memSpaceCompatibility = model.getStateMemSpaceCompatibility();
-    
+
     // Create array in correct memory space depending on compatibility
-    if(memSpaceCompatibility.dram && m_UseDRAMForWeights) {
+    switch(model.getStateMemSpace())
+    {
+    case MemSpace::DRAM:
+    {
         LOGI << "Creating variable '" << variable->getName() << "' array in DRAM";
         return createDRAMArray(variable->getType(), count);
     }
-    else if(memSpaceCompatibility.uram) {
+    case MemSpace::URAM:
+    {
         LOGI << "Creating variable '" << variable->getName() << "' array in URAM";
         return createURAMArray(variable->getType(), count);
     }
-    else if(memSpaceCompatibility.llm) {
+    case MemSpace::LLM:
+    {
         LOGI << "Creating variable '" << variable->getName() << "' array in LLM";
         return createLLMArray(variable->getType(), count);
     }
-    else if(memSpaceCompatibility.uramLLM) {
+    case MemSpace::URAM_LLM:
+    {
         LOGI << "Creating variable '" << variable->getName() << "' array in URAM and LLM";
         return createURAMLLMArray(variable->getType(), countOneTimestep, count, 0);
     }
-    else if(memSpaceCompatibility.bram) {
+    case MemSpace::BRAM:
+    {
         LOGI << "Creating variable '" << variable->getName() << "' array in BRAM";
         return createBRAMArray(variable->getType(), count);
     }
-    else {
+    default:
         throw std::runtime_error("Variable '" + variable->getName() + "' is not compatible "
                                  "with any memory spaces available on FeNN");
     }

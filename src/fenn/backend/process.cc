@@ -1,5 +1,8 @@
 #include "fenn/backend/process.h"
 
+// Standard C++ includes
+#include <algorithm>
+
 // GeNN incl;udes
 #include "type.h"
 #include "transpiler/errorHandler.h"
@@ -762,21 +765,13 @@ void TimeDrivenProcessImplementation::generateCode(const ::Backend::MergedProces
 // FeNN::Backend::NeuronUpdateProcess
 //----------------------------------------------------------------------------
 void NeuronUpdateProcess::updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, 
-                                                      MemSpaceCompatibility &memSpaceCompatibility) const
+                                                      MemSpace &compatibleMemSpaces) const
 {
     const auto var = std::find_if(getVariables().cbegin(), getVariables().cend(),
                                   [&state](const auto &v){ return v.second.getUnderlying() == state; });
     assert(var != neuronUpdateProcess->getVariables().cend());
 
-    // Neuron variables can be located in URAM, LLM or both
-    memSpaceCompatibility.bram = false;
-    memSpaceCompatibility.dram = false;
-
-    if(!memSpaceCompatibility.uram && !memSpaceCompatibility.llm && !memSpaceCompatibility.uram) {
-        throw std::runtime_error("Neuron update process '" + getName()
-                                 + "' variable array '" + state->getName()
-                                 + "' shared with incompatible processes");
-    }
+    compatibleMemSpaces &= (MemSpace::URAM | MemSpace::LLM | MemSpace::URAM_LLM);
 }
 //----------------------------------------------------------------------------
 void NeuronUpdateProcess::generateMergedPreambleCode(const ::Backend::MergedProcess &mergedProcess,
@@ -855,27 +850,32 @@ void NeuronUpdateProcess::generateArchetypeCode(const ::Backend::MergedProcess &
 
         // Loop through neuron variables
         for(const auto &v : getVariables()) {
-            // If variable can be implemented in URAM
-            const auto &varMemSpaceCompatibility = model.getStateMemSpaceCompatibility(v.second.getUnderlying());
-            if(varMemSpaceCompatibility.uram) {
+            switch(model.getStateMemSpace(v.second.getUnderlying()))
+            {
+            case MemSpace::URAM:
+            {
                 varBuffers.emplace(v.second, 
                                     std::make_unique<URAMNeuronVar>(v.first, v.second, c, scalarRegisterAllocator,
                                                                     stateFields, m_NumTimesteps, m_TimeRegister, SNumVariableBytes));
+                break;
             }
-            // Otherwise, if variable is purely implemented in LLM
-            else if(varMemSpaceCompatibility.llm){
+            case MemSpace::LLM:
+            {
                 varBuffers.emplace(v.second, 
                                     std::make_unique<LLMNeuronVar>(v.first, v.second, c, scalarRegisterAllocator,
                                                                    vectorRegisterAllocator, stateFields));
+                break;
             }
-            else if(varMemSpaceCompatibility.uramLLM) {
+            case MemSpace::URAM_LLM:
+            {
                 varBuffers.emplace(v.second, 
                                     std::make_unique<URAMLLMNeuronVar>(v.first, v.second, c, scalarRegisterAllocator,
                                                                        vectorRegisterAllocator, stateFields, m_TimeRegister));
+                break;
             }
-            // Otherwise, 
-            else {
-                assert(false);
+            default:
+                throw std::runtime_error("Variable '" + v.second.getUnderlying()->getName() + "' is not compatible "
+                                         "with any memory spaces available on FeNN");
             }
         }
     }
@@ -1097,47 +1097,25 @@ void NeuronUpdateProcess::generateArchetypeCode(const ::Backend::MergedProcess &
 // FeNN::Backend::EventPropagationProcess
 //----------------------------------------------------------------------------
 void EventPropagationProcess::updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, 
-                                                          MemSpaceCompatibility &memSpaceCompatibility) const
+                                                          MemSpace &compatibleMemSpaces) const
 {
     // If variable is weight, it can  be located in URAM or DRAM
     if(state == getWeight()) {
-        memSpaceCompatibility.llm = false;
-        memSpaceCompatibility.bram = false;
-        memSpaceCompatibility.uramLLM = false;
-
-        if(!memSpaceCompatibility.dram || !memSpaceCompatibility.uram) {
-            throw std::runtime_error("Event propagation process '" + getName() 
-                                        + "' weight array '" + getWeight()->getName()
-                                        + "' shared with incompatible processes");
-        }
+        compatibleMemSpaces &= (MemSpace::DRAM | MemSpace::URAM);
     }
     // Otherwise, if variable's target
     else if(state == getTarget().getUnderlying()) {
-        // It can't be located in BRAM or DRAM
-        memSpaceCompatibility.bram = false;
-        memSpaceCompatibility.dram = false;
 
         // If it's sparse, it must be located in LLM
         if(getNumSparseConnectivityBits() > 0) {
-            memSpaceCompatibility.uram = false;
-            memSpaceCompatibility.uramLLM = false;
-
-            if(!memSpaceCompatibility.llm) {
-                throw std::runtime_error("Event propagation process '" + getName()
-                                         + "' target array '" + getTarget().getUnderlying()->getName()
-                                         + "' shared with incompatible processes");
-            }
+            compatibleMemSpaces &= (MemSpace::LLM | MemSpace::URAM_LLM);
         }
         // Otherwise, if it's delayed, it must be located in URAMLLM
         else if(getNumDelayBits() > 0) {
-            memSpaceCompatibility.uram = false;
-            memSpaceCompatibility.llm = false;
-
-            if(!memSpaceCompatibility.uramLLM) {
-                throw std::runtime_error("Event propagation process '" + getName()
-                                         + "' target array '" + getTarget().getUnderlying()->getName()
-                                         + "' shared with incompatible processes");
-            }
+            compatibleMemSpaces &= MemSpace::URAM_LLM;
+        }
+        else {
+            compatibleMemSpaces &= (MemSpace::LLM | MemSpace::URAM);
         }
     }
     else {
@@ -1634,21 +1612,12 @@ void generateDRAMWordLoop(const std::vector<std::unique_ptr<RowGeneratorBase>> &
 // FeNN::Backend::RNGInitProcess
 //----------------------------------------------------------------------------
 void RNGInitProcess::updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, 
-                                                 MemSpaceCompatibility &memSpaceCompatibility) const
+                                                 MemSpace &compatibleMemSpaces) const
 {
     assert (state == rngInitProcess->getSeed());
 
     // Seeds can only be stored in URAM
-    memSpaceCompatibility.llm = false;
-    memSpaceCompatibility.bram = false;
-    memSpaceCompatibility.dram = false;
-    memSpaceCompatibility.uramLLM = false;
-
-    if(!memSpaceCompatibility.uram) {
-        throw std::runtime_error("RNG init process '" + getName() 
-                                 + "' seed array '" + getSeed()->getName()
-                                 + "' shared with incompatible processes");
-    }
+    compatibleMemSpaces &= MemSpace::URAM;
 }
 //----------------------------------------------------------------------------
 void RNGInitProcess::generateArchetypeCode(const ::Backend::MergedProcess &mergedProcess,
@@ -1676,19 +1645,12 @@ void RNGInitProcess::generateArchetypeCode(const ::Backend::MergedProcess &merge
 // FeNN::Backend::MemsetProcess
 //----------------------------------------------------------------------------
 void MemsetProcess::updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, 
-                                                MemSpaceCompatibility &memSpaceCompatibility) const
+                                                MemSpace &compatibleMemSpaces) const
 {
     assert(state == getTarget().getUnderlying());
 
     // **TODO** memset could handle anything
-    memSpaceCompatibility.bram = false;
-    memSpaceCompatibility.dram = false;
-
-    if(!memSpaceCompatibility.llm && !memSpaceCompatibility.uram && !memSpaceCompatibility.uramLLM) {
-        throw std::runtime_error("Memset process '" + getName()
-                                 + "' target array '" + getTarget().getUnderlying()->getName()
-                                 + "' shared with incompatible processes");
-    }
+    compatibleMemSpaces &= (MemSpace::LLM, MemSpace::URAM, MemSpace::URAM_LLM);
 }
 //----------------------------------------------------------------------------
 void MemsetProcess::generateArchetypeCode(const ::Backend::MergedProcess &mergedProcess,
@@ -1714,23 +1676,30 @@ void MemsetProcess::generateArchetypeCode(const ::Backend::MergedProcess &merged
     // Allocate register for target address
     ALLOCATE_SCALAR(STargetBuffer);
 
-    const auto &targetMemSpaceCompatibility = model.getStateMemSpaceCompatibility(getTarget().getUnderlying());
-    if(targetMemSpaceCompatibility.uram) {
+    switch(model.getStateMemSpace(getTarget().getUnderlying()))
+    {
+    case MemSpace::URAM:
+    {
         codeGenerator.lw(*STargetBuffer, Reg::X0, stateFields.at(target));
         generateURAMMemset(numVecs, STargetBuffer);
+        break;
     }
-    else if(targetMemSpaceCompatibility.llm) {
+    case MemSpace::LLM: 
+    {
         codeGenerator.lw(*STargetBuffer, Reg::X0, stateFields.at(target));
         generateLLMMemset(numVecs, STargetBuffer);
+        break;
     }
-    else if(targetMemSpaceCompatibility.uramLLM) {
+    case MemSpace::URAM_LLM:
+    {
         codeGenerator.lw(*STargetBuffer, Reg::X0, stateFields.at(target));
         generateURAMMemset(numVecsOneTimestep, STargetBuffer);
 
         codeGenerator.lw(*STargetBuffer, Reg::X0, stateFields.at(target) + 4);
         generateLLMMemset(numVecs, STargetBuffer);
+        break;
     }
-    else {
+    default:
         throw std::runtime_error("Memspace process incompatible with target memory space");
     }
 }
@@ -1801,34 +1770,17 @@ void MemsetProcess::generateURAMMemset(Assembler::CodeGenerator &c,
 // FeNN::Backend::BroadcastProcess
 //----------------------------------------------------------------------------
 void BroadcastProcess::updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, 
-                                                   MemSpaceCompatibility &memSpaceCompatibility) const
+                                                   MemSpace &compatibleMemSpaces) const
 {
     // If variable is source, it can only be located in BRAM
     if(state == getSource()) {
-        memSpaceCompatibility.llm = false;
-        memSpaceCompatibility.uram = false;
-        memSpaceCompatibility.dram = false;
-        memSpaceCompatibility.uramLLM = false;
-
-        if(!memSpaceCompatibility.bram) {
-            throw std::runtime_error("Broadcast process '" + getName() 
-                                     + "' source array '" + getSource()->getName()
-                                     + "' shared with incompatible processes");
-        }
+        compatibleMemSpaces &= MemSpace::BRAM;
     }
     else {
         // Otherwise, if variable's target, it can only located in LLM or URAMLLM
         assert(state == getTarget());
 
-        memSpaceCompatibility.bram = false;
-        memSpaceCompatibility.uram = false;
-        memSpaceCompatibility.dram = false;
-
-        if(!memSpaceCompatibility.llm && !memSpaceCompatibility.uramLLM) {
-            throw std::runtime_error("Broadcast process '" + getName()
-                                     + "' target array '" + getTarget()->getName()
-                                     + "' shared with incompatible processes");
-        }
+        compatibleMemSpaces &= (MemSpace::LLM | MemSpace::URAM_LLM);
     }
 }
 //----------------------------------------------------------------------------

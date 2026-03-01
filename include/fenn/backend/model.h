@@ -16,25 +16,36 @@ class sha1;
 }
 
 //----------------------------------------------------------------------------
-// FeNN::Backend::MemSpaceCompatibility
+// FeNN::Backend::MemSpace
 //----------------------------------------------------------------------------
-//! Structure specifying which memory spaces a variable can be implemented in
+//! Memory spaces supported by FeNN
+/*! These are in DESCENDING order of preference */
 namespace FeNN::Backend
 {
-struct MemSpaceCompatibility
+enum class MemSpace : uint32_t
 {
-    MemSpaceCompatibility()
-    :   llm(true), uram(true), bram(true), dram(true), uramLLM(true)
-    {}
-
-    void updateHash(boost::uuids::detail::sha1 &hash) const;
-
-    bool llm;
-    bool uram;
-    bool bram;
-    bool dram;
-    bool uramLLM;
+    DRAM        = (1 << 0),
+    URAM        = (1 << 1),
+    BRAM        = (1 << 2),
+    LLM         = (1 << 3),
+    URAM_LLM    = (1 << 4)
 };
+
+
+inline bool operator & (MemSpace a, MemSpace b)
+{
+    return (static_cast<uint32_t>(a) & static_cast<uint32_t>(b)) != 0;
+}
+
+MemSpace operator &= (MemSpace a, MemSpace b)
+{
+    return static_cast<MemSpace>(static_cast<uint32_t>(a) & static_cast<uint32_t>(b));
+}
+
+inline MemSpace operator | (MemSpace a, MemSpace b)
+{
+    return static_cast<MemSpace>(static_cast<uint32_t>(a) | static_cast<uint32_t>(b));
+}
 
 //----------------------------------------------------------------------------
 // FeNN::Backend::Model
@@ -43,22 +54,22 @@ class Model : public ::Model::Model
 {
 public:
     using StateMemSpaceCompatibility = std::unordered_map<std::shared_ptr<const ::Model::State>, 
-                                                          MemSpaceCompatibility>;
+                                                          MemSpace>;
 
     Model(const Model::KernelVector &graphs);
 
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
-    const auto &getStateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state) const
+    auto getStateMemSpace(std::shared_ptr<const ::Model::State> state) const
     {
-        return m_StateMemSpaceCompatibility.at(state);
+        return m_StateMemSpace.at(state);
     }
 
 private:
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
-    StateMemSpaceCompatibility m_StateMemSpaceCompatibility;
+    StateMemSpaceCompatibility m_StateMemSpace;
 };
 }
