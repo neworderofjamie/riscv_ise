@@ -42,17 +42,28 @@ Model::Model(const Model::KernelVector &graphs)
             pi->updateMemSpaceCompatibility(s.first, compatibleMemSpaces);
         }
 
-
-        // Count number of trailing zeros in compatible memory spaces 
-        // i.e. how many are unsupported
-        const int numTZ = ::Common::Utils::ctz(static_cast<uint32_t>(compatibleMemSpaces));
-
-        // Obtain best memory space
-        const MemSpace bestMemSpace = static_cast<MemSpace>(1 << numTZ);
-        LOGI << "State object '" << s.first->getName() << "' compatible with " << static_cast<uint32_t>(compatibleMemSpaces) << " memory spaces, best memory space " << static_cast<uint32_t>(bestMemSpace);
-
-        // Add best memory state for state to map
-        m_StateMemSpace.try_emplace(s.first, bestMemSpace);
+        // Add compatible memory states to map
+        // **NOTE** cannot resolve best right now as e.g. whether
+        // we want to use DRAM for weights is not currently known
+        m_StateCompatibleMemSpaces.try_emplace(s.first, compatibleMemSpaces);
     }
+}
+//----------------------------------------------------------------------------
+MemSpace Model::getStateMemSpace(std::shared_ptr<const ::Model::State> state, bool useDRAMForWeights) const
+{
+    // Get compatible memory spaces
+    auto compatibleMemSpaces = static_cast<uint32_t>(m_StateCompatibleMemSpaces.at(state));
+
+    // If we shouldn't use DRAM, clear that bit
+    if (!useDRAMForWeights) {
+        compatibleMemSpaces &= ~static_cast<uint32_t>(MemSpace::DRAM);
+    }
+
+    // Count number of trailing zeros in compatible memory spaces 
+    // i.e. how many are unsupported
+    const int numTZ = ::Common::Utils::ctz(compatibleMemSpaces);
+
+    // Obtain best memory space
+    return static_cast<MemSpace>(1 << numTZ);
 }
 }

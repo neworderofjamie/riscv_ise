@@ -142,7 +142,7 @@ std::unique_ptr<::Backend::ArrayBase> DeviceFeNN::createArray(std::shared_ptr<co
     const auto &model = dynamic_cast<const Model&>(getMergedModel().getModel());
 
     // Create array in correct memory space depending on compatibility
-    switch(model.getStateMemSpace())
+    switch(model.getStateMemSpace(variable, shouldUseDRAMForWeights()))
     {
     case MemSpace::DRAM:
     {

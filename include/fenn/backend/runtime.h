@@ -303,6 +303,7 @@ public:
     // Public API
     //------------------------------------------------------------------------
     const auto &getKernelCode(std::shared_ptr<const ::Model::Kernel> kernel) const{ return m_KernelCode.at(kernel); }
+    bool shouldUseDRAMForWeights() const{ return m_UseDRAMForWeights; }
 
 protected:
     
