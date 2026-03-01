@@ -117,9 +117,10 @@ public:
         const auto allState = this->getAllState();
 
         // Update hash with memory space compatibility of all state
+        // **NOTE** this is unaffected by whether DRAM is used or not so we can just set true
         const auto &fennModel = dynamic_cast<const Model&>(model);
         for(const auto &s : allState) {
-            GeNN::Utils::updateHash(fennModel.getStateMemSpace(s));
+            GeNN::Utils::updateHash(fennModel.getStateMemSpace(s, true));
         }
     }
 };

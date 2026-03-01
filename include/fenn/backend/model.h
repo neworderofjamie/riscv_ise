@@ -61,15 +61,12 @@ public:
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
-    auto getStateMemSpace(std::shared_ptr<const ::Model::State> state) const
-    {
-        return m_StateMemSpace.at(state);
-    }
+    MemSpace getStateMemSpace(std::shared_ptr<const ::Model::State> state, bool useDRAMForWeights) const;
 
 private:
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
-    StateMemSpaceCompatibility m_StateMemSpace;
+    StateMemSpaceCompatibility m_StateCompatibleMemSpaces;
 };
 }
