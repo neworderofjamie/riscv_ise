@@ -76,7 +76,7 @@ private:
 class FENN_BACKEND_EXPORT RuntimeSim : public Runtime
 {
 public:
-    RuntimeSim(const ::Model::Model &model, size_t numCores, bool useDRAMForWeights = false, bool keepParamsInRegisters = true, 
+    RuntimeSim(const ::Model::Model &model, size_t numDevices, bool useDRAMForWeights = false, bool keepParamsInRegisters = true, 
                Compiler::RoundingMode neuronUpdateRoundingMode = Compiler::RoundingMode::NEAREST,
                size_t dmaBufferSize = 512 * 1024);
     

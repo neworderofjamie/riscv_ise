@@ -296,7 +296,7 @@ private:
 class FENN_BACKEND_EXPORT Runtime : public ::Backend::Runtime
 {
 public:
-   Runtime(const ::Model::Model &model, size_t numCores, bool useDRAMForWeights = false, bool keepParamsInRegisters = true, 
+   Runtime(const ::Model::Model &model, size_t numDevices, bool useDRAMForWeights = false, bool keepParamsInRegisters = true, 
            Compiler::RoundingMode neuronUpdateRoundingMode = Compiler::RoundingMode::NEAREST);
 
     //------------------------------------------------------------------------
