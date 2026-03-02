@@ -1,12 +1,12 @@
-#include "model/kernel.h"
+#include "frontend/kernel.h"
 
 // Standard C++ includes
 #include <iterator>
 
 //----------------------------------------------------------------------------
-// Model::SimpleKernel
+// Frontend::SimpleKernel
 //----------------------------------------------------------------------------
-namespace Model
+namespace Frontend
 {
 ProcessGroupVector SimpleKernel::getAllProcessGroups() const
 {

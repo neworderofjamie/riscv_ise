@@ -4,22 +4,22 @@
 #include <memory>
 #include <vector>
 
-// Compiler includes
-#include "model/model_component.h"
+// Frontend includes
+#include "frontend/model_component.h"
 
 // Forward declarations
-namespace Model
+namespace Frontend
 {
 class ProcessGroup;
 }
 
 
-namespace Model
+namespace Frontend
 {
 using ProcessGroupVector = std::vector<std::shared_ptr<const ProcessGroup>>;
 
 //----------------------------------------------------------------------------
-// Model::Kernel
+// Frontend::Kernel
 //----------------------------------------------------------------------------
 class Kernel : public ModelComponent
 {
@@ -35,7 +35,7 @@ protected:
 };
 
 //----------------------------------------------------------------------------
-// Model::StandardKernel
+// Frontend::StandardKernel
 //----------------------------------------------------------------------------
 class SimpleKernel : public Kernel
 {
@@ -63,7 +63,7 @@ private:
 };
 
 //----------------------------------------------------------------------------
-// Model::SimulationLoopKernel
+// Frontend::SimulationLoopKernel
 //----------------------------------------------------------------------------
 class SimulationLoopKernel : public Kernel
 {

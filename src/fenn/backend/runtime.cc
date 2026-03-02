@@ -12,11 +12,11 @@
 // Common includes
 #include "common/utils.h"
 
-// Model includes
-#include "model/event_container.h"
-#include "model/performance_counter.h"
-#include "model/process_group.h"
-#include "model/variable.h"
+// Frontend includes
+#include "frontend/event_container.h"
+#include "frontend/performance_counter.h"
+#include "frontend/process_group.h"
+#include "frontend/variable.h"
 
 // Assembler includes
 #include "fenn/assembler/assembler_utils.h"
@@ -104,7 +104,7 @@ void URAMLLMArrayBase::serialiseDeviceObject(std::vector<std::byte> &bytes) cons
 //----------------------------------------------------------------------------
 // FeNN::Backend::DeviceFeNN
 //----------------------------------------------------------------------------
-std::unique_ptr<::Backend::ArrayBase> DeviceFeNN::createArray(std::shared_ptr<const ::Model::EventContainer> eventContainer) const
+std::unique_ptr<::Backend::ArrayBase> DeviceFeNN::createArray(std::shared_ptr<const Frontend::EventContainer> eventContainer) const
 {
     LOGI << "Creating event container '" << eventContainer->getName() << "' array in BRAM";
 
@@ -113,7 +113,7 @@ std::unique_ptr<::Backend::ArrayBase> DeviceFeNN::createArray(std::shared_ptr<co
     return createBRAMArray(GeNN::Type::Uint32, numSpikeWords);
 }
 //----------------------------------------------------------------------------
-std::unique_ptr<::Backend::ArrayBase> DeviceFeNN::createArray(std::shared_ptr<const ::Model::Variable> variable) const
+std::unique_ptr<::Backend::ArrayBase> DeviceFeNN::createArray(std::shared_ptr<const Frontend::Variable> variable) const
 {
     
     // Pad last dimension to multiplies of 32
@@ -178,7 +178,7 @@ std::unique_ptr<::Backend::ArrayBase> DeviceFeNN::createPerformanceCounter() con
 //----------------------------------------------------------------------------
 // FeNN::Backend::Runtime
 //----------------------------------------------------------------------------
-Runtime::Runtime(const ::Model::Model &model, size_t numDevices, bool useDRAMForWeights , bool keepParamsInRegisters, 
+Runtime::Runtime(const Frontend::Model &model, size_t numDevices, bool useDRAMForWeights , bool keepParamsInRegisters, 
                  Compiler::RoundingMode neuronUpdateRoundingMode)
 :   ::Backend::Runtime(model, numDevices), m_UseDRAMForWeights(useDRAMForWeights), 
     m_KeepParamsInRegisters(keepParamsInRegisters), m_NeuronUpdateRoundingMode(neuronUpdateRoundingMode)

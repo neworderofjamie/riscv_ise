@@ -1,4 +1,4 @@
-#include "backend/runtime.h"
+#include "frontend/runtime.h"
 
 // Standard C++ includes
 #include <functional>
@@ -7,23 +7,25 @@
 #include <cstring>
 
 // Model includes
-#include "model/model.h"
-#include "model/model_component.h"
+#include "frontend/model.h"
+#include "frontend/model_component.h"
+
+using namespace Frontend;
 
 namespace
 {
-class LambdaVariableVisitor : public Model::StateVisitor
+class LambdaVariableVisitor : public StateVisitor
 {
-    using Return = std::unique_ptr<Backend::ArrayBase>;
+    using Return = std::unique_ptr<ArrayBase>;
 
     template<typename T>
     using Handler = std::function<Return(std::shared_ptr<const T>)>;
 
-    using EventContainerHandler = Handler<Model::EventContainer>;
-    using VariableHandler = Handler<Model::Variable>;
+    using EventContainerHandler = Handler<EventContainer>;
+    using VariableHandler = Handler<Variable>;
 
 public:
-    LambdaVariableVisitor(std::shared_ptr<const Model::State> state,
+    LambdaVariableVisitor(std::shared_ptr<const State> state,
                           EventContainerHandler handleEventContainer,
                           VariableHandler handleVariable)
     :   m_HandleEventContainer(handleEventContainer), 
@@ -39,7 +41,7 @@ public:
 
 private:
     #define IMPLEMENT_VISIT(TYPE)   \
-        virtual void visit(std::shared_ptr<const Model::TYPE> state) override final    \
+        virtual void visit(std::shared_ptr<const TYPE> state) override final    \
         {                                                                           \
             m_Return = std::move(m_Handle##TYPE(state));                                          \
         }                                                                           \
@@ -55,9 +57,9 @@ private:
 }
 
 //--------------------------------------------------------------------------
-// Backend::ArrayBase
+// Frontend::ArrayBase
 //--------------------------------------------------------------------------
-namespace Backend
+namespace Frontend
 {
 void ArrayBase::memsetHostPointer(int value)
 {
@@ -65,9 +67,9 @@ void ArrayBase::memsetHostPointer(int value)
 }
 
 //----------------------------------------------------------------------------
-// Backend::DeviceBase
+// Frontend::DeviceBase
 //----------------------------------------------------------------------------
-void DeviceBase::createArray(std::shared_ptr<const ::Model::State> state) const
+void DeviceBase::createArray(std::shared_ptr<const State> state) const
 {
     LambdaVariableVisitor v(state,
                             [this](auto eventContainer)
@@ -86,15 +88,15 @@ void DeviceBase::createArray(std::shared_ptr<const ::Model::State> state) const
     }
 }
 //----------------------------------------------------------------------------
-ArrayBase *DeviceBase::getArray(std::shared_ptr<const ::Model::State> state) const
+ArrayBase *DeviceBase::getArray(std::shared_ptr<const State> state) const
 {
     return m_Arrays.at(state).get();
 }
 
 //----------------------------------------------------------------------------
-// Runtime
+// Frontend::Runtime
 //----------------------------------------------------------------------------
-Runtime::Runtime(const ::Model::Model &model, size_t numDevices)
+Runtime::Runtime(const Model &model, size_t numDevices)
 :   m_Devices(numDevices), m_MergedModel(model), m_NumDevices(numDevices), 
     m_WorkerRun(true), m_Command(nullptr)
 {
@@ -105,7 +107,7 @@ Runtime::Runtime(const ::Model::Model &model, size_t numDevices)
         m_Devices[i] = std::move(createDevice(i));
 
         // Create worker thread
-        m_WorkerThreads.emplace_back(threadFunction, m_Devices[i].get());
+        m_WorkerThreads.emplace_back(&Runtime::threadFunction, this, m_Devices[i].get());
     }
 }
 //----------------------------------------------------------------------------
@@ -174,7 +176,7 @@ void Runtime::allocate()
     //m_FieldArray->pushFieldsToDevice();
 }
 //----------------------------------------------------------------------------
-void Runtime::run(std::shared_ptr<const ::Model::Kernel> kernel)
+void Runtime::run(std::shared_ptr<const Kernel> kernel)
 {
     // If kernel isn't already loaded
     if(kernel != m_CurrentKernel) {

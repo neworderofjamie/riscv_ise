@@ -10,7 +10,7 @@
 #include "backend/merged_model.h"
 
 // Forward declarations
-namespace Model
+namespace Frontend
 {
 class State;
 }
@@ -22,7 +22,7 @@ namespace FeNN::Backend
 {
 class MergedFields
 {
-    using FieldState = std::vector<std::shared_ptr<const ::Model::State>>;
+    using FieldState = std::vector<std::shared_ptr<const Frontend::State>>;
     using FieldValue = std::vector<std::variant<int32_t, uint32_t>>;
     using FieldPayload = std::variant<FieldState, FieldValue>;
 

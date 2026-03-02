@@ -1,4 +1,4 @@
-#include "model/variable.h"
+#include "frontend/event_container.h"
 
 // GeNN includes
 #include "gennUtils.h"
@@ -6,12 +6,12 @@
 using namespace GeNN;
 
 //----------------------------------------------------------------------------
-// Model::Variable
+// Frontend::EventContainer
 //----------------------------------------------------------------------------
-namespace Model
+namespace Frontend
 {
-void Variable::updateMergeHash(boost::uuids::detail::sha1 &hash) const
+void EventContainer::updateMergeHash(boost::uuids::detail::sha1 &hash) const
 {
-    Utils::updateHash(getType(), hash);
+    Utils::updateHash(getNumBufferTimesteps(), hash);
 }
 }

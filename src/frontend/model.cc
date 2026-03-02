@@ -1,17 +1,17 @@
-#include "model/model.h"
+#include "frontend/model.h"
 
 // Common includes
 #include "common/utils.h"
 
 // Model includes
-#include "model/kernel.h"
-#include "model/process.h"
-#include "model/process_group.h"
+#include "frontend/kernel.h"
+#include "frontend/process.h"
+#include "frontend/process_group.h"
 
 //----------------------------------------------------------------------------
-// Model::Model
+// Frontend::Model
 //----------------------------------------------------------------------------
-namespace Model
+namespace Frontend
 {
 Model::Model(const KernelVector &kernels)
 :   m_Kernels(kernels)

@@ -47,7 +47,7 @@
 #include "fenn/backend/special_function.h"
 
 using namespace FeNN;
-using namespace Model;
+using namespace Frontend;
 using namespace GeNN;
 using namespace GeNN::Transpiler;
 
@@ -285,10 +285,10 @@ private:
 class PerformanceCounterScope
 {
 public:
-    PerformanceCounterScope(std::shared_ptr<const ::Model::ProcessGroup> processGroup,
+    PerformanceCounterScope(std::shared_ptr<const Frontend::ProcessGroup> processGroup,
                             Assembler::CodeGenerator &codeGenerator,
                             Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
-                            const ::Model::Model &model)
+                            const Frontend::Model &model)
     :   m_ProcessGroup(processGroup), m_CodeGenerator(codeGenerator),
         m_ScalarRegisterAllocator(scalarRegisterAllocator), m_Model(model)
     {
@@ -368,10 +368,10 @@ public:
         }
     }
 private:
-    std::shared_ptr<const ::Model::ProcessGroup> m_ProcessGroup;
+    std::shared_ptr<const Frontend::ProcessGroup> m_ProcessGroup;
     std::reference_wrapper<Assembler::CodeGenerator> m_CodeGenerator;
     std::reference_wrapper<Assembler::ScalarRegisterAllocator> m_ScalarRegisterAllocator;
-    std::reference_wrapper<const ::Model::Model> m_Model;
+    std::reference_wrapper<const Frontend::Model> m_Model;
 
     Assembler::ScalarRegisterAllocator::RegisterPtr startCyclesReg;
     Assembler::ScalarRegisterAllocator::RegisterPtr startCyclesHighReg;
@@ -487,7 +487,7 @@ private:
 // BackendFeNN
 //------------------------------------------------------------------------
 std::unique_ptr<ArrayBase> BackendFeNN::createArray(std::shared_ptr<const Variable> variable,
-                                                    const ::Model::Model::StateProcesses::mapped_type &processes,
+                                                    const Frontend::Model::StateProcesses::mapped_type &processes,
                                                     StateBase *state) const
 {
     // Pad last dimension to multiplies of 32
@@ -533,7 +533,7 @@ std::unique_ptr<ArrayBase> BackendFeNN::createArray(std::shared_ptr<const Variab
 }
 //------------------------------------------------------------------------
 std::unique_ptr<ArrayBase> BackendFeNN::createArray(std::shared_ptr<const EventContainer> eventContainer,
-                                                    const ::Model::Model::StateProcesses::mapped_type&,
+                                                    const Frontend::Model::StateProcesses::mapped_type&,
                                                     StateBase *state) const
 {
     LOGI << "Creating event container '" << eventContainer->getName() << "' array in BRAM";
@@ -544,7 +544,7 @@ std::unique_ptr<ArrayBase> BackendFeNN::createArray(std::shared_ptr<const EventC
 }
 //------------------------------------------------------------------------
 std::unique_ptr<ArrayBase> BackendFeNN::createArray(std::shared_ptr<const PerformanceCounter> performanceCounter,
-                                                    const ::Model::Model::StateProcesses::mapped_type&,
+                                                    const Frontend::Model::StateProcesses::mapped_type&,
                                                     StateBase *state) const
 {
     LOGI << "Creating performance counter '" << performanceCounter->getName() << "' array in BRAM";
@@ -554,7 +554,7 @@ std::unique_ptr<ArrayBase> BackendFeNN::createArray(std::shared_ptr<const Perfor
     return state->createBRAMArray(GeNN::Type::Uint64, 2);
 }
 //------------------------------------------------------------------------
-std::unique_ptr<ArrayBase> BackendFeNN::createArray(std::shared_ptr<const ::Model::State> state, 
+std::unique_ptr<ArrayBase> BackendFeNN::createArray(std::shared_ptr<const Frontend::State> state, 
                                                     int stateID, StateBase *backendState) const
 {
     auto variable = std::static_pointer_cast<const Variable>(state);
@@ -575,10 +575,10 @@ std::unique_ptr<ArrayBase> BackendFeNN::createArray(std::shared_ptr<const ::Mode
     }
 }
 //------------------------------------------------------------------------
-std::unordered_map<int, std::shared_ptr<::Model::State>> BackendFeNN::getRequiredStateObjects(const ::Model::Model &model) const
+std::unordered_map<int, std::shared_ptr<Frontend::State>> BackendFeNN::getRequiredStateObjects(const Frontend::Model &model) const
 {
     // If we should use DRAM for weights, we require two row buffers
-    std::unordered_map<int, std::shared_ptr<::Model::State>> stateObjects;
+    std::unordered_map<int, std::shared_ptr<Frontend::State>> stateObjects;
     if(m_UseDRAMForWeights) {
          // Visit model to find largest max row length
         MaxRowLengthVisitor visitor(model);

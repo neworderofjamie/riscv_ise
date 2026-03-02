@@ -1,4 +1,4 @@
-#include "model/shape.h"
+#include "frontend/shape.h"
 
 // Standard C++ includes
 #include <algorithm>
@@ -7,9 +7,9 @@
 #include <sstream>
 
 //----------------------------------------------------------------------------
-// Model::Shape
+// Frontend::Shape
 //----------------------------------------------------------------------------
-namespace Model
+namespace Frontend
 {
 const Shape Shape::one = Shape(1);
 //----------------------------------------------------------------------------
@@ -23,7 +23,7 @@ std::string Shape::toString() const
     return shapeStream.str();
 }
 //----------------------------------------------------------------------------
-const bool Shape::isScalar() const
+bool Shape::isScalar() const
 {
     return std::all_of(m_Dims.cbegin(), m_Dims.cend(), [](size_t i){ return i == 1; });
 }

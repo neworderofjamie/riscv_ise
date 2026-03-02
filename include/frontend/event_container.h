@@ -4,17 +4,17 @@
 #include <memory>
 #include <vector>
 
-// Model includes
-#include "model/model_component.h"
-#include "model/model_export.h"
-#include "model/shape.h"
+// Frontend includes
+#include "frontend/frontend_export.h"
+#include "frontend/model_component.h"
+#include "frontend/shape.h"
 
 //----------------------------------------------------------------------------
-// Model::EventContainer
+// Frontend::EventContainer
 //----------------------------------------------------------------------------
-namespace Model
+namespace Frontend
 {
-class MODEL_EXPORT EventContainer : public AcceptableState<EventContainer>
+class FRONTEND_EXPORT EventContainer : public AcceptableState<EventContainer>
 {
 public:
     EventContainer(Private, const Shape &shape, size_t numBufferTimesteps, const std::string &name)
@@ -50,4 +50,4 @@ private:
     Shape m_Shape;
     size_t m_NumBufferTimesteps;
 };
-}   // namespace Model
+}   // namespace Frontend

@@ -3,11 +3,11 @@
 // Common include
 #include "common/utils.h"
 
+// Frontend include
+#include "frontend/process_group.h"
+
 // FeNN common includes
 #include "fenn/common/isa.h"
-
-// FeNN model include
-#include "model/process_group.h"
 
 // Assembler includes
 #include "fenn/assembler/assembler.h"

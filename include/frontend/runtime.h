@@ -14,12 +14,12 @@
 // GeNN includes
 #include "type.h"
 
-// Backend includes
-#include "backend/backend_export.h"
-#include "backend/merged_model.h"
+// Frontend includes
+#include "frontend/frontend_export.h"
+#include "frontend/merged_model.h"
 
 // Forward declarations
-namespace Model
+namespace Frontend
 {
 class EventContainer;
 class Kernel;
@@ -29,13 +29,13 @@ class Variable;
 }
 
 //----------------------------------------------------------------------------
-// FeNN::Backend::ArrayBase
+// Frontend::ArrayBase
 //----------------------------------------------------------------------------
 //! Base class for arrays created by backend
 //! **NOTE** this is a temporary, simplified version of GeNN's ArrayBase
-namespace Backend
+namespace Frontend
 {
-class BACKEND_EXPORT ArrayBase
+class FRONTEND_EXPORT ArrayBase
 {
 public:
     virtual ~ArrayBase()
@@ -93,10 +93,10 @@ private:
 };
 
 //----------------------------------------------------------------------------
-// Backend::DeviceBase
+// Frontend::DeviceBase
 //----------------------------------------------------------------------------
 //! Interface Runtime classes use to communicate with state on individual devices
-class BACKEND_EXPORT DeviceBase
+class FRONTEND_EXPORT DeviceBase
 {
 public:
     DeviceBase(size_t deviceIndex)
@@ -109,16 +109,16 @@ public:
     // Declared virtuals
     //------------------------------------------------------------------------
     //! Load kernel onto device
-    virtual void loadKernel(std::shared_ptr<const ::Model::Kernel> kernel) = 0;
+    virtual void loadKernel(std::shared_ptr<const Kernel> kernel) = 0;
 
     //! Run kernel on device
-    virtual void runKernel(std::shared_ptr<const ::Model::Kernel> kernel) = 0;
+    virtual void runKernel(std::shared_ptr<const Kernel> kernel) = 0;
 
     //! Create suitable array for event container on this device
-    virtual std::unique_ptr<ArrayBase> createArray(std::shared_ptr<const ::Model::EventContainer> eventContainer) const = 0;
+    virtual std::unique_ptr<ArrayBase> createArray(std::shared_ptr<const EventContainer> eventContainer) const = 0;
 
     //! Create suitable array for variable on this device
-    virtual std::unique_ptr<ArrayBase> createArray(std::shared_ptr<const ::Model::Variable> variable) const = 0;
+    virtual std::unique_ptr<ArrayBase> createArray(std::shared_ptr<const Variable> variable) const = 0;
 
     //! Create suitable array for performance counter on this device
     virtual std::unique_ptr<ArrayBase> createPerformanceCounter() const = 0;
@@ -127,16 +127,16 @@ public:
     // Public API
     //------------------------------------------------------------------------
     //! Create array to provide storage for model state
-    void createArray(std::shared_ptr<const ::Model::State> state) const;
+    void createArray(std::shared_ptr<const State> state) const;
 
     //! Get array associated with model state
-    ArrayBase *getArray(std::shared_ptr<const ::Model::State> state) const;
+    ArrayBase *getArray(std::shared_ptr<const State> state) const;
 
 private:
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
-    std::unordered_map<std::shared_ptr<const ::Model::State>, std::unique_ptr<ArrayBase>> m_Arrays;
+    std::unordered_map<std::shared_ptr<const State>, std::unique_ptr<ArrayBase>> m_Arrays;
     size_t m_DeviceIndex;
     
 };
@@ -163,12 +163,12 @@ public:
 
 
 //----------------------------------------------------------------------------
-// Runtime
+// Frontend::Runtime
 //----------------------------------------------------------------------------
-class BACKEND_EXPORT Runtime
+class FRONTEND_EXPORT Runtime
 {
 public:
-    Runtime(const ::Model::Model &model, size_t numDevices);
+    Runtime(const Model &model, size_t numDevices);
     virtual ~Runtime();
 
     //------------------------------------------------------------------------
@@ -178,7 +178,7 @@ public:
     void allocate();
    
     //! Run kernel on device
-    void run(std::shared_ptr<const ::Model::Kernel> kernel);
+    void run(std::shared_ptr<const Kernel> kernel);
 
     //std::optional<unsigned int> getSOCPower() const;
     
@@ -228,7 +228,7 @@ private:
     class LoadKernelCommand : public Command
     {
     public:
-        LoadKernelCommand(std::shared_ptr<const ::Model::Kernel> kernel)
+        LoadKernelCommand(std::shared_ptr<const Kernel> kernel)
         :   m_Kernel(kernel)
         {}
 
@@ -244,7 +244,7 @@ private:
         //--------------------------------------------------------------------
         // Members
         //--------------------------------------------------------------------
-        std::shared_ptr<const ::Model::Kernel> m_Kernel;
+        std::shared_ptr<const Kernel> m_Kernel;
     };
 
     //------------------------------------------------------------------------
@@ -254,7 +254,7 @@ private:
     class RunKernelCommand : public Command
     {
     public:
-        RunKernelCommand(std::shared_ptr<const ::Model::Kernel> kernel)
+        RunKernelCommand(std::shared_ptr<const Kernel> kernel)
         :   m_Kernel(kernel)
         {}
 
@@ -270,7 +270,7 @@ private:
         //--------------------------------------------------------------------
         // Members
         //--------------------------------------------------------------------
-        std::shared_ptr<const ::Model::Kernel> m_Kernel;
+        std::shared_ptr<const Kernel> m_Kernel;
     };
 
     //------------------------------------------------------------------------
@@ -280,7 +280,7 @@ private:
     class PushStateCommand : public Command
     {
     public:
-        PushStateCommand(std::shared_ptr<const ::Model::State> state)
+        PushStateCommand(std::shared_ptr<const State> state)
         :   m_State(state)
         {}
 
@@ -296,7 +296,7 @@ private:
         //--------------------------------------------------------------------
         // Members
         //--------------------------------------------------------------------
-        std::shared_ptr<const ::Model::State> m_State;
+        std::shared_ptr<const State> m_State;
     };
 
     //------------------------------------------------------------------------
@@ -306,7 +306,7 @@ private:
     class PullStateCommand : public Command
     {
     public:
-        PullStateCommand(std::shared_ptr<const ::Model::State> state)
+        PullStateCommand(std::shared_ptr<const State> state)
         :   m_State(state)
         {}
 
@@ -322,7 +322,7 @@ private:
         //--------------------------------------------------------------------
         // Members
         //--------------------------------------------------------------------
-        std::shared_ptr<const ::Model::State> m_State;
+        std::shared_ptr<const State> m_State;
     };
 
     //------------------------------------------------------------------------
@@ -345,7 +345,7 @@ private:
     MergedModel m_MergedModel;
 
     //! Current kernel loaded onto all devices
-    std::shared_ptr<const ::Model::Kernel> m_CurrentKernel;
+    std::shared_ptr<const Kernel> m_CurrentKernel;
 
     size_t m_NumDevices;
 

@@ -4,15 +4,15 @@
 #include <string>
 #include <vector>
 
-// Compiler includes
-#include "model/model_export.h"
+// Frontend includes
+#include "frontend/frontend_export.h"
 
 //----------------------------------------------------------------------------
-// Model::Shape
+// Frontend::Shape
 //----------------------------------------------------------------------------
-namespace Model
+namespace Frontend
 {
-class MODEL_EXPORT Shape
+class FRONTEND_EXPORT Shape
 {
 public:
     Shape() = default;
@@ -28,7 +28,7 @@ public:
     size_t getNumDims() const{ return m_Dims.size(); }
     std::string toString() const;
 
-    const bool isScalar() const;
+    bool isScalar() const;
     size_t getFlattenedSize() const;
     size_t getFirst() const{ return m_Dims.front(); }
     size_t getLast() const{ return m_Dims.back(); }

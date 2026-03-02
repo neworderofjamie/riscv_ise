@@ -3,8 +3,8 @@
 // Standard C++ includes
 #include <functional>
 
-// Model includes
-#include "model/kernel.h"
+// Frontend includes
+#include "frontend/kernel.h"
 
 // Assembler includes
 #include "fenn/assembler/register_allocator.h"
@@ -23,7 +23,7 @@ namespace FeNN::Backend
 class KernelImplementation
 {
 public:
-    using GenerateProcessGroupFn = std::function<void(std::shared_ptr<const ::Model::ProcessGroup>,
+    using GenerateProcessGroupFn = std::function<void(std::shared_ptr<const Frontend::ProcessGroup>,
                                                       Assembler::CodeGenerator&,
                                                       Assembler::ScalarRegisterAllocator&,
                                                       Assembler::VectorRegisterAllocator&)>;
@@ -37,10 +37,10 @@ public:
 //----------------------------------------------------------------------------
 // FeNN::Backend::SimpleKernel
 //----------------------------------------------------------------------------
-class SimpleKernel : public KernelImplementation, public ::Model::SimpleKernel
+class SimpleKernel : public KernelImplementation, public Frontend::SimpleKernel
 {
 public:
-    using ::Model::SimpleKernel::SimpleKernel;
+    using Frontend::SimpleKernel::SimpleKernel;
 
     //------------------------------------------------------------------------
     // GraphImplementation virtuals
@@ -54,7 +54,7 @@ public:
     //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------
-    static std::shared_ptr<SimpleKernel> create(const ::Model::ProcessGroupVector &processGroups,
+    static std::shared_ptr<SimpleKernel> create(const Frontend::ProcessGroupVector &processGroups,
                                                 const std::string &name = "")
     {
         return std::make_shared<SimpleKernel>(Private(), processGroups, name);
@@ -64,10 +64,10 @@ public:
 //----------------------------------------------------------------------------
 // FeNN::Backend::SimulationLoopKernel
 //----------------------------------------------------------------------------
-class SimulationLoopKernel : public KernelImplementation, public ::Model::SimulationLoopKernel
+class SimulationLoopKernel : public KernelImplementation, public Frontend::SimulationLoopKernel
 {
 public:
-    using ::Model::SimulationLoopKernel::SimulationLoopKernel;
+    using Frontend::SimulationLoopKernel::SimulationLoopKernel;
 
 
     //------------------------------------------------------------------------
@@ -82,9 +82,9 @@ public:
     //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------
-    static std::shared_ptr<SimulationLoopKernel> create(uint32_t numTimesteps, ::Model::ProcessGroupVector &timestepProcessGroups, 
-                                                        const ::Model::ProcessGroupVector &beginProcessGroups = {},
-                                                        const ::Model::ProcessGroupVector &endProcessGroups = {},
+    static std::shared_ptr<SimulationLoopKernel> create(uint32_t numTimesteps, Frontend::ProcessGroupVector &timestepProcessGroups, 
+                                                        const Frontend::ProcessGroupVector &beginProcessGroups = {},
+                                                        const Frontend::ProcessGroupVector &endProcessGroups = {},
                                                         const std::string &name = "")
     {
         return std::make_shared<SimulationLoopKernel>(Private(), numTimesteps, timestepProcessGroups,

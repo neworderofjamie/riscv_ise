@@ -8,7 +8,7 @@
 #include <vector>
 
 // Forward declarations
-namespace Model
+namespace Frontend
 {
 class Model;
 class Process;
@@ -17,14 +17,14 @@ class State;
 }
 
 //----------------------------------------------------------------------------
-// Backend::MergedProcess
+// Frontend::MergedProcess
 //----------------------------------------------------------------------------
-namespace Backend
+namespace Frontend
 {
 class MergedProcess
 {
 public:
-    MergedProcess(size_t index, const std::vector<std::shared_ptr<::Model::Process const>> &processes)
+    MergedProcess(size_t index, const std::vector<std::shared_ptr<Process const>> &processes)
     :   m_Index(index), m_Processes(processes)
     {}
 
@@ -85,7 +85,7 @@ private:
     // Members
     //------------------------------------------------------------------------
     size_t m_Index;
-    std::vector<std::shared_ptr<::Model::Process const>> m_Processes;
+    std::vector<std::shared_ptr<Process const>> m_Processes;
 };
 
 //----------------------------------------------------------------------------
@@ -94,7 +94,7 @@ private:
 class MergedModel
 {
 public:
-    MergedModel(const ::Model::Model &model);
+    MergedModel(const Model &model);
 
     //----------------------------------------------------------------------------
     // Public API
@@ -108,10 +108,10 @@ private:
     //----------------------------------------------------------------------------
     // Members
     //----------------------------------------------------------------------------
-    std::reference_wrapper<const ::Model::Model> m_Model;
+    std::reference_wrapper<const Model> m_Model;
     
     // Map of process groups to vector of mergeable processes
-    std::unordered_map<std::shared_ptr<::Model::ProcessGroup const>, 
+    std::unordered_map<std::shared_ptr<ProcessGroup const>, 
                        std::vector<MergedProcess>> m_MergedProcessGroups;
 };
 }
