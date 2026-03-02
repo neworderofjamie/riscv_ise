@@ -473,10 +473,10 @@ std::unique_ptr<::Backend::ArrayBase> DeviceFeNNSim::createURAMLLMArray(const Ge
 //----------------------------------------------------------------------------
 // FeNN::Backend::RuntimeSim
 //----------------------------------------------------------------------------
-RuntimeSim::RuntimeSim(const ::Model::Model &model, size_t numCores, bool useDRAMForWeights, 
+RuntimeSim::RuntimeSim(const ::Model::Model &model, size_t numDevices, bool useDRAMForWeights, 
                        bool keepParamsInRegisters, Compiler::RoundingMode neuronUpdateRoundingMode, 
                        size_t dmaBufferSize)
-:   Runtime(model, numCores, useDRAMForWeights, keepParamsInRegisters, neuronUpdateRoundingMode),
+:   Runtime(model, numDevices, useDRAMForWeights, keepParamsInRegisters, neuronUpdateRoundingMode),
     m_SharedBus(numCores), m_DMABufferSize(dmaBufferSize)
 {
 }
