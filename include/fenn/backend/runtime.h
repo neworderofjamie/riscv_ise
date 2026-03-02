@@ -165,7 +165,7 @@ private:
 //----------------------------------------------------------------------------
 //! Base class for arrays which are allocated in URAM but also have a delayed input in LLM
 //! Typically used for implementing neuron variables with dendritically-delayed input
-class BACKEND_EXPORT URAMLLMArrayBase : public Frontend::ArrayBase
+class FENN_BACKEND_EXPORT URAMLLMArrayBase : public Frontend::ArrayBase
 {
 public:
     //------------------------------------------------------------------------
@@ -266,7 +266,7 @@ public:
     virtual std::unique_ptr<Frontend::ArrayBase> createArray(std::shared_ptr<const Frontend::Variable> variable) override final;
 
     //! Create suitable array for performance counter on this device
-    virtual std::unique_ptr<ArrayBase> createPerformanceCounter() override final;
+    virtual std::unique_ptr<Frontend::ArrayBase> createPerformanceCounter() override final;
 
     //------------------------------------------------------------------------
     // Public API
