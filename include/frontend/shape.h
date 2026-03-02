@@ -16,6 +16,8 @@ class FRONTEND_EXPORT Shape
 {
 public:
     Shape() = default;
+    Shape(const Shape&) = default;
+
     Shape(const std::vector<size_t> &dims) : m_Dims(dims)
     {}
     Shape(size_t dims) : m_Dims{{dims}}
@@ -31,7 +33,12 @@ public:
     bool isScalar() const;
     size_t getFlattenedSize() const;
     size_t getFirst() const{ return m_Dims.front(); }
+    size_t &getFirst() { return m_Dims.front(); }
     size_t getLast() const{ return m_Dims.back(); }
+    size_t &getLast(){ return m_Dims.back(); }
+
+    //! Return the shape obtained by splitting numSplits ways along the specified dimensions
+    std::vector<Shape> split(std::optional<size_t> splitDimension, size_t numSplits) const;
 
     //------------------------------------------------------------------------
     // Operators
@@ -42,6 +49,9 @@ public:
     size_t operator[](size_t i) const{ return m_Dims.at(i); }
     size_t &operator[](size_t i) { return m_Dims.at(i); }
 
+    //------------------------------------------------------------------------
+    // Constants
+    //------------------------------------------------------------------------
     static const Shape one;
 
 private:

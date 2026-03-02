@@ -6,6 +6,12 @@
 #include <numeric>
 #include <sstream>
 
+// Standard C includes
+#include <cassert>
+
+// Common includes
+#include "common/utils.h"
+
 //----------------------------------------------------------------------------
 // Frontend::Shape
 //----------------------------------------------------------------------------
@@ -31,5 +37,38 @@ bool Shape::isScalar() const
 size_t Shape::getFlattenedSize() const
 {
     return std::accumulate(m_Dims.cbegin(), m_Dims.cend(), 1, std::multiplies<size_t>());
+}
+//----------------------------------------------------------------------------
+std::vector<Shape> Shape::split(std::optional<size_t> splitDimension, size_t numSplits) const
+{
+    // If a split dimension is specified
+    std::vector<Shape> shapeSplits;
+    shapeSplits.reserve(numSplits);
+    if(splitDimension.has_value()) {
+        // Get size of dimension to split along
+        const size_t originalSplitDimSize = m_Dims.at(splitDimension.value());
+        assert(originalSplitDimSize > numSplits);
+
+        // Calculate rounded-up split size. If split dimension cannot 
+        // be EVENLY split, we want the last split to be just a little 
+        // smaller rather than leaving a tiny split at the end
+        const size_t ceilSplitSize = Common::Utils::ceilDivide(originalSplitDimSize,
+                                                               numSplits);
+
+        // Loop through splits, build shape and add to splits
+        size_t remainingSplitDimSize = originalSplitDimSize;
+        for(size_t i = 0; i < numSplits; i++) {
+            Shape splitShape(*this);
+            splitShape[splitDimension.value()] =((remainingSplitDimSize > ceilSplitSize) 
+                                                  ? ceilSplitSize : remainingSplitDimSize);
+            shapeSplits.push_back(splitShape);
+        }
+    }
+    // Otherwise, populate shape splits with numSplits copies of shape
+    else {
+        std::fill_n(std::back_inserter(shapeSplits), numSplits, *this);
+    }
+
+    return shapeSplits;
 }
 }

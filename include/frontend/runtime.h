@@ -24,6 +24,7 @@ namespace Frontend
 class EventContainer;
 class Kernel;
 class Model;
+class Shape;
 class State;
 class Variable;
 }
@@ -115,10 +116,12 @@ public:
     virtual void runKernel(std::shared_ptr<const Kernel> kernel) = 0;
 
     //! Create suitable array for event container on this device
-    virtual std::unique_ptr<ArrayBase> createArray(std::shared_ptr<const EventContainer> eventContainer) = 0;
+    virtual std::unique_ptr<ArrayBase> createArray(std::shared_ptr<const EventContainer> eventContainer,
+                                                   const Shape &deviceShape) = 0;
 
     //! Create suitable array for variable on this device
-    virtual std::unique_ptr<ArrayBase> createArray(std::shared_ptr<const Variable> variable) = 0;
+    virtual std::unique_ptr<ArrayBase> createArray(std::shared_ptr<const Variable> variable,
+                                                   const Shape &deviceShape) = 0;
 
     //! Create suitable array for performance counter on this device
     virtual std::unique_ptr<ArrayBase> createPerformanceCounter() = 0;
@@ -127,10 +130,12 @@ public:
     // Public API
     //------------------------------------------------------------------------
     //! Create array to provide storage for model state
-    void createArray(std::shared_ptr<const State> state);
+    void createArray(std::shared_ptr<const State> state, const Shape &deviceShape);
 
     //! Get array associated with model state
     ArrayBase *getArray(std::shared_ptr<const State> state) const;
+    
+    size_t getDeviceIndex() const{ return m_DeviceIndex; }
 
 private:
     //------------------------------------------------------------------------

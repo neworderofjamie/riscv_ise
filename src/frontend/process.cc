@@ -166,6 +166,14 @@ void NeuronUpdateProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, cons
 void NeuronUpdateProcess::updateCompatibleSplitDimensions(std::shared_ptr<const State> state, 
                                                           uint32_t &compatibleSplitDimensions) const 
 {
+    // Search variables
+    // **TODO** event containers
+    const auto var = std::find_if(getVariables().cbegin(), getVariables().cend(),
+                                  [&state](const auto &v){ return v.second.getUnderlying() == state; });
+    assert(var != getVariables().cend());
+
+    // Ensure that we only split along the dimensions of the slice exposed to the neuron update process
+    compatibleSplitDimensions &= ((1 << var->second.getShape().getNumDims()) - 1);
 }
 
 //----------------------------------------------------------------------------

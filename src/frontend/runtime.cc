@@ -9,6 +9,7 @@
 // Model includes
 #include "frontend/model.h"
 #include "frontend/model_component.h"
+#include "frontend/shape.h"
 
 using namespace Frontend;
 
@@ -69,16 +70,16 @@ void ArrayBase::memsetHostPointer(int value)
 //----------------------------------------------------------------------------
 // Frontend::DeviceBase
 //----------------------------------------------------------------------------
-void DeviceBase::createArray(std::shared_ptr<const State> state)
+void DeviceBase::createArray(std::shared_ptr<const State> state, const Frontend::Shape &deviceShape)
 {
     LambdaVariableVisitor v(state,
-                            [this](auto eventContainer)
+                            [this, &splitDimensions](auto eventContainer)
                             {
-                                return createArray(eventContainer);
+                                return createArray(eventContainer, splitDimensions);
                             },
-                            [this](auto variable)
+                            [this, &splitDimensions](auto variable)
                             {
-                                return createArray(variable);
+                                return createArray(variable, splitDimensions);
                             });
 
 
@@ -129,11 +130,13 @@ void Runtime::allocate()
 
     // **TODO** loop through all process groups and add performance counters
 
-    // Loop through state objects used by model and create suitable array on each device
+    // Loop through state objects used by model
     for (const auto &s : m_MergedModel.getModel().getStateProcesses()) {
-        for(auto &d : getDevices()) {
-            // **TODO** get backend-specific slice of shape
-            d->createArray(s.first);
+        // Split shape between devices as dictated by split axis
+        const auto deviceShapes = s.first->getShape().split(s.second.first, 
+                                                            getNumDevices());
+        for(size_t i = 0; i < getNumDevices(); i++) {
+            getDevices()[i]->createArray(s.first, deviceShapes[i]);
         }
     }
 

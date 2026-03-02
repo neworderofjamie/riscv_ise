@@ -103,25 +103,25 @@ void URAMLLMArrayBase::serialiseDeviceObject(std::vector<std::byte> &bytes) cons
 //----------------------------------------------------------------------------
 // FeNN::Backend::DeviceFeNN
 //----------------------------------------------------------------------------
-std::unique_ptr<::Backend::ArrayBase> DeviceFeNN::createArray(std::shared_ptr<const Frontend::EventContainer> eventContainer)
+std::unique_ptr<Frontend::ArrayBase> DeviceFeNN::createArray(std::shared_ptr<const Frontend::EventContainer> eventContainer,
+                                                              const Frontend::Shape &deviceShape)
 {
     LOGI << "Creating event container '" << eventContainer->getName() << "' array in BRAM";
 
-    // Event containers are always implemented as BRAM bitfields
-    const size_t numSpikeWords = ::Common::Utils::ceilDivide(eventContainer->getShape().getFlattenedSize(), 32) * eventContainer->getNumBufferTimesteps();
-    return createBRAMArray(GeNN::Type::Uint32, numSpikeWords);
+    // Event containers are implemented as word-aligned bitfields so divide and pad last axis
+    auto wordAlignedShape = deviceShape;
+    wordAlignedShape.getLast() = ::Common::Utils::ceilDivide(wordAlignedShape.getLast(), 32);
+
+    // Create BRAM array
+    return createBRAMArray(GeNN::Type::Uint32, wordAlignedShape.getFlattenedSize());
 }
 //----------------------------------------------------------------------------
-std::unique_ptr<::Backend::ArrayBase> DeviceFeNN::createArray(std::shared_ptr<const Frontend::Variable> variable)
+std::unique_ptr<Frontend::ArrayBase> DeviceFeNN::createArray(std::shared_ptr<const Frontend::Variable> variable,
+                                                              const Frontend::Shape &deviceShape)
 {
-    
     // Pad last dimension to multiplies of 32
-    // **THINK** how much of this belongs in Shape?
-    // **TODO** more information is required here to seperate variables with
-    // shape (B,) which shouldn't be padded from (N,) variables which should
-    // **TODO** split variable across cores - may need to happen in Model
-    auto varDims = variable->getShape().getDims();
-    varDims.back() = ::Common::Utils::padSize(varDims.back(), 32);
+    auto paddedShape = deviceShape;
+    paddedShape.getLast() = ::Common::Utils::padSize(paddedShape.getLast(), 32);
 
     // Multiple padded dimensions together
     const size_t countOneTimestep = std::accumulate(varDims.cbegin(), varDims.cend(), 
@@ -152,7 +152,7 @@ std::unique_ptr<::Backend::ArrayBase> DeviceFeNN::createArray(std::shared_ptr<co
     case MemSpace::URAM_LLM:
     {
         LOGI << "Creating variable '" << variable->getName() << "' array in URAM and LLM";
-        return createURAMLLMArray(variable->getType(), countOneTimestep, count, 0);
+        return createURAMLLMArray(variable->getType(), countOneTimestep, count);
     }
     case MemSpace::BRAM:
     {
@@ -165,7 +165,7 @@ std::unique_ptr<::Backend::ArrayBase> DeviceFeNN::createArray(std::shared_ptr<co
     }
 }
 //----------------------------------------------------------------------------
-std::unique_ptr<::Backend::ArrayBase> DeviceFeNN::createPerformanceCounter()
+std::unique_ptr<Frontend::ArrayBase> DeviceFeNN::createPerformanceCounter()
 {
     //LOGI << "Creating performance counter '" << performanceCounter->getName() << "' array in BRAM";
 
