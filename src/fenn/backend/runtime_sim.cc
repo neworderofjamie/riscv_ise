@@ -481,7 +481,7 @@ RuntimeSim::RuntimeSim(const Frontend::Model &model, size_t numDevices, bool use
 {
 }
 //------------------------------------------------------------------------
-std::unique_ptr<::Backend::DeviceBase> RuntimeSim::createDevice(size_t deviceIndex) const
+std::unique_ptr<Frontend::DeviceBase> RuntimeSim::createDevice(size_t deviceIndex) const
 {
     return std::make_unique<DeviceFeNNSim>(deviceIndex, m_DMABufferSize, m_SharedBus);
 }

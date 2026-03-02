@@ -260,10 +260,12 @@ public:
     // DeviceBase virtuals
     //------------------------------------------------------------------------
     //! Create suitable array for event container on this device
-    virtual std::unique_ptr<Frontend::ArrayBase> createArray(std::shared_ptr<const Frontend::EventContainer> eventContainer) override final;
+    virtual std::unique_ptr<Frontend::ArrayBase> createArray(std::shared_ptr<const Frontend::EventContainer> eventContainer,
+                                                             const Frontend::Shape &deviceShape) override final;
 
     //! Create suitable array for variable on this device
-    virtual std::unique_ptr<Frontend::ArrayBase> createArray(std::shared_ptr<const Frontend::Variable> variable) override final;
+    virtual std::unique_ptr<Frontend::ArrayBase> createArray(std::shared_ptr<const Frontend::Variable> variable,
+                                                             const Frontend::Shape &deviceShape) override final;
 
     //! Create suitable array for performance counter on this device
     virtual std::unique_ptr<Frontend::ArrayBase> createPerformanceCounter() override final;
@@ -293,7 +295,7 @@ private:
 //----------------------------------------------------------------------------
 // FeNN::Backend::Runtime
 //----------------------------------------------------------------------------
-class FENN_BACKEND_EXPORT Runtime : public ::Backend::Runtime
+class FENN_BACKEND_EXPORT Runtime : public Frontend::Runtime
 {
 public:
    Runtime(const Frontend::Model &model, size_t numDevices, bool useDRAMForWeights = false, bool keepParamsInRegisters = true, 

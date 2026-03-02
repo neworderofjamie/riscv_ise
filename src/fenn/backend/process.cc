@@ -768,9 +768,11 @@ void TimeDrivenProcessImplementation::generateCode(const ::Backend::MergedProces
 void NeuronUpdateProcess::updateCompatibleMemSpace(std::shared_ptr<const Frontend::State> state, 
                                                    MemSpace &compatibleMemSpaces) const
 {
+    // Search variables for state
+    // **TODO** event containers
     const auto var = std::find_if(getVariables().cbegin(), getVariables().cend(),
                                   [&state](const auto &v){ return v.second.getUnderlying() == state; });
-    assert(var != neuronUpdateProcess->getVariables().cend());
+    assert(var != getVariables().cend());
 
     compatibleMemSpaces &= (MemSpace::URAM | MemSpace::LLM | MemSpace::URAM_LLM);
 }

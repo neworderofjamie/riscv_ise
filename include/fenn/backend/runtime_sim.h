@@ -22,7 +22,7 @@ class RuntimeSim;
 //----------------------------------------------------------------------------
 namespace FeNN::Backend
 {
-class FENN_BACKEND_EXPOR DeviceFeNNSim : public DeviceFeNN
+class FENN_BACKEND_EXPORT DeviceFeNNSim : public DeviceFeNN
 {
 public:
     DeviceFeNNSim(size_t deviceIndex, size_t dmaBufferSize, ISE::SharedBusSim &sharedBus,
@@ -84,7 +84,7 @@ private:
     //------------------------------------------------------------------------
     // Runtime virtuals
     //------------------------------------------------------------------------
-    virtual std::unique_ptr<::Backend::DeviceBase> createDevice(size_t deviceIndex) const override final;
+    virtual std::unique_ptr<Frontend::DeviceBase> createDevice(size_t deviceIndex) const override final;
 
     //------------------------------------------------------------------------
     // Members
