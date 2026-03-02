@@ -212,7 +212,7 @@ void updateLiteralPool(const std::vector<Token> &tokens, Assembler::VectorRegist
 bool arePerformanceCountersRequired(const std::vector<std::shared_ptr<const ProcessGroup>> &processGroups)
 {
     return std::any_of(processGroups.cbegin(), processGroups.cend(),
-                       [](const auto &p){ return p->getPerformanceCounter(); });
+                       [](const auto &p){ return p->shouldRecordPerformance(); });
 }
 void compileStatements(const std::vector<Token> &tokens, const Type::TypeContext &typeContext,
                        const std::unordered_map<int16_t, Assembler::VectorRegisterAllocator::RegisterPtr> &literalPool,
@@ -293,7 +293,7 @@ public:
         m_ScalarRegisterAllocator(scalarRegisterAllocator), m_Model(model)
     {
         // If process group has an associated performance counter
-        if(m_ProcessGroup->getPerformanceCounter()) {
+        if(m_ProcessGroup->shouldRecordPerformance()) {
             // Allocate perf counter registers
             // **TODO** this is rather wasteful of 4 registers! Probably better to store
             auto &c = m_CodeGenerator.get();
@@ -316,7 +316,7 @@ public:
         using namespace Assembler;
 
         // If process group has an associated performance counter
-        if(m_ProcessGroup->getPerformanceCounter()) {
+        if(m_ProcessGroup->shouldRecordPerformance()) {
             auto &c = m_CodeGenerator.get();
             ScalarRegisterAllocator &scalarRegisterAllocator = m_ScalarRegisterAllocator.get();
             

@@ -23,7 +23,7 @@ namespace
 bool arePerformanceCountersRequired(const Model::ProcessGroupVector &processGroups)
 {
     return std::any_of(processGroups.cbegin(), processGroups.cend(),
-                       [](const auto &p){ return p->getPerformanceCounter(); });
+                       [](const auto &p){ return p->shouldRecordPerformance(); });
 }
 }
 

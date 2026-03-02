@@ -12,7 +12,6 @@ namespace Model
 {
 class EventContainer;
 class Model;
-class PerformanceCounter;
 class Shape;
 class Variable;
 }
@@ -57,7 +56,6 @@ class StateVisitor
 {
 public:
     virtual void visit(std::shared_ptr<const EventContainer>){}
-    virtual void visit(std::shared_ptr<const PerformanceCounter>){}
     virtual void visit(std::shared_ptr<const Variable>){}
 };
 

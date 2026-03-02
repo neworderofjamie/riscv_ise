@@ -262,11 +262,11 @@ public:
     //! Create suitable array for event container on this device
     virtual std::unique_ptr<::Backend::ArrayBase> createArray(std::shared_ptr<const ::Model::EventContainer> eventContainer) const override final;
 
-    //! Create suitable array for performance counter on this device
-    virtual std::unique_ptr<::Backend::ArrayBase> createArray(std::shared_ptr<const ::Model::PerformanceCounter> performanceCounter) const override final;
-
     //! Create suitable array for variable on this device
     virtual std::unique_ptr<::Backend::ArrayBase> createArray(std::shared_ptr<const ::Model::Variable> variable) const override final;
+
+    //! Create suitable array for performance counter on this device
+    virtual std::unique_ptr<ArrayBase> createPerformanceCounter() const override final;
 
     //------------------------------------------------------------------------
     // Public API
