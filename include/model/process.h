@@ -68,6 +68,25 @@ using EventContainerMap = std::map<std::string, Sliced<EventContainer>>;
 using VariableMap = std::map<std::string, Sliced<Variable>>;
 using Literals = std::vector<std::pair<GeNN::Type::ResolvedType, GeNN::Type::NumericValue>>;
 
+
+//----------------------------------------------------------------------------
+// Model::Process
+//----------------------------------------------------------------------------
+class Process : public Stateful
+{
+public:
+    //------------------------------------------------------------------------
+    // Declared virtuals
+    //------------------------------------------------------------------------
+    virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const Model &model) const = 0;
+
+    virtual void updateCompatibleSplitDimensions(std::shared_ptr<const ::Model::State> state, 
+                                                 uint32_t &compatibleSplitDimensions) const = 0;
+
+protected:
+    using Stateful::Stateful;
+};
+
 //----------------------------------------------------------------------------
 // Model::NeuronUpdateProcess
 //----------------------------------------------------------------------------
@@ -86,6 +105,8 @@ public:
     // Process virtuals
     //------------------------------------------------------------------------
     virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const Model &model) const override;
+    virtual void updateCompatibleSplitDimensions(std::shared_ptr<const ::Model::State> state, 
+                                                 uint32_t &compatibleSplitDimensions) const override;
 
     //------------------------------------------------------------------------
     // Public API
@@ -135,6 +156,8 @@ public:
     // Process virtuals
     //------------------------------------------------------------------------
     virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const Model &model) const override;
+    virtual void updateCompatibleSplitDimensions(std::shared_ptr<const ::Model::State> state, 
+                                                 uint32_t &compatibleSplitDimensions) const override;
 
     //------------------------------------------------------------------------
     // Public API

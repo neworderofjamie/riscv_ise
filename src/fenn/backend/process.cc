@@ -385,7 +385,7 @@ public:
     }
 
     virtual void genIncrement(Assembler::CodeGenerator &c, uint32_t numUnrolls,
-                              Compiler::VectorRegisterAllocator::RegisterPtr) final override
+                              Assembler::VectorRegisterAllocator::RegisterPtr) final override
     {
         // Calculate how many bytes we need to advance LLM addresses
         // **TODO** VADDI instruction would save an instruction in this type of situation
@@ -732,6 +732,7 @@ void TimeDrivenProcessImplementation::generateCode(const ::Backend::MergedProces
     ALLOCATE_SCALAR(SFieldBaseEnd);
 
     // Create environment with base register
+    // **TODO** this environment should already have capability to add fields/load literals
     EnvironmentExternal environment(c);
     environment.add(Type::Uint32.addConst(), "_field_base", SFieldBase);
 
@@ -764,8 +765,8 @@ void TimeDrivenProcessImplementation::generateCode(const ::Backend::MergedProces
 //----------------------------------------------------------------------------
 // FeNN::Backend::NeuronUpdateProcess
 //----------------------------------------------------------------------------
-void NeuronUpdateProcess::updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, 
-                                                      MemSpace &compatibleMemSpaces) const
+void NeuronUpdateProcess::updateCompatibleMemSpace(std::shared_ptr<const ::Model::State> state, 
+                                                   MemSpace &compatibleMemSpaces) const
 {
     const auto var = std::find_if(getVariables().cbegin(), getVariables().cend(),
                                   [&state](const auto &v){ return v.second.getUnderlying() == state; });
@@ -1096,8 +1097,8 @@ void NeuronUpdateProcess::generateArchetypeCode(const ::Backend::MergedProcess &
 //----------------------------------------------------------------------------
 // FeNN::Backend::EventPropagationProcess
 //----------------------------------------------------------------------------
-void EventPropagationProcess::updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, 
-                                                          MemSpace &compatibleMemSpaces) const
+void EventPropagationProcess::updateCompatibleMemSpace(std::shared_ptr<const ::Model::State> state, 
+                                                       MemSpace &compatibleMemSpaces) const
 {
     // If variable is weight, it can  be located in URAM or DRAM
     if(state == getWeight()) {
@@ -1105,7 +1106,6 @@ void EventPropagationProcess::updateMemSpaceCompatibility(std::shared_ptr<const 
     }
     // Otherwise, if variable's target
     else if(state == getTarget().getUnderlying()) {
-
         // If it's sparse, it must be located in LLM
         if(getNumSparseConnectivityBits() > 0) {
             compatibleMemSpaces &= (MemSpace::LLM | MemSpace::URAM_LLM);
@@ -1611,8 +1611,8 @@ void generateDRAMWordLoop(const std::vector<std::unique_ptr<RowGeneratorBase>> &
 //----------------------------------------------------------------------------
 // FeNN::Backend::RNGInitProcess
 //----------------------------------------------------------------------------
-void RNGInitProcess::updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, 
-                                                 MemSpace &compatibleMemSpaces) const
+void RNGInitProcess::updateCompatibleMemSpace(std::shared_ptr<const ::Model::State> state, 
+                                              MemSpace &compatibleMemSpaces) const
 {
     assert (state == rngInitProcess->getSeed());
 
@@ -1644,8 +1644,8 @@ void RNGInitProcess::generateArchetypeCode(const ::Backend::MergedProcess &merge
 //----------------------------------------------------------------------------
 // FeNN::Backend::MemsetProcess
 //----------------------------------------------------------------------------
-void MemsetProcess::updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, 
-                                                MemSpace &compatibleMemSpaces) const
+void MemsetProcess::updateCompatibleMemSpace(std::shared_ptr<const ::Model::State> state, 
+                                             MemSpace &compatibleMemSpaces) const
 {
     assert(state == getTarget().getUnderlying());
 
@@ -1665,7 +1665,8 @@ void MemsetProcess::generateArchetypeCode(const ::Backend::MergedProcess &merged
     
     // **TODO** should get value for all cores AND all groups
     const uint32_t numVecsFieldOffset = fields.addValueField<MemsetProcess>(
-        mergedProcess, [](const auto &p)
+        mergedProcess, 
+        [](const auto &p)
         { 
             return ::Utils::ceilDivide(p->getTarget().getShape().getFlattenedSize(), 32);
         });
@@ -1769,8 +1770,8 @@ void MemsetProcess::generateURAMMemset(Assembler::CodeGenerator &c,
 //----------------------------------------------------------------------------
 // FeNN::Backend::BroadcastProcess
 //----------------------------------------------------------------------------
-void BroadcastProcess::updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, 
-                                                   MemSpace &compatibleMemSpaces) const
+void BroadcastProcess::updateCompatibleMemSpace(std::shared_ptr<const ::Model::State> state, 
+                                                MemSpace &compatibleMemSpaces) const
 {
     // If variable is source, it can only be located in BRAM
     if(state == getSource()) {

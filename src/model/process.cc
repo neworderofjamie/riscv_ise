@@ -161,6 +161,11 @@ void NeuronUpdateProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, cons
         }
     }
 }
+//----------------------------------------------------------------------------
+void NeuronUpdateProcess::updateCompatibleSplitDimensions(std::shared_ptr<const ::Model::State> state, 
+                                                          uint32_t &compatibleSplitDimensions) const 
+{
+}
 
 //----------------------------------------------------------------------------
 // EventPropagationProcess
@@ -204,20 +209,20 @@ EventPropagationProcess::EventPropagationProcess(Private, Sliced<EventContainer>
     }
 
     // Check delays and sparsity are not being combined
-    if(m_NumDelayBits > 0 && m_NumSparseConnectivityBits > 0) {
+    if(getNumDelayBits() > 0 && getNumSparseConnectivityBits() > 0) {
         throw std::runtime_error("Event propagation processes with both events "
                                  "and delays are not currently supported");
     }
 
     // Check weight number of target neurons matches if no sparsity
-    if(m_NumSparseConnectivityBits == 0 && m_MaxRowLength != getTargetShape().getLast()) {
+    if(getNumSparseConnectivityBits() == 0 && getMaxRowLength() != getTargetShape().getLast()) {
         throw std::runtime_error("Weight with shape: " + weight->getShape().toString() 
                                  + " is not compatible with dense event propagation process with " 
                                  + std::to_string(getTargetShape().getLast()) + " target neurons");
     }
 
     // If there are no delays, check time 
-    if (m_NumDelayBits == 0) {
+    if (getNumDelayBits() == 0) {
         if (getTargetShape().getDims().size() != 1) {
             throw std::runtime_error("Non-delayed event propagation process "
                                      "requires target variable with a 1D shape");
@@ -230,7 +235,7 @@ EventPropagationProcess::EventPropagationProcess(Private, Sliced<EventContainer>
                                      "requires target variable with a 2D shape");
         }
 
-        if(getTargetShape().getFirst() != (1 << (m_NumDelayBits - 1))) {
+        if(getTargetShape().getFirst() != (1 << (getNumDelayBits() - 1))) {
             throw std::runtime_error("Shape of target buffer does not "
                                      "match specified number of delay bits");
         }
@@ -258,6 +263,31 @@ void EventPropagationProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, 
     // Formats
     updateHash(getNumDelayBits(), hash);
     updateHash(getNumSparseConnectivityBits(), hash);
+}
+//----------------------------------------------------------------------------
+void EventPropagationProcess::updateCompatibleSplitDimensions(std::shared_ptr<const ::Model::State> state, 
+                                                              uint32_t &compatibleSplitDimensions) const 
+{
+    // If variable is weight, it can only be split in 2nd (postsynaptic) dimension
+    if(state == getWeight()) {
+        compatibleSplitDimensions &= (1 << 1);
+    }
+    // Otherwise, if variable's target
+    else if(state == getTarget().getUnderlying()) {
+        // If there are no delays, it can only be split on 1st (postsynaptic) dimension
+        if (getNumDelayBits() == 0) {
+            compatibleSplitDimensions &= (1 << 0);
+        }
+        // Otherwise, it can only be split on 2nd (postsynaptic) dimension
+        else {
+            compatibleSplitDimensions &= (1 << 1);
+        }
+    }
+    // Otherwise, if it's input event container, it can't be split at all
+    else {
+        assert(state == getInputEvents());
+        compatibleSplitDimensions = 0;
+    }
 }
 
 //----------------------------------------------------------------------------

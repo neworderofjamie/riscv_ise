@@ -28,6 +28,7 @@ public:
     // Mapping of state objects to processes which reference them
     using StateProcesses = std::unordered_map<std::shared_ptr<const State>, std::vector<std::shared_ptr<const Process>>>;
     using KernelVector = std::vector<std::shared_ptr<const Kernel>>;
+    using StateDimensionSplitCompatibility = std::unordered_map<std::shared_ptr<const ::Model::State>, uint32_t>;
 
     Model(const KernelVector &kernels);
     virtual ~Model() = default;
