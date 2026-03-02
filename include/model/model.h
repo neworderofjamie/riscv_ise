@@ -2,6 +2,7 @@
 
 // Standard C++ includes
 #include <memory>
+#include <optional>
 #include <unordered_map>
 #include <vector>
 
@@ -25,10 +26,10 @@ namespace Model
 class Model
 {
 public:
-    // Mapping of state objects to processes which reference them
-    using StateProcesses = std::unordered_map<std::shared_ptr<const State>, std::vector<std::shared_ptr<const Process>>>;
+    // Mapping of state objects to stateful objects which reference them
+    using StateProcesses = std::unordered_map<std::shared_ptr<const State>, 
+                                              std::pair<std::optional<size_t>, std::vector<std::shared_ptr<const Process>>>>;
     using KernelVector = std::vector<std::shared_ptr<const Kernel>>;
-    using StateDimensionSplitCompatibility = std::unordered_map<std::shared_ptr<const ::Model::State>, uint32_t>;
 
     Model(const KernelVector &kernels);
     virtual ~Model() = default;

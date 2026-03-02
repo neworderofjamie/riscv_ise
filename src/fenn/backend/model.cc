@@ -24,14 +24,13 @@ Model::Model(const Model::KernelVector &graphs)
 :   ::Model::Model(graphs)
 {
     // Loop through all model state
-    // **THINK** this kinda only need to be variables
     for (const auto &s : getStateProcesses()) {
         // Start with all memory spaces being compatible
         MemSpace compatibleMemSpaces = (MemSpace::LLM | MemSpace::URAM | MemSpace::BRAM
                                         | MemSpace::DRAM | MemSpace::URAM_LLM);
 
         // Loop through all processes using this state
-        for (const auto &p : s.second) {
+        for (const auto &p : s.second.second) {
             // Ensure process has proper base class
             auto pi = std::dynamic_pointer_cast<const ProcessImplementation>(p);
             if (!pi) {

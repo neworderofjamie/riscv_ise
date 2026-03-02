@@ -42,6 +42,8 @@ public:
     size_t operator[](size_t i) const{ return m_Dims.at(i); }
     size_t &operator[](size_t i) { return m_Dims.at(i); }
 
+    static const Shape one;
+
 private:
     //------------------------------------------------------------------------
     // Members

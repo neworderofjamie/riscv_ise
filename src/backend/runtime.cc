@@ -137,7 +137,7 @@ void Runtime::allocate()
     allocatePreamble();
 
     // Loop through state objects used by model and create suitable array on each device
-    for (const auto &s : m_MergedModel.getModel().getStateProcesses()) {
+    for (const auto &s : m_MergedModel.getModel().getStateReferences()) {
         for(auto &d : getDevices()) {
             // **TODO** get backend-specific slice of shape
             d->createArray(s.first);

@@ -13,6 +13,7 @@ namespace Model
 class EventContainer;
 class Model;
 class PerformanceCounter;
+class Shape;
 class Variable;
 }
 
@@ -70,6 +71,7 @@ public:
     // Declared virtuals
     //------------------------------------------------------------------------
     virtual void accept(StateVisitor &visitor) const = 0;
+    virtual const Shape &getShape() const = 0;
 
 protected:
     using ModelComponent::ModelComponent;
@@ -89,20 +91,5 @@ public:
 
 protected:
     using State::State;
-};
-
-//----------------------------------------------------------------------------
-// Model::Stateful
-//----------------------------------------------------------------------------
-class Stateful : public ModelComponent
-{
-public:
-    //------------------------------------------------------------------------
-    // Declared virtuals
-    //------------------------------------------------------------------------
-    virtual std::vector<std::shared_ptr<const State>> getAllState() const = 0;
-
-protected:
-    using ModelComponent::ModelComponent;
 };
 }

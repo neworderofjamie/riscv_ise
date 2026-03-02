@@ -285,7 +285,7 @@ void EventPropagationProcess::updateCompatibleSplitDimensions(std::shared_ptr<co
     }
     // Otherwise, if it's input event container, it can't be split at all
     else {
-        assert(state == getInputEvents());
+        assert(state == getInputEvents().getUnderlying());
         compatibleSplitDimensions = 0;
     }
 }
