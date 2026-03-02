@@ -444,30 +444,30 @@ void DeviceFeNNSim::runKernel(std::shared_ptr<const Frontend::Kernel> kernel)
     m_RISCV.run();
 }
 //----------------------------------------------------------------------------
-std::unique_ptr<::Backend::ArrayBase> DeviceFeNNSim::createURAMArray(const GeNN::Type::ResolvedType &type, size_t count) const
+std::unique_ptr<Frontend::ArrayBase> DeviceFeNNSim::createURAMArray(const GeNN::Type::ResolvedType &type, size_t count)
 {
-    return std::make_unique<::URAMArray>(type, count, this);
+    return std::make_unique<::URAMArray>(type, count, *this);
 }
 //----------------------------------------------------------------------------
-std::unique_ptr<::Backend::ArrayBase> DeviceFeNNSim::createBRAMArray(const GeNN::Type::ResolvedType &type, size_t count) const
+std::unique_ptr<Frontend::ArrayBase> DeviceFeNNSim::createBRAMArray(const GeNN::Type::ResolvedType &type, size_t count)
 {
-    return std::make_unique<::BRAMArray>(type, count, this);
+    return std::make_unique<::BRAMArray>(type, count, *this);
 }
 //----------------------------------------------------------------------------
-std::unique_ptr<::Backend::ArrayBase> DeviceFeNNSim::createLLMArray(const GeNN::Type::ResolvedType &type, size_t count) const
+std::unique_ptr<Frontend::ArrayBase> DeviceFeNNSim::createLLMArray(const GeNN::Type::ResolvedType &type, size_t count)
 {
-    return std::make_unique<::LLMArray>(type, count, this);
+    return std::make_unique<::LLMArray>(type, count, *this);
 }
 //----------------------------------------------------------------------------
-std::unique_ptr<::Backend::ArrayBase> DeviceFeNNSim::createDRAMArray(const GeNN::Type::ResolvedType &type, size_t count) const
+std::unique_ptr<Frontend::ArrayBase> DeviceFeNNSim::createDRAMArray(const GeNN::Type::ResolvedType &type, size_t count)
 {
-    return std::make_unique<::DRAMArray>(type, count, this);
+    return std::make_unique<::DRAMArray>(type, count, *this);
 }
 //----------------------------------------------------------------------------
-std::unique_ptr<::Backend::ArrayBase> DeviceFeNNSim::createURAMLLMArray(const GeNN::Type::ResolvedType &type,
-                                                                        size_t uramCount, size_t llmCount) const
+std::unique_ptr<Frontend::ArrayBase> DeviceFeNNSim::createURAMLLMArray(const GeNN::Type::ResolvedType &type,
+                                                                        size_t uramCount, size_t llmCount)
 {
-    return std::make_unique<::URAMLLMArray>(type, uramCount, llmCount, this);
+    return std::make_unique<::URAMLLMArray>(type, uramCount, llmCount, *this);
 }
 
 //----------------------------------------------------------------------------

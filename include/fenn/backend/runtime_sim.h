@@ -40,12 +40,12 @@ public:
     //------------------------------------------------------------------------
     // DeviceFeNN virtuals
     //------------------------------------------------------------------------
-    virtual std::unique_ptr<::Backend::ArrayBase> createURAMArray(const GeNN::Type::ResolvedType &type, size_t count) const override final;
-    virtual std::unique_ptr<::Backend::ArrayBase> createBRAMArray(const GeNN::Type::ResolvedType &type, size_t count) const override final;
-    virtual std::unique_ptr<::Backend::ArrayBase> createLLMArray(const GeNN::Type::ResolvedType &type, size_t count) const override final;
-    virtual std::unique_ptr<::Backend::ArrayBase> createDRAMArray(const GeNN::Type::ResolvedType &type, size_t count) const override final;
-    virtual std::unique_ptr<::Backend::ArrayBase> createURAMLLMArray(const GeNN::Type::ResolvedType &type,
-                                                                     size_t uramCount, size_t llmCount) const override final;
+    virtual std::unique_ptr<Frontend::ArrayBase> createURAMArray(const GeNN::Type::ResolvedType &type, size_t count) override final;
+    virtual std::unique_ptr<Frontend::ArrayBase> createBRAMArray(const GeNN::Type::ResolvedType &type, size_t count) override final;
+    virtual std::unique_ptr<Frontend::ArrayBase> createLLMArray(const GeNN::Type::ResolvedType &type, size_t count) override final;
+    virtual std::unique_ptr<Frontend::ArrayBase> createDRAMArray(const GeNN::Type::ResolvedType &type, size_t count) override final;
+    virtual std::unique_ptr<Frontend::ArrayBase> createURAMLLMArray(const GeNN::Type::ResolvedType &type,
+                                                                     size_t uramCount, size_t llmCount) override final;
     
     //------------------------------------------------------------------------
     // Public API
