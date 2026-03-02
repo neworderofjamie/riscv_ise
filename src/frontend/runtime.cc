@@ -100,15 +100,6 @@ Runtime::Runtime(const Model &model, size_t numDevices)
 :   m_Devices(numDevices), m_MergedModel(model), m_NumDevices(numDevices), 
     m_WorkerRun(true), m_Command(nullptr)
 {
-    // Loop through devices
-    m_WorkerThreads.reserve(numDevices);
-    for(size_t i = 0; i < getNumDevices(); i++) {
-        // Create device object and move into vector
-        m_Devices[i] = std::move(createDevice(i));
-
-        // Create worker thread
-        m_WorkerThreads.emplace_back(&Runtime::threadFunction, this, m_Devices[i].get());
-    }
 }
 //----------------------------------------------------------------------------
 Runtime::~Runtime()
@@ -124,6 +115,12 @@ Runtime::~Runtime()
 //----------------------------------------------------------------------------
 void Runtime::allocate()
 {
+    // Create device objects
+    // **NOTE** this cannot be done in constructor as createDevice is pure-virtual
+    for(size_t i = 0; i < getNumDevices(); i++) {
+        m_Devices[i] = std::move(createDevice(i));
+    }
+
     // Create special array to hold field information
     // **THINK** fields need to have been allocated at this point
     //m_FieldArray = m_State->createFieldArray(m_Model.get());
@@ -174,10 +171,21 @@ void Runtime::allocate()
 
     // Push populated fields to device
     //m_FieldArray->pushFieldsToDevice();
+
+    // Create worker threads
+    m_WorkerThreads.reserve(getNumDevices());
+    for(auto &d : m_Devices) {
+        m_WorkerThreads.emplace_back(&Runtime::threadFunction, this, d.get());
+    }
 }
 //----------------------------------------------------------------------------
 void Runtime::run(std::shared_ptr<const Kernel> kernel)
 {
+    // Check worker threads have been created
+    if(m_WorkerThreads.empty()) {
+        throw std::runtime_error("Cannot run command until ``allocate`` is called");
+    }
+
     // If kernel isn't already loaded
     if(kernel != m_CurrentKernel) {
         // Run load command
