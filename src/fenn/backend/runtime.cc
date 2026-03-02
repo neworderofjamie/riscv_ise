@@ -104,7 +104,7 @@ void URAMLLMArrayBase::serialiseDeviceObject(std::vector<std::byte> &bytes) cons
 //----------------------------------------------------------------------------
 // FeNN::Backend::DeviceFeNN
 //----------------------------------------------------------------------------
-std::unique_ptr<::Backend::ArrayBase> DeviceFeNN::createArray(std::shared_ptr<const Frontend::EventContainer> eventContainer) const
+std::unique_ptr<::Backend::ArrayBase> DeviceFeNN::createArray(std::shared_ptr<const Frontend::EventContainer> eventContainer)
 {
     LOGI << "Creating event container '" << eventContainer->getName() << "' array in BRAM";
 
@@ -113,7 +113,7 @@ std::unique_ptr<::Backend::ArrayBase> DeviceFeNN::createArray(std::shared_ptr<co
     return createBRAMArray(GeNN::Type::Uint32, numSpikeWords);
 }
 //----------------------------------------------------------------------------
-std::unique_ptr<::Backend::ArrayBase> DeviceFeNN::createArray(std::shared_ptr<const Frontend::Variable> variable) const
+std::unique_ptr<::Backend::ArrayBase> DeviceFeNN::createArray(std::shared_ptr<const Frontend::Variable> variable)
 {
     
     // Pad last dimension to multiplies of 32
@@ -166,7 +166,7 @@ std::unique_ptr<::Backend::ArrayBase> DeviceFeNN::createArray(std::shared_ptr<co
     }
 }
 //----------------------------------------------------------------------------
-std::unique_ptr<::Backend::ArrayBase> DeviceFeNN::createPerformanceCounter() const
+std::unique_ptr<::Backend::ArrayBase> DeviceFeNN::createPerformanceCounter()
 {
     //LOGI << "Creating performance counter '" << performanceCounter->getName() << "' array in BRAM";
 

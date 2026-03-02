@@ -3,8 +3,8 @@
 // Standard C++ includes
 #include <optional>
 
-// Backend includes
-#include "backend/runtime.h"
+// Frontend includes
+#include "frontend/runtime.h"
 
 // FeNN compiler includes
 #include "fenn/compiler/compiler.h"
@@ -19,7 +19,7 @@
 //! Base class for arrays located in FeNN's URAM
 namespace FeNN::Backend
 {
-class FENN_BACKEND_EXPORT URAMArrayBase : public ::Backend::ArrayBase
+class FENN_BACKEND_EXPORT URAMArrayBase : public Frontend::ArrayBase
 {
 public:
     //------------------------------------------------------------------------
@@ -58,7 +58,7 @@ private:
 // FeNN::Backend::BRAMArrayBase
 //----------------------------------------------------------------------------
 //! Base class for arrays located in FeNN's BRAM
-class FENN_BACKEND_EXPORT BRAMArrayBase  : public ::Backend::ArrayBase
+class FENN_BACKEND_EXPORT BRAMArrayBase  : public Frontend::ArrayBase
 {
 public:
     //------------------------------------------------------------------------
@@ -92,7 +92,7 @@ private:
 // FeNN::Backend::LLMArrayBase
 //----------------------------------------------------------------------------
 //! Base class for arrays located in FeNN's lane-local memories
-class FENN_BACKEND_EXPORT LLMArrayBase : public ::Backend::ArrayBase
+class FENN_BACKEND_EXPORT LLMArrayBase : public Frontend::ArrayBase
 {
 public:
     //------------------------------------------------------------------------
@@ -131,7 +131,7 @@ private:
 // FeNN::Backend::DRAMArrayBase
 //----------------------------------------------------------------------------
 //! Base class for arrays located in DRAM, accessed using DMA controller
-class FENN_BACKEND_EXPORT DRAMArrayBase : public ::Backend::ArrayBase
+class FENN_BACKEND_EXPORT DRAMArrayBase : public Frontend::ArrayBase
 {
 public:
     //------------------------------------------------------------------------
@@ -165,7 +165,7 @@ private:
 //----------------------------------------------------------------------------
 //! Base class for arrays which are allocated in URAM but also have a delayed input in LLM
 //! Typically used for implementing neuron variables with dendritically-delayed input
-class BACKEND_EXPORT URAMLLMArrayBase : public ::Backend::ArrayBase
+class BACKEND_EXPORT URAMLLMArrayBase : public Frontend::ArrayBase
 {
 public:
     //------------------------------------------------------------------------
@@ -242,31 +242,31 @@ public:
 //----------------------------------------------------------------------------
 // FeNN::Backend::DeviceFeNN
 //----------------------------------------------------------------------------
-class FENN_BACKEND_EXPORT DeviceFeNN : public ::Backend::DeviceBase
+class FENN_BACKEND_EXPORT DeviceFeNN : public Frontend::DeviceBase
 {
 public:
-    using ::Backend::DeviceBase::DeviceBase;
+    using Frontend::DeviceBase::DeviceBase;
 
     //------------------------------------------------------------------------
     // Declared virtuals
     //------------------------------------------------------------------------
-    virtual std::unique_ptr<::Backend::ArrayBase> createURAMArray(const GeNN::Type::ResolvedType &type, size_t count) const = 0;
-    virtual std::unique_ptr<::Backend::ArrayBase> createBRAMArray(const GeNN::Type::ResolvedType &type, size_t count) const = 0;
-    virtual std::unique_ptr<::Backend::ArrayBase> createLLMArray(const GeNN::Type::ResolvedType &type, size_t count) const = 0;
-    virtual std::unique_ptr<::Backend::ArrayBase> createDRAMArray(const GeNN::Type::ResolvedType &type, size_t count) const = 0;
-    virtual std::unique_ptr<::Backend::ArrayBase> createURAMLLMArray(const GeNN::Type::ResolvedType &type,
-                                                                     size_t uramCount, size_t llmCount) const = 0;
+    virtual std::unique_ptr<Frontend::ArrayBase> createURAMArray(const GeNN::Type::ResolvedType &type, size_t count) = 0;
+    virtual std::unique_ptr<Frontend::ArrayBase> createBRAMArray(const GeNN::Type::ResolvedType &type, size_t count) = 0;
+    virtual std::unique_ptr<Frontend::ArrayBase> createLLMArray(const GeNN::Type::ResolvedType &type, size_t count) = 0;
+    virtual std::unique_ptr<Frontend::ArrayBase> createDRAMArray(const GeNN::Type::ResolvedType &type, size_t count) = 0;
+    virtual std::unique_ptr<Frontend::ArrayBase> createURAMLLMArray(const GeNN::Type::ResolvedType &type,
+                                                                     size_t uramCount, size_t llmCount) = 0;
     //------------------------------------------------------------------------
     // DeviceBase virtuals
     //------------------------------------------------------------------------
     //! Create suitable array for event container on this device
-    virtual std::unique_ptr<::Backend::ArrayBase> createArray(std::shared_ptr<const Frontend::EventContainer> eventContainer) const override final;
+    virtual std::unique_ptr<Frontend::ArrayBase> createArray(std::shared_ptr<const Frontend::EventContainer> eventContainer) override final;
 
     //! Create suitable array for variable on this device
-    virtual std::unique_ptr<::Backend::ArrayBase> createArray(std::shared_ptr<const Frontend::Variable> variable) const override final;
+    virtual std::unique_ptr<Frontend::ArrayBase> createArray(std::shared_ptr<const Frontend::Variable> variable) override final;
 
     //! Create suitable array for performance counter on this device
-    virtual std::unique_ptr<ArrayBase> createPerformanceCounter() const override final;
+    virtual std::unique_ptr<ArrayBase> createPerformanceCounter() override final;
 
     //------------------------------------------------------------------------
     // Public API

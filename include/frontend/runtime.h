@@ -115,13 +115,13 @@ public:
     virtual void runKernel(std::shared_ptr<const Kernel> kernel) = 0;
 
     //! Create suitable array for event container on this device
-    virtual std::unique_ptr<ArrayBase> createArray(std::shared_ptr<const EventContainer> eventContainer) const = 0;
+    virtual std::unique_ptr<ArrayBase> createArray(std::shared_ptr<const EventContainer> eventContainer) = 0;
 
     //! Create suitable array for variable on this device
-    virtual std::unique_ptr<ArrayBase> createArray(std::shared_ptr<const Variable> variable) const = 0;
+    virtual std::unique_ptr<ArrayBase> createArray(std::shared_ptr<const Variable> variable) = 0;
 
     //! Create suitable array for performance counter on this device
-    virtual std::unique_ptr<ArrayBase> createPerformanceCounter() const = 0;
+    virtual std::unique_ptr<ArrayBase> createPerformanceCounter() = 0;
 
     //------------------------------------------------------------------------
     // Public API
