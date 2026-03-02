@@ -127,7 +127,7 @@ public:
     // Public API
     //------------------------------------------------------------------------
     //! Create array to provide storage for model state
-    void createArray(std::shared_ptr<const State> state) const;
+    void createArray(std::shared_ptr<const State> state);
 
     //! Get array associated with model state
     ArrayBase *getArray(std::shared_ptr<const State> state) const;
