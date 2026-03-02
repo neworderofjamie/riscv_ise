@@ -72,19 +72,19 @@ using Literals = std::vector<std::pair<GeNN::Type::ResolvedType, GeNN::Type::Num
 //----------------------------------------------------------------------------
 // Model::Process
 //----------------------------------------------------------------------------
-class Process : public Stateful
+class Process : public ModelComponent
 {
 public:
     //------------------------------------------------------------------------
     // Declared virtuals
     //------------------------------------------------------------------------
+    virtual std::vector<std::shared_ptr<const State>> getAllState() const = 0;
     virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const Model &model) const = 0;
-
     virtual void updateCompatibleSplitDimensions(std::shared_ptr<const ::Model::State> state, 
                                                  uint32_t &compatibleSplitDimensions) const = 0;
 
 protected:
-    using Stateful::Stateful;
+    using ModelComponent::ModelComponent;
 };
 
 //----------------------------------------------------------------------------

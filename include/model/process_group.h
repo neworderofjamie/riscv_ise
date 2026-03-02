@@ -6,7 +6,6 @@
 
 // Compiler includes
 #include "model/model_component.h"
-#include "model/performance_counter.h"
 
 // Forward declarations
 namespace Model
@@ -19,35 +18,28 @@ class Process;
 //----------------------------------------------------------------------------
 namespace Model
 {
-class ProcessGroup : public Stateful
+class ProcessGroup : public ModelComponent
 {
 public:
     ProcessGroup(Private, const std::vector<std::shared_ptr<const Process>> &processes, 
-                 std::shared_ptr<const PerformanceCounter> performanceCounter, 
-                 const std::string &name)
-    :   Stateful(name), m_Processes(processes), m_PerformanceCounter(performanceCounter)
+                 bool recordPerformance, const std::string &name)
+    :   ModelComponent(name), m_Processes(processes), m_RecordPerformance(recordPerformance)
     {
     }
-
-    //------------------------------------------------------------------------
-    // Stateful virtuals
-    //------------------------------------------------------------------------
-    virtual std::vector<std::shared_ptr<const State>> getAllState() const override final;
 
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
     const auto &getProcesses() const{ return m_Processes; }
-    auto getPerformanceCounter() const{ return m_PerformanceCounter; }
+    bool shouldRecordPerformance() const{ return m_RecordPerformance; }
 
     //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------
     static std::shared_ptr<ProcessGroup> create(const std::vector<std::shared_ptr<const Process>> &processes,
-                                                std::shared_ptr<const PerformanceCounter> performanceCounter = nullptr,
-                                                const std::string &name = "")
+                                                bool recordPerformance = false, const std::string &name = "")
     {
-        return std::make_shared<ProcessGroup>(Private(), processes, performanceCounter, name);
+        return std::make_shared<ProcessGroup>(Private(), processes, recordPerformance, name);
     }
 
 private:
@@ -55,6 +47,6 @@ private:
     // Members
     //------------------------------------------------------------------------
     std::vector<std::shared_ptr<const Process>> m_Processes;
-    std::shared_ptr<const PerformanceCounter> m_PerformanceCounter;
+    bool m_RecordPerformance;
 };
 }

@@ -1,5 +1,8 @@
 #include "model/model.h"
 
+// Common includes
+#include "common/utils.h"
+
 // Model includes
 #include "model/kernel.h"
 #include "model/process.h"
@@ -18,31 +21,41 @@ Model::Model(const KernelVector &kernels)
         // Loop through all process groups in kernel
         const auto processGroups = k->getAllProcessGroups();
         for (const auto &g : processGroups) {
-            // **TODO** performance counters
             // Loop through processes in group
             for (const auto &p : g->getProcesses()) {
                 // Loop through all state associated with this process
-                const auto state = p->getAllState();
-                for (const auto &s : state) {
-                    m_StateProcesses[s].push_back(p);
+                for (const auto &s : p->getAllState()) {
+                    m_StateProcesses[s].second.push_back(p);
                 }
             }
-
         }
     }
 
     // Loop through all model state
-    // **THINK** this kinda only need to be variables
-    for (const auto &s : getStateProcesses()) {
-        // Start with all memory spaces being compatible
-        uint32_t compatibleSplitDimensions = (1 << Ndims) - 1;
-
-        // Loop through all processes using this state
-        for (const auto &p : s.second) {
-            p->updateCompatibleSplitDimensions(s.first, compatibleSplitDimensions);
+    for (auto &s : m_StateProcesses) {
+        // Get dimensionality of state's shape
+        const size_t numDims = s.first->getShape().getNumDims();
+        if(numDims > 32) {
+            throw std::runtime_error("State '" + s.first->getName() + "' has a shape with more than 32 dimensions");
         }
 
-        // **TODO** pick best split (highest dimension as slicing here improves contiguousness) and store in state processes
+        // Start with all memory spaces being compatible
+        uint32_t compatibleSplitDimensions = (1 << numDims) - 1;
+
+        // Loop through all processes using this state and update this compatibility
+        for (const auto &p : s.second.second) {
+            p->updateCompatibleSplitDimensions(s.first, compatibleSplitDimensions);
+        }
+        
+        // If this cannot be split
+        if(compatibleSplitDimensions == 0) {
+            s.second.first = std::nullopt;
+        }
+        // Otherwise, count leading-zeros to pick highest compatible dimension
+        // to split on (this maximises the number of contiguous sections of data)
+        else {
+            s.second.first = 31 - ::Common::Utils::clz(compatibleSplitDimensions);
+        }
     }
 }
 }

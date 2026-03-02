@@ -11,6 +11,8 @@
 //----------------------------------------------------------------------------
 namespace Model
 {
+const Shape Shape::one = Shape(1);
+//----------------------------------------------------------------------------
 std::string Shape::toString() const
 {
     std::ostringstream shapeStream;

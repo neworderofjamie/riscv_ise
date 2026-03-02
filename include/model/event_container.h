@@ -23,9 +23,13 @@ public:
     {}
 
     //------------------------------------------------------------------------
+    // State virtuals
+    //------------------------------------------------------------------------
+    virtual const Shape &getShape() const override final{ return m_Shape; }
+    
+    //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
-    const auto &getShape() const{ return m_Shape; }
     size_t getNumBufferTimesteps() const { return m_NumBufferTimesteps; }
 
     void updateMergeHash(boost::uuids::detail::sha1 &hash) const;
