@@ -20,16 +20,13 @@ class LambdaVariableVisitor : public Model::StateVisitor
     using Handler = std::function<Return(std::shared_ptr<const T>)>;
 
     using EventContainerHandler = Handler<Model::EventContainer>;
-    using PerformanceCounterHandler = Handler<Model::PerformanceCounter>;
     using VariableHandler = Handler<Model::Variable>;
 
 public:
     LambdaVariableVisitor(std::shared_ptr<const Model::State> state,
                           EventContainerHandler handleEventContainer,
-                          PerformanceCounterHandler handlePerformanceCounter,
                           VariableHandler handleVariable)
     :   m_HandleEventContainer(handleEventContainer), 
-        m_HandlePerformanceCounter(handlePerformanceCounter),
         m_HandleVariable(handleVariable)
     {
         state->accept(*this);
@@ -49,7 +46,6 @@ private:
         TYPE##Handler m_Handle##TYPE
 
     IMPLEMENT_VISIT(EventContainer);
-    IMPLEMENT_VISIT(PerformanceCounter);
     IMPLEMENT_VISIT(Variable);
 
     #undef IMPLEMENT_VISIT
@@ -77,10 +73,6 @@ void DeviceBase::createArray(std::shared_ptr<const ::Model::State> state) const
                             [this](auto eventContainer)
                             {
                                 return createArray(eventContainer);
-                            },
-                            [this](auto performanceCounter)
-                            {
-                                return createArray(performanceCounter);
                             },
                             [this](auto variable)
                             {
@@ -136,8 +128,10 @@ void Runtime::allocate()
     // Perform backend-specific logic
     allocatePreamble();
 
+    // **TODO** loop through all process groups and add performance counters
+
     // Loop through state objects used by model and create suitable array on each device
-    for (const auto &s : m_MergedModel.getModel().getStateReferences()) {
+    for (const auto &s : m_MergedModel.getModel().getStateProcesses()) {
         for(auto &d : getDevices()) {
             // **TODO** get backend-specific slice of shape
             d->createArray(s.first);

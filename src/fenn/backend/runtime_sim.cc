@@ -477,7 +477,7 @@ RuntimeSim::RuntimeSim(const ::Model::Model &model, size_t numDevices, bool useD
                        bool keepParamsInRegisters, Compiler::RoundingMode neuronUpdateRoundingMode, 
                        size_t dmaBufferSize)
 :   Runtime(model, numDevices, useDRAMForWeights, keepParamsInRegisters, neuronUpdateRoundingMode),
-    m_SharedBus(numCores), m_DMABufferSize(dmaBufferSize)
+    m_SharedBus(numDevices), m_DMABufferSize(dmaBufferSize)
 {
 }
 //------------------------------------------------------------------------

@@ -24,7 +24,6 @@ namespace Model
 class EventContainer;
 class Kernel;
 class Model;
-class PerformanceCounter;
 class State;
 class Variable;
 }
@@ -118,11 +117,11 @@ public:
     //! Create suitable array for event container on this device
     virtual std::unique_ptr<ArrayBase> createArray(std::shared_ptr<const ::Model::EventContainer> eventContainer) const = 0;
 
-    //! Create suitable array for performance counter on this device
-    virtual std::unique_ptr<ArrayBase> createArray(std::shared_ptr<const ::Model::PerformanceCounter> performanceCounter) const = 0;
-
     //! Create suitable array for variable on this device
     virtual std::unique_ptr<ArrayBase> createArray(std::shared_ptr<const ::Model::Variable> variable) const = 0;
+
+    //! Create suitable array for performance counter on this device
+    virtual std::unique_ptr<ArrayBase> createPerformanceCounter() const = 0;
 
     //------------------------------------------------------------------------
     // Public API

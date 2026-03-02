@@ -113,15 +113,6 @@ std::unique_ptr<::Backend::ArrayBase> DeviceFeNN::createArray(std::shared_ptr<co
     return createBRAMArray(GeNN::Type::Uint32, numSpikeWords);
 }
 //----------------------------------------------------------------------------
-std::unique_ptr<::Backend::ArrayBase> DeviceFeNN::createArray(std::shared_ptr<const ::Model::PerformanceCounter> performanceCounter) const
-{
-    LOGI << "Creating performance counter '" << performanceCounter->getName() << "' array in BRAM";
-
-    // Performance counter contains a 64-bit number for 
-    // instructions retired and one for number of cycles 
-    return createBRAMArray(GeNN::Type::Uint64, 2);
-}
-//----------------------------------------------------------------------------
 std::unique_ptr<::Backend::ArrayBase> DeviceFeNN::createArray(std::shared_ptr<const ::Model::Variable> variable) const
 {
     
@@ -174,6 +165,16 @@ std::unique_ptr<::Backend::ArrayBase> DeviceFeNN::createArray(std::shared_ptr<co
                                  "with any memory spaces available on FeNN");
     }
 }
+//----------------------------------------------------------------------------
+std::unique_ptr<::Backend::ArrayBase> DeviceFeNN::createPerformanceCounter() const
+{
+    //LOGI << "Creating performance counter '" << performanceCounter->getName() << "' array in BRAM";
+
+    // Performance counter contains a 64-bit number for 
+    // instructions retired and one for number of cycles 
+    return createBRAMArray(GeNN::Type::Uint64, 2);
+}
+
 //----------------------------------------------------------------------------
 // FeNN::Backend::Runtime
 //----------------------------------------------------------------------------
