@@ -41,12 +41,8 @@ public:
     // Declared virtuals
     //------------------------------------------------------------------------
     //! Update the memory compatibility of a variable associated with this process
-    virtual void updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, 
-                                             MemSpace &compatibleMemSpaces) const = 0;
-
-    //! Update which dimension variable associated with this process can be split down
-    virtual void updateDeviceSplit(std::shared_ptr<const ::Model::State> state,
-                                   std::vector<bool> &splits) const = 0;
+    virtual void updateCompatibleMemSpace(std::shared_ptr<const ::Model::State> state, 
+                                          MemSpace &compatibleMemSpaces) const = 0;
 
     //! Update the max-row length to support this process
     virtual void updateMaxDMABufferSize(size_t &maxRowLength) const
@@ -137,8 +133,8 @@ public:
     // ProcessImplementation virtuals
     //------------------------------------------------------------------------
     //! Update the memory compatibility of a variable associated with this process
-    virtual void updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, 
-                                             MemSpace &compatibleMemSpaces) const override final;
+    virtual void updateCompatibleMemSpace(std::shared_ptr<const ::Model::State> state, 
+                                          MemSpace &compatibleMemSpaces) const override final;
 
     //------------------------------------------------------------------------
     // TimeDrivenProcessImplementation virtuals
@@ -182,12 +178,9 @@ public:
     // ProcessImplementation virtuals
     //------------------------------------------------------------------------
     //! Update the memory compatibility of a variable associated with this process
-    virtual void updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state,
-                                             MemSpace &compatibleMemSpaces) const override final;
+    virtual void updateCompatibleMemSpace(std::shared_ptr<const ::Model::State> state,
+                                          MemSpace &compatibleMemSpaces) const override final;
 
-                                             //! Update which dimension variable associated with this process can be split down
-    virtual void updateDeviceSplit(std::shared_ptr<const ::Model::State> state,
-                                   std::vector<bool> &splits) const override final;
     //! Update the maximum DMA buffer size to support this process
     virtual void updateMaxDMABufferSize(size_t &maxRowLength) const override final;
 
@@ -223,8 +216,8 @@ public:
     // ProcessImplementation virtuals
     //------------------------------------------------------------------------
     //! Update the memory compatibility of a variable associated with this process
-    virtual void updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, 
-                                             MemSpace &compatibleMemSpaces) const override final;
+    virtual void updateCompatibleMemSpace(std::shared_ptr<const ::Model::State> state, 
+                                          MemSpace &compatibleMemSpaces) const override final;
 
     //------------------------------------------------------------------------
     // TimeDrivenProcessImplementation virtuals
@@ -256,8 +249,8 @@ public:
     // ProcessImplementation virtuals
     //------------------------------------------------------------------------
     //! Update the memory compatibility of a variable associated with this process
-    virtual void updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, 
-                                             MemSpace &compatibleMemSpaces) const override final;
+    virtual void updateCompatibleMemSpace(std::shared_ptr<const ::Model::State> state, 
+                                          MemSpace &compatibleMemSpaces) const override final;
 
     //------------------------------------------------------------------------
     // TimeDrivenProcessImplementation virtuals
@@ -303,8 +296,8 @@ public:
     // ProcessImplementation virtuals
     //------------------------------------------------------------------------
     //! Update the memory compatibility of a variable associated with this process
-    virtual void updateMemSpaceCompatibility(std::shared_ptr<const ::Model::State> state, 
-                                             MemSpace &compatibleMemSpaces) const override final;
+    virtual void updateCompatibleMemSpace(std::shared_ptr<const ::Model::State> state, 
+                                          MemSpace &compatibleMemSpaces) const override final;
 
     //------------------------------------------------------------------------
     // TimeDrivenProcessImplementation virtuals

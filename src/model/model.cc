@@ -30,5 +30,19 @@ Model::Model(const KernelVector &kernels)
 
         }
     }
+
+    // Loop through all model state
+    // **THINK** this kinda only need to be variables
+    for (const auto &s : getStateProcesses()) {
+        // Start with all memory spaces being compatible
+        uint32_t compatibleSplitDimensions = (1 << Ndims) - 1;
+
+        // Loop through all processes using this state
+        for (const auto &p : s.second) {
+            p->updateCompatibleSplitDimensions(s.first, compatibleSplitDimensions);
+        }
+
+        // **TODO** pick best split (highest dimension as slicing here improves contiguousness) and store in state processes
+    }
 }
 }

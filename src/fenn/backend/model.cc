@@ -39,7 +39,7 @@ Model::Model(const Model::KernelVector &graphs)
             }
 
             // Update memory space compatiblity
-            pi->updateMemSpaceCompatibility(s.first, compatibleMemSpaces);
+            pi->updateCompatibleMemSpace(s.first, compatibleMemSpaces);
         }
 
         // Add compatible memory states to map

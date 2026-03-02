@@ -46,12 +46,12 @@ public:
     //! Get vector of merged processes
     const auto &getProcesses() const{ return m_Processes; }
 
-    //! 'Gathers' a vector of shared pointers to state obtained by calling a function on each merged process
-    template<typename P, typename F>
-    auto gatherState(F getStateFn) const
+    //! 'Gathers' a vector of objects and populate by calling a function on each merged process
+    template<typename T, typename P, typename F>
+    auto gather(F getStateFn) const
     {
         // Reserve vector to hold state gathered from all processes
-        std::vector<std::shared_ptr<const ::Model::State>> state;
+        std::vector<T> state;
         state.reserve(getProcesses().size());
 
         std::transform(getProcesses().cbegin(), getProcesses().cend(), std::back_inserter(state),
