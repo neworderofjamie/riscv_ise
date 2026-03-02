@@ -14,7 +14,6 @@
 
 // Frontend includes
 #include "frontend/event_container.h"
-#include "frontend/performance_counter.h"
 #include "frontend/process_group.h"
 #include "frontend/variable.h"
 

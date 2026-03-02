@@ -22,7 +22,7 @@ class RuntimeSim;
 //----------------------------------------------------------------------------
 namespace FeNN::Backend
 {
-class DeviceFeNNSim : public DeviceFeNN
+class FENN_BACKEND_EXPOR DeviceFeNNSim : public DeviceFeNN
 {
 public:
     DeviceFeNNSim(size_t deviceIndex, size_t dmaBufferSize, ISE::SharedBusSim &sharedBus,
