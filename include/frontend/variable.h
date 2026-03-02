@@ -8,16 +8,16 @@
 #include "type.h"
 
 // Model includes
-#include "model/model_component.h"
-#include "model/model_export.h"
-#include "model/shape.h"
+#include "frontend/frontend_export.h"
+#include "frontend/model_component.h"
+#include "frontend/shape.h"
 
 //----------------------------------------------------------------------------
-// Model::Variable
+// Frontend::Variable
 //----------------------------------------------------------------------------
-namespace Model
+namespace Frontend
 {
-class MODEL_EXPORT Variable : public AcceptableState<Variable>
+class FRONTEND_EXPORT Variable : public AcceptableState<Variable>
 {
 public:
     Variable(Private, const Shape &shape, const GeNN::Type::UnresolvedType &type, const std::string &name)

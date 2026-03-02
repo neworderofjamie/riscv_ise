@@ -12,9 +12,9 @@
 // Common include
 #include "common/utils.h"
 
-// Model includes
-#include "model/event_container.h"
-#include "model/variable.h"
+// Frontend includes
+#include "frontend/event_container.h"
+#include "fronend/variable.h"
 
 // Backend includes
 #include "backend/merged_model.h"
@@ -180,9 +180,9 @@ public:
 class URAMNeuronVar : public NeuronVarBase
 {
 public:
-    URAMNeuronVar(const std::string &varName, std::shared_ptr<const ::Model::Variable> var, 
+    URAMNeuronVar(const std::string &varName, std::shared_ptr<const Frontend::Variable> var, 
                   Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
-                  const ::Model::StateFields &stateFields, std::optional<uint32_t> numTimesteps,
+                  const Frontend::StateFields &stateFields, std::optional<uint32_t> numTimesteps,
                   Assembler::ScalarRegisterAllocator::RegisterPtr timeReg, 
                   Assembler::ScalarRegisterAllocator::RegisterPtr numVarBytesReg)
     {
@@ -261,10 +261,10 @@ private:
 class LLMNeuronVar : public NeuronVarBase
 {
 public:
-    LLMNeuronVar(const std::string &varName, std::shared_ptr<const ::Model::Variable> var, 
+    LLMNeuronVar(const std::string &varName, std::shared_ptr<const Frontend::Variable> var, 
                  Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
                  Assembler::VectorRegisterAllocator &vectorRegisterAllocator,
-                 const ::Model::StateFields &stateFields)
+                 const Frontend::StateFields &stateFields)
     {
         assert(var->getNumBufferTimesteps() == 1);
 
@@ -322,9 +322,9 @@ private:
 class URAMLLMNeuronVar : public NeuronVarBase
 {
 public:
-    URAMLLMNeuronVar(const std::string &varName, std::shared_ptr<const ::Model::Variable> var, 
+    URAMLLMNeuronVar(const std::string &varName, std::shared_ptr<const Frontend::Variable> var, 
                      Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
-                     Assembler::VectorRegisterAllocator &vectorRegisterAllocator, const ::Model::StateFields &stateFields, 
+                     Assembler::VectorRegisterAllocator &vectorRegisterAllocator, const Frontend::StateFields &stateFields, 
                      Assembler::ScalarRegisterAllocator::RegisterPtr timeReg)
         :   m_DelayStride(2 * var->getNumBufferTimesteps()), m_VectorRegisterAllocator(vectorRegisterAllocator)
     {
@@ -765,7 +765,7 @@ void TimeDrivenProcessImplementation::generateCode(const ::Backend::MergedProces
 //----------------------------------------------------------------------------
 // FeNN::Backend::NeuronUpdateProcess
 //----------------------------------------------------------------------------
-void NeuronUpdateProcess::updateCompatibleMemSpace(std::shared_ptr<const ::Model::State> state, 
+void NeuronUpdateProcess::updateCompatibleMemSpace(std::shared_ptr<const Frontend::State> state, 
                                                    MemSpace &compatibleMemSpaces) const
 {
     const auto var = std::find_if(getVariables().cbegin(), getVariables().cend(),
@@ -838,7 +838,7 @@ void NeuronUpdateProcess::generateArchetypeCode(const ::Backend::MergedProcess &
     // For now, unrollVectorLoopBody requires SOME buffers
     assert(!neuronUpdateProcess->getVariables().empty());
 
-    std::unordered_map<std::shared_ptr<const ::Model::Variable>, std::unique_ptr<NeuronVarBase>> varBuffers;
+    std::unordered_map<std::shared_ptr<const Frontend::Variable>, std::unique_ptr<NeuronVarBase>> varBuffers;
     {
         // If any variables have buffering, calculate stride in bytes
         // **TODO** make set of non-1 bufferings and pre-multiply time by this
@@ -881,7 +881,7 @@ void NeuronUpdateProcess::generateArchetypeCode(const ::Backend::MergedProcess &
         }
     }
 
-    std::unordered_map<std::shared_ptr<const ::Model::EventContainer>, 
+    std::unordered_map<std::shared_ptr<const Frontend::EventContainer>, 
                        Assembler::ScalarRegisterAllocator::RegisterPtr> eventBufferRegisters;
     {
         // If any output events have buffering, calculate stride in bytes
@@ -1097,7 +1097,7 @@ void NeuronUpdateProcess::generateArchetypeCode(const ::Backend::MergedProcess &
 //----------------------------------------------------------------------------
 // FeNN::Backend::EventPropagationProcess
 //----------------------------------------------------------------------------
-void EventPropagationProcess::updateCompatibleMemSpace(std::shared_ptr<const ::Model::State> state, 
+void EventPropagationProcess::updateCompatibleMemSpace(std::shared_ptr<const Frontend::State> state, 
                                                        MemSpace &compatibleMemSpaces) const
 {
     // If variable is weight, it can  be located in URAM or DRAM
@@ -1123,7 +1123,7 @@ void EventPropagationProcess::updateCompatibleMemSpace(std::shared_ptr<const ::M
     }
 }
 //----------------------------------------------------------------------------
-void EventPropagationProcess::updateDeviceSplit(std::shared_ptr<const ::Model::State> state,
+void EventPropagationProcess::updateDeviceSplit(std::shared_ptr<const Frontend::State> state,
                                                 std::vector<bool> &splits) const
 {
     // If variable is weight, it can  be located in URAM or DRAM
@@ -1611,7 +1611,7 @@ void generateDRAMWordLoop(const std::vector<std::unique_ptr<RowGeneratorBase>> &
 //----------------------------------------------------------------------------
 // FeNN::Backend::RNGInitProcess
 //----------------------------------------------------------------------------
-void RNGInitProcess::updateCompatibleMemSpace(std::shared_ptr<const ::Model::State> state, 
+void RNGInitProcess::updateCompatibleMemSpace(std::shared_ptr<const Frontend::State> state, 
                                               MemSpace &compatibleMemSpaces) const
 {
     assert (state == rngInitProcess->getSeed());
@@ -1644,7 +1644,7 @@ void RNGInitProcess::generateArchetypeCode(const ::Backend::MergedProcess &merge
 //----------------------------------------------------------------------------
 // FeNN::Backend::MemsetProcess
 //----------------------------------------------------------------------------
-void MemsetProcess::updateCompatibleMemSpace(std::shared_ptr<const ::Model::State> state, 
+void MemsetProcess::updateCompatibleMemSpace(std::shared_ptr<const Frontend::State> state, 
                                              MemSpace &compatibleMemSpaces) const
 {
     assert(state == getTarget().getUnderlying());
@@ -1770,7 +1770,7 @@ void MemsetProcess::generateURAMMemset(Assembler::CodeGenerator &c,
 //----------------------------------------------------------------------------
 // FeNN::Backend::BroadcastProcess
 //----------------------------------------------------------------------------
-void BroadcastProcess::updateCompatibleMemSpace(std::shared_ptr<const ::Model::State> state, 
+void BroadcastProcess::updateCompatibleMemSpace(std::shared_ptr<const Frontend::State> state, 
                                                 MemSpace &compatibleMemSpaces) const
 {
     // If variable is source, it can only be located in BRAM

@@ -21,7 +21,7 @@ namespace FeNN::Backend
 // FeNN::Backend::Model
 //----------------------------------------------------------------------------
 Model::Model(const Model::KernelVector &graphs)
-:   ::Model::Model(graphs)
+:   Frontend::Model(graphs)
 {
     // Loop through all model state
     for (const auto &s : getStateProcesses()) {
@@ -48,7 +48,7 @@ Model::Model(const Model::KernelVector &graphs)
     }
 }
 //----------------------------------------------------------------------------
-MemSpace Model::getStateMemSpace(std::shared_ptr<const ::Model::State> state, bool useDRAMForWeights) const
+MemSpace Model::getStateMemSpace(std::shared_ptr<const Frontend::State> state, bool useDRAMForWeights) const
 {
     // Get compatible memory spaces
     auto compatibleMemSpaces = static_cast<uint32_t>(m_StateCompatibleMemSpaces.at(state));

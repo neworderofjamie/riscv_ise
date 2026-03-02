@@ -431,13 +431,13 @@ DeviceFeNNSim::DeviceFeNNSim(size_t deviceIndex, size_t dmaBufferSize, ISE::Shar
     m_RISCV.setRouter(m_Router.get());
 }
 //----------------------------------------------------------------------------
-void DeviceFeNNSim::loadKernel(std::shared_ptr<const ::Model::Kernel> kernel)
+void DeviceFeNNSim::loadKernel(std::shared_ptr<const Frontend::Kernel> kernel)
 {
     // Get kernel code from runtime and load into ISE's instruction memory
     getRISCV().setInstructions(m_Runtime.get().getKernelCode(kernel));
 }
 //----------------------------------------------------------------------------
-void DeviceFeNNSim::runKernel(std::shared_ptr<const ::Model::Kernel> kernel)
+void DeviceFeNNSim::runKernel(std::shared_ptr<const Frontend::Kernel> kernel)
 {
     // Reset program counter and run
     m_RISCV.setPC(0);
@@ -473,7 +473,7 @@ std::unique_ptr<::Backend::ArrayBase> DeviceFeNNSim::createURAMLLMArray(const Ge
 //----------------------------------------------------------------------------
 // FeNN::Backend::RuntimeSim
 //----------------------------------------------------------------------------
-RuntimeSim::RuntimeSim(const ::Model::Model &model, size_t numDevices, bool useDRAMForWeights, 
+RuntimeSim::RuntimeSim(const Frontend::Model &model, size_t numDevices, bool useDRAMForWeights, 
                        bool keepParamsInRegisters, Compiler::RoundingMode neuronUpdateRoundingMode, 
                        size_t dmaBufferSize)
 :   Runtime(model, numDevices, useDRAMForWeights, keepParamsInRegisters, neuronUpdateRoundingMode),

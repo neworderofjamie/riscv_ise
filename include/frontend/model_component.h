@@ -8,7 +8,7 @@
 #include <sha1.hpp>
 
 // Forward declarations
-namespace Model
+namespace Frontend
 {
 class EventContainer;
 class Model;
@@ -17,13 +17,10 @@ class Variable;
 }
 
 //----------------------------------------------------------------------------
-// Model::ModelComponent
+// Frontend::ModelComponent
 //----------------------------------------------------------------------------
-namespace Model
+namespace Frontend
 {
-//----------------------------------------------------------------------------
-// Model::ModelComponent
-//----------------------------------------------------------------------------
 //! Base class for things that can be added to models
 class ModelComponent : public std::enable_shared_from_this<ModelComponent>
 {
@@ -50,7 +47,7 @@ private:
 };
 
 //----------------------------------------------------------------------------
-// Model::State
+// Frontend::State
 //----------------------------------------------------------------------------
 class StateVisitor
 {
@@ -60,7 +57,7 @@ public:
 };
 
 //----------------------------------------------------------------------------
-// Model::State
+// Frontend::State
 //----------------------------------------------------------------------------
 class State : public ModelComponent
 {
@@ -76,7 +73,7 @@ protected:
 };
 
 //---------------------------------------------------------------------------
-// AcceptableState
+// Frontend::AcceptableState
 //---------------------------------------------------------------------------
 template<typename T>
 class AcceptableState : public State

@@ -1,20 +1,20 @@
-#include "backend/merged_model.h"
+#include "frontend/merged_model.h"
 
 // GeNN includes
 #include "gennUtils.h"
 
 // Model includes
-#include "model/kernel.h"
-#include "model/model.h"
-#include "model/process.h"
-#include "model/process_group.h"
+#include "frontend/kernel.h"
+#include "frontend/model.h"
+#include "frontend/process.h"
+#include "frontend/process_group.h"
 
 //----------------------------------------------------------------------------
-// Backend::MergedModel
+// Frontend::MergedModel
 //----------------------------------------------------------------------------
-namespace Backend
+namespace Frontend
 {
-MergedModel::MergedModel(const ::Model::Model &model)
+MergedModel::MergedModel(const Model &model)
 :   m_Model(model)
 {
     // Loop through all kernels in model
@@ -24,7 +24,7 @@ MergedModel::MergedModel(const ::Model::Model &model)
         for (const auto &g : processGroups) {
             // Create a hash map to group together processes with the same SHA1 digest
             std::unordered_map<boost::uuids::detail::sha1::digest_type, 
-                               std::vector<std::shared_ptr<::Model::Process const>>, 
+                               std::vector<std::shared_ptr<Process const>>, 
                                GeNN::Utils::SHA1Hash> protoMergedProcesses;
             
             // Add unmerged processes to correct vector

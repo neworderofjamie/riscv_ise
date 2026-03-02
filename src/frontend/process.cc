@@ -1,3 +1,5 @@
+#include "frontend/process.h"
+
 // Standard C++ includes
 #include <stdexcept>
 
@@ -8,18 +10,17 @@
 #include "gennUtils.h"
 
 // Compiler includes
-#include "model/event_container.h"
-#include "model/process.h"
-#include "model/variable.h"
+#include "frontend/event_container.h"
+#include "frontend/variable.h"
 
 #define UPDATE_HASH_CLASS_NAME(CLASS_NAME) Utils::updateHash(#CLASS_NAME, hash);
 
 using namespace GeNN;
 
 //----------------------------------------------------------------------------
-// Model::NeuronUpdateProcess
+// Frontend::NeuronUpdateProcess
 //----------------------------------------------------------------------------
-namespace Model
+namespace Frontend
 {
 NeuronUpdateProcess::NeuronUpdateProcess(Private, const std::string &code, const VariableMap &variables, 
                                          const EventContainerMap &outputEvents, const std::string &name)
@@ -162,7 +163,7 @@ void NeuronUpdateProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, cons
     }
 }
 //----------------------------------------------------------------------------
-void NeuronUpdateProcess::updateCompatibleSplitDimensions(std::shared_ptr<const ::Model::State> state, 
+void NeuronUpdateProcess::updateCompatibleSplitDimensions(std::shared_ptr<const State> state, 
                                                           uint32_t &compatibleSplitDimensions) const 
 {
 }
@@ -265,7 +266,7 @@ void EventPropagationProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, 
     updateHash(getNumSparseConnectivityBits(), hash);
 }
 //----------------------------------------------------------------------------
-void EventPropagationProcess::updateCompatibleSplitDimensions(std::shared_ptr<const ::Model::State> state, 
+void EventPropagationProcess::updateCompatibleSplitDimensions(std::shared_ptr<const State> state, 
                                                               uint32_t &compatibleSplitDimensions) const 
 {
     // If variable is weight, it can only be split in 2nd (postsynaptic) dimension

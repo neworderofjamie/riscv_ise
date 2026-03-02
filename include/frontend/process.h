@@ -13,53 +13,54 @@
 // GeNN transpiler includes
 #include "transpiler/token.h"
 
-// Model includes
-#include "model/model_export.h"
-#include "model/model_component.h"
-#include "model/shape.h"
+// Frontend includes
+#include "frontend/frontend_export.h"
+#include "frontend/model_component.h"
+#include "frontend/shape.h"
 
 // Forward declarations
-namespace Model
+namespace Frontend
 {
 class EventContainer;
 class Parameter;
 class Variable;
 }
 
-namespace Model
+//----------------------------------------------------------------------------
+// Frontend::Sliced
+//----------------------------------------------------------------------------
+namespace Frontend
 {
-//----------------------------------------------------------------------------
-// Model::Sliced
-//----------------------------------------------------------------------------
 template<typename T>
 class Sliced
 {
 public:
     Sliced(std::shared_ptr<const T> underlying, bool timeSlice = false)
     :   m_Underlying(underlying), m_TimeSlice(timeSlice)
-    {}
-
-    auto getUnderlying() const{ return m_Underlying; }
-    Shape getShape() const
     {
         auto &shape = m_Underlying->getShape();
         if (m_TimeSlice) {
             const auto &dims = shape.getDims();
             if (dims.size() == 1) {
-                return Shape(1);
+                m_Shape = Shape::one;
             }
             else {
                 std::vector<size_t> slicedDims(dims.cbegin() + 1, dims.cend());
-                return Shape(slicedDims);
+                m_Shape = Shape(slicedDims);
             }
         }
         else {
-            return shape;
+            m_Shape = shape;
         }
     }
 
+    auto getUnderlying() const{ return m_Underlying; }
+    const Shape &getShape() const{ return m_Shape; }
+    
+
 private:
     std::shared_ptr<const T> m_Underlying;
+    Shape m_Shape;
     bool m_TimeSlice;
 };
 
@@ -70,7 +71,7 @@ using Literals = std::vector<std::pair<GeNN::Type::ResolvedType, GeNN::Type::Num
 
 
 //----------------------------------------------------------------------------
-// Model::Process
+// Frontend::Process
 //----------------------------------------------------------------------------
 class Process : public ModelComponent
 {
@@ -80,7 +81,7 @@ public:
     //------------------------------------------------------------------------
     virtual std::vector<std::shared_ptr<const State>> getAllState() const = 0;
     virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const Model &model) const = 0;
-    virtual void updateCompatibleSplitDimensions(std::shared_ptr<const ::Model::State> state, 
+    virtual void updateCompatibleSplitDimensions(std::shared_ptr<const Frontend::State> state, 
                                                  uint32_t &compatibleSplitDimensions) const = 0;
 
 protected:
@@ -88,9 +89,9 @@ protected:
 };
 
 //----------------------------------------------------------------------------
-// Model::NeuronUpdateProcess
+// Frontend::NeuronUpdateProcess
 //----------------------------------------------------------------------------
-class MODEL_EXPORT NeuronUpdateProcess : public Process
+class FRONTEND_EXPORT NeuronUpdateProcess : public Process
 {
 public:
     NeuronUpdateProcess(Private, const std::string &code, const VariableMap &variables, 
@@ -105,7 +106,7 @@ public:
     // Process virtuals
     //------------------------------------------------------------------------
     virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const Model &model) const override;
-    virtual void updateCompatibleSplitDimensions(std::shared_ptr<const ::Model::State> state, 
+    virtual void updateCompatibleSplitDimensions(std::shared_ptr<const State> state, 
                                                  uint32_t &compatibleSplitDimensions) const override;
 
     //------------------------------------------------------------------------
@@ -137,9 +138,9 @@ private:
 };
 
 //----------------------------------------------------------------------------
-// Model::EventPropagationProcess
+// Frontend::EventPropagationProcess
 //----------------------------------------------------------------------------
-class MODEL_EXPORT EventPropagationProcess : public Process
+class FRONTEND_EXPORT EventPropagationProcess : public Process
 {
 public:
     EventPropagationProcess(Private, Sliced<EventContainer> inputEvents, 
@@ -156,7 +157,7 @@ public:
     // Process virtuals
     //------------------------------------------------------------------------
     virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const Model &model) const override;
-    virtual void updateCompatibleSplitDimensions(std::shared_ptr<const ::Model::State> state, 
+    virtual void updateCompatibleSplitDimensions(std::shared_ptr<const State> state, 
                                                  uint32_t &compatibleSplitDimensions) const override;
 
     //------------------------------------------------------------------------
@@ -190,9 +191,9 @@ private:
 };
 
 //----------------------------------------------------------------------------
-// Model::RNGInitProcess
+// Frontend::RNGInitProcess
 //----------------------------------------------------------------------------
-class MODEL_EXPORT RNGInitProcess : public Process
+class FRONTEND_EXPORT RNGInitProcess : public Process
 {
 public:
     RNGInitProcess(Private, VariablePtr seed, const std::string &name);
@@ -220,10 +221,10 @@ private:
 };
 
 //----------------------------------------------------------------------------
-// Model::MemsetProcess
+// Frontend::MemsetProcess
 //----------------------------------------------------------------------------
 //! Process for memsetting variables
-class MODEL_EXPORT MemsetProcess : public Process
+class FRONTEND_EXPORT MemsetProcess : public Process
 {
 public:
     MemsetProcess(Private, Sliced<Variable> target, const std::string &name);
@@ -251,10 +252,10 @@ private:
 };
 
 //----------------------------------------------------------------------------
-// Model::BroadcastProcess
+// Frontend::BroadcastProcess
 //----------------------------------------------------------------------------
 //! Process for 'broadcasting' one scalar array across multiple vector lanes
-class MODEL_EXPORT BroadcastProcess : public Process
+class FRONTEND_EXPORT BroadcastProcess : public Process
 {
 public:
     BroadcastProcess(Private, VariablePtr source, VariablePtr target, const std::string &name);

@@ -260,10 +260,10 @@ public:
     // DeviceBase virtuals
     //------------------------------------------------------------------------
     //! Create suitable array for event container on this device
-    virtual std::unique_ptr<::Backend::ArrayBase> createArray(std::shared_ptr<const ::Model::EventContainer> eventContainer) const override final;
+    virtual std::unique_ptr<::Backend::ArrayBase> createArray(std::shared_ptr<const Frontend::EventContainer> eventContainer) const override final;
 
     //! Create suitable array for variable on this device
-    virtual std::unique_ptr<::Backend::ArrayBase> createArray(std::shared_ptr<const ::Model::Variable> variable) const override final;
+    virtual std::unique_ptr<::Backend::ArrayBase> createArray(std::shared_ptr<const Frontend::Variable> variable) const override final;
 
     //! Create suitable array for performance counter on this device
     virtual std::unique_ptr<ArrayBase> createPerformanceCounter() const override final;
@@ -296,13 +296,13 @@ private:
 class FENN_BACKEND_EXPORT Runtime : public ::Backend::Runtime
 {
 public:
-   Runtime(const ::Model::Model &model, size_t numDevices, bool useDRAMForWeights = false, bool keepParamsInRegisters = true, 
+   Runtime(const Frontend::Model &model, size_t numDevices, bool useDRAMForWeights = false, bool keepParamsInRegisters = true, 
            Compiler::RoundingMode neuronUpdateRoundingMode = Compiler::RoundingMode::NEAREST);
 
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
-    const auto &getKernelCode(std::shared_ptr<const ::Model::Kernel> kernel) const{ return m_KernelCode.at(kernel); }
+    const auto &getKernelCode(std::shared_ptr<const Frontend::Kernel> kernel) const{ return m_KernelCode.at(kernel); }
     bool shouldUseDRAMForWeights() const{ return m_UseDRAMForWeights; }
 
 protected:
@@ -313,7 +313,7 @@ private:
     // Members
     //------------------------------------------------------------------------
     // Map of kernel pointers to code
-    std::unordered_map<std::shared_ptr<const ::Model::Kernel>, 
+    std::unordered_map<std::shared_ptr<const Frontend::Kernel>, 
                        std::vector<uint32_t>> m_KernelCode;
 
     bool m_UseDRAMForWeights;

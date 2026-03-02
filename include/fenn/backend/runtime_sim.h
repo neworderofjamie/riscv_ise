@@ -32,10 +32,10 @@ public:
     // Device virtuals
     //------------------------------------------------------------------------
     //! Load kernel onto device
-    virtual void loadKernel(std::shared_ptr<const ::Model::Kernel> kernel) override final;
+    virtual void loadKernel(std::shared_ptr<const Frontend::Kernel> kernel) override final;
 
     //! Run kernel on device
-    virtual void runKernel(std::shared_ptr<const ::Model::Kernel> kernel) override final;
+    virtual void runKernel(std::shared_ptr<const Frontend::Kernel> kernel) override final;
 
     //------------------------------------------------------------------------
     // DeviceFeNN virtuals
@@ -76,7 +76,7 @@ private:
 class FENN_BACKEND_EXPORT RuntimeSim : public Runtime
 {
 public:
-    RuntimeSim(const ::Model::Model &model, size_t numDevices, bool useDRAMForWeights = false, bool keepParamsInRegisters = true, 
+    RuntimeSim(const Frontend::Model &model, size_t numDevices, bool useDRAMForWeights = false, bool keepParamsInRegisters = true, 
                Compiler::RoundingMode neuronUpdateRoundingMode = Compiler::RoundingMode::NEAREST,
                size_t dmaBufferSize = 512 * 1024);
     

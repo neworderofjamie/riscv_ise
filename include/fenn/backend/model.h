@@ -1,10 +1,10 @@
 #pragma once
 
-// Model includes
-#include "model/model.h"
+// Frontend includes
+#include "frontend/model.h"
 
 // Forward declarations
-namespace Model
+namespace Frontend
 {
 class GraphVector;
 class State;
@@ -50,10 +50,10 @@ inline MemSpace operator | (MemSpace a, MemSpace b)
 //----------------------------------------------------------------------------
 // FeNN::Backend::Model
 //----------------------------------------------------------------------------
-class Model : public ::Model::Model
+class Model : public Frontend::Model
 {
 public:
-    using StateMemSpaceCompatibility = std::unordered_map<std::shared_ptr<const ::Model::State>, 
+    using StateMemSpaceCompatibility = std::unordered_map<std::shared_ptr<const Frontend::State>, 
                                                           MemSpace>;
 
     Model(const Model::KernelVector &graphs);
@@ -61,7 +61,7 @@ public:
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
-    MemSpace getStateMemSpace(std::shared_ptr<const ::Model::State> state, bool useDRAMForWeights) const;
+    MemSpace getStateMemSpace(std::shared_ptr<const Frontend::State> state, bool useDRAMForWeights) const;
 
 private:
     //------------------------------------------------------------------------

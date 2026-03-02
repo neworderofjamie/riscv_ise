@@ -5,18 +5,18 @@
 #include <vector>
 
 // Compiler includes
-#include "model/model_component.h"
+#include "frontend/model_component.h"
 
 // Forward declarations
-namespace Model
+namespace Frontend
 {
 class Process;
 }
 
 //----------------------------------------------------------------------------
-// Model::ProcessGroup
+// Frontend::ProcessGroup
 //----------------------------------------------------------------------------
-namespace Model
+namespace Frontend
 {
 class ProcessGroup : public ModelComponent
 {
