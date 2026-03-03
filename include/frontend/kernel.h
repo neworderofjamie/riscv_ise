@@ -69,9 +69,9 @@ class SimulationLoopKernel : public Kernel
 {
 public:
     SimulationLoopKernel(Private, unsigned int numTimesteps, 
-                        const ProcessGroupVector &timestepProcessGroups, 
-                        const ProcessGroupVector &beginProcessGroups,
-                        const ProcessGroupVector &endProcessGroups, const std::string &name)
+                         const ProcessGroupVector &timestepProcessGroups, 
+                         const ProcessGroupVector &beginProcessGroups,
+                         const ProcessGroupVector &endProcessGroups, const std::string &name)
     :   Kernel(name), m_NumTimesteps(numTimesteps), m_TimestepProcessGroups(timestepProcessGroups),
         m_BeginProcessGroups(beginProcessGroups), m_EndProcessGroups(endProcessGroups)
     {}

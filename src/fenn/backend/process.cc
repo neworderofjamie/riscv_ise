@@ -1571,6 +1571,22 @@ void generateDRAMWordLoop(const std::vector<std::unique_ptr<RowGeneratorBase>> &
 //----------------------------------------------------------------------------
 // FeNN::Backend::RNGInitProcess
 //----------------------------------------------------------------------------
+RNGInitProcess::RNGInitProcess(Private private, Frontend::VariablePtr seed, const std::string &name)
+:   ProcessImplementationBase<Frontend::RNGInitProcess>(private, seed, name)
+{
+    if(getSeed()->getShape().getNumDims() != 2) {
+        throw std::runtime_error("RNG init process requires two dimensional seed");
+    }
+
+    if(getSeed()->getType().getSize() != 2) {
+        throw std::runtime_error("On FeNN, RNG init process seed values must be 16-bit");
+    }
+
+    if(getSeed()->getShape().getLast() != 64) {
+        throw std::runtime_error("On FeNN, each RNG init process requires 64 seed values for each device");
+    }
+}
+//----------------------------------------------------------------------------
 void RNGInitProcess::updateCompatibleMemSpace(std::shared_ptr<const Frontend::State> state, 
                                               MemSpace &compatibleMemSpaces) const
 {
@@ -1726,6 +1742,59 @@ void MemsetProcess::generateURAMMemset(Assembler::CodeGenerator &c,
 
 //----------------------------------------------------------------------------
 // FeNN::Backend::BroadcastProcess
+//----------------------------------------------------------------------------
+BroadcastProcess::BroadcastProcess(Private, Frontend::VariablePtr source, Frontend::VariablePtr target, const std::string &name)
+:   ProcessImplementationBase<Frontend::Process>(name), m_Source(source), m_Target(target)
+{
+    if(m_Source == nullptr) {
+        throw std::runtime_error("Broadcast process requires source");
+    }
+
+    if(m_Source->getShape().getNumDims() != 1) {
+        throw std::runtime_error("Multi-dimensional sources aren't currently "
+                                 "supported by broadcast processes");
+    }
+
+    // If target is a variable
+    if(m_Target == nullptr) {
+        throw std::runtime_error("Broadcast process requires target");
+    }
+
+    if(m_Target->getShape().getNumDims() != 2) {
+        throw std::runtime_error("Broadcast process currently required 2 dimensional target");
+    }
+
+    if(m_Target->getShape().getFirst() != m_Source->getShape().getFirst()) {
+        throw std::runtime_error("Broadcast process requires first dimension of source and target to match");
+    }
+
+    if (m_Source->getType() != m_Target->getType()) {
+        throw std::runtime_error("Broadcast process requires source and target with same shape");
+    }
+}
+//----------------------------------------------------------------------------
+std::vector<std::shared_ptr<const Frontend::State>> BroadcastProcess::getAllState() const
+{
+    return {getSource(), getTarget()};
+}
+//----------------------------------------------------------------------------
+void BroadcastProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Frontend::Model &model) const
+{
+    UPDATE_HASH_CLASS_NAME(BroadcastProcess);
+
+    // Superclass
+    // **NOTE** this is slightly weird with backend-specific process types
+    ProcessImplementationBase<Frontend::Process>::updateMergeHash(hash, model);
+}
+//----------------------------------------------------------------------------
+void BroadcastProcess::updateCompatibleSplitDimensions(std::shared_ptr<const Frontend::State> state, 
+                                                       uint32_t &compatibleSplitDimensions) const
+{
+    assert(state == getTarget() || state == getSource());
+    
+    // Broadcast process is used for populating LUTs 
+    compatibleSplitDimensions = 0;
+}
 //----------------------------------------------------------------------------
 void BroadcastProcess::updateCompatibleMemSpace(std::shared_ptr<const Frontend::State> state, 
                                                 MemSpace &compatibleMemSpaces) const

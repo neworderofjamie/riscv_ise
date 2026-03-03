@@ -200,6 +200,8 @@ public:
     // Process virtuals
     //------------------------------------------------------------------------
     virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const Model &model) const override;
+    virtual void updateCompatibleSplitDimensions(std::shared_ptr<const State> state, 
+                                                 uint32_t &compatibleSplitDimensions) const override;
 
     //------------------------------------------------------------------------
     // Public API
@@ -231,6 +233,8 @@ public:
     // Process virtuals
     //------------------------------------------------------------------------
     virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const Model &model) const override;
+    virtual void updateCompatibleSplitDimensions(std::shared_ptr<const State> state, 
+                                                 uint32_t &compatibleSplitDimensions) const override;
 
     //------------------------------------------------------------------------
     // Public API
@@ -244,36 +248,4 @@ private:
     Sliced<Variable> m_Target;
 };
 
-//----------------------------------------------------------------------------
-// Frontend::BroadcastProcess
-//----------------------------------------------------------------------------
-//! Process for 'broadcasting' one scalar array across multiple vector lanes
-class FRONTEND_EXPORT BroadcastProcess : public Process
-{
-public:
-    BroadcastProcess(Private, VariablePtr source, VariablePtr target, const std::string &name);
-
-    //------------------------------------------------------------------------
-    // Stateful virtuals
-    //------------------------------------------------------------------------
-    virtual std::vector<std::shared_ptr<const State>> getAllState() const override final;
-
-    //------------------------------------------------------------------------
-    // Process virtuals
-    //------------------------------------------------------------------------
-    virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const Model &model) const override;
-
-    //------------------------------------------------------------------------
-    // Public API
-    //------------------------------------------------------------------------
-    const auto getSource() const{ return m_Source; }
-    const auto getTarget() const{ return m_Target; }
-
-private:
-    //------------------------------------------------------------------------
-    // Members
-    //------------------------------------------------------------------------
-    VariablePtr m_Source;
-    VariablePtr m_Target;
-};
 }

@@ -211,11 +211,11 @@ EventPropagationProcess::EventPropagationProcess(Private, Sliced<EventContainer>
         throw std::runtime_error("Event propagation process requires target variable");
     }
 
-    if (getSourceShape().getDims().size() != 1) {
+    if (getSourceShape().getNumDims() != 1) {
         throw std::runtime_error("Event propagation process requires source events with a 1D shape");
     }
 
-    if (getWeight()->getShape().getDims().size() != 2) {
+    if (getWeight()->getShape().getNumDims() != 2) {
         throw std::runtime_error("Event propagation process requires weight variable with a 2D shape");
     }
 
@@ -246,14 +246,14 @@ EventPropagationProcess::EventPropagationProcess(Private, Sliced<EventContainer>
 
     // If there are no delays, check time 
     if (getNumDelayBits() == 0) {
-        if (getTargetShape().getDims().size() != 1) {
+        if (getTargetShape().getNumDims() != 1) {
             throw std::runtime_error("Non-delayed event propagation process "
                                      "requires target variable with a 1D shape");
         }
     }
     // Otherwise, check buffer size matches
     else {
-        if (getTargetShape().getDims().size() != 2 || m_Target.hasTimeSlice()) {
+        if (getTargetShape().getNumDims() != 2 || m_Target.hasTimeSlice()) {
             throw std::runtime_error("Delayed event propagation process "
                                      "requires target variable with a 2D shape");
         }
@@ -333,6 +333,15 @@ void RNGInitProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Mod
 {
     UPDATE_HASH_CLASS_NAME(RNGInitProcess);
 }
+//----------------------------------------------------------------------------
+void RNGInitProcess::updateCompatibleSplitDimensions(std::shared_ptr<const State> state, 
+                                                     uint32_t &compatibleSplitDimensions) const
+{
+    assert(state == getSeed());
+
+    // Seed should be split along device axis
+    compatibleSplitDimensions &= (1 << 1);
+}
 
 //----------------------------------------------------------------------------
 // MemsetProcess
@@ -354,47 +363,14 @@ void MemsetProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Mode
 {
     UPDATE_HASH_CLASS_NAME(MemsetProcess);
 }
-
 //----------------------------------------------------------------------------
-// BroadcastProcess
-//----------------------------------------------------------------------------
-BroadcastProcess::BroadcastProcess(Private, VariablePtr source, VariablePtr target, const std::string &name)
-:   Process(name), m_Source(source), m_Target(target)
+void MemsetProcess::updateCompatibleSplitDimensions(std::shared_ptr<const State> state, 
+                                                    uint32_t &compatibleSplitDimensions) const
 {
-    if(m_Source == nullptr) {
-        throw std::runtime_error("Broadcast process requires source");
-    }
-
-    if(m_Source->getShape().getDims().size() != 1) {
-        throw std::runtime_error("Multi-dimensional sources aren't currently "
-                                 "supported by broadcast processes");
-    }
-
-    // If target is a variable
-    if(m_Target == nullptr) {
-        throw std::runtime_error("Broadcast process requires target");
-    }
-
-    if(m_Target->getShape().getDims().size() != 2) {
-        throw std::runtime_error("Broadcast process currently required 2 dimensional target");
-    }
-
-    if(m_Target->getShape().getFirst() != m_Source->getShape().getFirst()) {
-        throw std::runtime_error("Broadcast process requires first dimension of source and target to match");
-    }
-
-    if (m_Source->getType() != m_Target->getType()) {
-        throw std::runtime_error("Broadcast process requires source and target with same shape");
-    }
-}
-//----------------------------------------------------------------------------
-std::vector<std::shared_ptr<const State>> BroadcastProcess::getAllState() const
-{
-    return {getSource(), getTarget()};
-}
-//----------------------------------------------------------------------------
-void BroadcastProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Model&) const
-{
-    UPDATE_HASH_CLASS_NAME(BroadcastProcess);
+    assert(state == getTarget().getUnderlying());
+    
+    // Ensure that we only split along the dimensions of the slice  
+    // exposed to the memset process i.e. not the time dimension
+    compatibleSplitDimensions &= ((1 << getTarget().getShape().getNumDims()) - 1);
 }
 }
