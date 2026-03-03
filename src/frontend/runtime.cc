@@ -97,12 +97,6 @@ ArrayBase *DeviceBase::getArray(std::shared_ptr<const State> state) const
 //----------------------------------------------------------------------------
 // Frontend::Runtime
 //----------------------------------------------------------------------------
-Runtime::Runtime(const Model &model, size_t numDevices)
-:   m_Devices(numDevices), m_MergedModel(model), m_NumDevices(numDevices), 
-    m_WorkersReady(0), m_WorkerRun(true), m_Command(nullptr)
-{
-}
-//----------------------------------------------------------------------------
 Runtime::~Runtime()
 {
     // Join all worker threads
@@ -202,6 +196,12 @@ void Runtime::run(std::shared_ptr<const Kernel> kernel)
     // Run run command
     RunKernelCommand run(kernel);
     runCommand(&run);
+}
+//----------------------------------------------------------------------------
+Runtime::Runtime(const Model &model, size_t numDevices)
+:   m_Devices(numDevices), m_MergedModel(model), m_NumDevices(numDevices), 
+    m_WorkerRun(true), m_Command(nullptr)
+{
 }
 //----------------------------------------------------------------------------
 void Runtime::runCommand(Command *command)

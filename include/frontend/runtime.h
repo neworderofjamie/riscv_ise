@@ -173,7 +173,6 @@ public:
 class FRONTEND_EXPORT Runtime
 {
 public:
-    Runtime(const Model &model, size_t numDevices);
     virtual ~Runtime();
 
     //------------------------------------------------------------------------
@@ -190,6 +189,8 @@ public:
     size_t getNumDevices() const{ return m_NumDevices; }
 
 protected:
+    Runtime(const Model &model, size_t numDevices);
+    
     //------------------------------------------------------------------------
     // Declared virtuals
     //------------------------------------------------------------------------

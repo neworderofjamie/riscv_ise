@@ -12,6 +12,13 @@
 // FeNN backend includes
 #include "fenn/backend/backend_export.h"
 #include "fenn/backend/memory_allocator.h"
+#include "fenn/backend/model.h"
+
+// Forward declarations
+namespace FeNN::Backend
+{
+class Runtime;
+}
 
 //----------------------------------------------------------------------------
 // FeNN::Backend::URAMArrayBase
@@ -245,7 +252,7 @@ public:
 class FENN_BACKEND_EXPORT DeviceFeNN : public Frontend::DeviceBase
 {
 public:
-    using Frontend::DeviceBase::DeviceBase;
+    DeviceFeNN(size_t deviceIndex, const Runtime &runtime);
 
     //------------------------------------------------------------------------
     // Declared virtuals
@@ -282,6 +289,12 @@ public:
     const auto &getLLMAllocator() const{ return m_LLMAllocator; }
     auto &getLLMAllocator(){ return m_LLMAllocator; }
 
+protected:
+    //------------------------------------------------------------------------
+    // Protected API
+    //------------------------------------------------------------------------
+    const auto &getRuntime() const{ return m_Runtime.get(); }
+
 private:
     //------------------------------------------------------------------------
     // Members
@@ -290,6 +303,8 @@ private:
     BRAMAllocator m_BRAMAllocator;
     URAMAllocator m_URAMAllocator;
     LLMAllocator m_LLMAllocator;
+
+    std::reference_wrapper<const Runtime> m_Runtime;
 };
 
 //----------------------------------------------------------------------------
@@ -298,7 +313,8 @@ private:
 class FENN_BACKEND_EXPORT Runtime : public Frontend::Runtime
 {
 public:
-   Runtime(const Frontend::Model &model, size_t numDevices, bool useDRAMForWeights = false, bool keepParamsInRegisters = true, 
+   Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &kernels, 
+           size_t numDevices, bool useDRAMForWeights = false, bool keepParamsInRegisters = true, 
            Compiler::RoundingMode neuronUpdateRoundingMode = Compiler::RoundingMode::NEAREST);
 
     //------------------------------------------------------------------------
@@ -306,9 +322,7 @@ public:
     //------------------------------------------------------------------------
     const auto &getKernelCode(std::shared_ptr<const Frontend::Kernel> kernel) const{ return m_KernelCode.at(kernel); }
     bool shouldUseDRAMForWeights() const{ return m_UseDRAMForWeights; }
-
-protected:
-    
+    const auto &getModel() const{ return m_Model; }
     
 private:
     //------------------------------------------------------------------------
@@ -321,5 +335,7 @@ private:
     bool m_UseDRAMForWeights;
     bool m_KeepParamsInRegisters;
     Compiler::RoundingMode m_NeuronUpdateRoundingMode;
+
+    Model m_Model;
 };
 }

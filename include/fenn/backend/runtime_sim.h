@@ -25,8 +25,8 @@ namespace FeNN::Backend
 class FENN_BACKEND_EXPORT DeviceFeNNSim : public DeviceFeNN
 {
 public:
-    DeviceFeNNSim(size_t deviceIndex, size_t dmaBufferSize, ISE::SharedBusSim &sharedBus,
-                  const RuntimeSim &runtime);
+    DeviceFeNNSim(size_t deviceIndex, const Runtime &runtime, 
+                  size_t dmaBufferSize, ISE::SharedBusSim &sharedBus);
     
     //------------------------------------------------------------------------
     // Device virtuals
@@ -66,7 +66,6 @@ private:
     ISE::RISCV m_RISCV;
     std::unique_ptr<ISE::DMAControllerSim> m_DMAController;
     std::unique_ptr<ISE::RouterSim> m_Router;
-    std::reference_wrapper<const RuntimeSim> m_Runtime;
     DMABufferAllocator m_DMABufferAllocator;
 };
 
@@ -76,7 +75,8 @@ private:
 class FENN_BACKEND_EXPORT RuntimeSim : public Runtime
 {
 public:
-    RuntimeSim(const Frontend::Model &model, size_t numDevices, bool useDRAMForWeights = false, bool keepParamsInRegisters = true, 
+    RuntimeSim(const std::vector<std::shared_ptr<const Frontend::Kernel>> &kernels,
+               size_t numDevices, bool useDRAMForWeights = false, bool keepParamsInRegisters = true, 
                Compiler::RoundingMode neuronUpdateRoundingMode = Compiler::RoundingMode::NEAREST,
                size_t dmaBufferSize = 512 * 1024);
     
