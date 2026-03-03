@@ -118,17 +118,14 @@ std::unique_ptr<Frontend::ArrayBase> DeviceFeNN::createArray(std::shared_ptr<con
     wordAlignedShape.getLast() = ::Common::Utils::ceilDivide(wordAlignedShape.getLast(), 32);
 
     // Create BRAM array
-    return createBRAMArray(GeNN::Type::Uint32, wordAlignedShape.getFlattenedSize());
+    return createBRAMArray(GeNN::Type::Uint32, wordAlignedShape);
 }
 //----------------------------------------------------------------------------
 std::unique_ptr<Frontend::ArrayBase> DeviceFeNN::createArray(std::shared_ptr<const Frontend::Variable> variable,
-                                                              const Frontend::Shape &deviceShape)
+                                                              const Frontend::Shape &shape)
 {
     // Pad last dimension to multiplies of 32
-    const auto paddedShape = deviceShape.padLast(32);
-
-    // Flatten to get count
-    const size_t count = paddedShape.getFlattenedSize();
+    const auto paddedShape = shape.padLast(32);
 
     // Create array in correct memory space depending on compatibility
     switch(getRuntime().getModel().getStateMemSpace(variable, getRuntime().shouldUseDRAMForWeights()))
@@ -136,17 +133,17 @@ std::unique_ptr<Frontend::ArrayBase> DeviceFeNN::createArray(std::shared_ptr<con
     case MemSpace::DRAM:
     {
         LOGI << "Creating variable '" << variable->getName() << "' array in DRAM";
-        return createDRAMArray(variable->getType(), count);
+        return createDRAMArray(variable->getType(), paddedShape);
     }
     case MemSpace::URAM:
     {
         LOGI << "Creating variable '" << variable->getName() << "' array in URAM";
-        return createURAMArray(variable->getType(), count);
+        return createURAMArray(variable->getType(), paddedShape);
     }
     case MemSpace::LLM:
     {
         LOGI << "Creating variable '" << variable->getName() << "' array in LLM";
-        return createLLMArray(variable->getType(), count);
+        return createLLMArray(variable->getType(), paddedShape);
     }
     case MemSpace::URAM_LLM:
     {
@@ -158,12 +155,12 @@ std::unique_ptr<Frontend::ArrayBase> DeviceFeNN::createArray(std::shared_ptr<con
         // Slice off time dimension from shape
         const auto oneTimestepShape = paddedShape.slice(1);
 
-        return createURAMLLMArray(variable->getType(), oneTimestepShape.getFlattenedSize(), count);
+        return createURAMLLMArray(variable->getType(), oneTimestepShape, paddedShape);
     }
     case MemSpace::BRAM:
     {
         LOGI << "Creating variable '" << variable->getName() << "' array in BRAM";
-        return createBRAMArray(variable->getType(), count);
+        return createBRAMArray(variable->getType(), paddedShape);
     }
     default:
         throw std::runtime_error("Variable '" + variable->getName() + "' is not compatible "
@@ -177,7 +174,7 @@ std::unique_ptr<Frontend::ArrayBase> DeviceFeNN::createPerformanceCounter()
 
     // Performance counter contains a 64-bit number for 
     // instructions retired and one for number of cycles 
-    return createBRAMArray(GeNN::Type::Uint64, 2);
+    return createBRAMArray(GeNN::Type::Uint64, Frontend::Shape{2});
 }
 
 //----------------------------------------------------------------------------
@@ -198,7 +195,7 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
     // Loop through kernels
     for (const auto &k : getMergedModel().getModel().getKernels()) {
         // Generate kernel
-        const auto code = Assembler::Utils::generateStandardKernel(
+        auto code = Assembler::Utils::generateStandardKernel(
             true/*shouldGenerateSimulationKernels()*/, readyFlagPtr,
             [&k, this](Assembler::CodeGenerator &c, Assembler::VectorRegisterAllocator &vectorRegisterAllocator, 
                        Assembler::ScalarRegisterAllocator &scalarRegisterAllocator)
@@ -228,6 +225,9 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                      }
                                  });
             });
+
+        // Add to kernel code dictionary
+        m_KernelCode.try_emplace(k, code);
     }
 }
 }

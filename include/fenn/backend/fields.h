@@ -1,17 +1,20 @@
 #pragma once
 
 // Standard C++ includes
+#include <functional>
 #include <memory>
 #include <unordered_map>
 #include <variant>
 #include <vector>
 
 // Backend includes
-#include "backend/merged_model.h"
+#include "frontend/merged_model.h"
 
 // Forward declarations
 namespace Frontend
 {
+class ArrayBase;
+class DeviceBase;
 class State;
 }
 
@@ -22,9 +25,11 @@ namespace FeNN::Backend
 {
 class MergedFields
 {
-    using FieldState = std::vector<std::shared_ptr<const Frontend::State>>;
-    using FieldValue = std::vector<std::variant<int32_t, uint32_t>>;
-    using FieldPayload = std::variant<FieldState, FieldValue>;
+    using FieldValue = std::variant<int32_t, uint32_t, ArrayBase*>;
+
+    template<typename P>
+    using GetFieldValueFunc = std::function<FieldValue(const Frontend::DeviceBase &, 
+                                                       std::shared_ptr<const P>)> GetFieldValueFunc;
 
 public:
     MergedFields() : m_NextFieldOffset(0)
@@ -33,13 +38,17 @@ public:
     //----------------------------------------------------------------------------
     // Public API
     //----------------------------------------------------------------------------
-    template<typename P, typename F>
-    uint32_t addPointerField(const ::Backend::MergedProcess &mergedProcess, 
-                             F getStateFn, uint32_t fieldSize = 4)
+    template<typename P>
+    uint32_t addField(const ::Backend::MergedProcess &mergedProcess, 
+                      GetFieldValueFunc<p> getFieldValueFn, uint32_t fieldSize = 4)
     {
         // Gather state from all merged processes and assign to field
         m_FieldOffsets.emplace_back(m_NextFieldOffset, 
-                                    std::move(mergedProcess.gather<FieldState::value_type, P>(getStateFn)));
+                                    [getFieldValueFn](const Frontend::DeviceBase &d, 
+                                        std::shared_ptr<const Frontend::Process> p)
+                                    {
+                                        return getFieldValueFn(d, std::static_pointer_cast<const P>);
+                                    });
 
         // Update next field offset
         m_NextFieldOffset += fieldSize;
@@ -48,7 +57,7 @@ public:
         return m_FieldOffsets.back().first;
     }
 
-    template<typename P, typename F>
+    /*template<typename P, typename F>
     uint32_t addValueField(const ::Backend::MergedProcess &mergedProcess, 
                            F getStateFn, uint32_t fieldSize = 4)
     {
@@ -61,7 +70,7 @@ public:
 
         // Return offset of new fiel,d
         return m_FieldOffsets.back().first;
-    }
+    }*/
 
     const auto &getFieldOffsets() const{ return m_FieldOffsets; }
     const uint32_t getSize() const{ return m_NextFieldOffset; }
@@ -73,7 +82,7 @@ private:
     // Members
     //----------------------------------------------------------------------------
     uint32_t m_NextFieldOffset;
-    std::vector<std::pair<uint32_t, FieldPayload>> m_FieldOffsets;
+    std::vector<std::pair<uint32_t, GetFieldValueFunc>> m_FieldOffsets;
 };
 }
 

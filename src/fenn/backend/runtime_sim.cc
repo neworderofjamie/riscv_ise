@@ -35,11 +35,11 @@ namespace
 class URAMArray : public URAMArrayBase
 {
 public:
-    URAMArray(const Type::ResolvedType &type, size_t count, DeviceFeNNSim &device)
-    :   URAMArrayBase(type, count), m_Device(device)
+    URAMArray(const Type::ResolvedType &type, const Frontend::Shape &shape, DeviceFeNNSim &device)
+    :   URAMArrayBase(type, shape), m_Device(device)
     {
         // Allocate if count is specified
-        if(count > 0) {
+        if(getCount() > 0) {
             // Allocate memory for host pointer
             setHostPointer(new uint8_t[getSizeBytes()]);
 
@@ -89,11 +89,11 @@ private:
 class BRAMArray : public FeNN::Backend::BRAMArrayBase
 {
 public:
-    BRAMArray(const GeNN::Type::ResolvedType &type, size_t count, DeviceFeNNSim &device)
-    :   BRAMArrayBase(type, count), m_Device(device)
+    BRAMArray(const GeNN::Type::ResolvedType &type, const Frontend::Shape &shape, DeviceFeNNSim &device)
+    :   BRAMArrayBase(type, shape), m_Device(device)
     {
         // Allocate if count is specified
-        if(count > 0) {
+        if(getCount() > 0) {
             // Allocate memory for host pointer
             setHostPointer(new uint8_t[getSizeBytes()]);
 
@@ -143,11 +143,11 @@ private:
 class LLMArray : public FeNN::Backend::LLMArrayBase
 {
 public:
-    LLMArray(const GeNN::Type::ResolvedType &type, size_t count, DeviceFeNNSim &device)
-    :   LLMArrayBase(type, count), m_Device(device)
+    LLMArray(const GeNN::Type::ResolvedType &type, const Frontend::Shape &shape, DeviceFeNNSim &device)
+    :   LLMArrayBase(type, shape), m_Device(device)
     {
         // Allocate if count is specified
-        if(count > 0) {
+        if(getCount() > 0) {
             // Allocate memory for host pointer
             setHostPointer(nullptr);
 
@@ -208,11 +208,11 @@ private:
 class DRAMArray : public DRAMArrayBase
 {
 public:
-    DRAMArray(const GeNN::Type::ResolvedType &type, size_t count, DeviceFeNNSim &device)
-    :   DRAMArrayBase(type, count), m_Device(device)
+    DRAMArray(const GeNN::Type::ResolvedType &type, const Frontend::Shape &shape, DeviceFeNNSim &device)
+    :   DRAMArrayBase(type, shape), m_Device(device)
     {
         // Allocate if count is specified
-        if(count > 0) {
+        if(getCount() > 0) {
             // Allocate block of DMA buffer
             const size_t offset = m_Device.get().getDMABufferAllocator().allocate(getSizeBytes());
 
@@ -259,11 +259,11 @@ private:
 class URAMLLMArray : public URAMLLMArrayBase
 {
 public:
-    URAMLLMArray(const GeNN::Type::ResolvedType &type, size_t uramCount, 
-                 size_t llmCount, DeviceFeNNSim &device)
-    :   URAMLLMArrayBase(type, uramCount, llmCount), m_Device(device)
+    URAMLLMArray(const GeNN::Type::ResolvedType &type, const Frontend::Shape &uramShape, 
+                 const Frontend::Shape &llmShape, DeviceFeNNSim &device)
+    :   URAMLLMArrayBase(type, uramShape, llmShape), m_Device(device)
     {
-        if(uramCount > 0) {
+        if(getCount() > 0) {
             // Allocate memory for host pointer
             setHostPointer(new uint8_t[getSizeBytes()]);
 
@@ -272,7 +272,7 @@ public:
         }
 
         // Allocate LLM
-        if(llmCount > 0) {
+        if(getLLMCount() > 0) {
             setLLMPointer(m_Device.get().getLLMAllocator().allocate(getLLMSizeBytes()));
         }
     }
@@ -314,99 +314,6 @@ public:
 private:
     std::reference_wrapper<DeviceFeNNSim> m_Device;
 };
-
-
-//----------------------------------------------------------------------------
-// SimState
-//----------------------------------------------------------------------------
-/*class SimState : public StateBase
-{
-public:
-    SimState(size_t dmaBufferSize)
-    :   m_DMABufferAllocator(dmaBufferSize)
-    {
-        m_RISCV.addCoprocessor<VectorProcessor>(vectorQuadrant);
-
-        // Create simulated DMA controller
-        m_DMAController = std::make_unique<DMAControllerSim>(m_RISCV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getVectorDataMemory(),
-                                                             dmaBufferSize);
-        m_RISCV.setDMAController(m_DMAController.get());
-    }
-
-    //------------------------------------------------------------------------
-    // StateBase virtuals
-    //------------------------------------------------------------------------
-    virtual void setInstructions(const std::vector<uint32_t> &instructions) override final
-    {
-        m_RISCV.setInstructions(instructions);
-    }
-
-    virtual void startRun() override final
-    {
-        m_RISCV.setPC(0);
-        m_RISCV.run();
-    }
-
-    virtual void waitRun() override final
-    {
-    }
-
-    virtual std::unique_ptr<ArrayBase> createURAMArray(const GeNN::Type::ResolvedType &type, size_t count) final override
-    {
-        return std::make_unique<::URAMArray>(type, count, this);
-    }
-    
-    virtual std::unique_ptr<ArrayBase> createBRAMArray(const GeNN::Type::ResolvedType &type, size_t count) final override
-    {
-        return std::make_unique<::BRAMArray>(type, count, this);
-    }
-    
-    virtual std::unique_ptr<ArrayBase> createLLMArray(const GeNN::Type::ResolvedType &type, size_t count) final override
-    {
-        return std::make_unique<::LLMArray>(type, count, this);
-    }
-    
-    virtual std::unique_ptr<ArrayBase> createDRAMArray(const GeNN::Type::ResolvedType &type, size_t count) final override
-    {
-        return std::make_unique<::DRAMArray>(type, count, this);
-    }
-
-    virtual std::unique_ptr<ArrayBase> createURAMLLMArray(const GeNN::Type::ResolvedType &type,
-                                                          size_t uramCount, size_t llmCount) final override
-    {
-        return std::make_unique<::URAMLLMArray>(type, uramCount, llmCount, this);
-    }
-
-    virtual std::unique_ptr<IFieldArray> createFieldArray(const Model &model) final override
-    {
-        return std::make_unique<::BRAMFieldArray<BRAMArray>>(GeNN::Type::Uint8, model.getNumFieldBytes(), this);
-    }
-
-    virtual std::optional<unsigned int> getSOCPower() const final override
-    {
-        return std::nullopt;
-    }
-
-    //------------------------------------------------------------------------
-    // Public API
-    //------------------------------------------------------------------------
-    const auto &getRISCV() const{ return m_RISCV; }
-    auto &getRISCV(){ return m_RISCV; }  
-
-    const auto &getDMABufferAllocator() const{ return m_DMABufferAllocator; }
-    auto &getDMABufferAllocator(){ return m_DMABufferAllocator; }
-    
-    const DMAControllerSim *getDMAController() const{ return m_DMAController.get(); }
-    DMAControllerSim *getDMAController(){ return m_DMAController.get(); }
-
-private:
-    //------------------------------------------------------------------------
-    // Members
-    //------------------------------------------------------------------------
-    RISCV m_RISCV;
-    std::unique_ptr<DMAControllerSim> m_DMAController;
-    DMABufferAllocator m_DMABufferAllocator;
-};*/
 }
 
 //----------------------------------------------------------------------------
@@ -444,30 +351,35 @@ void DeviceFeNNSim::runKernel(std::shared_ptr<const Frontend::Kernel> kernel)
     m_RISCV.run();
 }
 //----------------------------------------------------------------------------
-std::unique_ptr<Frontend::ArrayBase> DeviceFeNNSim::createURAMArray(const GeNN::Type::ResolvedType &type, size_t count)
+std::unique_ptr<Frontend::ArrayBase> DeviceFeNNSim::createURAMArray(const GeNN::Type::ResolvedType &type, 
+                                                                    const Frontend::Shape &shape)
 {
-    return std::make_unique<::URAMArray>(type, count, *this);
+    return std::make_unique<::URAMArray>(type, shape, *this);
 }
 //----------------------------------------------------------------------------
-std::unique_ptr<Frontend::ArrayBase> DeviceFeNNSim::createBRAMArray(const GeNN::Type::ResolvedType &type, size_t count)
+std::unique_ptr<Frontend::ArrayBase> DeviceFeNNSim::createBRAMArray(const GeNN::Type::ResolvedType &type,
+                                                                    const Frontend::Shape &shape)
 {
-    return std::make_unique<::BRAMArray>(type, count, *this);
+    return std::make_unique<::BRAMArray>(type, shape, *this);
 }
 //----------------------------------------------------------------------------
-std::unique_ptr<Frontend::ArrayBase> DeviceFeNNSim::createLLMArray(const GeNN::Type::ResolvedType &type, size_t count)
+std::unique_ptr<Frontend::ArrayBase> DeviceFeNNSim::createLLMArray(const GeNN::Type::ResolvedType &type,
+                                                                   const Frontend::Shape &shape)
 {
-    return std::make_unique<::LLMArray>(type, count, *this);
+    return std::make_unique<::LLMArray>(type, shape, *this);
 }
 //----------------------------------------------------------------------------
-std::unique_ptr<Frontend::ArrayBase> DeviceFeNNSim::createDRAMArray(const GeNN::Type::ResolvedType &type, size_t count)
+std::unique_ptr<Frontend::ArrayBase> DeviceFeNNSim::createDRAMArray(const GeNN::Type::ResolvedType &type,
+                                                                    const Frontend::Shape &shape)
 {
-    return std::make_unique<::DRAMArray>(type, count, *this);
+    return std::make_unique<::DRAMArray>(type, shape, *this);
 }
 //----------------------------------------------------------------------------
 std::unique_ptr<Frontend::ArrayBase> DeviceFeNNSim::createURAMLLMArray(const GeNN::Type::ResolvedType &type,
-                                                                        size_t uramCount, size_t llmCount)
+                                                                        const Frontend::Shape &uramShape, 
+                                                                        const Frontend::Shape &llmShape)
 {
-    return std::make_unique<::URAMLLMArray>(type, uramCount, llmCount, *this);
+    return std::make_unique<::URAMLLMArray>(type, uramShape, llmShape, *this);
 }
 
 //----------------------------------------------------------------------------
@@ -485,6 +397,4 @@ std::unique_ptr<Frontend::DeviceBase> RuntimeSim::createDevice(size_t deviceInde
 {
     return std::make_unique<DeviceFeNNSim>(deviceIndex, *this, m_DMABufferSize, m_SharedBus);
 }
-
-
 }
