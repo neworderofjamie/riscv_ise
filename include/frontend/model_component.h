@@ -10,7 +10,9 @@
 // Forward declarations
 namespace Frontend
 {
+class EventContainer;
 class Shape;
+class Variable;
 }
 
 //----------------------------------------------------------------------------

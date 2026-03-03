@@ -23,6 +23,7 @@
 namespace Frontend
 {
 class EventContainer;
+class Model;
 class Parameter;
 }
 
