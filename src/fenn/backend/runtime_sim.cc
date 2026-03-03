@@ -322,15 +322,15 @@ private:
 namespace FeNN::Backend
 {
 DeviceFeNNSim::DeviceFeNNSim(size_t deviceIndex, const Runtime &runtime, 
-                             size_t dmaBufferSize, ISE::SharedBusSim &sharedBus)
-:   DeviceFeNN(deviceIndex, runtime), m_DMABufferAllocator(dmaBufferSize)
+                             ISE::SharedBusSim &sharedBus)
+:   DeviceFeNN(deviceIndex, runtime), m_DMABufferAllocator(runtime.getDMABufferSize())
 {
     m_RISCV.addCoprocessor<ISE::VectorProcessor>(FeNN::Common::vectorQuadrant);
 
     // Create simulated DMA controller
     m_DMAController = std::make_unique<ISE::DMAControllerSim>(
         m_RISCV.getCoprocessor<ISE::VectorProcessor>(FeNN::Common::vectorQuadrant)->getVectorDataMemory(),
-        dmaBufferSize);
+        runtime.getDMABufferSize());
     m_RISCV.setDMAController(m_DMAController.get());
 
     // Create simulated DMA controller
@@ -388,13 +388,13 @@ std::unique_ptr<Frontend::ArrayBase> DeviceFeNNSim::createURAMLLMArray(const GeN
 RuntimeSim::RuntimeSim(const std::vector<std::shared_ptr<const Frontend::Kernel>> &kernels,
                       size_t numDevices, bool useDRAMForWeights, bool keepParamsInRegisters, 
                       Compiler::RoundingMode neuronUpdateRoundingMode, size_t dmaBufferSize)
-:   Runtime(kernels, numDevices, useDRAMForWeights, keepParamsInRegisters, neuronUpdateRoundingMode),
-    m_SharedBus(numDevices), m_DMABufferSize(dmaBufferSize)
+:   Runtime(kernels, numDevices, useDRAMForWeights, keepParamsInRegisters, neuronUpdateRoundingMode, dmaBufferSize),
+    m_SharedBus(numDevices)
 {
 }
 //------------------------------------------------------------------------
 std::unique_ptr<Frontend::DeviceBase> RuntimeSim::createDevice(size_t deviceIndex)
 {
-    return std::make_unique<DeviceFeNNSim>(deviceIndex, *this, m_DMABufferSize, m_SharedBus);
+    return std::make_unique<DeviceFeNNSim>(deviceIndex, *this, m_SharedBus);
 }
 }

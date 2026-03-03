@@ -182,9 +182,10 @@ std::unique_ptr<Frontend::ArrayBase> DeviceFeNN::createPerformanceCounter()
 //----------------------------------------------------------------------------
 Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &kernels, 
                  size_t numDevices, bool useDRAMForWeights , bool keepParamsInRegisters, 
-                 Compiler::RoundingMode neuronUpdateRoundingMode)
+                 Compiler::RoundingMode neuronUpdateRoundingMode, size_t dmaBufferSize)
 :   m_Model(kernels), Frontend::Runtime(m_Model, numDevices), m_UseDRAMForWeights(useDRAMForWeights), 
-    m_KeepParamsInRegisters(keepParamsInRegisters), m_NeuronUpdateRoundingMode(neuronUpdateRoundingMode)
+    m_KeepParamsInRegisters(keepParamsInRegisters), m_NeuronUpdateRoundingMode(neuronUpdateRoundingMode),
+    m_DMABufferSize(dmaBufferSize)
 {
     // **TODO** fields
     // **TODO** create device state objects to start allocating BRAM for

@@ -1,4 +1,4 @@
-#include "fenn/backend/backend_fenn_hw.h"
+#include "fenn/backend/runtime_hw.h"
 
 // Standard C++ includes
 #include <optional>
@@ -27,9 +27,6 @@ using namespace GeNN;
 //------------------------------------------------------------------------
 namespace
 {
-// Forward declarations
-class HWState;
-
 //------------------------------------------------------------------------
 // URAMArray
 //------------------------------------------------------------------------
@@ -38,23 +35,64 @@ class HWState;
 class URAMArray : public URAMArrayBase
 {
 public:
-    URAMArray(const Type::ResolvedType &type, size_t count, HWState *state);
-    virtual ~URAMArray();
+    URAMArray(const Type::ResolvedType &type, size_t count, const Frontend::Shape &shape, 
+              DeviceFeNNHW &device)
+    :   URAMArrayBase(type, shape), m_Device(device)
+    {
+        // Allocate if count is specified
+        if(getCount() > 0) {
+            // Allocate block of DMA buffer and set host pointer
+            m_DMABufferOffset = m_Device.get().getDMABufferAllocator().allocate(getSizeBytes());
+            setHostPointer(m_Device.get().getDMABuffer().getData() + m_DMABufferOffset.value());
+
+            // Allocate URAM
+            setURAMPointer(m_Device.get().getURAMAllocator().allocate(getSizeBytes()));
+        }
+    }
+    virtual ~URAMArray()
+    {
+        if(getCount() > 0) {
+            setHostPointer(nullptr);
+            setURAMPointer(std::nullopt);
+            m_DMABufferOffset.reset();
+        }
+    }
 
     //------------------------------------------------------------------------
     // ArrayBase virtuals
     //------------------------------------------------------------------------
     //! Copy entire array to device
-    virtual void pushToDevice() final override;
+    virtual void pushToDevice() final override
+    {
+        // Start DMA write and wait for completion
+        auto *dmaController = m_Device.get().getDevice().getDMAController();
+        dmaController->startWrite(getURAMPointer(), m_Device.get().getDMABuffer(),
+                                  m_DMABufferOffset.value(), getSizeBytes());
+        dmaController->waitForWriteComplete();
+    }
 
-    virtual void memsetHostPointer(int value) final override;
+    virtual void memsetHostPointer(int value) final override
+    {
+        // **YUCK** memset seems to do something that doens't play
+        // nicely with mmap'd memory and causes bus error
+        for (size_t i = 0; i < getSizeBytes(); i++) {
+            getHostPointer()[i] = value;
+        }
+    }
 
     //! Copy entire array from device
-    virtual void pullFromDevice() final override;
+    virtual void pullFromDevice() final override
+    {
+        // Start DMA read and wait for completion
+        auto *dmaController = m_Device.get().getDevice().getDMAController();
+        dmaController->startRead(m_Device.get().getDMABuffer(), m_DMABufferOffset.value(), 
+                                 getURAMPointer(), getSizeBytes());
+        dmaController->waitForReadComplete();
+    }
 
 private:
     std::optional<size_t> m_DMABufferOffset;
-    HWState *m_State;
+    std::reference_wrapper<DeviceFeNNHW> m_Device;
 };
 
 //------------------------------------------------------------------------
@@ -65,21 +103,47 @@ private:
 class BRAMArray : public BRAMArrayBase
 {
 public:
-    BRAMArray(const GeNN::Type::ResolvedType &type, size_t count, HWState *state);
+    BRAMArray(const GeNN::Type::ResolvedType &type, const Frontend::Shape &shape, 
+              DeviceFeNNHW &device)
+    :   BRAMArrayBase(type, shape), m_Device(device)
+    {
+        // Allocate if count is specified
+        if(getCount() > 0) {
+            // Allocate memory for host pointer
+            setHostPointer(new uint8_t[getSizeBytes()]);
 
-    virtual ~BRAMArray();
+            // Allocate BRAM
+            setBRAMPointer(m_Device.get().getBRAMAllocator().allocate(getSizeBytes()));
+        }
+    }
+
+    virtual ~BRAMArray()
+    {
+        if(getCount() > 0) {
+            delete [] getHostPointer();
+            setHostPointer(nullptr);
+            setBRAMPointer(std::nullopt);
+        }
+    }
 
     //------------------------------------------------------------------------
     // ArrayBase virtuals
     //------------------------------------------------------------------------
     //! Copy entire array to device
-    virtual void pushToDevice() final override;
+    virtual void pushToDevice() final override
+     {
+        m_Device.get().getDevice().memcpyDataToDevice(getBRAMPointer(), getHostPointer(),
+                                                      getSizeBytes());
+    }
 
     //! Copy entire array from device
-    virtual void pullFromDevice() final override;
-
+    virtual void pullFromDevice() final override
+    {
+        m_Device.get().getDevice().memcpyDataFromDevice(getHostPointer(), getBRAMPointer(), 
+                                                        getSizeBytes());
+    }
 private:
-     HWState *m_State;
+     std::reference_wrapper<DeviceFeNNHW> m_Device;
 };
 
 //------------------------------------------------------------------------
@@ -89,21 +153,42 @@ private:
 class LLMArray : public LLMArrayBase
 {
 public:
-    LLMArray(const GeNN::Type::ResolvedType &type, size_t count, HWState *state);
+    LLMArray(const GeNN::Type::ResolvedType &type, const Frontend::Shape &shape, 
+             DeviceFeNNHW &device)
+    :   LLMArrayBase(type, shape), m_Device(device)
+    {
+        // Allocate if count is specified
+        if(getCount() > 0) {
+            // Don't allocate memory for host pointer
+            setHostPointer(nullptr);
 
-    virtual ~LLMArray();
+            // Allocate LLM
+            setLLMPointer(m_Device.get().getLLMAllocator().allocate(getSizeBytes()));
+        }
+    }
 
+    virtual ~LLMArray()
+    {
+        if(getCount() > 0) {
+            setLLMPointer(std::nullopt);
+        }
+    }
     //------------------------------------------------------------------------
     // ArrayBase virtuals
     //------------------------------------------------------------------------
     //! Copy entire array to device
-    virtual void pushToDevice() final override;
+    virtual void pushToDevice() final override
+    {
+        throw std::runtime_error("LLM arrays cannot be pushed to device on FeNN");
+    }
 
     //! Copy entire array from device
-    virtual void pullFromDevice() final override;
-
+    virtual void pullFromDevice() final override
+    {
+        throw std::runtime_error("LLM arrays cannot be pulled from device on FeNN");
+    }
 private:
-    HWState *m_State;
+    std::reference_wrapper<DeviceFeNNHW> m_Device;
 };
 
 //------------------------------------------------------------------------
@@ -113,21 +198,46 @@ private:
 class DRAMArray : public DRAMArrayBase
 {
 public:
-    DRAMArray(const GeNN::Type::ResolvedType &type, size_t count, HWState *state);
+    DRAMArray(const GeNN::Type::ResolvedType &type, const Frontend::Shape &shape, 
+              DeviceFeNNHW &device)
+    :   DRAMArrayBase(type, shape), m_Device(device)
+    {
+        // Allocate if count is specified
+        if(getCount() > 0) {
+            // Allocate block of DMA buffer
+            const size_t offset = m_Device.get().getDMABufferAllocator().allocate(getSizeBytes());
 
-    virtual ~DRAMArray();
+            // Add to virtual address of DMA buffer data to get host pointer
+            setHostPointer(m_Device.get().getDMABuffer().getData() + offset);
 
+            // Add to physical address of DMA buffer to get device pointer
+            setDRAMPointer(m_Device.get().getDMABuffer().getPhysicalAddress() + offset);
+        }
+    }
+
+    virtual ~DRAMArray()
+    {
+        if(getCount() > 0) {
+            // **NOTE** no memory is owned by array so just invalidate
+            setHostPointer(nullptr);
+            setDRAMPointer(std::nullopt);
+        }
+    }
     //------------------------------------------------------------------------
     // ArrayBase virtuals
     //------------------------------------------------------------------------
     //! Copy entire array to device
-    virtual void pushToDevice() final override;
+    virtual void pushToDevice() final override
+    {
+    }
 
     //! Copy entire array from device
-    virtual void pullFromDevice() final override;
+    virtual void pullFromDevice() final override
+    {
+    }
 
 private:
-    HWState *m_State;
+    std::reference_wrapper<DeviceFeNNHW> m_Device;
 };
 
 //------------------------------------------------------------------------
@@ -138,375 +248,154 @@ private:
 class URAMLLMArray : public URAMLLMArrayBase
 {
 public:
-    URAMLLMArray(const GeNN::Type::ResolvedType &type, size_t uramCount, size_t llmCount,
-                 HWState *state);
-    virtual ~URAMLLMArray();
+    URAMLLMArray(const GeNN::Type::ResolvedType &type, const Frontend::Shape &uramShape, 
+                 const Frontend::Shape &llmShape, DeviceFeNNHW &device)
+    :   URAMLLMArrayBase(type, uramShape, llmShape), m_Device(device)
+    {
+        if(getCount() > 0) {
+            // Allocate block of DMA buffer and set host pointer
+            m_DMABufferOffset = m_Device.get().getDMABufferAllocator().allocate(getSizeBytes());
+            setHostPointer(m_Device.get().getDMABuffer().getData() + m_DMABufferOffset.value());
 
+            // Allocate URAM
+            setURAMPointer(m_Device.get().getURAMAllocator().allocate(getSizeBytes()));
+        }
+
+        // Allocate LLM
+        if(getLLMCount() > 0) {
+            setLLMPointer(m_Device.get().getLLMAllocator().allocate(getSizeBytes()));
+        }
+    }
+
+    virtual ~URAMLLMArray()
+    {
+        if(getCount() > 0) {
+            setHostPointer(nullptr);
+            setURAMPointer(std::nullopt);
+            m_DMABufferOffset.reset();
+        }
+
+        if(getLLMCount() > 0) {
+            setLLMPointer(std::nullopt);
+        }
+    }
     //------------------------------------------------------------------------
     // ArrayBase virtuals
     //------------------------------------------------------------------------
     //! Copy entire array to device
-    virtual void pushToDevice() final override;
-    
-    virtual void memsetHostPointer(int value) final override;
-
-    //! Copy entire array from device
-    virtual void pullFromDevice() final override;
-
-private:
-    std::optional<size_t> m_DMABufferOffset;
-    HWState *m_State;
-};
-
-//----------------------------------------------------------------------------
-// HWState
-//----------------------------------------------------------------------------
-class HWState : public StateBase
-{
-public:
-    HWState(unsigned int core, unsigned int numCores, size_t dmaBufferSize) 
-    :   m_Device(core, numCores), 
-        m_DMABuffer(getParentDMABuffer(), 
-                    (numCores == 1) ? getParentDMABuffer().getPhysicalAddress() : (0x40000000 + (core * 0x10000000)),
-                    (numCores == 1) ? (getParentDMABuffer().getPhysicalAddress() + getParentDMABuffer().getSize()) : (0x50000000 + (core * 0x10000000))),
-        m_DMABufferAllocator(m_DMABuffer.getSize())
+    virtual void pushToDevice() final override
     {
-        if(m_DMABuffer.getSize() < dmaBufferSize) {
-            LOGW << "DMA buffer created by UDMABuf driver not as large as requestted buffer size";
+        // Start DMA write and wait for completion
+        auto *dmaController = m_Device.get().getDevice().getDMAController();
+        dmaController->startWrite(getURAMPointer(), m_Device.get().getDMABuffer(),
+                                    m_DMABufferOffset.value(), getSizeBytes());
+        dmaController->waitForWriteComplete();
+    }
+    
+    virtual void memsetHostPointer(int value) final override
+    {
+        // **YUCK** memset seems to do something that doens't play
+        // nicely with mmap'd memory and causes bus error
+        for (size_t i = 0; i < getSizeBytes(); i++) {
+            getHostPointer()[i] = value;
         }
     }
 
-    //------------------------------------------------------------------------
-    // StateBase virtuals
-    //------------------------------------------------------------------------
-    virtual void setInstructions(const std::vector<uint32_t> &instructions) override final
+    //! Copy entire array from device
+    virtual void pullFromDevice() final override
     {
-        m_Device.uploadCode(instructions);
+        // Start DMA read and wait for completion
+        auto *dmaController = m_Device.get().getDevice().getDMAController();
+        dmaController->startRead(m_Device.get().getDMABuffer(), m_DMABufferOffset.value(), 
+                                getURAMPointer(), getSizeBytes());
+        dmaController->waitForReadComplete();
     }
-
-    virtual void startRun() override final
-    {
-        // Enable core
-        m_Device.setEnabled(true);
-        LOGD << "Running";
-        
-    }
-
-    virtual void waitRun() override final
-    {
-        // Wait until ready flag
-        m_Device.waitOnNonZero(0);
-        LOGD << "Done";
-
-        // Disable core
-        m_Device.setEnabled(false);
-    }
-
-    std::unique_ptr<ArrayBase> createURAMArray(const GeNN::Type::ResolvedType &type, size_t count) final override
-    {
-        return std::make_unique<::URAMArray>(type, count, this);
-    }
-    
-    std::unique_ptr<ArrayBase> createBRAMArray(const GeNN::Type::ResolvedType &type, size_t count) final override
-    {
-        return std::make_unique<::BRAMArray>(type, count, this);
-    }
-    
-    std::unique_ptr<ArrayBase> createLLMArray(const GeNN::Type::ResolvedType &type, size_t count) final override
-    {
-        return std::make_unique<::LLMArray>(type, count, this);
-    }
-    
-    std::unique_ptr<ArrayBase> createDRAMArray(const GeNN::Type::ResolvedType &type, size_t count) final override
-    {
-        return std::make_unique<::DRAMArray>(type, count, this);
-    }
-
-    virtual std::unique_ptr<ArrayBase> createURAMLLMArray(const GeNN::Type::ResolvedType &type,
-                                                          size_t uramCount, size_t llmCount) final override
-    {
-        return std::make_unique<::URAMLLMArray>(type, uramCount, llmCount, this);
-    }
-
-
-    std::unique_ptr<IFieldArray> createFieldArray(const Model &model) final override
-    {
-        return std::make_unique<::BRAMFieldArray<BRAMArray>>(GeNN::Type::Uint8, model.getNumFieldBytes(), this);
-    }
-
-    virtual std::optional<unsigned int> getSOCPower() const final override
-    {
-        return m_Device.getSOCPower();
-    }
-
-    //------------------------------------------------------------------------
-    // Public API
-    //------------------------------------------------------------------------
-    const auto &getDevice() const{ return m_Device; }
-    auto &getDevice(){ return m_Device; }
-
-    const auto &getDMABufferAllocator() const{ return m_DMABufferAllocator; }
-    auto &getDMABufferAllocator(){ return m_DMABufferAllocator; }
-
-    const auto &getDMABuffer() const{ return m_DMABuffer; }
-    auto &getDMABuffer(){ return m_DMABuffer; }
-
 private:
-//------------------------------------------------------------------------
-    // Static API
-    //------------------------------------------------------------------------
-    static DMABuffer &getParentDMABuffer()
-    {
-        static std::unique_ptr<DMABuffer> parentDMABuffer = std::make_unique<DMABuffer>();
-        return *parentDMABuffer.get();
-    }
-
-    //------------------------------------------------------------------------
-    // Members
-    //------------------------------------------------------------------------
-    Device m_Device;
-    DMABuffer m_DMABuffer;
-    DMABufferAllocator m_DMABufferAllocator;
+    std::optional<size_t> m_DMABufferOffset;
+    std::reference_wrapper<DeviceFeNNHW> m_Device;
 };
-
-//------------------------------------------------------------------------
-// URAMArray
-//------------------------------------------------------------------------
-//! Class for managing arrays in URAM. Host memory lives in 
-//! (uncached) DMA buffer and is transferred to FeNN using DMA controller
-URAMArray::URAMArray(const GeNN::Type::ResolvedType &type, size_t count, HWState *state)
-:   URAMArrayBase(type, count), m_State(state)
-{
-    // Allocate if count is specified
-    if(count > 0) {
-        // Allocate block of DMA buffer and set host pointer
-        m_DMABufferOffset = m_State->getDMABufferAllocator().allocate(getSizeBytes());
-        setHostPointer(m_State->getDMABuffer().getData() + m_DMABufferOffset.value());
-
-        // Allocate URAM
-        setURAMPointer(m_State->getURAMAllocator().allocate(getSizeBytes()));
-    }
-}
-//------------------------------------------------------------------------
-URAMArray::~URAMArray()
-{
-    if(getCount() > 0) {
-        setHostPointer(nullptr);
-        setURAMPointer(std::nullopt);
-        m_DMABufferOffset.reset();
-    }
-}
-//------------------------------------------------------------------------
-void URAMArray::pushToDevice()
-{
-    // Start DMA write and wait for completion
-    auto *dmaController = m_State->getDevice().getDMAController();
-    dmaController->startWrite(getURAMPointer(), m_State->getDMABuffer(),
-                                m_DMABufferOffset.value(), getSizeBytes());
-    dmaController->waitForWriteComplete();
-}
-//------------------------------------------------------------------------
-void URAMArray::memsetHostPointer(int value)
-{
-    // **YUCK** memset seems to do something that doens't play
-    // nicely with mmap'd memory and causes bus error
-    for (size_t i = 0; i < getSizeBytes(); i++) {
-        getHostPointer()[i] = value;
-    }
-}
-//------------------------------------------------------------------------
-void URAMArray::pullFromDevice()
-{
-    // Start DMA read and wait for completion
-    auto *dmaController = m_State->getDevice().getDMAController();
-    dmaController->startRead(m_State->getDMABuffer(), m_DMABufferOffset.value(), 
-                             getURAMPointer(), getSizeBytes());
-    dmaController->waitForReadComplete();
-}
-
-//------------------------------------------------------------------------
-// BRAMArray
-//------------------------------------------------------------------------
-BRAMArray::BRAMArray(const GeNN::Type::ResolvedType &type, size_t count, HWState *state)
-:   BRAMArrayBase(type, count), m_State(state)
-{
-    // Allocate if count is specified
-    if(count > 0) {
-        // Allocate memory for host pointer
-        setHostPointer(new uint8_t[getSizeBytes()]);
-
-        // Allocate BRAM
-        setBRAMPointer(m_State->getBRAMAllocator().allocate(getSizeBytes()));
-    }
-}
-//------------------------------------------------------------------------
-BRAMArray::~BRAMArray()
-{
-    if(getCount() > 0) {
-        delete [] getHostPointer();
-        setHostPointer(nullptr);
-        setBRAMPointer(std::nullopt);
-    }
-}
-//------------------------------------------------------------------------
-void BRAMArray::pushToDevice()
-{
-    m_State->getDevice().memcpyDataToDevice(getBRAMPointer(), getHostPointer(),
-                                            getSizeBytes());
-}
-//------------------------------------------------------------------------
-void BRAMArray::pullFromDevice()
-{
-    m_State->getDevice().memcpyDataFromDevice(getHostPointer(), getBRAMPointer(), 
-                                                getSizeBytes());
-}
-
-//------------------------------------------------------------------------
-// LLMArray
-//------------------------------------------------------------------------
-LLMArray::LLMArray(const GeNN::Type::ResolvedType &type, size_t count, HWState *state)
-:   LLMArrayBase(type, count), m_State(state)
-{
-    // Allocate if count is specified
-    if(count > 0) {
-        // Don't allocate memory for host pointer
-        setHostPointer(nullptr);
-
-        // Allocate LLM
-        setLLMPointer(m_State->getLLMAllocator().allocate(getSizeBytes()));
-    }
-}
-//------------------------------------------------------------------------
-LLMArray::~LLMArray()
-{
-    if(getCount() > 0) {
-        setLLMPointer(std::nullopt);
-    }
-}
-//------------------------------------------------------------------------
-void LLMArray::pushToDevice()
-{
-    throw std::runtime_error("LLM arrays cannot be pushed to device on FeNN");
-}
-//------------------------------------------------------------------------
-void LLMArray::pullFromDevice()
-{
-    throw std::runtime_error("LLM arrays cannot be pulled from device on FeNN");
-}
-
-
-//------------------------------------------------------------------------
-// DRAMArray
-//------------------------------------------------------------------------
-DRAMArray::DRAMArray(const GeNN::Type::ResolvedType &type, size_t count, HWState *state)
-:   DRAMArrayBase(type, count), m_State(state)
-{
-    // Allocate if count is specified
-    if(count > 0) {
-        // Allocate block of DMA buffer
-        const size_t offset = m_State->getDMABufferAllocator().allocate(getSizeBytes());
-
-        // Add to virtual address of DMA buffer data to get host pointer
-        setHostPointer(m_State->getDMABuffer().getData() + offset);
-
-        // Add to physical address of DMA buffer to get device pointer
-        setDRAMPointer(m_State->getDMABuffer().getPhysicalAddress() + offset);
-    }
-}
-//------------------------------------------------------------------------
-DRAMArray::~DRAMArray()
-{
-    if(getCount() > 0) {
-        // **NOTE** no memory is owned by array so just invalidate
-        setHostPointer(nullptr);
-        setDRAMPointer(std::nullopt);
-    }
-}
-//------------------------------------------------------------------------
-void DRAMArray::pushToDevice()
-{
-}
-//------------------------------------------------------------------------
-void DRAMArray::pullFromDevice()
-{
-}
-
-//------------------------------------------------------------------------
-// URAMLLMArray
-//------------------------------------------------------------------------
-URAMLLMArray::URAMLLMArray(const GeNN::Type::ResolvedType &type, size_t uramCount, size_t llmCount,
-                           HWState *state)
-:   URAMLLMArrayBase(type, uramCount, llmCount), m_State(state)
-{
-    if(uramCount > 0) {
-        // Allocate block of DMA buffer and set host pointer
-        m_DMABufferOffset = m_State->getDMABufferAllocator().allocate(getSizeBytes());
-        setHostPointer(m_State->getDMABuffer().getData() + m_DMABufferOffset.value());
-
-        // Allocate URAM
-        setURAMPointer(m_State->getURAMAllocator().allocate(getSizeBytes()));
-    }
-
-    // Allocate LLM
-    if(llmCount > 0) {
-        setLLMPointer(m_State->getLLMAllocator().allocate(getSizeBytes()));
-    }
-}
-//------------------------------------------------------------------------
-URAMLLMArray::~URAMLLMArray()
-{
-    if(getCount() > 0) {
-        setHostPointer(nullptr);
-        setURAMPointer(std::nullopt);
-        m_DMABufferOffset.reset();
-    }
-
-    if(getLLMCount() > 0) {
-        setLLMPointer(std::nullopt);
-    }
-}
-//------------------------------------------------------------------------
-void URAMLLMArray::pushToDevice()
-{
-    // Start DMA write and wait for completion
-    auto *dmaController = m_State->getDevice().getDMAController();
-    dmaController->startWrite(getURAMPointer(), m_State->getDMABuffer(),
-                                m_DMABufferOffset.value(), getSizeBytes());
-    dmaController->waitForWriteComplete();
-}
-//------------------------------------------------------------------------
-void URAMLLMArray::memsetHostPointer(int value)
-{
-    // **YUCK** memset seems to do something that doens't play
-    // nicely with mmap'd memory and causes bus error
-    for (size_t i = 0; i < getSizeBytes(); i++) {
-        getHostPointer()[i] = value;
-    }
-}
-//------------------------------------------------------------------------
-void URAMLLMArray::pullFromDevice()
-{
-    // Start DMA read and wait for completion
-    auto *dmaController = m_State->getDevice().getDMAController();
-    dmaController->startRead(m_State->getDMABuffer(), m_DMABufferOffset.value(), 
-                             getURAMPointer(), getSizeBytes());
-    dmaController->waitForReadComplete();
-}
 }
 
 //----------------------------------------------------------------------------
-// BackendFeNNHW
-//------------------------------------------------------------------------
-BackendFeNNHW::BackendFeNNHW(bool useDRAMForWeights, bool keepParamsInRegisters, 
-                             RoundingMode neuronUpdateRoundingMode, 
-                             unsigned int core, unsigned int numCores,
-                             size_t dmaBufferSize)
-:   BackendFeNN(useDRAMForWeights, keepParamsInRegisters, neuronUpdateRoundingMode), 
-    m_Core(core), m_NumCores(numCores), m_DMABufferSize(dmaBufferSize)
+// FeNN::Backend::DeviceFeNNHW
+//----------------------------------------------------------------------------
+namespace FeNN::Backend
+{
+DeviceFeNNHW::DeviceFeNNHW(size_t deviceIndex, const Runtime &runtime, 
+                           Common::DMABuffer &parentDMABuffer)
+:   DeviceFeNN(deviceIndex, runtime), m_Device(deviceIndex, runtime.getNumDevices()),
+    m_DMABuffer(parentDMABuffer, 
+                (runtime.getNumDevices() == 1) ? parentDMABuffer.getPhysicalAddress() : (0x40000000 + (deviceIndex * 0x10000000)),
+                (runtime.getNumDevices() == 1) ? (parentDMABuffer.getPhysicalAddress() + parentDMABuffer.getSize()) : (0x50000000 + (deviceIndex * 0x10000000))),
+    m_DMABufferAllocator(m_DMABuffer.getSize())
+{
+    if(m_DMABuffer.getSize() < runtime.getDMABufferSize()) {
+        LOGW << "DMA buffer created by UDMABuf driver not as large as requested buffer size";
+    }   
+}
+//----------------------------------------------------------------------------
+void DeviceFeNNHW::loadKernel(std::shared_ptr<const Frontend::Kernel> kernel)
+{
+    // Get kernel code from runtime and upload
+    m_Device.uploadCode(getRuntime().getKernelCode(kernel));
+}
+//----------------------------------------------------------------------------
+void DeviceFeNNHW::runKernel(std::shared_ptr<const Frontend::Kernel> kernel)
+{
+    m_Device.setEnabled(true);
+    LOGD << "Running";
+
+     // Wait until ready flag
+    m_Device.waitOnNonZero(0);
+    LOGD << "Done";
+
+    // Disable core
+    m_Device.setEnabled(false);
+}
+//----------------------------------------------------------------------------
+std::unique_ptr<Frontend::ArrayBase> DeviceFeNNHW::createURAMArray(const GeNN::Type::ResolvedType &type, 
+                                                                    const Frontend::Shape &shape)
+{
+    return std::make_unique<::URAMArray>(type, shape, *this);
+}
+//----------------------------------------------------------------------------
+std::unique_ptr<Frontend::ArrayBase> DeviceFeNNHW::createBRAMArray(const GeNN::Type::ResolvedType &type,
+                                                                    const Frontend::Shape &shape)
+{
+    return std::make_unique<::BRAMArray>(type, shape, *this);
+}
+//----------------------------------------------------------------------------
+std::unique_ptr<Frontend::ArrayBase> DeviceFeNNHW::createLLMArray(const GeNN::Type::ResolvedType &type,
+                                                                   const Frontend::Shape &shape)
+{
+    return std::make_unique<::LLMArray>(type, shape, *this);
+}
+//----------------------------------------------------------------------------
+std::unique_ptr<Frontend::ArrayBase> DeviceFeNNHW::createDRAMArray(const GeNN::Type::ResolvedType &type,
+                                                                    const Frontend::Shape &shape)
+{
+    return std::make_unique<::DRAMArray>(type, shape, *this);
+}
+//----------------------------------------------------------------------------
+std::unique_ptr<Frontend::ArrayBase> DeviceFeNNHW::createURAMLLMArray(const GeNN::Type::ResolvedType &type,
+                                                                        const Frontend::Shape &uramShape, 
+                                                                        const Frontend::Shape &llmShape)
+{
+    return std::make_unique<::URAMLLMArray>(type, uramShape, llmShape, *this);
+}
+
+//----------------------------------------------------------------------------
+// FeNN::Backend::RuntimeHW
+//----------------------------------------------------------------------------
+RuntimeHW::RuntimeHW(const std::vector<std::shared_ptr<const Frontend::Kernel>> &kernels,
+                     size_t numDevices, bool useDRAMForWeights, bool keepParamsInRegisters, 
+                     Compiler::RoundingMode neuronUpdateRoundingMode, size_t dmaBufferSize)
+:   Runtime(kernels, numDevices, useDRAMForWeights, keepParamsInRegisters, neuronUpdateRoundingMode, dmaBufferSize)
 {
 }
 //------------------------------------------------------------------------
-std::unique_ptr<StateBase> BackendFeNNHW::createState() const
+std::unique_ptr<Frontend::DeviceBase> RuntimeHW::createDevice(size_t deviceIndex)
 {
-    return std::make_unique<HWState>(m_Core, m_NumCores, m_DMABufferSize);
+    return std::make_unique<DeviceFeNNHW>(deviceIndex, *this, m_ParentDMABuffer);
+}
 }

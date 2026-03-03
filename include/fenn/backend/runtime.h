@@ -318,13 +318,16 @@ class FENN_BACKEND_EXPORT Runtime : public Frontend::Runtime
 public:
    Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &kernels, 
            size_t numDevices, bool useDRAMForWeights = false, bool keepParamsInRegisters = true, 
-           Compiler::RoundingMode neuronUpdateRoundingMode = Compiler::RoundingMode::NEAREST);
+           Compiler::RoundingMode neuronUpdateRoundingMode = Compiler::RoundingMode::NEAREST,
+           size_t dmaBufferSize = 512 * 1024);
 
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
     const auto &getKernelCode(std::shared_ptr<const Frontend::Kernel> kernel) const{ return m_KernelCode.at(kernel); }
     bool shouldUseDRAMForWeights() const{ return m_UseDRAMForWeights; }
+    size_t getDMABufferSize() const{ return m_DMABufferSize; }
+
     const auto &getModel() const{ return m_Model; }
     
 private:
@@ -338,6 +341,7 @@ private:
     bool m_UseDRAMForWeights;
     bool m_KeepParamsInRegisters;
     Compiler::RoundingMode m_NeuronUpdateRoundingMode;
+    size_t m_DMABufferSize;
 
     Model m_Model;
 };
