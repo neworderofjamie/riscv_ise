@@ -25,11 +25,11 @@ namespace FeNN::Backend
 {
 class MergedFields
 {
-    using FieldValue = std::variant<int32_t, uint32_t, ArrayBase*>;
+    using FieldValue = std::variant<int32_t, uint32_t, Frontend::ArrayBase*>;
 
     template<typename P>
     using GetFieldValueFunc = std::function<FieldValue(const Frontend::DeviceBase &, 
-                                                       std::shared_ptr<const P>)> GetFieldValueFunc;
+                                                       std::shared_ptr<const P>)>;
 
 public:
     MergedFields() : m_NextFieldOffset(0)
@@ -39,8 +39,7 @@ public:
     // Public API
     //----------------------------------------------------------------------------
     template<typename P>
-    uint32_t addField(const ::Backend::MergedProcess &mergedProcess, 
-                      GetFieldValueFunc<p> getFieldValueFn, uint32_t fieldSize = 4)
+    uint32_t addField(GetFieldValueFunc<P> getFieldValueFn, uint32_t fieldSize = 4)
     {
         // Gather state from all merged processes and assign to field
         m_FieldOffsets.emplace_back(m_NextFieldOffset, 
@@ -57,21 +56,6 @@ public:
         return m_FieldOffsets.back().first;
     }
 
-    /*template<typename P, typename F>
-    uint32_t addValueField(const ::Backend::MergedProcess &mergedProcess, 
-                           F getStateFn, uint32_t fieldSize = 4)
-    {
-        // Gather value from all merged processes and assign to field
-        m_FieldOffsets.emplace_back(m_NextFieldOffset, 
-                                    std::move(mergedProcess.gather<FieldValue::value_type>, P>(getStateFn)));
-
-        // Update next field offset
-        m_NextFieldOffset += fieldSize;
-
-        // Return offset of new fiel,d
-        return m_FieldOffsets.back().first;
-    }*/
-
     const auto &getFieldOffsets() const{ return m_FieldOffsets; }
     const uint32_t getSize() const{ return m_NextFieldOffset; }
 
@@ -82,7 +66,7 @@ private:
     // Members
     //----------------------------------------------------------------------------
     uint32_t m_NextFieldOffset;
-    std::vector<std::pair<uint32_t, GetFieldValueFunc>> m_FieldOffsets;
+    std::vector<std::pair<uint32_t, GetFieldValueFunc<const Frontend::Process>>> m_FieldOffsets;
 };
 }
 

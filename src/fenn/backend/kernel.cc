@@ -20,7 +20,7 @@ using namespace FeNN;
 //----------------------------------------------------------------------------
 namespace
 {
-bool arePerformanceCountersRequired(const Model::ProcessGroupVector &processGroups)
+bool arePerformanceCountersRequired(const Frontend::ProcessGroupVector &processGroups)
 {
     return std::any_of(processGroups.cbegin(), processGroups.cend(),
                        [](const auto &p){ return p->shouldRecordPerformance(); });

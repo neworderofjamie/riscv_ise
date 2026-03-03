@@ -355,3 +355,4 @@ private:
     Frontend::VariablePtr m_Source;
     Frontend::VariablePtr m_Target;
 };
+}

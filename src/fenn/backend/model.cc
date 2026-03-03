@@ -13,14 +13,11 @@
 #include "fenn/backend/process.h"
 
 //----------------------------------------------------------------------------
-// FeNN::Backend::MemSpaceCompatibility
+// FeNN::Backend::Model
 //----------------------------------------------------------------------------
 namespace FeNN::Backend
 {
-//----------------------------------------------------------------------------
-// FeNN::Backend::Model
-//----------------------------------------------------------------------------
-Model::Model(const Model::KernelVector &graphs)
+Model::Model(const KernelVector &graphs)
 :   Frontend::Model(graphs)
 {
     // Loop through all model state
