@@ -1,5 +1,8 @@
 #pragma once
 
+// GeNN includes
+#include "gennUtils.h"
+
 // Frontend includes
 #include "frontend/process.h"
 
@@ -116,7 +119,7 @@ public:
         // **NOTE** this is unaffected by whether DRAM is used or not so we can just set true
         const auto &fennModel = dynamic_cast<const Model&>(model);
         for(const auto &s : allState) {
-            GeNN::Utils::updateHash(fennModel.getStateMemSpace(s, true));
+            GeNN::Utils::updateHash(fennModel.getStateMemSpace(s, true), hash);
         }
     }
 };
@@ -185,8 +188,8 @@ public:
     virtual void updateMaxDMABufferSize(size_t &maxRowLength) const override final;
 
     //! Generate code to implement process
-    virtual void generateCode(const Frontend::MergedProcess &mergedProcess,
-                              Common::Reg fieldBaseReg, Assembler::CodeGenerator &c,
+    virtual void generateCode(const Frontend::MergedProcess &mergedProcess, 
+                              const Model &model, Assembler::CodeGenerator &c,
                               Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                               Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;
 

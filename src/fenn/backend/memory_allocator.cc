@@ -25,7 +25,7 @@ size_t MemoryAllocator::allocate(size_t sizeBytes)
     assert(m_HighWaterBytes % m_AlignementBytes == 0);
 
     // Pad variable size to alignement bytes
-    const size_t varSize = padSize(sizeBytes, m_AlignementBytes);
+    const size_t varSize = ::Common::Utils::padSize(sizeBytes, m_AlignementBytes);
 
     // Update highwater and check against size
     const size_t newHighWaterBytes = m_HighWaterBytes + varSize;
