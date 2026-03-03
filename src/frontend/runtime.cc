@@ -73,13 +73,13 @@ void ArrayBase::memsetHostPointer(int value)
 void DeviceBase::createArray(std::shared_ptr<const State> state, const Frontend::Shape &deviceShape)
 {
     LambdaVariableVisitor v(state,
-                            [this, &splitDimensions](auto eventContainer)
+                            [this, &deviceShape](auto eventContainer)
                             {
-                                return createArray(eventContainer, splitDimensions);
+                                return createArray(eventContainer, deviceShape);
                             },
-                            [this, &splitDimensions](auto variable)
+                            [this, &deviceShape](auto variable)
                             {
-                                return createArray(variable, splitDimensions);
+                                return createArray(variable, deviceShape);
                             });
 
 
