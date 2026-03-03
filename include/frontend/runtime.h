@@ -205,7 +205,7 @@ protected:
     virtual void setMergedProcessFields(const MergedProcess &mergedProcess) const = 0;
 
     //! Create suitable device
-    virtual std::unique_ptr<DeviceBase> createDevice(size_t deviceIndex) const = 0;
+    virtual std::unique_ptr<DeviceBase> createDevice(size_t deviceIndex) = 0;
 
     //------------------------------------------------------------------------
     // Protected API

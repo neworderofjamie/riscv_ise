@@ -56,7 +56,7 @@ public:
     using StateMemSpaceCompatibility = std::unordered_map<std::shared_ptr<const Frontend::State>, 
                                                           MemSpace>;
 
-    Model(const Model::KernelVector &graphs);
+    Model(const KernelVector &graphs);
 
     //------------------------------------------------------------------------
     // Public API

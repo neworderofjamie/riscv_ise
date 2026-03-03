@@ -393,7 +393,7 @@ RuntimeSim::RuntimeSim(const std::vector<std::shared_ptr<const Frontend::Kernel>
 {
 }
 //------------------------------------------------------------------------
-std::unique_ptr<Frontend::DeviceBase> RuntimeSim::createDevice(size_t deviceIndex) const
+std::unique_ptr<Frontend::DeviceBase> RuntimeSim::createDevice(size_t deviceIndex)
 {
     return std::make_unique<DeviceFeNNSim>(deviceIndex, *this, m_DMABufferSize, m_SharedBus);
 }

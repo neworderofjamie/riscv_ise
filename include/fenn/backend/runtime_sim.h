@@ -85,13 +85,12 @@ private:
     //------------------------------------------------------------------------
     // Runtime virtuals
     //------------------------------------------------------------------------
-    virtual std::unique_ptr<Frontend::DeviceBase> createDevice(size_t deviceIndex) const override final;
+    virtual std::unique_ptr<Frontend::DeviceBase> createDevice(size_t deviceIndex) override final;
 
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
     ISE::SharedBusSim m_SharedBus;
-    KernelPtr m_CurrentKernelCode;
     size_t m_DMABufferSize;
 };
 }

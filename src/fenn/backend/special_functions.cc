@@ -73,9 +73,9 @@ void add(Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalar
     }
     
     // Add to environment
-    env.add(Type::Void, "_exp_frac_mask", VFracMask);        
-    env.add(Type::Void, "_exp_log_2", VLog2);        
-    env.add(Type::Void, "_exp_inv_2", VInvLog);        
+    env.add(Type::Void, "_exp_frac_mask", VFracMask);
+    env.add(Type::Void, "_exp_log_2", VLog2);
+    env.add(Type::Void, "_exp_inv_2", VInvLog);
     env.add(Type::Void, "_exp_half", VHalf);
     
     // Loop through possible number of integer bits for operand a

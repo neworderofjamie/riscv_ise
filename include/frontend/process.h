@@ -14,6 +14,7 @@
 #include "transpiler/token.h"
 
 // Frontend includes
+#include "frontend/event_container.h"
 #include "frontend/frontend_export.h"
 #include "frontend/model_component.h"
 #include "frontend/shape.h"
@@ -22,7 +23,6 @@
 // Forward declarations
 namespace Frontend
 {
-class EventContainer;
 class Model;
 class Parameter;
 }

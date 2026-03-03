@@ -14,10 +14,8 @@
 
 // Frontend includes
 #include "frontend/event_container.h"
-#include "fronend/variable.h"
-
-// Backend includes
-#include "backend/merged_model.h"
+#include "frontend/merged_model.h"
+#include "frontend/variable.h"
 
 // FeNN common includes
 #include "fenn/common/isa.h"
@@ -157,7 +155,7 @@ void compileStatements(const std::vector<Transpiler::Token> &tokens, const Type:
 // NeuronVarBase
 //------------------------------------------------------------------------
 //! Base class for helper classes used to manage memory access to neuron variables
-class NeuronVarBase
+/*class NeuronVarBase
 {
 public:
     //! Generate code to load vector register reg from memory before unrolled loop iteration r
@@ -420,7 +418,7 @@ private:
 //------------------------------------------------------------------------
 // RowGeneratorBase
 //------------------------------------------------------------------------
-/*class RowGeneratorBase
+class RowGeneratorBase
 {
 public:
     RowGeneratorBase(CodeGenerator &c, std::shared_ptr<const Model::EventPropagationProcess> process,
