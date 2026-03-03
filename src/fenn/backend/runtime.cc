@@ -103,6 +103,11 @@ void URAMLLMArrayBase::serialiseDeviceObject(std::vector<std::byte> &bytes) cons
 //----------------------------------------------------------------------------
 // FeNN::Backend::DeviceFeNN
 //----------------------------------------------------------------------------
+DeviceFeNN::DeviceFeNN(size_t deviceIndex, const Runtime &runtime)
+:   DeviceBase(deviceIndex), m_Runtime(runtime)
+{
+}
+//----------------------------------------------------------------------------
 std::unique_ptr<Frontend::ArrayBase> DeviceFeNN::createArray(std::shared_ptr<const Frontend::EventContainer> eventContainer,
                                                               const Frontend::Shape &deviceShape)
 {
@@ -125,11 +130,8 @@ std::unique_ptr<Frontend::ArrayBase> DeviceFeNN::createArray(std::shared_ptr<con
     // Flatten to get count
     const size_t count = paddedShape.getFlattenedSize();
 
-    // Upcast model to FeNN-model and determine what memory-space this variable lives in
-    const auto &model = dynamic_cast<const Model&>(getMergedModel().getModel());
-
     // Create array in correct memory space depending on compatibility
-    switch(model.getStateMemSpace(variable, shouldUseDRAMForWeights()))
+    switch(getRuntime().getModel().getStateMemSpace(variable, getRuntime().shouldUseDRAMForWeights()))
     {
     case MemSpace::DRAM:
     {
@@ -181,9 +183,10 @@ std::unique_ptr<Frontend::ArrayBase> DeviceFeNN::createPerformanceCounter()
 //----------------------------------------------------------------------------
 // FeNN::Backend::Runtime
 //----------------------------------------------------------------------------
-Runtime::Runtime(const Frontend::Model &model, size_t numDevices, bool useDRAMForWeights , bool keepParamsInRegisters, 
+Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &kernels, 
+                 size_t numDevices, bool useDRAMForWeights , bool keepParamsInRegisters, 
                  Compiler::RoundingMode neuronUpdateRoundingMode)
-:   Frontend::Runtime(model, numDevices), m_UseDRAMForWeights(useDRAMForWeights), 
+:   m_Model(kernels), Frontend::Runtime(m_Model, numDevices), m_UseDRAMForWeights(useDRAMForWeights), 
     m_KeepParamsInRegisters(keepParamsInRegisters), m_NeuronUpdateRoundingMode(neuronUpdateRoundingMode)
 {
     // **TODO** fields
@@ -192,15 +195,12 @@ Runtime::Runtime(const Frontend::Model &model, size_t numDevices, bool useDRAMFo
     //! Same ready flag is used by all kernels and located at BRAM address zero
     constexpr uint32_t readyFlagPtr = 0;
     
-    // Cast model to FenN model
-    const auto &fennModel = dynamic_cast<const Model&>(model);
-
     // Loop through kernels
     for (const auto &k : getMergedModel().getModel().getKernels()) {
         // Generate kernel
         const auto code = Assembler::Utils::generateStandardKernel(
             true/*shouldGenerateSimulationKernels()*/, readyFlagPtr,
-            [&fennModel, &k, this](Assembler::CodeGenerator &c, Assembler::VectorRegisterAllocator &vectorRegisterAllocator, 
+            [&k, this](Assembler::CodeGenerator &c, Assembler::VectorRegisterAllocator &vectorRegisterAllocator, 
                        Assembler::ScalarRegisterAllocator &scalarRegisterAllocator)
             {
                 // Ensure kernel has proper base class
@@ -211,7 +211,7 @@ Runtime::Runtime(const Frontend::Model &model, size_t numDevices, bool useDRAMFo
 
                 // Generate code for kernel
                 ki->generateCode(c, scalarRegisterAllocator, vectorRegisterAllocator,
-                                 [&fennModel, this]
+                                 [this]
                                  (auto processGroup, auto &codeGenerator, auto &scalarRegisterAllocator, auto &vectorRegisterAllocator)
                                  {
                                      // Loop through merged processes
@@ -223,7 +223,7 @@ Runtime::Runtime(const Frontend::Model &model, size_t numDevices, bool useDRAMFo
                                          }
 
                                          // Generate code
-                                         pi->generateCode(m, fennModel, codeGenerator, scalarRegisterAllocator,
+                                         pi->generateCode(m, getModel(), codeGenerator, scalarRegisterAllocator,
                                                           vectorRegisterAllocator);
                                      }
                                  });

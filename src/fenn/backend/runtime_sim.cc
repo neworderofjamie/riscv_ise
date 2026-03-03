@@ -414,9 +414,9 @@ private:
 //----------------------------------------------------------------------------
 namespace FeNN::Backend
 {
-DeviceFeNNSim::DeviceFeNNSim(size_t deviceIndex, size_t dmaBufferSize, ISE::SharedBusSim &sharedBus,
-                             const RuntimeSim &runtime)
-:   DeviceFeNN(deviceIndex), m_DMABufferAllocator(dmaBufferSize), m_Runtime(runtime)
+DeviceFeNNSim::DeviceFeNNSim(size_t deviceIndex, const Runtime &runtime, 
+                             size_t dmaBufferSize, ISE::SharedBusSim &sharedBus)
+:   DeviceFeNN(deviceIndex, runtime), m_DMABufferAllocator(dmaBufferSize)
 {
     m_RISCV.addCoprocessor<ISE::VectorProcessor>(FeNN::Common::vectorQuadrant);
 
@@ -434,7 +434,7 @@ DeviceFeNNSim::DeviceFeNNSim(size_t deviceIndex, size_t dmaBufferSize, ISE::Shar
 void DeviceFeNNSim::loadKernel(std::shared_ptr<const Frontend::Kernel> kernel)
 {
     // Get kernel code from runtime and load into ISE's instruction memory
-    getRISCV().setInstructions(m_Runtime.get().getKernelCode(kernel));
+    getRISCV().setInstructions(getRuntime().getKernelCode(kernel));
 }
 //----------------------------------------------------------------------------
 void DeviceFeNNSim::runKernel(std::shared_ptr<const Frontend::Kernel> kernel)
@@ -473,17 +473,17 @@ std::unique_ptr<Frontend::ArrayBase> DeviceFeNNSim::createURAMLLMArray(const GeN
 //----------------------------------------------------------------------------
 // FeNN::Backend::RuntimeSim
 //----------------------------------------------------------------------------
-RuntimeSim::RuntimeSim(const Frontend::Model &model, size_t numDevices, bool useDRAMForWeights, 
-                       bool keepParamsInRegisters, Compiler::RoundingMode neuronUpdateRoundingMode, 
-                       size_t dmaBufferSize)
-:   Runtime(model, numDevices, useDRAMForWeights, keepParamsInRegisters, neuronUpdateRoundingMode),
+RuntimeSim::RuntimeSim(const std::vector<std::shared_ptr<const Frontend::Kernel>> &kernels,
+                      size_t numDevices, bool useDRAMForWeights, bool keepParamsInRegisters, 
+                      Compiler::RoundingMode neuronUpdateRoundingMode, size_t dmaBufferSize)
+:   Runtime(kernels, numDevices, useDRAMForWeights, keepParamsInRegisters, neuronUpdateRoundingMode),
     m_SharedBus(numDevices), m_DMABufferSize(dmaBufferSize)
 {
 }
 //------------------------------------------------------------------------
 std::unique_ptr<Frontend::DeviceBase> RuntimeSim::createDevice(size_t deviceIndex) const
 {
-    return std::make_unique<DeviceFeNNSim>(deviceIndex, m_DMABufferSize, m_SharedBus);
+    return std::make_unique<DeviceFeNNSim>(deviceIndex, *this, m_DMABufferSize, m_SharedBus);
 }
 
 
