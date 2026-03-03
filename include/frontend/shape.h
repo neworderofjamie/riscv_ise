@@ -1,6 +1,7 @@
 #pragma once
 
 // Standard C++ includes
+#include <optional>
 #include <string>
 #include <vector>
 
