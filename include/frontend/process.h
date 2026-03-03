@@ -40,14 +40,7 @@ public:
     {
         auto &shape = m_Underlying->getShape();
         if (m_TimeSlice) {
-            const auto &dims = shape.getDims();
-            if (dims.size() == 1) {
-                m_Shape = Shape::one;
-            }
-            else {
-                std::vector<size_t> slicedDims(dims.cbegin() + 1, dims.cend());
-                m_Shape = Shape(slicedDims);
-            }
+            m_Shape = shape.slice(1);
         }
         else {
             m_Shape = shape;

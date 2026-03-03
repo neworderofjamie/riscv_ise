@@ -71,4 +71,34 @@ std::vector<Shape> Shape::split(std::optional<size_t> splitDimension, size_t num
 
     return shapeSplits;
 }
+//----------------------------------------------------------------------------
+Shape Shape::padLast(size_t multiple) const
+{
+    Shape paddedShape(*this);
+
+    // Pad last dimension to multiplies of 32
+    paddedShape.getLast() = ::Common::Utils::padSize(paddedShape.getLast(), multiple);
+    return paddedShape;
+}
+//----------------------------------------------------------------------------
+Shape Shape::slice(size_t start, ptrdiff_t stop = 0) const
+{
+    // Stop can be relative to start (positive) or to end (negative) so unify
+    const size_t stopAbsolute = (stop > 0) ? static_cast<size_t>(stop) : (getNumDims() + stop);
+
+    // Check start and stop are valid
+    assert(start < getNumDims());
+    assert(stopAbsolute < getNumDims());
+
+    // If result slices away all dimensions, use size of 1
+    if (start == stopAbsolute) {
+        return Shape(1);
+    }
+    // Otherwise, assign slice of dimensions
+    else {
+        std::vector<size_t> slicedDims(getDims().cbegin() + start, 
+                                       getDims().cbegin() + stopAbsolute);
+        return Shape(slicedDims);
+    }
+}
 }

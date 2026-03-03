@@ -120,13 +120,10 @@ std::unique_ptr<Frontend::ArrayBase> DeviceFeNN::createArray(std::shared_ptr<con
                                                               const Frontend::Shape &deviceShape)
 {
     // Pad last dimension to multiplies of 32
-    auto paddedShape = deviceShape;
-    paddedShape.getLast() = ::Common::Utils::padSize(paddedShape.getLast(), 32);
+    const auto paddedShape = deviceShape.padLast(32);
 
-    // Multiple padded dimensions together
-    const size_t countOneTimestep = std::accumulate(varDims.cbegin(), varDims.cend(), 
-                                                    1, std::multiplies<size_t>());
-    const size_t count = countOneTimestep * variable->getNumBufferTimesteps();
+    // Flatten to get count
+    const size_t count = paddedShape.getFlattenedSize();
 
     // Upcast model to FeNN-model and determine what memory-space this variable lives in
     const auto &model = dynamic_cast<const Model&>(getMergedModel().getModel());
@@ -152,7 +149,14 @@ std::unique_ptr<Frontend::ArrayBase> DeviceFeNN::createArray(std::shared_ptr<con
     case MemSpace::URAM_LLM:
     {
         LOGI << "Creating variable '" << variable->getName() << "' array in URAM and LLM";
-        return createURAMLLMArray(variable->getType(), countOneTimestep, count);
+        if (paddedShape.getNumDims() < 2) {
+            throw std::runtime_error("Arrays allocated in URAM and LLM are expected to have time dimension");
+        }
+
+        // Slice off time dimension from shape
+        const auto oneTimestepShape = paddedShape.slice(1);
+
+        return createURAMLLMArray(variable->getType(), oneTimestepShape.getFlattenedSize(), count);
     }
     case MemSpace::BRAM:
     {
