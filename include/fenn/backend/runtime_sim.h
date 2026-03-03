@@ -26,7 +26,7 @@ class FENN_BACKEND_EXPORT DeviceFeNNSim : public DeviceFeNN
 {
 public:
     DeviceFeNNSim(size_t deviceIndex, const Runtime &runtime, 
-                  size_t dmaBufferSize, ISE::SharedBusSim &sharedBus);
+                  ISE::SharedBusSim &sharedBus);
     
     //------------------------------------------------------------------------
     // Device virtuals
@@ -91,6 +91,5 @@ private:
     // Members
     //------------------------------------------------------------------------
     ISE::SharedBusSim m_SharedBus;
-    size_t m_DMABufferSize;
 };
 }
