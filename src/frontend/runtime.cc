@@ -99,7 +99,7 @@ ArrayBase *DeviceBase::getArray(std::shared_ptr<const State> state) const
 //----------------------------------------------------------------------------
 Runtime::Runtime(const Model &model, size_t numDevices)
 :   m_Devices(numDevices), m_MergedModel(model), m_NumDevices(numDevices), 
-    m_WorkerRun(true), m_Command(nullptr)
+    m_WorkersReady(0), m_WorkerRun(true), m_Command(nullptr)
 {
 }
 //----------------------------------------------------------------------------

@@ -17,7 +17,7 @@ class FRONTEND_EXPORT Shape
 {
 public:
     Shape() = default;
-    Shape(const Shape&) = default;
+    Shape(const Shape &shape) = default;
 
     Shape(const std::vector<size_t> &dims) : m_Dims(dims)
     {}
@@ -40,6 +40,12 @@ public:
 
     //! Return the shape obtained by splitting numSplits ways along the specified dimensions
     std::vector<Shape> split(std::optional<size_t> splitDimension, size_t numSplits) const;
+
+    //! Return shape with last dimension padded
+    Shape padLast(size_t multiple) const;
+
+    //! Return slice of shape dimensions
+    Shape slice(size_t start, ptrdiff_t stop = 0) const;
 
     //------------------------------------------------------------------------
     // Operators
