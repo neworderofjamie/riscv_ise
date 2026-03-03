@@ -41,27 +41,27 @@ public:
     //------------------------------------------------------------------------
     // Assembler::EnvironmentBase virtuals
     //------------------------------------------------------------------------
-    virtual void define(const std::string &, Compiler::RegisterPtr) override;
-
-    //! Get stream to write code within this environment to
-    virtual Assembler::CodeGenerator &getCodeGenerator() final;
+    virtual void define(const std::string &, Compiler::RegisterPtr) override final;
 
     //------------------------------------------------------------------------
     // TypeChecker::EnvironmentBase virtuals
     //------------------------------------------------------------------------
     virtual void define(const GeNN::Transpiler::Token &, const GeNN::Type::ResolvedType &,
-                        GeNN::Transpiler::ErrorHandlerBase &) override;
+                        GeNN::Transpiler::ErrorHandlerBase &) override final;
 
 protected:
     //------------------------------------------------------------------------
     // Protected API
     //------------------------------------------------------------------------
     Compiler::EnvironmentItem getContextItem(const std::string &name, 
-                                   std::optional<GeNN::Type::ResolvedType> type = std::nullopt) const;
+                                             std::optional<GeNN::Type::ResolvedType> type = std::nullopt) const;
 
     //! Get vector of types from context if it provides this functionality
     std::vector<GeNN::Type::ResolvedType> getContextTypes(const GeNN::Transpiler::Token &name, 
                                                           GeNN::Transpiler::ErrorHandlerBase &errorHandler)  const;
+
+    //! Get code generator exposed by context
+    Assembler::CodeGenerator &getContextCodeGenerator() const;
 
 private:
     //------------------------------------------------------------------------
@@ -69,7 +69,8 @@ private:
     //------------------------------------------------------------------------
     std::tuple<GeNN::Transpiler::TypeChecker::EnvironmentBase*, 
                Compiler::EnvironmentBase*, 
-               Assembler:: CodeGenerator*> m_Context;};
+               Assembler::CodeGenerator*> m_Context;
+};
 
 //----------------------------------------------------------------------------
 // FeNN::Backend::EnvironmentExternal
@@ -103,13 +104,15 @@ public:
     // Assembler::EnvironmentBase virtuals
     //------------------------------------------------------------------------
     virtual Compiler::EnvironmentItem getItem(const std::string &name, 
-                                              std::optional<GeNN::Type::ResolvedType> type = std::nullopt) final;
+                                              std::optional<GeNN::Type::ResolvedType> type = std::nullopt) override final;
+
+    virtual Assembler::CodeGenerator &getCodeGenerator() override final;
 
     //------------------------------------------------------------------------
     // TypeChecker::EnvironmentBase virtuals
     //------------------------------------------------------------------------
     virtual std::vector<GeNN::Type::ResolvedType> getTypes(const GeNN::Transpiler::Token &name, 
-                                                           GeNN::Transpiler::ErrorHandlerBase &errorHandler) final;
+                                                           GeNN::Transpiler::ErrorHandlerBase &errorHandler) override final;
 
     //------------------------------------------------------------------------
     // Public API
@@ -153,7 +156,9 @@ public:
     //------------------------------------------------------------------------
     // Assembler::EnvironmentBase virtuals
     //------------------------------------------------------------------------
-    virtual Compiler::EnvironmentItem getItem(const std::string &name, std::optional<GeNN::Type::ResolvedType> type = std::nullopt) final;
+    virtual Compiler::EnvironmentItem getItem(const std::string &name, std::optional<GeNN::Type::ResolvedType> type = std::nullopt) override final;
+
+    virtual Assembler::CodeGenerator &getCodeGenerator() override final;
 
     //------------------------------------------------------------------------
     // TypeChecker::EnvironmentBase virtuals
@@ -164,4 +169,8 @@ public:
 private:
     std::reference_wrapper<const Library> m_Library;
 };
+
+/*class EnvironmentExternalMergedField : public EnvironmentExternalBase
+{
+};*/
 }

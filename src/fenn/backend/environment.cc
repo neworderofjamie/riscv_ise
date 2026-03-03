@@ -17,22 +17,6 @@ void EnvironmentExternalBase::define(const std::string &, Compiler::RegisterPtr)
 {
     throw std::runtime_error("Cannot declare variable in external environment");
 }
-//----------------------------------------------------------------------------
-Assembler::CodeGenerator &EnvironmentExternalBase::getCodeGenerator()
-{
-    // If context includes a code stream
-    if (std::get<2>(m_Context)) {
-        return *std::get<2>(m_Context);
-    }
-    // Otherwise
-    else {
-        // Assert that there is a pretty printing environment
-        assert(std::get<1>(m_Context));
-
-        // Return its stream
-        return std::get<1>(m_Context)->getCodeGenerator();
-    }
-}
 //------------------------------------------------------------------------
 void EnvironmentExternalBase::define(const Transpiler::Token &, const GeNN::Type::ResolvedType &,
                                      Transpiler::ErrorHandlerBase &)
@@ -66,6 +50,22 @@ std::vector<Type::ResolvedType> EnvironmentExternalBase::getContextTypes(const T
         throw Transpiler::TypeChecker::TypeCheckError();
     }
 }
+//----------------------------------------------------------------------------
+Assembler::CodeGenerator &EnvironmentExternalBase::getContextCodeGenerator() const
+{
+    // If context includes a code stream
+    if (std::get<2>(m_Context)) {
+        return *std::get<2>(m_Context);
+    }
+    // Otherwise
+    else {
+        // Assert that there is a pretty printing environment
+        assert(std::get<1>(m_Context));
+
+        // Return its stream
+        return std::get<1>(m_Context)->getCodeGenerator();
+    }
+}
 
 
 //----------------------------------------------------------------------------
@@ -83,6 +83,11 @@ Compiler::EnvironmentItem EnvironmentExternal::getItem(const std::string &name,
     else {
         return std::get<1>(env->second);
     }
+}
+//----------------------------------------------------------------------------
+Assembler::CodeGenerator &EnvironmentExternal::getCodeGenerator()
+{
+    return getContextCodeGenerator();
 }
 //----------------------------------------------------------------------------
 std::vector<Type::ResolvedType> EnvironmentExternal::getTypes(const Transpiler::Token &name, 
@@ -126,6 +131,11 @@ Compiler::EnvironmentItem EnvironmentLibrary::getItem(const std::string &name, s
         assert(libType != libTypeEnd);
         return libType->second.second;
     }
+}
+//----------------------------------------------------------------------------
+Assembler::CodeGenerator &EnvironmentLibrary::getCodeGenerator()
+{
+    return getContextCodeGenerator();
 }
 //------------------------------------------------------------------------
 std::vector<Type::ResolvedType> EnvironmentLibrary::getTypes(const Transpiler::Token &name, Transpiler::ErrorHandlerBase &errorHandler)
