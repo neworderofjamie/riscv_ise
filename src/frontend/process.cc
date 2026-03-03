@@ -340,24 +340,14 @@ void RNGInitProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Mod
 MemsetProcess::MemsetProcess(Private, Sliced<Variable> target, const std::string &name)
 :   Process(name), m_Target(target)
 {
-    // If target is a variable
-    // **NOTE** if target is a backend-specific state object, there's nothing we can check yet
-    //if(std::holds_alternative<VariablePtr>(m_Target)) {
-        //auto targetVar = std::get<VariablePtr>(m_Target);
-        if(getTarget().getUnderlying() == nullptr) {
-            throw std::runtime_error("Memset process requires target");
-        }
-    //}
+    if(getTarget().getUnderlying() == nullptr) {
+        throw std::runtime_error("Memset process requires target");
+    }
 }
 //----------------------------------------------------------------------------
 std::vector<std::shared_ptr<const State>> MemsetProcess::getAllState() const
 {
-    //if(std::holds_alternative<VariablePtr>(getTarget())) {
-        return {getTarget().getUnderlying()};
-    //}
-    //else {
-    //    return {};
-    //}
+    return {getTarget().getUnderlying()};
 }
 //----------------------------------------------------------------------------
 void MemsetProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Model&) const

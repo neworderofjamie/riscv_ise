@@ -17,6 +17,7 @@
 // Frontend includes
 #include "frontend/frontend_export.h"
 #include "frontend/merged_model.h"
+#include "frontend/shape.h"
 
 // Forward declarations
 namespace Frontend
@@ -24,7 +25,6 @@ namespace Frontend
 class EventContainer;
 class Kernel;
 class Model;
-class Shape;
 class State;
 class Variable;
 }
@@ -41,7 +41,7 @@ class FRONTEND_EXPORT ArrayBase
 public:
     virtual ~ArrayBase()
     {
-        m_Count = 0;
+        m_Shape = Shape::zero;
     }
 
     //------------------------------------------------------------------------
@@ -63,8 +63,9 @@ public:
     // Public API
     //------------------------------------------------------------------------
     const GeNN::Type::ResolvedType &getType() const{ return m_Type; }
-    size_t getCount() const{ return m_Count; };
-    size_t getSizeBytes() const{ return m_Count * m_Type.getValue().size; };
+    const Shape &getShape() const{ return m_Shape; }
+    size_t getCount() const{ return m_Shape.getFlattenedSize(); };
+    size_t getSizeBytes() const{ return getCount() * m_Type.getValue().size; };
 
     //! Get array host pointer
     uint8_t *getHostPointer() const{ return m_HostPointer; }
@@ -73,8 +74,8 @@ public:
     T *getHostPointer() const{ return reinterpret_cast<T*>(m_HostPointer); }
 
 protected:
-    ArrayBase(const GeNN::Type::ResolvedType &type, size_t count)
-    :   m_Type(type), m_Count(count), m_HostPointer(nullptr)
+    ArrayBase(const GeNN::Type::ResolvedType &type, const Shape &shape)
+    :   m_Type(type), m_Shape(shape), m_HostPointer(nullptr)
     {
     }
 
@@ -88,7 +89,7 @@ private:
     // Members
     //------------------------------------------------------------------------
     GeNN::Type::ResolvedType m_Type;
-    size_t m_Count;
+    Shape m_Shape;
 
     uint8_t *m_HostPointer;
 };
@@ -117,11 +118,11 @@ public:
 
     //! Create suitable array for event container on this device
     virtual std::unique_ptr<ArrayBase> createArray(std::shared_ptr<const EventContainer> eventContainer,
-                                                   const Shape &deviceShape) = 0;
+                                                   const Shape &shape) = 0;
 
     //! Create suitable array for variable on this device
     virtual std::unique_ptr<ArrayBase> createArray(std::shared_ptr<const Variable> variable,
-                                                   const Shape &deviceShape) = 0;
+                                                   const Shape &shape) = 0;
 
     //! Create suitable array for performance counter on this device
     virtual std::unique_ptr<ArrayBase> createPerformanceCounter() = 0;

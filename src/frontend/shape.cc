@@ -18,6 +18,7 @@
 namespace Frontend
 {
 const Shape Shape::one = Shape(1);
+const Shape Shape::zero = Shape({});
 //----------------------------------------------------------------------------
 std::string Shape::toString() const
 {
@@ -81,7 +82,7 @@ Shape Shape::padLast(size_t multiple) const
     return paddedShape;
 }
 //----------------------------------------------------------------------------
-Shape Shape::slice(size_t start, ptrdiff_t stop = 0) const
+Shape Shape::slice(size_t start, ptrdiff_t stop) const
 {
     // Stop can be relative to start (positive) or to end (negative) so unify
     const size_t stopAbsolute = (stop > 0) ? static_cast<size_t>(stop) : (getNumDims() + stop);

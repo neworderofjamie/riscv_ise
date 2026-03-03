@@ -1130,8 +1130,8 @@ void EventPropagationProcess::updateMaxDMABufferSize(size_t &maxRowLength) const
     maxRowLength = std::max(maxRowLength, getMaxRowLength());
 }
 //----------------------------------------------------------------------------
-void EventPropagationProcess::generateCode(const Frontend::MergedProcess &mergedProcess,
-                                           Common::Reg fieldBaseReg, Assembler::CodeGenerator &c,
+void EventPropagationProcess::generateCode(const Frontend::MergedProcess &mergedProcess, 
+                                           const Model &model, Assembler::CodeGenerator &c,
                                            Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                            Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
@@ -1587,13 +1587,13 @@ void RNGInitProcess::generateArchetypeCode(const Frontend::MergedProcess &merged
                                            Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
     // Allocate fields
-    const uint32_t seedFieldOffset = fields.addPointerField<RNGInitProcess>(
-        mergedProcess, [](const auto &p){ return p->getSeed(); });
+    const uint32_t seedFieldOffset = fields.addField<RNGInitProcess>(
+        [](const auto &d, auto p){ return d->getArray(p->getSeed()); });
 
     // Allocate scalar register to hold address of seed buffer
     ALLOCATE_SCALAR(SReg);
 
-    // Generate code to load address of seed
+    // Load address of seed
     c.lw(*SReg, *environment.getScalarRegister("_field_base"), seedFieldOffset);
 
     // Load seed into RNG registers
@@ -1620,15 +1620,15 @@ void MemsetProcess::generateArchetypeCode(const Frontend::MergedProcess &mergedP
                                           Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
     // Allocate fields
-    const uint32_t targetFieldOffset = fields.addPointerField<MemsetProcess>(
-        mergedProcess, [](const auto &p){ return p->getTarget().getUnderlying(); });
+    // **TODO** get pointer size
+    const uint32_t targetFieldOffset = fields.addField<MemsetProcess>(
+        [](const auto &d, auto p){ return d->getArray(p->getTarget().getUnderlying()); });
     
-    // **TODO** should get value for all cores AND all groups
-    const uint32_t numVecsFieldOffset = fields.addValueField<MemsetProcess>(
-        mergedProcess, 
-        [](const auto &p)
+    
+    const uint32_t numVecsFieldOffset = fields.addField<MemsetProcess>(
+        [](const auto &d, auto p)
         { 
-            return ::Utils::ceilDivide(p->getTarget().getShape().getFlattenedSize(), 32);
+            return d->getArray(p->getTarget().getUnderlying())->getShape().getFlattenedSize(); 
         });
     // Determine how many vectors we're memsetting
     //const size_t numVecsOneTimestep = Utils::ceilDivide(target->getShape().getFlattenedSize(), 32);
@@ -1636,27 +1636,24 @@ void MemsetProcess::generateArchetypeCode(const Frontend::MergedProcess &mergedP
 
     // Allocate register for target address
     ALLOCATE_SCALAR(STargetBuffer);
-
+    c.lw(*STargetBuffer, *environment.getScalarRegister("_field_base"), targetFieldOffset);
     switch(model.getStateMemSpace(getTarget().getUnderlying()))
     {
     case MemSpace::URAM:
     {
-        codeGenerator.lw(*STargetBuffer, Reg::X0, stateFields.at(target));
         generateURAMMemset(numVecs, STargetBuffer);
         break;
     }
     case MemSpace::LLM: 
     {
-        codeGenerator.lw(*STargetBuffer, Reg::X0, stateFields.at(target));
         generateLLMMemset(numVecs, STargetBuffer);
         break;
     }
     case MemSpace::URAM_LLM:
     {
-        codeGenerator.lw(*STargetBuffer, Reg::X0, stateFields.at(target));
         generateURAMMemset(numVecsOneTimestep, STargetBuffer);
 
-        codeGenerator.lw(*STargetBuffer, Reg::X0, stateFields.at(target) + 4);
+        codeGenerator.lw(*STargetBuffer, *environment.getScalarRegister("_field_base"), targetFieldOffset + 4);
         generateLLMMemset(numVecs, STargetBuffer);
         break;
     }
@@ -1763,10 +1760,10 @@ void BroadcastProcess::generateArchetypeCode(const Frontend::MergedProcess &merg
                                              Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
     // Allocate fields
-    const uint32_t sourceFieldOffset = fields.addPointerField<BroadcastProcess>(
-        mergedProcess, [](const auto &p){ return p->getSource(); });
-    const uint32_t targetFieldOffset = fields.addPointerField<BroadcastProcess>(
-        mergedProcess, [](const auto &p){ return p->getTarget(); });
+    const uint32_t sourceFieldOffset = fields.addField<BroadcastProcess>(
+        [](const auto &d, auto p){ return d->getArray(p->getSource()); });
+    const uint32_t targetFieldOffset = fields.addField<BroadcastProcess>(
+        [](const auto &d, auto p){ return d->getArray(p->getTarget()); });
 
     // **TODO** should get value for all cores AND all groups
     const uint32_t numBytesFieldOffset = fields.addValueField<BroadcastProcess>(

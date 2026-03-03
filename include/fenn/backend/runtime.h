@@ -41,8 +41,8 @@ public:
     uint32_t getURAMPointer() const{ return m_URAMPointer.value(); }
 
 protected:
-    URAMArrayBase(const GeNN::Type::ResolvedType &type, size_t count)
-    :   ArrayBase(type, count)
+    URAMArrayBase(const GeNN::Type::ResolvedType &type, const Frontend::Shape &shape)
+    :   ArrayBase(type, shape)
     {
         if(type.getSize(0) != 2) {
             throw std::runtime_error("Only 16-bit types can be stored in URAM arrays");
@@ -114,8 +114,8 @@ public:
     uint32_t getLLMPointer() const{ return m_LLMPointer.value(); }
 
 protected:
-    LLMArrayBase(const GeNN::Type::ResolvedType &type, size_t count)
-    :   ArrayBase(type, count)
+    LLMArrayBase(const GeNN::Type::ResolvedType &type, const Frontend::Shape &shape)
+    :   ArrayBase(type, shape)
     {
         if(type.getSize(0) != 2) {
             throw std::runtime_error("Only 16-bit types can be stored in LLM arrays");
@@ -187,12 +187,14 @@ public:
     uint32_t getURAMPointer() const{ return m_URAMPointer.value(); }
     uint32_t getLLMPointer() const{ return m_LLMPointer.value(); }
 
-    size_t getLLMCount() const{ return m_LLMCount; };
-    size_t getLLMSizeBytes() const{ return m_LLMCount * getType().getValue().size; };
+    const auto &getLLMShape() const{ return m_LLMShape; }
+    size_t getLLMCount() const{ return m_LLMShape.getFlattenedSize(); };
+    size_t getLLMSizeBytes() const{ return getLLMCount() * getType().getValue().size; };
 
 protected:
-    URAMLLMArrayBase(const GeNN::Type::ResolvedType &type, size_t uramCount, size_t llmCount)
-    :   ArrayBase(type, uramCount), m_LLMCount(llmCount)
+    URAMLLMArrayBase(const GeNN::Type::ResolvedType &type, const Frontend::Shape &uramShape, 
+                     const Frontend::Shape &llmShape)
+    :   ArrayBase(type, uramShape), m_LLMShape(llmShape)
     {
         if(type.getSize(0) != 2) {
             throw std::runtime_error("Only 16-bit types can be stored in URAM/LLM arrays");
@@ -211,7 +213,7 @@ private:
     //------------------------------------------------------------------------
     std::optional<uint32_t> m_URAMPointer;
     std::optional<uint32_t> m_LLMPointer;
-    size_t m_LLMCount;
+    Frontend::Shape m_LLMShape;
 };
 
 
@@ -257,22 +259,23 @@ public:
     //------------------------------------------------------------------------
     // Declared virtuals
     //------------------------------------------------------------------------
-    virtual std::unique_ptr<Frontend::ArrayBase> createURAMArray(const GeNN::Type::ResolvedType &type, size_t count) = 0;
-    virtual std::unique_ptr<Frontend::ArrayBase> createBRAMArray(const GeNN::Type::ResolvedType &type, size_t count) = 0;
-    virtual std::unique_ptr<Frontend::ArrayBase> createLLMArray(const GeNN::Type::ResolvedType &type, size_t count) = 0;
-    virtual std::unique_ptr<Frontend::ArrayBase> createDRAMArray(const GeNN::Type::ResolvedType &type, size_t count) = 0;
+    virtual std::unique_ptr<Frontend::ArrayBase> createURAMArray(const GeNN::Type::ResolvedType &type, const Frontend::Shape &shape) = 0;
+    virtual std::unique_ptr<Frontend::ArrayBase> createBRAMArray(const GeNN::Type::ResolvedType &type, const Frontend::Shape &shape) = 0;
+    virtual std::unique_ptr<Frontend::ArrayBase> createLLMArray(const GeNN::Type::ResolvedType &type, const Frontend::Shape &shape) = 0;
+    virtual std::unique_ptr<Frontend::ArrayBase> createDRAMArray(const GeNN::Type::ResolvedType &type, const Frontend::Shape &shape) = 0;
     virtual std::unique_ptr<Frontend::ArrayBase> createURAMLLMArray(const GeNN::Type::ResolvedType &type,
-                                                                     size_t uramCount, size_t llmCount) = 0;
+                                                                     const Frontend::Shape &uramShape, 
+                                                                     const Frontend::Shape &llmShape) = 0;
     //------------------------------------------------------------------------
     // DeviceBase virtuals
     //------------------------------------------------------------------------
     //! Create suitable array for event container on this device
     virtual std::unique_ptr<Frontend::ArrayBase> createArray(std::shared_ptr<const Frontend::EventContainer> eventContainer,
-                                                             const Frontend::Shape &deviceShape) override final;
+                                                             const Frontend::Shape &shape) override final;
 
     //! Create suitable array for variable on this device
     virtual std::unique_ptr<Frontend::ArrayBase> createArray(std::shared_ptr<const Frontend::Variable> variable,
-                                                             const Frontend::Shape &deviceShape) override final;
+                                                             const Frontend::Shape &shape) override final;
 
     //! Create suitable array for performance counter on this device
     virtual std::unique_ptr<Frontend::ArrayBase> createPerformanceCounter() override final;
