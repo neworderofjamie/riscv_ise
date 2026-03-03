@@ -43,8 +43,8 @@ public:
     {
         // Gather state from all merged processes and assign to field
         m_FieldOffsets.emplace_back(m_NextFieldOffset, 
-                                    [getFieldValueFn](const Frontend::DeviceBase &d, 
-                                        std::shared_ptr<const Frontend::Process> p)
+                                    [getFieldValueFn]
+                                    (const Frontend::DeviceBase &d, std::shared_ptr<const Frontend::Process> p)
                                     {
                                         return getFieldValueFn(d, std::static_pointer_cast<const P>);
                                     });

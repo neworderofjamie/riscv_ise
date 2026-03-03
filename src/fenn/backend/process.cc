@@ -720,7 +720,7 @@ private:
 //----------------------------------------------------------------------------
 namespace FeNN::Backend
 {
-void TimeDrivenProcessImplementation::generateCode(const ::Backend::MergedProcess &mergedProcess,
+void TimeDrivenProcessImplementation::generateCode(const Frontend::MergedProcess &mergedProcess,
                                                    const Model &model, Assembler::CodeGenerator &c,
                                                    Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
                                                    Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
@@ -775,7 +775,7 @@ void NeuronUpdateProcess::updateCompatibleMemSpace(std::shared_ptr<const Fronten
     compatibleMemSpaces &= (MemSpace::URAM | MemSpace::LLM | MemSpace::URAM_LLM);
 }
 //----------------------------------------------------------------------------
-void NeuronUpdateProcess::generateMergedPreambleCode(const ::Backend::MergedProcess &mergedProcess,
+void NeuronUpdateProcess::generateMergedPreambleCode(const Frontend::MergedProcess &mergedProcess,
                                                      const Model &model, EnvironmentExternal &environment, 
                                                      Assembler::CodeGenerator &c,
                                                      Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
