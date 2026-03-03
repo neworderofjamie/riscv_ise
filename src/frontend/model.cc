@@ -25,14 +25,14 @@ Model::Model(const KernelVector &kernels)
             for (const auto &p : g->getProcesses()) {
                 // Loop through all state associated with this process
                 for (const auto &s : p->getAllState()) {
-                    m_StateProcesses[s].second.push_back(p);
+                    m_StateData[s].processes.push_back(p);
                 }
             }
         }
     }
 
     // Loop through all model state
-    for (auto &s : m_StateProcesses) {
+    for (auto &s : m_StateData) {
         // Get dimensionality of state's shape
         const size_t numDims = s.first->getShape().getNumDims();
         if(numDims > 32) {
@@ -43,18 +43,18 @@ Model::Model(const KernelVector &kernels)
         uint32_t compatibleSplitDimensions = (1 << numDims) - 1;
 
         // Loop through all processes using this state and update this compatibility
-        for (const auto &p : s.second.second) {
+        for (const auto &p : s.second.processes) {
             p->updateCompatibleSplitDimensions(s.first, compatibleSplitDimensions);
         }
         
         // If this cannot be split
         if(compatibleSplitDimensions == 0) {
-            s.second.first = std::nullopt;
+            s.second.splitDimension = std::nullopt;
         }
         // Otherwise, count leading-zeros to pick highest compatible dimension
         // to split on (this maximises the number of contiguous sections of data)
         else {
-            s.second.first = 31 - ::Common::Utils::clz(compatibleSplitDimensions);
+            s.second.splitDimension = 31 - ::Common::Utils::clz(compatibleSplitDimensions);
         }
     }
 }

@@ -828,7 +828,7 @@ void NeuronUpdateProcess::generateMergedPreambleCode(const ::Backend::MergedProc
     }
 }
 //----------------------------------------------------------------------------
-void NeuronUpdateProcess::generateArchetypeCode(const ::Backend::MergedProcess &mergedProcess,
+void NeuronUpdateProcess::generateArchetypeCode(const Frontend::MergedProcess &mergedProcess,
                                                 const Model &model, EnvironmentExternal &environment, 
                                                 MergedFields &fields, Assembler::CodeGenerator &c,
                                                 Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
@@ -1172,7 +1172,7 @@ void EventPropagationProcess::updateMaxDMABufferSize(size_t &maxRowLength) const
     maxRowLength = std::max(maxRowLength, getMaxRowLength());
 }
 //----------------------------------------------------------------------------
-void EventPropagationProcess::generateCode(const ::Backend::MergedProcess &mergedProcess,
+void EventPropagationProcess::generateCode(const Frontend::MergedProcess &mergedProcess,
                                            Common::Reg fieldBaseReg, Assembler::CodeGenerator &c,
                                            Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                            Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
@@ -1622,7 +1622,7 @@ void RNGInitProcess::updateCompatibleMemSpace(std::shared_ptr<const Frontend::St
     compatibleMemSpaces &= MemSpace::URAM;
 }
 //----------------------------------------------------------------------------
-void RNGInitProcess::generateArchetypeCode(const ::Backend::MergedProcess &mergedProcess,
+void RNGInitProcess::generateArchetypeCode(const Frontend::MergedProcess &mergedProcess,
                                            const Model &model, EnvironmentExternal &environment, 
                                            MergedFields &fields, Assembler::CodeGenerator &c,
                                            Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
@@ -1655,7 +1655,7 @@ void MemsetProcess::updateCompatibleMemSpace(std::shared_ptr<const Frontend::Sta
     compatibleMemSpaces &= (MemSpace::LLM, MemSpace::URAM, MemSpace::URAM_LLM);
 }
 //----------------------------------------------------------------------------
-void MemsetProcess::generateArchetypeCode(const ::Backend::MergedProcess &mergedProcess,
+void MemsetProcess::generateArchetypeCode(const Frontend::MergedProcess &mergedProcess,
                                           const Model &model, EnvironmentExternal &environment, 
                                           MergedFields &fields, Assembler::CodeGenerator &c,
                                           Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
@@ -1787,7 +1787,7 @@ void BroadcastProcess::updateCompatibleMemSpace(std::shared_ptr<const Frontend::
     }
 }
 //----------------------------------------------------------------------------
-void BroadcastProcess::generateMergedPreambleCode(const ::Backend::MergedProcess &mergedProcess,
+void BroadcastProcess::generateMergedPreambleCode(const Frontend::MergedProcess &mergedProcess,
                                                   const Model&, EnvironmentExternal &environment, 
                                                   Assembler::CodeGenerator &c,
                                                   Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
@@ -1798,7 +1798,7 @@ void BroadcastProcess::generateMergedPreambleCode(const ::Backend::MergedProcess
     environment.add(Type::Uint16.addConst(), "_v_two", VTwo);
 }
 //----------------------------------------------------------------------------
-void BroadcastProcess::generateArchetypeCode(const ::Backend::MergedProcess &mergedProcess,
+void BroadcastProcess::generateArchetypeCode(const Frontend::MergedProcess &mergedProcess,
                                              const Model&, EnvironmentExternal &environment, 
                                              MergedFields &fields, Assembler::CodeGenerator &c,
                                              Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
