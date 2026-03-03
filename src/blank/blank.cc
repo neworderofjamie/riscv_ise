@@ -87,7 +87,6 @@ int main(int argc, char** argv)
         !device, readyFlagPtr,
         [=](CodeGenerator &c, VectorRegisterAllocator&, ScalarRegisterAllocator &scalarRegisterAllocator)
         {
-            
             // Build 0x1F000 immediate (address of start of spike memory)
             ALLOCATE_SCALAR(SSpikeMemory);
             c.li(*SSpikeMemory, spikeArrayPtr);
@@ -114,11 +113,7 @@ int main(int argc, char** argv)
                 c.csrw(CSR::MASTER_EVENT_BITFIELD, *STmp);
             }
 
-            // Wait to give the spikes time to be processed
-            for(int i = 0; i < 100; i++) {
-                c.nop();
-            }
-            
+            AssemblerUtils::generateRouterBarrier(c, scalarRegisterAllocator, 1);
             {
                 // Read SLAVE_EVENT_ADDRESS i.e. where slave FINISHED writing spikes
                 ALLOCATE_SCALAR(SSpikeMemoryEnd);
@@ -147,7 +142,7 @@ int main(int argc, char** argv)
         });
 
     // Dump to coe file
-    //AppUtils::dumpCOE("mul.coe", code);
+    AppUtils::dumpCOE("router_barrier.coe", code);
 
     
     if(device) {
