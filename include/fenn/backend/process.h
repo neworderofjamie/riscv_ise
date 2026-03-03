@@ -13,6 +13,7 @@
 #include "fenn/assembler/register_allocator.h"
 
 // FeNN backend includes
+#include "fenn/backend/backend_export.h"
 #include "fenn/backend/model.h"
 
 // Forward declarations
@@ -64,7 +65,7 @@ public:
 //----------------------------------------------------------------------------
 // FeNN::Backend::TimeDrivenProcessImplementation
 //----------------------------------------------------------------------------
-class TimeDrivenProcessImplementation : public ProcessImplementation
+class FENN_BACKEND_EXPORT TimeDrivenProcessImplementation : public ProcessImplementation
 {
 public:
     //----------------------------------------------------------------------------
@@ -105,9 +106,9 @@ public:
     using P::P;
 
     //------------------------------------------------------------------------
-    // P virtuals
+    // Process virtuals
     //------------------------------------------------------------------------
-    virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const Frontend::Model &model) const override final
+    virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const Frontend::Model &model) const override
     {
         // Superclass
         P::updateMergeHash(hash, model);
@@ -127,7 +128,7 @@ public:
 //----------------------------------------------------------------------------
 // FeNN::Backend::NeuronUpdateProcess
 //----------------------------------------------------------------------------
-class NeuronUpdateProcess : public ProcessImplementationBase<Frontend::NeuronUpdateProcess>
+class FENN_BACKEND_EXPORT NeuronUpdateProcess : public ProcessImplementationBase<Frontend::NeuronUpdateProcess>
 {
 public:
     using ProcessImplementationBase<Frontend::NeuronUpdateProcess>::ProcessImplementationBase;
@@ -172,7 +173,7 @@ protected:
 //----------------------------------------------------------------------------
 // FeNN::Backend::EventPropagationProcess
 //----------------------------------------------------------------------------
-class EventPropagationProcess : public ProcessImplementationBase<Frontend::EventPropagationProcess, ProcessImplementation>
+class FENN_BACKEND_EXPORT EventPropagationProcess : public ProcessImplementationBase<Frontend::EventPropagationProcess, ProcessImplementation>
 {
 public:
     using ProcessImplementationBase<Frontend::EventPropagationProcess, ProcessImplementation>::ProcessImplementationBase;
@@ -210,10 +211,10 @@ public:
 //----------------------------------------------------------------------------
 // FeNN::Backend::RNGInitProcess
 //----------------------------------------------------------------------------
-class RNGInitProcess : public ProcessImplementationBase<Frontend::RNGInitProcess>
+class FENN_BACKEND_EXPORT RNGInitProcess : public ProcessImplementationBase<Frontend::RNGInitProcess>
 {
 public:
-    using ProcessImplementationBase<Frontend::RNGInitProcess>::ProcessImplementationBase;
+    RNGInitProcess(Private, Frontend::VariablePtr seed, const std::string &name);
 
     //------------------------------------------------------------------------
     // ProcessImplementation virtuals
@@ -243,7 +244,7 @@ public:
 //----------------------------------------------------------------------------
 // FeNN::Backend::MemsetProcess
 //----------------------------------------------------------------------------
-class MemsetProcess : public ProcessImplementationBase<Frontend::MemsetProcess>
+class FENN_BACKEND_EXPORT MemsetProcess : public ProcessImplementationBase<Frontend::MemsetProcess>
 {
 public:
     using ProcessImplementationBase<Frontend::MemsetProcess>::ProcessImplementationBase;
@@ -290,10 +291,24 @@ private:
 //----------------------------------------------------------------------------
 // FeNN::Backend::BroadcastProcess
 //----------------------------------------------------------------------------
-class BroadcastProcess : public ProcessImplementationBase<Frontend::BroadcastProcess>
+class FENN_BACKEND_EXPORT BroadcastProcess : public ProcessImplementationBase<Frontend::Process>
 {
 public:
-    using ProcessImplementationBase<Frontend::BroadcastProcess>::ProcessImplementationBase;
+    BroadcastProcess(Private, Frontend::VariablePtr source, Frontend::VariablePtr target, 
+                     const std::string &name);
+
+    //------------------------------------------------------------------------
+    // Stateful virtuals
+    //------------------------------------------------------------------------
+    virtual std::vector<std::shared_ptr<const Frontend::State>> getAllState() const override final;
+
+    //------------------------------------------------------------------------
+    // Process virtuals
+    //------------------------------------------------------------------------
+    virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const Frontend::Model &model) const override;
+    virtual void updateCompatibleSplitDimensions(std::shared_ptr<const Frontend::State> state, 
+                                                 uint32_t &compatibleSplitDimensions) const override;
+
 
     //------------------------------------------------------------------------
     // ProcessImplementation virtuals
@@ -316,6 +331,13 @@ public:
                                        MergedFields &fields, Assembler::CodeGenerator &c,
                                        Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                        Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;
+    
+    //------------------------------------------------------------------------
+    // Public API
+    //------------------------------------------------------------------------
+    const auto getSource() const{ return m_Source; }
+    const auto getTarget() const{ return m_Target; }
+
 
     //------------------------------------------------------------------------
     // Static API
@@ -325,5 +347,11 @@ public:
     {
         return std::make_shared<BroadcastProcess>(Private(), source, target, name);
     }
+
+private:
+    //------------------------------------------------------------------------
+    // Members
+    //------------------------------------------------------------------------
+    Frontend::VariablePtr m_Source;
+    Frontend::VariablePtr m_Target;
 };
-}
