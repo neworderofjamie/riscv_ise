@@ -26,9 +26,12 @@ namespace Frontend
 class Model
 {
 public:
-    // Mapping of state objects to stateful objects which reference them
-    using StateProcesses = std::unordered_map<std::shared_ptr<const State>, 
-                                              std::pair<std::optional<size_t>, std::vector<std::shared_ptr<const Process>>>>;
+    struct StateData
+    {
+        std::optional<size_t> splitDimension;
+        std::vector<std::shared_ptr<const Process>> processes;
+    };
+
     using KernelVector = std::vector<std::shared_ptr<const Kernel>>;
 
     Model(const KernelVector &kernels);
@@ -38,13 +41,13 @@ public:
     // Public API
     //------------------------------------------------------------------------
     const auto &getKernels() const{ return m_Kernels; }
-    const auto &getStateProcesses() const{ return m_StateProcesses; }
+    const auto &getStateData() const{ return m_StateData; }
 
 private:
     //----------------------------------------------------------------------------
     // Members
     //----------------------------------------------------------------------------
     KernelVector m_Kernels;
-    StateProcesses m_StateProcesses;
+    std::unordered_map<std::shared_ptr<const State>, StateData> m_StateData;
 };
 }

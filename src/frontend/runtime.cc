@@ -131,9 +131,9 @@ void Runtime::allocate()
     // **TODO** loop through all process groups and add performance counters
 
     // Loop through state objects used by model
-    for (const auto &s : m_MergedModel.getModel().getStateProcesses()) {
+    for (const auto &s : m_MergedModel.getModel().getStateData()) {
         // Split shape between devices as dictated by split axis
-        const auto deviceShapes = s.first->getShape().split(s.second.first, 
+        const auto deviceShapes = s.first->getShape().split(s.second.splitDimension, 
                                                             getNumDevices());
         for(size_t i = 0; i < getNumDevices(); i++) {
             getDevices()[i]->createArray(s.first, deviceShapes[i]);

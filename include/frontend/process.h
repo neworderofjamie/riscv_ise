@@ -17,13 +17,13 @@
 #include "frontend/frontend_export.h"
 #include "frontend/model_component.h"
 #include "frontend/shape.h"
+#include "frontend/variable.h"
 
 // Forward declarations
 namespace Frontend
 {
 class EventContainer;
 class Parameter;
-class Variable;
 }
 
 //----------------------------------------------------------------------------
@@ -56,7 +56,7 @@ public:
 
     auto getUnderlying() const{ return m_Underlying; }
     const Shape &getShape() const{ return m_Shape; }
-    
+    bool hasTimeSlice() const{ return m_TimeSlice; }
 
 private:
     std::shared_ptr<const T> m_Underlying;

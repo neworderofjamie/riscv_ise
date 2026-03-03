@@ -139,13 +139,13 @@ public:
     //------------------------------------------------------------------------
     // TimeDrivenProcessImplementation virtuals
     //------------------------------------------------------------------------ 
-    virtual void generateMergedPreambleCode(const ::Backend::MergedProcess &mergedProcess,
+    virtual void generateMergedPreambleCode(const Frontend::MergedProcess &mergedProcess,
                                             const Model &model, EnvironmentExternal &environment, 
                                             Assembler::CodeGenerator &c,
                                             Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                             Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;
 
-    virtual void generateArchetypeCode(const ::Backend::MergedProcess &mergedProcess,
+    virtual void generateArchetypeCode(const Frontend::MergedProcess &mergedProcess,
                                        const Model &model, EnvironmentExternal &environment, 
                                        MergedFields &fields, Assembler::CodeGenerator &c,
                                        Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
@@ -185,7 +185,7 @@ public:
     virtual void updateMaxDMABufferSize(size_t &maxRowLength) const override final;
 
     //! Generate code to implement process
-    virtual void generateCode(const ::Backend::MergedProcess &mergedProcess,
+    virtual void generateCode(const Frontend::MergedProcess &mergedProcess,
                               Common::Reg fieldBaseReg, Assembler::CodeGenerator &c,
                               Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                               Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;
@@ -222,7 +222,7 @@ public:
     //------------------------------------------------------------------------
     // TimeDrivenProcessImplementation virtuals
     //------------------------------------------------------------------------ 
-    virtual void generateArchetypeCode(const ::Backend::MergedProcess &mergedProcess,
+    virtual void generateArchetypeCode(const Frontend::MergedProcess &mergedProcess,
                                        const Model &model, EnvironmentExternal &environment, 
                                        MergedFields &fields, Assembler::CodeGenerator &c,
                                        Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
@@ -255,7 +255,7 @@ public:
     //------------------------------------------------------------------------
     // TimeDrivenProcessImplementation virtuals
     //------------------------------------------------------------------------ 
-    virtual void generateArchetypeCode(const ::Backend::MergedProcess &mergedProcess,
+    virtual void generateArchetypeCode(const Frontend::MergedProcess &mergedProcess,
                                        const Model &model, EnvironmentExternal &environment, 
                                        MergedFields &fields, Assembler::CodeGenerator &c,
                                        Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
@@ -302,13 +302,13 @@ public:
     //------------------------------------------------------------------------
     // TimeDrivenProcessImplementation virtuals
     //------------------------------------------------------------------------ 
-    virtual void generateMergedPreambleCode(const ::Backend::MergedProcess &mergedProcess,
+    virtual void generateMergedPreambleCode(const Frontend::MergedProcess &mergedProcess,
                                             const Model &model, EnvironmentExternal &environment, 
                                             Assembler::CodeGenerator &c,
                                             Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                             Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;
 
-    virtual void generateArchetypeCode(const ::Backend::MergedProcess &mergedProcess,
+    virtual void generateArchetypeCode(const Frontend::MergedProcess &mergedProcess,
                                        const Model &model, EnvironmentExternal &environment, 
                                        MergedFields &fields, Assembler::CodeGenerator &c,
                                        Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 

@@ -179,7 +179,7 @@ std::unique_ptr<Frontend::ArrayBase> DeviceFeNN::createPerformanceCounter()
 //----------------------------------------------------------------------------
 Runtime::Runtime(const Frontend::Model &model, size_t numDevices, bool useDRAMForWeights , bool keepParamsInRegisters, 
                  Compiler::RoundingMode neuronUpdateRoundingMode)
-:   ::Backend::Runtime(model, numDevices), m_UseDRAMForWeights(useDRAMForWeights), 
+:   Frontend::Runtime(model, numDevices), m_UseDRAMForWeights(useDRAMForWeights), 
     m_KeepParamsInRegisters(keepParamsInRegisters), m_NeuronUpdateRoundingMode(neuronUpdateRoundingMode)
 {
     // **TODO** fields

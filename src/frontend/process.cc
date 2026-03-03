@@ -166,14 +166,28 @@ void NeuronUpdateProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, cons
 void NeuronUpdateProcess::updateCompatibleSplitDimensions(std::shared_ptr<const State> state, 
                                                           uint32_t &compatibleSplitDimensions) const 
 {
-    // Search variables
-    // **TODO** event containers
+    // If state is a variable
     const auto var = std::find_if(getVariables().cbegin(), getVariables().cend(),
                                   [&state](const auto &v){ return v.second.getUnderlying() == state; });
-    assert(var != getVariables().cend());
-
-    // Ensure that we only split along the dimensions of the slice exposed to the neuron update process
-    compatibleSplitDimensions &= ((1 << var->second.getShape().getNumDims()) - 1);
+    if (var != getVariables().cend()) {
+        // Ensure that we only split along the dimensions of the slice  
+        // exposed to the neuron update process i.e. not the time dimension
+        compatibleSplitDimensions &= ((1 << var->second.getShape().getNumDims()) - 1);
+    }
+    // Otherwise
+    else {
+        // If state is an output event
+        const auto outEvent = std::find_if(getOutputEvents().cbegin(), getOutputEvents().cend(),
+                                           [&state](const auto &o){ return o.second.getUnderlying() == state; });
+        if (outEvent != getOutputEvents().cend()) {
+            // Ensure that we only split along the dimensions of the slice  
+            // exposed to the neuron update process i.e. not the time dimension
+            compatibleSplitDimensions &= ((1 << outEvent->second.getShape().getNumDims()) - 1);
+        }
+        else {
+            assert(false);
+        }
+    }
 }
 
 //----------------------------------------------------------------------------
@@ -239,7 +253,7 @@ EventPropagationProcess::EventPropagationProcess(Private, Sliced<EventContainer>
     }
     // Otherwise, check buffer size matches
     else {
-        if (getTargetShape().getDims().size() != 2) {
+        if (getTargetShape().getDims().size() != 2 || m_Target.hasTimeSlice()) {
             throw std::runtime_error("Delayed event propagation process "
                                      "requires target variable with a 2D shape");
         }
