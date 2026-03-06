@@ -792,7 +792,12 @@ void NeuronUpdateProcess::generateMergedPreambleCode(const Frontend::MergedProce
     std::iota(literalMapping.begin(), literalMapping.end(), 0);
 
     {
-        // Create N*N binary matrix to mark literals whose value is the same another across all merged processes
+        // Create N*N binary matrix to mark literals whose value 
+        // is the same another across all merged processes
+        // **THINK** this could be stored in a more efficient row-major
+        // triangular format but a) the indexing is a nuisance and
+        // b) while number of merged could be large, number of literals 
+        // is going to be limited (especially as we currently load them all into registers!)
         std::vector<bool> literalSelfSimilarity(numLiterals * numLiterals, true);
 
         // Loop through merged processed
