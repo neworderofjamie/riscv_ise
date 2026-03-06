@@ -2,6 +2,7 @@
 
 // Standard C++ includes
 #include <algorithm>
+#include <numeric>
 
 // GeNN incl;udes
 #include "type.h"
@@ -783,12 +784,39 @@ void NeuronUpdateProcess::generateMergedPreambleCode(const Frontend::MergedProce
 {
     const auto &archetypeLiterals = mergedProcess.getArchetype<NeuronUpdateProcess>()->getLiterals();
 
-    for(size_t i = 0; i < archetypeLiterals.size(); i++) {
+    // Loop through each merged process
+    const size_t numLiterals = archetypeLiterals.size();
+
+    // Start with each literal mapped to itself
+    std::vector<size_t> literalMapping(numLiterals);
+    std::iota(literalMapping.begin(), literalMapping.end(), 0);
+
+    {
+        // Create N*N binary matrix to mark literals whose value is the same another across all merged processes
+        std::vector<bool> literalSelfSimilarity(numLiterals * numLiterals, true);
+
+        // Loop through merged processed
         mergedProcess.forEachProcess<NeuronUpdateProcess>(
-            [i](const auto &np)
+            [&literalSelfSimilarity, numLiterals](const auto &np)
             {
-                assert(np->getLiterals().size() == archetypeLiterals.size());
+                // Update upper-triangular portion of matrix (excluding diagonal) with comparison
+                assert(np->getLiterals().size() == numLiterals);
+                for (size_t i = 0; i < numLiterals; i++) {
+                    for (size_t j = (i + 1); j < numLiterals; j++) {
+                        literalSelfSimilarity[(i * numLiterals) + j] &= (np->getLiterals()[i] == np->getLiterals()[j]);
+                    }
+                }
             });
+
+        // Loop through upper-triangular portion of matrix (excluding diagonal)
+        for (size_t i = 0; i < numLiterals; i++) {
+            for (size_t j = (i + 1); j < numLiterals; j++) {
+                // If this literal always has the same value as another, add to mapping
+                if (literalSelfSimilarity[(i * numLiterals) + j]) {
+                    literalMapping[i] = j;
+                }
+            }
+        }
     }
 
     // Loop through literals shared across merged processes, check FeNN-compliance and load
