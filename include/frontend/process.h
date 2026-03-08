@@ -20,6 +20,9 @@
 #include "frontend/shape.h"
 #include "frontend/variable.h"
 
+// Macros
+#define UPDATE_HASH_CLASS_NAME(CLASS_NAME) Utils::updateHash(#CLASS_NAME, hash);
+
 // Forward declarations
 namespace Frontend
 {
