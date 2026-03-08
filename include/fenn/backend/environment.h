@@ -6,13 +6,19 @@
 // GeNN includes
 #include "transpiler/typeChecker.h"
 
-// Compiler includes
+// FeNN assembler includes
+#include "fenn/assembler/assembler.h"
+
+// FeNN compiler includes
 #include "fenn/compiler/compiler.h"
+
+// FeNN backend includes
+#include "fenn/backend/fields.h"
 
 // Forward declarations
 namespace FeNN::Assembler
 {
-    class CodeGenerator;
+class VectorRegisterAllocator;
 }
 
 //----------------------------------------------------------------------------
@@ -170,7 +176,70 @@ private:
     std::reference_wrapper<const Library> m_Library;
 };
 
-/*class EnvironmentExternalMergedField : public EnvironmentExternalBase
+//----------------------------------------------------------------------------
+// EnvironmentVectorLiteral
+//----------------------------------------------------------------------------
+class EnvironmentVectorLiteral : public EnvironmentExternalBase
 {
-};*/
+public:
+    explicit EnvironmentVectorLiteral(EnvironmentExternalBase &enclosing,
+                                      Assembler::VectorRegisterAllocator &vectorRegisterAllocator)
+    :   EnvironmentExternalBase(enclosing), m_VectorRegisterAllocator(vectorRegisterAllocator)
+    {
+    }
+
+    explicit EnvironmentVectorLiteral(EnvironmentExternal &enclosing,
+                                      Assembler::VectorRegisterAllocator &vectorRegisterAllocator)
+    : EnvironmentExternalBase(enclosing), m_VectorRegisterAllocator(vectorRegisterAllocator)
+    {
+    }
+
+    explicit EnvironmentVectorLiteral(Compiler::EnvironmentBase &enclosing,
+                                      Assembler::VectorRegisterAllocator &vectorRegisterAllocator)
+    :   EnvironmentExternalBase(enclosing), m_VectorRegisterAllocator(vectorRegisterAllocator)
+    {
+    }
+
+    explicit EnvironmentVectorLiteral(Assembler::CodeGenerator &os,
+                                      Assembler::VectorRegisterAllocator &vectorRegisterAllocator)
+    :   EnvironmentExternalBase(os), m_VectorRegisterAllocator(vectorRegisterAllocator)
+    {
+    }
+
+    EnvironmentVectorLiteral(const EnvironmentVectorLiteral&) = delete;
+    virtual ~EnvironmentVectorLiteral();
+
+    //------------------------------------------------------------------------
+    // Assembler::EnvironmentBase virtuals
+    //------------------------------------------------------------------------
+    virtual Compiler::EnvironmentItem getItem(const std::string &name, std::optional<GeNN::Type::ResolvedType> type = std::nullopt) override final;
+
+    virtual Assembler::CodeGenerator &getCodeGenerator() override final{ return m_Contents; }
+
+    //------------------------------------------------------------------------
+    // TypeChecker::EnvironmentBase virtuals
+    //------------------------------------------------------------------------
+    virtual std::vector<GeNN::Type::ResolvedType> getTypes(const GeNN::Transpiler::Token &name,
+                                                           GeNN::Transpiler::ErrorHandlerBase &errorHandler) final;
+
+    //------------------------------------------------------------------------
+    // Public API
+    //------------------------------------------------------------------------
+    void addLiteral(const GeNN::Type::ResolvedType &type, const std::string &name, int16_t value);
+
+private:
+    //------------------------------------------------------------------------
+    // Members
+    //------------------------------------------------------------------------
+    //! Map containing registers allocated for literal values
+    std::unordered_map<std::string, 
+                       std::tuple<GeNN::Type::ResolvedType, int16_t,
+                                  Assembler::VectorRegisterAllocator::RegisterPtr>> m_LiteralRegisters;
+    
+    //! Register allocator for
+    std::reference_wrapper<Assembler::VectorRegisterAllocator> m_VectorRegisterAllocator;
+
+    // Code generator used to generate body of environment
+    Assembler::CodeGenerator m_Contents;
+};
 }
