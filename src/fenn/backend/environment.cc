@@ -152,4 +152,66 @@ std::vector<Type::ResolvedType> EnvironmentLibrary::getTypes(const Transpiler::T
         return types;
     }
 }
+
+
+//----------------------------------------------------------------------------
+// EnvironmentVectorLiteral
+//----------------------------------------------------------------------------
+EnvironmentVectorLiteral::~EnvironmentVectorLiteral()
+{
+    // Loop through literals
+    for (const auto &l : m_LiteralRegisters) {
+        // If a register has been allocated, generate code to load value into register
+        if (std::get<2>(l.second)) {
+            getContextCodeGenerator().vlui(*std::get<2>(l.second), std::get<1>(l.second));
+        }
+    }
+
+    // Write contents code
+    getContextCodeGenerator() += m_Contents;
+}
+//------------------------------------------------------------------------
+Compiler::EnvironmentItem EnvironmentVectorLiteral::getItem(const std::string &name, std::optional<GeNN::Type::ResolvedType> type)
+{
+    // If name isn't found in environment
+    auto literal = m_LiteralRegisters.find(name);
+    if (literal == m_LiteralRegisters.end()) {
+        return getContextItem(name, type);
+    }
+    // Otherwise
+    else {
+        // Allocate register
+        const std::string registerContext = "V" + name;
+        auto vectorReg = m_VectorRegisterAllocator.get().getRegister(registerContext.c_str());
+
+        // Add reference to map and return register
+        std::get<2>(literal->second) = vectorReg;
+        return vectorReg;
+    }
+}
+//------------------------------------------------------------------------
+std::vector<GeNN::Type::ResolvedType> EnvironmentVectorLiteral::getTypes(const GeNN::Transpiler::Token &name,
+                                                                         GeNN::Transpiler::ErrorHandlerBase &errorHandler)
+{
+    // If name isn't found in environment
+    auto literal = m_LiteralRegisters.find(name.lexeme);
+    if (literal == m_LiteralRegisters.end()) {
+        return getContextTypes(name, errorHandler);
+    }
+    // Otherwise, return type of variables
+    else {
+        return {std::get<0>(literal->second)};
+    }
+}
+//------------------------------------------------------------------------
+void EnvironmentVectorLiteral::addLiteral(const GeNN::Type::ResolvedType &type, const std::string &name, int16_t value)
+{
+    // Add literal name, type and value to map
+    if (!m_LiteralRegisters.emplace(std::piecewise_construct,
+                                    std::forward_as_tuple(name),
+                                    std::forward_as_tuple(type, value, nullptr)).second)
+    {
+        throw std::runtime_error("'" + name + "' already defined in literal environment");
+    }
+}
 }
