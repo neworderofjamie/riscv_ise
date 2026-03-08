@@ -41,24 +41,30 @@ ASSEMBLER_EXPORT void generateScalarLaneLocalBroadcast(CodeGenerator &c, VectorR
                                                        ScalarRegisterAllocator &scalarRegisterAllocator,
                                                        uint32_t scalarPtr, uint32_t laneLocalPtr, uint32_t numHalfWords);
 
-// Generate code to copy 64-bit performance counter value from pair of CSR registers to scalar memory
+//! Generate code to copy 64-bit performance counter value from pair of CSR registers to scalar memory
 ASSEMBLER_EXPORT void generatePerformanceCountWrite(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator,
                                                     Common::CSR lowCSR, Common::CSR highCSR, uint32_t scalarPtr);
 
-// Generate an unrolled loop body
+//! Generate an unrolled loop body when number of iterations is known at compile-time
 ASSEMBLER_EXPORT void unrollLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator,
                                      uint32_t numIterations, uint32_t maxUnroll, uint32_t iterationBytes,
                                      Common::Reg testBufferReg, bool alwaysGenerateTail,
                                      std::function<void(CodeGenerator&, uint32_t, bool)> genBodyFn, 
                                      std::function<void(CodeGenerator&, uint32_t)> genTailFn);
 
-// Generate an unrolled loop body for a vectorised loop
+//! Generate an unrolled loop body when number of iterations is only known at runtime 
+ASSEMBLER_EXPORT void unrollLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator, 
+                                     Common::Reg numIterationsReg, uint32_t maxUnroll,
+                                     std::function<void(CodeGenerator&, uint32_t)> genBodyFn, 
+                                     std::function<void(CodeGenerator&, uint32_t)> genTailFn);
+
+//! Generate an unrolled loop body for a vectorised loop
 ASSEMBLER_EXPORT void unrollVectorLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator, 
                                            uint32_t numIterations, uint32_t maxUnroll, Common::Reg testBufferReg,
                                            std::function<void(CodeGenerator&, uint32_t, bool, ScalarRegisterAllocator::RegisterPtr)> genBodyFn, 
                                            std::function<void(CodeGenerator&, uint32_t)> genTailFn);
 
-// Generate preamble and postamble for code using standard ecall instruction to terminate simulations and polling on device
+//! Generate preamble and postamble for code using standard ecall instruction to terminate simulations and polling on device
 ASSEMBLER_EXPORT std::vector<uint32_t> generateStandardKernel(bool simulate, uint32_t readyFlagPtr, 
                                                               std::function<void(CodeGenerator&, VectorRegisterAllocator&, ScalarRegisterAllocator&)> genBodyFn);
 

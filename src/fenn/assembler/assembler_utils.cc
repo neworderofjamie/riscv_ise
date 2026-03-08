@@ -315,86 +315,53 @@ void unrollLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAll
 }
 //----------------------------------------------------------------------------
 void unrollLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator, 
-                    Common::Reg count, uint32_t maxUnroll, uint32_t iterationBytes,
-                    Common::Reg testBufferReg, bool alwaysGenerateTail,
-                    std::function<void(CodeGenerator&, uint32_t, bool)> genBodyFn, 
+                    Common::Reg numIterationsReg, uint32_t maxUnroll,
+                    std::function<void(CodeGenerator&, uint32_t)> genBodyFn, 
                     std::function<void(CodeGenerator&, uint32_t)> genTailFn)
 {
     // Evenness of iterations can only be determined with even numbers of unrolls
     assert((maxUnroll % 2) == 0);
+    
+    // Unrolled loop
+    {
+        // Load max unroll
+        ALLOCATE_SCALAR(SMaxUnroll);
+        c.li(*SMaxUnroll, maxUnroll);
 
-    ALLOCATE_SCALAR(SIndex);
-    ALLOCATE_SCALAR(SUnroll);
-    c.li(*SUnroll, maxUnroll);
-    c.addi(*SIndex, count, 0);
-
-    // Generate unrolled loop
-    size_t bodyStart = c.getCodeSize();
-    std::optional<size_t> bodySize;
-    for(uint32_t r = 0; r < maxUnroll; r++) {
-        genBodyFn(c, r, (r % 2) == 0);
-        const size_t bodyEnd = c.getCodeSize();
-        if (!bodySize) {
-            bodySize = bodyEnd - bodyStart;
-        }
-        else {
-            assert(bodySize.value() == (bodyEnd - bodyStart));
-        }
-        bodyStart = bodyEnd;
-
-        c.sub(*SIndex, *SIndex, -*SUnroll * iterationBytes);
-    }
-    ALLOCATE_SCALAR(STarget);
-    c.min(*STarget, *SIndex, maxUnroll);
-    c.auipc(*STarget, 0);
-    // Target -= rem * bodysize
-    // jump target
-   
-    // If there are are complete unrolls
-    if(numUnrolls.quot != 0) {
-        // Calculate end of unrolled section of buffer
-        ALLOCATE_SCALAR(STestBufferEndReg);
-        const size_t stride = iterationBytes * numUnrolls.quot * maxUnroll;
-        if(Common::inSBit(stride, 12)) {
-            c.addi(*STestBufferEndReg, testBufferReg, stride);
-        }
-        else {
-            c.li(*STestBufferEndReg, stride);
-            c.add(*STestBufferEndReg, *STestBufferEndReg, testBufferReg);
-        }
-
-        auto loop = createLabel();
-        c.L(loop);
+        auto unrolledLoopEnd = createLabel();
+        auto unrolledLoopStart = c.L();
         {
+            // While number of iterations remaining >= max unroll
+            c.blt(numIterationsReg, *SMaxUnroll, unrolledLoopEnd);
+
             // Unroll loop
             for(uint32_t r = 0; r < maxUnroll; r++) {
-                genBodyFn(c, r, (r % 2) == 0);
+                genBodyFn(c, r);
             }
 
-            // If more than 1 unroll is required or there are more iterations, generate tail
-            if(numUnrolls.quot > 1 || numUnrolls.rem != 0 || alwaysGenerateTail) {
-                genTailFn(c, maxUnroll);
-            }
+            // Generate tail
+            genTailFn(c, maxUnroll);
 
-            // If more than 1 unroll is required, generate loop
-            if(numUnrolls.quot > 1) {
-                c.bne(testBufferReg, *STestBufferEndReg, loop);
-            }
+            // Subtract max unrolls from num iterations
+            c.addi(numIterationsReg, numIterationsReg, -maxUnroll);
+            c.j_(unrolledLoopStart);
         }
+        c.L(unrolledLoopEnd);
     }
+    
+    // Tail loop
+    auto tailLoopEnd = createLabel();
+    auto tailLoopStart = c.L();
+    {
+        // Generate body
+        genBodyFn(c, 0);
 
-    // If there is a remainder
-    if(numUnrolls.rem != 0) {
-        // Unroll tail
-        for(uint32_t r = 0; r < numUnrolls.rem; r++) {
-            genBodyFn(c, r, (r % 2) == 0);
-        }
+        // Generate tail
+        genTailFn(c, 1);
 
-        // If we should always generate a tail, do so
-        if(alwaysGenerateTail) {
-            genTailFn(c, numUnrolls.rem);
-        }
-
+        // Subtract 1 from num iterations
+        c.addi(numIterationsReg, numIterationsReg, -1);
+        c.j_(tailLoopStart);
     }
 }
 //----------------------------------------------------------------------------
