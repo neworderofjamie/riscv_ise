@@ -25,13 +25,19 @@ namespace FeNN::Backend
 {
 class MergedFields
 {
-    using FieldValue = std::variant<int32_t, uint32_t, Frontend::ArrayBase*>;
+public:
+    using FieldValue = std::variant<int32_t, uint32_t>;
 
     template<typename P>
-    using GetFieldValueFunc = std::function<FieldValue(const Frontend::DeviceBase &, 
-                                                       std::shared_ptr<const P>)>;
+    using GetFieldConstantFunc = std::function<FieldValue(std::shared_ptr<const P>)>;
 
-public:
+    template<typename P>
+    using GetFieldPointerFunc = std::function<Frontend::ArrayBase*(const Frontend::DeviceBase&, 
+                                                                   std::shared_ptr<const P>)>;
+
+    template<typename P>
+    using GetFieldValueFunc = std::variant<GetFieldConstantFunc<P>, GetFieldPointerFunc<P>>;
+
     MergedFields() : m_NextFieldOffset(0)
     {}
 
@@ -39,14 +45,32 @@ public:
     // Public API
     //----------------------------------------------------------------------------
     template<typename P>
-    uint32_t addField(GetFieldValueFunc<P> getFieldValueFn, uint32_t fieldSize = 4)
+    uint32_t addField(GetFieldConstantFunc<P> getFieldConstantFn, uint32_t fieldSize = 4)
     {
         // Gather state from all merged processes and assign to field
         m_FieldOffsets.emplace_back(m_NextFieldOffset, 
-                                    [getFieldValueFn]
+                                    [getFieldConstantFn]
+                                    (std::shared_ptr<const Frontend::Process> p)
+                                    {
+                                        return getFieldConstantFn(std::static_pointer_cast<const P>);
+                                    });
+
+        // Update next field offset
+        m_NextFieldOffset += fieldSize;
+
+        // Return offset of new fiel,d
+        return m_FieldOffsets.back().first;
+    }
+
+    template<typename P>
+    uint32_t addField(GetFieldPointerFunc<P> getFieldPointerFn, uint32_t fieldSize = 4)
+    {
+        // Gather state from all merged processes and assign to field
+        m_FieldOffsets.emplace_back(m_NextFieldOffset, 
+                                    [getFieldPointerFn]
                                     (const Frontend::DeviceBase &d, std::shared_ptr<const Frontend::Process> p)
                                     {
-                                        return getFieldValueFn(d, std::static_pointer_cast<const P>);
+                                        return getFieldPointerFn(d, std::static_pointer_cast<const P>);
                                     });
 
         // Update next field offset
