@@ -78,10 +78,9 @@ public:
                                             Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
     {}
 
-    virtual void generateArchetypeCode(const Frontend::MergedProcess &mergedProcess,
-                                       const Model &model, EnvironmentExternal &environment, 
-                                       MergedFields &fields, Assembler::CodeGenerator &c,
-                                       Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
+    virtual void generateArchetypeCode(const Frontend::MergedProcess &mergedProcess, const Model &model,
+                                       EnvironmentExternal &environment, MergedFields &fields,
+                                       Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
                                        Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const = 0;
 
     //----------------------------------------------------------------------------
@@ -149,10 +148,9 @@ public:
                                             Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                             Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;
 
-    virtual void generateArchetypeCode(const Frontend::MergedProcess &mergedProcess,
-                                       const Model &model, EnvironmentExternal &environment, 
-                                       MergedFields &fields, Assembler::CodeGenerator &c,
-                                       Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
+    virtual void generateArchetypeCode(const Frontend::MergedProcess &mergedProcess, const Model &model,
+                                       EnvironmentExternal &environment, MergedFields &fields,
+                                       Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
                                        Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;
 
     //------------------------------------------------------------------------
@@ -226,10 +224,9 @@ public:
     //------------------------------------------------------------------------
     // TimeDrivenProcessImplementation virtuals
     //------------------------------------------------------------------------ 
-    virtual void generateArchetypeCode(const Frontend::MergedProcess &mergedProcess,
-                                       const Model &model, EnvironmentExternal &environment, 
-                                       MergedFields &fields, Assembler::CodeGenerator &c,
-                                       Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
+    virtual void generateArchetypeCode(const Frontend::MergedProcess &mergedProcess, const Model &model,
+                                       EnvironmentExternal &environment, MergedFields &fields,
+                                       Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
                                        Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;
 
     //------------------------------------------------------------------------
@@ -259,10 +256,9 @@ public:
     //------------------------------------------------------------------------
     // TimeDrivenProcessImplementation virtuals
     //------------------------------------------------------------------------ 
-    virtual void generateArchetypeCode(const Frontend::MergedProcess &mergedProcess,
-                                       const Model &model, EnvironmentExternal &environment, 
-                                       MergedFields &fields, Assembler::CodeGenerator &c,
-                                       Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
+    virtual void generateArchetypeCode(const Frontend::MergedProcess &mergedProcess, const Model &model,
+                                       EnvironmentExternal &environment, MergedFields &fields,
+                                       Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
                                        Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;
 
     //------------------------------------------------------------------------
@@ -326,10 +322,9 @@ public:
                                             Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                             Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;
 
-    virtual void generateArchetypeCode(const Frontend::MergedProcess &mergedProcess,
-                                       const Model &model, EnvironmentExternal &environment, 
-                                       MergedFields &fields, Assembler::CodeGenerator &c,
-                                       Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
+    virtual void generateArchetypeCode(const Frontend::MergedProcess &mergedProcess, const Model &model,
+                                       EnvironmentExternal &environment, MergedFields &fields,
+                                       Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
                                        Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;
     
     //------------------------------------------------------------------------
