@@ -1,5 +1,8 @@
 #include "fenn/backend/environment.h"
 
+// GeNN includes
+#include "gennUtils.h"
+
 // GeNN transpiler includes
 #include "transpiler/errorHandler.h"
 
@@ -153,14 +156,13 @@ std::vector<Type::ResolvedType> EnvironmentLibrary::getTypes(const Transpiler::T
     }
 }
 
-
 //----------------------------------------------------------------------------
 // EnvironmentVectorLiteral
 //----------------------------------------------------------------------------
 EnvironmentVectorLiteral::~EnvironmentVectorLiteral()
 {
     // Loop through literals
-    for (const auto &l : m_LiteralRegisters) {
+    for (const auto &l : m_Literals) {
         // If a register has been allocated, generate code to load value into register
         if (std::get<2>(l.second)) {
             getContextCodeGenerator().vlui(*std::get<2>(l.second), std::get<1>(l.second));
@@ -174,8 +176,8 @@ EnvironmentVectorLiteral::~EnvironmentVectorLiteral()
 Compiler::EnvironmentItem EnvironmentVectorLiteral::getItem(const std::string &name, std::optional<GeNN::Type::ResolvedType> type)
 {
     // If name isn't found in environment
-    auto literal = m_LiteralRegisters.find(name);
-    if (literal == m_LiteralRegisters.end()) {
+    auto literal = m_Literals.find(name);
+    if (literal == m_Literals.end()) {
         return getContextItem(name, type);
     }
     // Otherwise
@@ -194,8 +196,8 @@ std::vector<GeNN::Type::ResolvedType> EnvironmentVectorLiteral::getTypes(const G
                                                                          GeNN::Transpiler::ErrorHandlerBase &errorHandler)
 {
     // If name isn't found in environment
-    auto literal = m_LiteralRegisters.find(name.lexeme);
-    if (literal == m_LiteralRegisters.end()) {
+    auto literal = m_Literals.find(name.lexeme);
+    if (literal == m_Literals.end()) {
         return getContextTypes(name, errorHandler);
     }
     // Otherwise, return type of variables
@@ -207,7 +209,90 @@ std::vector<GeNN::Type::ResolvedType> EnvironmentVectorLiteral::getTypes(const G
 void EnvironmentVectorLiteral::addLiteral(const GeNN::Type::ResolvedType &type, const std::string &name, int16_t value)
 {
     // Add literal name, type and value to map
-    if (!m_LiteralRegisters.emplace(std::piecewise_construct,
+    if (!m_Literals.emplace(std::piecewise_construct,
+                                    std::forward_as_tuple(name),
+                                    std::forward_as_tuple(type, value, nullptr)).second)
+    {
+        throw std::runtime_error("'" + name + "' already defined in literal environment");
+    }
+}
+
+//----------------------------------------------------------------------------
+// EnvironmentMergedField
+//----------------------------------------------------------------------------
+EnvironmentMergedField::~EnvironmentMergedField()
+{
+    // Loop through literals
+    for (const auto &f : m_Fields) {
+        std::visit(
+            GeNN::Utils::Overload{
+                [this, &f](FeNN::Assembler::ScalarRegisterAllocator::RegisterPtr v)
+                {
+                    
+                },
+                [this, &f](Assembler::VectorRegisterAllocator::RegisterPtr s)
+                {
+                    const size_t offset = m_MergedFields.get().addField(getFieldPointerFn, 4);
+                },
+                [](std::monostate)
+                {}},
+                std::get<2>(f.second));
+    }
+
+    // Write contents code
+    getContextCodeGenerator() += m_Contents;
+}
+//------------------------------------------------------------------------
+Compiler::EnvironmentItem EnvironmentMergedField::getItem(const std::string &name, std::optional<GeNN::Type::ResolvedType> type)
+{
+    // If name isn't found in environment
+    auto field = m_Fields.find(name);
+    if (field == m_Fields.end()) {
+        return getContextItem(name, type);
+    }
+    // Otherwise
+    else {
+        // Allocate vector registers for constant value fields and scalar registers for pointer fields
+        // **TODO** constants also useful in scalar registers!
+        auto reg = std::visit(
+            GeNN::Utils::Overload{
+                [this, &name](MergedFields::GetFieldConstantFunc<Frontend::Process>)
+                {
+                    const std::string registerContext = "V" + name;
+                    return m_VectorRegisterAllocator.get().getRegister(registerContext.c_str());
+                },
+                [this, &name](MergedFields::GetFieldPointerFunc<Frontend::Process>)
+                {
+                    const std::string registerContext = "X" + name;
+                    return m_ScalarRegisterAllocator.get().getRegister(registerContext.c_str());
+                }},
+                std::get<1>(field->second));
+        
+
+        // Add reference to map and return register
+        std::get<2>(field->second) = reg;
+        return reg;
+    }
+}
+//------------------------------------------------------------------------
+std::vector<GeNN::Type::ResolvedType> EnvironmentMergedField::getTypes(const GeNN::Transpiler::Token &name,
+                                                                         GeNN::Transpiler::ErrorHandlerBase &errorHandler)
+{
+    // If name isn't found in environment
+    auto field = m_Fields.find(name.lexeme);
+    if (field == m_Fields.end()) {
+        return getContextTypes(name, errorHandler);
+    }
+    // Otherwise, return typ
+    else {
+        return {std::get<0>(field->second)};
+    }
+}
+//------------------------------------------------------------------------
+void EnvironmentMergedField::addLiteral(const GeNN::Type::ResolvedType &type, const std::string &name, int16_t value)
+{
+    // Add literal name, type and value to map
+    if (!m_Literals.emplace(std::piecewise_construct,
                                     std::forward_as_tuple(name),
                                     std::forward_as_tuple(type, value, nullptr)).second)
     {

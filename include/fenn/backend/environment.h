@@ -18,6 +18,7 @@
 // Forward declarations
 namespace FeNN::Assembler
 {
+class ScalarRegisterAllocator;
 class VectorRegisterAllocator;
 }
 
@@ -231,13 +232,104 @@ private:
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
-    //! Map containing registers allocated for literal values
+    //! Mapping between names and types, values and registers associated with literal values
     std::unordered_map<std::string, 
                        std::tuple<GeNN::Type::ResolvedType, int16_t,
-                                  Assembler::VectorRegisterAllocator::RegisterPtr>> m_LiteralRegisters;
+                                  Assembler::VectorRegisterAllocator::RegisterPtr>> m_Literals;
     
-    //! Register allocator for
+    //! Vector register allocator
     std::reference_wrapper<Assembler::VectorRegisterAllocator> m_VectorRegisterAllocator;
+
+    // Code generator used to generate body of environment
+    Assembler::CodeGenerator m_Contents;
+};
+
+//----------------------------------------------------------------------------
+// EnvironmentMergedField
+//----------------------------------------------------------------------------
+class EnvironmentMergedField : public EnvironmentExternalBase
+{
+    using NullableRegisterPtr = std::variant<std::monostate, 
+                                             Assembler::ScalarRegisterAllocator::RegisterPtr, 
+                                             Assembler::VectorRegisterAllocator::RegisterPtr>;
+public:
+    explicit EnvironmentMergedField(EnvironmentExternalBase &enclosing, 
+                                    Assembler::VectorRegisterAllocator &vectorRegisterAllocator,
+                                    Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
+                                    MergedFields &mergedFields)
+    :   EnvironmentExternalBase(enclosing), m_VectorRegisterAllocator(vectorRegisterAllocator),
+        m_ScalarRegisterAllocator(scalarRegisterAllocator), m_MergedFields(mergedFields)
+    {
+    }
+
+    explicit EnvironmentMergedField(EnvironmentExternal &enclosing,
+                                    Assembler::VectorRegisterAllocator &vectorRegisterAllocator,
+                                    Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
+                                    MergedFields &mergedFields)
+    :   EnvironmentExternalBase(enclosing), m_VectorRegisterAllocator(vectorRegisterAllocator),
+        m_ScalarRegisterAllocator(scalarRegisterAllocator), m_MergedFields(mergedFields)
+    {
+    }
+
+    explicit EnvironmentMergedField(Compiler::EnvironmentBase &enclosing,
+                                    Assembler::VectorRegisterAllocator &vectorRegisterAllocator,
+                                    Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
+                                    MergedFields &mergedFields)
+    :   EnvironmentExternalBase(enclosing), m_VectorRegisterAllocator(vectorRegisterAllocator),
+        m_ScalarRegisterAllocator(scalarRegisterAllocator), m_MergedFields(mergedFields)
+    {
+    }
+
+    explicit EnvironmentMergedField(Assembler::CodeGenerator &os,
+                                    Assembler::VectorRegisterAllocator &vectorRegisterAllocator,
+                                    Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
+                                    MergedFields &mergedFields)
+    :   EnvironmentExternalBase(os), m_VectorRegisterAllocator(vectorRegisterAllocator),
+        m_ScalarRegisterAllocator(scalarRegisterAllocator), m_MergedFields(mergedFields)
+    {
+    }
+
+    EnvironmentMergedField(const EnvironmentMergedField&) = delete;
+    virtual ~EnvironmentMergedField();
+
+    //------------------------------------------------------------------------
+    // Assembler::EnvironmentBase virtuals
+    //------------------------------------------------------------------------
+    virtual Compiler::EnvironmentItem getItem(const std::string &name, std::optional<GeNN::Type::ResolvedType> type = std::nullopt) override final;
+
+    virtual Assembler::CodeGenerator &getCodeGenerator() override final{ return m_Contents; }
+
+    //------------------------------------------------------------------------
+    // TypeChecker::EnvironmentBase virtuals
+    //------------------------------------------------------------------------
+    virtual std::vector<GeNN::Type::ResolvedType> getTypes(const GeNN::Transpiler::Token &name,
+                                                           GeNN::Transpiler::ErrorHandlerBase &errorHandler) final;
+
+    //------------------------------------------------------------------------
+    // Public API
+    //------------------------------------------------------------------------
+    template<typename P>
+    void addField(const GeNN::Type::ResolvedType &type, const std::string &name, 
+                  MergedFields::GetFieldValueFunc<P> getFieldValue);
+
+private:
+    //------------------------------------------------------------------------
+    // Members
+    //------------------------------------------------------------------------
+    
+
+    //! Mapping between names and types, getters and registers associated with fields
+    std::unordered_map<std::string, 
+                       std::tuple<GeNN::Type::ResolvedType, 
+                                  MergedFields::GetFieldValueFunc<Frontend::Process>,
+                                  NullableRegisterPtr>> m_Fields;
+
+    //! Register allocators
+    std::reference_wrapper<Assembler::ScalarRegisterAllocator> m_ScalarRegisterAllocator;
+    std::reference_wrapper<Assembler::VectorRegisterAllocator> m_VectorRegisterAllocator;
+
+    //! Merged field object to add any required fields to
+    std::reference_wrapper<MergedFields> m_MergedFields;
 
     // Code generator used to generate body of environment
     Assembler::CodeGenerator m_Contents;
