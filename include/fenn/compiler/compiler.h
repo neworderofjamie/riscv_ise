@@ -85,6 +85,11 @@ public:
         return std::get<FeNN::Assembler::VectorRegisterAllocator::RegisterPtr>(getRegister(name));
     }
 
+    int getLiteral(const std::string &name)
+    {
+        return std::get<int>(getRegister(name));
+    }
+
     //------------------------------------------------------------------------
     // Operators
     //------------------------------------------------------------------------
