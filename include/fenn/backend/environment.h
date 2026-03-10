@@ -350,9 +350,9 @@ public:
         // Add literal name, type and wrapped function to cast derived process
         if (!m_Fields.emplace(
             std::forward_as_tuple(type, 
-                                  [getFieldConstantFn](std::shared_ptr<const Frontend::Process> p)
+                                  [getFieldConstantFn](size_t d, std::shared_ptr<const Frontend::Process> p)
                                   {
-                                      return getFieldConstantFn(std::static_pointer_cast<const P>(p));
+                                      return getFieldConstantFn(size_t d, std::static_pointer_cast<const P>(p));
                                   }, 
                                   nullptr)).second)
         {
