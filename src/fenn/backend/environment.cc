@@ -160,13 +160,13 @@ std::vector<Type::ResolvedType> EnvironmentLibrary::getTypes(const Transpiler::T
 //----------------------------------------------------------------------------
 // EnvironmentVectorLiteral
 //----------------------------------------------------------------------------
-EnvironmentVectorLiteral::~EnvironmentVectorLiteral()
+EnvironmentLiteral::~EnvironmentLiteral()
 {
     // Loop through literals
     for (const auto &l : m_Literals) {
         // If a register has been allocated, generate code to load value into register
-        if (std::get<2>(l.second)) {
-            getContextCodeGenerator().vlui(*std::get<2>(l.second), std::get<1>(l.second));
+        if (std::get<3>(l.second)) {
+            getContextCodeGenerator().vlui(*std::get<3>(l.second), std::get<2>(l.second));
         }
     }
 
@@ -174,27 +174,31 @@ EnvironmentVectorLiteral::~EnvironmentVectorLiteral()
     getContextCodeGenerator() += m_Contents;
 }
 //------------------------------------------------------------------------
-Compiler::EnvironmentItem EnvironmentVectorLiteral::getItem(const std::string &name, std::optional<GeNN::Type::ResolvedType> type)
+Compiler::EnvironmentItem EnvironmentLiteral::getItem(const std::string &name, std::optional<GeNN::Type::ResolvedType> type)
 {
     // If name isn't found in environment
     auto literal = m_Literals.find(name);
     if (literal == m_Literals.end()) {
         return getContextItem(name, type);
     }
-    // Otherwise
-    else {
+    // Otherwise, if this is a literal for use in vector processor
+    else if(std::get<2>(literal->second)) {
         // Allocate register
         const std::string registerContext = "V" + name;
         auto vectorReg = m_VectorRegisterAllocator.get().getRegister(registerContext.c_str());
 
         // Add reference to map and return register
-        std::get<2>(literal->second) = vectorReg;
+        std::get<3>(literal->second) = vectorReg;
         return vectorReg;
+    }
+    // Otherwise, just return value
+    else {
+        return std::get<2>(literal->second);
     }
 }
 //------------------------------------------------------------------------
-std::vector<GeNN::Type::ResolvedType> EnvironmentVectorLiteral::getTypes(const GeNN::Transpiler::Token &name,
-                                                                         GeNN::Transpiler::ErrorHandlerBase &errorHandler)
+std::vector<GeNN::Type::ResolvedType> EnvironmentLiteral::getTypes(const GeNN::Transpiler::Token &name,
+                                                                   GeNN::Transpiler::ErrorHandlerBase &errorHandler)
 {
     // If name isn't found in environment
     auto literal = m_Literals.find(name.lexeme);
@@ -207,12 +211,23 @@ std::vector<GeNN::Type::ResolvedType> EnvironmentVectorLiteral::getTypes(const G
     }
 }
 //------------------------------------------------------------------------
-void EnvironmentVectorLiteral::addLiteral(const GeNN::Type::ResolvedType &type, const std::string &name, int16_t value)
+void EnvironmentLiteral::addVectorLiteral(const GeNN::Type::ResolvedType &type, const std::string &name, int16_t value)
 {
     // Add literal name, type and value to map
     if (!m_Literals.emplace(std::piecewise_construct,
-                                    std::forward_as_tuple(name),
-                                    std::forward_as_tuple(type, value, nullptr)).second)
+                            std::forward_as_tuple(name),
+                            std::forward_as_tuple(type, value, true, nullptr)).second)
+    {
+        throw std::runtime_error("'" + name + "' already defined in literal environment");
+    }
+}
+//------------------------------------------------------------------------
+void EnvironmentLiteral::addScalarLiteral(const GeNN::Type::ResolvedType &type, const std::string &name, int value)
+{
+    // Add literal name, type and value to map
+    if (!m_Literals.emplace(std::piecewise_construct,
+                            std::forward_as_tuple(name),
+                            std::forward_as_tuple(type, value, false, nullptr)).second)
     {
         throw std::runtime_error("'" + name + "' already defined in literal environment");
     }
@@ -229,7 +244,7 @@ EnvironmentMergedField::~EnvironmentMergedField()
         if (std::get<2>(f.second)) {
             // Visit allocated register
             std::visit(
-                GeNN::Utils::Overload{
+                Utils::Overload{
                     // If field has been allocated a SCALAR register, it is a pointer
                     [this, &f](FeNN::Assembler::ScalarRegisterAllocator::RegisterPtr s)
                     {
@@ -281,7 +296,7 @@ Compiler::EnvironmentItem EnvironmentMergedField::getItem(const std::string &nam
         // Allocate vector registers for constant value fields and scalar registers for pointer fields
         // **TODO** constants also useful in scalar registers!
         auto reg = std::visit(
-            GeNN::Utils::Overload{
+            Utils::Overload{
                 [this, &name](MergedFields::GetFieldConstantFunc<Frontend::Process>)
                 {
                     const std::string registerContext = "V" + name;
@@ -293,7 +308,6 @@ Compiler::EnvironmentItem EnvironmentMergedField::getItem(const std::string &nam
                     return Compiler::RegisterPtr{m_ScalarRegisterAllocator.get().getRegister(registerContext.c_str())};
                 }},
                 std::get<1>(field->second));
-        
 
         // Add reference to map and return register
         std::get<2>(field->second) = reg;
