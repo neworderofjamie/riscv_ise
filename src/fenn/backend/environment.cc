@@ -8,6 +8,7 @@
 
 // Assembler includes
 #include "fenn/assembler/assembler.h"
+#include "fenn/assembler/register_allocator.h"
 
 using namespace GeNN;
 
@@ -222,21 +223,46 @@ void EnvironmentVectorLiteral::addLiteral(const GeNN::Type::ResolvedType &type, 
 //----------------------------------------------------------------------------
 EnvironmentMergedField::~EnvironmentMergedField()
 {
-    // Loop through literals
+    // Loop through fields
     for (const auto &f : m_Fields) {
-        std::visit(
-            GeNN::Utils::Overload{
-                [this, &f](FeNN::Assembler::ScalarRegisterAllocator::RegisterPtr v)
-                {
-                    
-                },
-                [this, &f](Assembler::VectorRegisterAllocator::RegisterPtr s)
-                {
-                    const size_t offset = m_MergedFields.get().addField(getFieldPointerFn, 4);
-                },
-                [](std::monostate)
-                {}},
-                std::get<2>(f.second));
+        // If register has been allocated for this field i.e. it's in use
+        if (std::get<2>(f.second)) {
+            // Visit allocated register
+            std::visit(
+                GeNN::Utils::Overload{
+                    // If field has been allocated a SCALAR register, it is a pointer
+                    [this, &f](FeNN::Assembler::ScalarRegisterAllocator::RegisterPtr s)
+                    {
+                        // Extract function to get pointer
+                        auto getFieldPointerFn = std::get<MergedFields::GetFieldPointerFunc<const Frontend::Process>>(
+                            std::get<1>(f.second));
+
+                        // Add field **TODO** pointer size
+                        const uint32_t offset = m_MergedFields.get().addField(getFieldPointerFn, 4);
+
+                        // Load pointer into allocated register
+                        getContextCodeGenerator().lw(*s, *m_FieldBaseReg, offset);
+                    },
+                    // If field has been allocated a VECTOR register, it is a constant
+                    [this, &f](Assembler::VectorRegisterAllocator::RegisterPtr v)
+                    {
+                        // Extract function to get constant
+                        auto getFieldConstantFn = std::get<MergedFields::GetFieldConstantFunc<const Frontend::Process>>(
+                            std::get<1>(f.second));
+
+                        //! Add field
+                        const uint32_t offset = m_MergedFields.get().addField(getFieldConstantFn, 4);
+
+                        // Load half from field into temporary register
+                        auto STmp = m_ScalarRegisterAllocator.get().getRegister("STmp") ;
+                        getContextCodeGenerator().lh(*STmp, *m_FieldBaseReg, offset);
+
+                        // Fill allocated vector register
+                        getContextCodeGenerator().vfill(*v, *STmp);
+                    }},
+                    std::get<2>(f.second).value());
+
+        }
     }
 
     // Write contents code
@@ -259,12 +285,12 @@ Compiler::EnvironmentItem EnvironmentMergedField::getItem(const std::string &nam
                 [this, &name](MergedFields::GetFieldConstantFunc<Frontend::Process>)
                 {
                     const std::string registerContext = "V" + name;
-                    return m_VectorRegisterAllocator.get().getRegister(registerContext.c_str());
+                    return Compiler::RegisterPtr{m_VectorRegisterAllocator.get().getRegister(registerContext.c_str())};
                 },
                 [this, &name](MergedFields::GetFieldPointerFunc<Frontend::Process>)
                 {
                     const std::string registerContext = "X" + name;
-                    return m_ScalarRegisterAllocator.get().getRegister(registerContext.c_str());
+                    return Compiler::RegisterPtr{m_ScalarRegisterAllocator.get().getRegister(registerContext.c_str())};
                 }},
                 std::get<1>(field->second));
         
@@ -286,17 +312,6 @@ std::vector<GeNN::Type::ResolvedType> EnvironmentMergedField::getTypes(const GeN
     // Otherwise, return typ
     else {
         return {std::get<0>(field->second)};
-    }
-}
-//------------------------------------------------------------------------
-void EnvironmentMergedField::addLiteral(const GeNN::Type::ResolvedType &type, const std::string &name, int16_t value)
-{
-    // Add literal name, type and value to map
-    if (!m_Literals.emplace(std::piecewise_construct,
-                                    std::forward_as_tuple(name),
-                                    std::forward_as_tuple(type, value, nullptr)).second)
-    {
-        throw std::runtime_error("'" + name + "' already defined in literal environment");
     }
 }
 }
