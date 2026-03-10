@@ -29,7 +29,7 @@ public:
     using FieldValue = std::variant<int32_t, uint32_t>;
 
     template<typename P>
-    using GetFieldConstantFunc = std::function<FieldValue(std::shared_ptr<const P>)>;
+    using GetFieldConstantFunc = std::function<FieldValue(size_t, std::shared_ptr<const P>)>;
 
     template<typename P>
     using GetFieldPointerFunc = std::function<Frontend::ArrayBase*(const Frontend::DeviceBase&, 
@@ -44,15 +44,16 @@ public:
     //----------------------------------------------------------------------------
     // Public API
     //----------------------------------------------------------------------------
+    // **TODO** untemplate
     template<typename P>
     uint32_t addField(GetFieldConstantFunc<P> getFieldConstantFn, uint32_t fieldSize = 4)
     {
         // Gather state from all merged processes and assign to field
         m_FieldOffsets.emplace_back(m_NextFieldOffset, 
                                     [getFieldConstantFn]
-                                    (std::shared_ptr<const Frontend::Process> p)
+                                    (size_t d, std::shared_ptr<const Frontend::Process> p)
                                     {
-                                        return getFieldConstantFn(std::static_pointer_cast<const P>(p));
+                                        return getFieldConstantFn(d, std::static_pointer_cast<const P>(p));
                                     });
 
         // Update next field offset
@@ -62,6 +63,7 @@ public:
         return m_FieldOffsets.back().first;
     }
 
+    // **TODO** untemplate
     template<typename P>
     uint32_t addField(GetFieldPointerFunc<P> getFieldPointerFn, uint32_t fieldSize = 4)
     {
