@@ -42,6 +42,7 @@ public:
     //------------------------------------------------------------------------
     const auto &getKernels() const{ return m_Kernels; }
     const auto &getStateData() const{ return m_StateData; }
+    const StateData &getStateData(std::shared_ptr<const Frontend::State> state) const;
 
 private:
     //----------------------------------------------------------------------------
