@@ -40,11 +40,8 @@ size_t Shape::getFlattenedSize() const
     return std::accumulate(m_Dims.cbegin(), m_Dims.cend(), 1, std::multiplies<size_t>());
 }
 //----------------------------------------------------------------------------
-std::vector<Shape> Shape::split(std::optional<size_t> splitDimension, size_t numSplits) const
+Shape Shape::split(size_t split, std::optional<size_t> splitDimension, size_t numSplits) const
 {
-    // If a split dimension is specified
-    std::vector<Shape> shapeSplits;
-    shapeSplits.reserve(numSplits);
     if(splitDimension.has_value()) {
         // Get size of dimension to split along
         const size_t originalSplitDimSize = m_Dims.at(splitDimension.value());
@@ -56,21 +53,18 @@ std::vector<Shape> Shape::split(std::optional<size_t> splitDimension, size_t num
         const size_t ceilSplitSize = Common::Utils::ceilDivide(originalSplitDimSize,
                                                                numSplits);
 
-        // Loop through splits, build shape and add to splits
-        size_t remainingSplitDimSize = originalSplitDimSize;
-        for(size_t i = 0; i < numSplits; i++) {
-            Shape splitShape(*this);
-            splitShape[splitDimension.value()] =((remainingSplitDimSize > ceilSplitSize) 
-                                                  ? ceilSplitSize : remainingSplitDimSize);
-            shapeSplits.push_back(splitShape);
-        }
+        // Split shape and return
+        assert(split < numSplits);
+        Shape splitShape(*this);
+        splitShape[splitDimension.value()] = ((split < (numSplits - 1))
+                                              ? ceilSplitSize
+                                              : originalSplitDimSize - (ceilSplitSize * (numSplits - 1)));
+        return splitShape;
     }
-    // Otherwise, populate shape splits with numSplits copies of shape
+    // Otherwise, return copy
     else {
-        std::fill_n(std::back_inserter(shapeSplits), numSplits, *this);
+        return *this;
     }
-
-    return shapeSplits;
 }
 //----------------------------------------------------------------------------
 Shape Shape::padLast(size_t multiple) const

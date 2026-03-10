@@ -38,8 +38,9 @@ public:
     size_t getLast() const{ return m_Dims.back(); }
     size_t &getLast(){ return m_Dims.back(); }
 
-    //! Return the shape obtained by splitting numSplits ways along the specified dimensions
-    std::vector<Shape> split(std::optional<size_t> splitDimension, size_t numSplits) const;
+    //! Return the shape obtained by taking the splitnth split when 
+    //! the shape is split numSplits ways along the specified dimensions
+    Shape split(size_t split, std::optional<size_t> splitDimension, size_t numSplits) const;
 
     //! Return shape with last dimension padded
     Shape padLast(size_t multiple) const;
