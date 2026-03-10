@@ -34,7 +34,7 @@ using FunctionGenerator = std::function<std::pair<RegisterPtr, bool>(Environment
                                                                      FeNN::Assembler::ScalarRegisterAllocator::RegisterPtr, 
                                                                      const std::vector<RegisterPtr>&)>;
 
-using EnvironmentItem = std::variant<RegisterPtr, FunctionGenerator>;
+using EnvironmentItem = std::variant<RegisterPtr, FunctionGenerator, int>;
 
 // What rounding mode to use for multiplication
 enum class RoundingMode
