@@ -40,8 +40,13 @@ public:
     {
     }
 
-    explicit EnvironmentExternalBase(Assembler::CodeGenerator &os)
-    :   m_Context{nullptr, nullptr, &os}
+    explicit EnvironmentExternalBase(Assembler::CodeGenerator &c)
+    :   m_Context{nullptr, nullptr, &c}
+    {
+    }
+
+    EnvironmentExternalBase(EnvironmentExternalBase &enclosing, Assembler::CodeGenerator &c)
+    :   m_Context{&enclosing, &enclosing, &c}
     {
     }
 
@@ -100,8 +105,13 @@ public:
     {
     }
 
-    explicit EnvironmentExternal(Assembler::CodeGenerator &os)
-    :   EnvironmentExternalBase(os)
+    explicit EnvironmentExternal(Assembler::CodeGenerator &c)
+    :   EnvironmentExternalBase(c)
+    {
+    }
+
+    EnvironmentExternal(EnvironmentExternalBase &enclosing, Assembler::CodeGenerator &c)
+    :   EnvironmentExternalBase(enclosing, c)
     {
     }
 
@@ -153,8 +163,13 @@ public:
     {
     }
 
-    explicit EnvironmentLibrary(Assembler::CodeGenerator &os, const Library &library)
-    :   EnvironmentExternalBase(os), m_Library(library)
+    explicit EnvironmentLibrary(Assembler::CodeGenerator &c, const Library &library)
+    :   EnvironmentExternalBase(c), m_Library(library)
+    {
+    }
+
+    EnvironmentLibrary(EnvironmentExternalBase &enclosing, Assembler::CodeGenerator &c, const Library &library)
+    :   EnvironmentExternalBase(enclosing, c), m_Library(library)
     {
     }
 
@@ -178,37 +193,43 @@ private:
 };
 
 //----------------------------------------------------------------------------
-// EnvironmentVectorLiteral
+// EnvironmentLiteral
 //----------------------------------------------------------------------------
-class EnvironmentVectorLiteral : public EnvironmentExternalBase
+class EnvironmentLiteral : public EnvironmentExternalBase
 {
 public:
-    explicit EnvironmentVectorLiteral(EnvironmentExternalBase &enclosing,
-                                      Assembler::VectorRegisterAllocator &vectorRegisterAllocator)
+    EnvironmentLiteral(EnvironmentExternalBase &enclosing,
+                       Assembler::VectorRegisterAllocator &vectorRegisterAllocator)
     :   EnvironmentExternalBase(enclosing), m_VectorRegisterAllocator(vectorRegisterAllocator)
     {
     }
 
-    explicit EnvironmentVectorLiteral(EnvironmentExternal &enclosing,
-                                      Assembler::VectorRegisterAllocator &vectorRegisterAllocator)
+    EnvironmentLiteral(EnvironmentExternal &enclosing,
+                       Assembler::VectorRegisterAllocator &vectorRegisterAllocator)
     : EnvironmentExternalBase(enclosing), m_VectorRegisterAllocator(vectorRegisterAllocator)
     {
     }
 
-    explicit EnvironmentVectorLiteral(Compiler::EnvironmentBase &enclosing,
-                                      Assembler::VectorRegisterAllocator &vectorRegisterAllocator)
+    EnvironmentLiteral(Compiler::EnvironmentBase &enclosing,
+                       Assembler::VectorRegisterAllocator &vectorRegisterAllocator)
     :   EnvironmentExternalBase(enclosing), m_VectorRegisterAllocator(vectorRegisterAllocator)
     {
     }
 
-    explicit EnvironmentVectorLiteral(Assembler::CodeGenerator &os,
-                                      Assembler::VectorRegisterAllocator &vectorRegisterAllocator)
-    :   EnvironmentExternalBase(os), m_VectorRegisterAllocator(vectorRegisterAllocator)
+    EnvironmentLiteral(Assembler::CodeGenerator &c,
+                       Assembler::VectorRegisterAllocator &vectorRegisterAllocator)
+    :   EnvironmentExternalBase(c), m_VectorRegisterAllocator(vectorRegisterAllocator)
     {
     }
 
-    EnvironmentVectorLiteral(const EnvironmentVectorLiteral&) = delete;
-    virtual ~EnvironmentVectorLiteral();
+    EnvironmentLiteral(EnvironmentExternalBase &enclosing, Assembler::CodeGenerator &c,
+                       Assembler::VectorRegisterAllocator &vectorRegisterAllocator)
+    :   EnvironmentExternalBase(enclosing, c), m_VectorRegisterAllocator(vectorRegisterAllocator)
+    {
+    }
+
+    EnvironmentLiteral(const EnvironmentLiteral&) = delete;
+    virtual ~EnvironmentLiteral();
 
     //------------------------------------------------------------------------
     // Assembler::EnvironmentBase virtuals
@@ -226,7 +247,9 @@ public:
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
-    void addLiteral(const GeNN::Type::ResolvedType &type, const std::string &name, int16_t value);
+    void addVectorLiteral(const GeNN::Type::ResolvedType &type, const std::string &name, int16_t value);
+
+    void addScalarLiteral(const GeNN::Type::ResolvedType &type, const std::string &name, int value);
 
 private:
     //------------------------------------------------------------------------
@@ -234,7 +257,7 @@ private:
     //------------------------------------------------------------------------
     //! Mapping between names and types, values and registers associated with literal values
     std::unordered_map<std::string, 
-                       std::tuple<GeNN::Type::ResolvedType, int16_t,
+                       std::tuple<GeNN::Type::ResolvedType, MergedFields::FieldValue, bool,
                                   Assembler::VectorRegisterAllocator::RegisterPtr>> m_Literals;
     
     //! Vector register allocator
@@ -250,42 +273,52 @@ private:
 class EnvironmentMergedField : public EnvironmentExternalBase
 {
 public:
-    explicit EnvironmentMergedField(EnvironmentExternalBase &enclosing, 
-                                    Assembler::ScalarRegisterAllocator::RegisterPtr fieldBaseReg,
-                                    Assembler::VectorRegisterAllocator &vectorRegisterAllocator,
-                                    Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
-                                    MergedFields &mergedFields)
+    EnvironmentMergedField(EnvironmentExternalBase &enclosing, 
+                           Assembler::ScalarRegisterAllocator::RegisterPtr fieldBaseReg,
+                           Assembler::VectorRegisterAllocator &vectorRegisterAllocator,
+                           Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
+                           MergedFields &mergedFields)
     :   EnvironmentExternalBase(enclosing), m_FieldBaseReg(fieldBaseReg), m_MergedFields(mergedFields),
         m_VectorRegisterAllocator(vectorRegisterAllocator), m_ScalarRegisterAllocator(scalarRegisterAllocator)
     {
     }
 
-    explicit EnvironmentMergedField(EnvironmentExternal &enclosing,
-                                    Assembler::ScalarRegisterAllocator::RegisterPtr fieldBaseReg,
-                                    Assembler::VectorRegisterAllocator &vectorRegisterAllocator,
-                                    Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
-                                    MergedFields &mergedFields)
+    EnvironmentMergedField(EnvironmentExternal &enclosing,
+                           Assembler::ScalarRegisterAllocator::RegisterPtr fieldBaseReg,
+                           Assembler::VectorRegisterAllocator &vectorRegisterAllocator,
+                           Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
+                           MergedFields &mergedFields)
     :   EnvironmentExternalBase(enclosing), m_FieldBaseReg(fieldBaseReg), m_MergedFields(mergedFields),
         m_VectorRegisterAllocator(vectorRegisterAllocator), m_ScalarRegisterAllocator(scalarRegisterAllocator)
     {
     }
 
-    explicit EnvironmentMergedField(Compiler::EnvironmentBase &enclosing,
-                                    Assembler::ScalarRegisterAllocator::RegisterPtr fieldBaseReg,
-                                    Assembler::VectorRegisterAllocator &vectorRegisterAllocator,
-                                    Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
-                                    MergedFields &mergedFields)
+    EnvironmentMergedField(Compiler::EnvironmentBase &enclosing,
+                           Assembler::ScalarRegisterAllocator::RegisterPtr fieldBaseReg,
+                           Assembler::VectorRegisterAllocator &vectorRegisterAllocator,
+                           Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
+                           MergedFields &mergedFields)
     :   EnvironmentExternalBase(enclosing), m_FieldBaseReg(fieldBaseReg), m_MergedFields(mergedFields),
         m_VectorRegisterAllocator(vectorRegisterAllocator), m_ScalarRegisterAllocator(scalarRegisterAllocator)
     {
     }
 
-    explicit EnvironmentMergedField(Assembler::CodeGenerator &os,
-                                    Assembler::ScalarRegisterAllocator::RegisterPtr fieldBaseReg,
-                                    Assembler::VectorRegisterAllocator &vectorRegisterAllocator,
-                                    Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
-                                    MergedFields &mergedFields)
+    EnvironmentMergedField(Assembler::CodeGenerator &os,
+                           Assembler::ScalarRegisterAllocator::RegisterPtr fieldBaseReg,
+                           Assembler::VectorRegisterAllocator &vectorRegisterAllocator,
+                           Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
+                           MergedFields &mergedFields)
     :   EnvironmentExternalBase(os), m_FieldBaseReg(fieldBaseReg), m_MergedFields(mergedFields),
+        m_VectorRegisterAllocator(vectorRegisterAllocator), m_ScalarRegisterAllocator(scalarRegisterAllocator)
+    {
+    }
+
+    EnvironmentMergedField(EnvironmentExternalBase &enclosing, Assembler::CodeGenerator &c,
+                           Assembler::ScalarRegisterAllocator::RegisterPtr fieldBaseReg,
+                           Assembler::VectorRegisterAllocator &vectorRegisterAllocator,
+                           Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
+                           MergedFields &mergedFields)
+    :   EnvironmentExternalBase(enclosing, c), m_FieldBaseReg(fieldBaseReg), m_MergedFields(mergedFields),
         m_VectorRegisterAllocator(vectorRegisterAllocator), m_ScalarRegisterAllocator(scalarRegisterAllocator)
     {
     }
