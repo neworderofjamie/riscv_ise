@@ -1,5 +1,11 @@
 #include "fenn/assembler/assembler_utils.h"
 
+// Common includes
+#include "common/utils.h"
+
+using namespace FeNN;
+using namespace FeNN::Assembler;
+
 //----------------------------------------------------------------------------
 // FeNN::Assembler::Utils
 //----------------------------------------------------------------------------
@@ -255,86 +261,84 @@ void generatePerformanceCountWrite(CodeGenerator &c, ScalarRegisterAllocator &sc
 }
 //----------------------------------------------------------------------------
 void unrollLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator, 
-                    uint32_t numIterations, uint32_t maxUnroll, uint32_t iterationBytes,
-                    Common::Reg testBufferReg, bool alwaysGenerateTail,
-                    std::function<void(CodeGenerator&, uint32_t, bool)> genBodyFn, 
+                    uint32_t numIterations, uint32_t maxUnroll, bool alwaysGenerateTail,
+                    std::function<void(CodeGenerator&, uint32_t)> genBodyFn, 
                     std::function<void(CodeGenerator&, uint32_t)> genTailFn)
 {
-    // Evenness of iterations can only be determined with even numbers of unrolls
-    assert((maxUnroll % 2) == 0);
-
     // Determine number of unrolled iterations and remainder
     const auto numUnrolls = std::div(static_cast<int64_t>(numIterations), maxUnroll);
-    
-    // If there are are complete unrolls
-    if(numUnrolls.quot != 0) {
-        // Calculate end of unrolled section of buffer
-        ALLOCATE_SCALAR(STestBufferEndReg);
-        const size_t stride = iterationBytes * numUnrolls.quot * maxUnroll;
-        if(Common::inSBit(stride, 12)) {
-            c.addi(*STestBufferEndReg, testBufferReg, stride);
-        }
-        else {
-            c.li(*STestBufferEndReg, stride);
-            c.add(*STestBufferEndReg, *STestBufferEndReg, testBufferReg);
-        }
 
-        auto loop = createLabel();
-        c.L(loop);
+    // If there are are complete unrolls
+    ALLOCATE_SCALAR(SNumIterations);
+    if(numUnrolls.quot != 0) {
+        // Load number of unrolled iterations
+        c.li(*SNumIterations, numUnrolls.quot);
+
+        auto unrolledLoop = c.L();
         {
             // Unroll loop
             for(uint32_t r = 0; r < maxUnroll; r++) {
-                genBodyFn(c, r, (r % 2) == 0);
+                genBodyFn(c, r);
             }
 
             // If more than 1 unroll is required or there are more iterations, generate tail
             if(numUnrolls.quot > 1 || numUnrolls.rem != 0 || alwaysGenerateTail) {
                 genTailFn(c, maxUnroll);
             }
-            
-            // If more than 1 unroll is required, generate loop
+
+            // If more than 1 unroll is required
             if(numUnrolls.quot > 1) {
-                c.bne(testBufferReg, *STestBufferEndReg, loop);
+                // Decrement increment count and loop if still > 0
+                c.addi(*SNumIterations, *SNumIterations, -1);
+                c.bgt(*SNumIterations, FeNN::Common::Reg::X0, unrolledLoop);
             }
         }
     }
 
     // If there is a remainder
     if(numUnrolls.rem != 0) {
-        // Unroll tail
-        for(uint32_t r = 0; r < numUnrolls.rem; r++) {
-            genBodyFn(c, r, (r % 2) == 0);
-        }
+        // Load number of iterations
+        c.li(*SNumIterations, numUnrolls.rem);
 
-        // If we should always generate a tail, do so
-        if(alwaysGenerateTail) {
-            genTailFn(c, numUnrolls.rem);
+        auto loop = c.L();
+        {
+            // Generate body
+            genBodyFn(c, 0);
+
+            // Generate tail if required
+            if (numUnrolls.rem > 1 || alwaysGenerateTail) {
+                genTailFn(c, 1);
+            }
+
+            // If more than 1 iteration is required
+            if(numUnrolls.quot > 1) {
+                // Decrement increment count and loop if still > 0
+                c.addi(*SNumIterations, *SNumIterations, -1);
+                c.bgt(*SNumIterations, FeNN::Common::Reg::X0, loop);
+            }
         }
-        
     }
 }
 //----------------------------------------------------------------------------
 void unrollLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator, 
-                    Common::Reg numIterationsReg, uint32_t maxUnroll,
+                    FeNN::Common::Reg countReg, uint32_t maxUnroll, uint32_t iterationSize, 
                     std::function<void(CodeGenerator&, uint32_t)> genBodyFn, 
                     std::function<void(CodeGenerator&, uint32_t)> genTailFn)
-{
-    // Evenness of iterations can only be determined with even numbers of unrolls
-    assert((maxUnroll % 2) == 0);
-    
+{  
+    ALLOCATE_SCALAR(SLoopCountEnd);
+
     // Unrolled loop
     {
-        // Load max unroll
-        ALLOCATE_SCALAR(SMaxUnroll);
-        c.li(*SMaxUnroll, maxUnroll);
+        // Load end count for unrolled loop
+        c.li(*SLoopCountEnd, maxUnroll * iterationSize);
 
         auto unrolledLoopEnd = createLabel();
         auto unrolledLoopStart = c.L();
         {
-            // While number of iterations remaining >= max unroll
-            c.blt(numIterationsReg, *SMaxUnroll, unrolledLoopEnd);
+            // If count is less than the size of a single unrolled iteration, leave loop
+            c.bltu(countReg, *SLoopCountEnd, unrolledLoopEnd);
 
-            // Unroll loop
+            // Generate unrolled body
             for(uint32_t r = 0; r < maxUnroll; r++) {
                 genBodyFn(c, r);
             }
@@ -342,45 +346,55 @@ void unrollLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAll
             // Generate tail
             genTailFn(c, maxUnroll);
 
-            // Subtract max unrolls from num iterations
-            c.addi(numIterationsReg, numIterationsReg, -maxUnroll);
+            // Subtract unrolled iteration size from count
+            c.sub(countReg, countReg, *SLoopCountEnd);
             c.j_(unrolledLoopStart);
         }
         c.L(unrolledLoopEnd);
     }
-    
+
     // Tail loop
-    auto tailLoopEnd = createLabel();
-    auto tailLoopStart = c.L();
     {
-        // Generate body
-        genBodyFn(c, 0);
+        // Load end count for tail loop
+        c.li(*SLoopCountEnd, iterationSize);
 
-        // Generate tail
-        genTailFn(c, 1);
+        auto tailLoopEnd = createLabel();
+        auto tailLoopStart = c.L();
+        {
+            // If count is less than the size of a single iteration, leave loop
+            // **NOTE** this seems a bit weird but enables this function to be used for vector loops
+            c.bltu(countReg, *SLoopCountEnd, tailLoopEnd);
 
-        // Subtract 1 from num iterations
-        c.addi(numIterationsReg, numIterationsReg, -1);
-        c.j_(tailLoopStart);
+            // Generate body
+            genBodyFn(c, 0);
+
+            // Generate tail
+            genTailFn(c, 1);
+
+            // Subtract iteration size from count
+            c.sub(countReg, countReg, *SLoopCountEnd);
+            c.j_(tailLoopStart);
+        }
+        c.L(tailLoopEnd);
     }
 }
 //----------------------------------------------------------------------------
 void unrollVectorLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator, 
-                          uint32_t numIterations, uint32_t maxUnroll, Common::Reg testBufferReg,
-                          std::function<void(CodeGenerator&, uint32_t, bool, ScalarRegisterAllocator::RegisterPtr)> genBodyFn, 
+                          uint32_t numElements, uint32_t maxUnroll,
+                          std::function<void(CodeGenerator&, uint32_t, ScalarRegisterAllocator::RegisterPtr)> genBodyFn, 
                           std::function<void(CodeGenerator&, uint32_t)> genTailFn)
 {
     // Determine number of vectorised iterations and remainder
-    const auto numVectors = std::div(numIterations, 32);
-    
+    const auto numVectors = std::div(numElements, 32);
+
     // If there are any complete vector iterations, unroll them
     // **NOTE** always generate a tail if there will be a partial vector to follow
     if(numVectors.quot != 0) {
-        unrollLoopBody(c, scalarRegisterAllocator, numVectors.quot, maxUnroll, 
-                       64, testBufferReg, (numVectors.rem != 0),
-                       [genBodyFn](CodeGenerator &c, uint32_t r, bool even)
+        unrollLoopBody(c, scalarRegisterAllocator, numVectors.quot, 
+                       maxUnroll, (numVectors.rem != 0),
+                       [genBodyFn](CodeGenerator &c, uint32_t r)
                        { 
-                           genBodyFn(c, r, even, nullptr); 
+                           genBodyFn(c, r, nullptr); 
                        }, 
                        genTailFn);
     }
@@ -391,9 +405,40 @@ void unrollVectorLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegis
 
         // Calculate mask for final iteration
         c.li(*SMask, (1 << numVectors.rem) - 1);
-        
+
         // Generate body with mask
-        genBodyFn(c, 0, (numVectors.quot % 2) == 0, SMask);
+        genBodyFn(c, 0, SMask);
+    }
+}
+//----------------------------------------------------------------------------
+void unrollVectorLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator, 
+                          FeNN::Common::Reg numElementsReg, uint32_t maxUnroll, bool noTail,
+                          std::function<void(CodeGenerator&, uint32_t, ScalarRegisterAllocator::RegisterPtr)> genBodyFn, 
+                          std::function<void(CodeGenerator&, uint32_t)> genTailFn)
+{
+    // Generate unrolled and whole vector loop
+    unrollLoopBody(c, scalarRegisterAllocator, numElementsReg, maxUnroll, 32,
+                   [genBodyFn](CodeGenerator &c, uint32_t r)
+                   { 
+                       genBodyFn(c, r, nullptr); 
+                   }, 
+                   genTailFn);
+
+    // If a tail is required
+    if (!noTail) {
+        ALLOCATE_SCALAR(SMask);
+
+        {
+            ALLOCATE_SCALAR(SOne);
+
+            // Calculate mask for final iteration
+            c.li(*SOne, 1);
+            c.sll(*SMask, *SOne, numElementsReg);
+            c.sub(*SMask, *SMask, *SOne);
+        }
+
+        // Generate body with mask
+        genBodyFn(c, 0, SMask);
     }
 }
 //----------------------------------------------------------------------------
