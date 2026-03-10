@@ -126,11 +126,12 @@ void Runtime::allocate()
 
     // Loop through state objects used by model
     for (const auto &s : m_MergedModel.getModel().getStateData()) {
-        // Split shape between devices as dictated by split axis
-        const auto deviceShapes = s.first->getShape().split(s.second.splitDimension, 
-                                                            getNumDevices());
+        // Loop through devices
         for(size_t i = 0; i < getNumDevices(); i++) {
-            getDevices()[i]->createArray(s.first, deviceShapes[i]);
+            // Split shape and create array
+            const auto deviceShape = s.first->getShape().split(i, s.second.splitDimension, 
+                                                               getNumDevices());
+            getDevices()[i]->createArray(s.first, deviceShape);
         }
     }
 
