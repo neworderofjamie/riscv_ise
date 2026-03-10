@@ -52,7 +52,7 @@ public:
                                     [getFieldConstantFn]
                                     (std::shared_ptr<const Frontend::Process> p)
                                     {
-                                        return getFieldConstantFn(std::static_pointer_cast<const P>);
+                                        return getFieldConstantFn(std::static_pointer_cast<const P>(p));
                                     });
 
         // Update next field offset
@@ -70,7 +70,7 @@ public:
                                     [getFieldPointerFn]
                                     (const Frontend::DeviceBase &d, std::shared_ptr<const Frontend::Process> p)
                                     {
-                                        return getFieldPointerFn(d, std::static_pointer_cast<const P>);
+                                        return getFieldPointerFn(d, std::static_pointer_cast<const P>(p));
                                     });
 
         // Update next field offset

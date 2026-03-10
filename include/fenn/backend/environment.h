@@ -249,43 +249,44 @@ private:
 //----------------------------------------------------------------------------
 class EnvironmentMergedField : public EnvironmentExternalBase
 {
-    using NullableRegisterPtr = std::variant<std::monostate, 
-                                             Assembler::ScalarRegisterAllocator::RegisterPtr, 
-                                             Assembler::VectorRegisterAllocator::RegisterPtr>;
 public:
     explicit EnvironmentMergedField(EnvironmentExternalBase &enclosing, 
+                                    Assembler::ScalarRegisterAllocator::RegisterPtr fieldBaseReg,
                                     Assembler::VectorRegisterAllocator &vectorRegisterAllocator,
                                     Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
                                     MergedFields &mergedFields)
-    :   EnvironmentExternalBase(enclosing), m_VectorRegisterAllocator(vectorRegisterAllocator),
-        m_ScalarRegisterAllocator(scalarRegisterAllocator), m_MergedFields(mergedFields)
+    :   EnvironmentExternalBase(enclosing), m_FieldBaseReg(fieldBaseReg), m_MergedFields(mergedFields),
+        m_VectorRegisterAllocator(vectorRegisterAllocator), m_ScalarRegisterAllocator(scalarRegisterAllocator)
     {
     }
 
     explicit EnvironmentMergedField(EnvironmentExternal &enclosing,
+                                    Assembler::ScalarRegisterAllocator::RegisterPtr fieldBaseReg,
                                     Assembler::VectorRegisterAllocator &vectorRegisterAllocator,
                                     Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
                                     MergedFields &mergedFields)
-    :   EnvironmentExternalBase(enclosing), m_VectorRegisterAllocator(vectorRegisterAllocator),
-        m_ScalarRegisterAllocator(scalarRegisterAllocator), m_MergedFields(mergedFields)
+    :   EnvironmentExternalBase(enclosing), m_FieldBaseReg(fieldBaseReg), m_MergedFields(mergedFields),
+        m_VectorRegisterAllocator(vectorRegisterAllocator), m_ScalarRegisterAllocator(scalarRegisterAllocator)
     {
     }
 
     explicit EnvironmentMergedField(Compiler::EnvironmentBase &enclosing,
+                                    Assembler::ScalarRegisterAllocator::RegisterPtr fieldBaseReg,
                                     Assembler::VectorRegisterAllocator &vectorRegisterAllocator,
                                     Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
                                     MergedFields &mergedFields)
-    :   EnvironmentExternalBase(enclosing), m_VectorRegisterAllocator(vectorRegisterAllocator),
-        m_ScalarRegisterAllocator(scalarRegisterAllocator), m_MergedFields(mergedFields)
+    :   EnvironmentExternalBase(enclosing), m_FieldBaseReg(fieldBaseReg), m_MergedFields(mergedFields),
+        m_VectorRegisterAllocator(vectorRegisterAllocator), m_ScalarRegisterAllocator(scalarRegisterAllocator)
     {
     }
 
     explicit EnvironmentMergedField(Assembler::CodeGenerator &os,
+                                    Assembler::ScalarRegisterAllocator::RegisterPtr fieldBaseReg,
                                     Assembler::VectorRegisterAllocator &vectorRegisterAllocator,
                                     Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
                                     MergedFields &mergedFields)
-    :   EnvironmentExternalBase(os), m_VectorRegisterAllocator(vectorRegisterAllocator),
-        m_ScalarRegisterAllocator(scalarRegisterAllocator), m_MergedFields(mergedFields)
+    :   EnvironmentExternalBase(os), m_FieldBaseReg(fieldBaseReg), m_MergedFields(mergedFields),
+        m_VectorRegisterAllocator(vectorRegisterAllocator), m_ScalarRegisterAllocator(scalarRegisterAllocator)
     {
     }
 
@@ -308,28 +309,60 @@ public:
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
+    //! Add field with a constant value
     template<typename P>
     void addField(const GeNN::Type::ResolvedType &type, const std::string &name, 
-                  MergedFields::GetFieldValueFunc<P> getFieldValue);
+                  MergedFields::GetFieldConstantFunc<P> getFieldConstantFn)
+    {
+        // Add literal name, type and wrapped function to cast derived process
+        if (!m_Fields.emplace(
+            std::forward_as_tuple(type, 
+                                  [getFieldConstantFn](std::shared_ptr<const Frontend::Process> p)
+                                  {
+                                      return getFieldConstantFn(std::static_pointer_cast<const P>(p));
+                                  }, 
+                                  nullptr)).second)
+        {
+            throw std::runtime_error("'" + name + "' already defined in field environment");
+        }
+    }
 
+    //! Add field containing a pointer
+    template<typename P>
+    void addField(const GeNN::Type::ResolvedType &type, const std::string &name, 
+                  MergedFields::GetFieldPointerFunc<P> getFieldPointerFn)
+    {
+        // Add literal name, type and wrapped function to cast derived process
+        if (!m_Fields.emplace(
+            std::forward_as_tuple(type, 
+                                  [getFieldPointerFn](const Frontend::DeviceBase &d, std::shared_ptr<const Frontend::Process> p)
+                                  {
+                                      return getFieldPointerFn(d, std::static_pointer_cast<const P>(p));
+                                  }, 
+                                  nullptr)).second)
+        {
+            throw std::runtime_error("'" + name + "' already defined in field environment");
+        }
+    }
 private:
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
-    
-
     //! Mapping between names and types, getters and registers associated with fields
     std::unordered_map<std::string, 
                        std::tuple<GeNN::Type::ResolvedType, 
                                   MergedFields::GetFieldValueFunc<Frontend::Process>,
-                                  NullableRegisterPtr>> m_Fields;
+                                  std::optional<Compiler::RegisterPtr>>> m_Fields;
+
+    //! Base register for accessing fields
+    Assembler::ScalarRegisterAllocator::RegisterPtr m_FieldBaseReg;
+
+    //! Merged field object to add any required fields to
+    std::reference_wrapper<MergedFields> m_MergedFields;
 
     //! Register allocators
     std::reference_wrapper<Assembler::ScalarRegisterAllocator> m_ScalarRegisterAllocator;
     std::reference_wrapper<Assembler::VectorRegisterAllocator> m_VectorRegisterAllocator;
-
-    //! Merged field object to add any required fields to
-    std::reference_wrapper<MergedFields> m_MergedFields;
 
     // Code generator used to generate body of environment
     Assembler::CodeGenerator m_Contents;
