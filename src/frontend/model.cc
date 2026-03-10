@@ -58,4 +58,9 @@ Model::Model(const KernelVector &kernels)
         }
     }
 }
+//----------------------------------------------------------------------------
+const Model::StateData &Model::getStateData(std::shared_ptr<const Frontend::State> state) const
+{
+    return m_StateData.at(state);
+}
 }
