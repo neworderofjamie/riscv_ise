@@ -46,26 +46,6 @@ public:
     //! Get vector of merged processes
     const auto &getProcesses() const{ return m_Processes; }
 
-    //! 'Gathers' a vector of objects and populate by calling a function on each merged process
-    template<typename T, typename P, typename F>
-    auto gather(F getStateFn) const
-    {
-        // Reserve vector to hold state gathered from all processes
-        std::vector<T> state;
-        state.reserve(getProcesses().size());
-
-        std::transform(getProcesses().cbegin(), getProcesses().cend(), std::back_inserter(state),
-                       [getStateFn](const auto &p)
-                       {
-                           // Cast to desired type
-                           auto derivedP = std::dynamic_pointer_cast<const P>(p);
-                           assert(derivedP);
-
-                           return getStateFn(derivedP);
-                       });
-        return state;
-    }
-
     template<typename P, typename F>
     void forEachProcess(F func) const
     {
