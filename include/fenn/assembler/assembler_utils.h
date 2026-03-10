@@ -45,23 +45,28 @@ ASSEMBLER_EXPORT void generateScalarLaneLocalBroadcast(CodeGenerator &c, VectorR
 ASSEMBLER_EXPORT void generatePerformanceCountWrite(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator,
                                                     Common::CSR lowCSR, Common::CSR highCSR, uint32_t scalarPtr);
 
-//! Generate an unrolled loop body when number of iterations is known at compile-time
-ASSEMBLER_EXPORT void unrollLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator,
-                                     uint32_t numIterations, uint32_t maxUnroll, uint32_t iterationBytes,
-                                     Common::Reg testBufferReg, bool alwaysGenerateTail,
-                                     std::function<void(CodeGenerator&, uint32_t, bool)> genBodyFn, 
-                                     std::function<void(CodeGenerator&, uint32_t)> genTailFn);
-
-//! Generate an unrolled loop body when number of iterations is only known at runtime 
+//! Generate an unrolled loop with number of iterations specified at compile-time
 ASSEMBLER_EXPORT void unrollLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator, 
-                                     Common::Reg numIterationsReg, uint32_t maxUnroll,
-                                     std::function<void(CodeGenerator&, uint32_t)> genBodyFn, 
+                                     uint32_t numIterations, uint32_t maxUnroll, bool alwaysGenerateTail,
+                                     std::function<void(CodeGenerator&, uint32_t)> genBodyFn,
                                      std::function<void(CodeGenerator&, uint32_t)> genTailFn);
 
-//! Generate an unrolled loop body for a vectorised loop
+//! Generate an unrolled loop with number of iterations specified at runtime
+ASSEMBLER_EXPORT void unrollLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator, 
+                                     FeNN::Common::Reg countReg, uint32_t maxUnroll, uint32_t iterationSize, 
+                                     std::function<void(CodeGenerator&, uint32_t)> genBodyFn,
+                                     std::function<void(CodeGenerator&, uint32_t)> genTailFn);
+
+//! Generate an unrolled vector loop with number of elements specified at compile-time
 ASSEMBLER_EXPORT void unrollVectorLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator, 
-                                           uint32_t numIterations, uint32_t maxUnroll, Common::Reg testBufferReg,
-                                           std::function<void(CodeGenerator&, uint32_t, bool, ScalarRegisterAllocator::RegisterPtr)> genBodyFn, 
+                                           uint32_t numElements, uint32_t maxUnroll,
+                                           std::function<void(CodeGenerator&, uint32_t, ScalarRegisterAllocator::RegisterPtr)> genBodyFn, 
+                                           std::function<void(CodeGenerator&, uint32_t)> genTailFn);
+
+//! Generate an unrolled vector loop with number of elements specified at runtime
+ASSEMBLER_EXPORT void unrollVectorLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator, 
+                                           FeNN::Common::Reg numElementsReg, uint32_t maxUnroll, bool noTail,
+                                           std::function<void(CodeGenerator&, uint32_t, ScalarRegisterAllocator::RegisterPtr)> genBodyFn, 
                                            std::function<void(CodeGenerator&, uint32_t)> genTailFn);
 
 //! Generate preamble and postamble for code using standard ecall instruction to terminate simulations and polling on device
