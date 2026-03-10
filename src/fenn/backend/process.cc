@@ -153,6 +153,86 @@ void compileStatements(const std::vector<Transpiler::Token> &tokens, const Type:
     }
 }
 
+template<typename P>
+bool isHeterogeneous(const Frontend::MergedProcess &mergedProcess, MergedFields::GetFieldConstantFunc<P> getFieldValueFn)
+{
+    // Get field value for archetype
+    const auto archetypeValue = getFieldValueFn(mergedProcess.getArchetype<P>());
+
+    // Determine if any of the value for other processes differs
+    bool heterogeneous = false;
+    mergedProcess.forEachProcess(
+        [&archetypeValue, &getFieldValueFn, &heterogeneous]
+        (auto p)
+        {
+            if(getFieldValueFn(p) != archetypeValue) {
+                heterogeneous = true;
+            }
+        });
+
+    return heterogeneous;
+}
+
+template<typename P>
+void addVectorValue(const Type::ResolvedType &type, const std::string &name, 
+                    const Frontend::MergedProcess &mergedProcess, EnvironmentMergedField &fieldEnvironment, 
+                    EnvironmentLiteral &literalEnvironment, MergedFields::GetFieldConstantFunc<P> getFieldValueFn)
+{
+    // If value is heterogeneous, add field
+    if(isHeterogeneous(mergedProcess, getFieldValueFn)) {
+        fieldEnvironment.addField(type, name, getFieldValueFn);
+    }
+    // Otherwise
+    else {
+        // Convert homogeneous value to int16_t
+        const int16_t value = std::visit(
+            Utils::Overload{
+                [](auto v)
+                {
+                    if(v < std::numeric_limits<int16_t>::min() 
+                       || v > std::numeric_limits<int16_t>::max())
+                    {
+                        throw std::runtime_error("Vector literal out of range");
+                    }
+
+                    return static_cast<int16_t>(v);
+                }
+            },
+            getFieldValueFn(mergedProcess.getArchetype<P>()));
+
+        // Add vector literal to environment
+        literalEnvironment.addVectorLiteral(type, name, value);
+    }
+}
+
+template<typename P>
+void addScalarValue(const Type::ResolvedType &type, const std::string &name, 
+                    const Frontend::MergedProcess &mergedProcess, EnvironmentMergedField &fieldEnvironment, 
+                    EnvironmentLiteral &literalEnvironment, int maxBits, MergedFields::GetFieldConstantFunc<P> getFieldValueFn)
+{
+    // If value is heterogeneous, add field
+    if(isHeterogeneous(mergedProcess, getFieldValueFn)) {
+        fieldEnvironment.addField(type, name, getFieldValueFn);
+    }
+    // Otherwise
+    else {
+        // Convert homogeneous value to int
+        const int value = std::visit([](auto v){ return static_cast<int>(v); },
+                                     getFieldValueFn(mergedProcess.getArchetype<P>()));
+
+        // If the value fits within the max literal bits, add scalar literal
+        if(Common::inSBit(value, maxBits)) {
+            literalEnvironment.addScalarLiteral(type, name, value);
+        }
+        // Otherwise, add field
+        // **THINK** single LW to get value from field probably fewer
+        // instructions than two instruction load-immediate sequence but costs BRAM
+        else {
+            fieldEnvironment.addField(type, name, getFieldValueFn);
+        }
+    }
+}
+
 //------------------------------------------------------------------------
 // NeuronVarBase
 //------------------------------------------------------------------------
@@ -731,23 +811,22 @@ void TimeDrivenProcessImplementation::generateCode(const Frontend::MergedProcess
     ALLOCATE_SCALAR(SFieldBase);
     ALLOCATE_SCALAR(SFieldBaseEnd);
 
-    // Create environment with base register
-    // **TODO** this environment should already have capability to add fields/load literals
-    EnvironmentExternal environment(c);
-    environment.add(Type::Uint32.addConst(), "_field_base", SFieldBase);
-
-    // Generate preamble code to setup state shared across merged group
-    generateMergedPreambleCode(mergedProcess, model, environment, c, 
-                               scalarRegisterAllocator, vectorRegisterAllocator);
-
+    // Create vector literal environment to handle any literals which can be shared across whole merged group
+    EnvironmentLiteral sharedEnvironment(c, vectorRegisterAllocator);
+    
     // Generate archetype code
     MergedFields mergedFields;
     Assembler::CodeGenerator archetypeCodeGenerator;
-    EnvironmentExternal archetypeEnvironment(archetypeCodeGenerator);
-    generateArchetypeCode(mergedProcess, model, archetypeEnvironment, mergedFields,
-                          scalarRegisterAllocator, vectorRegisterAllocator);
+    {
+        EnvironmentMergedField processEnvironment(sharedEnvironment, archetypeCodeGenerator, SFieldBase,
+                                                  vectorRegisterAllocator, scalarRegisterAllocator,
+                                                  mergedFields);
+        generateArchetypeCode(mergedProcess, model, processEnvironment, sharedEnvironment,
+                              scalarRegisterAllocator, vectorRegisterAllocator);
+    }
 
     // Generate loop over merged groups
+    auto &c = sharedEnvironment.getCodeGenerator();
     c.li(*SFieldBase, TODO);
     c.addi(*SFieldBaseEnd, *SFieldBase, mergedProcess.getProcesses().size() * mergedFields.getSize());
     auto groupLoop = c.L();
@@ -860,8 +939,8 @@ void NeuronUpdateProcess::generateMergedPreambleCode(const Frontend::MergedProce
     }
 }
 //----------------------------------------------------------------------------
-void NeuronUpdateProcess::generateArchetypeCode(const Frontend::MergedProcess &mergedProcess, const Model &model,
-                                                EnvironmentExternal &environment, MergedFields &fields,
+void NeuronUpdateProcess::generateArchetypeCode(const Frontend::MergedProcess &mergedProcess, const Model &model, 
+                                                EnvironmentMergedField &processEnvironment, EnvironmentLiteral &sharedEnvironment,
                                                 Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
                                                 Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {  
@@ -1627,25 +1706,19 @@ void RNGInitProcess::updateCompatibleMemSpace(std::shared_ptr<const Frontend::St
     compatibleMemSpaces &= MemSpace::URAM;
 }
 //----------------------------------------------------------------------------
-void RNGInitProcess::generateArchetypeCode(const Frontend::MergedProcess &mergedProcess, const Model &model,
-                                           EnvironmentExternal &environment, MergedFields &fields,
+void RNGInitProcess::generateArchetypeCode(const Frontend::MergedProcess &mergedProcess, const Model &model, 
+                                           EnvironmentMergedField &processEnvironment, EnvironmentLiteral&,
                                            Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
                                            Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
-    // Allocate fields
-    const uint32_t seedFieldOffset = fields.addField<RNGInitProcess>(
-        [](const auto &d, auto p){ return d.getArray(p->getSeed()); });
-
-    // Allocate scalar register to hold address of seed buffer
-    ALLOCATE_SCALAR(SReg);
-
-    // Load address of seed
-    auto &c = environment.getCodeGenerator();
-    c.lw(*SReg, *environment.getScalarRegister("_field_base"), seedFieldOffset);
+    // Add fields
+    processEnvironment.addField<RNGInitProcess>(Type::Void, "_seed", 
+                                                [](const auto &d, auto p){ return d.getArray(p->getSeed()); });
 
     // Load seed into RNG registers
-    c.vloadr0(*SReg);
-    c.vloadr1(*SReg, 64);
+    auto &c = processEnvironment.getCodeGenerator();
+    c.vloadr0(*processEnvironment.getScalarRegister("_seed"));
+    c.vloadr1(*processEnvironment.getScalarRegister("_seed"), 64);
 }
 
 //----------------------------------------------------------------------------
@@ -1660,47 +1733,50 @@ void MemsetProcess::updateCompatibleMemSpace(std::shared_ptr<const Frontend::Sta
     compatibleMemSpaces &= (MemSpace::LLM, MemSpace::URAM, MemSpace::URAM_LLM);
 }
 //----------------------------------------------------------------------------
-void MemsetProcess::generateArchetypeCode(const Frontend::MergedProcess &mergedProcess, const Model &model,
-                                          EnvironmentExternal &environment, MergedFields &fields,
+void MemsetProcess::generateArchetypeCode(const Frontend::MergedProcess &mergedProcess, const Model &model, 
+                                          EnvironmentMergedField &processEnvironment, EnvironmentLiteral &sharedEnvironment,
                                           Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
                                           Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
-    // Allocate fields
-    // **TODO** get pointer size
-    const uint32_t targetFieldOffset = fields.addField<MemsetProcess>(
-        [](const auto &d, auto p){ return d.getArray(p->getTarget().getUnderlying()); });
+    // Add process fields
+    processEnvironment.addField<MemsetProcess>(Type::Void, "_target", 
+                                               [](const auto &d, auto p){ return d.getArray(p->getTarget().getUnderlying()); });
+
     
-    const uint32_t numVecsFieldOffset = fields.addField<MemsetProcess>(
-        [](auto p)
-        { 
-            return 0;//static_cast<uint32_t>(d.getArray(p->getTarget().getUnderlying())->getShape().getFlattenedSize()); 
-        });
+    //addScalarValue()
+    //if(isHeterogeneous(mergedProcess))
+    // Allocate fields
+    //const uint32_t numVecsFieldOffset = fields.addField<MemsetProcess>(
+    //    [](auto p)
+    //    { 
+    //        return 0;//static_cast<uint32_t>(d.getArray(p->getTarget().getUnderlying())->getShape().getFlattenedSize()); 
+    //    });
     // Determine how many vectors we're memsetting
     //const size_t numVecsOneTimestep = Utils::ceilDivide(target->getShape().getFlattenedSize(), 32);
     //const size_t numVecs = numVecsOneTimestep * target->getNumBufferTimesteps();
 
-    // Allocate register for target address
-    ALLOCATE_SCALAR(STargetBuffer);
-    auto &c = environment.getCodeGenerator();
-    c.lw(*STargetBuffer, *environment.getScalarRegister("_field_base"), targetFieldOffset);
+
     switch(model.getStateMemSpace(getTarget().getUnderlying()))
     {
     case MemSpace::URAM:
     {
-        generateURAMMemset(numVecs, STargetBuffer);
+        generateURAMMemset(processEnvironment, scalarRegisterAllocator, vectorRegisterAllocator,
+                           processEnvironment.getScalarRegister("_target"));
         break;
     }
     case MemSpace::LLM: 
     {
-        generateLLMMemset(numVecs, STargetBuffer);
+        generateLLMMemset(processEnvironment, scalarRegisterAllocator, vectorRegisterAllocator,
+                          processEnvironment.getScalarRegister("_target"));
         break;
     }
     case MemSpace::URAM_LLM:
     {
-        generateURAMMemset(numVecsOneTimestep, STargetBuffer);
+        assert(false);
+        /*generateURAMMemset(environment, scalarRegisterAllocator, vectorRegisterAllocator);
 
         c.lw(*STargetBuffer, *environment.getScalarRegister("_field_base"), targetFieldOffset + 4);
-        generateLLMMemset(numVecs, STargetBuffer);
+        generateLLMMemset(environment, scalarRegisterAllocator, vectorRegisterAllocator);*/
         break;
     }
     default:
@@ -1708,16 +1784,17 @@ void MemsetProcess::generateArchetypeCode(const Frontend::MergedProcess &mergedP
     }
 }
 //----------------------------------------------------------------------------
-void MemsetProcess::generateLLMMemset(Assembler::CodeGenerator &c,
-                                      Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
+void MemsetProcess::generateLLMMemset(EnvironmentMergedField &environment,
+                                      Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                       Assembler::VectorRegisterAllocator &vectorRegisterAllocator,
-                                      size_t numVectors, Assembler::ScalarRegisterAllocator::RegisterPtr targetReg) const
+                                      Assembler::ScalarRegisterAllocator::RegisterPtr targetReg) const
 {
     ALLOCATE_VECTOR(VValue);
     ALLOCATE_VECTOR(VLLMAddress);
     ALLOCATE_VECTOR(VNumUnrollBytes);
 
     // Load value to memset
+    auto &c = environment.getCodeGenerator();
     c.vlui(*VValue, 0);
 
     // Broadcast address
@@ -1744,15 +1821,16 @@ void MemsetProcess::generateLLMMemset(Assembler::CodeGenerator &c,
         });
 }
 //----------------------------------------------------------------------------
-void MemsetProcess::generateURAMMemset(Assembler::CodeGenerator &c,
+void MemsetProcess::generateURAMMemset(EnvironmentMergedField &environment,
                                        Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                        Assembler::VectorRegisterAllocator &vectorRegisterAllocator,
-                                       size_t numVectors, Assembler::ScalarRegisterAllocator::RegisterPtr targetReg) const
+                                       Assembler::ScalarRegisterAllocator::RegisterPtr targetReg) const
 {
     ALLOCATE_VECTOR(VValue);
 
     // Load value to memset and calculate unroll bytes
     // **TODO** parameterise
+    auto &c = environment.getCodeGenerator();
     c.vlui(*VValue, 0);
 
     // Generate unrolled loop 
@@ -1852,36 +1930,35 @@ void BroadcastProcess::generateMergedPreambleCode(const Frontend::MergedProcess 
     environment.add(Type::Uint16.addConst(), "_v_two", VTwo);
 }
 //----------------------------------------------------------------------------
-void BroadcastProcess::generateArchetypeCode(const Frontend::MergedProcess &mergedProcess, const Model &model,
-                                             EnvironmentExternal &environment, MergedFields &fields,
+void BroadcastProcess::generateArchetypeCode(const Frontend::MergedProcess &mergedProcess, const Model &model, 
+                                             EnvironmentMergedField &processEnvironment, EnvironmentLiteral &sharedEnvironment,
                                              Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
                                              Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
+    // Add process fields
+    processEnvironment.addField(Type::Void, "_source", 
+                                [](const auto &d, auto p){ return d.getArray(p->getSource()); });
+    processEnvironment.addField(Type::Void, "_target", 
+                                [](const auto &d, auto p){ return d.getArray(p->getTarget()); });
+    // Add values
+    addVectorValue(Type::Void, "_v_two", [](auto p){ return 2; }, 
+                   mergedProcess, processEnvironment, sharedEnvironment);
+
     // Allocate fields
-    const uint32_t sourceFieldOffset = fields.addField<BroadcastProcess>(
-        [](const auto &d, auto p){ return d.getArray(p->getSource()); });
-    const uint32_t targetFieldOffset = fields.addField<BroadcastProcess>(
-        [](const auto &d, auto p){ return d.getArray(p->getTarget()); });
     const uint32_t numBytesFieldOffset = fields.addField<BroadcastProcess>(
         [](auto p){ return 0;/*static_cast<uint32_t>(d.getArray(p->getSource())->getSizeBytes());*/ });
 
     // Register allocation
-    ALLOCATE_SCALAR(SDataBuffer);
     ALLOCATE_SCALAR(SDataBufferEnd);
     ALLOCATE_VECTOR(VAddress);
 
     // If target is a variable reference
-    auto &c = environment.getCodeGenerator();
-    {
-        ALLOCATE_SCALAR(SLLMAddress)
-        c.lw(*SLLMAddress, *environment.getScalarRegister("_field_base"), targetFieldOffset);
-
-        // Fill vector register with LLM address
-        c.vfill(*VAddress, *SLLMAddress);
-    }
-
-    // SDataBuffer = scalarPtr
-    c.lw(*SDataBuffer, *environment.getScalarRegister("_field_base"), sourceFieldOffset);
+    auto &c = processEnvironment.getCodeGenerator();
+    
+    // Fill vector register with LLM address
+    c.vfill(*VAddress, *processEnvironment.getScalarRegister("_target"));
+    
+    auto SDataBuffer = processEnvironment.getScalarRegister("_target");
 
     // Load size in bytes and add to scalar buffer to get end
     c.lw(*SDataBufferEnd, *environment.getScalarRegister("_field_base"), numBytesFieldOffset);
