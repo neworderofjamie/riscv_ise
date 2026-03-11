@@ -32,6 +32,7 @@ Model::Model(const KernelVector &kernels)
     }
 
     // Loop through all model state
+    // **THINK** do we want to split processes rather than individual variables?
     for (auto &s : m_StateData) {
         // Get dimensionality of state's shape
         const size_t numDims = s.first->getShape().getNumDims();

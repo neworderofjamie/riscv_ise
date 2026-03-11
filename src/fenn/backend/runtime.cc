@@ -122,7 +122,7 @@ std::unique_ptr<Frontend::ArrayBase> DeviceFeNN::createArray(std::shared_ptr<con
 }
 //----------------------------------------------------------------------------
 std::unique_ptr<Frontend::ArrayBase> DeviceFeNN::createArray(std::shared_ptr<const Frontend::Variable> variable,
-                                                              const Frontend::Shape &shape)
+                                                             const Frontend::Shape &shape)
 {
     // Pad last dimension to multiplies of 32
     const auto paddedShape = shape.padLast(32);
@@ -213,6 +213,9 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                  (auto processGroup, auto &codeGenerator, auto &scalarRegisterAllocator, auto &vectorRegisterAllocator)
                                  {
                                      // Loop through merged processes
+                                     // **TODO** need to identify whether process group is the one that contains event propagation
+                                     // If it is
+                                     // 1) 
                                      for(const auto &m : getMergedModel().getMergedProcessGroups().at(processGroup)) {
                                          // Ensure process has proper base class
                                          auto pi = std::dynamic_pointer_cast<const ProcessImplementation>(m.getArchetype());

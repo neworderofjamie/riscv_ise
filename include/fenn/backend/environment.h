@@ -377,6 +377,9 @@ public:
             throw std::runtime_error("'" + name + "' already defined in field environment");
         }
     }
+
+    auto getFieldBaseReg() const{ return m_FieldBaseReg; }
+    auto &getMergedFields(){ return m_MergedFields.get(); }
 private:
     //------------------------------------------------------------------------
     // Members
