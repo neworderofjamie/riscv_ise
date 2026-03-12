@@ -3,9 +3,8 @@
 // Standard C++ includes
 #include <map>
 #include <memory>
-#include <set>
 #include <string>
-#include <variant>
+#include <unordered_map>
 
 // GeNN includes
 #include "type.h"
@@ -76,10 +75,23 @@ public:
     //------------------------------------------------------------------------
     // Declared virtuals
     //------------------------------------------------------------------------
+    //! Get vector of state objects used by this process
     virtual std::vector<std::shared_ptr<const State>> getAllState() const = 0;
+
+    //! Update the provided hash with the properties of this process which determine whether it can be merged
     virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const Model &model) const = 0;
+
+    //! Update the compatible split dimensions of a state object (which should be
+    //! one used by this process) with any constraints imposed by this process)
     virtual void updateCompatibleSplitDimensions(std::shared_ptr<const Frontend::State> state, 
                                                  uint32_t &compatibleSplitDimensions) const = 0;
+
+    //! Once compatible split dimensions have been obtained for each state object, they might need 
+    //! 'constraining' e.g. to ensure all variables associated with a neuron update process get split the same
+    virtual void constrainSplitDimensions(std::unordered_map<std::shared_ptr<const Frontend::State>,
+                                                             uint32_t> &compatibleSplitDimensions) const
+    {
+    }
 
 protected:
     using ModelComponent::ModelComponent;
@@ -95,16 +107,23 @@ public:
                         const EventContainerMap &outputEvents, const std::string &name);
 
     //------------------------------------------------------------------------
-    // Stateful virtuals
-    //------------------------------------------------------------------------
-    virtual std::vector<std::shared_ptr<const State>> getAllState() const override final;
-
-    //------------------------------------------------------------------------
     // Process virtuals
     //------------------------------------------------------------------------
+    //! Get vector of state objects used by this process
+    virtual std::vector<std::shared_ptr<const State>> getAllState() const override final;
+
+    //! Update the provided hash with the properties of this process which determine whether it can be merged
     virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const Model &model) const override;
+
+    //! Update the compatible split dimensions of a state object (which should be
+    //! one used by this process) with any constraints imposed by this process)
     virtual void updateCompatibleSplitDimensions(std::shared_ptr<const State> state, 
                                                  uint32_t &compatibleSplitDimensions) const override;
+
+    //! Once compatible split dimensions have been obtained for each state object, they might need 
+    //! 'constraining' e.g. to ensure all variables associated with a neuron update process get split the same
+    virtual void constrainSplitDimensions(std::unordered_map<std::shared_ptr<const Frontend::State>,
+                                          uint32_t> &compatibleSplitDimensions) const override;
 
     //------------------------------------------------------------------------
     // Public API
@@ -146,14 +165,16 @@ public:
                             const std::string &name);
 
     //------------------------------------------------------------------------
-    // Stateful virtuals
-    //------------------------------------------------------------------------
-    virtual std::vector<std::shared_ptr<const State>> getAllState() const override final;
-
-    //------------------------------------------------------------------------
     // Process virtuals
     //------------------------------------------------------------------------
+    //! Get vector of state objects used by this process
+    virtual std::vector<std::shared_ptr<const State>> getAllState() const override final;
+
+    //! Update the provided hash with the properties of this process which determine whether it can be merged
     virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const Model &model) const override;
+
+    //! Update the compatible split dimensions of a state object (which should be
+    //! one used by this process) with any constraints imposed by this process)
     virtual void updateCompatibleSplitDimensions(std::shared_ptr<const State> state, 
                                                  uint32_t &compatibleSplitDimensions) const override;
 
@@ -196,14 +217,16 @@ public:
     RNGInitProcess(Private, VariablePtr seed, const std::string &name);
 
     //------------------------------------------------------------------------
-    // Stateful virtuals
-    //------------------------------------------------------------------------
-    virtual std::vector<std::shared_ptr<const State>> getAllState() const override final;
-
-    //------------------------------------------------------------------------
     // Process virtuals
     //------------------------------------------------------------------------
+    //! Get vector of state objects used by this process
+    virtual std::vector<std::shared_ptr<const State>> getAllState() const override final;
+
+    //! Update the provided hash with the properties of this process which determine whether it can be merged
     virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const Model &model) const override;
+
+    //! Update the compatible split dimensions of a state object (which should be
+    //! one used by this process) with any constraints imposed by this process)
     virtual void updateCompatibleSplitDimensions(std::shared_ptr<const State> state, 
                                                  uint32_t &compatibleSplitDimensions) const override;
 
@@ -229,14 +252,16 @@ public:
     MemsetProcess(Private, Sliced<Variable> target, const std::string &name);
 
     //------------------------------------------------------------------------
-    // Stateful virtuals
-    //------------------------------------------------------------------------
-    virtual std::vector<std::shared_ptr<const State>> getAllState() const override final;
-
-    //------------------------------------------------------------------------
     // Process virtuals
     //------------------------------------------------------------------------
+    //! Get vector of state objects used by this process
+    virtual std::vector<std::shared_ptr<const State>> getAllState() const override final;
+
+    //! Update the provided hash with the properties of this process which determine whether it can be merged
     virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const Model &model) const override;
+
+    //! Update the compatible split dimensions of a state object (which should be
+    //! one used by this process) with any constraints imposed by this process)
     virtual void updateCompatibleSplitDimensions(std::shared_ptr<const State> state, 
                                                  uint32_t &compatibleSplitDimensions) const override;
 

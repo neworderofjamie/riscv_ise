@@ -32,7 +32,7 @@ Model::Model(const KernelVector &kernels)
     }
 
     // Loop through all model state
-    // **THINK** do we want to split processes rather than individual variables?
+    std::unordered_map<std::shared_ptr<const Frontend::State>, uint32_t> compatibleSplitDimensions;
     for (auto &s : m_StateData) {
         // Get dimensionality of state's shape
         const size_t numDims = s.first->getShape().getNumDims();
@@ -41,21 +41,40 @@ Model::Model(const KernelVector &kernels)
         }
 
         // Start with all memory spaces being compatible
-        uint32_t compatibleSplitDimensions = (1 << numDims) - 1;
+        uint32_t stateCompatibleSplitDimensions = (1 << numDims) - 1;
 
         // Loop through all processes using this state and update this compatibility
         for (const auto &p : s.second.processes) {
-            p->updateCompatibleSplitDimensions(s.first, compatibleSplitDimensions);
+            p->updateCompatibleSplitDimensions(s.first, stateCompatibleSplitDimensions);
         }
         
-        // If this cannot be split
-        if(compatibleSplitDimensions == 0) {
+        // Add to map
+        compatibleSplitDimensions.try_emplace(s.first, stateCompatibleSplitDimensions);
+    }
+
+    // Loop through kernels
+    for(const auto &k : getKernels()) {
+        // Loop through all process groups in kernel
+        const auto processGroups = k->getAllProcessGroups();
+        for (const auto &g : processGroups) {
+            // Loop through processes in group and allow them to constrain split dimensions
+            for (const auto &p : g->getProcesses()) {
+                p->constrainSplitDimensions(compatibleSplitDimensions);
+            }
+        }
+    }
+
+    // Loop through all model state
+    for (auto &s : m_StateData) {
+        // If this state cannot be spli
+        const uint32_t stateCompatibleSplitDimensions = compatibleSplitDimensions.at(s.first);
+        if(stateCompatibleSplitDimensions == 0) {
             s.second.splitDimension = std::nullopt;
         }
         // Otherwise, count leading-zeros to pick highest compatible dimension
         // to split on (this maximises the number of contiguous sections of data)
         else {
-            s.second.splitDimension = 31 - ::Common::Utils::clz(compatibleSplitDimensions);
+            s.second.splitDimension = 31 - ::Common::Utils::clz(stateCompatibleSplitDimensions);
         }
     }
 }
