@@ -187,7 +187,31 @@ void NeuronUpdateProcess::updateCompatibleSplitDimensions(std::shared_ptr<const 
         }
     }
 }
+//----------------------------------------------------------------------------
+void NeuronUpdateProcess::constrainSplitDimensions(std::unordered_map<std::shared_ptr<const Frontend::State>,
+                                                                      uint32_t> &compatibleSplitDimensions) const
+{
+    // AND together all variable split dimensions
+    uint32_t combinedSplitDimensions = 0xFFFFFFFFu;
+    for(const auto &v : getVariables()) {
+        combinedSplitDimensions &= compatibleSplitDimensions.at(v.second.getUnderlying());
+    }
 
+    // AND output event split dimension
+    for(const auto &o : getOutputEvents()) {
+        combinedSplitDimensions &= compatibleSplitDimensions.at(o.second.getUnderlying());
+    }
+
+    // Update all variables compatible split dimensions with the combined version
+    for(const auto &v : getVariables()) {
+        compatibleSplitDimensions.at(v.second.getUnderlying()) = combinedSplitDimensions;
+    }
+
+    // Update all output events compatible split dimensions with the combined version
+    for(const auto &o : getOutputEvents()) {
+        compatibleSplitDimensions.at(o.second.getUnderlying()) = combinedSplitDimensions;
+    }
+}
 //----------------------------------------------------------------------------
 // EventPropagationProcess
 //----------------------------------------------------------------------------
