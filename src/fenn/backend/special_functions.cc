@@ -121,12 +121,12 @@ void add(Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalar
 
                                    // START RANGE-REDUCTION
                                    // VK = floor((VX * VInvLog) + 0.5) [aType]
-                                   c.vmul(14, *VK, *std::get<VectorRegisterAllocator::RegisterPtr>(args[0]), *VInvLog);
+                                   c.vmul(14, *VK, *std::get<VectorRegisterPtr>(args[0]), *VInvLog);
                                    c.vsrai_rn(aFrac, *VK, *VK);
 
                                    // VR = VX - (VK * VLog2) [aType]
                                    c.vmul_rn(15 - aFrac, *VR, *VK, *VLog2);
-                                   c.vsub(*VR, *std::get<VectorRegisterAllocator::RegisterPtr>(args[0]), *VR);
+                                   c.vsub(*VR, *std::get<VectorRegisterPtr>(args[0]), *VR);
 
                                     // VR = (VR - -0.5Ln2) / (0.5Ln2 - -0.5Ln2) [s0.15]
                                     // VR = (VR + 0.5Ln2) / Ln2
