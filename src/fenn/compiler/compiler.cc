@@ -98,9 +98,9 @@ class Visitor : public Transpiler::Expression::Visitor, public Transpiler::State
 public:
     Visitor(const Transpiler::Statement::StatementList &statements, EnvironmentInternal &environment,
             const Type::TypeContext &context, const Transpiler::TypeChecker::ResolvedTypeMap &resolvedTypes,
-            Transpiler::ErrorHandlerBase &errorHandler, const std::unordered_map<int16_t, Assembler::VectorRegisterAllocator::RegisterPtr> &literalPool,
-            Assembler::ScalarRegisterAllocator::RegisterPtr maskRegister, RoundingMode roundingMode,
-            Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, Assembler::VectorRegisterAllocator &vectorRegisterAllocator)
+            Transpiler::ErrorHandlerBase &errorHandler, const std::unordered_map<int16_t, Assembler::VectorRegisterPtr> &literalPool,
+            Assembler::ScalarRegisterPtr maskRegister, RoundingMode roundingMode, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
+            Assembler::VectorRegisterAllocator &vectorRegisterAllocator)
     :   m_Environment(environment), m_Context(context), m_MaskRegister(maskRegister), m_ResolvedTypes(resolvedTypes),
         m_ErrorHandler(errorHandler), m_LiteralPool(literalPool), m_RoundingMode(roundingMode),
         m_ScalarRegisterAllocator(scalarRegisterAllocator),  m_VectorRegisterAllocator(vectorRegisterAllocator)
@@ -818,18 +818,18 @@ private:
         m_ExpressionRegister = std::make_pair(reg, reusable);
     }
 
-    Assembler::VectorRegisterAllocator::RegisterPtr getExpressionVectorRegister(const Transpiler::Expression::Base *expression)
+    Assembler::VectorRegisterPtr getExpressionVectorRegister(const Transpiler::Expression::Base *expression)
     {
         expression->accept(*this);
 
-        return std::get<Assembler::VectorRegisterAllocator::RegisterPtr>(getExpressionRegister());
+        return std::get<Assembler::VectorRegisterPtr>(getExpressionRegister());
     }
 
-    Assembler::ScalarRegisterAllocator::RegisterPtr getExpressionScalarRegister(const Transpiler::Expression::Base *expression)
+    Assembler::ScalarRegisterPtr getExpressionScalarRegister(const Transpiler::Expression::Base *expression)
     {
         expression->accept(*this);
 
-        return std::get<Assembler::ScalarRegisterAllocator::RegisterPtr>(getExpressionRegister());
+        return std::get<Assembler::ScalarRegisterPtr>(getExpressionRegister());
     }
 
     void generateVMOV(FeNN::Common::VReg destinationReg, FeNN::Common::VReg sourceReg) const

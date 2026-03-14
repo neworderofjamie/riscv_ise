@@ -119,4 +119,7 @@ public:
     {
     }
 };
+
+using VectorRegisterPtr = VectorRegisterAllocator::RegisterPtr;
+using ScalarRegisterPtr = ScalarRegisterAllocator::RegisterPtr;
 }   // namespace FeNN::Assembler
