@@ -225,7 +225,7 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                          }
 
                                          // Generate code
-                                         pi->generateCode(m, getModel(), timeRegister, numTimesteps, codeGenerator, 
+                                         pi->generateCode(m, *this, timeRegister, numTimesteps, codeGenerator, 
                                                           scalarRegisterAllocator, vectorRegisterAllocator);
                                      }
                                  });
