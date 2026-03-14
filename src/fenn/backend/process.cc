@@ -1,4 +1,5 @@
 #include "fenn/backend/process.h"
+#include "fenn/backend/process.h"
 
 // Standard C++ includes
 #include <algorithm>
@@ -16,7 +17,6 @@
 // Frontend includes
 #include "frontend/event_container.h"
 #include "frontend/merged_model.h"
-#include "frontend/runtime.h"
 #include "frontend/variable.h"
 
 // FeNN common includes
@@ -31,6 +31,7 @@
 #include "fenn/backend/environment.h"
 #include "fenn/backend/fields.h"
 #include "fenn/backend/model.h"
+#include "fenn/backend/runtime.h"
 #include "fenn/backend/special_function.h"
 
 using namespace FeNN;
@@ -42,6 +43,8 @@ using namespace GeNN;
 //----------------------------------------------------------------------------
 namespace
 {
+using ScalarConstant = std::variant<Assembler::ScalarRegisterAllocator::RegisterPtr, int, std::monostate>;
+
 Type::ResolvedType createFixedPointType(int numInt, bool saturating)
 {
     const int numFrac = 15 - numInt;
@@ -80,15 +83,14 @@ void addStochMulFunctions(EnvironmentLibrary::Library &library)
             // Shift by number of fraction bits of LOWEST ranked type
             const int shift = 15 - ((aInt > bInt) ? bInt : aInt);
 
-            using RegisterPtr = Assembler::VectorRegisterAllocator::RegisterPtr;
             library.emplace(
                 "mul_rs",
                 std::make_pair(Type::ResolvedType::createFunction(resultType, {aType, bType}),
                                [shift](auto &env, auto &vectorRegisterAllocator, auto &, auto, const auto &args)
                                {
                                    auto result = vectorRegisterAllocator.getRegister();
-                                   env.getCodeGenerator().vmul_rs(shift, *result, *std::get<RegisterPtr>(args[0]),
-                                                                  *std::get<RegisterPtr>(args[1]));
+                                   env.getCodeGenerator().vmul_rs(shift, *result, *std::get<Assembler::VectorRegisterPtr>(args[0]),
+                                                                  *std::get<Assembler::VectorRegisterPtr>(args[1]));
                                    return std::make_pair(result, true);
                                }));
             library.emplace(
@@ -97,8 +99,8 @@ void addStochMulFunctions(EnvironmentLibrary::Library &library)
                                [shift](auto &env, auto &vectorRegisterAllocator, auto &, auto, const auto &args)
                                {
                                    auto result = vectorRegisterAllocator.getRegister();
-                                   env.getCodeGenerator().vmul_rs(shift, *result, *std::get<RegisterPtr>(args[0]),
-                                                                  *std::get<RegisterPtr>(args[1]));
+                                   env.getCodeGenerator().vmul_rs(shift, *result, *std::get<Assembler::VectorRegisterPtr>(args[0]),
+                                                                  *std::get<Assembler::VectorRegisterPtr>(args[1]));
                                    return std::make_pair(result, true);
                                }));
         }
@@ -123,10 +125,10 @@ bool isExpCalled(const std::vector<Transpiler::Token> &tokens)
 }
 
 void compileStatements(const std::vector<Transpiler::Token> &tokens, const Type::TypeContext &typeContext,
-                       const std::unordered_map<int16_t, Assembler::VectorRegisterAllocator::RegisterPtr> &literalPool,
+                       const std::unordered_map<int16_t, Assembler::VectorRegisterPtr> &literalPool,
                        Transpiler::TypeChecker::EnvironmentInternal &typeCheckEnv, Compiler::EnvironmentInternal &compilerEnv,
                        Transpiler::ErrorHandler &errorHandler, Transpiler::TypeChecker::StatementHandler forEachSynapseTypeCheckHandler,
-                       Assembler::ScalarRegisterAllocator::RegisterPtr maskRegister, Compiler::RoundingMode roundingMode,
+                       Assembler::ScalarRegisterPtr maskRegister, Compiler::RoundingMode roundingMode,
                        Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, Assembler::VectorRegisterAllocator &vectorRegisterAllocator)
 {
 
@@ -208,13 +210,25 @@ bool isHeterogeneous(const Frontend::MergedProcess &mergedProcess, MergedFields:
 }
 
 template<typename P>
-void addVectorValue(const Type::ResolvedType &type, const std::string &name, 
-                    const Frontend::MergedProcess &mergedProcess, EnvironmentMergedField &fieldEnvironment, 
-                    EnvironmentLiteral &literalEnvironment, MergedFields::GetFieldConstantFunc<P> getFieldValueFn)
+Assembler::VectorRegisterPtr addVectorConstant(const Frontend::MergedProcess &mergedProcess, MergedFields &mergedFields,
+                                               Assembler::ScalarRegisterAllocator::RegisterPtr fieldBaseReg,
+                                               Assembler::CodeGenerator &processCodeGenerator, Assembler::CodeGenerator &sharedCodeGenerator,
+                                               Assembler::ScalarRegisterAllocator &vectorRegisterAllocator, std::vector<Compiler::RegisterPtr> &sharedRegisters,
+                                               MergedFields::GetFieldConstantFunc<P> getFieldValueFn)
 {
     // If value is heterogeneous, add field
     if(isHeterogeneous(mergedProcess, getFieldValueFn)) {
-        fieldEnvironment.addField(type, name, getFieldValueFn);
+        // Add field
+        const uint32_t fieldOffset = mergedFields.addField<P>(getFieldValueFn, 4);
+
+        // Allocate register
+        ALLOCATE_SCALAR(SReg);
+        ALLOCATE_SCALAR(VReg);
+
+        // Load value into register and fill vector register
+        processCodeGenerator.lw(*SReg, *fieldBaseReg, fieldOffset);
+        processCodeGenerator.vfill(*VReg, *SReg);
+        return VReg
     }
     // Otherwise
     else {
@@ -234,17 +248,25 @@ void addVectorValue(const Type::ResolvedType &type, const std::string &name,
             },
             getFieldValueFn(mergedProcess.getArchetype<P>()));
 
-        // Add vector literal to environment
-        literalEnvironment.addVectorLiteral(type, name, value);
+        // Allocate register
+        ALLOCATE_VECTOR(VReg);
+
+        // Load shared immediate
+        sharedCodeGenerator.vlua(*VReg, value);
+
+        // Add register to vector of shared registers
+        sharedRegisters.push_back(VReg);
+
+        return VReg;
     }
 }
 
 template<typename P>
-Compiler::EnvironmentItem addScalarValue(int maxBits, const Frontend::MergedProcess &mergedProcess, 
-                                         MergedFields &mergedFields, Assembler::ScalarRegisterAllocator::RegisterPtr fieldBaseReg,
-                                         Assembler::CodeGenerator &processCodeGenerator, Assembler::CodeGenerator &sharedCodeGenerator,
-                                         Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, std::vector<Compiler::RegisterPtr> &sharedRegisters, 
-                                         MergedFields::GetFieldConstantFunc<P> getFieldValueFn)
+ScalarConstant addScalarValue(int maxBits, const Frontend::MergedProcess &mergedProcess, 
+                              MergedFields &mergedFields, Assembler::ScalarRegisterAllocator::RegisterPtr fieldBaseReg,
+                              Assembler::CodeGenerator &processCodeGenerator, Assembler::CodeGenerator &sharedCodeGenerator,
+                              Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, std::vector<Compiler::RegisterPtr> &sharedRegisters, 
+                              MergedFields::GetFieldConstantFunc<P> getFieldValueFn)
 {
     // If value is heterogeneous
     if(isHeterogeneous(mergedProcess, getFieldValueFn)) {
@@ -293,15 +315,15 @@ class NeuronVarBase
 {
 public:
     //! Generate code to load vector register reg from memory before unrolled loop iteration r
-    virtual void genLoad(Compiler::EnvironmentBase &env, Assembler::VectorRegisterAllocator::RegisterPtr reg, uint32_t r) = 0;
+    virtual void genLoad(Compiler::EnvironmentBase &env, Assembler::VectorRegisterPtr reg, uint32_t r) = 0;
 
     //! Generate code to store vector register reg to memory after unrolled loop iteration r
-    virtual void genStore(Compiler::EnvironmentBase &env, Assembler::VectorRegisterAllocator::RegisterPtr reg, uint32_t r) = 0;
+    virtual void genStore(Compiler::EnvironmentBase &env, Assembler::VectorRegisterPtr reg, uint32_t r) = 0;
 
     //! Generate code to advance pointer after numUnrolls unrolled 
     virtual void genIncrement(Assembler::CodeGenerator &c, uint32_t numUnrolls, 
-                              Assembler::VectorRegisterAllocator::RegisterPtr numUnrollBytesReg) = 0;
-    virtual Assembler::ScalarRegisterAllocator::RegisterPtr getLoopCountScalarReg() const = 0;
+                              Assembler::VectorRegisterPtr numUnrollBytesReg) = 0;
+    virtual Assembler::ScalarRegisterPtr getLoopCountScalarReg() const = 0;
     virtual bool needsNumUnrollBytesReg() const = 0;
 };
 
@@ -312,12 +334,12 @@ public:
 class URAMNeuronVar : public NeuronVarBase
 {
 public:
-    URAMNeuronVar(const std::string &varName, std::shared_ptr<const Frontend::Variable> var, 
+    URAMNeuronVar(const std::string &varName, Frontend::Sliced<Frontend::Variable> var, 
                   Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
                   uint32_t varFieldOffset, std::optional<uint32_t> numTimesteps, 
                   Assembler::ScalarRegisterAllocator::RegisterPtr fieldBaseReg, 
                   Assembler::ScalarRegisterAllocator::RegisterPtr timeReg,
-                  Compiler::EnvironmentItem numVariableBytes)
+                  ScalarConstant numVariableBytes)
     {
        // Allocate scalar register to hold address of variable
         m_ReadBufferReg = scalarRegisterAllocator.getRegister((varName + "Buffer X").c_str());
@@ -327,40 +349,40 @@ public:
 
         // **TODO** currently this just handles providing entire simulation kernel worth of variable data or
         // recording variables for entire simulation - extend to support axonal delays and ring-buffer recording
-        const size_t numBufferTimesteps = var->getNumBufferTimesteps();
-        if (numBufferTimesteps != 1) {
+        if (var.hasTime()) {
             // Check there is a buffer entry for each timestep with one extra
             // **NOTE** variables get read from timestep and written to timestep + 1 hence extra buf
-            if(numBufferTimesteps < (numTimesteps.value() + 1)) {
+            if(var.getNumTimesteps() < (numTimesteps.value() + 1)) {
                 throw std::runtime_error("Variables need to be buffered for " + std::to_string(numTimesteps.value() + 1u) + " timesteps");
             }
 
             ALLOCATE_SCALAR(STmp);
-            c.mul(*STmp, *timeReg, *environment.getScalarRegister("_num_variable_bytes"));
+            auto numVariableBytesReg = std::get<Assembler::ScalarRegisterAllocator::RegisterPtr>(numVariableBytes);
+            c.mul(*STmp, *timeReg, *numVariableBytesReg);
             c.add(*m_ReadBufferReg, *m_ReadBufferReg, *STmp);
 
             // Allocate additional register for writing variable
             // **TODO** should be lazy
             m_WriteBufferReg = scalarRegisterAllocator.getRegister((varName + "BufferWrite X").c_str());
-            c.add(*m_WriteBufferReg, *m_ReadBufferReg, *environment.getScalarRegister("_num_variable_bytes"));
+            c.add(*m_WriteBufferReg, *m_ReadBufferReg, *numVariableBytesReg);
         }
     }
 
     //--------------------------------------------------------------------
     // NeuronVarBase virtuals
     //--------------------------------------------------------------------
-    virtual void genLoad(Compiler::EnvironmentBase &env, Assembler::VectorRegisterAllocator::RegisterPtr reg, uint32_t r) final override
+    virtual void genLoad(Compiler::EnvironmentBase &env, Assembler::VectorRegisterPtr reg, uint32_t r) final override
     {
         env.getCodeGenerator().vloadv(*reg, *m_ReadBufferReg, 64 * r);
     }
 
-    virtual void genStore(Compiler::EnvironmentBase &env, Assembler::VectorRegisterAllocator::RegisterPtr reg, uint32_t r) final override
+    virtual void genStore(Compiler::EnvironmentBase &env, Assembler::VectorRegisterPtr reg, uint32_t r) final override
     {
         env.getCodeGenerator().vstore(*reg, (m_WriteBufferReg ? *m_WriteBufferReg : *m_ReadBufferReg), 64 * r);
     }
 
     virtual void genIncrement(Assembler::CodeGenerator &c, uint32_t numUnrolls,
-                              Assembler::VectorRegisterAllocator::RegisterPtr) final override
+                              Assembler::VectorRegisterPtr) final override
     {
         c.addi(*m_ReadBufferReg, *m_ReadBufferReg, 64 * numUnrolls);
         if(m_WriteBufferReg) {
@@ -368,7 +390,7 @@ public:
         }
     }
 
-    virtual Assembler::ScalarRegisterAllocator::RegisterPtr getLoopCountScalarReg() const final override
+    virtual Assembler::ScalarRegisterPtr getLoopCountScalarReg() const final override
     {
         return m_ReadBufferReg;
     }
@@ -394,12 +416,12 @@ private:
 class LLMNeuronVar : public NeuronVarBase
 {
 public:
-    LLMNeuronVar(const std::string &varName, std::shared_ptr<const Frontend::Variable> var, 
+    LLMNeuronVar(const std::string &varName, Frontend::Sliced<Frontend::Variable> var, 
                  Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
                  Assembler::VectorRegisterAllocator &vectorRegisterAllocator, uint32_t varFieldOffset,
                  Assembler::ScalarRegisterAllocator::RegisterPtr fieldBaseReg)
     {
-        assert(var->getNumBufferTimesteps() == 1);
+        assert(var.hasTime());
 
         // Allocate vector register to hold address of variable
         m_BufferReg = vectorRegisterAllocator.getRegister((varName + "Buffer V").c_str());
@@ -413,23 +435,23 @@ public:
     //--------------------------------------------------------------------
     // NeuronVarBase virtuals
     //--------------------------------------------------------------------
-    virtual void genLoad(Compiler::EnvironmentBase &env, Assembler::VectorRegisterAllocator::RegisterPtr reg, uint32_t r) final override
+    virtual void genLoad(Compiler::EnvironmentBase &env, Assembler::VectorRegisterPtr reg, uint32_t r) final override
     {
         env.getCodeGenerator().vloadl(*reg, *m_BufferReg, 2 * r);   
     }
 
-    virtual void genStore(Compiler::EnvironmentBase &env, Assembler::VectorRegisterAllocator::RegisterPtr reg, uint32_t r) final override
+    virtual void genStore(Compiler::EnvironmentBase &env, Assembler::VectorRegisterPtr reg, uint32_t r) final override
     {
         env.getCodeGenerator().vstorel(*reg, *m_BufferReg, 2 * r);    
     }
 
     virtual void genIncrement(Assembler::CodeGenerator &c, uint32_t,
-                              Assembler::VectorRegisterAllocator::RegisterPtr numUnrollBytesReg) final override
+                              Assembler::VectorRegisterPtr numUnrollBytesReg) final override
     {
         c.vadd(*m_BufferReg, *m_BufferReg, *numUnrollBytesReg);
     }
 
-    virtual Assembler::ScalarRegisterAllocator::RegisterPtr getLoopCountScalarReg() const final override
+    virtual Assembler::ScalarRegisterPtr getLoopCountScalarReg() const final override
     {
         return nullptr;
     }
@@ -443,7 +465,7 @@ private:
     //--------------------------------------------------------------------
     // Members
     //--------------------------------------------------------------------
-    Assembler::VectorRegisterAllocator::RegisterPtr m_BufferReg;
+    Assembler::VectorRegisterPtr m_BufferReg;
 };
 
 //------------------------------------------------------------------------
@@ -455,16 +477,15 @@ private:
 class URAMLLMNeuronVar : public NeuronVarBase
 {
 public:
-    URAMLLMNeuronVar(const std::string &varName, std::shared_ptr<const Frontend::Variable> var, 
+    URAMLLMNeuronVar(const std::string &varName, Frontend::Sliced<Frontend::Variable> var, 
                      Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
                      Assembler::VectorRegisterAllocator &vectorRegisterAllocator, uint32_t varFieldOffset, 
-                     Assembler::ScalarRegisterAllocator::RegisterPtr fieldBaseReg, 
-                     Assembler::ScalarRegisterAllocator::RegisterPtr timeReg,
+                     Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg,
                      Compiler::EnvironmentItem numVariableBytes)
-        :   m_DelayStride(2 * var->getNumBufferTimesteps()), m_VectorRegisterAllocator(vectorRegisterAllocator)
+        :   m_DelayStride(2 * var.getShape().getFirst()), m_VectorRegisterAllocator(vectorRegisterAllocator)
     {
         // Check number of buffer timesteps is P.O.T.
-        if(!::Common::Utils::isPOT(var->getNumBufferTimesteps())) {
+        if(!::Common::Utils::isPOT(var.getShape().getFirst())) {
             throw std::runtime_error("When used as delayed event propagation targets, variables "
                                      "need to have a power-of-two number of buffer timesteps");
         }
@@ -483,7 +504,7 @@ public:
             ALLOCATE_SCALAR(STmp2);
 
             // Calculate time modulo delay buffer size
-            c.andi(*STmp, *timeReg, var->getNumBufferTimesteps() - 1);
+            c.andi(*STmp, *timeReg, var.getShape().getFirst() - 1);
 
             // Double to get starting offset in bytes
             c.slli(*STmp, *STmp, 1);
@@ -498,7 +519,7 @@ public:
     //--------------------------------------------------------------------
     // NeuronVarBase virtuals
     //--------------------------------------------------------------------
-    virtual void genLoad(Compiler::EnvironmentBase &env, Assembler::VectorRegisterAllocator::RegisterPtr reg, uint32_t r) final override
+    virtual void genLoad(Compiler::EnvironmentBase &env, Assembler::VectorRegisterPtr reg, uint32_t r) final override
     {
         // Load from LLM buffer into temporary register
         auto denDelayFrontReg = m_VectorRegisterAllocator.get().getRegister("DenDelayFront V");
@@ -514,13 +535,13 @@ public:
         env.getCodeGenerator().vadd_s(*reg, *reg, *denDelayFrontReg);
     }
 
-    virtual void genStore(Compiler::EnvironmentBase &env, Assembler::VectorRegisterAllocator::RegisterPtr reg, uint32_t r) final override
+    virtual void genStore(Compiler::EnvironmentBase &env, Assembler::VectorRegisterPtr reg, uint32_t r) final override
     {
         env.getCodeGenerator().vstore(*reg, *m_URAMBufferReg, 64 * r);
     }
 
     virtual void genIncrement(Assembler::CodeGenerator &c, uint32_t numUnrolls,
-                              Assembler::VectorRegisterAllocator::RegisterPtr) final override
+                              Assembler::VectorRegisterPtr) final override
     {
         // Calculate how many bytes we need to advance LLM addresses
         // **TODO** VADDI instruction would save an instruction in this type of situation
@@ -532,7 +553,7 @@ public:
         c.vadd(*m_LLMBufferReg, *m_LLMBufferReg, *numUnrollBytesReg);
     }
 
-    virtual Assembler::ScalarRegisterAllocator::RegisterPtr getLoopCountScalarReg() const final override
+    virtual Assembler::ScalarRegisterPtr getLoopCountScalarReg() const final override
     {
         return m_URAMBufferReg;
     }
@@ -547,8 +568,8 @@ private:
     // Members
     //--------------------------------------------------------------------
     size_t m_DelayStride;
-    Assembler::ScalarRegisterAllocator::RegisterPtr m_URAMBufferReg;
-    Assembler::VectorRegisterAllocator::RegisterPtr m_LLMBufferReg;
+    Assembler::ScalarRegisterPtr m_URAMBufferReg;
+    Assembler::VectorRegisterPtr m_LLMBufferReg;
     std::reference_wrapper<Assembler::VectorRegisterAllocator> m_VectorRegisterAllocator;
 };
 
@@ -858,7 +879,8 @@ private:
 namespace FeNN::Backend
 {
 void TimeDrivenProcessImplementation::generateCode(const Frontend::MergedProcess &mergedProcess,
-                                                   const Model &model, Assembler::CodeGenerator &c,
+                                                   const Runtime &runtime, Assembler::ScalarRegisterAllocator::RegisterPtr timeReg,
+                                                   std::optional<uint32_t> numTimesteps, Assembler::CodeGenerator &c,
                                                    Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
                                                    Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
@@ -869,9 +891,9 @@ void TimeDrivenProcessImplementation::generateCode(const Frontend::MergedProcess
     // Generate archetype code and populate merged fields
     MergedFields mergedFields;
     Assembler::CodeGenerator archetypeCodeGenerator;
-    const auto sharedRegisters = generateArchetypeCode(mergedProcess, model, mergedFields,
-                                                       SFieldBase, archetypeCodeGenerator, c,
-                                                       scalarRegisterAllocator, vectorRegisterAllocator);
+    const auto sharedRegisters = generateArchetypeCode(mergedProcess, runtime, mergedFields,
+                                                       SFieldBase, timeReg, numTimesteps, archetypeCodeGenerator,
+                                                       c, scalarRegisterAllocator, vectorRegisterAllocator);
 
     // Generate loop over merged groups
     c.li(*SFieldBase, TODO);
@@ -904,7 +926,7 @@ void NeuronUpdateProcess::updateCompatibleMemSpace(std::shared_ptr<const Fronten
 }
 //----------------------------------------------------------------------------
 void NeuronUpdateProcess::generateMergedPreambleCode(const Frontend::MergedProcess &mergedProcess,
-                                                     const Model &model, EnvironmentExternal &environment, 
+                                                     const Runtime &runtime, EnvironmentExternal &environment, 
                                                      Assembler::CodeGenerator &c,
                                                      Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                                      Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
@@ -987,8 +1009,9 @@ void NeuronUpdateProcess::generateMergedPreambleCode(const Frontend::MergedProce
 }
 //----------------------------------------------------------------------------
 std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
-        const Frontend::MergedProcess &mergedProcess, const Model &model, MergedFields &mergedFields,
-        Assembler::ScalarRegisterAllocator::RegisterPtr fieldBaseReg, Assembler::CodeGenerator &processCodeGenerator, 
+        const Frontend::MergedProcess &mergedProcess, const Runtime &runtime, MergedFields &mergedFields,
+        Assembler::ScalarRegisterAllocator::RegisterPtr fieldBaseReg, Assembler::ScalarRegisterAllocator::RegisterPtr timeReg,
+        std::optional<uint32_t> numTimesteps, Assembler::CodeGenerator &processCodeGenerator, 
         Assembler::CodeGenerator &sharedCodeGenerator, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
         Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
@@ -1000,19 +1023,21 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
 
     std::unordered_map<std::shared_ptr<const Frontend::Variable>, std::unique_ptr<NeuronVarBase>> varBuffers;
     {
-        // Calculate stride in bytes
-        Compiler::EnvironmentItem numVariableBytes;
-        if (std::any_of(neuronUpdateProcess->getVariables().cbegin(), neuronUpdateProcess->getVariables().cend(),
-                            [](const auto e) { return e.second->getNumBufferTimesteps() != 1; }))
+        // If any variables have time dimension
+        ScalarConstant numVariableBytes;
+        if (std::any_of(getVariables().cbegin(), getVariables().cend(),
+                        [](const auto &e) { return e.second->hasTime(); }))
         {
+            // Add constant
+            // **NOTE** this is multiplied so no point loading this as an immediate
             numVariableBytes = addScalarValue<NeuronUpdateProcess>(
                 0, mergedProcess, mergedFields, fieldBaseReg, 
                 processCodeGenerator, sharedCodeGenerator, scalarRegisterAllocator,
-                [&model](size_t d, auto p)
+                [&runtime](size_t d, auto p)
                 {
-                    const auto splitDimension = model.getStateData(p->getTarget().getUnderlying()).splitDimension;
-                    const auto splitShape = p->getShape().split(d, splitDimension, numDevices);
-                    return static_cast<uint32_t>(Utils::padSize(splitShape.getFlattenedSize(), 32) * 2);
+                    const auto splitDimension = runtime.getModel().getStateData(p->getVariables().front().getUnderlying()).splitDimension;
+                    const auto splitShape = p->getShape().split(d, splitDimension, runtime.getNumDevices());
+                    return static_cast<uint32_t>(::Common::Utils::padSize(splitShape.getFlattenedSize(), 32) * 2);
                 });
         }
 
@@ -1020,37 +1045,37 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
         // Loop through neuron variables
         for(const auto &v : getVariables()) {
             // Add field for variable to environment
-            const auto underlyingVar = v.second.getUnderlying();
+            const auto &varName = v.first;
             const uint32_t varFieldOffset = mergedFields.addField<NeuronUpdateProcess>(
-                [underlyingVar](const Frontend::DeviceBase &d, auto p)
+                [varName](const Frontend::DeviceBase &d, auto p)
                 { 
-                    return d.getArray(underlyingVar); 
+                    return d.getArray(p->getVariables().at(varName).getUnderlying()); 
                 });
 
-            switch(model.getStateMemSpace(underlyingVar, USE_DRAM_FOR_WEIGHTS))
+            switch(runtime.getModel().getStateMemSpace(v.second.getUnderlying(), runtime.shouldUseDRAMForWeights()))
             {
             case MemSpace::URAM:
             {
                 varBuffers.emplace(v.second, 
-                                    std::make_unique<URAMNeuronVar>(v.first, v.second, processCodeGenerator, 
-                                                                    scalarRegisterAllocator, varFieldOffset, 
-                                                                    m_NumTimesteps, fieldBaseReg,
-                                                                    m_TimeRegister, numVariableBytes);
+                                   std::make_unique<URAMNeuronVar>(v.first, v.second, processCodeGenerator, 
+                                                                   scalarRegisterAllocator, varFieldOffset, 
+                                                                   numTimesteps, fieldBaseReg,
+                                                                   timeReg, numVariableBytes));
                 break;
             }
             case MemSpace::LLM:
             {
                 varBuffers.emplace(v.second, 
-                                    std::make_unique<LLMNeuronVar>(v.first, v.second, processCodeGenerator, scalarRegisterAllocator,
-                                                                   vectorRegisterAllocator, varFieldOffset, fieldBaseReg));
+                                   std::make_unique<LLMNeuronVar>(v.first, v.second, processCodeGenerator, scalarRegisterAllocator,
+                                                                  vectorRegisterAllocator, varFieldOffset, fieldBaseReg));
                 break;
             }
             case MemSpace::URAM_LLM:
             {
                 varBuffers.emplace(v.second, 
-                                    std::make_unique<URAMLLMNeuronVar>(v.first, v.second, processCodeGenerator, 
-                                                                       scalarRegisterAllocator, vectorRegisterAllocator, 
-                                                                       varFieldOffset, fieldBaseReg, m_TimeRegister, numVariableBytes));
+                                   std::make_unique<URAMLLMNeuronVar>(v.first, v.second, processCodeGenerator, 
+                                                                      scalarRegisterAllocator, vectorRegisterAllocator, 
+                                                                      varFieldOffset, fieldBaseReg, timeReg, numVariableBytes));
                 break;
             }
             default:
@@ -1065,11 +1090,19 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
     {
         // If any output events have buffering, calculate stride in bytes
         // **TODO** make set of non-1 bufferings and pre-multiply time by this
-        Compiler::EnvironmentItem numEventBytes;
+        ScalarConstant numEventBytes;
         if(std::any_of(getOutputEvents().cbegin(), getOutputEvents().cend(),
-                        [](const auto e){ return e.second->getNumBufferTimesteps() != 1; }))
+                       [](const auto e){ return e.second->hasTime(); }))
         {
-            c.li(*SNumEventBytes, ::Common::Utils::ceilDivide(neuronUpdateProcess->getNumNeurons(), 32) * 4);
+            numEventBytes = addScalarValue<NeuronUpdateProcess>(
+                0, mergedProcess, mergedFields, fieldBaseReg, 
+                processCodeGenerator, sharedCodeGenerator, scalarRegisterAllocator,
+                [&runtime](size_t d, auto p)
+                {
+                    const auto splitDimension = runtime.getModel().getStateData(p->getOutputEvents().front().getUnderlying()).splitDimension;
+                    const auto splitShape = p->getShape().split(d, splitDimension, runtime.getNumDevices());
+                    return static_cast<uint32_t>(::Common::Utils::padSize(splitShape.getFlattenedSize(), 32) * 2);
+                });
         }
 
         // Loop through neuron event outputs
@@ -1082,36 +1115,36 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
             eventBufferRegisters.try_emplace(e.second.getUnderlying(), reg);
             
             // Add field
+            const auto &outputEventName = e.first;
             const uint32_t eventFieldOffset = mergedFields.addField<NeuronUpdateProcess>(
-                [underlyingVar](const Frontend::DeviceBase &d, auto p)
+                [outputEventName](const Frontend::DeviceBase &d, auto p)
                 { 
-                    return d.getArray(underlyingVar); 
+                    return d.getArray(p->getOutputEvents().at(outputEventName).getUnderlying()); 
                 });
 
             // Generate code to load address
-            c.lw(*reg, *fieldBaseReg, eventFieldOffset);
+            processCodeGenerator.lw(*reg, *fieldBaseReg, eventFieldOffset);
 
             // If there are multiple timesteps, multiply timestep by stride and add to register
             // **TODO** currently this just handles providing entire simulation kernel worth of event data or
             // recording variables for entire simulation - extend to support axonal delays and ring-buffer recording
-            const size_t numBufferTimesteps = e.second->getNumBufferTimesteps();
-            if (numBufferTimesteps != 1) {
+            if (e.second.hasTime()) {
                 // Check there is a buffer entry for each timestep with one extra
                 // **NOTE** variables get read from timestep and written to timestep + 1 so extra buf
-                if(numBufferTimesteps < (m_NumTimesteps.value() + 1)) {
-                    throw std::runtime_error("Events need to be buffered for " + std::to_string(m_NumTimesteps.value() + 1u) + " timesteps");
+                if(e.second.getNumTimesteps() < (numTimesteps.value() + 1)) {
+                    throw std::runtime_error("Events need to be buffered for " + std::to_string(numTimesteps.value() + 1u) + " timesteps");
                 }
 
                 // reg = stride * (time + 1)
                 ALLOCATE_SCALAR(STmp);
-                c.addi(*STmp, *m_TimeRegister, 1);
-                c.mul(*STmp, *STmp, *std::get<Assembler::ScalarRegisterAllocator::RegisterPtr>(numEventBytes));
-                c.add(*reg, *reg, *STmp);
+                processCodeGenerator.addi(*STmp, *timeReg, 1);
+                processCodeGenerator.mul(*STmp, *STmp, *std::get<Assembler::ScalarRegisterPtr>(numEventBytes));
+                processCodeGenerator.add(*reg, *reg, *STmp);
             }
         }
     }
     // Create code generation environment
-    Backend::EnvironmentExternal env(c);
+    EnvironmentExternal env(processCodeGenerator);
 
     // Loop through neuron parameters
     /*for(const auto &p : getParameters()) {
@@ -1189,10 +1222,11 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
     unrollVectorLoopBody(
         envLibrary.getCodeGenerator(), scalarRegisterAllocator,
         neuronUpdateProcess->getNumNeurons(), 4, false,
-        [this, &envLibrary, &eventBufferRegisters, &emitEventFunctionType, &varBuffers, &vectorRegisterAllocator]
+        [this, &envLibrary, &eventBufferRegisters, &emitEventFunctionType, &varBuffers, 
+         &runtime, &scalarRegisterAllocator, &vectorRegisterAllocator]
         (auto&, uint32_t r, auto maskReg)
         {
-            EnvironmentVectorCache unrollEnv(envLibrary, vectorRegisterAllocator);
+            EnvironmentExternal unrollEnv(envLibrary);
 
             // Loop through variables
             for(const auto &v : getVariables()) {
@@ -1219,11 +1253,11 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
                                   if(maskReg) {
                                       ALLOCATE_SCALAR(STmp);
                                       env.getCodeGenerator().and_(*STmp, *spikeMaskReg, *maskReg);
-                                      env.getCodeGenerator().sw(*STmp, *eventBufferRegisters.at(e.second), 4 * r);
+                                      env.getCodeGenerator().sw(*STmp, *eventBufferRegisters.at(e.second.getUnderlying()), 4 * r);
                                   }
                                   // Otherwise, just store spike mask register
                                   else {
-                                      env.getCodeGenerator().sw(*spikeMaskReg, *eventBufferRegisters.at(e.second), 4 * r);
+                                      env.getCodeGenerator().sw(*spikeMaskReg, *eventBufferRegisters.at(e.second.getUnderlying()), 4 * r);
                                   }
                                       
                                   return std::make_pair(Compiler::RegisterPtr{}, false);
@@ -1241,14 +1275,14 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
                 Compiler::EnvironmentInternal compilerEnv(unrollEnv);
                 Transpiler::ErrorHandler errorHandler("Neuron update process '" + neuronUpdateProcess->getName() + "'");        
                 compileStatements(neuronUpdateProcess->getTokens(), {}, literalPool, typeCheckEnv, compilerEnv,
-                                  errorHandler, nullptr, nullptr, m_NeuronUpdateRoundingMode, 
+                                  errorHandler, nullptr, nullptr, runtime.getNeuronRoundingMode(),
                                   scalarRegisterAllocator, vectorRegisterAllocator);
             }
 
             // Loop through variables
             for(const auto &v : neuronUpdateProcess->getVariables()) {
                 // Get register
-                const auto reg = std::get<Assembler::VectorRegisterAllocator::RegisterPtr>(unrollEnv.getRegister(v.first));
+                const auto reg = unrollEnv.getVectorRegister(v.first);
                     
                 // Generate store
                 varBuffers.at(v.second)->genStore(unrollEnv, reg, r);
@@ -1258,7 +1292,7 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
         (auto &c, uint32_t numUnrolls)
         {
             // If any variables have vector addresses i.e. are stored in LLM, load number of bytes to unroll
-            Assembler::VectorRegisterAllocator::RegisterPtr numUnrollBytesReg;
+            Assembler::VectorRegisterPtr numUnrollBytesReg;
             if(std::any_of(varBuffers.cbegin(), varBuffers.cend(),
                             [](const auto &v){ return v.second->needsNumUnrollBytesReg(); }))
             {
@@ -1314,7 +1348,7 @@ void EventPropagationProcess::updateMaxDMABufferSize(size_t &maxRowLength) const
 }
 //----------------------------------------------------------------------------
 void EventPropagationProcess::generateCode(const Frontend::MergedProcess &mergedProcess, 
-                                           const Model &model, Assembler::CodeGenerator &c,
+                                           const Runtime &runtime, Assembler::CodeGenerator &c,
                                            Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                            Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
@@ -1780,10 +1814,11 @@ void RNGInitProcess::updateCompatibleMemSpace(std::shared_ptr<const Frontend::St
 }
 //----------------------------------------------------------------------------
 std::vector<Compiler::RegisterPtr> RNGInitProcess::generateArchetypeCode(
-        const Frontend::MergedProcess &mergedProcess, const Model &model, MergedFields &mergedFields,
-        Assembler::ScalarRegisterAllocator::RegisterPtr fieldBaseReg, Assembler::CodeGenerator &processCodeGenerator, 
-        Assembler::CodeGenerator &sharedCodeGenerator, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
-        Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const 
+        const Frontend::MergedProcess&, const Runtime&, MergedFields &mergedFields,
+        Assembler::ScalarRegisterAllocator::RegisterPtr fieldBaseReg, Assembler::ScalarRegisterAllocator::RegisterPtr,
+        std::optional<uint32_t>, Assembler::CodeGenerator &processCodeGenerator, 
+        Assembler::CodeGenerator &, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
+        Assembler::VectorRegisterAllocator&) const 
 {
     // Add fields
     const uint32_t seedFieldOffset = mergedFields.addField<RNGInitProcess>(
@@ -1819,8 +1854,9 @@ void MemsetProcess::updateCompatibleMemSpace(std::shared_ptr<const Frontend::Sta
 }
 //----------------------------------------------------------------------------
 std::vector<Compiler::RegisterPtr> MemsetProcess::generateArchetypeCode(
-    const Frontend::MergedProcess &mergedProcess, const Model &model, MergedFields &mergedFields,
-    Assembler::ScalarRegisterAllocator::RegisterPtr fieldBaseReg, Assembler::CodeGenerator &processCodeGenerator, 
+    const Frontend::MergedProcess &mergedProcess, const Runtime &runtime, MergedFields &mergedFields,
+    Assembler::ScalarRegisterAllocator::RegisterPtr fieldBaseReg, Assembler::ScalarRegisterAllocator::RegisterPtr timeReg,
+    std::optional<uint32_t> numTimesteps, Assembler::CodeGenerator &processCodeGenerator, 
     Assembler::CodeGenerator &sharedCodeGenerator, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
     Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
     
@@ -1836,23 +1872,24 @@ std::vector<Compiler::RegisterPtr> MemsetProcess::generateArchetypeCode(
     // Register allocation
     ALLOCATE_SCALAR(STargetBuffer);
     
-    // Figure out best way to represent number of elements
+    // Figure out best way to represent number of 
     std::vector<Compiler::RegisterPtr> sharedRegisters;
     auto numElements = addScalarValue<MemsetProcess>(
         12, mergedProcess, mergedFields, fieldBaseReg,
         processCodeGenerator, sharedCodeGenerator,
         scalarRegisterAllocator, sharedRegisters,
-        [&model](size_t d, auto p)
+        [&runtime](size_t d, auto p)
         { 
-            const auto splitDimension = model.getStateData(p->getTarget().getUnderlying()).splitDimension;
-            const auto splitShape = p->getTarget().getShape().split(d, splitDimension, numDevices);
-            return Utils::padSize(splitShape.getFlattenedSize(), 32);
+            const auto splitDimension = runtime.getModel().getStateData(p->getTarget().getUnderlying()).splitDimension;
+            const auto splitShape = p->getTarget().getShape().split(d, splitDimension, runtime.getNumDevices());
+            return ::Common::Utils::padSize(splitShape.getFlattenedSize(), 32);
         });
 
 
     auto &c = processCodeGenerator;
 
-    switch(model.getStateMemSpace(getTarget().getUnderlying()))
+    switch(runtime.getModel().getStateMemSpace(getTarget().getUnderlying(), 
+                                               runtime.shouldUseDRAMForWeights()))
     {
     case MemSpace::URAM:
     {
@@ -1876,11 +1913,11 @@ std::vector<Compiler::RegisterPtr> MemsetProcess::generateArchetypeCode(
             12, mergedProcess, mergedFields, fieldBaseReg,
             processCodeGenerator, sharedCodeGenerator,
             scalarRegisterAllocator, sharedRegisters,
-            [&model](size_t d, auto p)
+            [&runtime](size_t d, auto p)
             { 
-                const auto splitDimension = model.getStateData(p->getTarget().getUnderlying()).splitDimension;
-                const auto splitShape = p->getTarget().getShape().split(d, splitDimension, numDevices);
-                return Utils::padSize(splitShape.getFlattenedSize(), 32);
+                const auto splitDimension = runtime.getModel().getStateData(p->getTarget().getUnderlying()).splitDimension;
+                const auto splitShape = p->getTarget().getShape().split(d, splitDimension, runtime.getNumDevices());
+                return ::Common::Utils::padSize(splitShape.getFlattenedSize(), 32);
             });
             
         c.lw(*STargetBuffer, *fieldBaseReg, targetFieldOffset);
@@ -2035,12 +2072,10 @@ void BroadcastProcess::updateCompatibleMemSpace(std::shared_ptr<const Frontend::
 }
 //----------------------------------------------------------------------------
 std::vector<Compiler::RegisterPtr> BroadcastProcess::generateArchetypeCode(
-    const Frontend::MergedProcess &mergedProcess, const Model &model, MergedFields &mergedFields,
-    Assembler::ScalarRegisterAllocator::RegisterPtr fieldBaseReg,
-    Assembler::CodeGenerator &processCodeGenerator, 
-    Assembler::CodeGenerator &sharedCodeGenerator,
-    Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
-    Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
+    const Frontend::MergedProcess &mergedProcess, const Runtime&, MergedFields &mergedFields,
+    Assembler::ScalarRegisterAllocator::RegisterPtr fieldBaseReg, Assembler::ScalarRegisterAllocator::RegisterPtr timeReg,
+    std::optional<uint32_t> numTimesteps, Assembler::CodeGenerator &processCodeGenerator, Assembler::CodeGenerator &sharedCodeGenerator,
+    Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
     // Add process fields
     const uint32_t sourceFieldOffset = mergedFields.addField<BroadcastProcess>(
@@ -2093,13 +2128,13 @@ std::vector<Compiler::RegisterPtr> BroadcastProcess::generateArchetypeCode(
     c.lw(*SDataBuffer, *fieldBaseReg, sourceFieldOffset);
 
     // If number of bytes is a literal
-    Assembler::ScalarRegisterAllocator::RegisterPtr SDataBufferEnd;
+    Assembler::ScalarRegisterPtr SDataBufferEnd;
     if(std::holds_alternative<int>(numBytes)) {
         SDataBufferEnd = scalarRegisterAllocator.getRegister("SDataBufferEnd");
         c.addi(*SDataBufferEnd, *SDataBufferEnd, std::get<int>(numBytes));
     }
     else {
-        SDataBufferEnd = std::get<Assembler::ScalarRegisterAllocator::RegisterPtr>(numBytes);
+        SDataBufferEnd = std::get<Assembler::ScalarRegisterPtr>(numBytes);
         c.add(*SDataBufferEnd, *SDataBufferEnd, *SDataBuffer);
     }
     

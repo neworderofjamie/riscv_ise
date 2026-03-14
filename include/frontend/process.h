@@ -53,7 +53,8 @@ public:
     auto getUnderlying() const{ return m_Underlying; }
     const Shape &getShape() const{ return m_Shape; }
     bool hasTimeSlice() const{ return m_TimeSlice; }
-    bool hasTime() const{ return (hasTimeSlice() && (getShape().getFirst() > 1)); }
+    bool hasTime() const{ return (hasTimeSlice() && (getNumTimesteps() > 1)); }
+    size_t getNumTimesteps() const{ return getUnderlying()->getShape().getFirst(); }
 
 private:
     std::shared_ptr<const T> m_Underlying;
