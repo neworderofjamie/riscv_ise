@@ -12,6 +12,9 @@
 // FeNN assembler includes
 #include "fenn/assembler/register_allocator.h"
 
+// FeNN compiler includes
+#include "fenn/compiler/compiler.h"
+
 // FeNN backend includes
 #include "fenn/backend/backend_export.h"
 #include "fenn/backend/model.h"
@@ -33,7 +36,6 @@ class EnvironmentLiteral;
 class MergedFields;
 class Runtime;
 }
-
 
 //----------------------------------------------------------------------------
 // FeNN::Backend::ProcessImplementation

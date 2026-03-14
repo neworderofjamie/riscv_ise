@@ -213,8 +213,8 @@ template<typename P>
 Assembler::VectorRegisterPtr addVectorConstant(const Frontend::MergedProcess &mergedProcess, MergedFields &mergedFields,
                                                Assembler::ScalarRegisterAllocator::RegisterPtr fieldBaseReg,
                                                Assembler::CodeGenerator &processCodeGenerator, Assembler::CodeGenerator &sharedCodeGenerator,
-                                               Assembler::ScalarRegisterAllocator &vectorRegisterAllocator, std::vector<Compiler::RegisterPtr> &sharedRegisters,
-                                               MergedFields::GetFieldConstantFunc<P> getFieldValueFn)
+                                               Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, Assembler::VectorRegisterAllocator &vectorRegisterAllocator, 
+                                               std::vector<Compiler::RegisterPtr> &sharedRegisters, MergedFields::GetFieldConstantFunc<P> getFieldValueFn)
 {
     // If value is heterogeneous, add field
     if(isHeterogeneous(mergedProcess, getFieldValueFn)) {
@@ -228,7 +228,7 @@ Assembler::VectorRegisterPtr addVectorConstant(const Frontend::MergedProcess &me
         // Load value into register and fill vector register
         processCodeGenerator.lw(*SReg, *fieldBaseReg, fieldOffset);
         processCodeGenerator.vfill(*VReg, *SReg);
-        return VReg
+        return VReg;
     }
     // Otherwise
     else {
@@ -252,7 +252,7 @@ Assembler::VectorRegisterPtr addVectorConstant(const Frontend::MergedProcess &me
         ALLOCATE_VECTOR(VReg);
 
         // Load shared immediate
-        sharedCodeGenerator.vlua(*VReg, value);
+        sharedCodeGenerator.vlui(*VReg, value);
 
         // Add register to vector of shared registers
         sharedRegisters.push_back(VReg);
@@ -279,7 +279,7 @@ ScalarConstant addScalarValue(int maxBits, const Frontend::MergedProcess &merged
         // Load value into register
         processCodeGenerator.lw(*SReg, *fieldBaseReg, fieldOffset);
 
-        return SReg
+        return SReg;
     }
     // Otherwise
     else {
@@ -288,7 +288,7 @@ ScalarConstant addScalarValue(int maxBits, const Frontend::MergedProcess &merged
                                      getFieldValueFn(mergedProcess.getArchetype<P>()));
 
         // If the value fits within the max literal bits, add scalar literal
-        if(Common::inSBit(value, maxBits)) {
+        if(FeNN::Common::inSBit(value, maxBits)) {
             return value;
         }
         // Otherwise
