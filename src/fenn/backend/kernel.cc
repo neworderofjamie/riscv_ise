@@ -45,7 +45,8 @@ void SimpleKernel::generateCode(Assembler::CodeGenerator &c,
 
     // Visit process groups
     for (const auto &p : getProcessGroups()) {
-        generateProcessGroup(p, c, scalarRegisterAllocator, vectorRegisterAllocator);
+        generateProcessGroup(p, nullptr, std::nullopt, c, 
+                             scalarRegisterAllocator, vectorRegisterAllocator);
     }
 }
 //----------------------------------------------------------------------------
@@ -75,7 +76,8 @@ void SimulationLoopKernel::generateCode(Assembler::CodeGenerator &c,
 
     // Visit begin process group
     for (const auto &p : getBeginProcessGroups()) {
-        generateProcessGroup(p, c, scalarRegisterAllocator, vectorRegisterAllocator);
+        generateProcessGroup(p, nullptr, std::nullopt, c,
+                             scalarRegisterAllocator, vectorRegisterAllocator);
     }
 
     // Loop over time
@@ -83,7 +85,8 @@ void SimulationLoopKernel::generateCode(Assembler::CodeGenerator &c,
     {
         // Visit timestep process group
         for (const auto &p : getTimestepProcessGroups()) {
-            generateProcessGroup(p, c, scalarRegisterAllocator, vectorRegisterAllocator);
+            generateProcessGroup(p, STime, getNumTimesteps(), c, 
+                                 scalarRegisterAllocator, vectorRegisterAllocator);
         }
 
         c.addi(*STime, *STime, 1);
@@ -92,7 +95,8 @@ void SimulationLoopKernel::generateCode(Assembler::CodeGenerator &c,
 
     // Visit end process group
     for (const auto &p : getEndProcessGroups()) {
-        generateProcessGroup(p, c, scalarRegisterAllocator, vectorRegisterAllocator);
+        generateProcessGroup(p, nullptr, std::nullopt, c, 
+                             scalarRegisterAllocator, vectorRegisterAllocator);
     }
 }
 

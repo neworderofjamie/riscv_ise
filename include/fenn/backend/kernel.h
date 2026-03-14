@@ -2,6 +2,7 @@
 
 // Standard C++ includes
 #include <functional>
+#include <optional>
 
 // Frontend includes
 #include "frontend/kernel.h"
@@ -24,7 +25,8 @@ class KernelImplementation
 {
 public:
     using GenerateProcessGroupFn = std::function<void(std::shared_ptr<const Frontend::ProcessGroup>,
-                                                      Assembler::CodeGenerator&,
+                                                      Assembler::ScalarRegisterPtr,
+                                                      std::optional<uint32_t>, Assembler::CodeGenerator&,
                                                       Assembler::ScalarRegisterAllocator&,
                                                       Assembler::VectorRegisterAllocator&)>;
     //! Generate code to implement process
