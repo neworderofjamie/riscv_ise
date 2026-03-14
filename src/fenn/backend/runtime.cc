@@ -210,7 +210,8 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                 // Generate code for kernel
                 ki->generateCode(c, scalarRegisterAllocator, vectorRegisterAllocator,
                                  [this]
-                                 (auto processGroup, auto &codeGenerator, auto &scalarRegisterAllocator, auto &vectorRegisterAllocator)
+                                 (auto processGroup, auto timeRegister, auto numTimesteps, auto &codeGenerator,
+                                  auto &scalarRegisterAllocator, auto &vectorRegisterAllocator)
                                  {
                                      // Loop through merged processes
                                      // **TODO** need to identify whether process group is the one that contains event propagation
@@ -224,8 +225,8 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                          }
 
                                          // Generate code
-                                         pi->generateCode(m, getModel(), codeGenerator, scalarRegisterAllocator,
-                                                          vectorRegisterAllocator);
+                                         pi->generateCode(m, getModel(), timeRegister, numTimesteps, codeGenerator, 
+                                                          scalarRegisterAllocator, vectorRegisterAllocator);
                                      }
                                  });
             });
