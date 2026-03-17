@@ -18,6 +18,7 @@ class COMMON_EXPORT DMAController
 {
 public:
     DMAController(const std::string &uioName);
+
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
