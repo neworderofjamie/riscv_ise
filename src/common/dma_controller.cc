@@ -10,6 +10,7 @@
 
 // PLOG includes
 #include <plog/Log.h>
+
 // Common includes
 #include "common/dma_buffer.h"
 
