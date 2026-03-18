@@ -1,3 +1,9 @@
+// PLOG includes
+#include <plog/Log.h>
+#include <plog/Severity.h>
+#include <plog/Appenders/ConsoleAppender.h>
+
+// Common includes
 #include "common/axis_tkeep_handler.h"
 #include "common/event_stream_smart_tracker.h"
 #include "common/mipi_csi2_receiver.h"
@@ -5,6 +11,10 @@
 
 int main()
 {
+     // Configure logging
+    plog::ConsoleAppender<plog::TxtFormatter> consoleAppender;
+    plog::init(plog::debug, &consoleAppender);
+
     // Create devices
     MIPICSI2Receiver mipiReceiver("mipi_csi2_rx_subsyst_0");
     AxisTkeepHandler axisTkeep("axis_tkeep_handler_0");
