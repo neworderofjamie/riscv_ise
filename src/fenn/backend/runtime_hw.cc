@@ -353,33 +353,33 @@ void DeviceFeNNHW::runKernel(std::shared_ptr<const Frontend::Kernel> kernel)
     m_Device.setEnabled(false);
 }
 //----------------------------------------------------------------------------
-std::unique_ptr<Frontend::ArrayBase> DeviceFeNNHW::createURAMArray(const GeNN::Type::ResolvedType &type, 
-                                                                    const Frontend::Shape &shape)
+std::unique_ptr<URAMArrayBase> DeviceFeNNHW::createURAMArray(const GeNN::Type::ResolvedType &type, 
+                                                             const Frontend::Shape &shape)
 {
     return std::make_unique<::URAMArray>(type, shape, *this);
 }
 //----------------------------------------------------------------------------
-std::unique_ptr<Frontend::ArrayBase> DeviceFeNNHW::createBRAMArray(const GeNN::Type::ResolvedType &type,
-                                                                    const Frontend::Shape &shape)
+std::unique_ptr<BRAMArrayBase> DeviceFeNNHW::createBRAMArray(const GeNN::Type::ResolvedType &type,
+                                                             const Frontend::Shape &shape)
 {
     return std::make_unique<::BRAMArray>(type, shape, *this);
 }
 //----------------------------------------------------------------------------
-std::unique_ptr<Frontend::ArrayBase> DeviceFeNNHW::createLLMArray(const GeNN::Type::ResolvedType &type,
-                                                                   const Frontend::Shape &shape)
+std::unique_ptr<LLMArrayBase> DeviceFeNNHW::createLLMArray(const GeNN::Type::ResolvedType &type,
+                                                           const Frontend::Shape &shape)
 {
     return std::make_unique<::LLMArray>(type, shape, *this);
 }
 //----------------------------------------------------------------------------
-std::unique_ptr<Frontend::ArrayBase> DeviceFeNNHW::createDRAMArray(const GeNN::Type::ResolvedType &type,
-                                                                    const Frontend::Shape &shape)
+std::unique_ptr<DRAMArrayBase> DeviceFeNNHW::createDRAMArray(const GeNN::Type::ResolvedType &type,
+                                                             const Frontend::Shape &shape)
 {
     return std::make_unique<::DRAMArray>(type, shape, *this);
 }
 //----------------------------------------------------------------------------
-std::unique_ptr<Frontend::ArrayBase> DeviceFeNNHW::createURAMLLMArray(const GeNN::Type::ResolvedType &type,
-                                                                        const Frontend::Shape &uramShape, 
-                                                                        const Frontend::Shape &llmShape)
+std::unique_ptr<URAMLLMArrayBase> DeviceFeNNHW::createURAMLLMArray(const GeNN::Type::ResolvedType &type,
+                                                                   const Frontend::Shape &uramShape, 
+                                                                   const Frontend::Shape &llmShape)
 {
     return std::make_unique<::URAMLLMArray>(type, uramShape, llmShape, *this);
 }
@@ -390,7 +390,7 @@ std::unique_ptr<Frontend::ArrayBase> DeviceFeNNHW::createURAMLLMArray(const GeNN
 RuntimeHW::RuntimeHW(const std::vector<std::shared_ptr<const Frontend::Kernel>> &kernels,
                      size_t numDevices, bool useDRAMForWeights, bool keepParamsInRegisters, 
                      Compiler::RoundingMode neuronUpdateRoundingMode, size_t dmaBufferSize)
-:   Runtime(kernels, numDevices, useDRAMForWeights, keepParamsInRegisters, neuronUpdateRoundingMode, dmaBufferSize)
+:   Runtime(kernels, numDevices, false, useDRAMForWeights, keepParamsInRegisters, neuronUpdateRoundingMode, dmaBufferSize)
 {
 }
 //------------------------------------------------------------------------

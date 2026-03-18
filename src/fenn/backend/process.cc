@@ -880,8 +880,8 @@ namespace FeNN::Backend
 {
 void TimeDrivenProcessImplementation::generateCode(const Frontend::MergedProcess &mergedProcess,
                                                    const Runtime &runtime, Assembler::ScalarRegisterAllocator::RegisterPtr timeReg,
-                                                   std::optional<uint32_t> numTimesteps, Assembler::CodeGenerator &c,
-                                                   Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
+                                                   std::optional<uint32_t> numTimesteps, uint32_t &fieldBase,
+                                                   Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
                                                    Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
     // Allocate base register
@@ -895,9 +895,14 @@ void TimeDrivenProcessImplementation::generateCode(const Frontend::MergedProcess
                                                        SFieldBase, timeReg, numTimesteps, archetypeCodeGenerator,
                                                        c, scalarRegisterAllocator, vectorRegisterAllocator);
 
+    // Load fieldBase
+    c.li(*SFieldBase, fieldBase);
+
+    // Calculate and load fieldEnd
+    fieldBase += (mergedProcess.getProcesses().size() * mergedFields.getSize());
+    c.li(*SFieldBaseEnd, fieldBase);
+
     // Generate loop over merged groups
-    c.li(*SFieldBase, TODO);
-    c.addi(*SFieldBaseEnd, *SFieldBase, mergedProcess.getProcesses().size() * mergedFields.getSize());
     auto groupLoop = c.L();
     {
         // Insert generated code to simulate archetype

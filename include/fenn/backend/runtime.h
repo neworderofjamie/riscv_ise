@@ -11,6 +11,7 @@
 
 // FeNN backend includes
 #include "fenn/backend/backend_export.h"
+#include "fenn/backend/fields.h"
 #include "fenn/backend/memory_allocator.h"
 #include "fenn/backend/model.h"
 
@@ -216,38 +217,6 @@ private:
     Frontend::Shape m_LLMShape;
 };
 
-
-//------------------------------------------------------------------------
-// FeNN::Backend::BRAMFieldArray
-//------------------------------------------------------------------------
-/*template<typename T>
-class BRAMFieldArray : public IFieldArray, protected T
-{
-public:
-    using T::T;
-
-    //------------------------------------------------------------------------
-    // IFieldArray virtuals
-    //------------------------------------------------------------------------
-    //! Sets field at offset to point to array
-    virtual void setFieldArray(uint32_t fieldOffset, const ArrayBase *array) override final
-    {
-        // Serialise array's 'device object'
-        std::vector<std::byte> bytes;
-        array->serialiseDeviceObject(bytes);
-
-        // Memcpy bytes into field offset
-        std::memcpy(this->getHostPointer() + fieldOffset, 
-                    bytes.data(), bytes.size());
-    }
-
-    //! Copy field data to device
-    virtual void pushFieldsToDevice() override final
-    {
-        this->pushToDevice();
-    }
-};*/
-
 //----------------------------------------------------------------------------
 // FeNN::Backend::DeviceFeNN
 //----------------------------------------------------------------------------
@@ -259,13 +228,14 @@ public:
     //------------------------------------------------------------------------
     // Declared virtuals
     //------------------------------------------------------------------------
-    virtual std::unique_ptr<Frontend::ArrayBase> createURAMArray(const GeNN::Type::ResolvedType &type, const Frontend::Shape &shape) = 0;
-    virtual std::unique_ptr<Frontend::ArrayBase> createBRAMArray(const GeNN::Type::ResolvedType &type, const Frontend::Shape &shape) = 0;
-    virtual std::unique_ptr<Frontend::ArrayBase> createLLMArray(const GeNN::Type::ResolvedType &type, const Frontend::Shape &shape) = 0;
-    virtual std::unique_ptr<Frontend::ArrayBase> createDRAMArray(const GeNN::Type::ResolvedType &type, const Frontend::Shape &shape) = 0;
-    virtual std::unique_ptr<Frontend::ArrayBase> createURAMLLMArray(const GeNN::Type::ResolvedType &type,
-                                                                     const Frontend::Shape &uramShape, 
-                                                                     const Frontend::Shape &llmShape) = 0;
+    virtual std::unique_ptr<URAMArrayBase> createURAMArray(const GeNN::Type::ResolvedType &type, const Frontend::Shape &shape) = 0;
+    virtual std::unique_ptr<BRAMArrayBase> createBRAMArray(const GeNN::Type::ResolvedType &type, const Frontend::Shape &shape) = 0;
+    virtual std::unique_ptr<LLMArrayBase> createLLMArray(const GeNN::Type::ResolvedType &type, const Frontend::Shape &shape) = 0;
+    virtual std::unique_ptr<DRAMArrayBase> createDRAMArray(const GeNN::Type::ResolvedType &type, const Frontend::Shape &shape) = 0;
+    virtual std::unique_ptr<URAMLLMArrayBase> createURAMLLMArray(const GeNN::Type::ResolvedType &type,
+                                                                 const Frontend::Shape &uramShape, 
+                                                                 const Frontend::Shape &llmShape) = 0;
+
     //------------------------------------------------------------------------
     // DeviceBase virtuals
     //------------------------------------------------------------------------
@@ -292,11 +262,19 @@ public:
     const auto &getLLMAllocator() const{ return m_LLMAllocator; }
     auto &getLLMAllocator(){ return m_LLMAllocator; }
 
+    void createFieldArray(uint32_t numFieldBytes);
+
+    BRAMArrayBase *getFieldArray(){ return m_FieldArray.get(); }
+    const BRAMArrayBase *getFieldArray() const { return m_FieldArray.get(); }
+
 protected:
     //------------------------------------------------------------------------
     // Protected API
     //------------------------------------------------------------------------
     const auto &getRuntime() const{ return m_Runtime.get(); }
+
+    //! Should kernels be generated with simulation or hardware signalling
+    virtual bool shouldGenerateSimulationKernels() const = 0;
 
 private:
     //------------------------------------------------------------------------
@@ -306,6 +284,8 @@ private:
     BRAMAllocator m_BRAMAllocator;
     URAMAllocator m_URAMAllocator;
     LLMAllocator m_LLMAllocator;
+
+    std::unique_ptr<BRAMArrayBase> m_FieldArray;
 
     std::reference_wrapper<const Runtime> m_Runtime;
 };
@@ -317,8 +297,8 @@ class FENN_BACKEND_EXPORT Runtime : public Frontend::Runtime
 {
 public:
    Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &kernels, 
-           size_t numDevices, bool useDRAMForWeights = false, bool keepParamsInRegisters = true, 
-           Compiler::RoundingMode neuronUpdateRoundingMode = Compiler::RoundingMode::NEAREST,
+           size_t numDevices, bool generateSimulationKernels, bool useDRAMForWeights = false, 
+           bool keepParamsInRegisters = true, Compiler::RoundingMode neuronUpdateRoundingMode = Compiler::RoundingMode::NEAREST,
            size_t dmaBufferSize = 512 * 1024);
 
     //------------------------------------------------------------------------
@@ -330,6 +310,16 @@ public:
     auto getNeuronRoundingMode() const{ return m_NeuronUpdateRoundingMode; }
 
     const auto &getModel() const{ return m_Model; }
+
+protected:
+    //------------------------------------------------------------------------
+    // Runtime virtuals
+    //------------------------------------------------------------------------
+    //! Backend-specific logic to run at beginning of allocate function
+    virtual void allocatePreamble() override final;
+
+    //! Backend-specific logic to run at end of allocate function
+    virtual void allocatePostamble() override final;
     
 private:
     //------------------------------------------------------------------------
@@ -339,11 +329,16 @@ private:
     std::unordered_map<std::shared_ptr<const Frontend::Kernel>, 
                        std::vector<uint32_t>> m_KernelCode;
 
+    //! Map from process groups to start addresses and merged fields 
+    std::unordered_map<std::shared_ptr<const Frontend::ProcessGroup>,
+                       std::vector<std::pair<uint32_t, MergedFields>>> m_MergedField;
+
+    Model m_Model;
+
     bool m_UseDRAMForWeights;
     bool m_KeepParamsInRegisters;
     Compiler::RoundingMode m_NeuronUpdateRoundingMode;
     size_t m_DMABufferSize;
-
-    Model m_Model;
+    size_t m_NumFieldBytes;
 };
 }

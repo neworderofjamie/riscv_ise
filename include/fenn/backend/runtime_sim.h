@@ -40,13 +40,13 @@ public:
     //------------------------------------------------------------------------
     // DeviceFeNN virtuals
     //------------------------------------------------------------------------
-    virtual std::unique_ptr<Frontend::ArrayBase> createURAMArray(const GeNN::Type::ResolvedType &type, const Frontend::Shape &shape) override final;
-    virtual std::unique_ptr<Frontend::ArrayBase> createBRAMArray(const GeNN::Type::ResolvedType &type, const Frontend::Shape &shape) override final;
-    virtual std::unique_ptr<Frontend::ArrayBase> createLLMArray(const GeNN::Type::ResolvedType &type, const Frontend::Shape &shape) override final;
-    virtual std::unique_ptr<Frontend::ArrayBase> createDRAMArray(const GeNN::Type::ResolvedType &type, const Frontend::Shape &shape) override final;
-    virtual std::unique_ptr<Frontend::ArrayBase> createURAMLLMArray(const GeNN::Type::ResolvedType &type,
-                                                                    const Frontend::Shape &uramShape, 
-                                                                    const Frontend::Shape &llmShape) override final;
+    virtual std::unique_ptr<URAMArrayBase> createURAMArray(const GeNN::Type::ResolvedType &type, const Frontend::Shape &shape) override final;
+    virtual std::unique_ptr<BRAMArrayBase> createBRAMArray(const GeNN::Type::ResolvedType &type, const Frontend::Shape &shape) override final;
+    virtual std::unique_ptr<LLMArrayBase> createLLMArray(const GeNN::Type::ResolvedType &type, const Frontend::Shape &shape) override final;
+    virtual std::unique_ptr<DRAMArrayBase> createDRAMArray(const GeNN::Type::ResolvedType &type, const Frontend::Shape &shape) override final;
+    virtual std::unique_ptr<URAMLLMArrayBase> createURAMLLMArray(const GeNN::Type::ResolvedType &type,
+                                                                 const Frontend::Shape &uramShape, 
+                                                                 const Frontend::Shape &llmShape) override final;
     
     //------------------------------------------------------------------------
     // Public API

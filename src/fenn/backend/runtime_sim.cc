@@ -351,33 +351,33 @@ void DeviceFeNNSim::runKernel(std::shared_ptr<const Frontend::Kernel> kernel)
     m_RISCV.run();
 }
 //----------------------------------------------------------------------------
-std::unique_ptr<Frontend::ArrayBase> DeviceFeNNSim::createURAMArray(const GeNN::Type::ResolvedType &type, 
-                                                                    const Frontend::Shape &shape)
+std::unique_ptr<URAMArrayBase> DeviceFeNNSim::createURAMArray(const GeNN::Type::ResolvedType &type, 
+                                                              const Frontend::Shape &shape)
 {
     return std::make_unique<::URAMArray>(type, shape, *this);
 }
 //----------------------------------------------------------------------------
-std::unique_ptr<Frontend::ArrayBase> DeviceFeNNSim::createBRAMArray(const GeNN::Type::ResolvedType &type,
-                                                                    const Frontend::Shape &shape)
+std::unique_ptr<BRAMArrayBase> DeviceFeNNSim::createBRAMArray(const GeNN::Type::ResolvedType &type,
+                                                              const Frontend::Shape &shape)
 {
     return std::make_unique<::BRAMArray>(type, shape, *this);
 }
 //----------------------------------------------------------------------------
-std::unique_ptr<Frontend::ArrayBase> DeviceFeNNSim::createLLMArray(const GeNN::Type::ResolvedType &type,
-                                                                   const Frontend::Shape &shape)
+std::unique_ptr<LLMArrayBase> DeviceFeNNSim::createLLMArray(const GeNN::Type::ResolvedType &type,
+                                                            const Frontend::Shape &shape)
 {
     return std::make_unique<::LLMArray>(type, shape, *this);
 }
 //----------------------------------------------------------------------------
-std::unique_ptr<Frontend::ArrayBase> DeviceFeNNSim::createDRAMArray(const GeNN::Type::ResolvedType &type,
-                                                                    const Frontend::Shape &shape)
+std::unique_ptr<DRAMArrayBase> DeviceFeNNSim::createDRAMArray(const GeNN::Type::ResolvedType &type,
+                                                              const Frontend::Shape &shape)
 {
     return std::make_unique<::DRAMArray>(type, shape, *this);
 }
 //----------------------------------------------------------------------------
-std::unique_ptr<Frontend::ArrayBase> DeviceFeNNSim::createURAMLLMArray(const GeNN::Type::ResolvedType &type,
-                                                                        const Frontend::Shape &uramShape, 
-                                                                        const Frontend::Shape &llmShape)
+std::unique_ptr<URAMLLMArrayBase> DeviceFeNNSim::createURAMLLMArray(const GeNN::Type::ResolvedType &type,
+                                                                    const Frontend::Shape &uramShape, 
+                                                                    const Frontend::Shape &llmShape)
 {
     return std::make_unique<::URAMLLMArray>(type, uramShape, llmShape, *this);
 }
@@ -388,7 +388,7 @@ std::unique_ptr<Frontend::ArrayBase> DeviceFeNNSim::createURAMLLMArray(const GeN
 RuntimeSim::RuntimeSim(const std::vector<std::shared_ptr<const Frontend::Kernel>> &kernels,
                       size_t numDevices, bool useDRAMForWeights, bool keepParamsInRegisters, 
                       Compiler::RoundingMode neuronUpdateRoundingMode, size_t dmaBufferSize)
-:   Runtime(kernels, numDevices, useDRAMForWeights, keepParamsInRegisters, neuronUpdateRoundingMode, dmaBufferSize),
+:   Runtime(kernels, numDevices, true, useDRAMForWeights, keepParamsInRegisters, neuronUpdateRoundingMode, dmaBufferSize),
     m_SharedBus(numDevices)
 {
 }

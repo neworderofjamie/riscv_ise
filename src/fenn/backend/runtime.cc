@@ -25,6 +25,8 @@
 #include "fenn/backend/process.h"
 #include "fenn/backend/kernel.h"
 
+using namespace GeNN;
+
 //------------------------------------------------------------------------
 // FeNN::Backend::URAMArrayBase
 //------------------------------------------------------------------------
@@ -170,36 +172,48 @@ std::unique_ptr<Frontend::ArrayBase> DeviceFeNN::createArray(std::shared_ptr<con
 //----------------------------------------------------------------------------
 std::unique_ptr<Frontend::ArrayBase> DeviceFeNN::createPerformanceCounter()
 {
-    //LOGI << "Creating performance counter '" << performanceCounter->getName() << "' array in BRAM";
+    LOGI << "Creating performance counter array in BRAM";
 
     // Performance counter contains a 64-bit number for 
     // instructions retired and one for number of cycles 
     return createBRAMArray(GeNN::Type::Uint64, Frontend::Shape{2});
+}
+//----------------------------------------------------------------------------
+void DeviceFeNN::createFieldArray(uint32_t numFieldBytes)
+{
+    LOGI << "Creating field array in BRAM";
+
+    // Create field array in BRAM and assert it is at correct fixed location
+    m_FieldArray = createBRAMArray(Type::Uint8, Frontend::Shape(numFieldBytes));
+    assert(m_FieldArray->getBRAMPointer() == 4);
 }
 
 //----------------------------------------------------------------------------
 // FeNN::Backend::Runtime
 //----------------------------------------------------------------------------
 Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &kernels, 
-                 size_t numDevices, bool useDRAMForWeights , bool keepParamsInRegisters, 
-                 Compiler::RoundingMode neuronUpdateRoundingMode, size_t dmaBufferSize)
+                 size_t numDevices, bool generateSimulationKernels, bool useDRAMForWeights, 
+                 bool keepParamsInRegisters, Compiler::RoundingMode neuronUpdateRoundingMode, 
+                 size_t dmaBufferSize)
 :   m_Model(kernels), Frontend::Runtime(m_Model, numDevices), m_UseDRAMForWeights(useDRAMForWeights), 
-    m_KeepParamsInRegisters(keepParamsInRegisters), m_NeuronUpdateRoundingMode(neuronUpdateRoundingMode),
+    m_KeepParamsInRegisters(keepParamsInRegisters), m_NeuronUpdateRoundingMode(neuronUpdateRoundingMode), 
     m_DMABufferSize(dmaBufferSize)
 {
-    // **TODO** fields
-    // **TODO** create device state objects to start allocating BRAM for
-    
     //! Same ready flag is used by all kernels and located at BRAM address zero
     constexpr uint32_t readyFlagPtr = 0;
+
+
+    //! Fields always start at address 4
+    uint32_t fieldBase = 4;
     
     // Loop through kernels
     for (const auto &k : getMergedModel().getModel().getKernels()) {
         // Generate kernel
         auto code = Assembler::Utils::generateStandardKernel(
-            true/*shouldGenerateSimulationKernels()*/, readyFlagPtr,
-            [&k, this](Assembler::CodeGenerator &c, Assembler::VectorRegisterAllocator &vectorRegisterAllocator, 
-                       Assembler::ScalarRegisterAllocator &scalarRegisterAllocator)
+            generateSimulationKernels, readyFlagPtr,
+            [&fieldBase, &k, this]
+            (Assembler::CodeGenerator &c, Assembler::VectorRegisterAllocator &vectorRegisterAllocator, 
+             Assembler::ScalarRegisterAllocator &scalarRegisterAllocator)
             {
                 // Ensure kernel has proper base class
                 auto ki = std::dynamic_pointer_cast<const KernelImplementation>(k);
@@ -209,7 +223,7 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
 
                 // Generate code for kernel
                 ki->generateCode(c, scalarRegisterAllocator, vectorRegisterAllocator,
-                                 [this]
+                                 [this, &fieldBase]
                                  (auto processGroup, auto timeRegister, auto numTimesteps, auto &codeGenerator,
                                   auto &scalarRegisterAllocator, auto &vectorRegisterAllocator)
                                  {
@@ -225,7 +239,7 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                          }
 
                                          // Generate code
-                                         pi->generateCode(m, *this, timeRegister, numTimesteps, codeGenerator, 
+                                         pi->generateCode(m, *this, timeRegister, numTimesteps, fieldBase, codeGenerator, 
                                                           scalarRegisterAllocator, vectorRegisterAllocator);
                                      }
                                  });
@@ -233,6 +247,103 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
 
         // Add to kernel code dictionary
         m_KernelCode.try_emplace(k, code);
+    }
+
+    // Calculate number of bytes required for fields
+    m_NumFieldBytes = fieldBase - 4;
+    LOGI << m_NumFieldBytes << " bytes of BRAM required for fields";
+}
+//----------------------------------------------------------------------------
+void Runtime::allocatePreamble()
+{
+    // Loop through devices and create field arrays
+    // **NOTE** this needs to happen here so they are correctly allocated at the start of BRAM
+    for(auto &d : getDevices()) {
+        static_cast<DeviceFeNN*>(d.get())->createFieldArray(m_NumFieldBytes);
+    }
+}
+//----------------------------------------------------------------------------
+void Runtime::allocatePostamble()
+{
+    // Loop through merged process groups
+    for(const auto &m : getMergedModel().getMergedProcessGroups()) {
+        // Get corresponding merged fields
+        const auto &f = m_MergedField.at(m.first);
+        assert(m.second.size() == f.size());
+
+        LOGD << "Populating fields for process group '" << m.first->getName() << "'";
+
+        // Loop through the merged processes and shared fields for this merged group
+        for(size_t g = 0; g < m.second.size(); g++) {
+            const auto &mergedProcess = m.second[g];
+            const auto &mergedFields = f[g];
+
+            LOGD << "\tMerged group " << g;
+
+            // Loop through processes
+            for(size_t p = 0; p < mergedProcess.getProcesses().size(); p++) {
+                // Get base address of this process's fields
+                const uint32_t fieldBaseAddress = mergedFields.first + (p * mergedFields.second.getSize());
+
+                auto process = mergedProcess.getProcesses()[p];
+                LOGD << "\t\tProcess '" << process->getName() << "'";
+
+                // Loop through the fields in this merged group
+                for(auto &f : mergedFields.second.getFields()) {
+                    // If field contains a constant
+                    // **TODO** CHECK THESE AREN'T OFF BY 4 AS THESE ARE OFFSETS
+                    const uint32_t fieldAddress = fieldBaseAddress + f.first;
+                    if(std::holds_alternative<MergedFields::GetFieldConstantFunc<>>(f.second)) {
+                        auto getFieldValueFn = std::get<MergedFields::GetFieldConstantFunc<>>(f.second);
+
+                        // Loop through devices
+                        for(size_t d = 0; d < getNumDevices(); d++) {
+                            // Get value for this device
+                            auto deviceValue = getFieldValueFn(d, process);
+                            
+                            // Copy value into field array
+                            auto *fieldArray = static_cast<DeviceFeNN*>(getDevices()[d].get())->getFieldArray();
+                            std::visit(
+                                [fieldAddress, fieldArray](auto v)
+                                { 
+                                    // **TODO** CHECK FIELD SIZE AGAINST sizeof(v)
+                                    LOGD << "\t\t\tWriting value " << v << " into field at " << fieldAddress;
+                                    std::memcpy(fieldArray->getHostPointer() + fieldAddress, 
+                                                &v, sizeof(v));
+                                },
+                                deviceValue);
+                        }
+                    }
+                    // Otherwise, it contains an array
+                    else {
+                        // Loop through devices
+                        auto getFieldPointerFn = std::get<MergedFields::GetFieldPointerFunc<>>(f.second);
+                        for(auto &d : getDevices()) {
+                            // Get array allocated on this device
+                            auto deviceArray = getFieldPointerFn(*d, process);
+
+                            // Serialise array's 'device object'
+                            std::vector<std::byte> bytes;
+                            deviceArray->serialiseDeviceObject(bytes);
+
+                            LOGD << "\t\t\tWriting pointer into field at " << fieldAddress;
+
+                            // Memcpy bytes into field offset
+                            // **TODO** CHECK FIELD SIZE AGAINST BYTES
+                            auto *fieldArray = static_cast<DeviceFeNN*>(d.get())->getFieldArray();
+                            std::memcpy(fieldArray->getHostPointer() + fieldAddress, 
+                                        bytes.data(), bytes.size());
+                        }
+                    }
+                }
+
+            }
+        }
+    }
+
+    // Loop through all devices and push field arrays to device
+    for(auto &d : getDevices()) {
+        static_cast<DeviceFeNN*>(d.get())->getFieldArray()->pushToDevice();
     }
 }
 }

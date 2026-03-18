@@ -62,8 +62,8 @@ public:
     //! Generate code to implement process
     virtual void generateCode(const Frontend::MergedProcess &mergedProcess, 
                               const Runtime &runtime, Assembler::ScalarRegisterAllocator::RegisterPtr timeReg,
-                              std::optional<uint32_t> numTimesteps, Assembler::CodeGenerator &c,
-                              Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
+                              std::optional<uint32_t> numTimesteps, uint32_t &fieldBase,
+                              Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                               Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const = 0;
 };
 
@@ -87,8 +87,8 @@ public:
     //----------------------------------------------------------------------------
     virtual void generateCode(const Frontend::MergedProcess &mergedProcess,
                               const Runtime &runtime, Assembler::ScalarRegisterAllocator::RegisterPtr timeReg,
-                              std::optional<uint32_t> numTimesteps, Assembler::CodeGenerator &c,
-                              Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
+                              std::optional<uint32_t> numTimesteps, uint32_t &fieldBase,
+                              Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                               Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;
 };
 
