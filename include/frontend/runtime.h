@@ -148,27 +148,6 @@ private:
 };
 
 //----------------------------------------------------------------------------
-// IFieldArray
-//----------------------------------------------------------------------------
-//! Interface for object, probably backed by some sort of array,
-//! that anages in-device memory fields structure
-/*class IFieldArray
-{
-public:
-    virtual ~IFieldArray() = default;
-
-    //------------------------------------------------------------------------
-    // Declared virtuals
-    //------------------------------------------------------------------------
-    //! Sets field at offset to point to array
-    virtual void setFieldArray(uint32_t fieldOffset, const ArrayBase *array) = 0;
-
-    //! Copy field data to device
-    virtual void pushFieldsToDevice() = 0;
-};*/
-
-
-//----------------------------------------------------------------------------
 // Frontend::Runtime
 //----------------------------------------------------------------------------
 class FRONTEND_EXPORT Runtime

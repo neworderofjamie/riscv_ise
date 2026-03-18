@@ -90,8 +90,7 @@ public:
 
     //! Once compatible split dimensions have been obtained for each state object, they might need 
     //! 'constraining' e.g. to ensure all variables associated with a neuron update process get split the same
-    virtual void constrainSplitDimensions(std::unordered_map<std::shared_ptr<const Frontend::State>,
-                                                             uint32_t> &compatibleSplitDimensions) const
+    virtual void constrainSplitDimensions(std::unordered_map<std::shared_ptr<const Frontend::State>, uint32_t> &) const
     {
     }
 
