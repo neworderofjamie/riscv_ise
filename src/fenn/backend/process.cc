@@ -878,8 +878,8 @@ private:
 //----------------------------------------------------------------------------
 namespace FeNN::Backend
 {
-void TimeDrivenProcessImplementation::generateCode(const Frontend::MergedProcess &mergedProcess,
-                                                   const Runtime &runtime, Assembler::ScalarRegisterAllocator::RegisterPtr timeReg,
+void TimeDrivenProcessImplementation::generateCode(const Frontend::MergedProcess &mergedProcess, const Runtime &runtime, 
+                                                   MergedFields &mergedFields, Assembler::ScalarRegisterAllocator::RegisterPtr timeReg,
                                                    std::optional<uint32_t> numTimesteps, uint32_t &fieldBase,
                                                    Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
                                                    Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
@@ -889,7 +889,6 @@ void TimeDrivenProcessImplementation::generateCode(const Frontend::MergedProcess
     ALLOCATE_SCALAR(SFieldBaseEnd);
 
     // Generate archetype code and populate merged fields
-    MergedFields mergedFields;
     Assembler::CodeGenerator archetypeCodeGenerator;
     const auto sharedRegisters = generateArchetypeCode(mergedProcess, runtime, mergedFields,
                                                        SFieldBase, timeReg, numTimesteps, archetypeCodeGenerator,

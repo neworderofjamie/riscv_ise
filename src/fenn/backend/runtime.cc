@@ -227,19 +227,37 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                  (auto processGroup, auto timeRegister, auto numTimesteps, auto &codeGenerator,
                                   auto &scalarRegisterAllocator, auto &vectorRegisterAllocator)
                                  {
+                                     // Create empty vector of merged fields associated with these processes
+                                     auto mergedFields = m_MergedField.emplace(std::piecewise_construct,
+                                                                               std::make_tuple(processGroup), 
+                                                                               std::make_tuple());
+                                     if(!mergedFields.second) {
+                                         throw std::runtime_error("Process groups should not be used multiple times in kernels");
+                                     }
+
+                                     // Reserve merged fields for each process group
+                                     const auto &mergedProcesses = getMergedModel().getMergedProcessGroups().at(processGroup);
+                                     mergedFields.first->second.reserve(mergedProcesses.size());
+
                                      // Loop through merged processes
                                      // **TODO** need to identify whether process group is the one that contains event propagation
                                      // If it is
                                      // 1) 
-                                     for(const auto &m : getMergedModel().getMergedProcessGroups().at(processGroup)) {
+                                     for(const auto &m : mergedProcesses) {
                                          // Ensure process has proper base class
                                          auto pi = std::dynamic_pointer_cast<const ProcessImplementation>(m.getArchetype());
                                          if (!pi) {
                                              throw std::runtime_error("FeNN backend runtime used with incompatible process");
                                          }
 
+                                         // Add new merged field
+                                         mergedFields.first->second.emplace_back(std::piecewise_construct,
+                                                                                 std::make_tuple(fieldBase),
+                                                                                 std::make_tuple());
+
                                          // Generate code
-                                         pi->generateCode(m, *this, timeRegister, numTimesteps, fieldBase, codeGenerator, 
+                                         pi->generateCode(m, *this, mergedFields.first->second.back().second, 
+                                                          timeRegister, numTimesteps, fieldBase, codeGenerator, 
                                                           scalarRegisterAllocator, vectorRegisterAllocator);
                                      }
                                  });

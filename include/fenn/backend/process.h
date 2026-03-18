@@ -60,8 +60,8 @@ public:
     //virtual void updateLUTObjectIDs(std::unordered_set<Model::StateObjectID> m_LUTObjectIDs;)
 
     //! Generate code to implement process
-    virtual void generateCode(const Frontend::MergedProcess &mergedProcess, 
-                              const Runtime &runtime, Assembler::ScalarRegisterAllocator::RegisterPtr timeReg,
+    virtual void generateCode(const Frontend::MergedProcess &mergedProcess, const Runtime &runtime, 
+                              MergedFields &mergedFields, Assembler::ScalarRegisterAllocator::RegisterPtr timeReg,
                               std::optional<uint32_t> numTimesteps, uint32_t &fieldBase,
                               Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                               Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const = 0;
@@ -85,8 +85,8 @@ public:
     //----------------------------------------------------------------------------
     // ProcessImplementation virtuals
     //----------------------------------------------------------------------------
-    virtual void generateCode(const Frontend::MergedProcess &mergedProcess,
-                              const Runtime &runtime, Assembler::ScalarRegisterAllocator::RegisterPtr timeReg,
+    virtual void generateCode(const Frontend::MergedProcess &mergedProcess, const Runtime &runtime,
+                              MergedFields &mergedFields, Assembler::ScalarRegisterAllocator::RegisterPtr timeReg,
                               std::optional<uint32_t> numTimesteps, uint32_t &fieldBase,
                               Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                               Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;
