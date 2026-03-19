@@ -125,7 +125,6 @@ bool isExpCalled(const std::vector<Transpiler::Token> &tokens)
 }
 
 void compileStatements(const std::vector<Transpiler::Token> &tokens, const Type::TypeContext &typeContext,
-                       const std::unordered_map<int16_t, Assembler::VectorRegisterPtr> &literalPool,
                        Transpiler::TypeChecker::EnvironmentInternal &typeCheckEnv, Compiler::EnvironmentInternal &compilerEnv,
                        Transpiler::ErrorHandler &errorHandler, Transpiler::TypeChecker::StatementHandler forEachSynapseTypeCheckHandler,
                        Assembler::ScalarRegisterPtr maskRegister, Compiler::RoundingMode roundingMode,
@@ -148,7 +147,7 @@ void compileStatements(const std::vector<Transpiler::Token> &tokens, const Type:
 
     // Compile
     compile(updateStatements, compilerEnv, typeContext, resolvedTypes,
-            errorHandler, literalPool, maskRegister, roundingMode,
+            errorHandler, maskRegister, roundingMode,
             scalarRegisterAllocator, vectorRegisterAllocator);
     if(errorHandler.hasError()) {
         throw std::runtime_error("Compiler error " + errorHandler.getContext());
@@ -229,21 +228,14 @@ Assembler::VectorRegisterPtr addVectorConstant(const Frontend::MergedProcess &me
     }
     // Otherwise
     else {
-        // Convert homogeneous value to int16_t
-        const int16_t value = std::visit(
-            Utils::Overload{
-                [](auto v)
-                {
-                    if(v < std::numeric_limits<int16_t>::min() 
-                       || v > std::numeric_limits<int16_t>::max())
-                    {
-                        throw std::runtime_error("Vector literal out of range");
-                    }
+        // Convert homogeneous value to int
+        const int value = std::visit([](auto v){ return static_cast<int>(v); },
+                                     getFieldValueFn(0, mergedProcess.getArchetype<P>()));
 
-                    return static_cast<int16_t>(v);
-                }
-            },
-            getFieldValueFn(0, mergedProcess.getArchetype<P>()));
+        // If the value fits within the max literal bits, add scalar literal
+        if(!FeNN::Common::inSBit(value, 16)) {
+            throw std::runtime_error("Vector literal out of range");
+        }
 
         // Allocate register
         ALLOCATE_VECTOR(VReg);
@@ -1150,56 +1142,107 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
     // Create code generation environment
     EnvironmentExternal env(processCodeGenerator);
 
-    // Loop through neuron parameters
-    /*for(const auto &p : getParameters()) {
-        const auto &numericType = p.second->getType().getNumeric();
-        int64_t integerResult;
-        if(numericType.isIntegral) {
-            integerResult = p.second->getValue().cast<int64_t>();
-        }
-        // Otherwise, if it is fixed point
-        else if(numericType.fixedPoint) {
-            integerResult = std::round(p.second->getValue().cast<double>() * (1u << numericType.fixedPoint.value()));
-        }
-        else {
-            throw std::runtime_error("FeNN does not support floating point types");
-        }
+    // **YUCK** add vector register containing zero
+    {
+        // Allocate register
+        ALLOCATE_VECTOR(VZero);
 
-        // Check integer value can fit within 16-bit signed type
-        if(integerResult < std::numeric_limits<int16_t>::min() 
-            || integerResult > std::numeric_limits<int16_t>::max())
-        {
-            throw std::runtime_error("Parameter '" + p.first + "' out of range for type '"
-                                        +p.second->getType().getName() + "'");
-        }
+        // Load zero into register in shared code
+        sharedCodeGenerator.vlui(*VZero, 0);
 
-        // If we should keep parameters in registers
-        if(m_KeepParamsInRegisters) {
-            // Allocate vector register for parameter
-            const auto reg = m_VectorRegisterAllocator.get().getRegister((p.first + " V").c_str());
+        // Add register to vector of shared registers
+        sharedRegisters.push_back(VZero);
 
-            // Add to environment
-            env.add(p.second->getType(), p.first, reg);
+        // Add to environment
+        env.add(Type::S8_7, "_zero", VZero);
+    }
+    
+    // **TODO** 
+    assert(runtime.shouldKeepParamsInRegisters());
 
-            // Generate code to load parameter
-            c.vlui(*reg, (uint16_t)integerResult);
-        }
-        // Otherwise
-        else {
-            // Generate code to VLUI parameter when required
-            // **YUCK** this is very innefficient
-            env.add(p.second->getType(), p.first,
-                    [&p, integerResult](auto &env, auto &vectorRegisterAllocator, auto&, auto, const auto&)
+    {
+        // Count literals
+        const auto &archetypeLiterals = mergedProcess.getArchetype<NeuronUpdateProcess>()->getLiterals();
+        const size_t numLiterals = archetypeLiterals.size();
+
+        // Create N*N binary matrix to mark literals whose value 
+        // is the same another across all merged processes
+        // **THINK** this could be stored in a more efficient row-major
+        // triangular format but a) the indexing is a nuisance and
+        // b) while number of merged could be large, number of literals 
+        // is going to be limited (especially as we currently load them all into registers!)
+        std::vector<bool> literalSelfSimilarity(numLiterals * numLiterals, true);
+
+        // Loop through merged processes
+        // **NOTE** literals don't change across devices
+        mergedProcess.forEachProcess<NeuronUpdateProcess>(
+            [&literalSelfSimilarity, numLiterals](const auto &np)
+            {
+                // Update upper-triangular portion of matrix (excluding diagonal) with comparison
+                assert(np->getLiterals().size() == numLiterals);
+                for (size_t i = 0; i < numLiterals; i++) {
+                    for (size_t j = (i + 1); j < numLiterals; j++) {
+                        literalSelfSimilarity[(i * numLiterals) + j] &= (np->getLiterals()[i] == np->getLiterals()[j]);
+                    }
+                }
+            });
+
+        // Start with each literal mapped to itself
+        /*std::vector<std::vector<size_t>> literalMapping(numLiterals);
+
+        // Loop through upper-triangular portion of matrix (excluding diagonal)
+        for (size_t i = 0; i < numLiterals; i++) {
+            for (size_t j = (i + 1); j < numLiterals; j++) {
+                // If this literal always has the same value as another, add to mapping
+                if (literalSelfSimilarity[(i * numLiterals) + j]) {
+                    literalMapping[i] = j;
+                }
+            }
+        }*/
+        
+        
+        // Loop through literals
+        // **TODO** used mapped representation
+        for(size_t i = 0; i < numLiterals; i++) {
+            // Load vector register with this literal
+            auto literalReg = addVectorConstant<NeuronUpdateProcess>(
+                mergedProcess, mergedFields, runtime.getNumDevices(), fieldBaseReg, processCodeGenerator,
+                sharedCodeGenerator, scalarRegisterAllocator, vectorRegisterAllocator, sharedRegisters,
+                [i](size_t, auto p)
+                {
+                    // Get literal value for this process
+                    const auto &literal = p->getLiterals().at(i);
+                    const auto &numericType = std::get<0>(literal).getNumeric();
+
+                    // Convert to integer
+                    int64_t integerResult;
+                    if(numericType.isIntegral) {
+                        integerResult = std::get<1>(literal).cast<int64_t>();
+                    }
+                    // Otherwise, if it is fixed point
+                    else if(numericType.fixedPoint) {
+                        integerResult = std::round(std::get<1>(literal).cast<double>() 
+                                                   * (1u << numericType.fixedPoint.value()));
+                    }
+                    else {
+                        throw std::runtime_error("FeNN does not support floating point types");
+                    }
+
+                    // Check integer value can fit within 16-bit signed type
+                    if(integerResult < std::numeric_limits<int16_t>::min() 
+                        || integerResult > std::numeric_limits<int16_t>::max())
                     {
-                        auto result = vectorRegisterAllocator.getRegister((p.first + " = V").c_str());
-                        env.getCodeGenerator().vlui(*result, (uint16_t)integerResult);
-                        return std::make_pair(result, true);
-                    }); 
+                        throw std::runtime_error("Literal out of range for type '" + std::get<0>(literal).getName() + "'");
+                    }
+                    return static_cast<int32_t>(integerResult);
+                });
+            
+            // Add to environment
+            auto &archLiteral = archetypeLiterals.at(i);
+            env.add(std::get<0>(archLiteral), "_literal_" + std::to_string(std::get<2>(archLiteral)), 
+                    literalReg);
         }
-
-    }*/
-
-    env.add(Type::S8_7, "_zero", literalPool.at(0));
+    }
 
     // Build library with fennrand function and stochastic multiplication
     EnvironmentLibrary::Library functionLibrary;
@@ -1290,8 +1333,8 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
                 Transpiler::TypeChecker::EnvironmentInternal typeCheckEnv(unrollEnv);
                 Compiler::EnvironmentInternal compilerEnv(unrollEnv);
                 Transpiler::ErrorHandler errorHandler("Neuron update merged process " + std::to_string(mergedProcess.getIndex()));
-                compileStatements(getTokens(), {}, literalPool, typeCheckEnv, compilerEnv,
-                                  errorHandler, nullptr, nullptr, runtime.getNeuronRoundingMode(),
+                compileStatements(getTokens(), {}, typeCheckEnv, compilerEnv, errorHandler, 
+                                  nullptr, nullptr, runtime.getNeuronRoundingMode(),
                                   scalarRegisterAllocator, vectorRegisterAllocator);
             }
 
