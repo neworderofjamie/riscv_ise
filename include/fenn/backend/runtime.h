@@ -305,6 +305,7 @@ public:
     //------------------------------------------------------------------------
     const auto &getKernelCode(std::shared_ptr<const Frontend::Kernel> kernel) const{ return m_KernelCode.at(kernel); }
     bool shouldUseDRAMForWeights() const{ return m_UseDRAMForWeights; }
+    bool shouldKeepParamsInRegisters() const{ return m_KeepParamsInRegisters; }
     size_t getDMABufferSize() const{ return m_DMABufferSize; }
     auto getNeuronRoundingMode() const{ return m_NeuronUpdateRoundingMode; }
 
