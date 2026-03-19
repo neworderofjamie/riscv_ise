@@ -65,7 +65,7 @@ private:
 using VariablePtr = std::shared_ptr<const Variable>;
 using EventContainerMap = std::map<std::string, Sliced<EventContainer>>;
 using VariableMap = std::map<std::string, Sliced<Variable>>;
-using Literals = std::vector<std::pair<GeNN::Type::ResolvedType, GeNN::Type::NumericValue>>;
+using Literals = std::vector<std::tuple<GeNN::Type::ResolvedType, GeNN::Type::NumericValue, size_t>>;
 
 
 //----------------------------------------------------------------------------

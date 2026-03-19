@@ -84,7 +84,7 @@ NeuronUpdateProcess::NeuronUpdateProcess(Private, const std::string &code, const
                     int64_t result;
                     auto answer = fast_float::from_chars(lexemeBegin, lexemeEnd, result);
                     if(answer.ec == std::errc()) {
-                        m_Literals.emplace_back(t.numberType.value(), result);
+                        m_Literals.emplace_back(t.numberType.value(), result, t.index);
                     }
                     else {
                         throw std::runtime_error("Unable to pass numeric literal '" + lexeme + "'");
@@ -95,7 +95,7 @@ NeuronUpdateProcess::NeuronUpdateProcess(Private, const std::string &code, const
                     uint64_t result;
                     auto answer = fast_float::from_chars(lexemeBegin, lexemeEnd, result);
                     if(answer.ec == std::errc()) {
-                        m_Literals.emplace_back(t.numberType.value(), result);
+                        m_Literals.emplace_back(t.numberType.value(), result, t.index);
                     }
                     else {
                         throw std::runtime_error("Unable to pass numeric literal '" + lexeme + "'");
@@ -107,7 +107,7 @@ NeuronUpdateProcess::NeuronUpdateProcess(Private, const std::string &code, const
                 double result;
                 auto answer = fast_float::from_chars(lexemeBegin, lexemeEnd, result);
                 if(answer.ec == std::errc()) {
-                    m_Literals.emplace_back(t.numberType.value(), result);
+                    m_Literals.emplace_back(t.numberType.value(), result, t.index);
                 }
                 else {
                     throw std::runtime_error("Unable to pass numeric literal '" + lexeme + "'");
