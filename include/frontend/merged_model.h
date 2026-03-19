@@ -38,7 +38,7 @@ public:
 
     //! Get 'archetype' process - it's properties represent those of all other merged processes
     template<typename P>
-    const auto &getArchetype() const 
+    const auto getArchetype() const 
     { 
         return std::dynamic_pointer_cast<const P>(getArchetype());
     }
@@ -46,7 +46,7 @@ public:
     //! Get vector of merged processes
     const auto &getProcesses() const{ return m_Processes; }
 
-    template<typename P, typename F>
+    template<typename P = Process, typename F>
     void forEachProcess(F func) const
     {
         // Loop through processes
