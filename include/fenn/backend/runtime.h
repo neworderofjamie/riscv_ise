@@ -13,7 +13,6 @@
 #include "fenn/backend/backend_export.h"
 #include "fenn/backend/fields.h"
 #include "fenn/backend/memory_allocator.h"
-#include "fenn/backend/model.h"
 
 // Forward declarations
 namespace FeNN::Backend
@@ -309,8 +308,6 @@ public:
     size_t getDMABufferSize() const{ return m_DMABufferSize; }
     auto getNeuronRoundingMode() const{ return m_NeuronUpdateRoundingMode; }
 
-    const auto &getModel() const{ return m_Model; }
-
 protected:
     //------------------------------------------------------------------------
     // Runtime virtuals
@@ -332,8 +329,6 @@ private:
     //! Map from process groups to start addresses and merged fields 
     std::unordered_map<std::shared_ptr<const Frontend::ProcessGroup>,
                        std::vector<std::pair<uint32_t, MergedFields>>> m_MergedField;
-
-    Model m_Model;
 
     bool m_UseDRAMForWeights;
     bool m_KeepParamsInRegisters;

@@ -171,9 +171,9 @@ void Runtime::run(std::shared_ptr<const Kernel> kernel)
     runCommand(&run);
 }
 //----------------------------------------------------------------------------
-Runtime::Runtime(const Model &model, size_t numDevices)
-:   m_Devices(numDevices), m_MergedModel(model), m_NumDevices(numDevices), 
-    m_WorkerRun(true), m_Command(nullptr)
+Runtime::Runtime(std::unique_ptr<Model> model, size_t numDevices)
+:   m_Devices(numDevices), m_Model(std::move(model)), m_MergedModel(*m_Model), 
+    m_NumDevices(numDevices), m_WorkerRun(true), m_Command(nullptr)
 {
 }
 //----------------------------------------------------------------------------

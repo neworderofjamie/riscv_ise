@@ -130,7 +130,7 @@ std::unique_ptr<Frontend::ArrayBase> DeviceFeNN::createArray(std::shared_ptr<con
     const auto paddedShape = shape.padLast(32);
 
     // Create array in correct memory space depending on compatibility
-    switch(getRuntime().getModel().getStateMemSpace(variable, getRuntime().shouldUseDRAMForWeights()))
+    switch(getRuntime().getModel<Model>()->getStateMemSpace(variable, getRuntime().shouldUseDRAMForWeights()))
     {
     case MemSpace::DRAM:
     {
@@ -195,7 +195,7 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                  size_t numDevices, bool generateSimulationKernels, bool useDRAMForWeights, 
                  bool keepParamsInRegisters, Compiler::RoundingMode neuronUpdateRoundingMode, 
                  size_t dmaBufferSize)
-:   m_Model(kernels), Frontend::Runtime(m_Model, numDevices), m_UseDRAMForWeights(useDRAMForWeights), 
+:   Frontend::Runtime(std::make_unique<Model>(kernels), numDevices), m_UseDRAMForWeights(useDRAMForWeights), 
     m_KeepParamsInRegisters(keepParamsInRegisters), m_NeuronUpdateRoundingMode(neuronUpdateRoundingMode), 
     m_DMABufferSize(dmaBufferSize)
 {

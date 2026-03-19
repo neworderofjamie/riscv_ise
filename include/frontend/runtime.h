@@ -168,8 +168,14 @@ public:
     
     size_t getNumDevices() const{ return m_NumDevices; }
 
+    template<typename T>
+    const T *getModel() const
+    {
+        return static_cast<const T*>(m_Model.get());
+    }
+
 protected:
-    Runtime(const Model &model, size_t numDevices);
+    Runtime(std::unique_ptr<Model> model, size_t numDevices);
     
     //------------------------------------------------------------------------
     // Declared virtuals
@@ -327,6 +333,9 @@ private:
     
     // Worker threads
     std::vector<std::thread> m_WorkerThreads;
+
+    // Model
+    std::unique_ptr<Model> m_Model;
 
     MergedModel m_MergedModel;
 
