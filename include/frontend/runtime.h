@@ -168,7 +168,7 @@ public:
     
     size_t getNumDevices() const{ return m_NumDevices; }
 
-    template<typename T>
+    template<typename T = Model>
     const T *getModel() const
     {
         return static_cast<const T*>(m_Model.get());
