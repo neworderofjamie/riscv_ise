@@ -104,7 +104,7 @@ void genStaticPulse(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAll
         AssemblerUtils::unrollVectorLoopBody(
             c, scalarRegisterAllocator, t.maxRowLength, 4, *SPostIndBuffer,
             [&t, SMask, SPostIndBuffer, VPostInd1, VPostInd2, VAccum1, VAccum2, VWeight]
-            (CodeGenerator &c, uint32_t r, bool even, ScalarRegisterAllocator::RegisterPtr maskReg)
+            (CodeGenerator &c, uint32_t r, bool even, ScalarRegisterPtr maskReg)
             {
                 assert(!maskReg);
 
@@ -139,8 +139,8 @@ void genLIF(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator,
             uint32_t vPtr, uint32_t refracTimePtr, uint32_t baseSpikeAddress,
             uint32_t eLLPtr, uint32_t iLLPtr,
             uint32_t fixedPoint = 8,
-            ScalarRegisterAllocator::RegisterPtr spikeRecordingBuffer = nullptr,
-            ScalarRegisterAllocator::RegisterPtr vRecordingBuffer = nullptr,
+            ScalarRegisterPtr spikeRecordingBuffer = nullptr,
+            ScalarRegisterPtr vRecordingBuffer = nullptr,
             double tauM = 20.0, double tauSynExc = 5.0, double tauSynInh = 10.0,
             double vThresh = 10.0, double iOffset = 0.55)
 {
@@ -191,7 +191,7 @@ void genLIF(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator,
          SVBuffer, SRefracTimeBuffer, SBaseSpikeAddress,
          spikeRecordingBuffer, vRecordingBuffer,
          VAlpha, VEBeta, VIBeta, VEScale, VIScale, VDT, VRMembrane, VSynLLOffset, VTauRefrac, VThresh, VIOffset, VZero]
-        (CodeGenerator &c, uint32_t r, bool, ScalarRegisterAllocator::RegisterPtr maskReg)
+        (CodeGenerator &c, uint32_t r, bool, ScalarRegisterPtr maskReg)
         {
             // Register allocation
             ALLOCATE_VECTOR(VV);
@@ -439,7 +439,7 @@ int main(int argc, char** argv)
                     [&scalarRegisterAllocator, &vectorRegisterAllocator,
                     fixedPoint, eeLLAddr, ieLLAddr,
                     SRefracTimeBuffer, SVBuffer, VRandom, VScale, VSynLLOffset, VZero]
-                    (CodeGenerator &c, uint32_t r, uint32_t, ScalarRegisterAllocator::RegisterPtr)
+                    (CodeGenerator &c, uint32_t r, uint32_t, ScalarRegisterPtr)
                     {
                         // Generate initial mebrane voltages from U(0,Scale) 
                         c.vrng(*VRandom);
@@ -489,7 +489,7 @@ int main(int argc, char** argv)
                     [&scalarRegisterAllocator, &vectorRegisterAllocator,
                     fixedPoint, eiLLAddr, iiLLAddr,
                     SRefracTimeBuffer, SVBuffer, VRandom, VScale, VSynLLOffset, VZero]
-                    (CodeGenerator &c, uint32_t r, uint32_t, ScalarRegisterAllocator::RegisterPtr)
+                    (CodeGenerator &c, uint32_t r, uint32_t, ScalarRegisterPtr)
                     {
                         // Generate initial mebrane voltages from U(0,Scale) 
                         c.vrng(*VRandom);

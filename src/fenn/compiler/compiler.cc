@@ -926,10 +926,10 @@ private:
     std::optional<std::pair<RegisterPtr, bool>> m_ExpressionRegister;
     std::stack<std::vector<RegisterPtr>> m_CallArguments;
 
-    Assembler::ScalarRegisterAllocator::RegisterPtr m_MaskRegister;
+    Assembler::ScalarRegisterPtr m_MaskRegister;
     const Transpiler::TypeChecker::ResolvedTypeMap &m_ResolvedTypes;
     std::reference_wrapper<Transpiler::ErrorHandlerBase> m_ErrorHandler;
-    const std::unordered_map<int16_t, Assembler::VectorRegisterAllocator::RegisterPtr> &m_LiteralPool;
+    const std::unordered_map<int16_t, Assembler::VectorRegisterPtr> &m_LiteralPool;
     RoundingMode m_RoundingMode;
     Assembler::ScalarRegisterAllocator &m_ScalarRegisterAllocator;
     Assembler::VectorRegisterAllocator &m_VectorRegisterAllocator;
@@ -966,8 +966,8 @@ Assembler::CodeGenerator &EnvironmentInternal::getCodeGenerator()
 //----------------------------------------------------------------------------
 void compile(const Transpiler::Statement::StatementList &statements, EnvironmentInternal &environment, 
              const Type::TypeContext &context, const Transpiler::TypeChecker::ResolvedTypeMap &resolvedTypes,
-             Transpiler::ErrorHandlerBase &errorHandler, const std::unordered_map<int16_t, Assembler::VectorRegisterAllocator::RegisterPtr> &literalPool,
-             Assembler::ScalarRegisterAllocator::RegisterPtr maskRegister, RoundingMode roundingMode,
+             Transpiler::ErrorHandlerBase &errorHandler, const std::unordered_map<int16_t, Assembler::VectorRegisterPtr> &literalPool,
+             Assembler::ScalarRegisterPtr maskRegister, RoundingMode roundingMode,
              Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, Assembler::VectorRegisterAllocator &vectorRegisterAllocator)
 {
     Visitor visitor(statements, environment, context, resolvedTypes, errorHandler, literalPool, 

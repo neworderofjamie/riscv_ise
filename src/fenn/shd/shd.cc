@@ -45,7 +45,7 @@ struct StaticPulseTarget
 
 void genStaticPulse(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator,
                     ScalarRegisterAllocator &scalarRegisterAllocator,
-                    std::variant<uint32_t, ScalarRegisterAllocator::RegisterPtr> preSpikePtr, uint32_t numPre, 
+                    std::variant<uint32_t, ScalarRegisterPtr> preSpikePtr, uint32_t numPre, 
                     const std::vector<StaticPulseTarget> &targets)
 {
     // Register allocation
@@ -63,14 +63,14 @@ void genStaticPulse(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAll
     auto wordEnd = createLabel();
 
     // If literal is provided for start of presynapric spike buffer, allocate register and load immediate into it
-    ScalarRegisterAllocator::RegisterPtr SSpikeBuffer;
+    ScalarRegisterPtr SSpikeBuffer;
     if(std::holds_alternative<uint32_t>(preSpikePtr)) {
         SSpikeBuffer = scalarRegisterAllocator.getRegister("SSpikeBuffer = X");
         c.li(*SSpikeBuffer, std::get<uint32_t>(preSpikePtr));
     }
     // Otherwise, use pointer register directly
     else {
-        SSpikeBuffer = std::get<ScalarRegisterAllocator::RegisterPtr>(preSpikePtr);
+        SSpikeBuffer = std::get<ScalarRegisterPtr>(preSpikePtr);
     }
     
     // Get address of end of presynaptic spike buffer
@@ -79,7 +79,7 @@ void genStaticPulse(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAll
     
 
     // Loop through postsynaptic targets
-    std::vector<ScalarRegisterAllocator::RegisterPtr> sISynBufferRegs;
+    std::vector<ScalarRegisterPtr> sISynBufferRegs;
     for(const auto &t : targets) {
         // Allocate scalar registers
         auto bufferStartReg = scalarRegisterAllocator.getRegister("SISynBuffer = X");
@@ -170,7 +170,7 @@ void genStaticPulse(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAll
                 AssemblerUtils::unrollVectorLoopBody(
                     c, scalarRegisterAllocator, t.numPost, 4, *iReg,
                     [&iReg, SWeightBuffer, VWeight, VISyn1, VISyn2, VISynNew]
-                    (CodeGenerator &c, uint32_t r, bool even, ScalarRegisterAllocator::RegisterPtr maskReg)
+                    (CodeGenerator &c, uint32_t r, bool even, ScalarRegisterPtr maskReg)
                     {
                         // Load vector of weights
                         c.vloadv(*VWeight, *SWeightBuffer, r * 64);
@@ -436,7 +436,7 @@ int main(int argc, char** argv)
                         hiddenAFixedPoint,
                          SABuffer, SISynBuffer, SRefracTimeBuffer, SSpikeBuffer, SVBuffer,
                          VAlpha, VBeta, VDT, VOne, VRho, VTauRefrac, VVThresh, VZero]
-                        (CodeGenerator &c, uint32_t r, bool, ScalarRegisterAllocator::RegisterPtr maskReg)
+                        (CodeGenerator &c, uint32_t r, bool, ScalarRegisterPtr maskReg)
                         {
                             assert(!maskReg);
 

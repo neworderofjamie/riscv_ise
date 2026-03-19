@@ -34,8 +34,8 @@
 
 void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAllocator,
                     ScalarRegisterAllocator &scalarRegisterAllocator, 
-                    ScalarRegisterAllocator::RegisterPtr weightBaseAddress, 
-                    std::variant<uint32_t, ScalarRegisterAllocator::RegisterPtr> preSpikePtr, 
+                    ScalarRegisterPtr weightBaseAddress, 
+                    std::variant<uint32_t, ScalarRegisterPtr> preSpikePtr, 
                     uint32_t postISynPtr, uint32_t rowBufferAPtr, uint32_t rowBufferBPtr,
                     uint32_t numPre, uint32_t numPost, uint32_t stride, bool debug)
 {
@@ -59,14 +59,14 @@ void genStaticPulse(CodeGenerator &c, RegisterAllocator<VReg> &vectorRegisterAll
     auto wordEnd = createLabel();
 
     // If literal is provided for start of presynapric spike buffer, allocate register and load immediate into it
-    ScalarRegisterAllocator::RegisterPtr SSpikeBuffer;
+    ScalarRegisterPtr SSpikeBuffer;
     if(std::holds_alternative<uint32_t>(preSpikePtr)) {
         SSpikeBuffer = scalarRegisterAllocator.getRegister("SSpikeBuffer = X");
         c.li(*SSpikeBuffer, std::get<uint32_t>(preSpikePtr));
     }
     // Otherwise, use pointer register directly
     else {
-        SSpikeBuffer = std::get<ScalarRegisterAllocator::RegisterPtr>(preSpikePtr);
+        SSpikeBuffer = std::get<ScalarRegisterPtr>(preSpikePtr);
     }
     
     // SISynBuffer = hiddenIsyn;

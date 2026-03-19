@@ -31,7 +31,7 @@ using RegisterPtr = std::variant<FeNN::Assembler::ScalarRegisterPtr,
                                  FeNN::Assembler::VectorRegisterPtr>;
 using FunctionGenerator = std::function<std::pair<RegisterPtr, bool>(EnvironmentBase&, FeNN::Assembler::VectorRegisterAllocator&, 
                                                                      FeNN::Assembler::ScalarRegisterAllocator&, 
-                                                                     FeNN::Assembler::ScalarRegisterAllocator::RegisterPtr, 
+                                                                     FeNN::Assembler::ScalarRegisterPtr, 
                                                                      const std::vector<RegisterPtr>&)>;
 
 using EnvironmentItem = std::variant<RegisterPtr, FunctionGenerator, int>;

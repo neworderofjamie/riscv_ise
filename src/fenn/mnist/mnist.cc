@@ -42,7 +42,7 @@
 
 void genStaticPulse(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator,
                     ScalarRegisterAllocator &scalarRegisterAllocator, uint32_t weightPtr, 
-                    std::variant<uint32_t, ScalarRegisterAllocator::RegisterPtr> preSpikePtr, uint32_t postISynPtr, 
+                    std::variant<uint32_t, ScalarRegisterPtr> preSpikePtr, uint32_t postISynPtr, 
                     uint32_t numPre, uint32_t numPost, uint32_t stride, bool debug)
 {
     // Register allocation
@@ -61,14 +61,14 @@ void genStaticPulse(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAll
     auto wordEnd = createLabel();
 
     // If literal is provided for start of presynapric spike buffer, allocate register and load immediate into it
-    ScalarRegisterAllocator::RegisterPtr SSpikeBuffer;
+    ScalarRegisterPtr SSpikeBuffer;
     if(std::holds_alternative<uint32_t>(preSpikePtr)) {
         SSpikeBuffer = scalarRegisterAllocator.getRegister("SSpikeBuffer = X");
         c.li(*SSpikeBuffer, std::get<uint32_t>(preSpikePtr));
     }
     // Otherwise, use pointer register directly
     else {
-        SSpikeBuffer = std::get<ScalarRegisterAllocator::RegisterPtr>(preSpikePtr);
+        SSpikeBuffer = std::get<ScalarRegisterPtr>(preSpikePtr);
     }
     
     // Get address of end of presynaptic spike buffer
@@ -152,7 +152,7 @@ void genStaticPulse(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAll
             AssemblerUtils::unrollVectorLoopBody(
                 c, scalarRegisterAllocator, numPost, 4, *SISynBuffer,
                 [SWeightBuffer, SISynBuffer, VWeight, VISyn1, VISyn2, VISynNew]
-                (CodeGenerator &c, uint32_t r, bool even, ScalarRegisterAllocator::RegisterPtr maskReg)
+                (CodeGenerator &c, uint32_t r, bool even, ScalarRegisterPtr maskReg)
                 {
                     // Load vector of weights
                     c.vloadv(*VWeight, *SWeightBuffer, r * 64);
@@ -412,7 +412,7 @@ int main(int argc, char** argv)
 #endif
                          SVBuffer, SISynBuffer, SRefracTimeBuffer, SSpikeBuffer,
                          VAlpha, VMinusDT, VTauRefrac, VThresh, VMinusThresh, VZero]
-                        (CodeGenerator &c, uint32_t r, bool, ScalarRegisterAllocator::RegisterPtr maskReg)
+                        (CodeGenerator &c, uint32_t r, bool, ScalarRegisterPtr maskReg)
                         {
                             assert(!maskReg);
 

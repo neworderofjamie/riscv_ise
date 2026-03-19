@@ -25,9 +25,9 @@ namespace FeNN::Assembler::Utils
 // Generate
 ASSEMBLER_EXPORT void generateScalarVectorMemcpy(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator,
                                                  ScalarRegisterAllocator &scalarRegisterAllocator,
-                                                 std::variant<uint32_t, ScalarRegisterAllocator::RegisterPtr> scalarPtr, 
-                                                 std::variant<uint32_t, ScalarRegisterAllocator::RegisterPtr> vectorPtr, 
-                                                 std::variant<uint32_t, ScalarRegisterAllocator::RegisterPtr> numVectors);
+                                                 std::variant<uint32_t, ScalarRegisterPtr> scalarPtr, 
+                                                 std::variant<uint32_t, ScalarRegisterPtr> vectorPtr, 
+                                                 std::variant<uint32_t, ScalarRegisterPtr> numVectors);
 
 ASSEMBLER_EXPORT void generateVectorScalarMemcpy(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator,
                                                  ScalarRegisterAllocator &scalarRegisterAllocator,
@@ -60,13 +60,13 @@ ASSEMBLER_EXPORT void unrollLoopBody(CodeGenerator &c, ScalarRegisterAllocator &
 //! Generate an unrolled vector loop with number of elements specified at compile-time
 ASSEMBLER_EXPORT void unrollVectorLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator, 
                                            uint32_t numElements, uint32_t maxUnroll,
-                                           std::function<void(CodeGenerator&, uint32_t, ScalarRegisterAllocator::RegisterPtr)> genBodyFn, 
+                                           std::function<void(CodeGenerator&, uint32_t, ScalarRegisterPtr)> genBodyFn, 
                                            std::function<void(CodeGenerator&, uint32_t)> genTailFn);
 
 //! Generate an unrolled vector loop with number of elements specified at runtime
 ASSEMBLER_EXPORT void unrollVectorLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator, 
                                            FeNN::Common::Reg numElementsReg, uint32_t maxUnroll, bool noTail,
-                                           std::function<void(CodeGenerator&, uint32_t, ScalarRegisterAllocator::RegisterPtr)> genBodyFn, 
+                                           std::function<void(CodeGenerator&, uint32_t, ScalarRegisterPtr)> genBodyFn, 
                                            std::function<void(CodeGenerator&, uint32_t)> genTailFn);
 
 //! Generate preamble and postamble for code using standard ecall instruction to terminate simulations and polling on device
@@ -93,13 +93,14 @@ ASSEMBLER_EXPORT void generateDMAStartWrite(CodeGenerator &c, Common::Reg destin
 ASSEMBLER_EXPORT void generateDMAStartRead(CodeGenerator &c, Common::Reg destination, Common::Reg source, Common::Reg size);
 
 //! Generate code to (busy) wait until DMA write completes. Returns resulting status value
-ASSEMBLER_EXPORT ScalarRegisterAllocator::RegisterPtr generateDMAWaitForWriteComplete(
-    CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator);
+ASSEMBLER_EXPORT ScalarRegisterPtr generateDMAWaitForWriteComplete(CodeGenerator &c,
+                                                                   ScalarRegisterAllocator &scalarRegisterAllocator);
 
 //! Generate code to (busy) wait until DMA read completes. Returns resulting status value
-ASSEMBLER_EXPORT ScalarRegisterAllocator::RegisterPtr generateDMAWaitForReadComplete(
-    CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator);
+ASSEMBLER_EXPORT ScalarRegisterPtr generateDMAWaitForReadComplete(CodeGenerator &c,
+                                                                  ScalarRegisterAllocator &scalarRegisterAllocator);
 
 //! Generate code to (busy) wait on a router barrier
-ASSEMBLER_EXPORT void generateRouterBarrier(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator, uint32_t numCores);
+ASSEMBLER_EXPORT void generateRouterBarrier(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator,
+                                            uint32_t numCores);
 }   // namespace FeNN::Assembler::Utils

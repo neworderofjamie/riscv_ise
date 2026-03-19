@@ -13,9 +13,9 @@ namespace FeNN::Assembler::Utils
 {
 void generateScalarVectorMemcpy(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator,
                                 ScalarRegisterAllocator &scalarRegisterAllocator,
-                                std::variant<uint32_t, ScalarRegisterAllocator::RegisterPtr> scalarPtr, 
-                                std::variant<uint32_t, ScalarRegisterAllocator::RegisterPtr> vectorPtr, 
-                                std::variant<uint32_t, ScalarRegisterAllocator::RegisterPtr> numVectors)
+                                std::variant<uint32_t, ScalarRegisterPtr> scalarPtr, 
+                                std::variant<uint32_t, ScalarRegisterPtr> vectorPtr, 
+                                std::variant<uint32_t, ScalarRegisterPtr> numVectors)
 {
     // Register allocation
     ALLOCATE_SCALAR(SVectorBufferEnd);
@@ -25,25 +25,25 @@ void generateScalarVectorMemcpy(CodeGenerator &c, VectorRegisterAllocator &vecto
     auto vectorLoop = createLabel();
 
     // If literal is provided for scalar pointer, allocate register and load immediate into it
-    ScalarRegisterAllocator::RegisterPtr SDataBuffer;
+    ScalarRegisterPtr SDataBuffer;
     if(std::holds_alternative<uint32_t>(scalarPtr)) {
         SDataBuffer = scalarRegisterAllocator.getRegister("SDataBuffer = X");
         c.li(*SDataBuffer, std::get<uint32_t>(scalarPtr));
     }
     // Otherwise, use pointer register directly
     else {
-        SDataBuffer = std::get<ScalarRegisterAllocator::RegisterPtr>(scalarPtr);
+        SDataBuffer = std::get<ScalarRegisterPtr>(scalarPtr);
     }
 
     // If literal is provided for scalar pointer, allocate register and load immediate into it
-    ScalarRegisterAllocator::RegisterPtr SVectorBuffer;
+    ScalarRegisterPtr SVectorBuffer;
     if(std::holds_alternative<uint32_t>(vectorPtr)) {
         SVectorBuffer = scalarRegisterAllocator.getRegister("SVectorBuffer = X");
         c.li(*SVectorBuffer, std::get<uint32_t>(vectorPtr));
     }
     // Otherwise, use pointer register directly
     else {
-        SVectorBuffer = std::get<ScalarRegisterAllocator::RegisterPtr>(vectorPtr);
+        SVectorBuffer = std::get<ScalarRegisterPtr>(vectorPtr);
     }
 
     // If literal is provided for number of vectors, load immediate and immediate to address
@@ -55,7 +55,7 @@ void generateScalarVectorMemcpy(CodeGenerator &c, VectorRegisterAllocator &vecto
     // Otherwise, add register to address
     else {
         ALLOCATE_SCALAR(STmp);
-        c.slli(*STmp, *std::get<ScalarRegisterAllocator::RegisterPtr>(numVectors), 6);
+        c.slli(*STmp, *std::get<ScalarRegisterPtr>(numVectors), 6);
         c.add(*SVectorBufferEnd, *SVectorBuffer, *STmp);
     }
 
@@ -381,7 +381,7 @@ void unrollLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAll
 //----------------------------------------------------------------------------
 void unrollVectorLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator, 
                           uint32_t numElements, uint32_t maxUnroll,
-                          std::function<void(CodeGenerator&, uint32_t, ScalarRegisterAllocator::RegisterPtr)> genBodyFn, 
+                          std::function<void(CodeGenerator&, uint32_t, ScalarRegisterPtr)> genBodyFn, 
                           std::function<void(CodeGenerator&, uint32_t)> genTailFn)
 {
     // Determine number of vectorised iterations and remainder
@@ -413,7 +413,7 @@ void unrollVectorLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegis
 //----------------------------------------------------------------------------
 void unrollVectorLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator, 
                           FeNN::Common::Reg numElementsReg, uint32_t maxUnroll, bool noTail,
-                          std::function<void(CodeGenerator&, uint32_t, ScalarRegisterAllocator::RegisterPtr)> genBodyFn, 
+                          std::function<void(CodeGenerator&, uint32_t, ScalarRegisterPtr)> genBodyFn, 
                           std::function<void(CodeGenerator&, uint32_t)> genTailFn)
 {
     // Generate unrolled and whole vector loop
@@ -584,7 +584,7 @@ void generateDMAStartRead(CodeGenerator &c, Common::Reg destination, Common::Reg
     c.csrwi(CSR::S2MM_CONTROL, 1);
 }
 //----------------------------------------------------------------------------
-ScalarRegisterAllocator::RegisterPtr generateDMAWaitForWriteComplete(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator)
+ScalarRegisterPtr generateDMAWaitForWriteComplete(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator)
 {
     using namespace Common;
 
@@ -608,7 +608,7 @@ ScalarRegisterAllocator::RegisterPtr generateDMAWaitForWriteComplete(CodeGenerat
     return SStatus;
 }
 //----------------------------------------------------------------------------
-ScalarRegisterAllocator::RegisterPtr generateDMAWaitForReadComplete(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator)
+ScalarRegisterPtr generateDMAWaitForReadComplete(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator)
 {
     using namespace Common;
 
