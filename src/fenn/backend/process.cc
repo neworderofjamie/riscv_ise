@@ -1320,7 +1320,7 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
 //----------------------------------------------------------------------------
 // FeNN::Backend::EventPropagationProcess
 //----------------------------------------------------------------------------
-void EventPropagationProcess::updateCompatibleMemSpace(std::shared_ptr<const Frontend::State> state, 
+/*void EventPropagationProcess::updateCompatibleMemSpace(std::shared_ptr<const Frontend::State> state, 
                                                        MemSpace &compatibleMemSpaces) const
 {
     // If variable is weight, it can  be located in URAM or DRAM
@@ -1356,7 +1356,7 @@ void EventPropagationProcess::generateCode(const Frontend::MergedProcess &merged
                                            Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                            Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
-    /*    // Register allocation
+    // Register allocation
     ALLOCATE_SCALAR(SEventBuffer);
     ALLOCATE_SCALAR(SEventBufferEnd);
 
@@ -1427,9 +1427,9 @@ void EventPropagationProcess::generateCode(const Frontend::MergedProcess &merged
     }
     else {
         generateURAMWordLoop(rowGenerators, SEventBuffer, SEventBufferEnd);
-    }*/
+    }
 }
-/*void generateURAMWordLoop(const std::vector<std::unique_ptr<RowGeneratorBase>> &rowGenerators, 
+void generateURAMWordLoop(const std::vector<std::unique_ptr<RowGeneratorBase>> &rowGenerators, 
                               ScalarRegisterAllocator::RegisterPtr eventBufferReg, 
                               ScalarRegisterAllocator::RegisterPtr eventBufferEndReg)
 {

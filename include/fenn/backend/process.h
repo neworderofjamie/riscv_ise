@@ -53,7 +53,7 @@ public:
                                           MemSpace &compatibleMemSpaces) const = 0;
 
     //! Update the max-row length to support this process
-    virtual void updateMaxDMABufferSize(size_t &maxRowLength) const
+    virtual void updateMaxDMABufferSize(size_t&) const
     {
     }
 
@@ -162,7 +162,7 @@ public:
 //----------------------------------------------------------------------------
 // FeNN::Backend::EventPropagationProcess
 //----------------------------------------------------------------------------
-class FENN_BACKEND_EXPORT EventPropagationProcess : public ProcessImplementationBase<Frontend::EventPropagationProcess, ProcessImplementation>
+/*class FENN_BACKEND_EXPORT EventPropagationProcess : public ProcessImplementationBase<Frontend::EventPropagationProcess, ProcessImplementation>
 {
 public:
     using ProcessImplementationBase<Frontend::EventPropagationProcess, ProcessImplementation>::ProcessImplementationBase;
@@ -196,7 +196,7 @@ public:
         return std::make_shared<EventPropagationProcess>(Private(), inputEvents, weight, target, 
                                                          numSparseConnectivityBits, numDelayBits, name);
     }
-};
+};*/
 
 //----------------------------------------------------------------------------
 // FeNN::Backend::RNGInitProcess
