@@ -98,11 +98,10 @@ class Visitor : public Transpiler::Expression::Visitor, public Transpiler::State
 public:
     Visitor(const Transpiler::Statement::StatementList &statements, EnvironmentInternal &environment,
             const Type::TypeContext &context, const Transpiler::TypeChecker::ResolvedTypeMap &resolvedTypes,
-            Transpiler::ErrorHandlerBase &errorHandler, const std::unordered_map<int16_t, Assembler::VectorRegisterPtr> &literalPool,
-            Assembler::ScalarRegisterPtr maskRegister, RoundingMode roundingMode, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
-            Assembler::VectorRegisterAllocator &vectorRegisterAllocator)
+            Transpiler::ErrorHandlerBase &errorHandler, Assembler::ScalarRegisterPtr maskRegister, RoundingMode roundingMode, 
+            Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, Assembler::VectorRegisterAllocator &vectorRegisterAllocator)
     :   m_Environment(environment), m_Context(context), m_MaskRegister(maskRegister), m_ResolvedTypes(resolvedTypes),
-        m_ErrorHandler(errorHandler), m_LiteralPool(literalPool), m_RoundingMode(roundingMode),
+        m_ErrorHandler(errorHandler), m_RoundingMode(roundingMode),
         m_ScalarRegisterAllocator(scalarRegisterAllocator),  m_VectorRegisterAllocator(vectorRegisterAllocator)
     {
          for(auto &s : statements) {
@@ -344,52 +343,11 @@ private:
 
     virtual void visit(const Transpiler::Expression::Literal &literal) final
     {
-        const auto lexeme = literal.getValue().lexeme;
-        const char *lexemeBegin = lexeme.c_str();
-        const char *lexemeEnd = lexemeBegin + lexeme.size();
-        
-        // If literal is a number
-        int64_t integerResult;
-        if(literal.getValue().type == Transpiler::Token::Type::NUMBER) {
-            // If it is an integer
-            const auto &numericType = m_ResolvedTypes.at(&literal).getNumeric();
-            if(numericType.isIntegral) {
-                if(numericType.isSigned) {
-                    int result;
-                    auto answer = fast_float::from_chars(lexemeBegin, lexemeEnd, result);
-                    assert(answer.ec == std::errc());
-                    integerResult = result;
-                }
-                else {
-                    unsigned int result;
-                    auto answer = fast_float::from_chars(lexemeBegin, lexemeEnd, result);
-                    assert(answer.ec == std::errc());
-                    integerResult = result;
-                }
-            }
-            // Otherwise, if it is fixed point
-            else if(numericType.fixedPoint) {
-                float result;
-                auto answer = fast_float::from_chars(lexemeBegin, lexemeEnd, result);
-                assert(answer.ec == std::errc());
-                integerResult = static_cast<int64_t>(std::round(result * (1u << numericType.fixedPoint.value())));
-            }
-            else {
-                m_ErrorHandler.get().error(literal.getValue(), "FeNN does not support floating point types");
-                throw CompilerError();
-            }
-        }
-        else {
-            m_ErrorHandler.get().error(literal.getValue(), "Unsupported literal type");
-            throw CompilerError();
-        }
+        // Build literal name from token index
+        const std::string literalName = "_literal_" + std::to_string(literal.getValue().index);
 
-        assert(integerResult >= std::numeric_limits<int16_t>::min());
-        assert(integerResult <= std::numeric_limits<int16_t>::max());
-
-        // Set result register
         // **NOTE** result is a register assigned to pool so shouldn't be re-used
-        setExpressionRegister(m_LiteralPool.at(static_cast<int16_t>(integerResult)), false);
+        setExpressionRegister(m_Environment.get().getVectorRegister(literalName), false);
     }
 
     virtual void visit(const Transpiler::Expression::Logical &logical) final
@@ -929,7 +887,6 @@ private:
     Assembler::ScalarRegisterPtr m_MaskRegister;
     const Transpiler::TypeChecker::ResolvedTypeMap &m_ResolvedTypes;
     std::reference_wrapper<Transpiler::ErrorHandlerBase> m_ErrorHandler;
-    const std::unordered_map<int16_t, Assembler::VectorRegisterPtr> &m_LiteralPool;
     RoundingMode m_RoundingMode;
     Assembler::ScalarRegisterAllocator &m_ScalarRegisterAllocator;
     Assembler::VectorRegisterAllocator &m_VectorRegisterAllocator;
@@ -966,12 +923,11 @@ Assembler::CodeGenerator &EnvironmentInternal::getCodeGenerator()
 //----------------------------------------------------------------------------
 void compile(const Transpiler::Statement::StatementList &statements, EnvironmentInternal &environment, 
              const Type::TypeContext &context, const Transpiler::TypeChecker::ResolvedTypeMap &resolvedTypes,
-             Transpiler::ErrorHandlerBase &errorHandler, const std::unordered_map<int16_t, Assembler::VectorRegisterPtr> &literalPool,
-             Assembler::ScalarRegisterPtr maskRegister, RoundingMode roundingMode,
+             Transpiler::ErrorHandlerBase &errorHandler, Assembler::ScalarRegisterPtr maskRegister, RoundingMode roundingMode,
              Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, Assembler::VectorRegisterAllocator &vectorRegisterAllocator)
 {
-    Visitor visitor(statements, environment, context, resolvedTypes, errorHandler, literalPool, 
-                    maskRegister, roundingMode,
+    Visitor visitor(statements, environment, context, resolvedTypes, 
+                    errorHandler, maskRegister, roundingMode, 
                     scalarRegisterAllocator, vectorRegisterAllocator);
 }
 }   // namespace FeNN::Compiler
