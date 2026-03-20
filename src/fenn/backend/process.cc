@@ -1162,8 +1162,7 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
 
     {
         // Count literals
-        const auto &archetypeLiterals = mergedProcess.getArchetype<NeuronUpdateProcess>()->getLiterals();
-        const size_t numLiterals = archetypeLiterals.size();
+        const size_t numLiterals = getLiterals().size();
 
         // Create N*N binary matrix to mark literals whose value 
         // is the same another across all merged processes
@@ -1171,10 +1170,11 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
         // triangular format but a) the indexing is a nuisance and
         // b) while number of merged could be large, number of literals 
         // is going to be limited (especially as we currently load them all into registers!)
-        std::vector<bool> literalSelfSimilarity(numLiterals * numLiterals, true);
+        /*std::vector<bool> literalSelfSimilarity(numLiterals * numLiterals, true);
 
         // Loop through merged processes
         // **NOTE** literals don't change across devices
+        // **TODO** comparisons should be made based on FeNN-processed values
         mergedProcess.forEachProcess<NeuronUpdateProcess>(
             [&literalSelfSimilarity, numLiterals](const auto &np)
             {
@@ -1188,7 +1188,7 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
             });
 
         // Start with each literal mapped to itself
-        /*std::vector<std::vector<size_t>> literalMapping(numLiterals);
+        std::vector<std::vector<size_t>> literalMapping(numLiterals);
 
         // Loop through upper-triangular portion of matrix (excluding diagonal)
         for (size_t i = 0; i < numLiterals; i++) {
@@ -1238,7 +1238,7 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
                 });
             
             // Add to environment
-            auto &archLiteral = archetypeLiterals.at(i);
+            auto &archLiteral = getLiterals().at(i);
             env.add(std::get<0>(archLiteral), "_literal_" + std::to_string(std::get<2>(archLiteral)), 
                     literalReg);
         }
