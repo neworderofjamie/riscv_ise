@@ -1,10 +1,10 @@
 {
-    "testMate.cpp.test.executables": "${workspaceFolder}/tests/soc/test*",
+    "testMate.cpp.test.executables": "${workspaceFolder}/tests/**/test*",
     "testMate.cpp.debug.configTemplate": {
         "type": "cppdbg",
         "MIMode": "gdb",
-        "program": "${workspaceFolder}/tests/soc/test_debug",
-        "cwd": "${workspaceFolder}/tests/soc",
+        "program": "${exec}",
+        "cwd": "${cwd}",
         "setupCommands": [
             { "text": "-enable-pretty-printing", "description": "enable pretty printing", "ignoreFailures": true },
         ]
