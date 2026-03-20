@@ -7,7 +7,12 @@
 //--------------------------------------------------------------------------
 // Tests
 //--------------------------------------------------------------------------
-TEST(NeuronProcess, MergeHashCode)
+TEST(NeuronProcess, HasVariablesOrOutputEvents)
+{
+
+}
+
+TEST(NeuronProcess, ShapesMatch)
 {
 
 }
