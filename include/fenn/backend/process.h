@@ -260,8 +260,8 @@ public:
     //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------
-    static std::shared_ptr<Frontend::MemsetProcess> create(Frontend::VariablePtr target,
-                                                          const std::string &name = "")
+    static std::shared_ptr<MemsetProcess> create(Frontend::VariablePtr target,
+                                                 const std::string &name = "")
     {
         return std::make_shared<MemsetProcess>(Private(), target, name);
     }
