@@ -2,7 +2,7 @@
 #include "gtest/gtest.h"
 
 // Model includes
-#include "model/process.h"
+#include "frontend/process.h"
 
 //--------------------------------------------------------------------------
 // Tests
