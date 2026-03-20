@@ -22,7 +22,7 @@ void EnvironmentExternalBase::define(const std::string &, Compiler::RegisterPtr)
     throw std::runtime_error("Cannot declare variable in external environment");
 }
 //------------------------------------------------------------------------
-void EnvironmentExternalBase::define(const CompilerFrontend::Token &, const GeNN::Type::ResolvedType &,
+void EnvironmentExternalBase::define(const CompilerFrontend::Token &, const Type::ResolvedType &,
                                      CompilerFrontend::ErrorHandlerBase &)
 {
     throw std::runtime_error("Cannot declare variable in external environment");
@@ -108,7 +108,7 @@ std::vector<Type::ResolvedType> EnvironmentExternal::getTypes(const CompilerFron
     }
 }
 //----------------------------------------------------------------------------
-void EnvironmentExternal::add(const GeNN::Type::ResolvedType &type, const std::string &name,
+void EnvironmentExternal::add(const Type::ResolvedType &type, const std::string &name,
                               Compiler::EnvironmentItem value)
 {
     if(!m_Environment.try_emplace(name, type, value).second) {
@@ -120,7 +120,7 @@ void EnvironmentExternal::add(const GeNN::Type::ResolvedType &type, const std::s
 //----------------------------------------------------------------------------
 // FeNN::Backend::EnvironmentLibrary
 //----------------------------------------------------------------------------
-Compiler::EnvironmentItem EnvironmentLibrary::getItem(const std::string &name, std::optional<GeNN::Type::ResolvedType> type)
+Compiler::EnvironmentItem EnvironmentLibrary::getItem(const std::string &name, std::optional<Type::ResolvedType> type)
 {
     const auto [libTypeBegin, libTypeEnd] = m_Library.get().equal_range(name);
     if (libTypeBegin == libTypeEnd) {

@@ -272,9 +272,6 @@ protected:
     //------------------------------------------------------------------------
     const auto &getRuntime() const{ return m_Runtime.get(); }
 
-    //! Should kernels be generated with simulation or hardware signalling
-    virtual bool shouldGenerateSimulationKernels() const = 0;
-
 private:
     //------------------------------------------------------------------------
     // Members

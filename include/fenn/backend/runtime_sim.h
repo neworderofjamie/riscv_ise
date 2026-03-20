@@ -34,8 +34,8 @@ public:
     //! Load kernel onto device
     virtual void loadKernel(std::shared_ptr<const Frontend::Kernel> kernel) override final;
 
-    //! Run kernel on device
-    virtual void runKernel(std::shared_ptr<const Frontend::Kernel> kernel) override final;
+    //! Run current kernel on device
+    virtual void runCurrentKernel() override final;
 
     //------------------------------------------------------------------------
     // DeviceFeNN virtuals

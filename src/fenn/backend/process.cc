@@ -45,6 +45,35 @@ namespace
 {
 using ScalarConstant = std::variant<Assembler::ScalarRegisterPtr, int, std::monostate>;
 
+int64_t getVectorLiteralValue(const Frontend::Literals::value_type &literal)
+{
+    // Get literal value for this process
+    const auto &numericType = std::get<0>(literal).getNumeric();
+
+    // Convert to integer
+    int64_t integerResult;
+    if(numericType.isIntegral) {
+        integerResult = std::get<1>(literal).cast<int64_t>();
+    }
+    // Otherwise, if it is fixed point
+    else if(numericType.fixedPoint) {
+        integerResult = std::round(std::get<1>(literal).cast<double>() 
+                                    * (1u << numericType.fixedPoint.value()));
+    }
+    else {
+        throw std::runtime_error("FeNN does not support floating point types");
+    }
+
+    // Check integer value can fit within 16-bit signed type
+    if(integerResult < std::numeric_limits<int16_t>::min() 
+        || integerResult > std::numeric_limits<int16_t>::max())
+    {
+        throw std::runtime_error("Literal out of range for type '" + std::get<0>(literal).getName() + "'");
+    }
+
+    return integerResult;
+}
+
 Type::ResolvedType createFixedPointType(int numInt, bool saturating)
 {
     const int numFrac = 15 - numInt;
@@ -1210,31 +1239,7 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
                 sharedCodeGenerator, scalarRegisterAllocator, vectorRegisterAllocator, sharedRegisters,
                 [i](size_t, auto p)
                 {
-                    // Get literal value for this process
-                    const auto &literal = p->getLiterals().at(i);
-                    const auto &numericType = std::get<0>(literal).getNumeric();
-
-                    // Convert to integer
-                    int64_t integerResult;
-                    if(numericType.isIntegral) {
-                        integerResult = std::get<1>(literal).cast<int64_t>();
-                    }
-                    // Otherwise, if it is fixed point
-                    else if(numericType.fixedPoint) {
-                        integerResult = std::round(std::get<1>(literal).cast<double>() 
-                                                   * (1u << numericType.fixedPoint.value()));
-                    }
-                    else {
-                        throw std::runtime_error("FeNN does not support floating point types");
-                    }
-
-                    // Check integer value can fit within 16-bit signed type
-                    if(integerResult < std::numeric_limits<int16_t>::min() 
-                        || integerResult > std::numeric_limits<int16_t>::max())
-                    {
-                        throw std::runtime_error("Literal out of range for type '" + std::get<0>(literal).getName() + "'");
-                    }
-                    return static_cast<int32_t>(integerResult);
+                    return static_cast<int32_t>(getVectorLiteralValue(p->getLiterals().at(i)));
                 });
             
             // Add to environment

@@ -9,6 +9,9 @@
 // Common includes
 #include "common/utils.h"
 
+// Compiler frontend includes
+#include "compiler_frontend/type.h"
+
 // FeNN ISE includes
 #include "fenn/ise/dma_controller_sim.h"
 #include "fenn/ise/riscv.h"
@@ -20,7 +23,7 @@
 
 using namespace FeNN;
 using namespace FeNN::Backend;
-using namespace GeNN;
+using namespace CompilerFrontend;
 
 //------------------------------------------------------------------------
 // Anonymous namespace
@@ -89,7 +92,7 @@ private:
 class BRAMArray : public FeNN::Backend::BRAMArrayBase
 {
 public:
-    BRAMArray(const GeNN::Type::ResolvedType &type, const Frontend::Shape &shape, DeviceFeNNSim &device)
+    BRAMArray(const Type::ResolvedType &type, const Frontend::Shape &shape, DeviceFeNNSim &device)
     :   BRAMArrayBase(type, shape), m_Device(device)
     {
         // Allocate if count is specified
@@ -143,7 +146,7 @@ private:
 class LLMArray : public FeNN::Backend::LLMArrayBase
 {
 public:
-    LLMArray(const GeNN::Type::ResolvedType &type, const Frontend::Shape &shape, DeviceFeNNSim &device)
+    LLMArray(const Type::ResolvedType &type, const Frontend::Shape &shape, DeviceFeNNSim &device)
     :   LLMArrayBase(type, shape), m_Device(device)
     {
         // Allocate if count is specified
@@ -208,7 +211,7 @@ private:
 class DRAMArray : public DRAMArrayBase
 {
 public:
-    DRAMArray(const GeNN::Type::ResolvedType &type, const Frontend::Shape &shape, DeviceFeNNSim &device)
+    DRAMArray(const Type::ResolvedType &type, const Frontend::Shape &shape, DeviceFeNNSim &device)
     :   DRAMArrayBase(type, shape), m_Device(device)
     {
         // Allocate if count is specified
@@ -259,7 +262,7 @@ private:
 class URAMLLMArray : public URAMLLMArrayBase
 {
 public:
-    URAMLLMArray(const GeNN::Type::ResolvedType &type, const Frontend::Shape &uramShape, 
+    URAMLLMArray(const Type::ResolvedType &type, const Frontend::Shape &uramShape, 
                  const Frontend::Shape &llmShape, DeviceFeNNSim &device)
     :   URAMLLMArrayBase(type, uramShape, llmShape), m_Device(device)
     {
@@ -344,38 +347,38 @@ void DeviceFeNNSim::loadKernel(std::shared_ptr<const Frontend::Kernel> kernel)
     getRISCV().setInstructions(getRuntime().getKernelCode(kernel));
 }
 //----------------------------------------------------------------------------
-void DeviceFeNNSim::runKernel(std::shared_ptr<const Frontend::Kernel> kernel)
+void DeviceFeNNSim::runCurrentKernel()
 {
     // Reset program counter and run
     m_RISCV.setPC(0);
     m_RISCV.run();
 }
 //----------------------------------------------------------------------------
-std::unique_ptr<URAMArrayBase> DeviceFeNNSim::createURAMArray(const GeNN::Type::ResolvedType &type, 
+std::unique_ptr<URAMArrayBase> DeviceFeNNSim::createURAMArray(const Type::ResolvedType &type, 
                                                               const Frontend::Shape &shape)
 {
     return std::make_unique<::URAMArray>(type, shape, *this);
 }
 //----------------------------------------------------------------------------
-std::unique_ptr<BRAMArrayBase> DeviceFeNNSim::createBRAMArray(const GeNN::Type::ResolvedType &type,
+std::unique_ptr<BRAMArrayBase> DeviceFeNNSim::createBRAMArray(const Type::ResolvedType &type,
                                                               const Frontend::Shape &shape)
 {
     return std::make_unique<::BRAMArray>(type, shape, *this);
 }
 //----------------------------------------------------------------------------
-std::unique_ptr<LLMArrayBase> DeviceFeNNSim::createLLMArray(const GeNN::Type::ResolvedType &type,
+std::unique_ptr<LLMArrayBase> DeviceFeNNSim::createLLMArray(const Type::ResolvedType &type,
                                                             const Frontend::Shape &shape)
 {
     return std::make_unique<::LLMArray>(type, shape, *this);
 }
 //----------------------------------------------------------------------------
-std::unique_ptr<DRAMArrayBase> DeviceFeNNSim::createDRAMArray(const GeNN::Type::ResolvedType &type,
+std::unique_ptr<DRAMArrayBase> DeviceFeNNSim::createDRAMArray(const Type::ResolvedType &type,
                                                               const Frontend::Shape &shape)
 {
     return std::make_unique<::DRAMArray>(type, shape, *this);
 }
 //----------------------------------------------------------------------------
-std::unique_ptr<URAMLLMArrayBase> DeviceFeNNSim::createURAMLLMArray(const GeNN::Type::ResolvedType &type,
+std::unique_ptr<URAMLLMArrayBase> DeviceFeNNSim::createURAMLLMArray(const Type::ResolvedType &type,
                                                                     const Frontend::Shape &uramShape, 
                                                                     const Frontend::Shape &llmShape)
 {

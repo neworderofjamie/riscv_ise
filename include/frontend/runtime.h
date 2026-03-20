@@ -113,8 +113,8 @@ public:
     //! Load kernel onto device
     virtual void loadKernel(std::shared_ptr<const Kernel> kernel) = 0;
 
-    //! Run kernel on device
-    virtual void runKernel(std::shared_ptr<const Kernel> kernel) = 0;
+    //! Run current kernel on device
+    virtual void runCurrentKernel() = 0;
 
     //! Create suitable array for event container on this device
     virtual std::unique_ptr<ArrayBase> createArray(std::shared_ptr<const EventContainer> eventContainer,
@@ -240,29 +240,19 @@ private:
     };
 
     //------------------------------------------------------------------------
-    // RunKernelCommand
+    // RunCurrentKernelCommand
     //------------------------------------------------------------------------
     //! Command for running kernel on all devices
-    class RunKernelCommand : public Command
+    class RunCurrentKernelCommand : public Command
     {
     public:
-        RunKernelCommand(std::shared_ptr<const Kernel> kernel)
-        :   m_Kernel(kernel)
-        {}
-
         //--------------------------------------------------------------------
         // Command virtuals
         //--------------------------------------------------------------------
         virtual void execute(DeviceBase *device) const override final
         {
-            device->runKernel(m_Kernel);
+            device->runCurrentKernel();
         }
-
-    private:
-        //--------------------------------------------------------------------
-        // Members
-        //--------------------------------------------------------------------
-        std::shared_ptr<const Kernel> m_Kernel;
     };
 
     //------------------------------------------------------------------------

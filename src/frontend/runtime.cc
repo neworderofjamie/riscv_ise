@@ -167,7 +167,7 @@ void Runtime::run(std::shared_ptr<const Kernel> kernel)
     }
 
     // Run run command
-    RunKernelCommand run(kernel);
+    RunCurrentKernelCommand run;
     runCommand(&run);
 }
 //----------------------------------------------------------------------------
