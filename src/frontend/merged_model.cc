@@ -1,7 +1,7 @@
 #include "frontend/merged_model.h"
 
-// GeNN includes
-#include "gennUtils.h"
+// Common includes
+#include "common/utils.h"
 
 // Model includes
 #include "frontend/kernel.h"
@@ -25,7 +25,7 @@ MergedModel::MergedModel(const Model &model)
             // Create a hash map to group together processes with the same SHA1 digest
             std::unordered_map<boost::uuids::detail::sha1::digest_type, 
                                std::vector<std::shared_ptr<Process const>>, 
-                               GeNN::Utils::SHA1Hash> protoMergedProcesses;
+                               Common::Utils::SHA1Hash> protoMergedProcesses;
             
             // Add unmerged processes to correct vector
             for(const auto &p : g->getProcesses()) {

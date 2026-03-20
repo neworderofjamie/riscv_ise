@@ -1,16 +1,16 @@
 #include "fenn/backend/environment.h"
 
-// GeNN includes
-#include "gennUtils.h"
+// Common includes
+#include "common/utils.h"
 
-// GeNN transpiler includes
-#include "transpiler/errorHandler.h"
+// Compiler frontend includes
+#include "compiler_frontend/error_handler.h"
 
 // Assembler includes
 #include "fenn/assembler/assembler.h"
 #include "fenn/assembler/register_allocator.h"
 
-using namespace GeNN;
+using namespace CompilerFrontend;
 
 //----------------------------------------------------------------------------
 // FeNN::Backend::EnvironmentExternalBase
@@ -22,8 +22,8 @@ void EnvironmentExternalBase::define(const std::string &, Compiler::RegisterPtr)
     throw std::runtime_error("Cannot declare variable in external environment");
 }
 //------------------------------------------------------------------------
-void EnvironmentExternalBase::define(const Transpiler::Token &, const GeNN::Type::ResolvedType &,
-                                     Transpiler::ErrorHandlerBase &)
+void EnvironmentExternalBase::define(const CompilerFrontend::Token &, const GeNN::Type::ResolvedType &,
+                                     CompilerFrontend::ErrorHandlerBase &)
 {
     throw std::runtime_error("Cannot declare variable in external environment");
 }
@@ -41,8 +41,8 @@ Compiler::EnvironmentItem EnvironmentExternalBase::getContextItem(const std::str
     }
 }
 //----------------------------------------------------------------------------
-std::vector<Type::ResolvedType> EnvironmentExternalBase::getContextTypes(const Transpiler::Token &name,
-                                                                         Transpiler::ErrorHandlerBase &errorHandler)  const
+std::vector<Type::ResolvedType> EnvironmentExternalBase::getContextTypes(const CompilerFrontend::Token &name,
+                                                                         CompilerFrontend::ErrorHandlerBase &errorHandler)  const
 {
     // If context includes a type-checking environment, get type from it
     if (std::get<0>(m_Context)) {
@@ -51,7 +51,7 @@ std::vector<Type::ResolvedType> EnvironmentExternalBase::getContextTypes(const T
     // Otherwise, give error
     else {
         errorHandler.error(name, "Undefined identifier");
-        throw Transpiler::TypeChecker::TypeCheckError();
+        throw CompilerFrontend::TypeChecker::TypeCheckError();
     }
 }
 //----------------------------------------------------------------------------
@@ -94,8 +94,8 @@ Assembler::CodeGenerator &EnvironmentExternal::getCodeGenerator()
     return getContextCodeGenerator();
 }
 //----------------------------------------------------------------------------
-std::vector<Type::ResolvedType> EnvironmentExternal::getTypes(const Transpiler::Token &name, 
-                                                              Transpiler::ErrorHandlerBase &errorHandler)
+std::vector<Type::ResolvedType> EnvironmentExternal::getTypes(const CompilerFrontend::Token &name, 
+                                                              CompilerFrontend::ErrorHandlerBase &errorHandler)
 {
     // If name isn't found in environment
     auto env = m_Environment.find(name.lexeme);
@@ -142,7 +142,7 @@ Assembler::CodeGenerator &EnvironmentLibrary::getCodeGenerator()
     return getContextCodeGenerator();
 }
 //------------------------------------------------------------------------
-std::vector<Type::ResolvedType> EnvironmentLibrary::getTypes(const Transpiler::Token &name, Transpiler::ErrorHandlerBase &errorHandler)
+std::vector<Type::ResolvedType> EnvironmentLibrary::getTypes(const CompilerFrontend::Token &name, CompilerFrontend::ErrorHandlerBase &errorHandler)
 {
     const auto [typeBegin, typeEnd] = m_Library.get().equal_range(name.lexeme);
     if (typeBegin == typeEnd) {

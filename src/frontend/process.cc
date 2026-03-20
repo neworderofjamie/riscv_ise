@@ -6,14 +6,13 @@
 // Fast float includes
 #include <fast_float/fast_float.h>
 
-// GeNN includes
-#include "gennUtils.h"
+// Compiler frontend includes
+#include "compiler_frontend/error_handler.h"
+#include "compiler_frontend/scanner.h"
 
 // Compiler includes
 #include "frontend/event_container.h"
 #include "frontend/variable.h"
-
-using namespace GeNN;
 
 //----------------------------------------------------------------------------
 // Frontend::NeuronUpdateProcess
@@ -65,13 +64,17 @@ NeuronUpdateProcess::NeuronUpdateProcess(Private, const std::string &code, const
         }
     }
     
-    // Parse code
-    m_Tokens = GeNN::Utils::scanCode(code, "NeuronUpdateProcess");
+    // Scan code string and return tokens
+    CompilerFrontend::ErrorHandler errorHandler("NeuronUpdateProcess '" + getName() + "'");
+    m_Tokens = CompilerFrontend::Scanner::scanSource(code, errorHandler);
+    if(errorHandler.hasError()) {
+        throw std::runtime_error("Error scanning");
+    }
 
     // Loop through tokens
     for(const auto &t: getTokens()) {
         // If this token is a numeric literal,
-        if (t.type == GeNN::Transpiler::Token::Type::NUMBER) {
+        if (t.type == CompilerFrontend::Token::Type::NUMBER) {
             // Get start and end of lexeme
             const auto lexeme = t.lexeme;
             const char *lexemeBegin = lexeme.c_str();
@@ -131,6 +134,8 @@ std::vector<std::shared_ptr<const State>> NeuronUpdateProcess::getAllState() con
 //----------------------------------------------------------------------------
 void NeuronUpdateProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Model&) const
 {
+    using namespace Common;
+
     UPDATE_HASH_CLASS_NAME(NeuronUpdateProcess);
 
     // Variables
@@ -155,7 +160,7 @@ void NeuronUpdateProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, cons
 
         // If this is a numeric literal, don't include it's value
         // Literals can vary between merged processes
-        if (t.type != GeNN::Transpiler::Token::Type::NUMBER) {
+        if (t.type != CompilerFrontend::Token::Type::NUMBER) {
             Utils::updateHash(t.lexeme, hash);
         }
     }
@@ -295,7 +300,7 @@ std::vector<std::shared_ptr<const State>> EventPropagationProcess::getAllState()
 //----------------------------------------------------------------------------
 void EventPropagationProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Model&) const
 {
-    using namespace GeNN::Utils;
+    using namespace Common::Utils;
     UPDATE_HASH_CLASS_NAME(EventPropagationProcess);
 
     // Input events

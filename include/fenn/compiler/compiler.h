@@ -5,12 +5,10 @@
 #include <unordered_map>
 #include <variant>
 
-// GeNN includes
-#include "type.h"
-
-// GeNN transpiler includes
-#include "transpiler/statement.h"
-#include "transpiler/typeChecker.h"
+// Compiler frontend includes
+#include "compiler_frontend/type.h"
+#include "compiler_frontend/statement.h"
+#include "compiler_frontend/type_checker.h"
 
 // Assembler includes
 #include "fenn/assembler/register_allocator.h"
@@ -130,8 +128,8 @@ private:
 //---------------------------------------------------------------------------
 // Free functions
 //---------------------------------------------------------------------------
-FENN_COMPILER_EXPORT void compile(const GeNN::Transpiler::Statement::StatementList &statements, EnvironmentInternal &environment,
-                                  const GeNN::Type::TypeContext &context, const GeNN::Transpiler::TypeChecker::ResolvedTypeMap &resolvedTypes,
-                                  GeNN::Transpiler::ErrorHandlerBase &errorHandler, FeNN::Assembler::ScalarRegisterPtr maskRegister, RoundingMode roundingMode,
+FENN_COMPILER_EXPORT void compile(const CompilerFrontend::Statement::StatementList &statements, EnvironmentInternal &environment,
+                                  const GeNN::Type::TypeContext &context, const CompilerFrontend::TypeChecker::ResolvedTypeMap &resolvedTypes,
+                                  CompilerFrontend::ErrorHandlerBase &errorHandler, FeNN::Assembler::ScalarRegisterPtr maskRegister, RoundingMode roundingMode,
                                   FeNN::Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, FeNN::Assembler::VectorRegisterAllocator &vectorRegisterAllocator);
 }   // namespace FeNN::Compiler

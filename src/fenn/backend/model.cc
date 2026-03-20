@@ -3,9 +3,6 @@
 // PLOG includes
 #include <plog/Log.h>
 
-// GeNN includes
-#include "gennUtils.h"
-
 // Common includes
 #include "common/utils.h"
 

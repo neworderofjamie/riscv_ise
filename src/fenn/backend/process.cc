@@ -5,11 +5,11 @@
 #include <algorithm>
 #include <numeric>
 
-// GeNN incl;udes
-#include "type.h"
-#include "transpiler/errorHandler.h"
-#include "transpiler/parser.h"
-#include "transpiler/typeChecker.h"
+// Compiler frontend includes
+#include "compiler_frontend/type.h"
+#include "compiler_frontend/error_handler.h"
+#include "compiler_frontend/parser.h"
+#include "compiler_frontend/type_checker.h"
 
 // Common include
 #include "common/utils.h"
@@ -36,7 +36,7 @@
 
 using namespace FeNN;
 using namespace FeNN::Backend;
-using namespace GeNN;
+using namespace CompilerFrontend;
 
 //----------------------------------------------------------------------------
 // Anonymous namespace
@@ -107,15 +107,15 @@ void addStochMulFunctions(EnvironmentLibrary::Library &library)
     }
 }
 
-bool isExpCalled(const std::vector<Transpiler::Token> &tokens)
+bool isExpCalled(const std::vector<Token> &tokens)
 {
     // Loop through tokens
     for(auto t = tokens.cbegin(); t != tokens.cend(); t++) {
         // If token is an identifier with correct name
-        if(t->type == Transpiler::Token::Type::IDENTIFIER && (t->lexeme == "exp" || t->lexeme.rfind("exp_") == 0)) {
+        if(t->type == Token::Type::IDENTIFIER && (t->lexeme == "exp" || t->lexeme.rfind("exp_") == 0)) {
             // If token isn't last in sequence and it's followed by a left bracket
             const auto tNext = std::next(t);
-            if(tNext != tokens.cend() && tNext->type == Transpiler::Token::Type::LEFT_PAREN) {
+            if(tNext != tokens.cend() && tNext->type == Token::Type::LEFT_PAREN) {
                 return true;
             }
         }
@@ -124,23 +124,23 @@ bool isExpCalled(const std::vector<Transpiler::Token> &tokens)
     return false;
 }
 
-void compileStatements(const std::vector<Transpiler::Token> &tokens, const Type::TypeContext &typeContext,
-                       Transpiler::TypeChecker::EnvironmentInternal &typeCheckEnv, Compiler::EnvironmentInternal &compilerEnv,
-                       Transpiler::ErrorHandler &errorHandler, Transpiler::TypeChecker::StatementHandler forEachSynapseTypeCheckHandler,
+void compileStatements(const std::vector<Token> &tokens, const Type::TypeContext &typeContext,
+                       TypeChecker::EnvironmentInternal &typeCheckEnv, Compiler::EnvironmentInternal &compilerEnv,
+                       ErrorHandler &errorHandler, TypeChecker::StatementHandler forEachSynapseTypeCheckHandler,
                        Assembler::ScalarRegisterPtr maskRegister, Compiler::RoundingMode roundingMode,
                        Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, Assembler::VectorRegisterAllocator &vectorRegisterAllocator)
 {
 
 
     // Parse tokens as block item list (function body)
-    auto updateStatements = Transpiler::Parser::parseBlockItemList(tokens, typeContext, errorHandler);
+    auto updateStatements = Parser::parseBlockItemList(tokens, typeContext, errorHandler);
     if(errorHandler.hasError()) {
         throw std::runtime_error("Parse error " + errorHandler.getContext());
     }
 
     // Resolve types
-    auto resolvedTypes = Transpiler::TypeChecker::typeCheck(updateStatements, typeCheckEnv, typeContext, 
-                                                            errorHandler, forEachSynapseTypeCheckHandler);
+    auto resolvedTypes = TypeChecker::typeCheck(updateStatements, typeCheckEnv, typeContext, 
+                                                errorHandler, forEachSynapseTypeCheckHandler);
     if(errorHandler.hasError()) {
         throw std::runtime_error("Type check error " + errorHandler.getContext());
     }
@@ -1330,9 +1330,9 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
             // **NOTE** we don't pass mask register through here - aside from blocking 
             // spike generation, there's no need to mask EVERY assignement etc
             {
-                Transpiler::TypeChecker::EnvironmentInternal typeCheckEnv(unrollEnv);
+                TypeChecker::EnvironmentInternal typeCheckEnv(unrollEnv);
                 Compiler::EnvironmentInternal compilerEnv(unrollEnv);
-                Transpiler::ErrorHandler errorHandler("Neuron update merged process " + std::to_string(mergedProcess.getIndex()));
+                ErrorHandler errorHandler("Neuron update merged process " + std::to_string(mergedProcess.getIndex()));
                 compileStatements(getTokens(), {}, typeCheckEnv, compilerEnv, errorHandler, 
                                   nullptr, nullptr, runtime.getNeuronRoundingMode(),
                                   scalarRegisterAllocator, vectorRegisterAllocator);

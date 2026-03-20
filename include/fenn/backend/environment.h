@@ -3,8 +3,8 @@
 // Standard C++ includes
 #include <unordered_map>
 
-// GeNN includes
-#include "transpiler/typeChecker.h"
+// Compiler frontend includes
+#include "compiler_frontend/type_checker.h"
 
 // FeNN assembler includes
 #include "fenn/assembler/assembler.h"
@@ -27,7 +27,7 @@ class VectorRegisterAllocator;
 //----------------------------------------------------------------------------
 namespace FeNN::Backend
 {
-class EnvironmentExternalBase : public Compiler::EnvironmentBase, public GeNN::Transpiler::TypeChecker::EnvironmentBase
+class EnvironmentExternalBase : public Compiler::EnvironmentBase, public CompilerFrontend::TypeChecker::EnvironmentBase
 {
 public:
     explicit EnvironmentExternalBase(EnvironmentExternalBase &enclosing)
@@ -58,19 +58,19 @@ public:
     //------------------------------------------------------------------------
     // TypeChecker::EnvironmentBase virtuals
     //------------------------------------------------------------------------
-    virtual void define(const GeNN::Transpiler::Token &, const GeNN::Type::ResolvedType &,
-                        GeNN::Transpiler::ErrorHandlerBase &) override final;
+    virtual void define(const CompilerFrontend::Token &, const CompilerFrontend::Type::ResolvedType &,
+                        CompilerFrontend::ErrorHandlerBase &) override final;
 
 protected:
     //------------------------------------------------------------------------
     // Protected API
     //------------------------------------------------------------------------
     Compiler::EnvironmentItem getContextItem(const std::string &name, 
-                                             std::optional<GeNN::Type::ResolvedType> type = std::nullopt) const;
+                                             std::optional<CompilerFrontend::Type::ResolvedType> type = std::nullopt) const;
 
     //! Get vector of types from context if it provides this functionality
-    std::vector<GeNN::Type::ResolvedType> getContextTypes(const GeNN::Transpiler::Token &name, 
-                                                          GeNN::Transpiler::ErrorHandlerBase &errorHandler)  const;
+    std::vector<CompilerFrontend::ResolvedType> getContextTypes(const CompilerFrontend::Token &name, 
+                                                                CompilerFrontend::ErrorHandlerBase &errorHandler)  const;
 
     //! Get code generator exposed by context
     Assembler::CodeGenerator &getContextCodeGenerator() const;
@@ -79,7 +79,7 @@ private:
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
-    std::tuple<GeNN::Transpiler::TypeChecker::EnvironmentBase*, 
+    std::tuple<CompilerFrontend::TypeChecker::EnvironmentBase*, 
                Compiler::EnvironmentBase*, 
                Assembler::CodeGenerator*> m_Context;
 };
@@ -121,27 +121,27 @@ public:
     // Assembler::EnvironmentBase virtuals
     //------------------------------------------------------------------------
     virtual Compiler::EnvironmentItem getItem(const std::string &name, 
-                                              std::optional<GeNN::Type::ResolvedType> type = std::nullopt) override final;
+                                              std::optional<CompilerFrontend::Type::ResolvedType> type = std::nullopt) override final;
 
     virtual Assembler::CodeGenerator &getCodeGenerator() override final;
 
     //------------------------------------------------------------------------
     // TypeChecker::EnvironmentBase virtuals
     //------------------------------------------------------------------------
-    virtual std::vector<GeNN::Type::ResolvedType> getTypes(const GeNN::Transpiler::Token &name, 
-                                                           GeNN::Transpiler::ErrorHandlerBase &errorHandler) override final;
+    virtual std::vector<CompilerFrontend::Type::ResolvedType> getTypes(const CompilerFrontend::Token &name, 
+                                                                       CompilerFrontend::ErrorHandlerBase &errorHandler) override final;
 
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
     //! Map a type (for type-checking) and a value (for pretty-printing) to an identifier
-    void add(const GeNN::Type::ResolvedType &type, const std::string &name, Compiler::EnvironmentItem value);
+    void add(const CompilerFrontend::ResolvedType &type, const std::string &name, Compiler::EnvironmentItem value);
 
 private:
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
-    std::unordered_map<std::string, std::tuple<GeNN::Type::ResolvedType, Compiler::EnvironmentItem>> m_Environment;
+    std::unordered_map<std::string, std::tuple<CompilerFrontend::Type::ResolvedType, Compiler::EnvironmentItem>> m_Environment;
 };
 
 
@@ -151,7 +151,7 @@ private:
 class EnvironmentLibrary : public EnvironmentExternalBase
 {
 public:
-    using Library = std::unordered_multimap<std::string, std::pair<GeNN::Type::ResolvedType, Compiler::FunctionGenerator>>;
+    using Library = std::unordered_multimap<std::string, std::pair<CompilerFrontend::Type::ResolvedType, Compiler::FunctionGenerator>>;
 
     explicit EnvironmentLibrary(EnvironmentExternalBase &enclosing, const Library &library)
     :   EnvironmentExternalBase(enclosing), m_Library(library)
@@ -178,15 +178,15 @@ public:
     //------------------------------------------------------------------------
     // Assembler::EnvironmentBase virtuals
     //------------------------------------------------------------------------
-    virtual Compiler::EnvironmentItem getItem(const std::string &name, std::optional<GeNN::Type::ResolvedType> type = std::nullopt) override final;
+    virtual Compiler::EnvironmentItem getItem(const std::string &name, std::optional<CompilerFrontend::Type::ResolvedType> type = std::nullopt) override final;
 
     virtual Assembler::CodeGenerator &getCodeGenerator() override final;
 
     //------------------------------------------------------------------------
     // TypeChecker::EnvironmentBase virtuals
     //------------------------------------------------------------------------
-    virtual std::vector<GeNN::Type::ResolvedType> getTypes(const GeNN::Transpiler::Token &name,
-                                                           GeNN::Transpiler::ErrorHandlerBase &errorHandler) final;
+    virtual std::vector<CompilerFrontend::Type::ResolvedType> getTypes(const CompilerFrontend::Token &name,
+                                                                       CompilerFrontend::ErrorHandlerBase &errorHandler) final;
 
 private:
     std::reference_wrapper<const Library> m_Library;

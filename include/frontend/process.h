@@ -6,11 +6,12 @@
 #include <string>
 #include <unordered_map>
 
-// GeNN includes
-#include "type.h"
+// Common include
+#include "common/utils.h"
 
-// GeNN transpiler includes
-#include "transpiler/token.h"
+// Compiler frontend includes
+#include "compiler_frontend/type.h"
+#include "compiler_frontend/token.h"
 
 // Frontend includes
 #include "frontend/event_container.h"
@@ -20,7 +21,7 @@
 #include "frontend/variable.h"
 
 // Macros
-#define UPDATE_HASH_CLASS_NAME(CLASS_NAME) Utils::updateHash(#CLASS_NAME, hash);
+#define UPDATE_HASH_CLASS_NAME(CLASS_NAME) Common::Utils::updateHash(#CLASS_NAME, hash);
 
 // Forward declarations
 namespace Frontend
@@ -65,7 +66,8 @@ private:
 using VariablePtr = std::shared_ptr<const Variable>;
 using EventContainerMap = std::map<std::string, Sliced<EventContainer>>;
 using VariableMap = std::map<std::string, Sliced<Variable>>;
-using Literals = std::vector<std::tuple<GeNN::Type::ResolvedType, GeNN::Type::NumericValue, size_t>>;
+using Literals = std::vector<std::tuple<CompilerFrontend::Type::ResolvedType, 
+                                        CompilerFrontend::Type::NumericValue, size_t>>;
 
 
 //----------------------------------------------------------------------------
@@ -149,7 +151,7 @@ private:
     Literals m_Literals;
 
     //! Tokens built from code
-    std::vector<GeNN::Transpiler::Token> m_Tokens;
+    std::vector<CompilerFrontend::Token> m_Tokens;
 
     Shape m_Shape;
 };

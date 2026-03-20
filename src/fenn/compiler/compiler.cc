@@ -6,16 +6,18 @@
 // Third-party includes
 #include <fast_float/fast_float.h>
 
-// GeNN includes
-#include "gennUtils.h"
-#include "transpiler/errorHandler.h"
+// Common includes
+#include "common/utils.h
+
+// Compiler frontend includes
+#include "compiler_frontend/compiler_frontend.h"
 
 // FeNN backend includes
 #include "fenn/assembler/assembler.h"
 
 using namespace FeNN;
 using namespace FeNN::Compiler;
-using namespace GeNN;
+using namespace CompilerFrontend;
 
 //---------------------------------------------------------------------------
 // Anonymous namespace
@@ -34,7 +36,7 @@ public:
 };
 
 void checkConversion(const Type::ResolvedType &leftType, const Type::ResolvedType &rightType, 
-                     const Transpiler::Token &token, Transpiler::ErrorHandlerBase &errorHandler)
+                     const Token &token, ErrorHandlerBase &errorHandler)
 {
     const auto &leftNumeric = leftType.getNumeric();
     const auto &rightNumeric = rightType.getNumeric();
@@ -72,7 +74,7 @@ bool isSaturating(const Type::ResolvedType &aType, const Type::ResolvedType &bTy
 }
 
 int getConversionShift(const Type::ResolvedType &resultType, const Type::ResolvedType &leftType, const Type::ResolvedType &rightType,
-                       const Transpiler::Token &token, Transpiler::ErrorHandlerBase &errorHandler)
+                       const Token &token, ErrorHandlerBase &errorHandler)
 {
     const int resultFixedPoint = resultType.getNumeric().fixedPoint.value_or(0);
     const int leftFixedPoint = leftType.getNumeric().fixedPoint.value_or(0);
@@ -93,12 +95,12 @@ int getConversionShift(const Type::ResolvedType &resultType, const Type::Resolve
 //---------------------------------------------------------------------------
 // Visitor
 //---------------------------------------------------------------------------
-class Visitor : public Transpiler::Expression::Visitor, public Transpiler::Statement::Visitor
+class Visitor : public Expression::Visitor, public Statement::Visitor
 {
 public:
-    Visitor(const Transpiler::Statement::StatementList &statements, EnvironmentInternal &environment,
-            const Type::TypeContext &context, const Transpiler::TypeChecker::ResolvedTypeMap &resolvedTypes,
-            Transpiler::ErrorHandlerBase &errorHandler, Assembler::ScalarRegisterPtr maskRegister, RoundingMode roundingMode, 
+    Visitor(const Statement::StatementList &statements, EnvironmentInternal &environment,
+            const Type::TypeContext &context, const TypeChecker::ResolvedTypeMap &resolvedTypes,
+            ErrorHandlerBase &errorHandler, Assembler::ScalarRegisterPtr maskRegister, RoundingMode roundingMode, 
             Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, Assembler::VectorRegisterAllocator &vectorRegisterAllocator)
     :   m_Environment(environment), m_Context(context), m_MaskRegister(maskRegister), m_ResolvedTypes(resolvedTypes),
         m_ErrorHandler(errorHandler), m_RoundingMode(roundingMode),
@@ -121,12 +123,12 @@ private:
     //---------------------------------------------------------------------------
     // Expression::Visitor virtuals
     //---------------------------------------------------------------------------
-    virtual void visit(const Transpiler::Expression::ArraySubscript &arraySubscript) final
+    virtual void visit(const Expression::ArraySubscript &arraySubscript) final
     {
         assert(false);
     }
 
-    virtual void visit(const Transpiler::Expression::Assignment &assignement) final
+    virtual void visit(const Expression::Assignment &assignement) final
     {
         const auto vecAssigneeReg = getExpressionVectorRegister(assignement.getAssignee());
         const auto vecValueReg = getExpressionVectorRegister(assignement.getValue());
@@ -138,7 +140,7 @@ private:
         const auto &opToken = assignement.getOperator();
         if(m_MaskRegister) {
             // If we're doing plain assignement, conditionally assign from value register directly
-            if(opToken.type == Transpiler::Token::Type::EQUAL) {
+            if(opToken.type == Token::Type::EQUAL) {
                 m_Environment.get().getCodeGenerator().vsel(*vecAssigneeReg, *m_MaskRegister, *vecValueReg);
             }
             // Otherwise
@@ -160,10 +162,8 @@ private:
         }
     }
 
-    virtual void visit(const Transpiler::Expression::Binary &binary) final
+    virtual void visit(const Expression::Binary &binary) final
     {
-        using namespace Transpiler;
-
         const auto opType = binary.getOperator().type;
         const auto &leftType = m_ResolvedTypes.at(binary.getLeft());
         const auto &rightType = m_ResolvedTypes.at(binary.getRight());
@@ -283,7 +283,7 @@ private:
         }
     }
 
-    virtual void visit(const Transpiler::Expression::Call &call) final
+    virtual void visit(const Expression::Call &call) final
     {
         // Cache reference to current reference
         std::reference_wrapper<EnvironmentBase> oldEnvironment = m_Environment; 
@@ -315,14 +315,14 @@ private:
         m_CallArguments.pop();
     }
 
-    virtual void visit(const Transpiler::Expression::Cast &cast) final
+    virtual void visit(const Expression::Cast &cast) final
     {
         // **TODO** casting to/from fixed point performs shift
         // **NOTE** allow expression register to pass through
         cast.getExpression()->accept(*this);
     }
 
-    virtual void visit(const Transpiler::Expression::Conditional &conditional) final
+    virtual void visit(const Expression::Conditional &conditional) final
     {
         const auto conditionReg = getExpressionScalarRegister(conditional.getCondition());
         const auto trueReg = getExpressionVectorRegister(conditional.getTrue());
@@ -335,13 +335,13 @@ private:
         setExpressionRegister(falseReg, true);
     }
 
-    virtual void visit(const Transpiler::Expression::Grouping &grouping) final
+    virtual void visit(const Expression::Grouping &grouping) final
     {
         // **NOTE** allow expression register to pass through
         grouping.getExpression()->accept(*this);
     }
 
-    virtual void visit(const Transpiler::Expression::Literal &literal) final
+    virtual void visit(const Expression::Literal &literal) final
     {
         // Build literal name from token index
         const std::string literalName = "_literal_" + std::to_string(literal.getValue().index);
@@ -350,10 +350,8 @@ private:
         setExpressionRegister(m_Environment.get().getVectorRegister(literalName), false);
     }
 
-    virtual void visit(const Transpiler::Expression::Logical &logical) final
+    virtual void visit(const Expression::Logical &logical) final
     {
-        using namespace Transpiler;
-
         const auto scalarLeftReg = getExpressionScalarRegister(logical.getLeft());
         const auto scalarRightReg = getExpressionScalarRegister(logical.getRight());
 
@@ -374,7 +372,7 @@ private:
         setExpressionRegister(resultReg, true);
     }
 
-    virtual void visit(const Transpiler::Expression::PostfixIncDec &postfixIncDec) final
+    virtual void visit(const Expression::PostfixIncDec &postfixIncDec) final
     {
         const auto vecTargetReg = getExpressionVectorRegister(postfixIncDec.getTarget());
         const auto &targetType = m_ResolvedTypes.at(postfixIncDec.getTarget());
@@ -403,7 +401,7 @@ private:
         setExpressionRegister(copyReg, true);
     }
 
-    virtual void visit(const Transpiler::Expression::PrefixIncDec &prefixIncDec) final
+    virtual void visit(const Expression::PrefixIncDec &prefixIncDec) final
     {
         const auto vecTargetReg = getExpressionVectorRegister(prefixIncDec.getTarget());
         const auto &targetType = m_ResolvedTypes.at(prefixIncDec.getTarget());
@@ -426,7 +424,7 @@ private:
         setExpressionRegister(vecTargetReg, false);
     }
 
-    virtual void visit(const Transpiler::Expression::Identifier &identifier) final
+    virtual void visit(const Expression::Identifier &identifier) final
     {
         // Get type of identifier
         const auto &type = m_ResolvedTypes.at(&identifier);
@@ -503,10 +501,8 @@ private:
         }
     }
 
-    virtual void visit(const Transpiler::Expression::Unary &unary) final
+    virtual void visit(const Expression::Unary &unary) final
     {
-        using namespace Transpiler;
-
         // If operation is negation
         if(unary.getOperator().type == Token::Type::MINUS) {
             // Negate by subtracting from zero
@@ -527,12 +523,12 @@ private:
     //---------------------------------------------------------------------------
     // Statement::Visitor virtuals
     //---------------------------------------------------------------------------
-    virtual void visit(const Transpiler::Statement::Break&) final
+    virtual void visit(const Statement::Break&) final
     {
         assert(false);
     }
 
-    virtual void visit(const Transpiler::Statement::Compound &compound) final
+    virtual void visit(const Statement::Compound &compound) final
     {
         // Cache reference to current reference
         std::reference_wrapper<EnvironmentBase> oldEnvironment = m_Environment; 
@@ -549,12 +545,12 @@ private:
         m_Environment = oldEnvironment;
     }
 
-    virtual void visit(const Transpiler::Statement::Continue&) final
+    virtual void visit(const Statement::Continue&) final
     {
         assert(false);
     }
 
-    virtual void visit(const Transpiler::Statement::Do &doStatement) final
+    virtual void visit(const Statement::Do &doStatement) final
     {
         // Backup mask register
         auto oldMaskRegister = m_MaskRegister;
@@ -589,14 +585,14 @@ private:
         m_MaskRegister = oldMaskRegister;
     }
 
-    virtual void visit(const Transpiler::Statement::Expression &expression) final
+    virtual void visit(const Statement::Expression &expression) final
     {
         if(expression.getExpression()) {
             expression.getExpression()->accept(*this);
         }
     }
 
-    virtual void visit(const Transpiler::Statement::For &forStatement) final
+    virtual void visit(const Statement::For &forStatement) final
     {
         assert(false);
         // Cache reference to current reference
@@ -630,12 +626,12 @@ private:
         m_Environment = oldEnvironment;*/
     }
 
-    virtual void visit(const Transpiler::Statement::ForEachSynapse &forEachSynapseStatement) final
+    virtual void visit(const Statement::ForEachSynapse &forEachSynapseStatement) final
     {
         assert(false);
     }
 
-    virtual void visit(const Transpiler::Statement::If &ifStatement) final
+    virtual void visit(const Statement::If &ifStatement) final
     {
         const auto scalarConditionReg = getExpressionScalarRegister(ifStatement.getCondition());
 
@@ -674,17 +670,17 @@ private:
         m_MaskRegister = oldMaskRegister;
     }
 
-    virtual void visit(const Transpiler::Statement::Labelled &labelled) final
+    virtual void visit(const Statement::Labelled &labelled) final
     {
         assert(false);
     }
 
-    virtual void visit(const Transpiler::Statement::Switch &switchStatement) final
+    virtual void visit(const Statement::Switch &switchStatement) final
     {
         assert(false);
     }
 
-    virtual void visit(const Transpiler::Statement::VarDeclaration &varDeclaration) final
+    virtual void visit(const Statement::VarDeclaration &varDeclaration) final
     {
         const size_t numDeclarators = varDeclaration.getInitDeclaratorList().size();
         for(size_t i = 0; i < numDeclarators; i++) {
@@ -717,7 +713,7 @@ private:
         }
     }
 
-    virtual void visit(const Transpiler::Statement::While &whileStatement) final
+    virtual void visit(const Statement::While &whileStatement) final
     {
         // Backup mask register
         auto oldMaskRegister = m_MaskRegister;
@@ -776,14 +772,14 @@ private:
         m_ExpressionRegister = std::make_pair(reg, reusable);
     }
 
-    Assembler::VectorRegisterPtr getExpressionVectorRegister(const Transpiler::Expression::Base *expression)
+    Assembler::VectorRegisterPtr getExpressionVectorRegister(const Expression::Base *expression)
     {
         expression->accept(*this);
 
         return std::get<Assembler::VectorRegisterPtr>(getExpressionRegister());
     }
 
-    Assembler::ScalarRegisterPtr getExpressionScalarRegister(const Transpiler::Expression::Base *expression)
+    Assembler::ScalarRegisterPtr getExpressionScalarRegister(const Expression::Base *expression)
     {
         expression->accept(*this);
 
@@ -796,12 +792,10 @@ private:
                                                     *m_Environment.get().getVectorRegister("_zero"));
     }
 
-    void generateAssign(const Transpiler::Token &token, FeNN::Common::VReg destinationReg, 
+    void generateAssign(const Token &token, FeNN::Common::VReg destinationReg, 
                         FeNN::Common::VReg assigneeReg, FeNN::Common::VReg valueReg,
                         const Type::ResolvedType &assigneeType, const Type::ResolvedType &valueType)
     {
-        using namespace Transpiler;
-
         if(token.type == Token::Type::EQUAL) {
             checkConversion(assigneeType, valueType, token, m_ErrorHandler.get());
             generateVMOV(destinationReg, valueReg);
@@ -834,11 +828,9 @@ private:
         }
     }
 
-    void generateIncDec(const Transpiler::Token &token, FeNN::Common::VReg destinationReg, 
+    void generateIncDec(const Token &token, FeNN::Common::VReg destinationReg, 
                         FeNN::Common::VReg targetReg, const Type::ResolvedType &targetType)
     {
-        using namespace Transpiler;
-
         // If target is integer, load integer 1
         const auto oneReg = m_VectorRegisterAllocator.getRegister();
         if (targetType.isNumeric() && targetType.getNumeric().isIntegral) {
@@ -885,8 +877,8 @@ private:
     std::stack<std::vector<RegisterPtr>> m_CallArguments;
 
     Assembler::ScalarRegisterPtr m_MaskRegister;
-    const Transpiler::TypeChecker::ResolvedTypeMap &m_ResolvedTypes;
-    std::reference_wrapper<Transpiler::ErrorHandlerBase> m_ErrorHandler;
+    const TypeChecker::ResolvedTypeMap &m_ResolvedTypes;
+    std::reference_wrapper<ErrorHandlerBase> m_ErrorHandler;
     RoundingMode m_RoundingMode;
     Assembler::ScalarRegisterAllocator &m_ScalarRegisterAllocator;
     Assembler::VectorRegisterAllocator &m_VectorRegisterAllocator;
@@ -921,9 +913,9 @@ Assembler::CodeGenerator &EnvironmentInternal::getCodeGenerator()
     return m_Enclosing.getCodeGenerator();
 }
 //----------------------------------------------------------------------------
-void compile(const Transpiler::Statement::StatementList &statements, EnvironmentInternal &environment, 
-             const Type::TypeContext &context, const Transpiler::TypeChecker::ResolvedTypeMap &resolvedTypes,
-             Transpiler::ErrorHandlerBase &errorHandler, Assembler::ScalarRegisterPtr maskRegister, RoundingMode roundingMode,
+void compile(const Statement::StatementList &statements, EnvironmentInternal &environment, 
+             const Type::TypeContext &context, const TypeChecker::ResolvedTypeMap &resolvedTypes,
+             ErrorHandlerBase &errorHandler, Assembler::ScalarRegisterPtr maskRegister, RoundingMode roundingMode,
              Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, Assembler::VectorRegisterAllocator &vectorRegisterAllocator)
 {
     Visitor visitor(statements, environment, context, resolvedTypes, 

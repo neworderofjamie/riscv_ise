@@ -1,9 +1,9 @@
 #include "frontend/event_container.h"
 
-// GeNN includes
-#include "gennUtils.h"
+// Common includes
+#include "common/utils.h"
 
-using namespace GeNN;
+using namespace Common;
 
 //----------------------------------------------------------------------------
 // Frontend::EventContainer

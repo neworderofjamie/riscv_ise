@@ -4,8 +4,8 @@
 #include <memory>
 #include <vector>
 
-// GeNN includes
-#include "type.h"
+// Compiler frontend includes
+#include "compiler_frontend/type.h"
 
 // Model includes
 #include "frontend/frontend_export.h"
@@ -20,7 +20,7 @@ namespace Frontend
 class FRONTEND_EXPORT Variable : public AcceptableState<Variable>
 {
 public:
-    Variable(Private, const Shape &shape, const GeNN::Type::UnresolvedType &type, const std::string &name)
+    Variable(Private, const Shape &shape, const CompilerFrontend::Type::UnresolvedType &type, const std::string &name)
     :   AcceptableState<Variable>(name), m_Shape(shape), 
         m_Type(type.resolve({}))
     {}
@@ -40,7 +40,7 @@ public:
     //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------
-    static std::shared_ptr<Variable> create(const Shape &shape, const GeNN::Type::UnresolvedType &type, 
+    static std::shared_ptr<Variable> create(const Shape &shape, const CompilerFrontend::Type::UnresolvedType &type, 
                                             const std::string &name = "")
     {
         return std::make_shared<Variable>(Private(), shape, type, name);
@@ -51,6 +51,6 @@ private:
     // Members
     //------------------------------------------------------------------------
     Shape m_Shape;
-    GeNN::Type::ResolvedType m_Type;
+    CompilerFrontend::Type::ResolvedType m_Type;
 };
 }
