@@ -41,7 +41,7 @@ public:
     uint32_t getURAMPointer() const{ return m_URAMPointer.value(); }
 
 protected:
-    URAMArrayBase(const GeNN::Type::ResolvedType &type, const Frontend::Shape &shape)
+    URAMArrayBase(const CompilerFrontend::Type::ResolvedType &type, const Frontend::Shape &shape)
     :   ArrayBase(type, shape)
     {
         if(type.getSize(0) != 2) {
@@ -114,7 +114,7 @@ public:
     uint32_t getLLMPointer() const{ return m_LLMPointer.value(); }
 
 protected:
-    LLMArrayBase(const GeNN::Type::ResolvedType &type, const Frontend::Shape &shape)
+    LLMArrayBase(const CompilerFrontend::Type::ResolvedType &type, const Frontend::Shape &shape)
     :   ArrayBase(type, shape)
     {
         if(type.getSize(0) != 2) {
@@ -192,7 +192,7 @@ public:
     size_t getLLMSizeBytes() const{ return getLLMCount() * getType().getValue().size; };
 
 protected:
-    URAMLLMArrayBase(const GeNN::Type::ResolvedType &type, const Frontend::Shape &uramShape, 
+    URAMLLMArrayBase(const CompilerFrontend::Type::ResolvedType &type, const Frontend::Shape &uramShape, 
                      const Frontend::Shape &llmShape)
     :   ArrayBase(type, uramShape), m_LLMShape(llmShape)
     {
@@ -227,11 +227,11 @@ public:
     //------------------------------------------------------------------------
     // Declared virtuals
     //------------------------------------------------------------------------
-    virtual std::unique_ptr<URAMArrayBase> createURAMArray(const GeNN::Type::ResolvedType &type, const Frontend::Shape &shape) = 0;
-    virtual std::unique_ptr<BRAMArrayBase> createBRAMArray(const GeNN::Type::ResolvedType &type, const Frontend::Shape &shape) = 0;
-    virtual std::unique_ptr<LLMArrayBase> createLLMArray(const GeNN::Type::ResolvedType &type, const Frontend::Shape &shape) = 0;
-    virtual std::unique_ptr<DRAMArrayBase> createDRAMArray(const GeNN::Type::ResolvedType &type, const Frontend::Shape &shape) = 0;
-    virtual std::unique_ptr<URAMLLMArrayBase> createURAMLLMArray(const GeNN::Type::ResolvedType &type,
+    virtual std::unique_ptr<URAMArrayBase> createURAMArray(const CompilerFrontend::Type::ResolvedType &type, const Frontend::Shape &shape) = 0;
+    virtual std::unique_ptr<BRAMArrayBase> createBRAMArray(const CompilerFrontend::Type::ResolvedType &type, const Frontend::Shape &shape) = 0;
+    virtual std::unique_ptr<LLMArrayBase> createLLMArray(const CompilerFrontend::Type::ResolvedType &type, const Frontend::Shape &shape) = 0;
+    virtual std::unique_ptr<DRAMArrayBase> createDRAMArray(const CompilerFrontend::Type::ResolvedType &type, const Frontend::Shape &shape) = 0;
+    virtual std::unique_ptr<URAMLLMArrayBase> createURAMLLMArray(const CompilerFrontend::Type::ResolvedType &type,
                                                                  const Frontend::Shape &uramShape, 
                                                                  const Frontend::Shape &llmShape) = 0;
 

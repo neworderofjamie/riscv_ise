@@ -4,11 +4,11 @@
 #include <cmath>
 #include <cstdint>
 
-// GeNN includes
-#include "type.h"
-
 // Common includes
 #include "common/utils.h"
+
+// Compiler frontend includes
+#include "compiler_frontend/type.h"
 
 // Assembler includes
 #include "fenn/assembler/assembler.h"
@@ -17,7 +17,7 @@
 // Backend includes
 #include "fenn/backend/environment.h"
 
-using namespace GeNN;
+using namespace CompilerFrontend;
 
 //----------------------------------------------------------------------------
 // SpecialFunctions::Exp

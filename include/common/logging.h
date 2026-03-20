@@ -39,8 +39,8 @@ namespace Common::Logging
 {
 enum Channel
 {
-    CHANNEL_FRONTEND            = 0,
-    CHANNEL_COMPILER_FRONTEND   = 1,
+    CHANNEL_FRONTEND,
+    CHANNEL_COMPILER_FRONTEND,
     CHANNEL_MAX
 };
 

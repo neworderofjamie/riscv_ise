@@ -7,10 +7,11 @@
 #include <fast_float/fast_float.h>
 
 // Common includes
-#include "common/utils.h
+#include "common/utils.h"
 
 // Compiler frontend includes
-#include "compiler_frontend/compiler_frontend.h"
+#include "compiler_frontend/error_handler.h"
+#include "compiler_frontend/type.h"
 
 // FeNN backend includes
 #include "fenn/assembler/assembler.h"
@@ -468,7 +469,7 @@ private:
             // Visit environment item
             std::visit(
                 // If item is a register holding value associated with identifier
-                Utils::Overload{
+                ::Common::Utils::Overload{
                     [this](RegisterPtr r)
                     {
                         // Set result register

@@ -40,11 +40,11 @@ public:
     //------------------------------------------------------------------------
     // DeviceFeNN virtuals
     //------------------------------------------------------------------------
-    virtual std::unique_ptr<URAMArrayBase> createURAMArray(const GeNN::Type::ResolvedType &type, const Frontend::Shape &shape) override final;
-    virtual std::unique_ptr<BRAMArrayBase> createBRAMArray(const GeNN::Type::ResolvedType &type, const Frontend::Shape &shape) override final;
-    virtual std::unique_ptr<LLMArrayBase> createLLMArray(const GeNN::Type::ResolvedType &type, const Frontend::Shape &shape) override final;
-    virtual std::unique_ptr<DRAMArrayBase> createDRAMArray(const GeNN::Type::ResolvedType &type, const Frontend::Shape &shape) override final;
-    virtual std::unique_ptr<URAMLLMArrayBase> createURAMLLMArray(const GeNN::Type::ResolvedType &type,
+    virtual std::unique_ptr<URAMArrayBase> createURAMArray(const CompilerFrontend::Type::ResolvedType &type, const Frontend::Shape &shape) override final;
+    virtual std::unique_ptr<BRAMArrayBase> createBRAMArray(const CompilerFrontend::Type::ResolvedType &type, const Frontend::Shape &shape) override final;
+    virtual std::unique_ptr<LLMArrayBase> createLLMArray(const CompilerFrontend::Type::ResolvedType &type, const Frontend::Shape &shape) override final;
+    virtual std::unique_ptr<DRAMArrayBase> createDRAMArray(const CompilerFrontend::Type::ResolvedType &type, const Frontend::Shape &shape) override final;
+    virtual std::unique_ptr<URAMLLMArrayBase> createURAMLLMArray(const CompilerFrontend::Type::ResolvedType &type,
                                                                  const Frontend::Shape &uramShape, 
                                                                  const Frontend::Shape &llmShape) override final;
     

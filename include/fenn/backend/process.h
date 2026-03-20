@@ -1,7 +1,7 @@
 #pragma once
 
-// GeNN includes
-#include "gennUtils.h"
+// Common includes
+#include "common/utils.h"
 
 // Frontend includes
 #include "frontend/process.h"
@@ -119,7 +119,7 @@ public:
         // **NOTE** this is unaffected by whether DRAM is used or not so we can just set true
         const auto &fennModel = dynamic_cast<const Model&>(model);
         for(const auto &s : allState) {
-            GeNN::Utils::updateHash(fennModel.getStateMemSpace(s, true), hash);
+            ::Common::Utils::updateHash(fennModel.getStateMemSpace(s, true), hash);
         }
     }
 };

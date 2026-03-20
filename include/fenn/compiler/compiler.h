@@ -55,7 +55,8 @@ public:
     virtual void define(const std::string &name, RegisterPtr reg) = 0;
     
     //! Get the register to use for the named identifier
-    virtual EnvironmentItem getItem(const std::string &name, std::optional<GeNN::Type::ResolvedType> type = std::nullopt) = 0;
+    virtual EnvironmentItem getItem(const std::string &name, 
+                                    std::optional<CompilerFrontend::Type::ResolvedType> type = std::nullopt) = 0;
 
     //! Get stream to write code within this environment to
     virtual FeNN::Assembler::CodeGenerator &getCodeGenerator() = 0;
@@ -68,7 +69,8 @@ public:
         return std::get<RegisterPtr>(getItem(name));
     }
 
-    FunctionGenerator getFunctionGenerator(const std::string &name, std::optional<GeNN::Type::ResolvedType> type = std::nullopt)
+    FunctionGenerator getFunctionGenerator(const std::string &name, 
+                                           std::optional<CompilerFrontend::Type::ResolvedType> type = std::nullopt)
     {
         return std::get<FunctionGenerator>(getItem(name, type));
     }
@@ -113,7 +115,8 @@ public:
     //---------------------------------------------------------------------------
     virtual void define(const std::string &name, RegisterPtr reg) final;
 
-    virtual EnvironmentItem getItem(const std::string &name, std::optional<GeNN::Type::ResolvedType> type = std::nullopt) final;
+    virtual EnvironmentItem getItem(const std::string &name, 
+                                    std::optional<CompilerFrontend::Type::ResolvedType> type = std::nullopt) final;
 
     virtual FeNN::Assembler::CodeGenerator &getCodeGenerator() final;
 
@@ -129,7 +132,7 @@ private:
 // Free functions
 //---------------------------------------------------------------------------
 FENN_COMPILER_EXPORT void compile(const CompilerFrontend::Statement::StatementList &statements, EnvironmentInternal &environment,
-                                  const GeNN::Type::TypeContext &context, const CompilerFrontend::TypeChecker::ResolvedTypeMap &resolvedTypes,
+                                  const CompilerFrontend::Type::TypeContext &context, const CompilerFrontend::TypeChecker::ResolvedTypeMap &resolvedTypes,
                                   CompilerFrontend::ErrorHandlerBase &errorHandler, FeNN::Assembler::ScalarRegisterPtr maskRegister, RoundingMode roundingMode,
                                   FeNN::Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, FeNN::Assembler::VectorRegisterAllocator &vectorRegisterAllocator);
 }   // namespace FeNN::Compiler

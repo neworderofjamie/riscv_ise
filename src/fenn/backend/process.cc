@@ -160,7 +160,7 @@ void unrollVectorLoopBody(Assembler::CodeGenerator &c, Assembler::ScalarRegister
                           std::function<void(Assembler::CodeGenerator&, uint32_t)> genTailFn)
 {
     std::visit(
-        Utils::Overload{
+        ::Common::Utils::Overload{
             // Compile-time literal
             [&c, &genBodyFn, &genTailFn, &scalarRegisterAllocator, maxUnroll]
             (int numElements)

@@ -1,6 +1,7 @@
 #include "fenn/common/app_utils.h"
 
 // Standard C++ includes
+#include <iomanip>>
 #include <random>
 
 // Plog includes

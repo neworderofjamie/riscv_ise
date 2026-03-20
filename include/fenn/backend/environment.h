@@ -69,8 +69,8 @@ protected:
                                              std::optional<CompilerFrontend::Type::ResolvedType> type = std::nullopt) const;
 
     //! Get vector of types from context if it provides this functionality
-    std::vector<CompilerFrontend::ResolvedType> getContextTypes(const CompilerFrontend::Token &name, 
-                                                                CompilerFrontend::ErrorHandlerBase &errorHandler)  const;
+    std::vector<CompilerFrontend::Type::ResolvedType> getContextTypes(const CompilerFrontend::Token &name, 
+                                                                      CompilerFrontend::ErrorHandlerBase &errorHandler)  const;
 
     //! Get code generator exposed by context
     Assembler::CodeGenerator &getContextCodeGenerator() const;
@@ -135,7 +135,7 @@ public:
     // Public API
     //------------------------------------------------------------------------
     //! Map a type (for type-checking) and a value (for pretty-printing) to an identifier
-    void add(const CompilerFrontend::ResolvedType &type, const std::string &name, Compiler::EnvironmentItem value);
+    void add(const CompilerFrontend::Type::ResolvedType &type, const std::string &name, Compiler::EnvironmentItem value);
 
 private:
     //------------------------------------------------------------------------

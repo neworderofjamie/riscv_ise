@@ -11,8 +11,8 @@
 // Standard C includes
 #include <cstdint>
 
-// GeNN includes
-#include "type.h"
+// Compiler frontend includes
+#include "compiler_frontend/type.h"
 
 // Frontend includes
 #include "frontend/frontend_export.h"
@@ -62,7 +62,7 @@ public:
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
-    const GeNN::Type::ResolvedType &getType() const{ return m_Type; }
+    const CompilerFrontend::Type::ResolvedType &getType() const{ return m_Type; }
     const Shape &getShape() const{ return m_Shape; }
     size_t getCount() const{ return m_Shape.getFlattenedSize(); };
     size_t getSizeBytes() const{ return getCount() * m_Type.getValue().size; };
@@ -74,7 +74,7 @@ public:
     T *getHostPointer() const{ return reinterpret_cast<T*>(m_HostPointer); }
 
 protected:
-    ArrayBase(const GeNN::Type::ResolvedType &type, const Shape &shape)
+    ArrayBase(const CompilerFrontend::Type::ResolvedType &type, const Shape &shape)
     :   m_Type(type), m_Shape(shape), m_HostPointer(nullptr)
     {
     }
@@ -88,7 +88,7 @@ private:
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
-    GeNN::Type::ResolvedType m_Type;
+    CompilerFrontend::Type::ResolvedType m_Type;
     Shape m_Shape;
 
     uint8_t *m_HostPointer;

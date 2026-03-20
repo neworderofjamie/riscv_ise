@@ -25,7 +25,7 @@
 #include "fenn/backend/process.h"
 #include "fenn/backend/kernel.h"
 
-using namespace GeNN;
+using namespace CompilerFrontend;
 
 //------------------------------------------------------------------------
 // FeNN::Backend::URAMArrayBase
@@ -120,7 +120,7 @@ std::unique_ptr<Frontend::ArrayBase> DeviceFeNN::createArray(std::shared_ptr<con
     wordAlignedShape.getLast() = ::Common::Utils::ceilDivide(wordAlignedShape.getLast(), 32);
 
     // Create BRAM array
-    return createBRAMArray(GeNN::Type::Uint32, wordAlignedShape);
+    return createBRAMArray(Type::Uint32, wordAlignedShape);
 }
 //----------------------------------------------------------------------------
 std::unique_ptr<Frontend::ArrayBase> DeviceFeNN::createArray(std::shared_ptr<const Frontend::Variable> variable,
@@ -176,7 +176,7 @@ std::unique_ptr<Frontend::ArrayBase> DeviceFeNN::createPerformanceCounter()
 
     // Performance counter contains a 64-bit number for 
     // instructions retired and one for number of cycles 
-    return createBRAMArray(GeNN::Type::Uint64, Frontend::Shape{2});
+    return createBRAMArray(Type::Uint64, Frontend::Shape{2});
 }
 //----------------------------------------------------------------------------
 void DeviceFeNN::createFieldArray(uint32_t numFieldBytes)
