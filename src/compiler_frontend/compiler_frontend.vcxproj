@@ -19,35 +19,30 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="event_container.cc" />
-    <ClCompile Include="kernel.cc" />
-    <ClCompile Include="merged_model.cc" />
-    <ClCompile Include="model.cc" />
-    <ClCompile Include="process.cc" />
-    <ClCompile Include="runtime.cc" />
-    <ClCompile Include="shape.cc" />
-    <ClCompile Include="variable.cc" />
+    <ClCompile Include="error_handler.cc" />
+    <ClCompile Include="parser.cc" />
+    <ClCompile Include="scanner.cc" />
+    <ClCompile Include="type.cc" />
+    <ClCompile Include="type_checker.cc" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\include\frontend\event_container.h" />
-    <ClInclude Include="..\..\include\frontend\frontend_export.h" />
-    <ClInclude Include="..\..\include\frontend\kernel.h" />
-    <ClInclude Include="..\..\include\frontend\merged_model.h" />
-    <ClInclude Include="..\..\include\frontend\model.h" />
-    <ClInclude Include="..\..\include\frontend\model_component.h" />
-    <ClInclude Include="..\..\include\frontend\process.h" />
-    <ClInclude Include="..\..\include\frontend\process_group.h" />
-    <ClInclude Include="..\..\include\frontend\runtime.h" />
-    <ClInclude Include="..\..\include\frontend\shape.h" />
-    <ClInclude Include="..\..\include\frontend\variable.h" />
+    <ClInclude Include="..\..\include\compiler_frontend\compiler_frontend_export.h" />
+    <ClInclude Include="..\..\include\compiler_frontend\error_handler.h" />
+    <ClInclude Include="..\..\include\compiler_frontend\expression.h" />
+    <ClInclude Include="..\..\include\compiler_frontend\parser.h" />
+    <ClInclude Include="..\..\include\compiler_frontend\scanner.h" />
+    <ClInclude Include="..\..\include\compiler_frontend\statement.h" />
+    <ClInclude Include="..\..\include\compiler_frontend\token.h" />
+    <ClInclude Include="..\..\include\compiler_frontend\type.h" />
+    <ClInclude Include="..\..\include\compiler_frontend\type_checker.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
-    <ProjectGuid>{0361252E-B8BF-49DD-B778-06D4CA8F2824}</ProjectGuid>
+    <ProjectGuid>{FE27377B-B6DE-4F59-BE66-21F758EF7801}</ProjectGuid>
     <RootNamespace>riscvise</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
-    <ProjectName>frontend</ProjectName>
+    <ProjectName>compiler_frontend</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Label="Configuration">
@@ -83,8 +78,8 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">_DEBUG;WIN32_LEAN_AND_MEAN;NOMINMAX;_CONSOLE;FFI_BUILDING;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NDEBUG;WIN32_LEAN_AND_MEAN;NOMINMAX;_CONSOLE;FFI_BUILDING;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug_DLL|x64'">_DEBUG;WIN32_LEAN_AND_MEAN;NOMINMAX;_CONSOLE;LINKING_ASSEMBLER_DLL;LINKING_COMMON_DLL;LINKING_COMPILER_DLL;LINKING_ISE_DLL;LINKING_COMPILER_FRONTEND_DLL;BUILDING_BACKEND_DLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release_DLL|x64'">NDEBUG;WIN32_LEAN_AND_MEAN;NOMINMAX;_CONSOLE;LINKING_ASSEMBLER_DLL;LINKING_COMMON_DLL;LINKING_COMPILER_DLL;LINKING_ISE_DLL;LINKING_COMPILER_FRONTEND_DLL;BUILDING_BACKEND_DLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug_DLL|x64'">_DEBUG;WIN32_LEAN_AND_MEAN;NOMINMAX;_CONSOLE;LINKING_ASSEMBLER_DLL;LINKING_COMMON_DLL;LINKING_COMPILER_DLL;LINKING_ISE_DLL;LINKING_COMPILER_FRONTEND_DLL;BUILDING_COMPILER_FRONTEND_DLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release_DLL|x64'">NDEBUG;WIN32_LEAN_AND_MEAN;NOMINMAX;_CONSOLE;LINKING_ASSEMBLER_DLL;LINKING_COMMON_DLL;LINKING_COMPILER_DLL;LINKING_ISE_DLL;LINKING_COMPILER_FRONTEND_DLL;BUILDING_COMPILER_FRONTEND_DLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <DisableSpecificWarnings Condition=" $(Configuration.Contains('DLL')) ">4251</DisableSpecificWarnings>
       <LanguageStandard>stdcpp17</LanguageStandard>

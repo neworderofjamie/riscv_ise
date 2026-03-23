@@ -28,12 +28,12 @@
     <ClCompile Include="x86\ffiw64.c" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\..\..\include\genn\third_party\libffi\ffi.h" />
-    <ClInclude Include="..\..\..\..\include\genn\third_party\libffi\fficonfig.h" />
-    <ClInclude Include="..\..\..\..\include\genn\third_party\libffi\ffitarget.h" />
-    <ClInclude Include="..\..\..\..\include\genn\third_party\libffi\ffi_cfi.h" />
-    <ClInclude Include="..\..\..\..\include\genn\third_party\libffi\ffi_common.h" />
-    <ClInclude Include="..\..\..\..\include\genn\third_party\libffi\tramp.h" />
+    <ClInclude Include="..\..\..\include\third_party\libffi\ffi.h" />
+    <ClInclude Include="..\..\..\include\third_party\libffi\fficonfig.h" />
+    <ClInclude Include="..\..\..\include\third_party\libffi\ffitarget.h" />
+    <ClInclude Include="..\..\..\include\third_party\libffi\ffi_cfi.h" />
+    <ClInclude Include="..\..\..\include\third_party\libffi\ffi_common.h" />
+    <ClInclude Include="..\..\..\include\third_party\libffi\tramp.h" />
   </ItemGroup>
   <ItemGroup>
     <MASM Include="x86\win64_intel.asm" />
@@ -63,8 +63,8 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
-    <OutDir>..\..\..\..\lib\</OutDir>
-    <IntDir>..\..\..\..\$(Platform)\$(Configuration)\libffi\</IntDir>
+    <OutDir>..\..\..\lib\</OutDir>
+    <IntDir>..\..\..\$(Platform)\$(Configuration)\libffi\</IntDir>
     <TargetName>$(ProjectName)_$(Configuration)</TargetName>
   </PropertyGroup>
   <ItemDefinitionGroup>
@@ -75,7 +75,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>..\..\..\..\include\genn\third_party\libffi;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\..\include\third_party\libffi;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions Condition=" !$(Configuration.Contains('DLL')) ">FFI_BUILDING;_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition=" $(Configuration.Contains('DLL')) ">FFI_BUILDING_DLL;_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard_C>stdc11</LanguageStandard_C>

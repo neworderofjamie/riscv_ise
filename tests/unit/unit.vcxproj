@@ -11,15 +11,22 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="compiler_test.cc" />
+    <ClCompile Include="$(GTEST_DIR)/src/gtest-all.cc" />
+	<ClCompile Include="$(GTEST_DIR)/src/gtest_main.cc" />
+    <ClCompile Include="common\utils.cc" />
+    <ClCompile Include="compiler_frontend\parser.cc" />
+    <ClCompile Include="compiler_frontend\scanner.cc" />
+    <ClCompile Include="compiler_frontend\type.cc" />
+    <ClCompile Include="compiler_frontend\type_checker.cc" />
+    <ClCompile Include="frontend\process.cc" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
-    <ProjectGuid>{18BBD502-873F-441D-9C0A-E22E5EB03563}</ProjectGuid>
+    <ProjectGuid>{09889FAF-16F9-477D-A646-5660E2833A65}</ProjectGuid>
     <RootNamespace>riscvise</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
-    <ProjectName>compiler_test</ProjectName>
+    <ProjectName>unit_tests</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
@@ -64,12 +71,12 @@
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;FFI_BUILDING;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp17</LanguageStandard>
-      <AdditionalIncludeDirectories>$(SolutionDir)include;$(SolutionDir)include/third_party;$(SolutionDir)include/third_party/libffi;</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(GTEST_DIR);$(GTEST_DIR)\include;$(SolutionDir)include;$(SolutionDir)include/third_party;$(SolutionDir)include/third_party/libffi;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>backend_$(Configuration).lib;compiler_$(Configuration).lib;assembler_$(Configuration).lib;disassembler_$(Configuration).lib;ise_$(Configuration).lib;common_$(Configuration).lib;compiler_frontend_$(Configuration).lib;libffi_$(Configuration).lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>assembler_$(Configuration).lib;ise_$(Configuration).lib;common_$(Configuration).lib;libffi_$(Configuration).lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(SolutionDir)lib</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
@@ -82,14 +89,14 @@
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;FFI_BUILDING;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp17</LanguageStandard>
-      <AdditionalIncludeDirectories>$(SolutionDir)include;$(SolutionDir)include/third_party;$(SolutionDir)include/third_party/libffi;</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(GTEST_DIR);$(GTEST_DIR)\include;$(SolutionDir)include;$(SolutionDir)include/third_party;$(SolutionDir)include/third_party/libffi;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>backend_$(Configuration).lib;compiler_$(Configuration).lib;assembler_$(Configuration).lib;disassembler_$(Configuration).lib;ise_$(Configuration).lib;common_$(Configuration).lib;compiler_frontend_$(Configuration).lib;libffi_$(Configuration).lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>frontend_$(Configuration).lib;compiler_frontend_$(Configuration).lib;common_$(Configuration).lib;libffi_$(Configuration).lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(SolutionDir)lib</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>

@@ -609,7 +609,6 @@ int main(int argc, char** argv)
             c.L(timeLoop);
             {
                 {
-                    auto spikeLoop = createLabel();
                     auto spikeLoopEnd = createLabel();
 
                     // Load start and end of this timestep's spike buffer
@@ -617,7 +616,7 @@ int main(int argc, char** argv)
                     c.csrr(*SSpikeBufferEnd, CSR::SLAVE_EVENT_ADDRESS);
 
                     // While (spikeBuffer != spikeBufferEnd
-                    c.L(spikeLoop);
+                    auto spikeLoop = c.L();
                     c.beq(*SSpikeBuffer, *SSpikeBufferEnd, spikeLoopEnd);
                     {
                         // Load spike from buffer
