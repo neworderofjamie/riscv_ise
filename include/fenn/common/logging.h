@@ -53,11 +53,12 @@ class IAppender;
 
 // Shorthand macros for logging to 'FeNN ISE' channel
 #define LOGV_FENN_ISE LOGV_(FeNN::Common::Logging::CHANNEL_FENN_ISE)
-#define LOGD_FENN_ISE LOGD_(FeNN::Common::Logging::CHANNEL_FECHANNEL_FENN_ISENN_COMPILER)
+#define LOGD_FENN_ISE LOGD_(FeNN::Common::Logging::CHANNEL_FENN_ISE)
 #define LOGI_FENN_ISE LOGI_(FeNN::Common::Logging::CHANNEL_FENN_ISE)
 #define LOGW_FENN_ISE LOGW_(FeNN::Common::Logging::CHANNEL_FENN_ISE)
 #define LOGE_FENN_ISE LOGE_(FeNN::Common::Logging::CHANNEL_FENN_ISE)
 #define LOGF_FENN_ISE LOGF_(FeNN::Common::Logging::CHANNEL_FENN_ISE)
+
 //----------------------------------------------------------------------------
 // FeNN::Common::Logging
 //----------------------------------------------------------------------------
