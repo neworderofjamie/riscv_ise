@@ -24,8 +24,8 @@
 #include <cassert>
 #include <cstdint>
 
-// Common includes
-#include "common/enum.h"
+// Third-party includes
+#include "enum.h"
 
 // FeNN common includes
 #include "fenn/common/isa.h"
