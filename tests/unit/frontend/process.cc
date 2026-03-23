@@ -30,7 +30,7 @@ TEST(NeuronProcess, VarOutputEventShapesMatch)
 {
     const Shape shape(50);
     const Shape diffShape({30, 12});
-    const Shape sliceShape({50, 10});
+    const Shape sliceShape({10, 50});
     
     // Create some variables
     const auto var = Variable::create(shape, Type::S10_5Sat);
