@@ -1337,7 +1337,7 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
                 TypeChecker::EnvironmentInternal typeCheckEnv(unrollEnv);
                 Compiler::EnvironmentInternal compilerEnv(unrollEnv);
                 ErrorHandler errorHandler("Neuron update merged process " + std::to_string(mergedProcess.getIndex()));
-                compileStatements(getTokens(), {}, typeCheckEnv, compilerEnv, errorHandler, 
+                compileStatements(getTokens(), typeCheckEnv, compilerEnv, errorHandler, 
                                   nullptr, nullptr, runtime.getNeuronRoundingMode(),
                                   scalarRegisterAllocator, vectorRegisterAllocator);
             }

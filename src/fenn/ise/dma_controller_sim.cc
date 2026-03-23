@@ -1,9 +1,6 @@
 #include "fenn/ise/dma_controller_sim.h"
 
-// PLOG includes
-#include <plog/Log.h>
-
-// ISE includes
+// FeNN ISE includes
 #include "fenn/ise/vector_processor.h"
 
 //----------------------------------------------------------------------------

@@ -153,9 +153,11 @@ public:
     // Static API
     //------------------------------------------------------------------------
     static std::shared_ptr<NeuronUpdateProcess> create(const std::string &code, const Frontend::VariableMap &variables, 
-                                                       const Frontend::EventContainerMap &outputEvents = {}, const std::string &name = "")
+                                                       const Frontend::EventContainerMap &outputEvents = {}, 
+                                                       const CompilerFrontend::Type::ResolvedType &defaultScalarLiteralType = CompilerFrontend::Type::S8_7,
+                                                       const std::string &name = "")
     {
-        return std::make_shared<NeuronUpdateProcess>(Private(), code, variables, outputEvents, name);
+        return std::make_shared<NeuronUpdateProcess>(Private(), code, variables, outputEvents, defaultScalarLiteralType, name);
     }
 };
 

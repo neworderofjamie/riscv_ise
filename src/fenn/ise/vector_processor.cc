@@ -6,9 +6,8 @@
 #include <iomanip>
 #include <limits>
 
-// PLOG includes
-#include <plog/Log.h>
-#include <plog/Severity.h>
+// FeNN common includes
+#include "fenn/common/logging.h"
 
 using namespace FeNN;
 using namespace FeNN::ISE;
@@ -198,8 +197,8 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
         const auto [type, local] = getVLoadType(funct3);
         if(local) {
             if(type == +VLoadType::VLOAD_L) {
-                PLOGV << "VLOADL " << rs1 << " " << imm;
-                PLOGV << "\t" << rd;
+                LOGV_FENN_ISE << "VLOADL " << rs1 << " " << imm;
+                LOGV_FENN_ISE << "\t" << rd;
 
                 // Read from each lane local memory into lane
                 const auto &rs1Vec = readVReg(rs1);
@@ -219,20 +218,20 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
         else {
             const uint32_t addr = reg[rs1] + imm;
             if(type == +VLoadType::VLOAD) {
-                PLOGV << "VLOADV " << rs1 << " " << imm;
-                PLOGV << "\t" << rd;
+                LOGV_FENN_ISE << "VLOADV " << rs1 << " " << imm;
+                LOGV_FENN_ISE << "\t" << rd;
                 writeVReg(rd, m_VectorDataMemory.readVector(addr), 2); 
             }
             // VLOADR0
             else if(type == +VLoadType::VLOAD_R0) {
-                PLOGV << "VLOADR0 " << rs1 << " " << imm;
-                PLOGV << "\t" << rd;
+                LOGV_FENN_ISE << "VLOADR0 " << rs1 << " " << imm;
+                LOGV_FENN_ISE << "\t" << rd;
                 m_S0 = m_VectorDataMemory.readVector(addr); 
             }
             // VLOADR1
             else if(type == +VLoadType::VLOAD_R1) {
-                PLOGV << "VLOADR1 " << rs1 << " " << imm;
-                PLOGV << "\t" << rd;
+                LOGV_FENN_ISE << "VLOADR1 " << rs1 << " " << imm;
+                LOGV_FENN_ISE << "\t" << rd;
                 m_S1 = m_VectorDataMemory.readVector(addr); 
             }
             else {
@@ -246,8 +245,8 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
     case VectorOpCode::VLUI:
     {
         const auto [imm, rd] = decodeUType(inst);
-        PLOGV << "VLUI " << imm;
-        PLOGV << "\t" << rd;
+        LOGV_FENN_ISE << "VLUI " << imm;
+        LOGV_FENN_ISE << "\t" << rd;
 
         Vector rdVec;
         std::fill(rdVec.begin(), rdVec.end(), imm);
@@ -260,8 +259,8 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
         const auto [imm, rs1, funct3, rd] = decodeIType(inst);
         const auto type = getVMovType(funct3);
         if(type == +VMovType::VFILL) {
-            PLOGV << "VFILL " << rs1;
-            PLOGV << "\t" << rd;
+            LOGV_FENN_ISE << "VFILL " << rs1;
+            LOGV_FENN_ISE << "\t" << rd;
             const uint32_t val = reg[rs1];
             Vector rdVec;
             std::fill(rdVec.begin(), rdVec.end(), 
@@ -270,8 +269,8 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
         }
         // VEXTRACT
         else if(type == +VMovType::VEXTRACT) {
-            PLOGV << "VEXTRACT " << rs1;
-            PLOGV << "\t" << rd;
+            LOGV_FENN_ISE << "VEXTRACT " << rs1;
+            LOGV_FENN_ISE << "\t" << rd;
             if(imm < 0 || imm > 31) {
                 throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
             }
@@ -294,8 +293,8 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
                 throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
             }
 
-            PLOGV << "VRNG";
-            PLOGV << "\t" << rd;
+            LOGV_FENN_ISE << "VRNG";
+            LOGV_FENN_ISE << "\t" << rd;
             
             // Sample RNG
             const auto r = sampleRNG();
@@ -315,7 +314,7 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
             const uint32_t fixedPoint = (funct7 & 0b1111);
             const uint16_t mask = (1 << fixedPoint) - 1;
 
-            PLOGV << "VANDADD " << rs1 << " " << rs2;
+            LOGV_FENN_ISE << "VANDADD " << rs1 << " " << rs2;
             const auto &val = readVReg(rs1);
             const int16_t val2 = reg[rs2];
             writeVReg(rd, 
@@ -335,7 +334,7 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
     {
         const auto [funct7, rs2, rs1, funct3, rd] = decodeRType(inst);
         writeVReg(rd, calcOpResult(inst, funct7, rs2, rs1, funct3));
-        PLOGV << "\t" << rd;
+        LOGV_FENN_ISE << "\t" << rd;
         break;
     }
 
@@ -343,7 +342,7 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
     {
         const auto [imm, rs1, funct3, rd] = decodeIType(inst);
         writeVReg(rd, calcOpImmResult(inst, imm, rs1, funct3));
-        PLOGV << "\t" << rd;
+        LOGV_FENN_ISE << "\t" << rd;
         break;
     }
 
@@ -355,7 +354,7 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
         const auto [type, local] = getVStoreType(funct3);
         if(local) {
             if(type == +VStoreType::VSTORE_L) {
-                PLOGV << "VSTOREL " << rs2 << " " << rs1 << " " << imm;
+                LOGV_FENN_ISE << "VSTOREL " << rs2 << " " << rs1 << " " << imm;
 
                 // Write contents of rs2 to lane local address
                 const auto &rs1Vec = readVReg(rs1);
@@ -375,7 +374,7 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
             if(type == +VStoreType::VSTORE) {
                 const uint32_t addr = reg[rs1] + imm;
 
-                PLOGV << "VSTORE " << rs2 << " " << rs1 << " " << imm;
+                LOGV_FENN_ISE << "VSTORE " << rs2 << " " << rs1 << " " << imm;
                 
                 m_VectorDataMemory.writeVector(addr, readVReg(rs2));
             }
@@ -389,8 +388,8 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
     case VectorOpCode::VSEL:
     {
         const auto [funct7, rs2, rs1, funct3, rd] = decodeRType(inst);
-        PLOGV << "VSEL " << rs1 << " " << rs2;
-        PLOGV << "\t" << rd;
+        LOGV_FENN_ISE << "VSEL " << rs1 << " " << rs2;
+        LOGV_FENN_ISE << "\t" << rd;
         const uint32_t mask = reg[rs1];
         auto &oldRdVec = readVReg(rd);
         const auto &rs2Vec = readVReg(rs2);
@@ -406,7 +405,7 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
     {
         const auto [funct7, rs2, rs1, funct3, rd] = decodeRType(inst);
         const uint32_t val = calcTestResult(inst, rs2, rs1, funct3);
-        PLOGV << "\t" << rd;
+        LOGV_FENN_ISE << "\t" << rd;
         if (rd != 0) {
             reg[rd] = val;
         }
@@ -485,41 +484,41 @@ Vector VectorProcessor::calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs
     {
     case VOpType::VADD:
     {
-        PLOGV << "VADD " << rs1 << " " << rs2;
+        LOGV_FENN_ISE << "VADD " << rs1 << " " << rs2;
         return binaryOp(val, val2, saturateResult,
                         [](int16_t a, int16_t b){ return a + b; });
     }
 
     case VOpType::VSUB:
     {
-        PLOGV << "VSUB " << rs1 << " " << rs2;
+        LOGV_FENN_ISE << "VSUB " << rs1 << " " << rs2;
         return binaryOp(val, val2, saturateResult,
                         [](int16_t a, int16_t b){ return a - b; });
     }
 
     case VOpType::VAND:
     {
-        PLOGV << "VAND " << rs1 << " " << rs2;
+        LOGV_FENN_ISE << "VAND " << rs1 << " " << rs2;
         return binaryOp(val, val2, saturateResult,
                         [](int16_t a, int16_t b){ return a & b; });
     }
 
     case VOpType::VSLL:
     {
-        PLOGV << "VSLL " << rs1 << " " << rs2;
+        LOGV_FENN_ISE << "VSLL " << rs1 << " " << rs2;
         return binaryOp(val, val2, saturateResult,
                         [](int16_t a, int16_t b){ return a << b; });
     }
     case VOpType::VSRA:
     {
-        PLOGV << "VSRA " << rs1 << " " << rs2;
+        LOGV_FENN_ISE << "VSRA " << rs1 << " " << rs2;
         return binaryOp(val, val2, saturateResult,
                         [](int16_t a, int16_t b){ return a >> b; });
     }
     
     case VOpType::VMUL:
     {
-        PLOGV << "VMUL " << rs1 << " " << rs2;
+        LOGV_FENN_ISE << "VMUL " << rs1 << " " << rs2;
         return binaryOp(val, val2, saturateResult,
                         [fixedPoint](int16_t a, int16_t b)
                         {
@@ -529,7 +528,7 @@ Vector VectorProcessor::calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs
 
     case VOpType::VMUL_RN:
     {
-        PLOGV << "VMUL_RN " << rs1 << " " << rs2;
+        LOGV_FENN_ISE << "VMUL_RN " << rs1 << " " << rs2;
         const int16_t half = 1 << (fixedPoint - 1);
         return binaryOp(val, val2, saturateResult,
                         [half,fixedPoint](int16_t a, int16_t b)
@@ -541,7 +540,7 @@ Vector VectorProcessor::calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs
 
     case VOpType::VMUL_RS:
     {
-        PLOGV << "VMUL_RS " << rs1 << " " << rs2;
+        LOGV_FENN_ISE << "VMUL_RS " << rs1 << " " << rs2;
         // Sample from RNG
         const auto r = sampleRNG();
 
@@ -587,7 +586,7 @@ Vector VectorProcessor::calcOpImmResult(uint32_t inst, int32_t imm, uint32_t rs1
     {
     case VOpImmType::VSLLI:
     {
-        PLOGV << "VSLLI " << rs1;
+        LOGV_FENN_ISE << "VSLLI " << rs1;
         return unaryOp(val, false,
                        [shamt](int16_t a)
                        {
@@ -597,7 +596,7 @@ Vector VectorProcessor::calcOpImmResult(uint32_t inst, int32_t imm, uint32_t rs1
     
     case VOpImmType::VSRAI:
     {
-        PLOGV << "VSRAI " << rs1;
+        LOGV_FENN_ISE << "VSRAI " << rs1;
         return unaryOp(val, false,
                         [shamt](int16_t a)
                         {
@@ -607,7 +606,7 @@ Vector VectorProcessor::calcOpImmResult(uint32_t inst, int32_t imm, uint32_t rs1
 
     case VOpImmType::VSRAI_RN:
     {
-        PLOGV << "VSRAI_RN " << rs1;
+        LOGV_FENN_ISE << "VSRAI_RN " << rs1;
         const int16_t half = 1 << (shamt - 1);
         return unaryOp(val, false,
                        [half, shamt](int16_t a)
@@ -618,7 +617,7 @@ Vector VectorProcessor::calcOpImmResult(uint32_t inst, int32_t imm, uint32_t rs1
 
     case VOpImmType::VSRAI_RS:
     {
-        PLOGV << "VSRAI_RS " << rs1;
+        LOGV_FENN_ISE << "VSRAI_RS " << rs1;
         // Sample from RNG
         const auto r = sampleRNG();
 
@@ -653,23 +652,23 @@ uint32_t VectorProcessor::calcTestResult(uint32_t inst, uint32_t rs2, uint32_t r
     {
     case VTstType::VTEQ:
     {
-        PLOGV << "VTEQ " << rs1 << " " << rs2;
+        LOGV_FENN_ISE << "VTEQ " << rs1 << " " << rs2;
         return maskOp(val, val2, [](int16_t a, int16_t b){ return a == b; });
     }
 
     case VTstType::VTNE:
     {
-        PLOGV << "VTNE " << rs1 << " " << rs2;
+        LOGV_FENN_ISE << "VTNE " << rs1 << " " << rs2;
         return maskOp(val, val2, [](int16_t a, int16_t b){ return a != b; });
     }
     case VTstType::VTLT:
     {
-        PLOGV << "VTLT " << rs1 << " " << rs2;
+        LOGV_FENN_ISE << "VTLT " << rs1 << " " << rs2;
         return maskOp(val, val2, [](int16_t a, int16_t b){ return a < b; });
     }
     case VTstType::VTGE:
     {
-        PLOGV << "VTGE " << rs1 << " " << rs2;
+        LOGV_FENN_ISE << "VTGE " << rs1 << " " << rs2;
         return maskOp(val, val2, [](int16_t a, int16_t b){ return a >= b; });
     }
     default:

@@ -6,14 +6,13 @@
 #include <numeric>
 #include <stdexcept>
 
-// PLOG includes
-#include <plog/Log.h>
-#include <plog/Severity.h>
-
 // Common include
 #include "common/utils.h"
 
-// RISC-V ISE include
+// FeNN common includes
+#include "fenn/common/logging.h"
+
+// FeNN ISE include
 #include "fenn/ise/dma_controller_sim.h"
 #include "fenn/ise/router_sim.h"
 
@@ -220,49 +219,49 @@ bool RISCV::run()
         switch(ex.getCause()) {
         case Exception::Cause::MISALIGNED_FETCH:
         {
-            PLOGE << "Misaligned fetch at " << ex.getContext();
+            LOGE_FENN_ISE << "Misaligned fetch at " << ex.getContext();
             break;
         }
         
         case Exception::Cause::FAULT_FETCH:
         {
-            PLOGE << "Fetch fault at " << ex.getContext();
+            LOGE_FENN_ISE << "Fetch fault at " << ex.getContext();
             break;
         }
         
         case Exception::Cause::ILLEGAL_INSTRUCTION:
         {
-            PLOGE << "Illegal instruction " << ex.getContext();
+            LOGE_FENN_ISE << "Illegal instruction " << ex.getContext();
             break;
         }
         
         case Exception::Cause::MISALIGNED_LOAD:
         {
-            PLOGE << "Misaligned load at " << ex.getContext();
+            LOGE_FENN_ISE << "Misaligned load at " << ex.getContext();
             break;
         }
         
         case Exception::Cause::FAULT_LOAD:
         {
-            PLOGE << "Load fault at " << ex.getContext();
+            LOGE_FENN_ISE << "Load fault at " << ex.getContext();
             break;
         }
         
         case Exception::Cause::MISALIGNED_STORE:
         {
-            PLOGE << "Misaligned store at " << ex.getContext();
+            LOGE_FENN_ISE << "Misaligned store at " << ex.getContext();
             break;
         }
         
         case Exception::Cause::FAULT_STORE:
         {
-            PLOGE << "Store fault at " << ex.getContext();
+            LOGE_FENN_ISE << "Store fault at " << ex.getContext();
             break;
         }
 
         case Exception::Cause::RAW_HAZARD:
         {
-            PLOGE << "RAW hazard at " << ex.getContext();
+            LOGE_FENN_ISE << "RAW hazard at " << ex.getContext();
             break;
         }
 
@@ -273,7 +272,7 @@ bool RISCV::run()
         
         default:
         {
-            PLOGE << "Unhandled exception";
+            LOGE_FENN_ISE << "Unhandled exception";
             break;
         }
         }
@@ -282,7 +281,7 @@ bool RISCV::run()
         return false;
     }
     catch(const std::exception &exc) {
-        PLOGE << "Internal error: " << exc.what();
+        LOGE_FENN_ISE << "Internal error: " << exc.what();
         dumpRegisters();
         return false;
     }
@@ -398,35 +397,35 @@ bool RISCV::calcBranchCondition(uint32_t inst, uint32_t rs2, uint32_t rs1, uint3
     switch(getBranchType(funct3)) {
     case BranchType::BEQ:
     {
-        PLOGV << "BEQ " << rs1 << " " << rs2;
+        LOGV_FENN_ISE << "BEQ " << rs1 << " " << rs2;
         return (m_Reg[rs1] == m_Reg[rs2]);
     }
 
     case BranchType::BNE:
     {
-        PLOGV << "BNE " << rs1 << " " << rs2;
+        LOGV_FENN_ISE << "BNE " << rs1 << " " << rs2;
         return (m_Reg[rs1] != m_Reg[rs2]);
     }
 
     case BranchType::BLT:
     {
-        PLOGV << "BLT " << rs1 << " " << rs2;
+        LOGV_FENN_ISE << "BLT " << rs1 << " " << rs2;
         return ((int32_t)m_Reg[rs1] < (int32_t)m_Reg[rs2]);
     }
 
     case BranchType::BGE:
     {
-        PLOGV << "BGE " << rs1 << " " << rs2;
+        LOGV_FENN_ISE << "BGE " << rs1 << " " << rs2;
         return ((int32_t)m_Reg[rs1] >= (int32_t)m_Reg[rs2]);
     }
     case BranchType::BLTU:
     {
-        PLOGV << "BLTU " << rs1 << " " << rs2;
+        LOGV_FENN_ISE << "BLTU " << rs1 << " " << rs2;
         return (m_Reg[rs1] < m_Reg[rs2]);
     }
     case BranchType::BGEU: // BGEU
     {
-        PLOGV << "BGEU " << rs1 << " " << rs2;
+        LOGV_FENN_ISE << "BGEU " << rs1 << " " << rs2;
         return (m_Reg[rs1] >= m_Reg[rs2]);
     }
     default:
@@ -443,7 +442,7 @@ uint32_t RISCV::calcOpImmResult(uint32_t inst, int32_t imm, uint32_t rs1, uint32
     const uint32_t val = m_Reg[rs1];
     const uint32_t shamt = imm & 0b11111;
     const auto opType = getOpImmType(imm, funct3);
-    PLOGV << opType._to_string() << " " << rs1 << " " << imm;
+    LOGV_FENN_ISE << opType._to_string() << " " << rs1 << " " << imm;
     switch(opType) {
     case OpImmType::ADDI:
     {
@@ -512,7 +511,7 @@ uint32_t RISCV::calcOpImmResult(uint32_t inst, int32_t imm, uint32_t rs1, uint32
 
     case OpImmType::ANDI:
     {
-        PLOGV << "ANDI " << rs1 << " " << imm;
+        LOGV_FENN_ISE << "ANDI " << rs1 << " " << imm;
         return (val & imm);
     }
 
@@ -531,7 +530,7 @@ uint32_t RISCV::calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs2, uint3
     const uint32_t val2 = m_Reg[rs2];
 
     const auto opType = getOpType(funct7, funct3);
-    PLOGV << opType._to_string() << " " << rs1 << " " << rs2;
+    LOGV_FENN_ISE << opType._to_string() << " " << rs1 << " " << rs2;
     switch(opType) {
     case OpType::ADD:
     {
@@ -622,7 +621,7 @@ uint32_t RISCV::loadValue(uint32_t inst, int32_t imm, uint32_t rs1, uint32_t fun
     const uint32_t addr = m_Reg[rs1] + imm;
     const auto &memory = getScalarMemory(addr);
     const auto loadType = getLoadType(funct3);
-    PLOGV << loadType._to_string() << " " << rs1 << " " << imm;
+    LOGV_FENN_ISE << loadType._to_string() << " " << rs1 << " " << imm;
     switch(loadType) {
     case LoadType::LB:
     {
@@ -836,8 +835,8 @@ void RISCV::executeStandardInstruction(uint32_t inst)
     case StandardOpCode::LUI:
     {
         const auto [imm, rd] = decodeUType(inst);
-        PLOGV << "LUI " << imm;
-        PLOGV << "\t"  << rd;
+        LOGV_FENN_ISE << "LUI " << imm;
+        LOGV_FENN_ISE << "\t"  << rd;
 #ifdef DEBUG_EXTRA
         stats[0]++;
 #endif
@@ -850,8 +849,8 @@ void RISCV::executeStandardInstruction(uint32_t inst)
     case StandardOpCode::AUIPC:
     {
         const auto [imm, rd] = decodeUType(inst);
-        PLOGV << "AUIPC " << imm;
-        PLOGV << "\t"  << rd;
+        LOGV_FENN_ISE << "AUIPC " << imm;
+        LOGV_FENN_ISE << "\t"  << rd;
 #ifdef DEBUG_EXTRA
         stats[1]++;
 #endif
@@ -865,8 +864,8 @@ void RISCV::executeStandardInstruction(uint32_t inst)
     {
         const auto [imm, rd] = decodeJType(inst);
         
-        PLOGV << "JAL " << rd << " " << imm;
-        PLOGV << "\t"  << rd;
+        LOGV_FENN_ISE << "JAL " << rd << " " << imm;
+        LOGV_FENN_ISE << "\t"  << rd;
 #ifdef DEBUG_EXTRA
         stats[2]++;
 #endif
@@ -882,8 +881,8 @@ void RISCV::executeStandardInstruction(uint32_t inst)
     case StandardOpCode::JALR:
     {
         const auto [imm, rs1, funct3, rd] = decodeIType(inst);
-        PLOGV << "JALR " << rs1 << " " << imm;
-        PLOGV << "\t"  << rd;
+        LOGV_FENN_ISE << "JALR " << rs1 << " " << imm;
+        LOGV_FENN_ISE << "\t"  << rd;
 #ifdef DEBUG_EXTRA
         stats[3]++;
 #endif
@@ -900,7 +899,7 @@ void RISCV::executeStandardInstruction(uint32_t inst)
     {
         const auto [imm, rs2, rs1, funct3] = decodeBType(inst);
         if (calcBranchCondition(inst, rs2, rs1, funct3)) {
-            PLOGV << "\t" << (m_PC + imm);
+            LOGV_FENN_ISE << "\t" << (m_PC + imm);
 
             m_NumTrueBranches++;
             setNextPC((int32_t)(m_PC + imm));
@@ -915,7 +914,7 @@ void RISCV::executeStandardInstruction(uint32_t inst)
     {
         const auto [imm, rs1, funct3, rd] = decodeIType(inst);
         const auto value = loadValue(inst, imm, rs1, funct3);
-        PLOGV << "\t" << rd;
+        LOGV_FENN_ISE << "\t" << rd;
         if (rd != 0) {
             m_Reg[rd] = value;
         }
@@ -931,21 +930,21 @@ void RISCV::executeStandardInstruction(uint32_t inst)
         switch(getStoreType(funct3)) {
         case StoreType::SB:
         {
-            PLOGV << "SB " << rs2 << " " << rs1 << " " << imm;
+            LOGV_FENN_ISE << "SB " << rs2 << " " << rs1 << " " << imm;
             memory.write8(addr, val);
             break;
         }
 
         case StoreType::SH:
         {
-            PLOGV << "SH " << rs2 << " " << rs1 << " " << imm;
+            LOGV_FENN_ISE << "SH " << rs2 << " " << rs1 << " " << imm;
             memory.write16(addr, val);
             break;
         }
 
         case StoreType::SW:
         {
-            PLOGV << "SW " << rs2 << " " << rs1 << " " << imm;
+            LOGV_FENN_ISE << "SW " << rs2 << " " << rs1 << " " << imm;
             memory.write32(addr, val);
             break;
         }
@@ -962,7 +961,7 @@ void RISCV::executeStandardInstruction(uint32_t inst)
     {
         const auto [imm, rs1, funct3, rd] = decodeIType(inst);
         const uint32_t val = calcOpImmResult(inst, imm, rs1, funct3);
-        PLOGV << "\t" << rd;
+        LOGV_FENN_ISE << "\t" << rd;
         if (rd != 0) {
             m_Reg[rd] = val;
         }
@@ -973,7 +972,7 @@ void RISCV::executeStandardInstruction(uint32_t inst)
     {
         const auto [funct7, rs2, rs1, funct3, rd] = decodeRType(inst);
         const uint32_t val = calcOpResult(inst, funct7, rs2, rs1, funct3);
-        PLOGV << "\t" << rd;
+        LOGV_FENN_ISE << "\t" << rd;
         if (rd != 0) {
             m_Reg[rd] = val;
         }
@@ -1055,7 +1054,7 @@ void RISCV::executeStandardInstruction(uint32_t inst)
 
         case SystemType::ECALL:
         {
-            PLOGV << "ECALL";
+            LOGV_FENN_ISE << "ECALL";
 
             if (inst & 0x000fff80) {
                 throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
@@ -1067,7 +1066,7 @@ void RISCV::executeStandardInstruction(uint32_t inst)
         
         case SystemType::EBREAK:
         {
-            PLOGV << "EBREAK";
+            LOGV_FENN_ISE << "EBREAK";
             if (inst & 0x000fff80) {
                 throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
             }

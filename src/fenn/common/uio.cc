@@ -18,8 +18,8 @@
     #include <sys/mman.h>
 #endif
 
-// PLOG includes
-#include <plog/Log.h>
+// FeNN common includes
+#include "fenn/common/logging.h"
 
 // Anonymous namespace
 namespace
@@ -75,14 +75,14 @@ UIO::UIO(const std::string &uioName)
         throw std::runtime_error("UIO '" + uioName + "' not found");
     }
 
-    LOGI << "Opening UIO " << uio.value() << "('" << uioName << "')";
+    LOGI_FENN_COMMON << "Opening UIO " << uio.value() << "('" << uioName << "')";
 
     const auto size = getUIOSize(uio.value());
     if(!size) {
         throw std::runtime_error("Unable to read size of UIO " + std::to_string(*uio) + "'" + uioName + "' not found");
     }
     m_Size = size.value();
-    LOGD << "Size " << m_Size << " bytes";
+    LOGD_FENN_COMMON << "Size " << m_Size << " bytes";
 
     const std::string uioFilename = "/dev/uio" + std::to_string(uio.value());
     int memory = open(uioFilename.c_str(), O_RDWR | O_SYNC);

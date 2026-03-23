@@ -29,6 +29,9 @@
     <ClCompile Include="uio.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="logging.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\include\fenn\common\app_utils.h">
@@ -53,6 +56,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\include\fenn\common\uio.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\fenn\common\logging.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

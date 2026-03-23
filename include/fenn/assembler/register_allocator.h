@@ -7,14 +7,12 @@
 // Standard C includes
 #include <cstdint>
 
-// PLOG includes
-#include <plog/Log.h>
-
 // Common includes
 #include "common/utils.h"
 
 // FeNN common include
 #include "fenn/common/isa.h"
+#include "fenn/common/logging.h"
 
 #define ALLOCATE_SCALAR(NAME) const auto NAME = scalarRegisterAllocator.getRegister(#NAME" = X");
 #define ALLOCATE_VECTOR(NAME) const auto NAME = vectorRegisterAllocator.getRegister(#NAME" = V");
@@ -39,7 +37,7 @@ public:
             : m_Reg(reg), m_Parent(parent)
         {
             if (context) {
-                PLOGD << "Allocating " << context << static_cast<uint32_t>(reg);
+                LOGD_FENN_ASSEMBLER << "Allocating " << context << static_cast<uint32_t>(reg);
             }
         }
 

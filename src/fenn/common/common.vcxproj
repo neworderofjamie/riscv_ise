@@ -24,6 +24,7 @@
     <ClCompile Include="dma_buffer.cc" />
     <ClCompile Include="dma_controller.cc" />
     <ClCompile Include="isa.cc" />
+    <ClCompile Include="logging.cc" />
     <ClCompile Include="uio.cc" />
   </ItemGroup>
   <ItemGroup>
@@ -33,6 +34,7 @@
     <ClInclude Include="..\..\..\include\fenn\common\dma_controller.h" />
     <ClInclude Include="..\..\..\include\fenn\common\fenn_common_export.h" />
     <ClInclude Include="..\..\..\include\fenn\common\isa.h" />
+    <ClInclude Include="..\..\..\include\fenn\common\logging.h" />
     <ClInclude Include="..\..\..\include\fenn\common\u-dma-buf-ioctl.h" />
     <ClInclude Include="..\..\..\include\fenn\common\uio.h" />
   </ItemGroup>

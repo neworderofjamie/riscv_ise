@@ -1,10 +1,10 @@
 #include "fenn/ise/router_sim.h"
 
-// PLOG includes
-#include <plog/Log.h>
-
 // Common includes
 #include "common/utils.h"
+
+// FeNN common includes
+#include "fenn/common/logging.h"
 
 // ISE includes
 #include "fenn/ise/riscv.h"
@@ -167,14 +167,14 @@ void RouterSim::writeReceivedEvent(std::optional<uint32_t> data)
         if (data.value() == barrierEventID) {
             auto &slaveBarrierCount = m_Registers[static_cast<int>(Register::SLAVE_BARRIER_COUNT)];
             slaveBarrierCount++;
-            PLOGV << "Incremented barrier " << slaveBarrierCount;
+            LOGV_FENN_ISE << "Incremented barrier " << slaveBarrierCount;
 
             // If we have hit barrier count
             // **HACK** there is a bug in the simulator where barrier count exceeds SNumMasters
             if(slaveBarrierCount >= m_SharedBus.get().getNumRouters()) {
                 // Try and catch bug
                 if (slaveBarrierCount > m_SharedBus.get().getNumRouters()) {
-                    PLOGW << "Barrier count (" << slaveBarrierCount << ") has exceeded number of routers";
+                    LOGW_FENN_ISE << "Barrier count (" << slaveBarrierCount << ") has exceeded number of routers";
                 }
 
                 // If we've been writing to the start of the buffer
@@ -216,7 +216,7 @@ void RouterSim::writeReceivedEvent(std::optional<uint32_t> data)
             if(m_SlaveWriteStart) {
                 if(m_SlaveWriteAddress < readReg(Register::SLAVE_EVENT_START_ADDRESS)) {
                     m_SpikeMemory.get().write32(m_SlaveWriteAddress, data.value());
-                    PLOGV << "Writing event " << data.value() << " to " << m_SlaveWriteAddress;
+                    LOGV_FENN_ISE << "Writing event " << data.value() << " to " << m_SlaveWriteAddress;
 
                     // Increment address
                     m_SlaveWriteAddress += 4;
@@ -229,7 +229,7 @@ void RouterSim::writeReceivedEvent(std::optional<uint32_t> data)
             else {
                 if(m_SlaveWriteAddress >= readReg(Register::SLAVE_EVENT_END_ADDRESS)) {
                     m_SpikeMemory.get().write32(m_SlaveWriteAddress, data.value());
-                    PLOGV << "Writing event " << data.value() << " to " << m_SlaveWriteAddress;
+                    LOGV_FENN_ISE << "Writing event " << data.value() << " to " << m_SlaveWriteAddress;
 
                     // Decrement address
                     m_SlaveWriteAddress -= 4;
