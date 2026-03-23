@@ -1381,7 +1381,98 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
 //----------------------------------------------------------------------------
 // FeNN::Backend::EventPropagationProcess
 //----------------------------------------------------------------------------
-/*void EventPropagationProcess::updateCompatibleMemSpace(std::shared_ptr<const Frontend::State> state, 
+/*EventPropagationProcess::EventPropagationProcess(Private, Sliced<EventContainer> inputEvents, 
+                            VariablePtr weight, Sliced<Variable> target,
+                            size_t numSparseConnectivityBits, size_t numDelayBits,
+                            const std::string &name)
+:   Frontend::EventPropagationProcess(Private, inputEvents, target, name), m_Weight(weight),
+    m_NumSparseConnectivityBits(numSparseConnectivityBits), m_NumDelayBits(numDelayBits)
+{
+    if(m_Weight == nullptr) {
+        throw std::runtime_error("Event propagation process requires weight variable");
+    }
+
+    if (getWeight()->getShape().getNumDims() != 2) {
+        throw std::runtime_error("Event propagation process requires weight variable with a 2D shape");
+    }
+
+    // Get maximum row length from weight variable shape
+    const auto &weightDims = m_Weight->getShape().getDims();
+    m_MaxRowLength = weightDims[1];
+
+    // Check weight number of source neurons matches
+    if(weightDims[0] != getSourceShape().getLast()) {
+        throw std::runtime_error("Weight with shape: " + weight->getShape().toString() 
+                                 + " is not compatible with event propagation process with " 
+                                 + std::to_string(getSourceShape().getLast()) + " source neurons");
+    }
+
+    // Check delays and sparsity are not being combined
+    if(getNumDelayBits() > 0 && getNumSparseConnectivityBits() > 0) {
+        throw std::runtime_error("Event propagation processes with both events "
+                                 "and delays are not currently supported");
+    }
+
+    // Check weight number of target neurons matches if no sparsity
+    if(getNumSparseConnectivityBits() == 0 && getMaxRowLength() != getTargetShape().getLast()) {
+        throw std::runtime_error("Weight with shape: " + weight->getShape().toString() 
+                                 + " is not compatible with dense event propagation process with " 
+                                 + std::to_string(getTargetShape().getLast()) + " target neurons");
+    }
+
+    // If there are no delays, check time 
+    if (getNumDelayBits() == 0) {
+        if (getTargetShape().getNumDims() != 1) {
+            throw std::runtime_error("Non-delayed event propagation process "
+                                     "requires target variable with a 1D shape");
+        }
+    }
+    // Otherwise, check buffer size matches
+    else {
+        if (getTargetShape().getNumDims() != 2 || m_Target.hasTimeSlice()) {
+            throw std::runtime_error("Delayed event propagation process "
+                                     "requires target variable with a 2D shape");
+        }
+
+        if(getTargetShape().getFirst() != (1 << (getNumDelayBits() - 1))) {
+            throw std::runtime_error("Shape of target buffer does not "
+                                     "match specified number of delay bits");
+        }
+    }
+}
+//----------------------------------------------------------------------------
+std::vector<std::shared_ptr<const State>> EventPropagationProcess::getAllState() const
+{
+    return {getInputEvents().getUnderlying(), getWeight(), getTarget().getUnderlying()};
+}
+//----------------------------------------------------------------------------
+void EventPropagationProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Model &model) const
+{
+    // Superclass
+    Frontend::EventPropagationProcess::updateMergedHash(hash, model);
+
+    // Weights
+    getWeight()->updateMergeHash(hash);
+    
+    // Formats
+    updateHash(getNumDelayBits(), hash);
+    updateHash(getNumSparseConnectivityBits(), hash);
+}
+//----------------------------------------------------------------------------
+void EventPropagationProcess::updateCompatibleSplitDimensions(std::shared_ptr<const State> state, 
+                                                              uint32_t &compatibleSplitDimensions) const 
+{
+    // If variable is weight, it can only be split in 2nd (postsynaptic) dimension
+    if(state == getWeight()) {
+        compatibleSplitDimensions &= (1 << 1);
+    }
+    // Otherwise, superclass
+    else {
+        Frontend::EventPropagationProcess(state, compatibleSplitDimensions);
+    }
+}
+//----------------------------------------------------------------------------
+void EventPropagationProcess::updateCompatibleMemSpace(std::shared_ptr<const Frontend::State> state, 
                                                        MemSpace &compatibleMemSpaces) const
 {
     // If variable is weight, it can  be located in URAM or DRAM

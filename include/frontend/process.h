@@ -176,15 +176,13 @@ class FRONTEND_EXPORT EventPropagationProcess : public Process
 {
 public:
     EventPropagationProcess(Private, Sliced<EventContainer> inputEvents, 
-                            VariablePtr weight, Sliced<Variable> target,
-                            size_t numSparseConnectivityBits, size_t numDelayBits,
-                            const std::string &name);
+                            Sliced<Variable> target, const std::string &name);
 
     //------------------------------------------------------------------------
     // Process virtuals
     //------------------------------------------------------------------------
     //! Get vector of state objects used by this process
-    virtual std::vector<std::shared_ptr<const State>> getAllState() const override final;
+    virtual std::vector<std::shared_ptr<const State>> getAllState() const override;
 
     //! Update the provided hash with the properties of this process which determine whether it can be merged
     virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const Model &model) const override;
@@ -198,27 +196,19 @@ public:
     // Public API
     //------------------------------------------------------------------------
     const auto getInputEvents() const{ return m_InputEvents; }
-    const auto getWeight() const{ return m_Weight; }
+
     const auto getTarget() const{ return m_Target; }
 
     const auto &getSourceShape() const{ return m_InputEvents.getShape(); }
     const auto &getTargetShape() const{ return m_Target.getShape(); }
-    size_t getMaxRowLength() const{ return m_MaxRowLength; }
-
-    size_t getNumSparseConnectivityBits() const{ return m_NumSparseConnectivityBits; }
-    size_t getNumDelayBits() const{ return m_NumDelayBits; }
     
     //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------
     static std::shared_ptr<EventPropagationProcess> create(std::shared_ptr<const EventContainer> inputEvents, 
-                                                           VariablePtr weight, VariablePtr target, 
-                                                           size_t numSparseConnectivityBits = 0,
-                                                           size_t numDelayBits = 0,
-                                                           const std::string &name = "")
+                                                           VariablePtr target, const std::string &name = "")
     {
-        return std::make_shared<EventPropagationProcess>(Private(), inputEvents, weight, target, 
-                                                         numSparseConnectivityBits, numDelayBits, name);
+        return std::make_shared<EventPropagationProcess>(Private(), inputEvents, target, name);
     }
 
 private:
@@ -226,15 +216,9 @@ private:
     // Members
     //------------------------------------------------------------------------
     Sliced<EventContainer> m_InputEvents;
-    VariablePtr m_Weight;
+
     Sliced<Variable> m_Target;
     
-    size_t m_NumSourceNeurons;
-    size_t m_NumTargetNeurons;
-    size_t m_MaxRowLength;
-
-    size_t m_NumSparseConnectivityBits;
-    size_t m_NumDelayBits;
 };
 
 //----------------------------------------------------------------------------

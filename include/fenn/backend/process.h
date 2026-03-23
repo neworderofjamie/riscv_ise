@@ -167,7 +167,24 @@ public:
 /*class FENN_BACKEND_EXPORT EventPropagationProcess : public ProcessImplementationBase<Frontend::EventPropagationProcess, ProcessImplementation>
 {
 public:
-    using ProcessImplementationBase<Frontend::EventPropagationProcess, ProcessImplementation>::ProcessImplementationBase;
+    EventPropagationProcess(Private, Sliced<EventContainer> inputEvents, 
+                            VariablePtr weight, Sliced<Variable> target,
+                            size_t numSparseConnectivityBits, size_t numDelayBits,
+                            const std::string &name);
+    
+    //------------------------------------------------------------------------
+    // Process virtuals
+    //------------------------------------------------------------------------
+    //! Get vector of state objects used by this process
+    virtual std::vector<std::shared_ptr<const State>> getAllState() const override final;
+    
+    //! Update the provided hash with the properties of this process which determine whether it can be merged
+    virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const Model &model) const override final;
+
+    //! Update the compatible split dimensions of a state object (which should be
+    //! one used by this process) with any constraints imposed by this process)
+    virtual void updateCompatibleSplitDimensions(std::shared_ptr<const State> state, 
+                                                 uint32_t &compatibleSplitDimensions) const override final;
 
     //------------------------------------------------------------------------
     // ProcessImplementation virtuals
@@ -185,6 +202,16 @@ public:
                               std::optional<uint32_t> numTimesteps, Assembler::CodeGenerator &c,
                               Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                               Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;
+    
+    //------------------------------------------------------------------------
+    // Public API
+    //------------------------------------------------------------------------
+    const auto getWeight() const{ return m_Weight; }
+
+    size_t getMaxRowLength() const{ return m_MaxRowLength; }
+
+    size_t getNumSparseConnectivityBits() const{ return m_NumSparseConnectivityBits; }
+    size_t getNumDelayBits() const{ return m_NumDelayBits; }
 
     //------------------------------------------------------------------------
     // Static API
@@ -198,6 +225,17 @@ public:
         return std::make_shared<EventPropagationProcess>(Private(), inputEvents, weight, target, 
                                                          numSparseConnectivityBits, numDelayBits, name);
     }
+
+private:
+    //------------------------------------------------------------------------
+    // Members
+    //------------------------------------------------------------------------
+    VariablePtr m_Weight;
+
+    size_t m_MaxRowLength;
+
+    size_t m_NumSparseConnectivityBits;
+    size_t m_NumDelayBits;
 };*/
 
 //----------------------------------------------------------------------------

@@ -224,17 +224,11 @@ void NeuronUpdateProcess::constrainSplitDimensions(std::unordered_map<std::share
 // EventPropagationProcess
 //----------------------------------------------------------------------------
 EventPropagationProcess::EventPropagationProcess(Private, Sliced<EventContainer> inputEvents, 
-                                                 VariablePtr weight, Sliced<Variable> target, size_t numSparseConnectivityBits, 
-                                                 size_t numDelayBits, const std::string &name)
-:   Process(name), m_InputEvents(inputEvents), m_Weight(weight), m_Target(target), 
-    m_NumSparseConnectivityBits(numSparseConnectivityBits), m_NumDelayBits(numDelayBits)
+                                                 Sliced<Variable> target, const std::string &name)
+:   Process(name), m_InputEvents(inputEvents),  m_Target(target)
 {
     if(m_InputEvents.getUnderlying() == nullptr) {
         throw std::runtime_error("Event propagation process requires input events");
-    }
-
-    if(m_Weight == nullptr) {
-        throw std::runtime_error("Event propagation process requires weight variable");
     }
 
     if(m_Target.getUnderlying() == nullptr) {
@@ -243,62 +237,12 @@ EventPropagationProcess::EventPropagationProcess(Private, Sliced<EventContainer>
 
     if (getSourceShape().getNumDims() != 1) {
         throw std::runtime_error("Event propagation process requires source events with a 1D shape");
-    }
-
-    if (getWeight()->getShape().getNumDims() != 2) {
-        throw std::runtime_error("Event propagation process requires weight variable with a 2D shape");
-    }
-
-  
-    // Get maximum row length from weight variable shape
-    const auto &weightDims = m_Weight->getShape().getDims();
-    m_MaxRowLength = weightDims[1];
-
-    // Check weight number of source neurons matches
-    if(weightDims[0] != getSourceShape().getLast()) {
-        throw std::runtime_error("Weight with shape: " + weight->getShape().toString() 
-                                 + " is not compatible with event propagation process with " 
-                                 + std::to_string(getSourceShape().getLast()) + " source neurons");
-    }
-
-    // Check delays and sparsity are not being combined
-    if(getNumDelayBits() > 0 && getNumSparseConnectivityBits() > 0) {
-        throw std::runtime_error("Event propagation processes with both events "
-                                 "and delays are not currently supported");
-    }
-
-    // Check weight number of target neurons matches if no sparsity
-    if(getNumSparseConnectivityBits() == 0 && getMaxRowLength() != getTargetShape().getLast()) {
-        throw std::runtime_error("Weight with shape: " + weight->getShape().toString() 
-                                 + " is not compatible with dense event propagation process with " 
-                                 + std::to_string(getTargetShape().getLast()) + " target neurons");
-    }
-
-    // If there are no delays, check time 
-    if (getNumDelayBits() == 0) {
-        if (getTargetShape().getNumDims() != 1) {
-            throw std::runtime_error("Non-delayed event propagation process "
-                                     "requires target variable with a 1D shape");
-        }
-    }
-    // Otherwise, check buffer size matches
-    else {
-        if (getTargetShape().getNumDims() != 2 || m_Target.hasTimeSlice()) {
-            throw std::runtime_error("Delayed event propagation process "
-                                     "requires target variable with a 2D shape");
-        }
-
-        if(getTargetShape().getFirst() != (1 << (getNumDelayBits() - 1))) {
-            throw std::runtime_error("Shape of target buffer does not "
-                                     "match specified number of delay bits");
-        }
-    }
-    
+    }    
 }
 //----------------------------------------------------------------------------
 std::vector<std::shared_ptr<const State>> EventPropagationProcess::getAllState() const
 {
-    return {getInputEvents().getUnderlying(), getWeight(), getTarget().getUnderlying()};
+    return {getInputEvents().getUnderlying(), getTarget().getUnderlying()};
 }
 //----------------------------------------------------------------------------
 void EventPropagationProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Model&) const
@@ -309,26 +253,17 @@ void EventPropagationProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, 
     // Input events
     getInputEvents().getUnderlying()->updateMergeHash(hash);
 
-    // Weights and targets
-    getWeight()->updateMergeHash(hash);
+    // Targets
     getTarget().getUnderlying()->updateMergeHash(hash);
-
-    // Formats
-    updateHash(getNumDelayBits(), hash);
-    updateHash(getNumSparseConnectivityBits(), hash);
 }
 //----------------------------------------------------------------------------
 void EventPropagationProcess::updateCompatibleSplitDimensions(std::shared_ptr<const State> state, 
                                                               uint32_t &compatibleSplitDimensions) const 
 {
-    // If variable is weight, it can only be split in 2nd (postsynaptic) dimension
-    if(state == getWeight()) {
-        compatibleSplitDimensions &= (1 << 1);
-    }
-    // Otherwise, if variable's target
-    else if(state == getTarget().getUnderlying()) {
+    // If variable's target
+    if(state == getTarget().getUnderlying()) {
         // If there are no delays, it can only be split on 1st (postsynaptic) dimension
-        if (getNumDelayBits() == 0) {
+        if (getTarget().getShape().getNumDims() == 1) {
             compatibleSplitDimensions &= (1 << 0);
         }
         // Otherwise, it can only be split on 2nd (postsynaptic) dimension
