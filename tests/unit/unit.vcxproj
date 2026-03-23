@@ -76,7 +76,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>assembler_$(Configuration).lib;ise_$(Configuration).lib;common_$(Configuration).lib;libffi_$(Configuration).lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>frontend_$(Configuration).lib;compiler_frontend_$(Configuration).lib;common_$(Configuration).lib;libffi_$(Configuration).lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(SolutionDir)lib</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
