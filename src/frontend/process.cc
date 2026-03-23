@@ -20,7 +20,9 @@
 namespace Frontend
 {
 NeuronUpdateProcess::NeuronUpdateProcess(Private, const std::string &code, const VariableMap &variables, 
-                                         const EventContainerMap &outputEvents, const std::string &name)
+                                         const EventContainerMap &outputEvents, 
+                                         const CompilerFrontend::Type::ResolvedType &defaultScalarLiteralType,
+                                         const std::string &name)
 :   Process(name), m_Variables(variables), m_OutputEvents(outputEvents)
 {
     if(m_Variables.empty() && m_OutputEvents.empty()) {
@@ -66,7 +68,8 @@ NeuronUpdateProcess::NeuronUpdateProcess(Private, const std::string &code, const
     
     // Scan code string and return tokens
     CompilerFrontend::ErrorHandler errorHandler("NeuronUpdateProcess '" + getName() + "'");
-    m_Tokens = CompilerFrontend::Scanner::scanSource(code, errorHandler);
+    m_Tokens = CompilerFrontend::Scanner::scanSource(code, errorHandler, 
+                                                     defaultScalarLiteralType);
     if(errorHandler.hasError()) {
         throw std::runtime_error("Error scanning");
     }

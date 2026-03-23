@@ -107,7 +107,9 @@ class FRONTEND_EXPORT NeuronUpdateProcess : public Process
 {
 public:
     NeuronUpdateProcess(Private, const std::string &code, const VariableMap &variables, 
-                        const EventContainerMap &outputEvents, const std::string &name);
+                        const EventContainerMap &outputEvents, 
+                        const CompilerFrontend::Type::ResolvedType &defaultScalarLiteralType,
+                        const std::string &name);
 
     //------------------------------------------------------------------------
     // Process virtuals
@@ -143,10 +145,12 @@ public:
     //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------
-    static std::shared_ptr<NeuronUpdateProcess> create(const std::string &code, const VariableMap &variables, 
-                                                       const EventContainerMap &outputEvents = {}, const std::string &name = "")
+    static std::shared_ptr<NeuronUpdateProcess> create(
+        const std::string &code, const VariableMap &variables = {}, const EventContainerMap &outputEvents = {}, 
+        const CompilerFrontend::Type::ResolvedType &defaultScalarLiteralType = CompilerFrontend::Type::Float,
+        const std::string &name = "")
     {
-        return std::make_shared<NeuronUpdateProcess>(Private(), code, variables, outputEvents, name);
+        return std::make_shared<NeuronUpdateProcess>(Private(), code, variables, outputEvents, defaultScalarLiteralType, name);
     }
 
 private:
@@ -161,7 +165,7 @@ private:
 
     //! Tokens built from code
     std::vector<CompilerFrontend::Token> m_Tokens;
-
+    
     Shape m_Shape;
 };
 

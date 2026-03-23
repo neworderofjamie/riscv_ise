@@ -22,7 +22,7 @@ class FRONTEND_EXPORT Variable : public AcceptableState<Variable>
 public:
     Variable(Private, const Shape &shape, const CompilerFrontend::Type::UnresolvedType &type, const std::string &name)
     :   AcceptableState<Variable>(name), m_Shape(shape), 
-        m_Type(type.resolve({}))
+        m_Type(type.resolve())
     {}
 
     //------------------------------------------------------------------------
