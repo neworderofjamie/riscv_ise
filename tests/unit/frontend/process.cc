@@ -73,16 +73,51 @@ TEST(NeuronProcess, VarOutputEventShapesMatch)
         std::runtime_error);
  
     // Sliced variable
-    NeuronUpdateProcess::create(
+    auto slicedVarProcess = NeuronUpdateProcess::create(
         "A = B * 0.5;\n"
         "Spike();\n",
         {{"A", Sliced<Variable>(var)}, {"V", Sliced<Variable>(varSliceShape, true)}}, 
         {{"Spike", Sliced<EventContainer>(eventContainer)}});
     
+    ASSERT_EQ(slicedVarProcess->getShape(), Shape(50));
+
     // Sliced output event
-    NeuronUpdateProcess::create(
+    auto slicedOutputProcess = NeuronUpdateProcess::create(
         "A = B * 0.5;\n"
         "Spike();\n",
         {{"A", Sliced<Variable>(var)}, {"V", Sliced<Variable>(varSameShape)}}, 
         {{"Spike", Sliced<EventContainer>(eventContainerSliceShape, true)}});
+
+    ASSERT_EQ(slicedOutputProcess->getShape(), Shape(50));
+}
+
+TEST(NeuronProcess, LiteralExtract)
+{
+    // Create neuron update with lots of literals
+    auto process = NeuronUpdateProcess::create(
+        "int x = 12;\n"
+        "x += (int)12u;\n"
+        "x += (int)5.0;\n"
+        "x += (int)5.2f;\n"
+        "x += (int)12.0d;\n"
+        "V = x;\n",
+        {{"V", Sliced<Variable>(Variable::create(Shape{50}, Type::Int32))}});
+
+    const auto &literals = process->getLiterals();
+    ASSERT_EQ(literals.size(), 5);
+    EXPECT_EQ(literals[0], std::make_tuple(Type::Int32, Type::NumericValue(12), 3));
+    EXPECT_EQ(literals[1], std::make_tuple(Type::Uint32, Type::NumericValue(12u), 10));
+    
+    EXPECT_EQ(std::get<0>(literals[2]), Type::Float);
+    EXPECT_FLOAT_EQ(std::get<1>(literals[2]).cast<float>(), 5.0f);
+    EXPECT_EQ(std::get<2>(literals[2]), 17);
+
+    EXPECT_EQ(std::get<0>(literals[3]), Type::Float);
+    EXPECT_FLOAT_EQ(std::get<1>(literals[3]).cast<float>(), 5.2f);
+    EXPECT_EQ(std::get<2>(literals[3]), 24);
+
+    EXPECT_EQ(std::get<0>(literals[4]), Type::Double);
+    EXPECT_DOUBLE_EQ(std::get<1>(literals[4]).cast<double>(), 12.0);
+    EXPECT_EQ(std::get<2>(literals[4]), 31);
+
 }
