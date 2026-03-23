@@ -83,7 +83,7 @@ Shape Shape::slice(size_t start, ptrdiff_t stop) const
 
     // Check start and stop are valid
     assert(start < getNumDims());
-    assert(stopAbsolute < getNumDims());
+    assert(stopAbsolute <= getNumDims());
 
     // If result slices away all dimensions, use size of 1
     if (start == stopAbsolute) {
