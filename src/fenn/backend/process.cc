@@ -153,31 +153,30 @@ bool isExpCalled(const std::vector<Token> &tokens)
     return false;
 }
 
-void compileStatements(const std::vector<Token> &tokens, const Type::TypeContext &typeContext,
-                       TypeChecker::EnvironmentInternal &typeCheckEnv, Compiler::EnvironmentInternal &compilerEnv,
-                       ErrorHandler &errorHandler, TypeChecker::StatementHandler forEachSynapseTypeCheckHandler,
+void compileStatements(const std::vector<Token> &tokens, TypeChecker::EnvironmentInternal &typeCheckEnv, 
+                       Compiler::EnvironmentInternal &compilerEnv, ErrorHandler &errorHandler, 
+                       TypeChecker::StatementHandler forEachSynapseTypeCheckHandler,
                        Assembler::ScalarRegisterPtr maskRegister, Compiler::RoundingMode roundingMode,
                        Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, Assembler::VectorRegisterAllocator &vectorRegisterAllocator)
 {
 
 
     // Parse tokens as block item list (function body)
-    auto updateStatements = Parser::parseBlockItemList(tokens, typeContext, errorHandler);
+    auto updateStatements = Parser::parseBlockItemList(tokens, errorHandler);
     if(errorHandler.hasError()) {
         throw std::runtime_error("Parse error " + errorHandler.getContext());
     }
 
     // Resolve types
-    auto resolvedTypes = TypeChecker::typeCheck(updateStatements, typeCheckEnv, typeContext, 
-                                                errorHandler, forEachSynapseTypeCheckHandler);
+    auto resolvedTypes = TypeChecker::typeCheck(updateStatements, typeCheckEnv, errorHandler, 
+                                                forEachSynapseTypeCheckHandler);
     if(errorHandler.hasError()) {
         throw std::runtime_error("Type check error " + errorHandler.getContext());
     }
 
     // Compile
-    compile(updateStatements, compilerEnv, typeContext, resolvedTypes,
-            errorHandler, maskRegister, roundingMode,
-            scalarRegisterAllocator, vectorRegisterAllocator);
+    compile(updateStatements, compilerEnv, resolvedTypes, errorHandler, maskRegister, 
+            roundingMode, scalarRegisterAllocator, vectorRegisterAllocator);
     if(errorHandler.hasError()) {
         throw std::runtime_error("Compiler error " + errorHandler.getContext());
     }

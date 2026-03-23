@@ -19,11 +19,11 @@
     #include <sys/mman.h>
 #endif
 
-// PLOG includes
-#include <plog/Log.h>
-
 // Common includes
 #include "common/utils.h"
+
+// FeNN common includes
+#include "fenn/common/logging.h"
 
 //----------------------------------------------------------------------------
 // FeNN::Common::Device
@@ -34,7 +34,7 @@ Device::Device(int core, int numCores)
 {
 #ifdef __linux__ 
     const std::string targetNamePrefix = (numCores == 1) ? "" : ("core_" + std::to_string(core) + "_");
-    LOGI << "Creating Device for core  " << core << " / " << numCores;
+    LOGI_FENN_COMMON << "Creating Device for core  " << core << " / " << numCores;
     
     // Create UIO
     m_InstructionMemoryUIO = std::make_unique<UIO>(targetNamePrefix + "axi_bram_ctrl_instr");

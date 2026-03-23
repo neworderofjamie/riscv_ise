@@ -1,14 +1,14 @@
 #include "fenn/common/app_utils.h"
 
 // Standard C++ includes
-#include <iomanip>>
+#include <iomanip>
 #include <random>
-
-// Plog includes
-#include <plog/Log.h>
 
 // Common includes
 #include "common/utils.h"
+
+// FeNN common includes
+#include "fenn/common/logging.h"
 
 //----------------------------------------------------------------------------
 // Anonymous namespace

@@ -132,7 +132,7 @@ private:
 // Free functions
 //---------------------------------------------------------------------------
 FENN_COMPILER_EXPORT void compile(const CompilerFrontend::Statement::StatementList &statements, EnvironmentInternal &environment,
-                                  const CompilerFrontend::Type::TypeContext &context, const CompilerFrontend::TypeChecker::ResolvedTypeMap &resolvedTypes,
-                                  CompilerFrontend::ErrorHandlerBase &errorHandler, FeNN::Assembler::ScalarRegisterPtr maskRegister, RoundingMode roundingMode,
+                                  const CompilerFrontend::TypeChecker::ResolvedTypeMap &resolvedTypes, CompilerFrontend::ErrorHandlerBase &errorHandler,
+                                  FeNN::Assembler::ScalarRegisterPtr maskRegister, RoundingMode roundingMode,
                                   FeNN::Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, FeNN::Assembler::VectorRegisterAllocator &vectorRegisterAllocator);
 }   // namespace FeNN::Compiler

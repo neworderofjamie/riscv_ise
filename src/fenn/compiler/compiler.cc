@@ -100,10 +100,10 @@ class Visitor : public Expression::Visitor, public Statement::Visitor
 {
 public:
     Visitor(const Statement::StatementList &statements, EnvironmentInternal &environment,
-            const Type::TypeContext &context, const TypeChecker::ResolvedTypeMap &resolvedTypes,
-            ErrorHandlerBase &errorHandler, Assembler::ScalarRegisterPtr maskRegister, RoundingMode roundingMode, 
+            const TypeChecker::ResolvedTypeMap &resolvedTypes, ErrorHandlerBase &errorHandler, 
+            Assembler::ScalarRegisterPtr maskRegister, RoundingMode roundingMode, 
             Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, Assembler::VectorRegisterAllocator &vectorRegisterAllocator)
-    :   m_Environment(environment), m_Context(context), m_MaskRegister(maskRegister), m_ResolvedTypes(resolvedTypes),
+    :   m_Environment(environment), m_MaskRegister(maskRegister), m_ResolvedTypes(resolvedTypes),
         m_ErrorHandler(errorHandler), m_RoundingMode(roundingMode),
         m_ScalarRegisterAllocator(scalarRegisterAllocator),  m_VectorRegisterAllocator(vectorRegisterAllocator)
     {
@@ -873,7 +873,6 @@ private:
     // Members
     //---------------------------------------------------------------------------
     std::reference_wrapper<EnvironmentBase> m_Environment;
-    const Type::TypeContext &m_Context;
     std::optional<std::pair<RegisterPtr, bool>> m_ExpressionRegister;
     std::stack<std::vector<RegisterPtr>> m_CallArguments;
 
@@ -915,11 +914,11 @@ Assembler::CodeGenerator &EnvironmentInternal::getCodeGenerator()
 }
 //----------------------------------------------------------------------------
 void compile(const Statement::StatementList &statements, EnvironmentInternal &environment, 
-             const Type::TypeContext &context, const TypeChecker::ResolvedTypeMap &resolvedTypes,
-             ErrorHandlerBase &errorHandler, Assembler::ScalarRegisterPtr maskRegister, RoundingMode roundingMode,
+             const TypeChecker::ResolvedTypeMap &resolvedTypes, ErrorHandlerBase &errorHandler, 
+             Assembler::ScalarRegisterPtr maskRegister, RoundingMode roundingMode, 
              Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, Assembler::VectorRegisterAllocator &vectorRegisterAllocator)
 {
-    Visitor visitor(statements, environment, context, resolvedTypes, 
+    Visitor visitor(statements, environment, resolvedTypes, 
                     errorHandler, maskRegister, roundingMode, 
                     scalarRegisterAllocator, vectorRegisterAllocator);
 }
