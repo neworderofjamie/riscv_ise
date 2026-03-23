@@ -55,11 +55,11 @@ TEST(Parser, Numeric)
 {
     // Scan
     TestErrorHandler errorHandler;
-    const auto tokens = Scanner::scanSource("uint32_t", errorHandler);
+    const auto tokens = Scanner::scanSource("uint32_t", errorHandler, Type::Float);
     ASSERT_FALSE(errorHandler.hasError());
  
     // Parse
-    ASSERT_EQ(Parser::parseNumericType(tokens, {}, errorHandler), Type::Uint32);
+    ASSERT_EQ(Parser::parseNumericType(tokens, errorHandler), Type::Uint32);
     ASSERT_FALSE(errorHandler.hasError());
 }
 //--------------------------------------------------------------------------
@@ -67,11 +67,11 @@ TEST(Parser, NumericExtraTokens)
 {
     // Scan
     TestErrorHandler errorHandler;
-    const auto tokens = Scanner::scanSource("uint32_t*", errorHandler);
+    const auto tokens = Scanner::scanSource("uint32_t*", errorHandler, Type::Float);
     ASSERT_FALSE(errorHandler.hasError());
 
     // Parse
-    Parser::parseNumericType(tokens, {}, errorHandler);
+    Parser::parseNumericType(tokens, errorHandler);
     ASSERT_TRUE(errorHandler.hasError());
 }
 //--------------------------------------------------------------------------
@@ -79,11 +79,11 @@ TEST(Parser, Expression)
 {
     // Scan
     TestErrorHandler errorHandler;
-    const auto tokens = Scanner::scanSource("x + y", errorHandler);
+    const auto tokens = Scanner::scanSource("x + y", errorHandler, Type::Float);
     ASSERT_FALSE(errorHandler.hasError());
  
     // Parse
-    Parser::parseExpression(tokens, {}, errorHandler);
+    Parser::parseExpression(tokens, errorHandler);
     ASSERT_FALSE(errorHandler.hasError());
 }
 //--------------------------------------------------------------------------
@@ -91,10 +91,10 @@ TEST(Parser, ExpressionActuallyMultiple)
 {
     // Scan
     TestErrorHandler errorHandler;
-    const auto tokens = Scanner::scanSource("x = 12; y = 37;", errorHandler);
+    const auto tokens = Scanner::scanSource("x = 12; y = 37;", errorHandler, Type::Float);
     ASSERT_FALSE(errorHandler.hasError());
  
     // Parse
-    Parser::parseExpression(tokens, {}, errorHandler);
+    Parser::parseExpression(tokens, errorHandler);
     ASSERT_TRUE(errorHandler.hasError());   
 }

@@ -53,7 +53,7 @@ private:
 TEST(Scanner, DecimalInt)
 {
     TestErrorHandler errorHandler;
-    const auto tokens = Scanner::scanSource("1234 4294967295U -2345 -2147483647", errorHandler);
+    const auto tokens = Scanner::scanSource("1234 4294967295U -2345 -2147483647", errorHandler, Type::Float);
     ASSERT_FALSE(errorHandler.hasError());
 
     ASSERT_EQ(tokens.size(), 7);
@@ -84,7 +84,7 @@ TEST(Scanner, DecimalInt)
 TEST(Scanner, HexInt)
 {
     TestErrorHandler errorHandler;
-    const auto tokens = Scanner::scanSource("0x1234 0xFFFFFFFFU -0x1234 -0x7FFFFFFF", errorHandler);
+    const auto tokens = Scanner::scanSource("0x1234 0xFFFFFFFFU -0x1234 -0x7FFFFFFF", errorHandler, Type::Float);
     ASSERT_FALSE(errorHandler.hasError());
 
     ASSERT_EQ(tokens.size(), 7);
@@ -115,18 +115,19 @@ TEST(Scanner, HexInt)
 TEST(Scanner, DecimalFloat)
 {
     TestErrorHandler errorHandler;
-    const auto tokens = Scanner::scanSource("1.0 2. 0.2 100.0f 10.f 0.2f -12.0d -0.0004f 1e-4 10.0e4f -1.E-5d", errorHandler);
+    const auto tokens = Scanner::scanSource("1.0 2. 0.2 100.0f 10.f 0.2f -12.0d -0.0004f 1e-4 10.0e4f -1.E-5d",
+                                            errorHandler, Type::Float);
     ASSERT_FALSE(errorHandler.hasError());
 
     ASSERT_EQ(tokens.size(), 15);
     ASSERT_EQ(tokens[0].type, Token::Type::NUMBER);
-    ASSERT_EQ(tokens[0].numberType, std::nullopt);
+    ASSERT_EQ(tokens[0].numberType, Type::Float);
 
     ASSERT_EQ(tokens[1].type, Token::Type::NUMBER);
-    ASSERT_EQ(tokens[1].numberType, std::nullopt);
+    ASSERT_EQ(tokens[1].numberType, Type::Float);
     
     ASSERT_EQ(tokens[2].type, Token::Type::NUMBER);
-    ASSERT_EQ(tokens[2].numberType, std::nullopt);
+    ASSERT_EQ(tokens[2].numberType, Type::Float);
     
     ASSERT_EQ(tokens[3].type, Token::Type::NUMBER);
     ASSERT_EQ(tokens[3].numberType, Type::Float);
@@ -148,7 +149,7 @@ TEST(Scanner, DecimalFloat)
     ASSERT_EQ(tokens[9].numberType, Type::Float);
     
     ASSERT_EQ(tokens[10].type, Token::Type::NUMBER);
-    ASSERT_EQ(tokens[10].numberType, std::nullopt);
+    ASSERT_EQ(tokens[10].numberType, Type::Float);
     
     ASSERT_EQ(tokens[11].type, Token::Type::NUMBER);
     ASSERT_EQ(tokens[11].numberType, Type::Float);
@@ -176,7 +177,8 @@ TEST(Scanner, DecimalFloat)
 TEST(Scanner, DecimalFixedPoint)
 {
     TestErrorHandler errorHandler;
-    const auto tokens = Scanner::scanSource("1.0hk 2.hk 0.2hr 100.0hk 10.h11 0.2h11 -12.0h10 -0.0004hr 1e-4hr 10.0e4h1 -1.E-5hr", errorHandler);
+    const auto tokens = Scanner::scanSource("1.0hk 2.hk 0.2hr 100.0hk 10.h11 0.2h11 -12.0h10 -0.0004hr 1e-4hr 10.0e4h1 -1.E-5hr", 
+                                            errorHandler, Type::Float);
     ASSERT_FALSE(errorHandler.hasError());
 
     ASSERT_EQ(tokens.size(), 15);
@@ -237,7 +239,7 @@ TEST(Scanner, DecimalFixedPoint)
 TEST(Scanner, String)
 {
     TestErrorHandler errorHandler;
-    const auto tokens = Scanner::scanSource("\"hello world\" \"pre-processor\"", errorHandler);
+    const auto tokens = Scanner::scanSource("\"hello world\" \"pre-processor\"", errorHandler, Type::Float);
     ASSERT_FALSE(errorHandler.hasError());
 
     ASSERT_EQ(tokens.size(), 3);
@@ -252,7 +254,7 @@ TEST(Scanner, String)
 TEST(Scanner, UnTerminatedString)
 {
     TestErrorHandler errorHandler;
-    const auto tokens = Scanner::scanSource("\"hello world", errorHandler);
+    const auto tokens = Scanner::scanSource("\"hello world", errorHandler, Type::Float);
     ASSERT_TRUE(errorHandler.hasError());
 }
 //--------------------------------------------------------------------------

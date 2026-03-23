@@ -120,37 +120,39 @@ private:
     std::reference_wrapper<const CodeGenerator::EnvironmentLibrary::Library> m_Library;
 };*/
 
-void typeCheckStatements(std::string_view code, TypeChecker::EnvironmentBase &typeEnvironment, const Type::TypeContext &typeContext = {})
+void typeCheckStatements(std::string_view code, TypeChecker::EnvironmentBase &typeEnvironment,
+                         const Type::ResolvedType &defaultRealLiteralType = Type::Float)
 {
     // Scan
     TestErrorHandler errorHandler;
-    const auto tokens = Scanner::scanSource(code, errorHandler);
+    const auto tokens = Scanner::scanSource(code, errorHandler, defaultRealLiteralType);
     ASSERT_FALSE(errorHandler.hasError());
  
     // Parse
-    const auto statements = Parser::parseBlockItemList(tokens, typeContext, errorHandler);
+    const auto statements = Parser::parseBlockItemList(tokens, errorHandler);
     ASSERT_FALSE(errorHandler.hasError());
 
     // Typecheck
     TypeChecker::EnvironmentInternal typeEnvironmentInternal(typeEnvironment);
-    TypeChecker::typeCheck(statements, typeEnvironmentInternal, typeContext, errorHandler);
+    TypeChecker::typeCheck(statements, typeEnvironmentInternal, errorHandler);
     ASSERT_FALSE(errorHandler.hasError());
 }
 
-Type::ResolvedType typeCheckExpression(std::string_view code, TypeChecker::EnvironmentBase &typeEnvironment, const Type::TypeContext &typeContext = {})
+Type::ResolvedType typeCheckExpression(std::string_view code, TypeChecker::EnvironmentBase &typeEnvironment, 
+                                       const Type::ResolvedType &defaultRealLiteralType = Type::Float)
 {
     // Scan
     TestErrorHandler errorHandler;
-    const auto tokens = Scanner::scanSource(code, errorHandler);
+    const auto tokens = Scanner::scanSource(code, errorHandler, defaultRealLiteralType);
     EXPECT_FALSE(errorHandler.hasError());
  
     // Parse
-    const auto expression = Parser::parseExpression(tokens, typeContext, errorHandler);
+    const auto expression = Parser::parseExpression(tokens, errorHandler);
     EXPECT_FALSE(errorHandler.hasError());
     
     // Typecheck
     TypeChecker::EnvironmentInternal typeEnvironmentInternal(typeEnvironment);
-    const auto resolvedTypes = TypeChecker::typeCheck(expression.get(), typeEnvironmentInternal, typeContext, errorHandler);
+    const auto resolvedTypes = TypeChecker::typeCheck(expression.get(), typeEnvironmentInternal, errorHandler);
     EXPECT_FALSE(errorHandler.hasError());
     return resolvedTypes.at(expression.get());
 }
@@ -750,16 +752,14 @@ TEST(TypeChecker, Literal)
     // Scalar with single-precision
     {
         TestEnvironment typeEnvironment;
-        const Type::TypeContext typeContext{{"scalar", Type::Float}};
-        const auto type = typeCheckExpression("1.0", typeEnvironment, typeContext);
+        const auto type = typeCheckExpression("1.0", typeEnvironment);
         EXPECT_EQ(type, Type::Float);
     }
 
     // Scalar with double-precision
     {
         TestEnvironment typeEnvironment;
-        const Type::TypeContext typeContext{{"scalar", Type::Double}};
-        const auto type = typeCheckExpression("1.0", typeEnvironment, typeContext);
+        const auto type = typeCheckExpression("1.0", typeEnvironment, Type::Double);
         EXPECT_EQ(type, Type::Double);
     }
 
