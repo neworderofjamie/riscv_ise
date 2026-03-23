@@ -214,7 +214,7 @@ ffi_type *ResolvedType::getFFIType() const
 //----------------------------------------------------------------------------
 // CompilerFrontend::Type::UnresolvedType
 //----------------------------------------------------------------------------
-ResolvedType UnresolvedType::resolve(const TypeContext &typeContext) const
+ResolvedType UnresolvedType::resolve() const
 {
     return std::visit(
          Utils::Overload{
@@ -222,17 +222,18 @@ ResolvedType UnresolvedType::resolve(const TypeContext &typeContext) const
              {
                  return resolved;
              },
-             [&typeContext](const std::string &name)
+             [](const std::string &name)
              {
                 // Scan type
+                // **THINK** this is kinda gross, maybe scanIdentifier should be exposed
                 SingleLineErrorHandler errorHandler;
-                const auto tokens = Scanner::scanSource(name, errorHandler);
+                const auto tokens = Scanner::scanSource(name, errorHandler, Type::Void);
                 if(errorHandler.hasError()) {
                     throw std::runtime_error("Error scanning numeric type '" + name + "'");
                 }
 
                 // Parse type numeric type
-                const auto resolvedType = Parser::parseNumericType(tokens, typeContext, errorHandler);
+                const auto resolvedType = Parser::parseNumericType(tokens, errorHandler);
 
                 // If an error was encountered while scanning or parsing, throw exception
                 if (errorHandler.hasError()) {

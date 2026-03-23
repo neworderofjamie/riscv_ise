@@ -32,13 +32,13 @@ public:
 };
 
 //! Parse expression from tokens
-COMPILER_FRONTEND_EXPORT Expression::ExpressionPtr parseExpression(const std::vector<Token> &tokens, const Type::TypeContext &context, ErrorHandlerBase &errorHandler);
+COMPILER_FRONTEND_EXPORT Expression::ExpressionPtr parseExpression(const std::vector<Token> &tokens, ErrorHandlerBase &errorHandler);
 
 //! Parse block item list from tokens
 /*! Block item lists are function body scope list of statements */
-COMPILER_FRONTEND_EXPORT Statement::StatementList parseBlockItemList(const std::vector<Token> &tokens, const Type::TypeContext &context, ErrorHandlerBase &errorHandler);
+COMPILER_FRONTEND_EXPORT Statement::StatementList parseBlockItemList(const std::vector<Token> &tokens, ErrorHandlerBase &errorHandler);
 
 //! Parse type from tokens
-COMPILER_FRONTEND_EXPORT const Type::ResolvedType parseNumericType(const std::vector<Token> &tokens, const Type::TypeContext &context, ErrorHandlerBase &errorHandler);
+COMPILER_FRONTEND_EXPORT const Type::ResolvedType parseNumericType(const std::vector<Token> &tokens, ErrorHandlerBase &errorHandler);
 
 }   // MiniParse::MiniParse

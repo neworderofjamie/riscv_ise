@@ -379,8 +379,6 @@ struct COMPILER_FRONTEND_EXPORT ResolvedType
     }
 };
 
-typedef std::unordered_map<std::string, ResolvedType> TypeContext;
-
 //----------------------------------------------------------------------------
 // CompilerFrontend::UnresolvedType
 //----------------------------------------------------------------------------
@@ -401,7 +399,7 @@ struct COMPILER_FRONTEND_EXPORT UnresolvedType
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
-    ResolvedType resolve(const TypeContext &typeContext) const;
+    ResolvedType resolve() const;
 
     //------------------------------------------------------------------------
     // Operators

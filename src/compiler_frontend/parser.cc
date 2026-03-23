@@ -122,8 +122,8 @@ const std::map<std::multiset<std::string>, Type::ResolvedType> numericTypeSpecif
 class ParserState
 {
 public:
-    ParserState(const std::vector<Token> &tokens, const Type::TypeContext &context, ErrorHandlerBase &errorHandler)
-        : m_Current(0), m_Tokens(tokens), m_Context(context), m_ErrorHandler(errorHandler)
+    ParserState(const std::vector<Token> &tokens, ErrorHandlerBase &errorHandler)
+        : m_Current(0), m_Tokens(tokens), m_ErrorHandler(errorHandler)
     {}
 
     //---------------------------------------------------------------------------
@@ -212,8 +212,6 @@ public:
 
     bool isAtEnd() const { return (peek().type == Token::Type::END_OF_FILE); }
     
-    const Type::TypeContext &getContext() const{ return m_Context; }
-    
 private:
     //---------------------------------------------------------------------------
     // Members
@@ -221,12 +219,11 @@ private:
     size_t m_Current;
 
     const std::vector<Token> &m_Tokens;
-    const Type::TypeContext &m_Context;
     ErrorHandlerBase &m_ErrorHandler;
 };
 
 // **THINK** could leave unresolved
-Type::ResolvedType getNumericType(const std::multiset<std::string> &typeSpecifiers, const Type::TypeContext &context)
+Type::ResolvedType getNumericType(const std::multiset<std::string> &typeSpecifiers)
 {
     // If type is numeric, return 
     const auto type = numericTypeSpecifiers.find(typeSpecifiers);
@@ -234,14 +231,6 @@ Type::ResolvedType getNumericType(const std::multiset<std::string> &typeSpecifie
         return type->second;
     }
     else {
-        // **YUCK** use sets everywhere
-        if (typeSpecifiers.size() == 1) {
-            const auto contextType = context.find(*typeSpecifiers.begin());
-            if (contextType != context.cend()) {
-                return contextType->second;
-            }
-        }
-
         // Generate string representation of type specifier and give error
         std::ostringstream typeSpecifiersString;
         std::copy(typeSpecifiers.cbegin(), typeSpecifiers.cend(),
@@ -330,7 +319,7 @@ Type::ResolvedType parseDeclarationSpecifiers(ParserState &parserState)
         throw ParseError();
     }
     // Lookup numeric type
-    Type::ResolvedType type = getNumericType(typeSpecifiers, parserState.getContext());
+    Type::ResolvedType type = getNumericType(typeSpecifiers);
 
     // If there are any type qualifiers, add const
     // **THINK** this relies of const being only qualifier
@@ -958,10 +947,10 @@ std::unique_ptr<const Statement::Base> parseBlockItem(ParserState &parserState)
 //---------------------------------------------------------------------------
 namespace CompilerFrontend::Parser
 {
-Expression::ExpressionPtr parseExpression(const std::vector<Token> &tokens, const Type::TypeContext &context, ErrorHandlerBase &errorHandler)
+Expression::ExpressionPtr parseExpression(const std::vector<Token> &tokens, ErrorHandlerBase &errorHandler)
 {
     // Parse expression
-    ParserState parserState(tokens, context, errorHandler);
+    ParserState parserState(tokens, errorHandler);
 
     try {
         auto expression = parseExpression(parserState);
@@ -978,9 +967,9 @@ Expression::ExpressionPtr parseExpression(const std::vector<Token> &tokens, cons
     }
 }
 //---------------------------------------------------------------------------
-Statement::StatementList parseBlockItemList(const std::vector<Token> &tokens, const Type::TypeContext &context, ErrorHandlerBase &errorHandler)
+Statement::StatementList parseBlockItemList(const std::vector<Token> &tokens, ErrorHandlerBase &errorHandler)
 {
-    ParserState parserState(tokens, context, errorHandler);
+    ParserState parserState(tokens, errorHandler);
     std::vector<std::unique_ptr<const Statement::Base>> statements;
 
     while(!parserState.isAtEnd()) {
@@ -989,10 +978,10 @@ Statement::StatementList parseBlockItemList(const std::vector<Token> &tokens, co
     return statements;
 }
 //---------------------------------------------------------------------------
-const Type::ResolvedType parseNumericType(const std::vector<Token> &tokens, const Type::TypeContext &context, ErrorHandlerBase &errorHandler)
+const Type::ResolvedType parseNumericType(const std::vector<Token> &tokens, ErrorHandlerBase &errorHandler)
 {
     // Parse type specifiers
-    ParserState parserState(tokens, context, errorHandler);
+    ParserState parserState(tokens, errorHandler);
     std::multiset<std::string> typeSpecifiers;
     while(parserState.match(Token::Type::TYPE_SPECIFIER)) {
         typeSpecifiers.insert(parserState.previous().lexeme);
@@ -1004,6 +993,6 @@ const Type::ResolvedType parseNumericType(const std::vector<Token> &tokens, cons
     }
     
     // Return numeric type
-    return getNumericType(typeSpecifiers, context);
+    return getNumericType(typeSpecifiers);
 }
 }

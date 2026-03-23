@@ -185,16 +185,16 @@ void emplaceToken(std::vector<Token> &tokens, Token::Type type, const ScanState 
     tokens.emplace_back(type, scanState.getLexeme(), scanState.getLine(), tokens.size());
 }
 //---------------------------------------------------------------------------
-void emplaceNumber(std::vector<Token> &tokens, std::optional<Type::ResolvedType> numberType, const ScanState &scanState)
+void emplaceNumber(std::vector<Token> &tokens, const Type::ResolvedType &numberType, const ScanState &scanState)
 {
-    if(numberType) {
-        assert(numberType->isNumeric());
-    }
+    assert(numberType.isNumeric());
+    
     tokens.emplace_back(Token::Type::NUMBER, scanState.getLexeme(), 
                         scanState.getLine(), tokens.size(), numberType);
 }
 //---------------------------------------------------------------------------
-void scanNumber(char c, ScanState &scanState, std::vector<Token> &tokens)
+void scanNumber(char c, ScanState &scanState, std::vector<Token> &tokens, 
+                const Type::ResolvedType &defaultRealLiteralType)
 {
     // If this is a hexadecimal literal
     if(c == '0' && (scanState.match('x') || scanState.match('X'))) {
@@ -318,7 +318,7 @@ void scanNumber(char c, ScanState &scanState, std::vector<Token> &tokens)
             }
             // Otherwise, emplace scalar literal whose type will be decoded later
             else {
-                emplaceNumber(tokens, std::nullopt, scanState);
+                emplaceNumber(tokens, defaultRealLiteralType, scanState);
             }
         }
         // Otherwise, emplace integer token 
@@ -378,7 +378,8 @@ void scanIdentifier(ScanState &scanState, std::vector<Token> &tokens)
     }
 }
 //---------------------------------------------------------------------------
-void scanToken(ScanState &scanState, std::vector<Token> &tokens)
+void scanToken(ScanState &scanState, std::vector<Token> &tokens, 
+               const Type::ResolvedType &defaultRealLiteralType)
 {
     char c = scanState.advance();
     switch(c) {
@@ -530,7 +531,7 @@ void scanToken(ScanState &scanState, std::vector<Token> &tokens)
         {
             // If we have a digit or a period, scan number
             if(std::isdigit(c) || c == '.') {
-                scanNumber(c, scanState, tokens);
+                scanNumber(c, scanState, tokens, defaultRealLiteralType);
             }
             // Otherwise, scan identifier
             else if(std::isalpha(c)) {
@@ -549,7 +550,8 @@ void scanToken(ScanState &scanState, std::vector<Token> &tokens)
 //---------------------------------------------------------------------------
 namespace CompilerFrontend::Scanner
 {
-std::vector<Token> scanSource(const std::string_view &source, ErrorHandlerBase &errorHandler)
+std::vector<Token> scanSource(const std::string_view &source, ErrorHandlerBase &errorHandler, 
+                              const Type::ResolvedType &defaultRealLiteralType)
 {
     std::vector<Token> tokens;
 
@@ -558,7 +560,7 @@ std::vector<Token> scanSource(const std::string_view &source, ErrorHandlerBase &
     // Scan tokens
     while(!scanState.isAtEnd()) {
         scanState.resetLexeme();
-        scanToken(scanState, tokens);
+        scanToken(scanState, tokens, defaultRealLiteralType);
     }
 
     emplaceToken(tokens, Token::Type::END_OF_FILE, scanState);

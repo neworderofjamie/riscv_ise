@@ -86,9 +86,8 @@ typedef std::function<void(EnvironmentBase&, ErrorHandlerBase&)> StatementHandle
 // Free functions
 //---------------------------------------------------------------------------
 COMPILER_FRONTEND_EXPORT ResolvedTypeMap typeCheck(const Statement::StatementList &statements, EnvironmentInternal &environment, 
-                                        const Type::TypeContext &context, ErrorHandlerBase &errorHandler, 
-                                        StatementHandler forEachSynapseHandler = nullptr);
+                                                   ErrorHandlerBase &errorHandler, StatementHandler forEachSynapseHandler = nullptr);
 
 COMPILER_FRONTEND_EXPORT ResolvedTypeMap typeCheck(const Expression::Base *expression, EnvironmentInternal &environment, 
-                                        const Type::TypeContext &context, ErrorHandlerBase &errorHandler);
+                                                   ErrorHandlerBase &errorHandler);
 }   // namespace CompilerFrontend::TypeChecker

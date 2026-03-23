@@ -134,9 +134,9 @@ class Visitor : public Expression::Visitor, public Statement::Visitor
 {
 public:
     Visitor(const Statement::StatementList &statements, EnvironmentInternal &environment, 
-            ResolvedTypeMap &resolvedTypes, const Type::TypeContext &context, 
-            ErrorHandlerBase &errorHandler, StatementHandler forEachSynapseHandler)
-    :   Visitor(environment, resolvedTypes, context, errorHandler, forEachSynapseHandler)
+            ResolvedTypeMap &resolvedTypes, ErrorHandlerBase &errorHandler, 
+            StatementHandler forEachSynapseHandler)
+    :   Visitor(environment, resolvedTypes, errorHandler, forEachSynapseHandler)
     {
         for (auto &s : statements) {
             s.get()->accept(*this);
@@ -144,18 +144,16 @@ public:
     }
     
     Visitor(const Expression::Base *expression, EnvironmentInternal &environment, 
-            ResolvedTypeMap &resolvedTypes, const Type::TypeContext &context, 
-            ErrorHandlerBase &errorHandler)
-    :   Visitor(environment, resolvedTypes, context, errorHandler, nullptr)
+            ResolvedTypeMap &resolvedTypes, ErrorHandlerBase &errorHandler)
+    :   Visitor(environment, resolvedTypes, errorHandler, nullptr)
     {
         expression->accept(*this);
     }
     
 private:
     Visitor(EnvironmentInternal &environment, ResolvedTypeMap &resolvedTypes, 
-            const Type::TypeContext &context, ErrorHandlerBase &errorHandler, 
-            StatementHandler forEachSynapseHandler)
-    :   m_Environment(environment), m_Context(context), m_ErrorHandler(errorHandler), 
+            ErrorHandlerBase &errorHandler, StatementHandler forEachSynapseHandler)
+    :   m_Environment(environment), m_ErrorHandler(errorHandler), 
         m_ForEachSynapseHandler(forEachSynapseHandler), m_ResolvedTypes(resolvedTypes)
     {
     }
@@ -472,13 +470,7 @@ private:
     {
         // Convert literal token type to type
         if(literal.getValue().type == Token::Type::NUMBER) {
-            auto numberType = literal.getValue().numberType;
-            if(numberType) {
-                setExpressionType(&literal, numberType.value());
-            }
-            else {
-                setExpressionType(&literal, m_Context.at("scalar"));
-            }
+            setExpressionType(&literal, literal.getValue().numberType.value());
         }
         else if(literal.getValue().type == Token::Type::BOOLEAN) {
             setExpressionType(&literal, Type::Bool);
@@ -940,7 +932,6 @@ private:
     // Members
     //---------------------------------------------------------------------------
     std::reference_wrapper<EnvironmentInternal> m_Environment;
-    const Type::TypeContext &m_Context;
     ErrorHandlerBase &m_ErrorHandler;
     StatementHandler m_ForEachSynapseHandler;
     ResolvedTypeMap &m_ResolvedTypes;
@@ -993,20 +984,19 @@ std::vector<Type::ResolvedType> EnvironmentInternal::getTypes(const Token &name,
 // CompilerFrontend::TypeChecker
 //---------------------------------------------------------------------------
 ResolvedTypeMap typeCheck(const Statement::StatementList &statements, EnvironmentInternal &environment, 
-                          const Type::TypeContext &context, ErrorHandlerBase &errorHandler,
-                          StatementHandler forEachSynapseHandler)
+                          ErrorHandlerBase &errorHandler, StatementHandler forEachSynapseHandler)
 {
     ResolvedTypeMap expressionTypes;
     Visitor visitor(statements, environment, expressionTypes, 
-                    context, errorHandler, forEachSynapseHandler);
+                    errorHandler, forEachSynapseHandler);
     return expressionTypes;
 }
 //---------------------------------------------------------------------------
 ResolvedTypeMap typeCheck(const Expression::Base *expression, EnvironmentInternal &environment,
-                          const Type::TypeContext &context, ErrorHandlerBase &errorHandler)
+                          ErrorHandlerBase &errorHandler)
 {
     ResolvedTypeMap expressionTypes;
-    Visitor visitor(expression, environment, expressionTypes, context, errorHandler);
+    Visitor visitor(expression, environment, expressionTypes, errorHandler);
     return expressionTypes;
 }
 }
