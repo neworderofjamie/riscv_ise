@@ -14,7 +14,7 @@
     <ClCompile Include="$(GTEST_DIR)/src/gtest-all.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
-	<ClCompile Include="$(GTEST_DIR)/src/gtest_main.cc">
+    <ClCompile Include="$(GTEST_DIR)/src/gtest_main.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="compiler_frontend\parser.cc">
@@ -33,6 +33,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="common\utils.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="frontend\model.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
