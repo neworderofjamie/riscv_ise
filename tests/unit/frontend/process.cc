@@ -5,7 +5,7 @@
 #include <stdexcept>
 
 // Model includes
-#include "frontend/event_container.h"
+#include "frontend/events.h"
 #include "frontend/process.h"
 #include "frontend/shape.h"
 
@@ -38,17 +38,17 @@ TEST(NeuronProcess, VarOutputEventShapesMatch)
     const auto varDiffShape = Variable::create(diffShape, Type::Float);
     const auto varSliceShape = Variable::create(sliceShape, Type::S8_7);
     
-    // Create some event containers
-    const auto eventContainer = EventContainer::create(shape);
-    const auto eventContainerDiffShape = EventContainer::create(diffShape);
-    const auto eventContainerSliceShape = EventContainer::create(sliceShape);
+    // Create some event channels
+    const auto eventChannel = EventChannel::create(shape);
+    const auto eventChannelDiffShape = EventChannel::create(diffShape);
+    const auto eventChannelSliceShape = EventChannel::create(sliceShape);
     
     // Everything matches
     NeuronUpdateProcess::create(
         "A = B * 0.5;\n"
         "Spike();\n",
         {{"A", Sliced<Variable>(var)}, {"V", Sliced<Variable>(varSameShape)}}, 
-        {{"Spike", Sliced<EventContainer>(eventContainer)}});
+        {{"Spike", Sliced<EventSink>(eventChannel)}});
     
     // Mismatched variable
     EXPECT_THROW(
@@ -57,7 +57,7 @@ TEST(NeuronProcess, VarOutputEventShapesMatch)
                 "A = B * 0.5;\n"
                 "Spike();\n",
                 {{"A", Sliced<Variable>(var)}, {"V", Sliced<Variable>(varDiffShape)}}, 
-                {{"Spike", Sliced<EventContainer>(eventContainer)}});
+                {{"Spike", Sliced<EventSink>(eventChannel)}});
         },
         std::runtime_error);
     
@@ -68,7 +68,7 @@ TEST(NeuronProcess, VarOutputEventShapesMatch)
                 "A = B * 0.5;\n"
                 "Spike();\n",
                 {{"A", Sliced<Variable>(var)}, {"V", Sliced<Variable>(varDiffShape)}}, 
-                {{"Spike", Sliced<EventContainer>(eventContainerDiffShape)}});
+                {{"Spike", Sliced<EventSink>(eventChannelDiffShape)}});
         },
         std::runtime_error);
  
@@ -77,18 +77,18 @@ TEST(NeuronProcess, VarOutputEventShapesMatch)
         "A = B * 0.5;\n"
         "Spike();\n",
         {{"A", Sliced<Variable>(var)}, {"V", Sliced<Variable>(varSliceShape, true)}}, 
-        {{"Spike", Sliced<EventContainer>(eventContainer)}});
+        {{"Spike", Sliced<EventSink>(eventChannel)}});
     
-    ASSERT_EQ(slicedVarProcess->getShape(), Shape(50));
+    EXPECT_EQ(slicedVarProcess->getShape(), Shape(50));
 
     // Sliced output event
     auto slicedOutputProcess = NeuronUpdateProcess::create(
         "A = B * 0.5;\n"
         "Spike();\n",
         {{"A", Sliced<Variable>(var)}, {"V", Sliced<Variable>(varSameShape)}}, 
-        {{"Spike", Sliced<EventContainer>(eventContainerSliceShape, true)}});
+        {{"Spike", Sliced<EventSink>(eventChannelSliceShape, true)}});
 
-    ASSERT_EQ(slicedOutputProcess->getShape(), Shape(50));
+    EXPECT_EQ(slicedOutputProcess->getShape(), Shape(50));
 }
 
 TEST(NeuronProcess, LiteralExtract)
