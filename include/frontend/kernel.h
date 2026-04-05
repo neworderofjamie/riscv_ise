@@ -55,6 +55,14 @@ public:
     //------------------------------------------------------------------------
     const auto &getProcessGroups() const{ return m_ProcessGroups; }
 
+    //------------------------------------------------------------------------
+    // Static API
+    //------------------------------------------------------------------------
+    static std::shared_ptr<SimpleKernel> create(const ProcessGroupVector &processGroups, const std::string &name = "")
+    {
+        return std::make_shared<SimpleKernel>(Private(), processGroups, name);
+    }
+
 private:
     //------------------------------------------------------------------------
     // Members
@@ -89,6 +97,19 @@ public:
     const auto &getTimestepProcessGroups() const{ return m_TimestepProcessGroups; }
     const auto &getBeginProcessGroups() const{ return m_BeginProcessGroups; }
     const auto &getEndProcessGroups() const{ return m_EndProcessGroups; }
+
+    //------------------------------------------------------------------------
+    // Static API
+    //------------------------------------------------------------------------
+    static std::shared_ptr<SimulationLoopKernel> create(unsigned int numTimesteps, 
+                                                        const ProcessGroupVector &timestepProcessGroups, 
+                                                        const ProcessGroupVector &beginProcessGroups = {},
+                                                        const ProcessGroupVector &endProcessGroups = {}, 
+                                                        const std::string &name = "")
+    {
+        return std::make_shared<SimulationLoopKernel>(Private(), numTimesteps, timestepProcessGroups, 
+                                                      beginProcessGroups, endProcessGroups, name);
+    }
 
 private:
     //------------------------------------------------------------------------
