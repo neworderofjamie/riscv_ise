@@ -57,28 +57,28 @@ TEST(Scanner, DecimalInt)
     ASSERT_FALSE(errorHandler.hasError());
 
     ASSERT_EQ(tokens.size(), 7);
-    ASSERT_EQ(tokens[0].type, Token::Type::NUMBER);
-    ASSERT_EQ(tokens[0].numberType, Type::Int32);
+    EXPECT_EQ(tokens[0].type, Token::Type::NUMBER);
+    EXPECT_EQ(tokens[0].numberType, Type::Int32);
 
-    ASSERT_EQ(tokens[1].type, Token::Type::NUMBER);
-    ASSERT_EQ(tokens[1].numberType, Type::Uint32);
+    EXPECT_EQ(tokens[1].type, Token::Type::NUMBER);
+    EXPECT_EQ(tokens[1].numberType, Type::Uint32);
     
-    ASSERT_EQ(tokens[2].type, Token::Type::MINUS);
+    EXPECT_EQ(tokens[2].type, Token::Type::MINUS);
     
-    ASSERT_EQ(tokens[3].type, Token::Type::NUMBER);
-    ASSERT_EQ(tokens[3].numberType, Type::Int32);
+    EXPECT_EQ(tokens[3].type, Token::Type::NUMBER);
+    EXPECT_EQ(tokens[3].numberType, Type::Int32);
     
-    ASSERT_EQ(tokens[4].type, Token::Type::MINUS);
+    EXPECT_EQ(tokens[4].type, Token::Type::MINUS);
     
-    ASSERT_EQ(tokens[5].type, Token::Type::NUMBER);
-    ASSERT_EQ(tokens[5].numberType, Type::Int32);
+    EXPECT_EQ(tokens[5].type, Token::Type::NUMBER);
+    EXPECT_EQ(tokens[5].numberType, Type::Int32);
     
-    ASSERT_EQ(tokens[6].type, Token::Type::END_OF_FILE);
+    EXPECT_EQ(tokens[6].type, Token::Type::END_OF_FILE);
 
-    ASSERT_EQ(tokens[0].lexeme, "1234");
-    ASSERT_EQ(tokens[1].lexeme, "4294967295");
-    ASSERT_EQ(tokens[3].lexeme, "2345");
-    ASSERT_EQ(tokens[5].lexeme, "2147483647");
+    EXPECT_EQ(tokens[0].lexeme, "1234");
+    EXPECT_EQ(tokens[1].lexeme, "4294967295");
+    EXPECT_EQ(tokens[3].lexeme, "2345");
+    EXPECT_EQ(tokens[5].lexeme, "2147483647");
 }
 //--------------------------------------------------------------------------
 TEST(Scanner, HexInt)
@@ -88,28 +88,28 @@ TEST(Scanner, HexInt)
     ASSERT_FALSE(errorHandler.hasError());
 
     ASSERT_EQ(tokens.size(), 7);
-    ASSERT_EQ(tokens[0].type, Token::Type::NUMBER);
-    ASSERT_EQ(tokens[0].numberType, Type::Int32);
+    EXPECT_EQ(tokens[0].type, Token::Type::NUMBER);
+    EXPECT_EQ(tokens[0].numberType, Type::Int32);
 
-    ASSERT_EQ(tokens[1].type, Token::Type::NUMBER);
-    ASSERT_EQ(tokens[1].numberType, Type::Uint32);
+    EXPECT_EQ(tokens[1].type, Token::Type::NUMBER);
+    EXPECT_EQ(tokens[1].numberType, Type::Uint32);
     
-    ASSERT_EQ(tokens[2].type, Token::Type::MINUS);
+    EXPECT_EQ(tokens[2].type, Token::Type::MINUS);
     
-    ASSERT_EQ(tokens[3].type, Token::Type::NUMBER);
-    ASSERT_EQ(tokens[3].numberType, Type::Int32);
+    EXPECT_EQ(tokens[3].type, Token::Type::NUMBER);
+    EXPECT_EQ(tokens[3].numberType, Type::Int32);
     
-    ASSERT_EQ(tokens[4].type, Token::Type::MINUS);
+    EXPECT_EQ(tokens[4].type, Token::Type::MINUS);
     
-    ASSERT_EQ(tokens[5].type, Token::Type::NUMBER);
-    ASSERT_EQ(tokens[5].numberType, Type::Int32);
+    EXPECT_EQ(tokens[5].type, Token::Type::NUMBER);
+    EXPECT_EQ(tokens[5].numberType, Type::Int32);
     
-    ASSERT_EQ(tokens[6].type, Token::Type::END_OF_FILE);
+    EXPECT_EQ(tokens[6].type, Token::Type::END_OF_FILE);
 
-    ASSERT_EQ(tokens[0].lexeme, "0x1234");
-    ASSERT_EQ(tokens[1].lexeme, "0xFFFFFFFF");
-    ASSERT_EQ(tokens[3].lexeme, "0x1234");
-    ASSERT_EQ(tokens[5].lexeme, "0x7FFFFFFF");
+    EXPECT_EQ(tokens[0].lexeme, "0x1234");
+    EXPECT_EQ(tokens[1].lexeme, "0xFFFFFFFF");
+    EXPECT_EQ(tokens[3].lexeme, "0x1234");
+    EXPECT_EQ(tokens[5].lexeme, "0x7FFFFFFF");
 }
 //--------------------------------------------------------------------------
 TEST(Scanner, DecimalFloat)
@@ -120,58 +120,58 @@ TEST(Scanner, DecimalFloat)
     ASSERT_FALSE(errorHandler.hasError());
 
     ASSERT_EQ(tokens.size(), 15);
-    ASSERT_EQ(tokens[0].type, Token::Type::NUMBER);
-    ASSERT_EQ(tokens[0].numberType, Type::Float);
+    EXPECT_EQ(tokens[0].type, Token::Type::NUMBER);
+    EXPECT_EQ(tokens[0].numberType, Type::Float);
 
-    ASSERT_EQ(tokens[1].type, Token::Type::NUMBER);
-    ASSERT_EQ(tokens[1].numberType, Type::Float);
+    EXPECT_EQ(tokens[1].type, Token::Type::NUMBER);
+    EXPECT_EQ(tokens[1].numberType, Type::Float);
     
-    ASSERT_EQ(tokens[2].type, Token::Type::NUMBER);
-    ASSERT_EQ(tokens[2].numberType, Type::Float);
+    EXPECT_EQ(tokens[2].type, Token::Type::NUMBER);
+    EXPECT_EQ(tokens[2].numberType, Type::Float);
     
-    ASSERT_EQ(tokens[3].type, Token::Type::NUMBER);
-    ASSERT_EQ(tokens[3].numberType, Type::Float);
+    EXPECT_EQ(tokens[3].type, Token::Type::NUMBER);
+    EXPECT_EQ(tokens[3].numberType, Type::Float);
     
-    ASSERT_EQ(tokens[4].type, Token::Type::NUMBER);
-    ASSERT_EQ(tokens[4].numberType, Type::Float);
+    EXPECT_EQ(tokens[4].type, Token::Type::NUMBER);
+    EXPECT_EQ(tokens[4].numberType, Type::Float);
     
-    ASSERT_EQ(tokens[5].type, Token::Type::NUMBER);
-    ASSERT_EQ(tokens[5].numberType, Type::Float);
+    EXPECT_EQ(tokens[5].type, Token::Type::NUMBER);
+    EXPECT_EQ(tokens[5].numberType, Type::Float);
     
-    ASSERT_EQ(tokens[6].type, Token::Type::MINUS);
+    EXPECT_EQ(tokens[6].type, Token::Type::MINUS);
     
-    ASSERT_EQ(tokens[7].type, Token::Type::NUMBER);
-    ASSERT_EQ(tokens[7].numberType, Type::Double);
+    EXPECT_EQ(tokens[7].type, Token::Type::NUMBER);
+    EXPECT_EQ(tokens[7].numberType, Type::Double);
     
-    ASSERT_EQ(tokens[8].type, Token::Type::MINUS);
+    EXPECT_EQ(tokens[8].type, Token::Type::MINUS);
     
-    ASSERT_EQ(tokens[9].type, Token::Type::NUMBER);
-    ASSERT_EQ(tokens[9].numberType, Type::Float);
+    EXPECT_EQ(tokens[9].type, Token::Type::NUMBER);
+    EXPECT_EQ(tokens[9].numberType, Type::Float);
     
-    ASSERT_EQ(tokens[10].type, Token::Type::NUMBER);
-    ASSERT_EQ(tokens[10].numberType, Type::Float);
+    EXPECT_EQ(tokens[10].type, Token::Type::NUMBER);
+    EXPECT_EQ(tokens[10].numberType, Type::Float);
     
-    ASSERT_EQ(tokens[11].type, Token::Type::NUMBER);
-    ASSERT_EQ(tokens[11].numberType, Type::Float);
+    EXPECT_EQ(tokens[11].type, Token::Type::NUMBER);
+    EXPECT_EQ(tokens[11].numberType, Type::Float);
     
-    ASSERT_EQ(tokens[12].type, Token::Type::MINUS);
+    EXPECT_EQ(tokens[12].type, Token::Type::MINUS);
     
-    ASSERT_EQ(tokens[13].type, Token::Type::NUMBER);
-    ASSERT_EQ(tokens[13].numberType, Type::Double);
+    EXPECT_EQ(tokens[13].type, Token::Type::NUMBER);
+    EXPECT_EQ(tokens[13].numberType, Type::Double);
     
-    ASSERT_EQ(tokens[14].type, Token::Type::END_OF_FILE);
+    EXPECT_EQ(tokens[14].type, Token::Type::END_OF_FILE);
 
-    ASSERT_EQ(tokens[0].lexeme, "1.0");
-    ASSERT_EQ(tokens[1].lexeme, "2.");
-    ASSERT_EQ(tokens[2].lexeme, "0.2");
-    ASSERT_EQ(tokens[3].lexeme, "100.0");
-    ASSERT_EQ(tokens[4].lexeme, "10.");
-    ASSERT_EQ(tokens[5].lexeme, "0.2");
-    ASSERT_EQ(tokens[7].lexeme, "12.0");
-    ASSERT_EQ(tokens[9].lexeme, "0.0004");
-    ASSERT_EQ(tokens[10].lexeme, "1e-4");
-    ASSERT_EQ(tokens[11].lexeme, "10.0e4");
-    ASSERT_EQ(tokens[13].lexeme, "1.E-5");
+    EXPECT_EQ(tokens[0].lexeme, "1.0");
+    EXPECT_EQ(tokens[1].lexeme, "2.");
+    EXPECT_EQ(tokens[2].lexeme, "0.2");
+    EXPECT_EQ(tokens[3].lexeme, "100.0");
+    EXPECT_EQ(tokens[4].lexeme, "10.");
+    EXPECT_EQ(tokens[5].lexeme, "0.2");
+    EXPECT_EQ(tokens[7].lexeme, "12.0");
+    EXPECT_EQ(tokens[9].lexeme, "0.0004");
+    EXPECT_EQ(tokens[10].lexeme, "1e-4");
+    EXPECT_EQ(tokens[11].lexeme, "10.0e4");
+    EXPECT_EQ(tokens[13].lexeme, "1.E-5");
 }
 //--------------------------------------------------------------------------
 TEST(Scanner, DecimalFixedPoint)
@@ -182,58 +182,58 @@ TEST(Scanner, DecimalFixedPoint)
     ASSERT_FALSE(errorHandler.hasError());
 
     ASSERT_EQ(tokens.size(), 15);
-    ASSERT_EQ(tokens[0].type, Token::Type::NUMBER);
-    ASSERT_EQ(tokens[0].numberType, Type::S8_7);
+    EXPECT_EQ(tokens[0].type, Token::Type::NUMBER);
+    EXPECT_EQ(tokens[0].numberType, Type::S8_7);
 
-    ASSERT_EQ(tokens[1].type, Token::Type::NUMBER);
-    ASSERT_EQ(tokens[1].numberType, Type::S8_7);
+    EXPECT_EQ(tokens[1].type, Token::Type::NUMBER);
+    EXPECT_EQ(tokens[1].numberType, Type::S8_7);
     
-    ASSERT_EQ(tokens[2].type, Token::Type::NUMBER);
-    ASSERT_EQ(tokens[2].numberType, Type::S0_15);
+    EXPECT_EQ(tokens[2].type, Token::Type::NUMBER);
+    EXPECT_EQ(tokens[2].numberType, Type::S0_15);
     
-    ASSERT_EQ(tokens[3].type, Token::Type::NUMBER);
-    ASSERT_EQ(tokens[3].numberType, Type::S8_7);
+    EXPECT_EQ(tokens[3].type, Token::Type::NUMBER);
+    EXPECT_EQ(tokens[3].numberType, Type::S8_7);
     
-    ASSERT_EQ(tokens[4].type, Token::Type::NUMBER);
-    ASSERT_EQ(tokens[4].numberType, Type::S4_11);
+    EXPECT_EQ(tokens[4].type, Token::Type::NUMBER);
+    EXPECT_EQ(tokens[4].numberType, Type::S4_11);
     
-    ASSERT_EQ(tokens[5].type, Token::Type::NUMBER);
-    ASSERT_EQ(tokens[5].numberType, Type::S4_11);
+    EXPECT_EQ(tokens[5].type, Token::Type::NUMBER);
+    EXPECT_EQ(tokens[5].numberType, Type::S4_11);
     
-    ASSERT_EQ(tokens[6].type, Token::Type::MINUS);
+    EXPECT_EQ(tokens[6].type, Token::Type::MINUS);
     
-    ASSERT_EQ(tokens[7].type, Token::Type::NUMBER);
-    ASSERT_EQ(tokens[7].numberType, Type::S5_10);
+    EXPECT_EQ(tokens[7].type, Token::Type::NUMBER);
+    EXPECT_EQ(tokens[7].numberType, Type::S5_10);
     
-    ASSERT_EQ(tokens[8].type, Token::Type::MINUS);
+    EXPECT_EQ(tokens[8].type, Token::Type::MINUS);
     
-    ASSERT_EQ(tokens[9].type, Token::Type::NUMBER);
-    ASSERT_EQ(tokens[9].numberType, Type::S0_15);
+    EXPECT_EQ(tokens[9].type, Token::Type::NUMBER);
+    EXPECT_EQ(tokens[9].numberType, Type::S0_15);
     
-    ASSERT_EQ(tokens[10].type, Token::Type::NUMBER);
-    ASSERT_EQ(tokens[10].numberType, Type::S0_15);
+    EXPECT_EQ(tokens[10].type, Token::Type::NUMBER);
+    EXPECT_EQ(tokens[10].numberType, Type::S0_15);
     
-    ASSERT_EQ(tokens[11].type, Token::Type::NUMBER);
-    ASSERT_EQ(tokens[11].numberType, Type::S14_1);
+    EXPECT_EQ(tokens[11].type, Token::Type::NUMBER);
+    EXPECT_EQ(tokens[11].numberType, Type::S14_1);
     
-    ASSERT_EQ(tokens[12].type, Token::Type::MINUS);
+    EXPECT_EQ(tokens[12].type, Token::Type::MINUS);
     
-    ASSERT_EQ(tokens[13].type, Token::Type::NUMBER);
-    ASSERT_EQ(tokens[13].numberType, Type::S0_15);
+    EXPECT_EQ(tokens[13].type, Token::Type::NUMBER);
+    EXPECT_EQ(tokens[13].numberType, Type::S0_15);
     
-    ASSERT_EQ(tokens[14].type, Token::Type::END_OF_FILE);
+    EXPECT_EQ(tokens[14].type, Token::Type::END_OF_FILE);
 
-    ASSERT_EQ(tokens[0].lexeme, "1.0");
-    ASSERT_EQ(tokens[1].lexeme, "2.");
-    ASSERT_EQ(tokens[2].lexeme, "0.2");
-    ASSERT_EQ(tokens[3].lexeme, "100.0");
-    ASSERT_EQ(tokens[4].lexeme, "10.");
-    ASSERT_EQ(tokens[5].lexeme, "0.2");
-    ASSERT_EQ(tokens[7].lexeme, "12.0");
-    ASSERT_EQ(tokens[9].lexeme, "0.0004");
-    ASSERT_EQ(tokens[10].lexeme, "1e-4");
-    ASSERT_EQ(tokens[11].lexeme, "10.0e4");
-    ASSERT_EQ(tokens[13].lexeme, "1.E-5");
+    EXPECT_EQ(tokens[0].lexeme, "1.0");
+    EXPECT_EQ(tokens[1].lexeme, "2.");
+    EXPECT_EQ(tokens[2].lexeme, "0.2");
+    EXPECT_EQ(tokens[3].lexeme, "100.0");
+    EXPECT_EQ(tokens[4].lexeme, "10.");
+    EXPECT_EQ(tokens[5].lexeme, "0.2");
+    EXPECT_EQ(tokens[7].lexeme, "12.0");
+    EXPECT_EQ(tokens[9].lexeme, "0.0004");
+    EXPECT_EQ(tokens[10].lexeme, "1e-4");
+    EXPECT_EQ(tokens[11].lexeme, "10.0e4");
+    EXPECT_EQ(tokens[13].lexeme, "1.E-5");
 }
 //--------------------------------------------------------------------------
 TEST(Scanner, String)
@@ -243,12 +243,12 @@ TEST(Scanner, String)
     ASSERT_FALSE(errorHandler.hasError());
 
     ASSERT_EQ(tokens.size(), 3);
-    ASSERT_EQ(tokens[0].type, Token::Type::STRING);
-    ASSERT_EQ(tokens[1].type, Token::Type::STRING);
-    ASSERT_EQ(tokens[2].type, Token::Type::END_OF_FILE);
+    EXPECT_EQ(tokens[0].type, Token::Type::STRING);
+    EXPECT_EQ(tokens[1].type, Token::Type::STRING);
+    EXPECT_EQ(tokens[2].type, Token::Type::END_OF_FILE);
 
-    ASSERT_EQ(tokens[0].lexeme, "\"hello world\"");
-    ASSERT_EQ(tokens[1].lexeme, "\"pre-processor\"");
+    EXPECT_EQ(tokens[0].lexeme, "\"hello world\"");
+    EXPECT_EQ(tokens[1].lexeme, "\"pre-processor\"");
 }
 //--------------------------------------------------------------------------
 TEST(Scanner, UnTerminatedString)
