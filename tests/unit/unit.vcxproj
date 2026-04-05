@@ -18,6 +18,7 @@
     <ClCompile Include="compiler_frontend\scanner.cc" />
     <ClCompile Include="compiler_frontend\type.cc" />
     <ClCompile Include="compiler_frontend\type_checker.cc" />
+    <ClCompile Include="frontend\merged_model.cc" />
     <ClCompile Include="frontend\model.cc" />
     <ClCompile Include="frontend\process.cc" />
   </ItemGroup>

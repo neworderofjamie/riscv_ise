@@ -38,5 +38,8 @@
     <ClCompile Include="frontend\model.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="frontend\merged_model.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>
