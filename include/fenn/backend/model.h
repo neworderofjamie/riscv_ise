@@ -37,12 +37,12 @@ inline bool operator & (MemSpace a, MemSpace b)
     return (static_cast<uint32_t>(a) & static_cast<uint32_t>(b)) != 0;
 }
 
-MemSpace operator &= (MemSpace a, MemSpace b)
+inline MemSpace operator &= (MemSpace a, MemSpace b)
 {
     return static_cast<MemSpace>(static_cast<uint32_t>(a) & static_cast<uint32_t>(b));
 }
 
-inline MemSpace operator | (MemSpace a, MemSpace b)
+inline inline MemSpace operator | (MemSpace a, MemSpace b)
 {
     return static_cast<MemSpace>(static_cast<uint32_t>(a) | static_cast<uint32_t>(b));
 }
