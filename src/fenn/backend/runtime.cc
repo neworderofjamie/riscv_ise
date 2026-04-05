@@ -13,7 +13,7 @@
 #include "common/utils.h"
 
 // Frontend includes
-#include "frontend/event_container.h"
+#include "frontend/events.h"
 #include "frontend/process_group.h"
 #include "frontend/variable.h"
 

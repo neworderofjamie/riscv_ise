@@ -15,7 +15,7 @@
 #include "common/utils.h"
 
 // Frontend includes
-#include "frontend/event_container.h"
+#include "frontend/events.h"
 #include "frontend/merged_model.h"
 #include "frontend/variable.h"
 
@@ -1108,13 +1108,13 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
         }
     }
 
-    std::unordered_map<std::shared_ptr<const Frontend::EventContainer>, 
+    std::unordered_map<std::shared_ptr<const Frontend::EventSink>, 
                        Assembler::ScalarRegisterPtr> eventBufferRegisters;
     {
         // If any output events have buffering, calculate stride in bytes
         // **TODO** make set of non-1 bufferings and pre-multiply time by this
         ScalarConstant numEventBytes;
-        if(std::any_of(getOutputEvents().cbegin(), getOutputEvents().cend(),
+        if(std::any_of(getOutputEventSinks().cbegin(), getOutputEventSinks().cend(),
                        [](const auto e){ return e.second.hasTime(); }))
         {
             numEventBytes = addScalarValue<NeuronUpdateProcess>(
@@ -1122,7 +1122,7 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
                 processCodeGenerator, sharedCodeGenerator, scalarRegisterAllocator, sharedRegisters,
                 [&runtime](size_t d, auto p)
                 {
-                    const auto &firstOutput = p->getOutputEvents().begin()->second.getUnderlying();
+                    const auto &firstOutput = p->getOutputEventSinks().begin()->second.getUnderlying();
                     const auto splitDimension = runtime.getModel()->getStateData(firstOutput).splitDimension;
                     const auto splitShape = p->getShape().split(d, splitDimension, runtime.getNumDevices());
                     return static_cast<uint32_t>(::Common::Utils::padSize(splitShape.getFlattenedSize(), 32) * 2);
@@ -1130,7 +1130,7 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
         }
 
         // Loop through neuron event outputs
-        for(const auto &e : getOutputEvents()) {
+        for(const auto &e : getOutputEventSinks()) {
             //processEnvironment.addField(Type::Void, )
             // Allocate scalar register to hold address of variable
             const auto reg = scalarRegisterAllocator.getRegister((e.first + "Buffer X").c_str());
@@ -1143,7 +1143,7 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
             const uint32_t eventFieldOffset = mergedFields.addField<NeuronUpdateProcess>(
                 [outputEventName](const Frontend::DeviceBase &d, auto p)
                 { 
-                    return d.getArray(p->getOutputEvents().at(outputEventName).getUnderlying()); 
+                    return d.getArray(p->getOutputEventSinks().at(outputEventName).getUnderlying()); 
                 });
 
             // Generate code to load address
@@ -1276,7 +1276,7 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
         [&runtime](size_t d, auto p)
         {
             const auto state = (p->getVariables().empty() 
-                                ? std::static_pointer_cast<const Frontend::State>(p->getOutputEvents().begin()->second.getUnderlying())
+                                ? std::static_pointer_cast<const Frontend::State>(p->getOutputEventSinks().begin()->second.getUnderlying())
                                 : std::static_pointer_cast<const Frontend::State>(p->getVariables().begin()->second.getUnderlying()));
             const auto splitDimension = runtime.getModel()->getStateData(state).splitDimension;
             const auto splitShape = p->getShape().split(d, splitDimension, runtime.getNumDevices());
@@ -1306,7 +1306,7 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
             }
 
             // Loop through neuron event outputsC
-            for(const auto &e : getOutputEvents()) {
+            for(const auto &e : getOutputEventSinks()) {
                 // Add function to environment to store current mask (inherently which neurons are spiking) to scalar memory
                 unrollEnv.add(emitEventFunctionType, e.first, 
                               [e, maskReg, r, &eventBufferRegisters]
@@ -1369,7 +1369,7 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
             }
 
             // Loop through output events and increment buffers
-            for(const auto &e : getOutputEvents()) {
+            for(const auto &e : getOutputEventSinks()) {
                 const auto bufferReg = eventBufferRegisters.at(e.second.getUnderlying());
                 c.addi(*bufferReg, *bufferReg, 4 * numUnrolls);
             }
