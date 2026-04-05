@@ -14,14 +14,11 @@
 #include "compiler_frontend/token.h"
 
 // Frontend includes
-#include "frontend/event_container.h"
+#include "frontend/events.h"
 #include "frontend/frontend_export.h"
 #include "frontend/model_component.h"
 #include "frontend/shape.h"
 #include "frontend/variable.h"
-
-// Macros
-#define UPDATE_HASH_CLASS_NAME(CLASS_NAME) ::Common::Utils::updateHash(#CLASS_NAME, hash);
 
 // Forward declarations
 namespace Frontend
@@ -64,7 +61,7 @@ private:
 };
 
 using VariablePtr = std::shared_ptr<const Variable>;
-using EventContainerMap = std::map<std::string, Sliced<EventContainer>>;
+using EventSinkMap = std::map<std::string, Sliced<EventSink>>;
 using VariableMap = std::map<std::string, Sliced<Variable>>;
 using Literals = std::vector<std::tuple<CompilerFrontend::Type::ResolvedType, 
                                         CompilerFrontend::Type::NumericValue, size_t>>;
@@ -107,7 +104,7 @@ class FRONTEND_EXPORT NeuronUpdateProcess : public Process
 {
 public:
     NeuronUpdateProcess(Private, const std::string &code, const VariableMap &variables, 
-                        const EventContainerMap &outputEvents, 
+                        const EventSinkMap &outputEventSinks, 
                         const CompilerFrontend::Type::ResolvedType &defaultScalarLiteralType,
                         const std::string &name);
 
@@ -134,7 +131,7 @@ public:
     // Public API
     //------------------------------------------------------------------------
     const auto &getVariables() const{ return m_Variables; }
-    const auto &getOutputEvents() const{ return m_OutputEvents; }
+    const auto &getOutputEventSinks() const{ return m_OutputEventSinks; }
 
     const auto &getTokens() const{ return m_Tokens; }
 
@@ -146,11 +143,12 @@ public:
     // Static API
     //------------------------------------------------------------------------
     static std::shared_ptr<NeuronUpdateProcess> create(
-        const std::string &code, const VariableMap &variables = {}, const EventContainerMap &outputEvents = {}, 
+        const std::string &code, const VariableMap &variables = {}, const EventSinkMap &outputEventSinks = {}, 
         const CompilerFrontend::Type::ResolvedType &defaultScalarLiteralType = CompilerFrontend::Type::Float,
         const std::string &name = "")
     {
-        return std::make_shared<NeuronUpdateProcess>(Private(), code, variables, outputEvents, defaultScalarLiteralType, name);
+        return std::make_shared<NeuronUpdateProcess>(Private(), code, variables, outputEventSinks, 
+                                                     defaultScalarLiteralType, name);
     }
 
 private:
@@ -158,7 +156,7 @@ private:
     // Members
     //------------------------------------------------------------------------
     VariableMap m_Variables;
-    EventContainerMap m_OutputEvents;
+    EventSinkMap m_OutputEventSinks;
 
     //! Vector of literal types and numeric values built from code
     Literals m_Literals;
@@ -175,7 +173,7 @@ private:
 class FRONTEND_EXPORT EventPropagationProcess : public Process
 {
 public:
-    EventPropagationProcess(Private, Sliced<EventContainer> inputEvents, 
+    EventPropagationProcess(Private, Sliced<EventSource> inputEventSource, 
                             Sliced<Variable> target, const std::string &name);
 
     //------------------------------------------------------------------------
@@ -195,27 +193,27 @@ public:
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
-    const auto getInputEvents() const{ return m_InputEvents; }
+    const auto getInputEventSource() const{ return m_InputEventSource; }
 
     const auto getTarget() const{ return m_Target; }
 
-    const auto &getSourceShape() const{ return m_InputEvents.getShape(); }
+    const auto &getSourceShape() const{ return m_InputEventSource.getShape(); }
     const auto &getTargetShape() const{ return m_Target.getShape(); }
     
     //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------
-    static std::shared_ptr<EventPropagationProcess> create(std::shared_ptr<const EventContainer> inputEvents, 
+    static std::shared_ptr<EventPropagationProcess> create(std::shared_ptr<const EventSource> inputEventSource, 
                                                            VariablePtr target, const std::string &name = "")
     {
-        return std::make_shared<EventPropagationProcess>(Private(), inputEvents, target, name);
+        return std::make_shared<EventPropagationProcess>(Private(), inputEventSource, target, name);
     }
 
 private:
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
-    Sliced<EventContainer> m_InputEvents;
+    Sliced<EventSource> m_InputEventSource;
 
     Sliced<Variable> m_Target;
     

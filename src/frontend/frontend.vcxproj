@@ -19,7 +19,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="event_container.cc" />
+    <ClCompile Include="events.cc" />
     <ClCompile Include="kernel.cc" />
     <ClCompile Include="merged_model.cc" />
     <ClCompile Include="model.cc" />
@@ -29,7 +29,7 @@
     <ClCompile Include="variable.cc" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\include\frontend\event_container.h" />
+    <ClInclude Include="..\..\include\frontend\events.h" />
     <ClInclude Include="..\..\include\frontend\frontend_export.h" />
     <ClInclude Include="..\..\include\frontend\kernel.h" />
     <ClInclude Include="..\..\include\frontend\merged_model.h" />

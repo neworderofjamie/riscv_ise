@@ -29,13 +29,12 @@ public:
     // State virtuals
     //------------------------------------------------------------------------
     virtual const Shape &getShape() const override final{ return m_Shape; }
+    virtual void updateMergeHash(boost::uuids::detail::sha1 &hash) const override final;
 
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
     const auto &getType() const{ return m_Type; }
-
-    void updateMergeHash(boost::uuids::detail::sha1 &hash) const;
 
     //------------------------------------------------------------------------
     // Static API

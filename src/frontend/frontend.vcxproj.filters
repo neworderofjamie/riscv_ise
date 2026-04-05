@@ -17,9 +17,6 @@
     <ClCompile Include="variable.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="event_container.cc">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="kernel.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -35,6 +32,9 @@
     <ClCompile Include="runtime.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="events.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\frontend\runtime.h">
@@ -44,9 +44,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\frontend\variable.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\include\frontend\event_container.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\frontend\frontend_export.h">
@@ -68,6 +65,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\frontend\process_group.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\frontend\events.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

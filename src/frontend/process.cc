@@ -11,7 +11,7 @@
 #include "compiler_frontend/scanner.h"
 
 // Compiler includes
-#include "frontend/event_container.h"
+#include "frontend/events.h"
 #include "frontend/variable.h"
 
 //----------------------------------------------------------------------------
@@ -20,13 +20,13 @@
 namespace Frontend
 {
 NeuronUpdateProcess::NeuronUpdateProcess(Private, const std::string &code, const VariableMap &variables, 
-                                         const EventContainerMap &outputEvents, 
+                                         const EventSinkMap &outputEventSinks, 
                                          const CompilerFrontend::Type::ResolvedType &defaultScalarLiteralType,
                                          const std::string &name)
-:   Process(name), m_Variables(variables), m_OutputEvents(outputEvents)
+:   Process(name), m_Variables(variables), m_OutputEventSinks(outputEventSinks)
 {
-    if(m_Variables.empty() && m_OutputEvents.empty()) {
-        throw std::runtime_error("Neuron update process requires at least one variable or output event");
+    if(m_Variables.empty() && m_OutputEventSinks.empty()) {
+        throw std::runtime_error("Neuron update process requires at least one variable or output event sink");
     }
 
     // If one of the variables has a non-scalar shape, use that
@@ -38,9 +38,9 @@ NeuronUpdateProcess::NeuronUpdateProcess(Private, const std::string &code, const
     // Otherwise
     else {
         // If one of the output event containers has a non-scalar shape, use that
-        auto firstNonScalarEvent = std::find_if(getOutputEvents().cbegin(), getOutputEvents().cend(),
+        auto firstNonScalarEvent = std::find_if(getOutputEventSinks().cbegin(), getOutputEventSinks().cend(),
                                                 [](const auto &e){ return !e.second.getShape().isScalar(); });
-        if(firstNonScalarEvent != getOutputEvents().cend()) {
+        if(firstNonScalarEvent != getOutputEventSinks().cend()) {
             m_Shape = firstNonScalarEvent->second.getShape();
         }
         // Otherwise, shape really must be scalar!
@@ -59,7 +59,7 @@ NeuronUpdateProcess::NeuronUpdateProcess(Private, const std::string &code, const
     }
 
     // Check all output have same number of neurons
-    for(const auto &o : m_OutputEvents) {
+    for(const auto &o : m_OutputEventSinks) {
         if(o.second.getShape() != m_Shape) {
             throw std::runtime_error("Output events '" + o.first + "' with shape: " + o.second.getShape().toString()
                                      + " is not compatible with neuron update process with shape: " + m_Shape.toString());
@@ -130,7 +130,7 @@ std::vector<std::shared_ptr<const State>> NeuronUpdateProcess::getAllState() con
     std::vector<std::shared_ptr<const State>> state;
     std::transform(getVariables().cbegin(), getVariables().cend(), std::back_inserter(state),
                    [](const auto &v){ return v.second.getUnderlying(); });
-    std::transform(getOutputEvents().cbegin(), getOutputEvents().cend(), std::back_inserter(state),
+    std::transform(getOutputEventSinks().cbegin(), getOutputEventSinks().cend(), std::back_inserter(state),
                    [](const auto &o){ return o.second.getUnderlying(); });
     return state;
 }
@@ -149,8 +149,8 @@ void NeuronUpdateProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, cons
     }
 
     // Output events
-    Utils::updateHash(getOutputEvents().size(), hash);
-    for(const auto &e : getOutputEvents()) {
+    Utils::updateHash(getOutputEventSinks().size(), hash);
+    for(const auto &e : getOutputEventSinks()) {
         Utils::updateHash(e.first, hash);
         e.second.getUnderlying()->updateMergeHash(hash);
     }
@@ -183,9 +183,9 @@ void NeuronUpdateProcess::updateCompatibleSplitDimensions(std::shared_ptr<const 
     // Otherwise
     else {
         // If state is an output event
-        const auto outEvent = std::find_if(getOutputEvents().cbegin(), getOutputEvents().cend(),
+        const auto outEvent = std::find_if(getOutputEventSinks().cbegin(), getOutputEventSinks().cend(),
                                            [&state](const auto &o){ return o.second.getUnderlying() == state; });
-        if (outEvent != getOutputEvents().cend()) {
+        if (outEvent != getOutputEventSinks().cend()) {
             // Ensure that we only split along the dimensions of the slice  
             // exposed to the neuron update process i.e. not the time dimension
             compatibleSplitDimensions &= ((1 << outEvent->second.getShape().getNumDims()) - 1);
@@ -206,7 +206,7 @@ void NeuronUpdateProcess::constrainSplitDimensions(std::unordered_map<std::share
     }
 
     // AND output event split dimension
-    for(const auto &o : getOutputEvents()) {
+    for(const auto &o : getOutputEventSinks()) {
         combinedSplitDimensions &= compatibleSplitDimensions.at(o.second.getUnderlying());
     }
 
@@ -216,22 +216,22 @@ void NeuronUpdateProcess::constrainSplitDimensions(std::unordered_map<std::share
     }
 
     // Update all output events compatible split dimensions with the combined version
-    for(const auto &o : getOutputEvents()) {
+    for(const auto &o : getOutputEventSinks()) {
         compatibleSplitDimensions.at(o.second.getUnderlying()) = combinedSplitDimensions;
     }
 }
 //----------------------------------------------------------------------------
 // EventPropagationProcess
 //----------------------------------------------------------------------------
-EventPropagationProcess::EventPropagationProcess(Private, Sliced<EventContainer> inputEvents, 
+EventPropagationProcess::EventPropagationProcess(Private, Sliced<EventSource> inputEventSource, 
                                                  Sliced<Variable> target, const std::string &name)
-:   Process(name), m_InputEvents(inputEvents),  m_Target(target)
+:   Process(name), m_InputEventSource(inputEventSource),  m_Target(target)
 {
-    if(m_InputEvents.getUnderlying() == nullptr) {
+    if(getInputEventSource().getUnderlying() == nullptr) {
         throw std::runtime_error("Event propagation process requires input events");
     }
 
-    if(m_Target.getUnderlying() == nullptr) {
+    if(getTarget().getUnderlying() == nullptr) {
         throw std::runtime_error("Event propagation process requires target variable");
     }
 
@@ -242,7 +242,7 @@ EventPropagationProcess::EventPropagationProcess(Private, Sliced<EventContainer>
 //----------------------------------------------------------------------------
 std::vector<std::shared_ptr<const State>> EventPropagationProcess::getAllState() const
 {
-    return {getInputEvents().getUnderlying(), getTarget().getUnderlying()};
+    return {getInputEventSource().getUnderlying(), getTarget().getUnderlying()};
 }
 //----------------------------------------------------------------------------
 void EventPropagationProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Model&) const
@@ -251,7 +251,7 @@ void EventPropagationProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, 
     UPDATE_HASH_CLASS_NAME(EventPropagationProcess);
 
     // Input events
-    getInputEvents().getUnderlying()->updateMergeHash(hash);
+    getInputEventSource().getUnderlying()->updateMergeHash(hash);
 
     // Targets
     getTarget().getUnderlying()->updateMergeHash(hash);
@@ -271,10 +271,9 @@ void EventPropagationProcess::updateCompatibleSplitDimensions(std::shared_ptr<co
             compatibleSplitDimensions &= (1 << 1);
         }
     }
-    // Otherwise, if it's input event container, it can't be split at all
+    // Otherwise, if it's input event container, we should receive all splits
     else {
-        assert(state == getInputEvents().getUnderlying());
-        compatibleSplitDimensions = 0;
+        assert(state == getInputEventSource().getUnderlying());
     }
 }
 

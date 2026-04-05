@@ -4,16 +4,22 @@
 #include <memory>
 #include <string>
 
-// Boost includes
-#include <sha1.hpp>
-
 // Forward declarations
 namespace Frontend
 {
+class EventChannel;
 class EventContainer;
 class Shape;
 class Variable;
 }
+
+namespace boost::uuids::detail
+{
+class sha1;
+}
+
+// Macros
+#define UPDATE_HASH_CLASS_NAME(CLASS_NAME) ::Common::Utils::updateHash(#CLASS_NAME, hash);
 
 //----------------------------------------------------------------------------
 // Frontend::ModelComponent
@@ -51,6 +57,7 @@ private:
 class StateVisitor
 {
 public:
+    virtual void visit(std::shared_ptr<const EventChannel>){}
     virtual void visit(std::shared_ptr<const EventContainer>){}
     virtual void visit(std::shared_ptr<const Variable>){}
 };
@@ -66,6 +73,7 @@ public:
     //------------------------------------------------------------------------
     virtual void accept(StateVisitor &visitor) const = 0;
     virtual const Shape &getShape() const = 0;
+    virtual void updateMergeHash(boost::uuids::detail::sha1 &hash) const = 0;
 
 protected:
     using ModelComponent::ModelComponent;
@@ -78,7 +86,7 @@ template<typename T>
 class AcceptableState : public State
 {
 public:
-    virtual void accept(StateVisitor &visitor) const final
+    virtual void accept(StateVisitor &visitor) const override final
     {
         visitor.visit(std::static_pointer_cast<const T>(this->shared_from_this()));
     }
