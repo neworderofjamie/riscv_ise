@@ -145,14 +145,14 @@ void NeuronUpdateProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, cons
     Utils::updateHash(getVariables().size(), hash);
     for(const auto &v : getVariables()) {
         Utils::updateHash(v.first, hash);
-        v.second.getUnderlying()->updateMergeHash(hash);
+        v.second.updateMergeHash(hash);
     }
 
     // Output events
     Utils::updateHash(getOutputEventSinks().size(), hash);
     for(const auto &e : getOutputEventSinks()) {
         Utils::updateHash(e.first, hash);
-        e.second.getUnderlying()->updateMergeHash(hash);
+        e.second.updateMergeHash(hash);
     }
 
     // Tokens
@@ -251,10 +251,10 @@ void EventPropagationProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, 
     UPDATE_HASH_CLASS_NAME(EventPropagationProcess);
 
     // Input events
-    getInputEventSource().getUnderlying()->updateMergeHash(hash);
+    getInputEventSource().updateMergeHash(hash);
 
     // Targets
-    getTarget().getUnderlying()->updateMergeHash(hash);
+    getTarget().updateMergeHash(hash);
 }
 //----------------------------------------------------------------------------
 void EventPropagationProcess::updateCompatibleSplitDimensions(std::shared_ptr<const State> state, 
