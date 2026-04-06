@@ -192,9 +192,6 @@ protected:
 
     //! Backend-specific logic to run at end of allocate function
     virtual void allocatePostamble() {}
-    
-    //! Set the fields associated with a merged process
-    virtual void setMergedProcessFields(const MergedProcess &mergedProcess) const = 0;
 
     //! Create suitable device
     virtual std::unique_ptr<DeviceBase> createDevice(size_t deviceIndex) = 0;

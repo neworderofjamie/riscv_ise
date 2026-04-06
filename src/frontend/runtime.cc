@@ -131,14 +131,6 @@ void Runtime::allocate()
         }
     }
 
-    // Loop through all process groups
-    for(const auto &g : m_MergedModel.getMergedProcessGroups()) {
-        // Loop through all merged processes and setup fields
-        for (const auto &m : g.second) {
-            setMergedProcessFields(m);
-        }
-    }
-
     // Perform backend-specific logic
     allocatePostamble();
 
