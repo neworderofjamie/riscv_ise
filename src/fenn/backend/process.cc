@@ -1039,10 +1039,21 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
     // Define type for event-emitting function
     const auto emitEventFunctionType = Type::ResolvedType::createFunction(Type::Void, {});
 
-    // For now, unrollVectorLoopBody requires SOME buffers
-    assert(!getVariables().empty());
-
+    // Add number of neurons
     std::vector<Compiler::RegisterPtr> sharedRegisters;
+    const auto numNeurons = addScalarValue<NeuronUpdateProcess>(
+        0, mergedProcess, runtime.getNumDevices(), mergedFields, fieldBaseReg, 
+        processCodeGenerator, sharedCodeGenerator, scalarRegisterAllocator, sharedRegisters,
+        [&runtime](size_t d, auto p)
+        {
+            const auto state = (p->getVariables().empty() 
+                                ? std::static_pointer_cast<const Frontend::State>(p->getOutputEventSinks().begin()->second.getUnderlying())
+                                : std::static_pointer_cast<const Frontend::State>(p->getVariables().begin()->second.getUnderlying()));
+            const auto splitDimension = runtime.getModel()->getStateData(state).splitDimension;
+            const auto splitShape = p->getShape().split(d, splitDimension, runtime.getNumDevices());
+            return static_cast<uint32_t>(splitShape.getFlattenedSize());
+        });
+
     std::unordered_map<std::shared_ptr<const Frontend::Variable>, std::unique_ptr<NeuronVarBase>> varBuffers;
     {
         // If any variables have time dimension
@@ -1050,18 +1061,30 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
         if (std::any_of(getVariables().cbegin(), getVariables().cend(),
                         [](const auto &e) { return e.second.hasTime(); }))
         {
-            // Add constant
-            // **NOTE** this is multiplied so no point loading this as an immediate
-            numVariableBytes = addScalarValue<NeuronUpdateProcess>(
-                0, mergedProcess, runtime.getNumDevices(), mergedFields, fieldBaseReg,
-                processCodeGenerator, sharedCodeGenerator, scalarRegisterAllocator, sharedRegisters,
-                [&runtime](size_t d, auto p)
+            // Calculate number of variable bytes from number of neurons
+            // **NOTE** this could be slightly optimised by calculating in shared code generator if numNeurons is common 
+            numVariableBytes = std::visit(
+                ::Common::Utils::Overload{
+                [&processCodeGenerator, &scalarRegisterAllocator](Assembler::ScalarRegisterPtr reg) -> ScalarConstant
                 {
-                    const auto &firstVar = p->getVariables().begin()->second.getUnderlying();
-                    const auto splitDimension = runtime.getModel()->getStateData(firstVar).splitDimension;
-                    const auto splitShape = p->getShape().split(d, splitDimension, runtime.getNumDevices());
-                    return static_cast<uint32_t>(::Common::Utils::padSize(splitShape.getFlattenedSize(), 32) * 2);
-                });
+                    ALLOCATE_SCALAR(SNumVariableBytes);
+
+                    //  ((numerator + 31) / 32) * 64;
+                    processCodeGenerator.addi(*SNumVariableBytes, *reg, 31);
+                    processCodeGenerator.srli(*SNumVariableBytes, *SNumVariableBytes, 5);
+                    processCodeGenerator.slli(*SNumVariableBytes, *SNumVariableBytes, 6);
+                    
+                    return SNumVariableBytes;
+                }, 
+                [](int val) -> ScalarConstant
+                {
+                    return ::Common::Utils::padSize(val, 32) * 2;
+                },
+                [](auto) -> ScalarConstant
+                {
+                    throw std::runtime_error("Invalid number of neurons");
+                }},
+                numNeurons);
         }
 
 
@@ -1117,16 +1140,30 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
         if(std::any_of(getOutputEventSinks().cbegin(), getOutputEventSinks().cend(),
                        [](const auto e){ return e.second.hasTime(); }))
         {
-            numEventBytes = addScalarValue<NeuronUpdateProcess>(
-                0, mergedProcess, runtime.getNumDevices(), mergedFields, fieldBaseReg,
-                processCodeGenerator, sharedCodeGenerator, scalarRegisterAllocator, sharedRegisters,
-                [&runtime](size_t d, auto p)
+            // Calculate number of event bytes from number of neurons
+            // **NOTE** this could be slightly optimised by calculating in shared code generator if numNeurons is common 
+            numEventBytes = std::visit(
+                ::Common::Utils::Overload{
+                    [&processCodeGenerator, &scalarRegisterAllocator](Assembler::ScalarRegisterPtr reg) -> ScalarConstant
                 {
-                    const auto &firstOutput = p->getOutputEventSinks().begin()->second.getUnderlying();
-                    const auto splitDimension = runtime.getModel()->getStateData(firstOutput).splitDimension;
-                    const auto splitShape = p->getShape().split(d, splitDimension, runtime.getNumDevices());
-                    return static_cast<uint32_t>(::Common::Utils::padSize(splitShape.getFlattenedSize(), 32) * 2);
-                });
+                    ALLOCATE_SCALAR(SNumVariableBytes);
+
+                    //  ((numerator + 31) / 32) * 4;
+                    processCodeGenerator.addi(*SNumVariableBytes, *reg, 31);
+                    processCodeGenerator.srli(*SNumVariableBytes, *SNumVariableBytes, 5);
+                    processCodeGenerator.slli(*SNumVariableBytes, *SNumVariableBytes, 2);
+
+                    return SNumVariableBytes;
+                }, 
+                [](int val) -> ScalarConstant
+                {
+                    return ::Common::Utils::ceilDivide(val, 32) * 4;
+                },
+                [](auto) -> ScalarConstant
+                {
+                    throw std::runtime_error("Invalid number of neurons");
+                }},
+                numNeurons);
         }
 
         // Loop through neuron event outputs
@@ -1269,21 +1306,8 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
     // Insert environment with this library
     EnvironmentLibrary envLibrary(env, functionLibrary);
 
-    // Add number of neurons
-    const auto numNeurons = addScalarValue<NeuronUpdateProcess>(
-        0, mergedProcess, runtime.getNumDevices(), mergedFields, fieldBaseReg, 
-        processCodeGenerator, sharedCodeGenerator, scalarRegisterAllocator, sharedRegisters,
-        [&runtime](size_t d, auto p)
-        {
-            const auto state = (p->getVariables().empty() 
-                                ? std::static_pointer_cast<const Frontend::State>(p->getOutputEventSinks().begin()->second.getUnderlying())
-                                : std::static_pointer_cast<const Frontend::State>(p->getVariables().begin()->second.getUnderlying()));
-            const auto splitDimension = runtime.getModel()->getStateData(state).splitDimension;
-            const auto splitShape = p->getShape().split(d, splitDimension, runtime.getNumDevices());
-            return static_cast<uint32_t>(splitShape.getFlattenedSize());
-        });
-
     // Build vectorised neuron loop
+    // **TODO** check all merged processes don't have multiple of 32 neurons, less than 4 * 32 neurons, multiple of 4 * 32 neurons
     unrollVectorLoopBody(
         envLibrary.getCodeGenerator(), scalarRegisterAllocator,
         numNeurons, 4, false,
