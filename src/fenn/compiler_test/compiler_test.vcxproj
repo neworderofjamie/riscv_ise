@@ -69,7 +69,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>backend_$(Configuration).lib;compiler_$(Configuration).lib;assembler_$(Configuration).lib;disassembler_$(Configuration).lib;ise_$(Configuration).lib;common_$(Configuration).lib;compiler_frontend_$(Configuration).lib;libffi_$(Configuration).lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>fenn_backend_$(Configuration).lib;fenn_compiler_$(Configuration).lib;fenn_assembler_$(Configuration).lib;fenn_disassembler_$(Configuration).lib;fenn_ise_$(Configuration).lib;fenn_common_$(Configuration).lib;common_$(Configuration).lib;compiler_frontend_$(Configuration).lib;frontend_$(Configuration).lib;libffi_$(Configuration).lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(SolutionDir)lib</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
@@ -89,7 +89,7 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>backend_$(Configuration).lib;compiler_$(Configuration).lib;assembler_$(Configuration).lib;disassembler_$(Configuration).lib;ise_$(Configuration).lib;common_$(Configuration).lib;compiler_frontend_$(Configuration).lib;libffi_$(Configuration).lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>fenn_backend_$(Configuration).lib;fenn_compiler_$(Configuration).lib;fenn_assembler_$(Configuration).lib;fenn_disassembler_$(Configuration).lib;fenn_ise_$(Configuration).lib;fenn_common_$(Configuration).lib;common_$(Configuration).lib;compiler_frontend_$(Configuration).lib;frontend_$(Configuration).lib;libffi_$(Configuration).lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(SolutionDir)lib</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
