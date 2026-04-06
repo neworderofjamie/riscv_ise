@@ -171,9 +171,35 @@ void Runtime::run(std::shared_ptr<const Kernel> kernel)
     runCommand(&run);
 }
 //----------------------------------------------------------------------------
+void Runtime::pushStateToDevice(std::shared_ptr<const State> state)
+{
+    PushStateCommand push(state);
+    runCommand(&push);
+}
+//----------------------------------------------------------------------------
+void Runtime::pullStateFromDevice(std::shared_ptr<const State> state)
+{
+    PullStateCommand pull(state);
+    runCommand(&pull);
+}
+//----------------------------------------------------------------------------
+std::vector<ArrayBase*> Runtime::getArrays(std::shared_ptr<const State> state) const
+{
+    // Reserve vector of arrays
+    std::vector<ArrayBase*> arrays;
+    arrays.reserve(getNumDevices());
+
+    // Get arrays from each device
+    for (auto &d : getDevices()) {
+        arrays.push_back(d->getArray(state));
+    }
+
+    return arrays;
+}
+//----------------------------------------------------------------------------
 Runtime::Runtime(std::unique_ptr<Model> model, size_t numDevices)
 :   m_Devices(numDevices), m_Model(std::move(model)), m_MergedModel(*m_Model), 
-    m_NumDevices(numDevices), m_WorkerRun(true), m_Command(nullptr)
+    m_NumDevices(numDevices), m_WorkersReady(0), m_WorkerRun(true), m_Command(nullptr)
 {
 }
 //----------------------------------------------------------------------------

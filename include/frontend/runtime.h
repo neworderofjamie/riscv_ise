@@ -164,7 +164,14 @@ public:
     //! Run kernel on device
     void run(std::shared_ptr<const Kernel> kernel);
 
-    //std::optional<unsigned int> getSOCPower() const;
+    //! Push state to all devices
+    void pushStateToDevice(std::shared_ptr<const State> state);
+
+    //! Pull state from all devices
+    void pullStateFromDevice(std::shared_ptr<const State> state);
+
+    //! Get array(s) associated with state
+    std::vector<ArrayBase*> getArrays(std::shared_ptr<const State> state) const;
     
     size_t getNumDevices() const{ return m_NumDevices; }
 
@@ -197,6 +204,7 @@ protected:
     //------------------------------------------------------------------------
     const auto &getMergedModel() const{ return m_MergedModel; }
 
+    const auto &getDevices() const{ return m_Devices; }
     auto &getDevices(){ return m_Devices; }
 
 private:
