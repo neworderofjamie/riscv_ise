@@ -20,7 +20,7 @@ using namespace Frontend;
 //--------------------------------------------------------------------------
 // Tests
 //--------------------------------------------------------------------------
-TEST(MergedModel, DifferentProcesses)
+TEST(MergedModel, DifferentProcessTypes)
 {
     // Create a bunch of different processes
     auto variable = Variable::create(20, Type::Uint32);
