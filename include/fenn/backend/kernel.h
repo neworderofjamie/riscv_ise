@@ -84,7 +84,7 @@ public:
     //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------
-    static std::shared_ptr<SimulationLoopKernel> create(uint32_t numTimesteps, Frontend::ProcessGroupVector &timestepProcessGroups, 
+    static std::shared_ptr<SimulationLoopKernel> create(uint32_t numTimesteps, const Frontend::ProcessGroupVector &timestepProcessGroups, 
                                                         const Frontend::ProcessGroupVector &beginProcessGroups = {},
                                                         const Frontend::ProcessGroupVector &endProcessGroups = {},
                                                         const std::string &name = "")
