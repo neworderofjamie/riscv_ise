@@ -276,7 +276,9 @@ void Runtime::allocatePreamble()
 {
     // Loop through devices and create field arrays
     // **NOTE** this needs to happen here so they are correctly allocated at the start of BRAM
+    // **YUCK** first 4 bytes used for ready flag pointer
     for(auto &d : getDevices()) {
+        static_cast<DeviceFeNN*>(d.get())->getBRAMAllocator().allocate(4);
         static_cast<DeviceFeNN*>(d.get())->createFieldArray(m_NumFieldBytes);
     }
 }

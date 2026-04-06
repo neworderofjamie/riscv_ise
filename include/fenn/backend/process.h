@@ -110,7 +110,10 @@ public:
     virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const Frontend::Model &model) const override
     {
         // Superclass
-        P::updateMergeHash(hash, model);
+        // **YUCK** only do this if we're not deriving straight from base class
+        if constexpr (!std::is_same_v<P, Frontend::Process>) {
+            P::updateMergeHash(hash, model);
+        }
 
         // Get all  state associated with this process
         const auto allState = this->getAllState();
