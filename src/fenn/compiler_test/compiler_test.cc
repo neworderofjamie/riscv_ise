@@ -146,13 +146,13 @@ int main(int argc, char** argv)
     const auto hiddenI = Variable::create(hiddenShape, Type::S10_5Sat);
     const auto hiddenRefracTime = Variable::create(hiddenShape, Type::Int16);
     //const auto hiddenSpikes = EventContainer::create(hiddenShape, record ? numTimesteps : 1);
-    const auto hidden = NeuronUpdateProcess::create(
+    const auto hidden = Backend::NeuronUpdateProcess::create(
         "V = (" + std::to_string(std::exp(-1.0 / 20.0)) + "h5 * V) + I;\n"
         "I = 0.0h5;\n"
         "if (RefracTime > 0) {\n"
         "   RefracTime -= 1;\n"
         "}\n"
-        "else if(V >= VThresh) {\n"
+        "else if(V >= 0.61h5) {\n"
         "   //Spike();\n"
         "   V -= 0.61h5;\n"
         "   RefracTime = 5;\n"
@@ -194,8 +194,8 @@ int main(int argc, char** argv)
     //const auto synapseUpdateProcesses = ProcessGroup::create({inputHidden, hiddenOutput}, time);
     //const auto zeroProcesses = ProcessGroup::create({zeroOutputSum}, time);
 
-    const auto kernel = SimulationLoopKernel::create(numTimesteps, {neuronUpdateProcesses/*, synapseUpdateProcesses*/}/*,
-                                                     {zeroProcesses}*/);
+    const auto kernel = Backend::SimulationLoopKernel::create(numTimesteps, {neuronUpdateProcesses/*, synapseUpdateProcesses*/}/*,
+                                                              {zeroProcesses}*/);
     
     std::vector<std::shared_ptr<const Frontend::Kernel>> kernels{kernel};
     std::unique_ptr<Backend::Runtime> runtime;
