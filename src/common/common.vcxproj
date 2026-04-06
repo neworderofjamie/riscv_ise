@@ -19,11 +19,12 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="logging.cc" />
     <ClCompile Include="utils.cc" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\include\common\CLI11.hpp" />
     <ClInclude Include="..\..\include\common\common_export.h" />
+    <ClInclude Include="..\..\include\common\logging.h" />
     <ClInclude Include="..\..\include\common\utils.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
