@@ -58,6 +58,20 @@ using namespace Frontend;
     }
 }*/
 
+template<typename T>
+void copyAndPush(const std::vector<T> &data, std::shared_ptr<const State> state, Runtime *runtime)
+{
+    // Get array
+    for(auto *a : runtime->getArrays(state)) {
+        assert(a->getSizeBytes() == (data.size() * sizeof(T)));
+
+        // Copy data to array host pointer
+        std::copy(data.cbegin(), data.cend(), a->getHostPointer<T>());
+    }
+
+    // Push to device
+    runtime->pushStateToDevice(state);
+}
 void loadAndPush(const std::string &filename, std::shared_ptr<const State> state, Runtime *runtime)
 {
     // Load data from file
@@ -102,8 +116,8 @@ int main(int argc, char** argv)
 {
     constexpr size_t numTimesteps = 79;
     //const Shape inputShape{{28 * 28}};
-    const Shape hiddenShape{{128}};
-    const Shape hiddenShapeTime{{numTimesteps + 1, 128}};
+    const Shape hiddenShape{{32}};
+    const Shape hiddenShapeTime{{numTimesteps + 1, 32}};
     //const Shape outputShape{{10}};
     //const Shape inputHiddenShape{{28 * 28, 128}};
     //const Shape hiddenOutputShape{{128, 10}};
@@ -143,22 +157,32 @@ int main(int argc, char** argv)
     //const auto inputSpikes = EventContainer::create(inputShape, numTimesteps);
 
     // Hidden neurons
-    const auto hiddenV = Variable::create(hiddenShapeTime, Type::S10_5Sat);
-    const auto hiddenI = Variable::create(hiddenShape, Type::S10_5Sat);
-    const auto hiddenRefracTime = Variable::create(hiddenShape, Type::Int16);
+    const auto hidden1V = Variable::create(hiddenShapeTime, Type::S2_13Sat);
+    const auto hidden1I = Variable::create(hiddenShape, Type::S2_13Sat);
     //const auto hiddenSpikes = EventContainer::create(hiddenShape, record ? numTimesteps : 1);
-    const auto hidden = Backend::NeuronUpdateProcess::create(
-        "V = (" + std::to_string(std::exp(-1.0 / 20.0)) + "h5 * V) + I;\n"
-        "if (RefracTime > 0) {\n"
-        "   RefracTime -= 1;\n"
-        "}\n"
-        "else if(V >= 0.61h5) {\n"
+    const auto hidden1 = Backend::NeuronUpdateProcess::create(
+        "V = (" + std::to_string(std::exp(-1.0 / 20.0)) + " * V) + I;\n"
+        "if(V >= 1.0) {\n"
         "   //Spike();\n"
-        "   V -= 0.61h5;\n"
-        "   RefracTime = 5;\n"
+        "   V = 0.0;\n"
         "}\n",
-        {{"V", Sliced<Variable>(hiddenV, true)}, {"I", Sliced<Variable>(hiddenI)}, 
-         {"RefracTime", Sliced<Variable>(hiddenRefracTime)}});
+        {{"V", Sliced<Variable>(hidden1V, true)}, {"I", Sliced<Variable>(hidden1I)}}, 
+        {},
+        Type::S2_13);
+
+    // Hidden neurons
+    const auto hidden2V = Variable::create(hiddenShapeTime, Type::S2_13Sat);
+    const auto hidden2I = Variable::create(hiddenShape, Type::S2_13Sat);
+    //const auto hiddenSpikes = EventContainer::create(hiddenShape, record ? numTimesteps : 1);
+    const auto hidden2 = Backend::NeuronUpdateProcess::create(
+        "V = (" + std::to_string(std::exp(-1.0 / 20.0)) + " * V) + I;\n"
+        "if(V >= 0.8) {\n"
+        "   //Spike();\n"
+        "   V = 0.0;\n"
+        "}\n",
+        {{"V", Sliced<Variable>(hidden2V, true)}, {"I", Sliced<Variable>(hidden2I)}}, 
+        {},
+        Type::S2_13);
 
     // Output neurons
     //const auto outputV = Variable::create(outputShape, GeNN::Type::S9_6Sat);
@@ -190,7 +214,7 @@ int main(int argc, char** argv)
     //const auto zeroPerfCounter = PerformanceCounter::create();
 
     // Group processes
-    const auto neuronUpdateProcesses = ProcessGroup::create({hidden/*, output*/}, time);
+    const auto neuronUpdateProcesses = ProcessGroup::create({hidden1, hidden2,/*, output*/}, time);
     //const auto synapseUpdateProcesses = ProcessGroup::create({inputHidden, hiddenOutput}, time);
     //const auto zeroProcesses = ProcessGroup::create({zeroOutputSum}, time);
 
@@ -232,9 +256,14 @@ int main(int argc, char** argv)
     loadAndPush("mnist_bias.bin", outputBias, runtime);*/
 
     // Zero remaining state
-    zeroAndPush(hiddenV, runtime.get());
-    zeroAndPush(hiddenI, runtime.get());
-    zeroAndPush(hiddenRefracTime, runtime.get());
+    zeroAndPush(hidden1V, runtime.get());
+    zeroAndPush(hidden2V, runtime.get());
+    //zeroAndPush(hiddenI, runtime.get());
+
+    std::vector<int16_t> test{0, 26, 53, 79, 106, 132, 159, 185, 211, 238, 264, 291, 317, 344, 370, 396, 423, 449,
+                              476, 502, 529, 555, 581, 608, 634, 661, 687, 713, 740, 766, 793, 819};
+    copyAndPush(test, hidden1I, runtime.get());
+    copyAndPush(test, hidden2I, runtime.get());
     //zeroAndPush(outputV, runtime.get());
     //zeroAndPush(outputI, runtime.get());
     //zeroAndPush(outputVAvg, runtime.get());
@@ -283,6 +312,26 @@ int main(int argc, char** argv)
         //}
     //}
 
+    // Pull recorded voltages from device
+    runtime->pullStateFromDevice(hidden1V);
+    runtime->pullStateFromDevice(hidden2V);
+
+    // Record spikes and voltages
+    const int16_t *vRecordingData1 = runtime->getArrays(hidden1V)[0]->getHostPointer<int16_t>();
+    const int16_t *vRecordingData2 = runtime->getArrays(hidden2V)[0]->getHostPointer<int16_t>();
+    std::ofstream voltages("compiler_test_voltages.csv");
+    for(uint32_t t = 0; t < numTimesteps; t++) {
+        for(uint32_t n = 0; n < hiddenShape[0]; n++) {
+            voltages << *vRecordingData1++ << ", ";
+        }
+        for(uint32_t n = 0; n < hiddenShape[0]; n++) {
+            voltages << *vRecordingData2++;
+            if(n != (hiddenShape[0] - 1)) {
+                voltages << ", ";
+            }
+        }
+        voltages << std::endl;
+    }
     //std::cout << numCorrect << " / " << numExamples << " correct (" << 100.0 * (numCorrect / double(numExamples)) << "%)" << std::endl;
 
     // If timing is enabled
