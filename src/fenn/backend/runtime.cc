@@ -251,8 +251,9 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                          }
 
                                          // Add new merged field
+                                         // **NOTE** these are relative to start of field array
                                          mergedFields.first->second.emplace_back(std::piecewise_construct,
-                                                                                 std::make_tuple(fieldBase),
+                                                                                 std::make_tuple(fieldBase - 4),
                                                                                  std::make_tuple());
 
                                          // Generate code
