@@ -6,6 +6,10 @@
 // Standard C includes
 #include <cstring>
 
+// Common includes
+#include "common/barrier.h"
+#include "common/utils.h"
+
 // Model includes
 #include "frontend/model.h"
 #include "frontend/model_component.h"
@@ -136,8 +140,9 @@ void Runtime::allocate()
 
     // Create worker threads
     m_WorkerThreads.reserve(getNumDevices());
-    for(auto &d : m_Devices) {
-        m_WorkerThreads.emplace_back(&Runtime::threadFunction, this, d.get());
+    for(size_t i = 0; i < getNumDevices(); i++) {
+        m_WorkerThreads.emplace_back(&Runtime::threadFunction, this, m_Devices[i].get());
+        Common::Utils::setThreadName(m_WorkerThreads.back(), "Device " + std::to_string(i) + " worker");
     }
 }
 //----------------------------------------------------------------------------
@@ -191,32 +196,22 @@ std::vector<ArrayBase*> Runtime::getArrays(std::shared_ptr<const State> state) c
 //----------------------------------------------------------------------------
 Runtime::Runtime(std::unique_ptr<Model> model, size_t numDevices)
 :   m_Devices(numDevices), m_Model(std::move(model)), m_MergedModel(*m_Model), 
-    m_NumDevices(numDevices), m_WorkersReady(0), m_WorkerRun(true), m_Command(nullptr)
+    m_NumDevices(numDevices), m_WorkerRun(true), m_Command(nullptr), m_Barrier(numDevices + 1)
 {
 }
 //----------------------------------------------------------------------------
 void Runtime::runCommand(Command *command)
 {
-    // Set command and notify all workers
-    {
-        std::lock_guard<std::mutex> lock(m_Mutex);
-        m_Command = command;
-        m_WorkersReady = 0;
-        m_MainToWorkerCond.notify_all();
-    }
+    // Set command
+    // **NOTE** all workers should be waiting for barrier at this point
+    m_Command = command;
 
-    // Wait until all devices complete
-    {
-        std::unique_lock<std::mutex> lock(m_Mutex);
-        m_WorkerToMainCond.wait(lock, [this](){ return m_WorkersReady == getNumDevices(); });
-    }
+    // Wait for all workers to be ready
+    m_Barrier.wait();
 
-    // Set command and notify all workers
-    {
-        std::lock_guard<std::mutex> lock(m_Mutex);
-        m_Command = nullptr;
-        m_MainToWorkerCond.notify_all();
-    }
+    // Wait for all workers to finish
+    m_Barrier.wait();   
+   
 }
 //----------------------------------------------------------------------------
 void Runtime::threadFunction(DeviceBase *device)
@@ -224,26 +219,13 @@ void Runtime::threadFunction(DeviceBase *device)
     // While workers should run
     while(m_WorkerRun) {
         // Wait for command
-        {
-            std::unique_lock<std::mutex> lock(m_Mutex);
-            m_MainToWorkerCond.wait(lock, [this](){ return m_Command != nullptr; });
-        }
+        m_Barrier.wait();
 
         // Execute command on device
         m_Command->execute(device);
 
-        // Signal main
-        {
-            std::lock_guard<std::mutex> lock(m_Mutex);
-            m_WorkersReady++;
-            m_WorkerToMainCond.notify_one();
-        }
-
-        // Wait for all workers to process
-        {
-            std::unique_lock<std::mutex> lock(m_Mutex);
-            m_MainToWorkerCond.wait(lock, [this](){ return m_Command == nullptr; });
-        }
+        // Wait for all workers to complete
+        m_Barrier.wait();
     }
 }
 }

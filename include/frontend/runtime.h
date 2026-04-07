@@ -11,6 +11,9 @@
 // Standard C includes
 #include <cstdint>
 
+// Common includes
+#include "common/barrier.h"
+
 // Compiler frontend includes
 #include "compiler_frontend/type.h"
 
@@ -339,16 +342,12 @@ private:
 
     size_t m_NumDevices;
 
-    size_t m_WorkersReady;
-
     std::atomic<bool> m_WorkerRun;
 
     // Current command being executed by workers
     Command *m_Command;
 
-    // Mutex and condition variables for signal
-    std::mutex m_Mutex;
-    std::condition_variable m_MainToWorkerCond;
-    std::condition_variable m_WorkerToMainCond;
+    // Barrier used for synchronising command execution
+    Common::Barrier m_Barrier;
 };
 }
