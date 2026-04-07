@@ -103,6 +103,7 @@ int main(int argc, char** argv)
     constexpr size_t numTimesteps = 79;
     //const Shape inputShape{{28 * 28}};
     const Shape hiddenShape{{128}};
+    const Shape hiddenShapeTime{{numTimesteps + 1, 128}};
     //const Shape outputShape{{10}};
     //const Shape inputHiddenShape{{28 * 28, 128}};
     //const Shape hiddenOutputShape{{128, 10}};
@@ -142,13 +143,12 @@ int main(int argc, char** argv)
     //const auto inputSpikes = EventContainer::create(inputShape, numTimesteps);
 
     // Hidden neurons
-    const auto hiddenV = Variable::create(hiddenShape, Type::S10_5Sat);
+    const auto hiddenV = Variable::create(hiddenShapeTime, Type::S10_5Sat);
     const auto hiddenI = Variable::create(hiddenShape, Type::S10_5Sat);
     const auto hiddenRefracTime = Variable::create(hiddenShape, Type::Int16);
     //const auto hiddenSpikes = EventContainer::create(hiddenShape, record ? numTimesteps : 1);
     const auto hidden = Backend::NeuronUpdateProcess::create(
         "V = (" + std::to_string(std::exp(-1.0 / 20.0)) + "h5 * V) + I;\n"
-        "I = 0.0h5;\n"
         "if (RefracTime > 0) {\n"
         "   RefracTime -= 1;\n"
         "}\n"
@@ -157,7 +157,7 @@ int main(int argc, char** argv)
         "   V -= 0.61h5;\n"
         "   RefracTime = 5;\n"
         "}\n",
-        {{"V", Sliced<Variable>(hiddenV)}, {"I", Sliced<Variable>(hiddenI)}, 
+        {{"V", Sliced<Variable>(hiddenV, true)}, {"I", Sliced<Variable>(hiddenI)}, 
          {"RefracTime", Sliced<Variable>(hiddenRefracTime)}});
 
     // Output neurons
