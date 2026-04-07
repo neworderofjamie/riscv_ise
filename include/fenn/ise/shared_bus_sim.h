@@ -47,6 +47,6 @@ private:
     //! Next router to give a chance to send data
     size_t m_NextRouter;
 
-    Barrier m_Barrier;
+    ::Common::Barrier m_Barrier;
 };
 }   // namespace FeNN::ISE

@@ -28,5 +28,8 @@
     <ClInclude Include="..\..\include\common\logging.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\include\common\barrier.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

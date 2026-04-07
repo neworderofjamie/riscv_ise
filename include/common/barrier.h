@@ -8,9 +8,11 @@
 #include <cassert>
 
 //----------------------------------------------------------------------------
-// Barrier
+// Common::Barrier
 //----------------------------------------------------------------------------
 //! Copy-paste of boost::barrier to use std::thread and std::condition_variable
+namespace Common
+{
 class Barrier
 {
 public:
@@ -66,3 +68,4 @@ private:
     unsigned int m_Generation;
     unsigned int m_ResetCount;
 };
+}   // namespace Common
