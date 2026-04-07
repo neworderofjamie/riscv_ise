@@ -103,8 +103,15 @@ ArrayBase *DeviceBase::getArray(std::shared_ptr<const State> state) const
 //----------------------------------------------------------------------------
 Runtime::~Runtime()
 {
-    // Join all worker threads
+	// Clear run flag
     m_WorkerRun = false;
+    m_Command = nullptr;
+
+    // **YUCK** get all threads to loop
+    m_Barrier.wait();
+    m_Barrier.wait();
+
+    // Join all worker threads
     for(auto &w : m_WorkerThreads) {
         if(w.joinable()) {
             w.join();
@@ -222,7 +229,9 @@ void Runtime::threadFunction(DeviceBase *device)
         m_Barrier.wait();
 
         // Execute command on device
-        m_Command->execute(device);
+        if(m_Command != nullptr) {
+            m_Command->execute(device);
+        }
 
         // Wait for all workers to complete
         m_Barrier.wait();
