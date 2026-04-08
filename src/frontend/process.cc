@@ -135,6 +135,11 @@ std::vector<std::shared_ptr<const State>> NeuronUpdateProcess::getAllState() con
     return state;
 }
 //----------------------------------------------------------------------------
+std::vector<std::shared_ptr<const EventSource>> NeuronUpdateProcess::getAllEventSources() const
+{
+    return {};
+}
+//----------------------------------------------------------------------------
 void NeuronUpdateProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Model&) const
 {
     using namespace Common;
@@ -245,6 +250,11 @@ std::vector<std::shared_ptr<const State>> EventPropagationProcess::getAllState()
     return {getInputEventSource().getUnderlying(), getTarget().getUnderlying()};
 }
 //----------------------------------------------------------------------------
+std::vector<std::shared_ptr<const EventSource>> EventPropagationProcess::getAllEventSources() const
+{
+    return {getInputEventSource().getUnderlying()};
+}
+//----------------------------------------------------------------------------
 void EventPropagationProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Model&) const
 {
     using namespace Common::Utils;
@@ -293,6 +303,11 @@ std::vector<std::shared_ptr<const State>> RNGInitProcess::getAllState() const
     return {getSeed()};
 }
 //----------------------------------------------------------------------------
+std::vector<std::shared_ptr<const EventSource>> RNGInitProcess::getAllEventSources() const
+{
+    return {};
+}
+//----------------------------------------------------------------------------
 void RNGInitProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Model&) const
 {
     UPDATE_HASH_CLASS_NAME(RNGInitProcess);
@@ -321,6 +336,11 @@ MemsetProcess::MemsetProcess(Private, Sliced<Variable> target, const std::string
 std::vector<std::shared_ptr<const State>> MemsetProcess::getAllState() const
 {
     return {getTarget().getUnderlying()};
+}
+//----------------------------------------------------------------------------
+std::vector<std::shared_ptr<const EventSource>> MemsetProcess::getAllEventSources() const
+{
+    return {};
 }
 //----------------------------------------------------------------------------
 void MemsetProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Model&) const

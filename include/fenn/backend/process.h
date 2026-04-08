@@ -339,6 +339,9 @@ public:
     //------------------------------------------------------------------------
     virtual std::vector<std::shared_ptr<const Frontend::State>> getAllState() const override final;
 
+    //! Get vector of event source objects used by this process
+    virtual std::vector<std::shared_ptr<const Frontend::EventSource>> getAllEventSources() const override final;
+
     //------------------------------------------------------------------------
     // Process virtuals
     //------------------------------------------------------------------------
