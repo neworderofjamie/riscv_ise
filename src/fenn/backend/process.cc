@@ -183,7 +183,7 @@ void compileStatements(const std::vector<Token> &tokens, TypeChecker::Environmen
 }
 
 void unrollVectorLoopBody(Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
-                          ScalarConstant numElements, uint32_t maxUnroll, bool noTail,
+                          ScalarConstant numElements, uint32_t maxUnroll, bool noTail, bool noUnroll,
                           std::function<void(Assembler::CodeGenerator&, uint32_t, Assembler::ScalarRegisterPtr)> genBodyFn, 
                           std::function<void(Assembler::CodeGenerator&, uint32_t)> genTailFn)
 {
@@ -196,11 +196,11 @@ void unrollVectorLoopBody(Assembler::CodeGenerator &c, Assembler::ScalarRegister
                 Assembler::Utils::unrollVectorLoopBody(c, scalarRegisterAllocator, numElements, maxUnroll,
                                                        genBodyFn, genTailFn);
             },
-            [&c, &genBodyFn, &genTailFn, &scalarRegisterAllocator, maxUnroll, noTail]
+            [&c, &genBodyFn, &genTailFn, &scalarRegisterAllocator, maxUnroll, noTail, noUnroll]
             (Assembler::ScalarRegisterPtr numElements)
             {
                 Assembler::Utils::unrollVectorLoopBody(c, scalarRegisterAllocator,
-                                                       *numElements, maxUnroll, noTail, 
+                                                       *numElements, maxUnroll, noTail, noUnroll,
                                                        genBodyFn, genTailFn);
             },
             [](std::monostate)
@@ -228,9 +228,33 @@ bool isHeterogeneous(const Frontend::MergedProcess &mergedProcess, size_t numDev
                     heterogeneous = true;
                 }
             });
-        }
+    }
 
     return heterogeneous;
+}
+
+template<typename P, typename F>
+bool allOf(const Frontend::MergedProcess &mergedProcess, size_t numDevices,
+           MergedFields::GetFieldConstantFunc<P> getFieldValueFn,
+           F unaryPredicateFn)
+{
+    // Loop through devices and processes
+    // **YUCK** nov
+    bool value = true;
+    for (size_t d = 0; d < numDevices; d++) {
+        mergedProcess.forEachProcess<P>(
+            [&getFieldValueFn, &unaryPredicateFn, &value, d]
+            (auto p)
+            {
+                // If predicate is false then return false
+                if(!unaryPredicateFn(getFieldValueFn(d, p))) {
+                    value = false;
+                }
+            });
+    }
+
+    return value;
+    
 }
 
 template<typename P>
@@ -1035,22 +1059,44 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
         Assembler::CodeGenerator &sharedCodeGenerator, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
         Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
+    constexpr uint32_t maxUnroll = 4;
+
     // Define type for event-emitting function
     const auto emitEventFunctionType = Type::ResolvedType::createFunction(Type::Void, {});
+
+    // Degine lambda function to get number of neurons
+    auto getNumNeurons =
+        [&runtime](size_t d, auto p)
+        {
+            const auto state = (p->getVariables().empty()
+                                ? std::static_pointer_cast<const Frontend::State>(p->getOutputEventSinks().begin()->second.getUnderlying())
+                                : std::static_pointer_cast<const Frontend::State>(p->getVariables().begin()->second.getUnderlying()));
+            const auto splitDimension = runtime.getModel()->getStateData(state).splitDimension;
+            const auto splitShape = p->getShape().split(d, splitDimension, runtime.getNumDevices());
+            return static_cast<uint32_t>(splitShape.getFlattenedSize());
+        };
 
     // Add number of neurons
     std::vector<Compiler::RegisterPtr> sharedRegisters;
     const auto numNeurons = addScalarValue<NeuronUpdateProcess>(
         31, mergedProcess, runtime.getNumDevices(), mergedFields, fieldBaseReg, 
         processCodeGenerator, sharedCodeGenerator, scalarRegisterAllocator, sharedRegisters,
-        [&runtime](size_t d, auto p)
+        getNumNeurons);
+
+    // No need for a tail if all neuron counts are multiples of 32
+    const bool numNeuronsNoTail = allOf<NeuronUpdateProcess>(
+        mergedProcess, runtime.getNumDevices(), getNumNeurons,
+        [](const MergedFields::FieldValue &num)
         {
-            const auto state = (p->getVariables().empty() 
-                                ? std::static_pointer_cast<const Frontend::State>(p->getOutputEventSinks().begin()->second.getUnderlying())
-                                : std::static_pointer_cast<const Frontend::State>(p->getVariables().begin()->second.getUnderlying()));
-            const auto splitDimension = runtime.getModel()->getStateData(state).splitDimension;
-            const auto splitShape = p->getShape().split(d, splitDimension, runtime.getNumDevices());
-            return static_cast<uint32_t>(splitShape.getFlattenedSize());
+            return ((std::get<uint32_t>(num) % 32) == 0);
+        });
+    
+    // No need for unrolling if all neuron counts are less than or equal to 32
+    const bool numNeuronsNoUnroll = allOf<NeuronUpdateProcess>(
+        mergedProcess, runtime.getNumDevices(), getNumNeurons,
+        [](const MergedFields::FieldValue &num)
+        {
+            return (std::get<uint32_t>(num) <= 32);
         });
 
     std::unordered_map<std::shared_ptr<const Frontend::Variable>, std::unique_ptr<NeuronVarBase>> varBuffers;
@@ -1307,7 +1353,7 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
     // **TODO** check all merged processes don't have multiple of 32 neurons, less than 4 * 32 neurons, multiple of 4 * 32 neurons
     unrollVectorLoopBody(
         envLibrary.getCodeGenerator(), scalarRegisterAllocator,
-        numNeurons, 4, false,
+        numNeurons, maxUnroll, numNeuronsNoTail, numNeuronsNoUnroll,
         [this, &envLibrary, &eventBufferRegisters, &emitEventFunctionType, &mergedProcess, 
          &runtime, &scalarRegisterAllocator, &varBuffers, &vectorRegisterAllocator]
         (auto&, uint32_t r, auto maskReg)
@@ -2128,8 +2174,9 @@ void MemsetProcess::generateLLMMemset(Assembler::CodeGenerator &c,
     c.vfill(*VLLMAddress, *targetReg);
 
     // Generate unrolled loop 
+    // **TODO** figure out unrolledness
     unrollVectorLoopBody(
-        c, scalarRegisterAllocator, numElements, 4, true,
+        c, scalarRegisterAllocator, numElements, 4, true, false,
         [VLLMAddress, VValue]
         (auto &c, uint32_t r, auto)
         {
@@ -2161,8 +2208,9 @@ void MemsetProcess::generateURAMMemset(Assembler::CodeGenerator &c,
     c.vlui(*VValue, 0);
 
     // Generate unrolled loop 
+    // **TODO** figure out unrolled
     unrollVectorLoopBody(
-        c, scalarRegisterAllocator, numElements, 4, true,
+        c, scalarRegisterAllocator, numElements, 4, true, false,
         [targetReg, VValue]
         (auto &c, uint32_t r, auto)
         {

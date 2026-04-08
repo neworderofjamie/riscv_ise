@@ -321,14 +321,14 @@ void unrollLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAll
 }
 //----------------------------------------------------------------------------
 void unrollLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator, 
-                    FeNN::Common::Reg countReg, uint32_t maxUnroll, uint32_t iterationSize, 
+                    FeNN::Common::Reg countReg, uint32_t maxUnroll, uint32_t iterationSize, bool noUnroll,
                     std::function<void(CodeGenerator&, uint32_t)> genBodyFn, 
                     std::function<void(CodeGenerator&, uint32_t)> genTailFn)
 {  
     ALLOCATE_SCALAR(SLoopCountEnd);
 
     // Unrolled loop
-    {
+    if(!noUnroll) {
         // Load end count for unrolled loop
         c.li(*SLoopCountEnd, maxUnroll * iterationSize);
 
@@ -412,12 +412,12 @@ void unrollVectorLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegis
 }
 //----------------------------------------------------------------------------
 void unrollVectorLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator, 
-                          FeNN::Common::Reg numElementsReg, uint32_t maxUnroll, bool noTail,
+                          FeNN::Common::Reg numElementsReg, uint32_t maxUnroll, bool noTail, bool noUnroll,
                           std::function<void(CodeGenerator&, uint32_t, ScalarRegisterPtr)> genBodyFn, 
                           std::function<void(CodeGenerator&, uint32_t)> genTailFn)
 {
     // Generate unrolled and whole vector loop
-    unrollLoopBody(c, scalarRegisterAllocator, numElementsReg, maxUnroll, 32,
+    unrollLoopBody(c, scalarRegisterAllocator, numElementsReg, maxUnroll, 32, noUnroll,
                    [genBodyFn](CodeGenerator &c, uint32_t r)
                    { 
                        genBodyFn(c, r, nullptr); 

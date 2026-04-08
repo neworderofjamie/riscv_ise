@@ -53,7 +53,7 @@ ASSEMBLER_EXPORT void unrollLoopBody(CodeGenerator &c, ScalarRegisterAllocator &
 
 //! Generate an unrolled loop with number of iterations specified at runtime
 ASSEMBLER_EXPORT void unrollLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator, 
-                                     FeNN::Common::Reg countReg, uint32_t maxUnroll, uint32_t iterationSize, 
+                                     FeNN::Common::Reg countReg, uint32_t maxUnroll, uint32_t iterationSize, bool noUnroll,
                                      std::function<void(CodeGenerator&, uint32_t)> genBodyFn,
                                      std::function<void(CodeGenerator&, uint32_t)> genTailFn);
 
@@ -65,7 +65,7 @@ ASSEMBLER_EXPORT void unrollVectorLoopBody(CodeGenerator &c, ScalarRegisterAlloc
 
 //! Generate an unrolled vector loop with number of elements specified at runtime
 ASSEMBLER_EXPORT void unrollVectorLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator, 
-                                           FeNN::Common::Reg numElementsReg, uint32_t maxUnroll, bool noTail,
+                                           FeNN::Common::Reg numElementsReg, uint32_t maxUnroll, bool noTail, bool noUnroll,
                                            std::function<void(CodeGenerator&, uint32_t, ScalarRegisterPtr)> genBodyFn, 
                                            std::function<void(CodeGenerator&, uint32_t)> genTailFn);
 
