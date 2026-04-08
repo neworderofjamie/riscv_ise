@@ -49,7 +49,6 @@ void add(Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalar
 {
     using namespace Assembler;
     using namespace Common;
-    using namespace ::Common::Utils;
 
     // Allocate registers for constants that can be shared 
     // between all exp invocations, regardless of fixed-point
@@ -61,9 +60,9 @@ void add(Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalar
     
     // Load constants
     c.vlui(*VFracMask, (1 << fracBits) - 1);
-    c.vlui(*VLog2, convertFixedPoint(log2, 15));
-    c.vlui(*VInvLog, convertFixedPoint(1.0 / log2, 14));
-    c.vlui(*VHalf, convertFixedPoint(0.5, 15));
+    c.vlui(*VLog2, ::Common::Utils::convertFixedPoint(log2, 15));
+    c.vlui(*VInvLog, ::Common::Utils::convertFixedPoint(1.0 / log2, 14));
+    c.vlui(*VHalf, ::Common::Utils::convertFixedPoint(0.5, 15));
 
     // Generate code to load address from field
     {
