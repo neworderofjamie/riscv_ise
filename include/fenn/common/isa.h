@@ -32,6 +32,7 @@ inline constexpr bool inBit(uint32_t x, uint32_t n)
 // is x a signed n-bit integer?
 inline constexpr bool inSBit(int x, int n)
 {
+    assert(n < 32);
     return -(1 << (n-1)) <= x && x < (1 << (n-1));
 }
 
