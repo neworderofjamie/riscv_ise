@@ -114,17 +114,6 @@ void zeroAndPush(std::shared_ptr<const State> state, Runtime *runtime)
 
 int main(int argc, char** argv)
 {
-    constexpr size_t numTimesteps = 79;
-    //const Shape inputShape{{28 * 28}};
-    const Shape hiddenShape{{32}};
-    const Shape hiddenShapeTime{{numTimesteps + 1, 32}};
-    //const Shape outputShape{{10}};
-    //const Shape inputHiddenShape{{28 * 28, 128}};
-    //const Shape hiddenOutputShape{{128, 10}};
-
-    //const size_t numInputSpikeWords = ceilDivide(inputShape.getNumNeurons(), 32);
-    //const size_t numInputSpikeArrayWords = numInputSpikeWords * numTimesteps;
-
     bool device = false;
     bool shouldDisassemble = true;
     bool record = false;
@@ -153,12 +142,26 @@ int main(int argc, char** argv)
     FeNN::Common::Logging::init(logSeverity, logSeverity, logSeverity, logSeverity, logSeverity,
                                 &consoleAppender, &consoleAppender, &consoleAppender, &consoleAppender, &consoleAppender);
 
+    constexpr size_t numTimesteps = 79;
+    //const Shape inputShape{{28 * 28}};
+    const Shape hidden1Shape{{32}};
+    const Shape hidden1ShapeTime{{numTimesteps + 1, 32}};
+    const Shape hidden2Shape{{30}};
+    const Shape hidden2ShapeTime{{numTimesteps + 1, 30}};
+
+    //const Shape outputShape{{10}};
+    //const Shape inputHiddenShape{{28 * 28, 128}};
+    //const Shape hiddenOutputShape{{128, 10}};
+
+    //const size_t numInputSpikeWords = ceilDivide(inputShape.getNumNeurons(), 32);
+    //const size_t numInputSpikeArrayWords = numInputSpikeWords * numTimesteps;
+    // 
     // Input spikes
     //const auto inputSpikes = EventContainer::create(inputShape, numTimesteps);
 
     // Hidden neurons
-    const auto hidden1V = Variable::create(hiddenShapeTime, Type::S2_13Sat);
-    const auto hidden1I = Variable::create(hiddenShape, Type::S2_13Sat);
+    const auto hidden1V = Variable::create(hidden1ShapeTime, Type::S2_13Sat);
+    const auto hidden1I = Variable::create(hidden1Shape, Type::S2_13Sat);
     //const auto hiddenSpikes = EventContainer::create(hiddenShape, record ? numTimesteps : 1);
     const auto hidden1 = Backend::NeuronUpdateProcess::create(
         "V = (" + std::to_string(std::exp(-1.0 / 20.0)) + " * V) + I;\n"
@@ -171,8 +174,8 @@ int main(int argc, char** argv)
         Type::S2_13);
 
     // Hidden neurons
-    const auto hidden2V = Variable::create(hiddenShapeTime, Type::S2_13Sat);
-    const auto hidden2I = Variable::create(hiddenShape, Type::S2_13Sat);
+    const auto hidden2V = Variable::create(hidden2ShapeTime, Type::S2_13Sat);
+    const auto hidden2I = Variable::create(hidden2Shape, Type::S2_13Sat);
     //const auto hiddenSpikes = EventContainer::create(hiddenShape, record ? numTimesteps : 1);
     const auto hidden2 = Backend::NeuronUpdateProcess::create(
         "V = (" + std::to_string(std::exp(-1.0 / 20.0)) + " * V) + I;\n"
@@ -321,12 +324,12 @@ int main(int argc, char** argv)
     const int16_t *vRecordingData2 = runtime->getArrays(hidden2V)[0]->getHostPointer<int16_t>();
     std::ofstream voltages("compiler_test_voltages.csv");
     for(uint32_t t = 0; t < numTimesteps; t++) {
-        for(uint32_t n = 0; n < hiddenShape[0]; n++) {
+        for(uint32_t n = 0; n < hidden1Shape[0]; n++) {
             voltages << *vRecordingData1++ << ", ";
         }
-        for(uint32_t n = 0; n < hiddenShape[0]; n++) {
+        for(uint32_t n = 0; n < 32; n++) {
             voltages << *vRecordingData2++;
-            if(n != (hiddenShape[0] - 1)) {
+            if(n != (32 - 1)) {
                 voltages << ", ";
             }
         }
