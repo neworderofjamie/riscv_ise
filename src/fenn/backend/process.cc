@@ -356,7 +356,7 @@ public:
                   uint32_t varFieldOffset, std::optional<uint32_t> numTimesteps, 
                   Assembler::ScalarRegisterPtr fieldBaseReg, 
                   Assembler::ScalarRegisterPtr timeReg,
-                  ScalarConstant numVariableBytes)
+                  Assembler::ScalarRegisterPtr numVariableBytes)
     {
        // Allocate scalar register to hold address of variable
         m_ReadBufferReg = scalarRegisterAllocator.getRegister((varName + "Buffer X").c_str());
@@ -374,14 +374,13 @@ public:
             }
 
             ALLOCATE_SCALAR(STmp);
-            auto numVariableBytesReg = std::get<Assembler::ScalarRegisterPtr>(numVariableBytes);
-            c.mul(*STmp, *timeReg, *numVariableBytesReg);
+            c.mul(*STmp, *timeReg, *numVariableBytes);
             c.add(*m_ReadBufferReg, *m_ReadBufferReg, *STmp);
 
             // Allocate additional register for writing variable
             // **TODO** should be lazy
             m_WriteBufferReg = scalarRegisterAllocator.getRegister((varName + "BufferWrite X").c_str());
-            c.add(*m_WriteBufferReg, *m_ReadBufferReg, *numVariableBytesReg);
+            c.add(*m_WriteBufferReg, *m_ReadBufferReg, *numVariableBytes);
         }
     }
 
@@ -1042,7 +1041,7 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
     // Add number of neurons
     std::vector<Compiler::RegisterPtr> sharedRegisters;
     const auto numNeurons = addScalarValue<NeuronUpdateProcess>(
-        0, mergedProcess, runtime.getNumDevices(), mergedFields, fieldBaseReg, 
+        31, mergedProcess, runtime.getNumDevices(), mergedFields, fieldBaseReg, 
         processCodeGenerator, sharedCodeGenerator, scalarRegisterAllocator, sharedRegisters,
         [&runtime](size_t d, auto p)
         {
@@ -1057,32 +1056,31 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
     std::unordered_map<std::shared_ptr<const Frontend::Variable>, std::unique_ptr<NeuronVarBase>> varBuffers;
     {
         // If any variables have time dimension
-        ScalarConstant numVariableBytes;
+        Assembler::ScalarRegisterPtr numVariableBytes;
         if (std::any_of(getVariables().cbegin(), getVariables().cend(),
                         [](const auto &e) { return e.second.hasTime(); }))
         {
+            // Allocate register
+            numVariableBytes = scalarRegisterAllocator.getRegister("SNumVariableBytes");
+
             // Calculate number of variable bytes from number of neurons
             // **NOTE** this could be slightly optimised by calculating in shared code generator if numNeurons is common 
-            numVariableBytes = std::visit(
+            std::visit(
                 ::Common::Utils::Overload{
-                [&processCodeGenerator, &scalarRegisterAllocator](Assembler::ScalarRegisterPtr reg) -> ScalarConstant
+                [&numVariableBytes, &processCodeGenerator](Assembler::ScalarRegisterPtr reg)
                 {
-                    ALLOCATE_SCALAR(SNumVariableBytes);
-
                     //  ((numerator + 31) / 32) * 64;
-                    processCodeGenerator.addi(*SNumVariableBytes, *reg, 31);
-                    processCodeGenerator.srli(*SNumVariableBytes, *SNumVariableBytes, 5);
-                    processCodeGenerator.slli(*SNumVariableBytes, *SNumVariableBytes, 6);
-                    
-                    return SNumVariableBytes;
-                }, 
-                [](int val) -> ScalarConstant
-                {
-                    return ::Common::Utils::padSize(val, 32) * 2;
+                    processCodeGenerator.addi(*numVariableBytes, *reg, 31);
+                    processCodeGenerator.srli(*numVariableBytes, *numVariableBytes, 5);
+                    processCodeGenerator.slli(*numVariableBytes, *numVariableBytes, 6);
                 },
-                [](auto) -> ScalarConstant
+                [&numVariableBytes, &processCodeGenerator](int val)
                 {
-                    throw std::runtime_error("Invalid number of neurons");
+                    processCodeGenerator.li(*numVariableBytes, ::Common::Utils::padSize(val, 32) * 2);
+                },
+                [](auto)
+                {
+                    assert(false);
                 }},
                 numNeurons);
         }
@@ -1135,33 +1133,32 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
                        Assembler::ScalarRegisterPtr> eventBufferRegisters;
     {
         // If any output events have buffering, calculate stride in bytes
-        // **TODO** make set of non-1 bufferings and pre-multiply time by this
-        ScalarConstant numEventBytes;
+        Assembler::ScalarRegisterPtr numEventBytes;
         if(std::any_of(getOutputEventSinks().cbegin(), getOutputEventSinks().cend(),
                        [](const auto e){ return e.second.hasTime(); }))
         {
+            // Allocate register
+            numEventBytes = scalarRegisterAllocator.getRegister("SNumEventBytes");
+
             // Calculate number of event bytes from number of neurons
+            // **NOTE** result goes into MUL so has to be in a register
             // **NOTE** this could be slightly optimised by calculating in shared code generator if numNeurons is common 
-            numEventBytes = std::visit(
+            std::visit(
                 ::Common::Utils::Overload{
-                    [&processCodeGenerator, &scalarRegisterAllocator](Assembler::ScalarRegisterPtr reg) -> ScalarConstant
+                [&numEventBytes, &processCodeGenerator](Assembler::ScalarRegisterPtr reg)
                 {
-                    ALLOCATE_SCALAR(SNumVariableBytes);
-
                     //  ((numerator + 31) / 32) * 4;
-                    processCodeGenerator.addi(*SNumVariableBytes, *reg, 31);
-                    processCodeGenerator.srli(*SNumVariableBytes, *SNumVariableBytes, 5);
-                    processCodeGenerator.slli(*SNumVariableBytes, *SNumVariableBytes, 2);
-
-                    return SNumVariableBytes;
+                    processCodeGenerator.addi(*numEventBytes, *reg, 31);
+                    processCodeGenerator.srli(*numEventBytes, *numEventBytes, 5);
+                    processCodeGenerator.slli(*numEventBytes, *numEventBytes, 2);
                 }, 
-                [](int val) -> ScalarConstant
+                [&numEventBytes, &processCodeGenerator](int val)
                 {
-                    return ::Common::Utils::ceilDivide(val, 32) * 4;
+                    processCodeGenerator.li(*numEventBytes, ::Common::Utils::ceilDivide(val, 32) * 4);
                 },
-                [](auto) -> ScalarConstant
+                [](auto)
                 {
-                    throw std::runtime_error("Invalid number of neurons");
+                    assert(false);
                 }},
                 numNeurons);
         }
@@ -1199,7 +1196,7 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
                 // reg = stride * (time + 1)
                 ALLOCATE_SCALAR(STmp);
                 processCodeGenerator.addi(*STmp, *timeReg, 1);
-                processCodeGenerator.mul(*STmp, *STmp, *std::get<Assembler::ScalarRegisterPtr>(numEventBytes));
+                processCodeGenerator.mul(*STmp, *STmp, *numEventBytes);
                 processCodeGenerator.add(*reg, *reg, *STmp);
             }
         }
