@@ -7,6 +7,7 @@
 namespace Frontend
 {
 class GraphVector;
+class ProcessGroup;
 class State;
 }
 
@@ -56,7 +57,7 @@ public:
     using StateMemSpaceCompatibility = std::unordered_map<std::shared_ptr<const Frontend::State>, 
                                                           MemSpace>;
 
-    Model(const KernelVector &graphs);
+    Model(const KernelVector &kernels);
 
     //------------------------------------------------------------------------
     // Public API
@@ -68,5 +69,7 @@ private:
     // Members
     //------------------------------------------------------------------------
     StateMemSpaceCompatibility m_StateCompatibleMemSpaces;
+
+    std::shared_ptr<const Frontend::ProcessGroup> m_EventSourceProcessGroup;
 };
 }

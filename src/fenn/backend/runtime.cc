@@ -127,6 +127,9 @@ std::unique_ptr<Frontend::ArrayBase> DeviceFeNN::createArray(std::shared_ptr<con
                                                              const Frontend::Shape &shape)
 {
     // Pad last dimension to multiplies of 32
+    // **THINK** this is not correct 
+    // - for neurons we just want to pad total
+    // - for weighs we want to pad rows
     const auto paddedShape = shape.padLast(32);
 
     // Create array in correct memory space depending on compatibility

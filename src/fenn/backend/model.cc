@@ -6,7 +6,11 @@
 // Common includes
 #include "common/utils.h"
 
+// Frontend includes
+#include "frontend/process_group.h"
+
 // FeNN backend includes
+#include "fenn/backend/kernel.h"
 #include "fenn/backend/process.h"
 
 //----------------------------------------------------------------------------
@@ -14,8 +18,8 @@
 //----------------------------------------------------------------------------
 namespace FeNN::Backend
 {
-Model::Model(const KernelVector &graphs)
-:   Frontend::Model(graphs)
+Model::Model(const KernelVector &kernels)
+:   Frontend::Model(kernels)
 {
     // Loop through all model state
     for (const auto &s : getStateData()) {
@@ -40,6 +44,39 @@ Model::Model(const KernelVector &graphs)
         // we want to use DRAM for weights is not currently known
         m_StateCompatibleMemSpaces.try_emplace(s.first, compatibleMemSpaces);
     }
+
+    // Loop through kernels
+    for (const auto &k : getKernels()) {
+        // Loop through all process groups in kernel
+        const auto processGroups = k->getAllProcessGroups();
+        for (const auto &g : processGroups) {
+            // Loop through processes in group
+            bool allEvent = true;
+            bool noEvent = true;
+            for (const auto &p : g->getProcesses()) {
+                // If this process doesn't have any event sources, then this group can't contain all event sources
+                // **TODO** is getEventSource() enough?
+                if(p->getAllEventSources().empty()) {
+                    allEvent = false; 
+                }
+                // Otherwise, this group can't contain NO event sources
+                else {
+                    noEvent = false;
+                }
+            }
+
+            // If group has a mixture of processes with and without event sources or another process group with event sources has already been found
+            if ((!allEvent && !noEvent) || (allEvent && m_EventSourceProcessGroup)) {
+                throw std::runtime_error("On FeNN, all event sources need to be in a single process group");
+            }
+            // Otherwise, if process group 
+            else if(allEvent) {
+                m_EventSourceProcessGroup = g;
+            }
+        }
+    }
+
+    // **TODO** merge the event sources in
 }
 //----------------------------------------------------------------------------
 MemSpace Model::getStateMemSpace(std::shared_ptr<const Frontend::State> state, bool useDRAMForWeights) const
