@@ -140,7 +140,7 @@ std::vector<std::shared_ptr<const EventSource>> NeuronUpdateProcess::getAllEvent
     return {};
 }
 //----------------------------------------------------------------------------
-void NeuronUpdateProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Model&) const
+void NeuronUpdateProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Model &model) const
 {
     using namespace Common;
 
@@ -150,14 +150,14 @@ void NeuronUpdateProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, cons
     Utils::updateHash(getVariables().size(), hash);
     for(const auto &v : getVariables()) {
         Utils::updateHash(v.first, hash);
-        v.second.updateMergeHash(hash);
+        v.second.updateMergeHash(hash, model);
     }
 
     // Output events
     Utils::updateHash(getOutputEventSinks().size(), hash);
     for(const auto &e : getOutputEventSinks()) {
         Utils::updateHash(e.first, hash);
-        e.second.updateMergeHash(hash);
+        e.second.updateMergeHash(hash, model);
     }
 
     // Tokens
@@ -255,16 +255,16 @@ std::vector<std::shared_ptr<const EventSource>> EventPropagationProcess::getAllE
     return {getInputEventSource().getUnderlying()};
 }
 //----------------------------------------------------------------------------
-void EventPropagationProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Model&) const
+void EventPropagationProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Model &model) const
 {
     using namespace Common::Utils;
     UPDATE_HASH_CLASS_NAME(EventPropagationProcess);
 
     // Input events
-    getInputEventSource().updateMergeHash(hash);
+    getInputEventSource().updateMergeHash(hash, model);
 
     // Targets
-    getTarget().updateMergeHash(hash);
+    getTarget().updateMergeHash(hash, model);
 }
 //----------------------------------------------------------------------------
 void EventPropagationProcess::updateCompatibleSplitDimensions(std::shared_ptr<const State> state, 

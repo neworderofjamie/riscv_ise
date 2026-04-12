@@ -8,7 +8,7 @@
 //----------------------------------------------------------------------------
 namespace Frontend
 {
-void EventContainer::updateMergeHash(boost::uuids::detail::sha1 &hash) const
+void EventContainer::updateMergeHash(boost::uuids::detail::sha1 &hash, const Model&) const
 {
     UPDATE_HASH_CLASS_NAME(EventContainer);
 }
@@ -21,7 +21,7 @@ std::unique_ptr<ArrayBase> EventContainer::createArray(const Shape&, const Model
 //----------------------------------------------------------------------------
 // Frontend::EventChannel
 //----------------------------------------------------------------------------
-void EventChannel::updateMergeHash(boost::uuids::detail::sha1 &hash) const
+void EventChannel::updateMergeHash(boost::uuids::detail::sha1 &hash, const Model&) const
 {
     UPDATE_HASH_CLASS_NAME(EventContainer);
 }

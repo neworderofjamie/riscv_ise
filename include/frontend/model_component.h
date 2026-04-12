@@ -64,7 +64,7 @@ public:
     // Declared virtuals
     //------------------------------------------------------------------------
     virtual const Shape &getShape() const = 0;
-    virtual void updateMergeHash(boost::uuids::detail::sha1 &hash) const = 0;
+    virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const Model &model) const = 0;
 
     virtual std::unique_ptr<ArrayBase> createArray(const Shape &deviceShape, const Model &model, 
                                                    DeviceBase &device) const = 0;

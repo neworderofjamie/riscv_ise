@@ -2011,7 +2011,7 @@ void generateDRAMWordLoop(const std::vector<std::unique_ptr<RowGeneratorBase>> &
 // FeNN::Backend::RNGInitProcess
 //----------------------------------------------------------------------------
 RNGInitProcess::RNGInitProcess(Private, Frontend::VariablePtr seed, const std::string &name)
-:   ProcessImplementationBase<Frontend::RNGInitProcess>(Private(), seed, name)
+:   Frontend::RNGInitProcess(Private(), seed, name)
 {
     if(getSeed()->getShape().getNumDims() != 2) {
         throw std::runtime_error("RNG init process requires two dimensional seed");
@@ -2226,7 +2226,7 @@ void MemsetProcess::generateURAMMemset(Assembler::CodeGenerator &c,
 // FeNN::Backend::BroadcastProcess
 //----------------------------------------------------------------------------
 BroadcastProcess::BroadcastProcess(Private, Frontend::VariablePtr source, Frontend::VariablePtr target, const std::string &name)
-:   ProcessImplementationBase<Frontend::Process>(name), m_Source(source), m_Target(target)
+:   Frontend::Process(name), m_Source(source), m_Target(target)
 {
     if(m_Source == nullptr) {
         throw std::runtime_error("Broadcast process requires source");
@@ -2268,10 +2268,6 @@ std::vector<std::shared_ptr<const Frontend::EventSource>> BroadcastProcess::getA
 void BroadcastProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Frontend::Model &model) const
 {
     UPDATE_HASH_CLASS_NAME(BroadcastProcess);
-
-    // Superclass
-    // **NOTE** this is slightly weird with backend-specific process types
-    ProcessImplementationBase<Frontend::Process>::updateMergeHash(hash, model);
 }
 //----------------------------------------------------------------------------
 void BroadcastProcess::updateCompatibleSplitDimensions(std::shared_ptr<const Frontend::State> state, 

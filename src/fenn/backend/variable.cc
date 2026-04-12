@@ -12,6 +12,17 @@
 //----------------------------------------------------------------------------
 namespace FeNN::Backend
 {
+void Variable::updateMergeHash(boost::uuids::detail::sha1 &hash, const Frontend::Model &model) const
+{
+    // Superclass
+    Frontend::Variable::updateMergeHash(hash, model);
+
+    // Include hash of selected memory space
+    ::Common::Utils::updateHash(
+        static_cast<const Model&>(model).getStateMemSpace(std::static_pointer_cast<const Frontend::State>(shared_from_this()), 
+                                                          true/*getRuntime().shouldUseDRAMForWeights()*/), hash);
+}
+//----------------------------------------------------------------------------
 std::unique_ptr<Frontend::ArrayBase> Variable::createArray(const Frontend::Shape &deviceShape, const Frontend::Model &model,
                                                            Frontend::DeviceBase &device) const
 {

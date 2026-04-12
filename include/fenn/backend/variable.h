@@ -35,6 +35,8 @@ public:
     //------------------------------------------------------------------------
     // State virtuals
     //------------------------------------------------------------------------
+    virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const Frontend::Model &model) const override final;
+
     virtual std::unique_ptr<Frontend::ArrayBase> createArray(const Frontend::Shape &deviceShape, const Frontend::Model &model,
                                                              Frontend::DeviceBase &device) const override final;
 

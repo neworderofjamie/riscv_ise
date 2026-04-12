@@ -92,48 +92,13 @@ public:
                               Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;
 };
 
-
-//----------------------------------------------------------------------------
-// FeNN::Backend::ProcessImplementationBase
-//----------------------------------------------------------------------------
-//! Helper class which automatically adds memory space compatibility 
-//! information for all process state to merge hash
-template<typename P, typename B = TimeDrivenProcessImplementation>
-class ProcessImplementationBase : public B, public P
-{
-public:
-    using P::P;
-
-    //------------------------------------------------------------------------
-    // Process virtuals
-    //------------------------------------------------------------------------
-    virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const Frontend::Model &model) const override
-    {
-        // Superclass
-        // **YUCK** only do this if we're not deriving straight from base class
-        if constexpr (!std::is_same_v<P, Frontend::Process>) {
-            P::updateMergeHash(hash, model);
-        }
-
-        // Get all  state associated with this process
-        const auto allState = this->getAllState();
-
-        // Update hash with memory space compatibility of all state
-        // **NOTE** this is unaffected by whether DRAM is used or not so we can just set true
-        const auto &fennModel = dynamic_cast<const Model&>(model);
-        for(const auto &s : allState) {
-            ::Common::Utils::updateHash(fennModel.getStateMemSpace(s, true), hash);
-        }
-    }
-};
-
 //----------------------------------------------------------------------------
 // FeNN::Backend::NeuronUpdateProcess
 //----------------------------------------------------------------------------
-class FENN_BACKEND_EXPORT NeuronUpdateProcess : public ProcessImplementationBase<Frontend::NeuronUpdateProcess>
+class FENN_BACKEND_EXPORT NeuronUpdateProcess : public Frontend::NeuronUpdateProcess, public TimeDrivenProcessImplementation
 {
 public:
-    using ProcessImplementationBase<Frontend::NeuronUpdateProcess>::ProcessImplementationBase;
+    using Frontend::NeuronUpdateProcess::NeuronUpdateProcess;
 
     //------------------------------------------------------------------------
     // ProcessImplementation virtuals
@@ -167,7 +132,7 @@ public:
 //----------------------------------------------------------------------------
 // FeNN::Backend::EventPropagationProcess
 //----------------------------------------------------------------------------
-/*class FENN_BACKEND_EXPORT EventPropagationProcess : public ProcessImplementationBase<Frontend::EventPropagationProcess, ProcessImplementation>
+/*class FENN_BACKEND_EXPORT EventPropagationProcess : public Frontend::EventPropagationProcess, public ProcessImplementation
 {
 public:
     EventPropagationProcess(Private, Sliced<EventContainer> inputEvents, 
@@ -244,7 +209,7 @@ private:
 //----------------------------------------------------------------------------
 // FeNN::Backend::RNGInitProcess
 //----------------------------------------------------------------------------
-class FENN_BACKEND_EXPORT RNGInitProcess : public ProcessImplementationBase<Frontend::RNGInitProcess>
+class FENN_BACKEND_EXPORT RNGInitProcess : public Frontend::RNGInitProcess, public TimeDrivenProcessImplementation
 {
 public:
     RNGInitProcess(Private, Frontend::VariablePtr seed, const std::string &name);
@@ -278,10 +243,10 @@ public:
 //----------------------------------------------------------------------------
 // FeNN::Backend::MemsetProcess
 //----------------------------------------------------------------------------
-class FENN_BACKEND_EXPORT MemsetProcess : public ProcessImplementationBase<Frontend::MemsetProcess>
+class FENN_BACKEND_EXPORT MemsetProcess : public Frontend::MemsetProcess, public TimeDrivenProcessImplementation
 {
 public:
-    using ProcessImplementationBase<Frontend::MemsetProcess>::ProcessImplementationBase;
+    using Frontend::MemsetProcess::MemsetProcess;
 
     //------------------------------------------------------------------------
     // ProcessImplementation virtuals
@@ -328,7 +293,7 @@ private:
 //----------------------------------------------------------------------------
 // FeNN::Backend::BroadcastProcess
 //----------------------------------------------------------------------------
-class FENN_BACKEND_EXPORT BroadcastProcess : public ProcessImplementationBase<Frontend::Process>
+class FENN_BACKEND_EXPORT BroadcastProcess : public Frontend::Process, public TimeDrivenProcessImplementation
 {
 public:
     BroadcastProcess(Private, Frontend::VariablePtr source, Frontend::VariablePtr target, 

@@ -54,13 +54,13 @@ public:
     bool hasTime() const{ return (hasTimeSlice() && (getNumTimesteps() > 1)); }
     size_t getNumTimesteps() const{ return getUnderlying()->getShape().getFirst(); }
 
-    void updateMergeHash(boost::uuids::detail::sha1 &hash) const
+    void updateMergeHash(boost::uuids::detail::sha1 &hash, const Model &model) const
     {
         ::Common::Utils::updateHash(hasTime(), hash);
         if (hasTime()) {
             ::Common::Utils::updateHash(getNumTimesteps(), hash);
         }
-        m_Underlying->updateMergeHash(hash);
+        m_Underlying->updateMergeHash(hash, model);
     }
 private:
     std::shared_ptr<const T> m_Underlying;
