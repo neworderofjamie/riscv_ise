@@ -44,6 +44,12 @@
     <ClInclude Include="..\..\..\include\fenn\backend\fields.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\include\fenn\backend\events.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\fenn\backend\variable.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="memory_allocator.cc">
@@ -71,6 +77,12 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="runtime_hw.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="events.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="variable.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

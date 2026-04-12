@@ -20,9 +20,7 @@
 #include "common/utils.h"
 
 // Frontend includes
-#include "frontend/events.h"
 #include "frontend/process_group.h"
-#include "frontend/variable.h"
 
 // Compiler frontend includes
 #include "compiler_frontend/type.h"
@@ -35,10 +33,12 @@
 #include "fenn/disassembler/disassembler.h"
 
 // FeNN backend includes
+#include "fenn/backend/events.h"
 #include "fenn/backend/kernel.h"
 #include "fenn/backend/process.h"
 #include "fenn/backend/runtime_hw.h"
 #include "fenn/backend/runtime_sim.h"
+#include "fenn/backend/variable.h"
 
 using namespace CompilerFrontend;
 using namespace FeNN;
@@ -160,8 +160,8 @@ int main(int argc, char** argv)
     //const auto inputSpikes = EventContainer::create(inputShape, numTimesteps);
 
     // Hidden neurons
-    const auto hidden1V = Variable::create(hidden1ShapeTime, Type::S2_13Sat);
-    const auto hidden1I = Variable::create(hidden1Shape, Type::S2_13Sat);
+    const auto hidden1V = Backend::Variable::create(hidden1ShapeTime, Type::S2_13Sat);
+    const auto hidden1I = Backend::Variable::create(hidden1Shape, Type::S2_13Sat);
     //const auto hiddenSpikes = EventContainer::create(hiddenShape, record ? numTimesteps : 1);
     const auto hidden1 = Backend::NeuronUpdateProcess::create(
         "V = (" + std::to_string(std::exp(-1.0 / 20.0)) + " * V) + I;\n"
@@ -174,8 +174,8 @@ int main(int argc, char** argv)
         Type::S2_13);
 
     // Hidden neurons
-    const auto hidden2V = Variable::create(hidden2ShapeTime, Type::S2_13Sat);
-    const auto hidden2I = Variable::create(hidden2Shape, Type::S2_13Sat);
+    const auto hidden2V = Backend::Variable::create(hidden2ShapeTime, Type::S2_13Sat);
+    const auto hidden2I = Backend::Variable::create(hidden2Shape, Type::S2_13Sat);
     //const auto hiddenSpikes = EventContainer::create(hiddenShape, record ? numTimesteps : 1);
     const auto hidden2 = Backend::NeuronUpdateProcess::create(
         "V = (" + std::to_string(std::exp(-1.0 / 20.0)) + " * V) + I;\n"

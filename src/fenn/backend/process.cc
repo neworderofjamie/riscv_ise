@@ -1,5 +1,4 @@
 #include "fenn/backend/process.h"
-#include "fenn/backend/process.h"
 
 // Standard C++ includes
 #include <algorithm>
@@ -2011,8 +2010,8 @@ void generateDRAMWordLoop(const std::vector<std::unique_ptr<RowGeneratorBase>> &
 //----------------------------------------------------------------------------
 // FeNN::Backend::RNGInitProcess
 //----------------------------------------------------------------------------
-RNGInitProcess::RNGInitProcess(Private p, Frontend::VariablePtr seed, const std::string &name)
-:   ProcessImplementationBase<Frontend::RNGInitProcess>(p, seed, name)
+RNGInitProcess::RNGInitProcess(Private, Frontend::VariablePtr seed, const std::string &name)
+:   ProcessImplementationBase<Frontend::RNGInitProcess>(Private(), seed, name)
 {
     if(getSeed()->getShape().getNumDims() != 2) {
         throw std::runtime_error("RNG init process requires two dimensional seed");

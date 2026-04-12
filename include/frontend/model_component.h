@@ -7,8 +7,11 @@
 // Forward declarations
 namespace Frontend
 {
+class ArrayBase;
+class DeviceBase;
 class EventChannel;
 class EventContainer;
+class Model;
 class Shape;
 class Variable;
 }
@@ -54,44 +57,19 @@ private:
 //----------------------------------------------------------------------------
 // Frontend::State
 //----------------------------------------------------------------------------
-class StateVisitor
-{
-public:
-    virtual void visit(std::shared_ptr<const EventChannel>){}
-    virtual void visit(std::shared_ptr<const EventContainer>){}
-    virtual void visit(std::shared_ptr<const Variable>){}
-};
-
-//----------------------------------------------------------------------------
-// Frontend::State
-//----------------------------------------------------------------------------
 class State : public ModelComponent
 {
 public:
     //------------------------------------------------------------------------
     // Declared virtuals
     //------------------------------------------------------------------------
-    virtual void accept(StateVisitor &visitor) const = 0;
     virtual const Shape &getShape() const = 0;
     virtual void updateMergeHash(boost::uuids::detail::sha1 &hash) const = 0;
 
+    virtual std::unique_ptr<ArrayBase> createArray(const Shape &deviceShape, const Model &model, 
+                                                   DeviceBase &device) const = 0;
+
 protected:
     using ModelComponent::ModelComponent;
-};
-
-//---------------------------------------------------------------------------
-// Frontend::AcceptableState
-//---------------------------------------------------------------------------
-template<typename T>
-class AcceptableState : public State
-{
-public:
-    virtual void accept(StateVisitor &visitor) const override final
-    {
-        visitor.visit(std::static_pointer_cast<const T>(this->shared_from_this()));
-    }
-
-protected:
-    using State::State;
 };
 }

@@ -17,50 +17,6 @@
 
 using namespace Frontend;
 
-namespace
-{
-class LambdaVariableVisitor : public StateVisitor
-{
-    using Return = std::unique_ptr<ArrayBase>;
-
-    template<typename T>
-    using Handler = std::function<Return(std::shared_ptr<const T>)>;
-
-    using EventContainerHandler = Handler<EventContainer>;
-    using VariableHandler = Handler<Variable>;
-
-public:
-    LambdaVariableVisitor(std::shared_ptr<const State> state,
-                          EventContainerHandler handleEventContainer,
-                          VariableHandler handleVariable)
-    :   m_HandleEventContainer(handleEventContainer), 
-        m_HandleVariable(handleVariable)
-    {
-        state->accept(*this);
-    }
-
-    Return &getReturn()
-    {
-        return m_Return;
-    }
-
-private:
-    #define IMPLEMENT_VISIT(TYPE)   \
-        virtual void visit(std::shared_ptr<const TYPE> state) override final    \
-        {                                                                           \
-            m_Return = std::move(m_Handle##TYPE(state));                                          \
-        }                                                                           \
-        TYPE##Handler m_Handle##TYPE
-
-    IMPLEMENT_VISIT(EventContainer);
-    IMPLEMENT_VISIT(Variable);
-
-    #undef IMPLEMENT_VISIT
-
-    Return m_Return;
-};
-}
-
 //--------------------------------------------------------------------------
 // Frontend::ArrayBase
 //--------------------------------------------------------------------------
@@ -74,21 +30,10 @@ void ArrayBase::memsetHostPointer(int value)
 //----------------------------------------------------------------------------
 // Frontend::DeviceBase
 //----------------------------------------------------------------------------
-void DeviceBase::createArray(std::shared_ptr<const State> state, const Frontend::Shape &deviceShape)
+void DeviceBase::createArray(std::shared_ptr<const State> state, const Shape &deviceShape, const Model &model)
 {
-    LambdaVariableVisitor v(state,
-                            [this, &deviceShape](auto eventContainer)
-                            {
-                                return createArray(eventContainer, deviceShape);
-                            },
-                            [this, &deviceShape](auto variable)
-                            {
-                                return createArray(variable, deviceShape);
-                            });
-
-
     // Take ownership of array and add to arrays map
-    if (!m_Arrays.try_emplace(state, std::move(v.getReturn())).second) {
+    if (!m_Arrays.try_emplace(state, std::move(state->createArray(deviceShape, model, *this))).second) {
         throw std::runtime_error("Duplicate array found for state '" + state->getName() + "'");
     }
 }
@@ -138,7 +83,7 @@ void Runtime::allocate()
             // Split shape and create array
             const auto deviceShape = s.first->getShape().split(i, s.second.splitDimension, 
                                                                getNumDevices());
-            getDevices()[i]->createArray(s.first, deviceShape);
+            getDevices()[i]->createArray(s.first, deviceShape, *getModel());
         }
     }
 

@@ -1,0 +1,50 @@
+#pragma once
+
+// Standard C++ includes
+#include <memory>
+
+// Common includes
+#include "common/utils.h"
+
+// Frontend includes
+#include "frontend/variable.h"
+
+// FeNN backend includes
+#include "fenn/backend/backend_export.h"
+
+//----------------------------------------------------------------------------
+// FeNN::Backend::VariableImplementation
+//----------------------------------------------------------------------------
+namespace FeNN::Backend
+{
+class VariableImplementation
+{
+public:
+    //! Generate code to implement process
+    virtual void generateCode() const{}
+};
+
+//----------------------------------------------------------------------------
+// FeNN::Backend::EventVariableContainer
+//----------------------------------------------------------------------------
+class Variable : public Frontend::Variable, public VariableImplementation
+{
+public:
+    using Frontend::Variable::Variable;
+
+    //------------------------------------------------------------------------
+    // State virtuals
+    //------------------------------------------------------------------------
+    virtual std::unique_ptr<Frontend::ArrayBase> createArray(const Frontend::Shape &deviceShape, const Frontend::Model &model,
+                                                             Frontend::DeviceBase &device) const override final;
+
+    //------------------------------------------------------------------------
+    // Static API
+    //------------------------------------------------------------------------
+    static std::shared_ptr<Variable> create(const Frontend::Shape &shape, const CompilerFrontend::Type::UnresolvedType &type, 
+                                            const std::string &name = "")
+    {
+        return std::make_shared<Variable>(Private(), shape, type, name);
+    }
+};
+}

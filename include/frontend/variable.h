@@ -17,12 +17,11 @@
 //----------------------------------------------------------------------------
 namespace Frontend
 {
-class FRONTEND_EXPORT Variable : public AcceptableState<Variable>
+class FRONTEND_EXPORT Variable : public State
 {
 public:
     Variable(Private, const Shape &shape, const CompilerFrontend::Type::UnresolvedType &type, const std::string &name)
-    :   AcceptableState<Variable>(name), m_Shape(shape), 
-        m_Type(type.resolve())
+    :   State(name), m_Shape(shape), m_Type(type.resolve())
     {}
 
     //------------------------------------------------------------------------
@@ -30,6 +29,9 @@ public:
     //------------------------------------------------------------------------
     virtual const Shape &getShape() const override final{ return m_Shape; }
     virtual void updateMergeHash(boost::uuids::detail::sha1 &hash) const override final;
+
+    virtual std::unique_ptr<ArrayBase> createArray(const Shape &deviceShape, const Model &model, 
+                                                   DeviceBase &device) const override;
 
     //------------------------------------------------------------------------
     // Public API

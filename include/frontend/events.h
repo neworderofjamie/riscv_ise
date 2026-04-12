@@ -47,13 +47,11 @@ public:
     //------------------------------------------------------------------------
     // State virtuals
     //------------------------------------------------------------------------
-    virtual void accept(StateVisitor &visitor) const override final
-    {
-        visitor.visit(std::dynamic_pointer_cast<const EventContainer>(this->shared_from_this()));
-    }
-
     virtual const Shape &getShape() const override final{ return m_Shape; }
     virtual void updateMergeHash(boost::uuids::detail::sha1 &hash) const override;
+
+    virtual std::unique_ptr<ArrayBase> createArray(const Shape &deviceShape, const Model &model, 
+                                                   DeviceBase &device) const override;
 
  
     //------------------------------------------------------------------------
@@ -84,14 +82,12 @@ public:
     //------------------------------------------------------------------------
     // State virtuals
     //------------------------------------------------------------------------
-    virtual void accept(StateVisitor &visitor) const override final
-    {
-        visitor.visit(std::dynamic_pointer_cast<const EventChannel>(this->shared_from_this()));
-    }
-
     virtual const Shape &getShape() const override final{ return m_Shape; }
 
     virtual void updateMergeHash(boost::uuids::detail::sha1 &hash) const override;
+
+    virtual std::unique_ptr<ArrayBase> createArray(const Shape &deviceShape, const Model &model, 
+                                                   DeviceBase &device) const override;
 
     //------------------------------------------------------------------------
     // Static API

@@ -21,6 +21,7 @@
   <ItemGroup>
     <ClInclude Include="..\..\..\include\fenn\backend\backend_export.h" />
     <ClInclude Include="..\..\..\include\fenn\backend\environment.h" />
+    <ClInclude Include="..\..\..\include\fenn\backend\events.h" />
     <ClInclude Include="..\..\..\include\fenn\backend\fields.h" />
     <ClInclude Include="..\..\..\include\fenn\backend\kernel.h" />
     <ClInclude Include="..\..\..\include\fenn\backend\memory_allocator.h" />
@@ -30,9 +31,11 @@
     <ClInclude Include="..\..\..\include\fenn\backend\runtime_hw.h" />
     <ClInclude Include="..\..\..\include\fenn\backend\runtime_sim.h" />
     <ClInclude Include="..\..\..\include\fenn\backend\special_function.h" />
+    <ClInclude Include="..\..\..\include\fenn\backend\variable.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="environment.cc" />
+    <ClCompile Include="events.cc" />
     <ClCompile Include="kernel.cc" />
     <ClCompile Include="memory_allocator.cc" />
     <ClCompile Include="model.cc" />
@@ -41,6 +44,7 @@
     <ClCompile Include="runtime_hw.cc" />
     <ClCompile Include="runtime_sim.cc" />
     <ClCompile Include="special_functions.cc" />
+    <ClCompile Include="variable.cc" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>

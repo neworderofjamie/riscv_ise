@@ -238,14 +238,6 @@ public:
     //------------------------------------------------------------------------
     // DeviceBase virtuals
     //------------------------------------------------------------------------
-    //! Create suitable array for event container on this device
-    virtual std::unique_ptr<Frontend::ArrayBase> createArray(std::shared_ptr<const Frontend::EventContainer> eventContainer,
-                                                             const Frontend::Shape &shape) override final;
-
-    //! Create suitable array for variable on this device
-    virtual std::unique_ptr<Frontend::ArrayBase> createArray(std::shared_ptr<const Frontend::Variable> variable,
-                                                             const Frontend::Shape &shape) override final;
-
     //! Create suitable array for performance counter on this device
     virtual std::unique_ptr<Frontend::ArrayBase> createPerformanceCounter() override final;
 

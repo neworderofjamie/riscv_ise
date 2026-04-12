@@ -2,7 +2,6 @@
 
 // Standard C++ includes
 #include <atomic>
-#include <condition_variable>
 #include <memory>
 #include <thread>
 #include <unordered_map>
@@ -25,11 +24,9 @@
 // Forward declarations
 namespace Frontend
 {
-class EventContainer;
 class Kernel;
 class Model;
 class State;
-class Variable;
 }
 
 //----------------------------------------------------------------------------
@@ -119,14 +116,6 @@ public:
     //! Run current kernel on device
     virtual void runCurrentKernel() = 0;
 
-    //! Create suitable array for event container on this device
-    virtual std::unique_ptr<ArrayBase> createArray(std::shared_ptr<const EventContainer> eventContainer,
-                                                   const Shape &shape) = 0;
-
-    //! Create suitable array for variable on this device
-    virtual std::unique_ptr<ArrayBase> createArray(std::shared_ptr<const Variable> variable,
-                                                   const Shape &shape) = 0;
-
     //! Create suitable array for performance counter on this device
     virtual std::unique_ptr<ArrayBase> createPerformanceCounter() = 0;
 
@@ -134,7 +123,8 @@ public:
     // Public API
     //------------------------------------------------------------------------
     //! Create array to provide storage for model state
-    void createArray(std::shared_ptr<const State> state, const Shape &deviceShape);
+    void createArray(std::shared_ptr<const State> state, const Shape &deviceShape, 
+                     const Model &model);
 
     //! Get array associated with model state
     ArrayBase *getArray(std::shared_ptr<const State> state) const;
@@ -147,7 +137,6 @@ private:
     //------------------------------------------------------------------------
     std::unordered_map<std::shared_ptr<const State>, std::unique_ptr<ArrayBase>> m_Arrays;
     size_t m_DeviceIndex;
-    
 };
 
 //----------------------------------------------------------------------------
