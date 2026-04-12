@@ -363,7 +363,6 @@ public:
     //! Generate code to advance pointer after numUnrolls unrolled 
     virtual void genIncrement(Assembler::CodeGenerator &c, uint32_t numUnrolls, 
                               Assembler::VectorRegisterPtr numUnrollBytesReg) = 0;
-    virtual Assembler::ScalarRegisterPtr getLoopCountScalarReg() const = 0;
     virtual bool needsNumUnrollBytesReg() const = 0;
 };
 
@@ -429,10 +428,6 @@ public:
         }
     }
 
-    virtual Assembler::ScalarRegisterPtr getLoopCountScalarReg() const final override
-    {
-        return m_ReadBufferReg;
-    }
 
     virtual bool needsNumUnrollBytesReg() const final override
     {
@@ -488,11 +483,6 @@ public:
                               Assembler::VectorRegisterPtr numUnrollBytesReg) final override
     {
         c.vadd(*m_BufferReg, *m_BufferReg, *numUnrollBytesReg);
-    }
-
-    virtual Assembler::ScalarRegisterPtr getLoopCountScalarReg() const final override
-    {
-        return nullptr;
     }
 
     virtual bool needsNumUnrollBytesReg() const final override
@@ -590,11 +580,6 @@ public:
         // Increment URAM and LLM pointers
         c.addi(*m_URAMBufferReg, *m_URAMBufferReg, 64 * numUnrolls);
         c.vadd(*m_LLMBufferReg, *m_LLMBufferReg, *numUnrollBytesReg);
-    }
-
-    virtual Assembler::ScalarRegisterPtr getLoopCountScalarReg() const final override
-    {
-        return m_URAMBufferReg;
     }
 
     virtual bool needsNumUnrollBytesReg() const final override
