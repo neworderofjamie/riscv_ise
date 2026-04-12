@@ -13,21 +13,11 @@
 #include "fenn/backend/backend_export.h"
 
 //----------------------------------------------------------------------------
-// FeNN::Backend::VariableImplementation
+// FeNN::Backend::Variable
 //----------------------------------------------------------------------------
 namespace FeNN::Backend
 {
-class VariableImplementation
-{
-public:
-    //! Generate code to implement process
-    virtual void generateCode() const{}
-};
-
-//----------------------------------------------------------------------------
-// FeNN::Backend::EventVariableContainer
-//----------------------------------------------------------------------------
-class Variable : public Frontend::Variable, public VariableImplementation
+class Variable : public Frontend::Variable
 {
 public:
     using Frontend::Variable::Variable;
