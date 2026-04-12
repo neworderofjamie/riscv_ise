@@ -44,7 +44,7 @@ DMABuffer::DMABuffer(int index)
 :   m_Data(nullptr), m_PhysicalAddress(0), m_Size(0), m_UnmapData(true)
 {
 #ifdef __linux__ 
-    LOGI << "Creating DMA buffer " << index;
+    LOGI_FENN_COMMON << "Creating DMA buffer " << index;
 
     // Open memory
     const std::string bufferFile = "/dev/udmabuf" + std::to_string(index);
@@ -57,8 +57,8 @@ DMABuffer::DMABuffer(int index)
     m_Size = getIOCtl<uint64_t>(memory, U_DMA_BUF_IOCTL_GET_SIZE);
     m_PhysicalAddress = getIOCtl<uint64_t>(memory, U_DMA_BUF_IOCTL_GET_DMA_ADDR);
 
-    LOGD << "\tPhysical address: " << std::hex << m_PhysicalAddress;
-    LOGD << "\tSize: " << m_Size << " bytes";
+    LOGD_FENN_COMMON << "\tPhysical address: " << std::hex << m_PhysicalAddress;
+    LOGD_FENN_COMMON << "\tSize: " << m_Size << " bytes";
 
     // Memory map data
     m_Data = reinterpret_cast<uint8_t*>(mmap(nullptr, m_Size, PROT_READ | PROT_WRITE, MAP_SHARED, 
@@ -75,7 +75,7 @@ DMABuffer::DMABuffer(DMABuffer &parent, uint64_t physicalStartAddress, uint64_t 
 :   m_Data(nullptr), m_PhysicalAddress(0), m_Size(0), m_UnmapData(false)
 {
 #ifdef __linux__ 
-    LOGI << "Creating child DMA buffer with target physical memory region: " << std::hex << physicalStartAddress << " - " << physicalEndAddress;
+    LOGI_FENN_COMMON << "Creating child DMA buffer with target physical memory region: " << std::hex << physicalStartAddress << " - " << physicalEndAddress;
 
     // If parent DMA buffer does not overlap region
     const uint64_t parentPhysicalEndAddress = parent.getPhysicalAddress() + parent.getSize();
@@ -87,12 +87,12 @@ DMABuffer::DMABuffer(DMABuffer &parent, uint64_t physicalStartAddress, uint64_t 
 
     // Calculate start address
     m_PhysicalAddress = std::max(physicalStartAddress, parent.getPhysicalAddress());
-    LOGD << "\tPhysical address: " << std::hex << m_PhysicalAddress;
+    LOGD_FENN_COMMON << "\tPhysical address: " << std::hex << m_PhysicalAddress;
 
     // Calculate end and hence sie
     const size_t actualEndAddress = std::min(physicalEndAddress, parentPhysicalEndAddress);
     m_Size = actualEndAddress - m_PhysicalAddress;
-    LOGD << "\tSize: " << m_Size << " bytes";
+    LOGD_FENN_COMMON << "\tSize: " << m_Size << " bytes";
 
     // Calculate data pointer
     m_Data = parent.getData() + (m_PhysicalAddress - parent.getPhysicalAddress());

@@ -8,11 +8,9 @@
 #include <cassert>
 #include <cstring>
 
-// PLOG includes
-#include <plog/Log.h>
-
 // FeNN common includes
 #include "fenn/common/dma_buffer.h"
+#include "fenn/common/logging.h"
 
 //----------------------------------------------------------------------------
 // FeNN::Common::DMAController
@@ -22,7 +20,7 @@ namespace FeNN::Common
 DMAController::DMAController(const std::string &uioName)
 :   m_RegisterUIO(uioName)
 {
-    LOGI << "Creating DMA controller using UIO '" << uioName << "'";
+    LOGI_FENN_COMMON << "Creating DMA controller using UIO '" << uioName << "'";
 }
 //----------------------------------------------------------------------------
 void DMAController::startWrite(uint32_t destination, const DMABuffer &sourceBuffer, size_t sourceOffset, size_t size)
@@ -31,7 +29,7 @@ void DMAController::startWrite(uint32_t destination, const DMABuffer &sourceBuff
     const uint64_t sourceAddress = sourceBuffer.getPhysicalAddress() + sourceOffset;
     assert((sourceOffset + size) < sourceBuffer.getSize());
 
-    LOGD << "Starting " << size << " byte DMA write from " << std::hex << sourceAddress;
+    LOGD_FENN_COMMON << "Starting " << size << " byte DMA write from " << std::hex << sourceAddress;
     if((destination & 63) != 0) {
         throw std::runtime_error("DMA writes to URAM must be 64 byte aligned");
     }
@@ -65,7 +63,7 @@ void DMAController::startRead(DMABuffer &destBuffer, size_t destOffset, uint32_t
     const uint64_t destAddress = destBuffer.getPhysicalAddress() + destOffset;
     assert((destOffset + size) < destBuffer.getSize());
 
-    LOGD << "Starting " << size << " byte DMA read to " << std::hex << destAddress;
+    LOGD_FENN_COMMON << "Starting " << size << " byte DMA read to " << std::hex << destAddress;
     if((source & 63) != 0) {
         throw std::runtime_error("DMA reads from URAM must be 64 byte aligned");
     }

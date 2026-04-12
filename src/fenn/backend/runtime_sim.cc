@@ -174,7 +174,7 @@ public:
     //! Copy entire array to device
     virtual void pushToDevice() final override
     {
-        LOGW << "Copying LLM buffers is implemented in simulation for convenience but is not possible on device";
+        LOGW_FENN_BACKEND << "Copying LLM buffers is implemented in simulation for convenience but is not possible on device";
         const size_t numRows = ::Common::Utils::ceilDivide(getCount(), 32);
         for(size_t l = 0; l < 32; l++) {
             auto &laneLocalMemory = m_Device.get().getRISCV().getCoprocessor<ISE::VectorProcessor>(FeNN::Common::vectorQuadrant)->getLaneLocalMemory(l);    
@@ -188,7 +188,7 @@ public:
     //! Copy entire array from device
     virtual void pullFromDevice() final override
     {
-        LOGW << "Copying LLM buffers is implemented in simulation for convenience but is not possible on device";
+        LOGW_FENN_BACKEND << "Copying LLM buffers is implemented in simulation for convenience but is not possible on device";
             
         const size_t numRows = ::Common::Utils::ceilDivide(getCount(), 32);
         for(size_t l = 0; l < 32; l++) {

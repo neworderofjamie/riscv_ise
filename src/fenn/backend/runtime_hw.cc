@@ -326,7 +326,7 @@ DeviceFeNNHW::DeviceFeNNHW(size_t deviceIndex, const Runtime &runtime,
     m_DMABufferAllocator(m_DMABuffer.getSize())
 {
     if(m_DMABuffer.getSize() < runtime.getDMABufferSize()) {
-        LOGW << "DMA buffer created by UDMABuf driver not as large as requested buffer size";
+        LOGW_FENN_BACKEND << "DMA buffer created by UDMABuf driver not as large as requested buffer size";
     }   
 }
 //----------------------------------------------------------------------------
@@ -339,11 +339,11 @@ void DeviceFeNNHW::loadKernel(std::shared_ptr<const Frontend::Kernel> kernel)
 void DeviceFeNNHW::runCurrentKernel()
 {
     m_Device.setEnabled(true);
-    LOGD << "Running";
+    LOGD_FENN_BACKEND << "Running";
 
      // Wait until ready flag
     m_Device.waitOnNonZero(0);
-    LOGD << "Done";
+    LOGD_FENN_BACKEND << "Done";
 
     // Disable core
     m_Device.setEnabled(false);

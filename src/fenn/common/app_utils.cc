@@ -45,7 +45,7 @@ uint32_t allocateVectorAndZero(size_t numHalfWords, std::vector<int16_t> &memory
     assert((startHalfWords % 32) == 0);
 
     const auto numVectors = ::Common::Utils::ceilDivide(numHalfWords, 32);
-    LOGD << "Allocating " << numHalfWords << " halfwords into " << numVectors << " vectors of memory starting at " << startHalfWords * 2 << " bytes";
+    LOGD_FENN_COMMON << "Allocating " << numHalfWords << " halfwords into " << numVectors << " vectors of memory starting at " << startHalfWords * 2 << " bytes";
     
     // Allocate memory and zero
     memory.resize(startHalfWords + (numVectors * 32), 0);
@@ -107,7 +107,7 @@ uint32_t allocateScalarAndZero(size_t numBytes, std::vector<uint8_t> &memory)
     assert((startBytes % 4) == 0);
 
     // Allocate memory and zero
-    LOGD << "Allocating " << numBytes << " bytes of memory starting at " << startBytes << " bytes";
+    LOGD_FENN_COMMON << "Allocating " << numBytes << " bytes of memory starting at " << startBytes << " bytes";
     memory.resize(startBytes + ::Common::Utils::padSize(numBytes, 4), 0);
 
     // Return start address

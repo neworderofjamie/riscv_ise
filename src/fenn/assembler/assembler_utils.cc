@@ -489,8 +489,8 @@ std::vector<uint32_t> generateStandardKernel(bool simulate, uint32_t readyFlagPt
         }
     }
 
-    LOGI << "Max vector registers used: " << vectorRegisterAllocator.getMaxUsedRegisters();
-    LOGI << "Max scalar registers used: " << scalarRegisterAllocator.getMaxUsedRegisters();
+    LOGI_FENN_ASSEMBLER << "Max vector registers used: " << vectorRegisterAllocator.getMaxUsedRegisters();
+    LOGI_FENN_ASSEMBLER << "Max scalar registers used: " << scalarRegisterAllocator.getMaxUsedRegisters();
 
     return c.getCode();
 }
