@@ -891,7 +891,7 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
     }
 
     std::unordered_map<std::shared_ptr<const Frontend::EventSink>, 
-                       Assembler::ScalarRegisterPtr> eventBufferRegisters;
+                       std::vector<Assembler::ScalarRegisterPtr>> eventSinkState;
     {
         // If any output events have buffering, calculate stride in bytes
         Assembler::ScalarRegisterPtr numEventBytes;
@@ -926,13 +926,6 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
 
         // Loop through neuron event outputs
         for(const auto &e : getOutputEventSinks()) {
-            //processEnvironment.addField(Type::Void, )
-            // Allocate scalar register to hold address of variable
-            const auto reg = scalarRegisterAllocator.getRegister((e.first + "Buffer X").c_str());
-
-            // Add register to map
-            eventBufferRegisters.try_emplace(e.second.getUnderlying(), reg);
-            
             // Add field
             const auto &outputEventName = e.first;
             const uint32_t eventFieldOffset = mergedFields.addField<NeuronUpdateProcess>(
@@ -941,25 +934,16 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
                     return d.getArray(p->getOutputEventSinks().at(outputEventName).getUnderlying()); 
                 });
 
-            // Generate code to load address
-            processCodeGenerator.lw(*reg, *fieldBaseReg, eventFieldOffset);
-
-            // If there are multiple timesteps, multiply timestep by stride and add to register
-            // **TODO** currently this just handles providing entire simulation kernel worth of event data or
-            // recording variables for entire simulation - extend to support axonal delays and ring-buffer recording
-            if (e.second.hasTime()) {
-                // Check there is a buffer entry for each timestep with one extra
-                // **NOTE** variables get read from timestep and written to timestep + 1 so extra buf
-                if(e.second.getNumTimesteps() < (numTimesteps.value() + 1)) {
-                    throw std::runtime_error("Events need to be buffered for " + std::to_string(numTimesteps.value() + 1u) + " timesteps");
-                }
-
-                // reg = stride * (time + 1)
-                ALLOCATE_SCALAR(STmp);
-                processCodeGenerator.addi(*STmp, *timeReg, 1);
-                processCodeGenerator.mul(*STmp, *STmp, *numEventBytes);
-                processCodeGenerator.add(*reg, *reg, *STmp);
+            auto fennEventSink = std::dynamic_pointer_cast<const EventSinkImplementation>(e.second.getUnderlying());
+            if (!fennEventSink) {
+                throw std::runtime_error("FeNN backend used with incompatible event sink");
             }
+
+            // Generate preamble and add state to map
+            eventSinkState.try_emplace(e.second.getUnderlying(), 
+                                       fennEventSink->genPreamble(processCodeGenerator, scalarRegisterAllocator,
+                                                                  eventFieldOffset, numTimesteps, fieldBaseReg, 
+                                                                  timeReg, numEventBytes, e.second.hasTime()));
         }
     }
     // Create code generation environment
@@ -1069,7 +1053,7 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
     unrollVectorLoopBody(
         envLibrary.getCodeGenerator(), scalarRegisterAllocator,
         numNeurons, maxUnroll, numNeuronsNoTail, numNeuronsNoUnroll,
-        [this, &envLibrary, &eventBufferRegisters, &emitEventFunctionType, &mergedProcess, 
+        [this, &envLibrary, &eventSinkState, &emitEventFunctionType, &mergedProcess, 
          &runtime, &scalarRegisterAllocator, &varState, &vectorRegisterAllocator]
         (auto&, uint32_t r, auto maskReg)
         {
@@ -1091,22 +1075,13 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
             // Loop through neuron event outputsC
             for(const auto &e : getOutputEventSinks()) {
                 // Add function to environment to store current mask (inherently which neurons are spiking) to scalar memory
+                const auto &state = eventSinkState.at(e.second.getUnderlying());
                 unrollEnv.add(emitEventFunctionType, e.first, 
-                              [e, maskReg, r, &eventBufferRegisters]
+                              [e, maskReg, r, &state]
                               (auto &env, auto&, auto &scalarRegisterAllocator, auto spikeMaskReg, const auto&)
                               {
-                                  // If this loop iteration has a mask, AND it with spike mask and store word
-                                  if(maskReg) {
-                                      ALLOCATE_SCALAR(STmp);
-                                      env.getCodeGenerator().and_(*STmp, *spikeMaskReg, *maskReg);
-                                      env.getCodeGenerator().sw(*STmp, *eventBufferRegisters.at(e.second.getUnderlying()), 4 * r);
-                                  }
-                                  // Otherwise, just store spike mask register
-                                  else {
-                                      env.getCodeGenerator().sw(*spikeMaskReg, *eventBufferRegisters.at(e.second.getUnderlying()), 4 * r);
-                                  }
-                                      
-                                  return std::make_pair(Compiler::RegisterPtr{}, false);
+                                  auto feNNEventSink = std::dynamic_pointer_cast<const EventSinkImplementation>(e.second.getUnderlying());
+                                  return feNNEventSink->genEmit(env, scalarRegisterAllocator, spikeMaskReg, maskReg, r, state);
                               });
             }
 
@@ -1135,7 +1110,7 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
                     unrollEnv, reg, r, varState.at(v.second.getUnderlying()), *runtime.getModel());
             }
         },
-        [this, &eventBufferRegisters, &runtime, &varState, &vectorRegisterAllocator]
+        [this, &eventSinkState, &runtime, &varState, &vectorRegisterAllocator]
         (auto &c, uint32_t numUnrolls)
         {
             // If any variables have vector addresses i.e. are stored in LLM, load number of bytes to unroll
@@ -1158,8 +1133,8 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
 
             // Loop through output events and increment buffers
             for(const auto &e : getOutputEventSinks()) {
-                const auto bufferReg = eventBufferRegisters.at(e.second.getUnderlying());
-                c.addi(*bufferReg, *bufferReg, 4 * numUnrolls);
+                auto feNNEventSink = std::dynamic_pointer_cast<const EventSinkImplementation>(e.second.getUnderlying());
+                feNNEventSink->genIncrement(c, numUnrolls, eventSinkState.at(e.second.getUnderlying()));
             }
         });
 

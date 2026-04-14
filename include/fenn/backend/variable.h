@@ -33,7 +33,7 @@ class CodeGenerator;
 //----------------------------------------------------------------------------
 namespace FeNN::Backend
 {
-class Variable : public Frontend::Variable
+class FENN_BACKEND_EXPORT Variable : public Frontend::Variable
 {
 public:
     using Frontend::Variable::Variable;
