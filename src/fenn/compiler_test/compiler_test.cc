@@ -44,19 +44,18 @@ using namespace CompilerFrontend;
 using namespace FeNN;
 using namespace Frontend;
 
-/*void recordSpikes(const std::string &filename, ArrayBase *spikeArray,
+void recordSpikes(const std::string &filename, ArrayBase *spikeArray,
                   size_t numNeurons, size_t numTimesteps)
 {
-    spikeArray->pullFromDevice();
     const uint32_t *spikeRecording = spikeArray->getHostPointer<uint32_t>();
 
-    const size_t numSpikeWords = ceilDivide(numNeurons, 32);
+    const size_t numSpikeWords = ::Common::Utils::ceilDivide(numNeurons, 32);
     std::ofstream spikeFile(filename);
     for(size_t t = 0; t < numTimesteps; t++) {
-        AppUtils::writeSpikes(spikeFile, spikeRecording, t, numSpikeWords);
+        FeNN::Common::AppUtils::writeSpikes(spikeFile, spikeRecording, t, numSpikeWords);
         spikeRecording += numSpikeWords;
     }
-}*/
+}
 
 template<typename T>
 void copyAndPush(const std::vector<T> &data, std::shared_ptr<const State> state, Runtime *runtime)
@@ -116,7 +115,7 @@ int main(int argc, char** argv)
 {
     bool device = false;
     bool shouldDisassemble = true;
-    bool record = false;
+    // record = false;
     bool time = false;
     plog::Severity logSeverity = plog::info;
     size_t numExamples = 10000;
@@ -131,7 +130,7 @@ int main(int argc, char** argv)
     app.add_flag("-d,--device", device, "Whether model is run on device rather than simulator");
     app.add_flag("-a,--disassemble", shouldDisassemble, "Whether model disassembled code is printed");
     app.add_flag("-t,--time", time, "Whether performance counters are inserted");
-    app.add_flag("-r,--record", record, "Whether spikes should be recorded?");
+    //app.add_flag("-r,--record", record, "Whether spikes should be recorded?");
 
     CLI11_PARSE(app, argc, argv);
 
@@ -162,29 +161,29 @@ int main(int argc, char** argv)
     // Hidden neurons
     const auto hidden1V = Backend::Variable::create(hidden1ShapeTime, Type::S2_13Sat);
     const auto hidden1I = Backend::Variable::create(hidden1Shape, Type::S2_13Sat);
-    //const auto hiddenSpikes = EventContainer::create(hiddenShape, record ? numTimesteps : 1);
+    const auto hidden1Spikes = Backend::EventSinkBuffer::create(hidden1ShapeTime);
     const auto hidden1 = Backend::NeuronUpdateProcess::create(
         "V = (" + std::to_string(std::exp(-1.0 / 20.0)) + " * V) + I;\n"
         "if(V >= 1.0) {\n"
-        "   //Spike();\n"
+        "   Spike();\n"
         "   V = 0.0;\n"
         "}\n",
         {{"V", Sliced<Variable>(hidden1V, true)}, {"I", Sliced<Variable>(hidden1I)}}, 
-        {},
+        {{"Spike", Sliced<EventSink>(hidden1Spikes, true)}},
         Type::S2_13);
 
     // Hidden neurons
     const auto hidden2V = Backend::Variable::create(hidden2ShapeTime, Type::S2_13Sat);
     const auto hidden2I = Backend::Variable::create(hidden2Shape, Type::S2_13Sat);
-    //const auto hiddenSpikes = EventContainer::create(hiddenShape, record ? numTimesteps : 1);
+    const auto hidden2Spikes = Backend::EventSinkBuffer::create(hidden2ShapeTime);
     const auto hidden2 = Backend::NeuronUpdateProcess::create(
         "V = (" + std::to_string(std::exp(-1.0 / 20.0)) + " * V) + I;\n"
         "if(V >= 0.8) {\n"
-        "   //Spike();\n"
+        "   Spike();\n"
         "   V = 0.0;\n"
         "}\n",
         {{"V", Sliced<Variable>(hidden2V, true)}, {"I", Sliced<Variable>(hidden2I)}}, 
-        {},
+        {{"Spike", Sliced<EventSink>(hidden2Spikes, true)}},
         Type::S2_13);
 
     // Output neurons
@@ -315,11 +314,17 @@ int main(int argc, char** argv)
         //}
     //}
 
-    // Pull recorded voltages from device
+    // Pull recorded spikes and voltages from device
+    runtime->pullStateFromDevice(hidden1Spikes);
+    runtime->pullStateFromDevice(hidden2Spikes);
     runtime->pullStateFromDevice(hidden1V);
     runtime->pullStateFromDevice(hidden2V);
 
-    // Record spikes and voltages
+    // Record spikes
+    recordSpikes("compiler_test_hidden1_spikes.csv", runtime->getArrays(hidden1Spikes)[0], hidden1Shape.getFlattenedSize(), numTimesteps);
+    recordSpikes("compiler_test_hidden2_spikes.csv", runtime->getArrays(hidden2Spikes)[0], hidden2Shape.getFlattenedSize(), numTimesteps);
+
+    // Record voltages
     const int16_t *vRecordingData1 = runtime->getArrays(hidden1V)[0]->getHostPointer<int16_t>();
     const int16_t *vRecordingData2 = runtime->getArrays(hidden2V)[0]->getHostPointer<int16_t>();
     std::ofstream voltages("compiler_test_voltages.csv");
