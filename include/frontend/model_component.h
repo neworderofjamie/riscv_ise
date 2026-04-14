@@ -9,11 +9,8 @@ namespace Frontend
 {
 class ArrayBase;
 class DeviceBase;
-class EventChannel;
-class EventContainer;
 class Model;
 class Shape;
-class Variable;
 }
 
 namespace boost::uuids::detail
