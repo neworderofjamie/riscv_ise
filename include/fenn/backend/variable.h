@@ -9,8 +9,24 @@
 // Frontend includes
 #include "frontend/variable.h"
 
+// FeNN assembler includes
+#include "fenn/assembler/register_allocator.h"
+
+// FeNN compiler includes
+#include "fenn/compiler/compiler.h"
+
 // FeNN backend includes
+#include "fenn/backend/model.h"
 #include "fenn/backend/backend_export.h"
+
+// Forward declarations
+namespace FeNN
+{
+namespace Assembler
+{
+class CodeGenerator;
+}
+}
 
 //----------------------------------------------------------------------------
 // FeNN::Backend::Variable
@@ -31,6 +47,33 @@ public:
                                                              Frontend::DeviceBase &device) const override final;
 
     //------------------------------------------------------------------------
+    // Public API
+    //------------------------------------------------------------------------
+    std::vector<Compiler::RegisterPtr> genPreamble(Assembler::CodeGenerator &c, 
+                                                   Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
+                                                   Assembler::VectorRegisterAllocator &vectorRegisterAllocator,
+                                                   uint32_t varFieldOffset, std::optional<uint32_t> numTimesteps, 
+                                                   Assembler::ScalarRegisterPtr fieldBaseReg, 
+                                                   Assembler::ScalarRegisterPtr timeReg,
+                                                   Assembler::ScalarRegisterPtr numVariableBytes,
+                                                   bool hasTime, const Frontend::Model &model) const;
+
+    //! Generate code to load vector register reg from memory before unrolled loop iteration r
+    void genLoad(Compiler::EnvironmentBase &env, Assembler::VectorRegisterPtr reg, uint32_t r, 
+                 const std::vector<Compiler::RegisterPtr> &state, const Frontend::Model &model) const;
+
+    //! Generate code to store vector register reg to memory after unrolled loop iteration r
+    void genStore(Compiler::EnvironmentBase &env, Assembler::VectorRegisterPtr reg, uint32_t r, 
+                  const std::vector<Compiler::RegisterPtr> &state, const Frontend::Model &model) const;
+
+    //! Generate code to advance pointer after numUnrolls unrolled 
+    void genIncrement(Assembler::CodeGenerator &c, uint32_t numUnrolls, 
+                      Assembler::VectorRegisterPtr numUnrollBytesReg,
+                      const std::vector<Compiler::RegisterPtr> &state, const Frontend::Model &model) const;
+
+    bool needsNumUnrollBytesReg(const Frontend::Model &model) const;
+
+    //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------
     static std::shared_ptr<Variable> create(const Frontend::Shape &shape, const CompilerFrontend::Type::UnresolvedType &type, 
@@ -38,5 +81,8 @@ public:
     {
         return std::make_shared<Variable>(Private(), shape, type, name);
     }
+
+private:
+    MemSpace getMemSpace(const Frontend::Model &model) const;
 };
 }
