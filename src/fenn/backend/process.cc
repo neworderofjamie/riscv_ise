@@ -695,12 +695,18 @@ void NeuronUpdateProcess::updateCompatibleMemSpace(std::shared_ptr<const Fronten
                                                    MemSpace &compatibleMemSpaces) const
 {
     // Search variables for state
-    // **TODO** event containers
     const auto var = std::find_if(getVariables().cbegin(), getVariables().cend(),
                                   [&state](const auto &v){ return v.second.getUnderlying() == state; });
-    assert(var != getVariables().cend());
-
-    compatibleMemSpaces &= (MemSpace::URAM | MemSpace::LLM | MemSpace::URAM_LLM);
+    if (var != getVariables().cend()) {
+        compatibleMemSpaces &= (MemSpace::URAM | MemSpace::LLM | MemSpace::URAM_LLM);
+    }
+    // Otherwise
+    else {
+        // If state is an output event
+        const auto outEvent = std::find_if(getOutputEventSinks().cbegin(), getOutputEventSinks().cend(),
+                                           [&state](const auto &o){ return o.second.getUnderlying() == state; });
+        assert (outEvent != getOutputEventSinks().cend());
+    }
 }
 //----------------------------------------------------------------------------
 /*void NeuronUpdateProcess::generateMergedPreambleCode(const Frontend::MergedProcess &mergedProcess,

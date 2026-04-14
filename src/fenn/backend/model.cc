@@ -22,6 +22,7 @@ Model::Model(const KernelVector &kernels)
 :   Frontend::Model(kernels)
 {
     // Loop through all model state
+    // **YUCK** we really only want to do this for variables
     for (const auto &s : getStateData()) {
         // Start with all memory spaces being compatible
         MemSpace compatibleMemSpaces = (MemSpace::LLM | MemSpace::URAM | MemSpace::BRAM
