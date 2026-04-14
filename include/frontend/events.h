@@ -71,6 +71,42 @@ private:
 };
 
 //----------------------------------------------------------------------------
+// Frontend::EventSinkBuffer
+//----------------------------------------------------------------------------
+//! A buffer for recording events
+class EventSinkBuffer : public EventSink
+{
+public:
+    EventSinkBuffer(Private, const Shape &shape, const std::string &name)
+    :   State(name), EventSink(name), m_Shape(shape)
+    {}
+
+    //------------------------------------------------------------------------
+    // State virtuals
+    //------------------------------------------------------------------------
+    virtual const Shape &getShape() const override final{ return m_Shape; }
+    virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const Model &model) const override;
+
+    virtual std::unique_ptr<ArrayBase> createArray(const Shape &deviceShape, const Model &model, 
+                                                   DeviceBase &device) const override;
+
+
+    //------------------------------------------------------------------------
+    // Static API
+    //------------------------------------------------------------------------
+    static std::shared_ptr<EventSinkBuffer> create(const Shape &shape, const std::string &name = "")
+    {
+        return std::make_shared<EventSinkBuffer>(Private(), shape, name);
+    }
+
+private:
+    //------------------------------------------------------------------------
+    // Members
+    //------------------------------------------------------------------------
+    Shape m_Shape;
+};
+
+//----------------------------------------------------------------------------
 // Frontend::EventChannel
 //----------------------------------------------------------------------------
 class EventChannel : public EventSource, public EventSink
