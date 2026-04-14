@@ -35,12 +35,13 @@ protected:
 };
 
 //----------------------------------------------------------------------------
-// Frontend::EventContainer
+// Frontend::EventSourceBuffer
 //----------------------------------------------------------------------------
-class EventContainer : public EventSource
+//! A buffer which provides a source of events
+class EventSourceBuffer : public EventSource
 {
 public:
-    EventContainer(Private, const Shape &shape, const std::string &name)
+    EventSourceBuffer(Private, const Shape &shape, const std::string &name)
     :   State(name), EventSource(name), m_Shape(shape)
     {}
 
@@ -57,9 +58,9 @@ public:
     //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------
-    static std::shared_ptr<EventContainer> create(const Shape &shape, const std::string &name = "")
+    static std::shared_ptr<EventSourceBuffer> create(const Shape &shape, const std::string &name = "")
     {
-        return std::make_shared<EventContainer>(Private(), shape, name);
+        return std::make_shared<EventSourceBuffer>(Private(), shape, name);
     }
 
 private:

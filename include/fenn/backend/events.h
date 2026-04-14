@@ -30,18 +30,25 @@ public:
 class EventSinkImplementation
 {
 public:
-    //! Generate code to implement process
-    virtual void generateCode() const{};
+    //----------------------------------------------------------------------------
+    // Declared virtuals
+    //----------------------------------------------------------------------------
+    virtual std::vector<Assembler::ScalarRegisterPtr> genPreamble(
+        Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
+        uint32_t varFieldOffset, std::optional<uint32_t> numTimesteps, 
+        Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg,
+        Assembler::ScalarRegisterPtr numVariableBytes, bool hasTime, const Frontend::Model &model) const = 0;
+    
 };
 
 //----------------------------------------------------------------------------
-// FeNN::Backend::EventContainer
+// FeNN::Backend::EventSourceBuffer
 //----------------------------------------------------------------------------
-class EventContainer : public Frontend::EventContainer, public EventSourceImplementation
+class EventSourceBuffer : public Frontend::EventSourceBuffer, public EventSourceImplementation
 {
 public:
-    EventContainer(Private, const Frontend::Shape &shape, const std::string &name)
-    :   State(name), Frontend::EventContainer(Private(), shape, name)
+    EventSourceBuffer(Private, const Frontend::Shape &shape, const std::string &name)
+    :   State(name), Frontend::EventSourceBuffer(Private(), shape, name)
     {}
 
     //------------------------------------------------------------------------
@@ -53,9 +60,9 @@ public:
     //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------
-    static std::shared_ptr<EventContainer> create(const Frontend::Shape &shape, const std::string &name = "")
+    static std::shared_ptr<EventSourceBuffer> create(const Frontend::Shape &shape, const std::string &name = "")
     {
-        return std::make_shared<EventContainer>(Private(), shape, name);
+        return std::make_shared<EventSourceBuffer>(Private(), shape, name);
     }
 };
 

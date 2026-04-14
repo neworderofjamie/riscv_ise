@@ -4,18 +4,18 @@
 #include "common/utils.h"
 
 //----------------------------------------------------------------------------
-// Frontend::EventContainer
+// Frontend::EventSourceBuffer
 //----------------------------------------------------------------------------
 namespace Frontend
 {
-void EventContainer::updateMergeHash(boost::uuids::detail::sha1 &hash, const Model&) const
+void EventSourceBuffer::updateMergeHash(boost::uuids::detail::sha1 &hash, const Model&) const
 {
-    UPDATE_HASH_CLASS_NAME(EventContainer);
+    UPDATE_HASH_CLASS_NAME(EventSourceBuffer);
 }
 //----------------------------------------------------------------------------
-std::unique_ptr<ArrayBase> EventContainer::createArray(const Shape&, const Model&, DeviceBase&) const
+std::unique_ptr<ArrayBase> EventSourceBuffer::createArray(const Shape&, const Model&, DeviceBase&) const
 {
-    throw std::runtime_error("Backend missing EventContainer::createArray implementation");
+    throw std::runtime_error("Backend missing EventSourceBuffer::createArray implementation");
 }
 
 //----------------------------------------------------------------------------
@@ -23,7 +23,7 @@ std::unique_ptr<ArrayBase> EventContainer::createArray(const Shape&, const Model
 //----------------------------------------------------------------------------
 void EventChannel::updateMergeHash(boost::uuids::detail::sha1 &hash, const Model&) const
 {
-    UPDATE_HASH_CLASS_NAME(EventContainer);
+    UPDATE_HASH_CLASS_NAME(EventSourceBuffer);
 }
 //----------------------------------------------------------------------------
 std::unique_ptr<ArrayBase> EventChannel::createArray(const Shape&, const Model&, DeviceBase&) const

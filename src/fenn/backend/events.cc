@@ -10,11 +10,11 @@
 #include "fenn/backend/runtime.h"
 
 //----------------------------------------------------------------------------
-// FeNN::Backend::EventContainer
+// FeNN::Backend::EventSourceBuffer
 //----------------------------------------------------------------------------
 namespace FeNN::Backend
 {
-std::unique_ptr<Frontend::ArrayBase> EventContainer::createArray(const Frontend::Shape &deviceShape, const Frontend::Model&,
+std::unique_ptr<Frontend::ArrayBase> EventSourceBuffer::createArray(const Frontend::Shape &deviceShape, const Frontend::Model&,
                                                                  Frontend::DeviceBase &device) const
 {
     LOGI_FENN_BACKEND << "Creating event container '" << getName() << "' array in BRAM";
