@@ -194,7 +194,7 @@ int main(int argc, char** argv)
             }
             
             // Wait to give other cores time to start
-            AssemblerUtils::generateRouterBarrier(c, scalarRegisterAllocator, 2);
+            AssemblerUtils::generateRouterBarrier(c, scalarRegisterAllocator, numCores);
             
             // Write MASTER_EVENT_BITFIELD
             {
@@ -204,7 +204,7 @@ int main(int argc, char** argv)
             }
 
             // Wait to give the spikes time to be processed
-            AssemblerUtils::generateRouterBarrier(c, scalarRegisterAllocator, 2);
+            AssemblerUtils::generateRouterBarrier(c, scalarRegisterAllocator, numCores);
             
             {
                 // Read SLAVE_EVENT_ADDRESS i.e. where slave FINISHED writing spikes
