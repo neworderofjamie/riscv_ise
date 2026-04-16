@@ -18,6 +18,7 @@
 #include <algorithm>
 #include <unordered_set>
 #include <unordered_map>
+#include <vector>
 
 // Standard C includes
 #include <cassert>
