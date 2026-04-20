@@ -9,6 +9,7 @@
 
 // Common includes
 #include "common/device.h"
+#include "common/device_control.h"
 #include "common/dma_buffer.h"
 #include "common/dma_controller.h"
 
@@ -158,7 +159,7 @@ class HWState : public StateBase
 {
 public:
     HWState(unsigned int core, unsigned int numCores, size_t dmaBufferSize) 
-    :   m_Device(core, numCores), 
+    :   m_Device(core, numCores), m_DeviceControl(numCores),
         m_DMABuffer(getParentDMABuffer(), 
                     (numCores == 1) ? getParentDMABuffer().getPhysicalAddress() : (0x40000000 + (core * 0x10000000)),
                     (numCores == 1) ? (getParentDMABuffer().getPhysicalAddress() + getParentDMABuffer().getSize()) : (0x50000000 + (core * 0x10000000))),
@@ -180,7 +181,7 @@ public:
     virtual void startRun() override final
     {
         // Enable core
-        m_Device.setEnabled(true);
+        m_DeviceControl.setEnabled(true);
         LOGD << "Running";
         
     }
@@ -192,7 +193,7 @@ public:
         LOGD << "Done";
 
         // Disable core
-        m_Device.setEnabled(false);
+        m_DeviceControl.setEnabled(false);
     }
 
     std::unique_ptr<ArrayBase> createURAMArray(const GeNN::Type::ResolvedType &type, size_t count) final override
@@ -258,6 +259,7 @@ private:
     // Members
     //------------------------------------------------------------------------
     Device m_Device;
+    DeviceControl m_DeviceControl;
     DMABuffer m_DMABuffer;
     DMABufferAllocator m_DMABufferAllocator;
 };
