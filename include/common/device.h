@@ -26,16 +26,11 @@ public:
     //------------------------------------------------------------------------
     const volatile uint32_t *getInstructionMemory() const{ return m_InstructionMemoryUIO->getData<uint32_t>(); }
     const volatile uint8_t *getDataMemory() const{ return m_DataMemoryUIO->getData<uint8_t>(); };
-    const volatile uint32_t *getGPIO() const{ return m_GPIOUIO->getData<uint32_t>(); }
     volatile uint32_t *getInstructionMemory(){ return m_InstructionMemoryUIO->getData<uint32_t>(); }
     volatile uint8_t *getDataMemory(){ return m_DataMemoryUIO->getData<uint8_t>(); };
-    volatile uint32_t *getGPIO(){ return m_GPIOUIO->getData<uint32_t>(); }
 
     DMAController *getDMAController(){ return m_DMAController.get(); }
     const DMAController *getDMAController() const{ return m_DMAController.get(); }
-
-    void setEnabled(bool enabled);
-    void setILATrigger(bool enabled);
 
     void waitOnNonZero(uint32_t address) const;
 
@@ -52,7 +47,6 @@ private:
     //------------------------------------------------------------------------
     std::unique_ptr<UIO> m_InstructionMemoryUIO;
     std::unique_ptr<UIO> m_DataMemoryUIO;
-    std::unique_ptr<UIO> m_GPIOUIO;
-    
+
     std::unique_ptr<DMAController> m_DMAController;
 };

@@ -19,6 +19,7 @@
 #include "common/CLI11.hpp"
 #include "common/app_utils.h"
 #include "common/device.h"
+#include "common/device_control.h"
 #include "common/dma_buffer.h"
 #include "common/dma_controller.h"
 #include "common/utils.h"
@@ -240,9 +241,13 @@ int main(int argc, char** argv)
     
     bool device = false;
     uint32_t numExamples = 2264;
-
+    int numCores = 1;
+    int core = 0;
+    
     CLI::App app{"SHD inference"};
-    app.add_option("-n,--num-examples", numExamples, "How many examples to simulate");
+    app.add_option("-e,--num-examples", numExamples, "How many examples to simulate");
+    app.add_option("-n,--num-cores", numCores, "Number of cores FeNN system has");
+    app.add_option("-c,--core", core, "Which core to run on");
     app.add_flag("-d,--device", device, "Should be run on device rather than simulator");
 
     CLI11_PARSE(app, argc, argv);
@@ -650,17 +655,20 @@ int main(int argc, char** argv)
 
     if(device) {
         LOGI << "Creating device";
-        Device device;
+        DeviceControl deviceControl(numCores);
+        Device device(core, numCores);
 
         // Put core into reset state
         LOGI << "Resetting";
-        device.setEnabled(false);
+        deviceControl.setEnabled(false);
 
         {
             LOGI << "DMAing vector init data to device";
            
             // Create DMA buffer
-            DMABuffer dmaBuffer;
+			DMABuffer parentDMABuffer;
+            DMABuffer dmaBuffer(parentDMABuffer, 0x40000000 + (core * 0x10000000), 
+								0x50000000 + (core * 0x10000000));
 
             // Check there's enough space for vector init data
             assert(dmaBuffer.getSize() > (vectorInitData.size() * 2));
@@ -685,9 +693,9 @@ int main(int argc, char** argv)
             device.uploadCode(initCode);
 
             LOGI << "Running initialisation"; 
-            device.setEnabled(true);
+            deviceControl.setEnabled(true);
             device.waitOnNonZero(readyFlagPtr);
-            device.setEnabled(false);
+            deviceControl.setEnabled(false);
         }
         
         
@@ -714,14 +722,14 @@ int main(int argc, char** argv)
                                           numInputSpikeArrayWords * 4);
 
                 // Disable core
-                device.setEnabled(true);
+                deviceControl.setEnabled(true);
                 const auto startTime = std::chrono::high_resolution_clock::now();
                 // Wait until ready flag
                 device.waitOnNonZero(readyFlagPtr);
                 duration += (std::chrono::high_resolution_clock::now() - startTime);
 
                 // Enable core
-                device.setEnabled(false);
+                deviceControl.setEnabled(false);
 
                 // Determine if output is correct
                 const auto classification = std::distance(outputVSum, std::max_element(outputVSum, outputVSum + numOutput));

@@ -37,7 +37,6 @@ Device::Device(int core, int numCores)
     // Create UIO
     m_InstructionMemoryUIO = std::make_unique<UIO>(targetNamePrefix + "axi_bram_ctrl_instr");
     m_DataMemoryUIO = std::make_unique<UIO>(targetNamePrefix + "axi_bram_ctrl_data");
-    m_GPIOUIO = std::make_unique<UIO>(targetNamePrefix + "axi_gpio");
 
     // Create DMA controller
     m_DMAController = std::make_unique<DMAController>(targetNamePrefix + "dm_cmd_and_fsm");
@@ -45,20 +44,6 @@ Device::Device(int core, int numCores)
 #else
     throw std::runtime_error("Device interface only supports Linux");
 #endif  // __linux__
-}
-//----------------------------------------------------------------------------
-void Device::setEnabled(bool enabled)
-{
-    // Channel 1 AXI GPIO Data Register
-    volatile uint32_t *gpio = getGPIO();
-    gpio[0] = enabled ? 0xFFFFFFFF : 0x0;
-}
-//----------------------------------------------------------------------------
-void Device::setILATrigger(bool enabled)
-{
-    // Channel 2 AXI GPIO Data Register.
-    volatile uint32_t *gpio = getGPIO();
-    gpio[2] = enabled ? 0xFFFFFFFF : 0x0;
 }
 //----------------------------------------------------------------------------
 void Device::waitOnNonZero(uint32_t address) const

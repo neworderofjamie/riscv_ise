@@ -19,6 +19,7 @@
 #include "common/CLI11.hpp"
 #include "common/app_utils.h"
 #include "common/device.h"
+#include "common/device_control.h"
 #include "common/dma_buffer.h"
 #include "common/dma_controller.h"
 #include "common/utils.h"
@@ -218,11 +219,15 @@ int main(int argc, char** argv)
 
     bool device = false;
     size_t numExamples = 10000;
-
-    CLI::App app{"Latency MNIST inference"};
-    app.add_option("-n,--num-examples", numExamples, "How many examples to simulate");
-    app.add_flag("-d,--device", device, "Should be run on device rather than simulator");
+    int numCores = 1;
+    int core = 0;
     
+    CLI::App app{"Latency MNIST inference"};
+    app.add_option("-e,--num-examples", numExamples, "How many examples to simulate");
+    app.add_option("-n,--num-cores", numCores, "Number of cores FeNN system has");
+    app.add_option("-c,--core", core, "Which core to run on");
+    app.add_flag("-d,--device", device, "Should be run on device rather than simulator");
+
 
     CLI11_PARSE(app, argc, argv);
     
@@ -612,13 +617,12 @@ int main(int argc, char** argv)
 
     if(device) {
         LOGI << "Creating device";
-		const unsigned int core = 0;
-		
-        Device device(core, 2);
+		DeviceControl deviceControl(numCores);
+        Device device(core, numCores);
 
         // Put core into reset state
         LOGI << "Resetting";
-        device.setEnabled(false);
+        deviceControl.setEnabled(false);
         
         {
             LOGI << "DMAing vector init data to device";
@@ -660,17 +664,17 @@ int main(int argc, char** argv)
                                           numInputSpikeArrayWords * 4);
 
                 // Put core into running state and trigger ILA
-                device.setILATrigger(true);
-                device.setEnabled(true);
+                deviceControl.setILATrigger(true);
+                deviceControl.setEnabled(true);
                 const auto startTime = std::chrono::high_resolution_clock::now();
-
+                
                 // Wait until ready flag
                 device.waitOnNonZero(readyFlagPtr); 
                 duration += (std::chrono::high_resolution_clock::now() - startTime);
 
                 // Reset core
-                device.setEnabled(false);
-                device.setILATrigger(false);
+                deviceControl.setEnabled(false);
+                deviceControl.setILATrigger(false);
 
                 // Determine if output is correct
                 const auto classification = std::distance(outputVSum, std::max_element(outputVSum, outputVSum + 10));

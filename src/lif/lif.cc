@@ -11,6 +11,7 @@
 #include "common/CLI11.hpp"
 #include "common/app_utils.h"
 #include "common/device.h"
+#include "common/device_control.h"
 
 // RISC-V assembler includes
 #include "assembler/assembler.h"
@@ -144,6 +145,8 @@ int main(int argc, char** argv)
 {
     uint32_t numTimesteps = 100;
     bool device = false;
+    int numCores = 1;
+    int core = 0;
 
     // Configure logging
     plog::ConsoleAppender<plog::TxtFormatter> consoleAppender;
@@ -151,6 +154,8 @@ int main(int argc, char** argv)
     
     CLI::App app{"LIF neuron simulation"};
     app.add_option("-t,--timesteps", numTimesteps, "Number of timesteps to simulate");
+    app.add_option("-n,--num-cores", numCores, "Number of cores FeNN system has");
+    app.add_option("-c,--core", core, "Which core to run on");
     app.add_flag("-d,--device", device, "Should be run on device rather than simulator");
 
     CLI11_PARSE(app, argc, argv);
@@ -193,10 +198,11 @@ int main(int argc, char** argv)
 
     if(device) {
         LOGI << "Creating device";
-        Device device;
+        DeviceControl deviceControl(numCores);
+        Device device(core, numCores);
         LOGI << "Resetting";
         // Put core into reset state
-        device.setEnabled(false);
+        deviceControl.setEnabled(false);
         
         LOGI << "Copying instructions (" << code.size() * sizeof(uint32_t) << " bytes)";
         device.uploadCode(code);
@@ -206,12 +212,12 @@ int main(int argc, char** argv)
         
         LOGI << "Enabling";
         // Put core into running state
-        device.setEnabled(true);
+        deviceControl.setEnabled(true);
         LOGI << "Running";
         
         // Wait until ready flag
         device.waitOnNonZero(readyFlagPtr);
-        device.setEnabled(false);
+        deviceControl.setEnabled(false);
         LOGI << "Done";
 
         // Read cycle and instruction retired counters

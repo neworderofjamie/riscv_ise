@@ -16,6 +16,7 @@
 // RISC-V common includes
 #include "common/CLI11.hpp"
 #include "common/app_utils.h"
+#include "common/barrier.h"
 #include "common/device.h"
 #include "common/utils.h"
 
@@ -72,12 +73,14 @@ void simThread(const std::vector<uint32_t> &code, const std::vector<uint8_t> &sc
 void deviceThread(const std::vector<uint32_t> &code, const std::vector<uint8_t> &scalarInitData,
                   uint32_t coreID, uint32_t spikeBitfield,
                   uint32_t bitfieldPtr, uint32_t eventIDBasePtr, uint32_t outputSpikeArrayEnd, 
-                  uint32_t outputSpikeArrayPtr, uint32_t readyFlagPtr, std::vector<uint32_t> &receivedEvents)
+                  uint32_t outputSpikeArrayPtr, uint32_t readyFlagPtr, std::vector<uint32_t> &receivedEvents,
+                  Barrier &barrier)
 {
     LOGI << "Creating device (" << coreID << " / " << numCores << ")";
     Device device(coreID, numCores);
     LOGI << "Resetting";
     // Put core into reset state
+    barrier.wait();
     device.setEnabled(false);
     
     LOGI << "Copying instructions (" << code.size() * sizeof(uint32_t) << " bytes)";
@@ -90,16 +93,18 @@ void deviceThread(const std::vector<uint32_t> &code, const std::vector<uint8_t> 
     volatile uint32_t *wordData = reinterpret_cast<volatile uint32_t*>(device.getDataMemory());
     wordData[bitfieldPtr / 4] = spikeBitfield;
     wordData[eventIDBasePtr / 4] = (coreID << 14);
-
+    barrier.wait();
     LOGI << "Enabling";
     // Put core into running state
     device.setEnabled(true);
-    LOGI << "Running";
+    LOGI << "Running " << readyFlagPtr;
     
     // Wait until ready flag
     device.waitOnNonZero(readyFlagPtr);
-    device.setEnabled(false);
     LOGI << "Done";
+    barrier.wait();
+    device.setEnabled(false);
+    LOGI << "Cores disabled";
 
     // Copy spikes received into vector
     const uint32_t num = (wordData[outputSpikeArrayEnd / 4] - spikeArrayPtr) / 4;
@@ -241,6 +246,7 @@ int main(int argc, char** argv)
         // Allocate vector with data for all cores
         CoreData coreData(numCores);
         
+        Barrier barrier(numCores);
         // Loop through cores
         std::random_device d;
         for(uint32_t i = 0; i < numCores; i++) {
@@ -252,7 +258,7 @@ int main(int argc, char** argv)
             std::get<2>(coreData[i]) = std::thread(
                 deviceThread, std::cref(code), std::cref(scalarInitData),
                 i, std::get<0>(coreData[i]), bitfieldPtr, eventIDBasePtr, outputSpikeArrayEnd, 
-                outputSpikeArrayPtr, readyFlagPtr, std::ref(std::get<1>(coreData[i])));
+                outputSpikeArrayPtr, readyFlagPtr, std::ref(std::get<1>(coreData[i])), std::ref(barrier));
             
             // Name thread
             setThreadName(std::get<2>(coreData[i]), "Core " + std::to_string(i));
