@@ -626,6 +626,8 @@ private:
     class NeuronVarBase
     {
     public:
+        virtual ~NeuronVarBase() = default;
+
         //! Generate code to load vector register reg from memory before unrolled loop iteration r
         virtual void genLoad(::EnvironmentBase &env, VectorRegisterAllocator::RegisterPtr reg, uint32_t r) = 0;
         
@@ -888,6 +890,8 @@ private:
     class RowGeneratorBase
     {
     public:
+        virtual ~RowGeneratorBase() = default;
+
         RowGeneratorBase(CodeGenerator &c, std::shared_ptr<const EventPropagationProcess> process,
                          const Model::StateFields &stateFields,
                          ScalarRegisterAllocator &scalarRegisterAllocator, 
