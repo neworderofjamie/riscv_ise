@@ -33,6 +33,30 @@ def pad_connectivity(row_ind: Sequence[np.ndarray]) -> np.ndarray:
     
     return np.vstack(padded_rows)
 
+def split(rows: Sequence[np.ndarray], 
+          right_edges: Sequence[int])-> Sequence[np.ndarray]:
+    # Create list of lists 
+    num_splits = len(right_edges) + 1
+    split_rows = [[] for _ in range(num_splits)]
+    
+    # Loop through rows
+    for r in rows:
+        # Split rows based on right edge
+        splits = np.searchsorted(r, right_edges)
+        split_row = np.split(r, splits)
+        assert len(split_row) == num_splits
+
+        # Loop through split rows
+        for i, s in enumerate(split_row):
+            # Subtract right edge of previous split i.e. left edge from indices
+            if i > 0:
+                s -= right_edges[i - 1]
+            
+            # Add to list
+            split_rows[i].append(s)
+            
+    return split_rows
+
 def generate_fixed_prob(num_pre: int, num_post: int,
                         prob: float) -> Sequence[np.ndarray]:
     # Loop through presynaptic neurons

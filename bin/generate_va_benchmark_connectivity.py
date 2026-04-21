@@ -1,9 +1,8 @@
 import numpy as np
-import sparse_utils
 
-from sparse_utils import generate_fixed_prob, pad_connectivity
-NUM_NEURONS = 512
-
+from sparse_utils import generate_fixed_prob, pad_connectivity, split
+NUM_NEURONS = 1024
+NUM_CORES = 2
 PROBABILITY_CONNECTION = 0.1
 
 EXCITATORY_INHIBITORY_RATIO = 4.0
@@ -15,6 +14,9 @@ np.random.seed(1234)
 
 def get_theoretical_mem(row_ind):
     return sum(len(r) for r in row_ind) * 2
+    
+def pad_vector(num):
+    return ((num + 31) // 32) * 32
 
 # Generate connectivity matrices
 ie_conn = generate_fixed_prob(NUM_INHIBITORY, NUM_EXCITATORY, PROBABILITY_CONNECTION)
@@ -24,24 +26,32 @@ ei_conn = generate_fixed_prob(NUM_EXCITATORY, NUM_INHIBITORY, PROBABILITY_CONNEC
 theoretical_bytes = (get_theoretical_mem(ie_conn) + get_theoretical_mem(ii_conn)
                      + get_theoretical_mem(ee_conn) + get_theoretical_mem(ei_conn))
 
-print(ii_conn[0])
+# Split between cores
+padded_num_excitatory_per_core = pad_vector(NUM_EXCITATORY // NUM_CORES)
+padded_num_inhibitory_per_core = pad_vector(NUM_INHIBITORY // NUM_CORES)
+excitatory_split = np.cumsum([padded_num_excitatory_per_core] * (NUM_CORES - 1))
+inhibitory_split = np.cumsum([padded_num_inhibitory_per_core] * (NUM_CORES - 1))
+ie_conn = split(ie_conn, excitatory_split)
+ii_conn = split(ii_conn, inhibitory_split)
+ee_conn = split(ee_conn, excitatory_split)
+ei_conn = split(ei_conn, inhibitory_split)
 
 # Pad
-ie_conn = pad_connectivity(ie_conn).astype(np.int16)
-ii_conn = pad_connectivity(ii_conn).astype(np.int16)
-ee_conn = pad_connectivity(ee_conn).astype(np.int16)
-ei_conn = pad_connectivity(ei_conn).astype(np.int16)
-print(ii_conn[0])
-print(f"IE :{ie_conn.shape}")
-print(f"II :{ii_conn.shape}")
-print(f"EE :{ee_conn.shape}")
-print(f"EI :{ei_conn.shape}")
+for i in range(NUM_CORES):
+    ie_conn_pad = pad_connectivity(ie_conn[i]).astype(np.int16)
+    ii_conn_pad = pad_connectivity(ii_conn[i]).astype(np.int16)
+    ee_conn_pad = pad_connectivity(ee_conn[i]).astype(np.int16)
+    ei_conn_pad = pad_connectivity(ei_conn[i]).astype(np.int16)
+    print(f"IE :{ie_conn_pad.shape}")
+    print(f"II :{ii_conn_pad.shape}")
+    print(f"EE :{ee_conn_pad.shape}")
+    print(f"EI :{ei_conn_pad.shape}")
 
-total_bytes = ie_conn.nbytes + ii_conn.nbytes + ee_conn.nbytes + ei_conn.nbytes
-print(f"Connectivity requires {total_bytes / 1024}KB memory vs {theoretical_bytes / 1024}KB theoretical vs {NUM_NEURONS * NUM_NEURONS * 2 / 1024}KB dense")
+    total_bytes = ie_conn_pad.nbytes + ii_conn_pad.nbytes + ee_conn_pad.nbytes + ei_conn_pad.nbytes
+    print(f"Connectivity requires {total_bytes / 1024}KB memory vs {theoretical_bytes / 1024}KB theoretical vs {NUM_NEURONS * NUM_NEURONS * 2 / 1024}KB dense")
 
-# Save binary files
-ie_conn.tofile("va_benchmark_ie.bin")
-ii_conn.tofile("va_benchmark_ii.bin")
-ee_conn.tofile("va_benchmark_ee.bin")
-ei_conn.tofile("va_benchmark_ei.bin")
+    # Save binary files
+    ie_conn_pad.tofile(f"va_benchmark_ie_{i}.bin")
+    ii_conn_pad.tofile(f"va_benchmark_ii_{i}.bin")
+    ee_conn_pad.tofile(f"va_benchmark_ee_{i}.bin")
+    ei_conn_pad.tofile(f"va_benchmark_ei_{i}.bin")
