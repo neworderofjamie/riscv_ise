@@ -37,21 +37,22 @@ ee_conn = split(ee_conn, excitatory_split)
 ei_conn = split(ei_conn, inhibitory_split)
 
 # Pad
-for i in range(NUM_CORES):
-    ie_conn_pad = pad_connectivity(ie_conn[i]).astype(np.int16)
-    ii_conn_pad = pad_connectivity(ii_conn[i]).astype(np.int16)
-    ee_conn_pad = pad_connectivity(ee_conn[i]).astype(np.int16)
-    ei_conn_pad = pad_connectivity(ei_conn[i]).astype(np.int16)
-    print(f"IE :{ie_conn_pad.shape}")
-    print(f"II :{ii_conn_pad.shape}")
-    print(f"EE :{ee_conn_pad.shape}")
-    print(f"EI :{ei_conn_pad.shape}")
+ie_conn_pad = pad_connectivity(ie_conn)
+ii_conn_pad = pad_connectivity(ii_conn)
+ee_conn_pad = pad_connectivity(ee_conn)
+ei_conn_pad = pad_connectivity(ei_conn)
+print(f"IE :{ie_conn_pad[0].shape}")
+print(f"II :{ii_conn_pad[0].shape}")
+print(f"EE :{ee_conn_pad[0].shape}")
+print(f"EI :{ei_conn_pad[0].shape}")
 
-    total_bytes = ie_conn_pad.nbytes + ii_conn_pad.nbytes + ee_conn_pad.nbytes + ei_conn_pad.nbytes
-    print(f"Connectivity requires {total_bytes / 1024}KB memory vs {theoretical_bytes / 1024}KB theoretical vs {NUM_NEURONS * NUM_NEURONS * 2 / 1024}KB dense")
 
-    # Save binary files
-    ie_conn_pad.tofile(f"va_benchmark_ie_{i}.bin")
-    ii_conn_pad.tofile(f"va_benchmark_ii_{i}.bin")
-    ee_conn_pad.tofile(f"va_benchmark_ee_{i}.bin")
-    ei_conn_pad.tofile(f"va_benchmark_ei_{i}.bin")
+# Save binary files
+for c in range(NUM_CORES):
+    #total_bytes = ie_conn_pad[c].nbytes + ii_conn_pad[c].nbytes + ee_conn_pad[c].nbytes + ei_conn_pad[c].nbytes
+    #print(f"Core {c} connectivity requires {total_bytes / 1024}KB memory vs {theoretical_bytes / 1024}KB theoretical vs {NUM_NEURONS * NUM_NEURONS * 2 / 1024}KB dense")
+
+    ie_conn_pad[c].tofile(f"va_benchmark_ie_{c}.bin")
+    ii_conn_pad[c].tofile(f"va_benchmark_ii_{c}.bin")
+    ee_conn_pad[c].tofile(f"va_benchmark_ee_{c}.bin")
+    ei_conn_pad[c].tofile(f"va_benchmark_ei_{c}.bin")
