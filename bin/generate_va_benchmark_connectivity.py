@@ -1,7 +1,7 @@
 import numpy as np
 
 from sparse_utils import generate_fixed_prob, pad_connectivity, split
-NUM_NEURONS = 1024
+NUM_NEURONS = 801
 NUM_CORES = 2
 PROBABILITY_CONNECTION = 0.1
 
@@ -9,6 +9,7 @@ EXCITATORY_INHIBITORY_RATIO = 4.0
 
 NUM_EXCITATORY = int(round((NUM_NEURONS * EXCITATORY_INHIBITORY_RATIO) / (1.0 + EXCITATORY_INHIBITORY_RATIO)))
 NUM_INHIBITORY = NUM_NEURONS - NUM_EXCITATORY
+print(f"Num excitatory neurons: {NUM_EXCITATORY}, num inhibitory: {NUM_INHIBITORY}")
 
 np.random.seed(1234)
 
@@ -49,8 +50,8 @@ print(f"EI :{ei_conn_pad[0].shape}")
 
 # Save binary files
 for c in range(NUM_CORES):
-    #total_bytes = ie_conn_pad[c].nbytes + ii_conn_pad[c].nbytes + ee_conn_pad[c].nbytes + ei_conn_pad[c].nbytes
-    #print(f"Core {c} connectivity requires {total_bytes / 1024}KB memory vs {theoretical_bytes / 1024}KB theoretical vs {NUM_NEURONS * NUM_NEURONS * 2 / 1024}KB dense")
+    total_bytes = ie_conn_pad[c].nbytes + ii_conn_pad[c].nbytes + ee_conn_pad[c].nbytes + ei_conn_pad[c].nbytes
+    print(f"Core {c} connectivity requires {total_bytes / 1024}KB memory")
 
     ie_conn_pad[c].tofile(f"va_benchmark_ie_{c}.bin")
     ii_conn_pad[c].tofile(f"va_benchmark_ii_{c}.bin")
