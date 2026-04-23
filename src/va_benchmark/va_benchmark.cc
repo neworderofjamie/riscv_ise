@@ -343,6 +343,21 @@ int main(int argc, char** argv)
     app.add_option("-c,--core", core, "Which core to run on");
     app.add_flag("-d,--device", device, "Should be run on device rather than simulator");
 
+    AppUtils::loadBinaryData<uint32_t>("shd_spikes.bin");
+    
+    // Load weights
+    const std::vector<std::vector<int16_t>> eeWeights = {
+        AppUtils::loadBinaryData<int16_t>("va_benchmark_ee_0.bin"),
+        AppUtils::loadBinaryData<int16_t>("va_benchmark_ee_1.bin")};
+    const std::vector<std::vector<int16_t>> eiWeights = {
+        AppUtils::loadBinaryData<int16_t>("va_benchmark_ei_0.bin"),
+        AppUtils::loadBinaryData<int16_t>("va_benchmark_ei_1.bin")};
+    const std::vector<std::vector<int16_t>> iiWeights = {
+        AppUtils::loadBinaryData<int16_t>("va_benchmark_ii_0.bin"),
+        AppUtils::loadBinaryData<int16_t>("va_benchmark_ii_1.bin")};
+    const std::vector<std::vector<int16_t>> ieWeights = {
+        AppUtils::loadBinaryData<int16_t>("va_benchmark_ie_0.bin"),
+        AppUtils::loadBinaryData<int16_t>("va_benchmark_ie_1.bin")};
     CLI11_PARSE(app, argc, argv);
 
     // Allocate memory
@@ -368,10 +383,10 @@ int main(int argc, char** argv)
 
     // Allocate vector arrays
     const uint32_t seedPtr = AppUtils::allocateVectorSeedAndInit(vectorInitData);
-    const uint32_t eeIndPtr = AppUtils::loadVectors("va_benchmark_ee.bin", vectorInitData);
-    const uint32_t eiIndPtr = AppUtils::loadVectors("va_benchmark_ei.bin", vectorInitData);
-    const uint32_t iiIndPtr = AppUtils::loadVectors("va_benchmark_ii.bin", vectorInitData);
-    const uint32_t ieIndPtr = AppUtils::loadVectors("va_benchmark_ie.bin", vectorInitData);
+    const uint32_t eeIndPtr = AppUtils::allocateVectorAndZero(eeWeights.front().size(), vectorInitData);
+    const uint32_t eiIndPtr = AppUtils::allocateVectorAndZero(eiWeights.front().size(), vectorInitData);
+    const uint32_t iiIndPtr = AppUtils::allocateVectorAndZero(iiWeights.front().size(), vectorInitData);
+    const uint32_t ieIndPtr = AppUtils::allocateVectorAndZero(ieWeights.front().size(), vectorInitData);
     const uint32_t indPadPtr = AppUtils::allocateVectorAndZero(32, vectorInitData);
     const uint32_t excVPtr = AppUtils::allocateVectorAndZero(numExc, vectorInitData);
     const uint32_t excRefracTimePtr = AppUtils::allocateVectorAndZero(numExc, vectorInitData);
