@@ -12,6 +12,7 @@
 // RISC-V common includes
 #include "common/app_utils.h"
 #include "common/device.h"
+#include "common/device_control.h"
 
 // RISC-V assembler includes
 #include "assembler/assembler.h"
@@ -23,6 +24,7 @@
 #include "ise/vector_processor.h"
 
 // SoC test includes
+#include "helpers.h"
 #include "fixtures.h"
 
 // Anonymous namespace
@@ -185,10 +187,12 @@ TEST_P(DeviceSimTest, LaneLocal)
 
     if(GetParam()) {
         LOGI << "Creating device";
-        Device device;
+        Device device(Helpers::getCore(), Helpers::getNumCores());
+        DeviceControl deviceControl(Helpers::getNumCores());
+        
         LOGI << "Resetting";
         // Put core into reset state
-        device.setEnabled(false);
+        deviceControl.setEnabled(false);
         
         LOGI << "Copying instructions (" << code.size() * sizeof(uint32_t) << " bytes)";
         device.uploadCode(code);
@@ -198,12 +202,12 @@ TEST_P(DeviceSimTest, LaneLocal)
         
         LOGI << "Enabling";
         // Put core into running state
-        device.setEnabled(true);
+        deviceControl.setEnabled(true);
         LOGI << "Running";
         
         // Wait until ready flag
         device.waitOnNonZero(readyFlagPtr);
-        device.setEnabled(false);
+        deviceControl.setEnabled(false);
         LOGI << "Done";
 
         // Check data
@@ -270,10 +274,12 @@ TEST_P(DeviceSimTest, URAM)
     
     if(GetParam()) {
         LOGI << "Creating device";
-        Device device;
+        Device device(Helpers::getCore(), Helpers::getNumCores());
+        DeviceControl deviceControl(Helpers::getNumCores());
+        
         LOGI << "Resetting";
         // Put core into reset state
-        device.setEnabled(false);
+        deviceControl.setEnabled(false);
         
         LOGI << "Copying instructions (" << code.size() * sizeof(uint32_t) << " bytes)";
         device.uploadCode(code);
@@ -283,12 +289,12 @@ TEST_P(DeviceSimTest, URAM)
         
         LOGI << "Enabling";
         // Put core into running state
-        device.setEnabled(true);
+        deviceControl.setEnabled(true);
         LOGI << "Running";
         
         // Wait until ready flag
         device.waitOnNonZero(readyFlagPtr);
-        device.setEnabled(false);
+        deviceControl.setEnabled(false);
         LOGI << "Done";
 
         // Check data

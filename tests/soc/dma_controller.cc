@@ -13,6 +13,7 @@
 // RISC-V common includes
 #include "common/app_utils.h"
 #include "common/device.h"
+#include "common/device_control.h"
 #include "common/dma_buffer.h"
 #include "common/dma_controller.h"
 
@@ -28,6 +29,7 @@
 
 // SoC test includes
 #include "fixtures.h"
+#include "helpers.h"
 
 // Anonymous namespace
 namespace
@@ -95,7 +97,10 @@ TEST_P(TransferSizeTest, HostDMA)
     const size_t transferHalfWords = std::get<0>(GetParam()) * std::get<1>(GetParam());
 
     // Create DMA buffer
-    DMABuffer dmaBuffer;
+    DMABuffer parentDMABuffer;
+    DMABuffer dmaBuffer(parentDMABuffer, 
+                        (Helpers::getNumCores() == 1) ? parentDMABuffer.getPhysicalAddress() : (0x40000000 + (Helpers::getCore() * 0x10000000)),
+                        (Helpers::getNumCores() == 1) ? (parentDMABuffer.getPhysicalAddress() + parentDMABuffer.getSize()) : (0x50000000 + (Helpers::getCore() * 0x10000000)));
 
     // Check there's enough space for 2 copies of transfers
     ASSERT_GE(dmaBuffer.getSize(), (2 * 2 * transferHalfWords));
@@ -121,7 +126,8 @@ TEST_P(TransferSizeTest, HostDMA)
     std::cout << std::endl;
                     
     // Create DMA controller
-    DMAController dmaController("dm_cmd_and_fsm");
+    const std::string targetNamePrefix = (Helpers::getNumCores() == 1) ? "" : ("core_" + std::to_string(Helpers::getCore()) + "_");
+    DMAController dmaController(targetNamePrefix + "dm_cmd_and_fsm");
     
     // Issue interleaved reads and writes
     for(size_t offsetBytes = 0; offsetBytes < (2 * transferHalfWords); offsetBytes+=(std::get<1>(GetParam()) * 2)) {
@@ -157,7 +163,11 @@ TEST(DMAController, ReadCSR)
     GTEST_SKIP() << "Device test only supported on Linux";
 #endif
     // Create DMA buffer
-    DMABuffer dmaBuffer;
+    DMABuffer parentDMABuffer;
+    DMABuffer dmaBuffer(parentDMABuffer, 
+                        (Helpers::getNumCores() == 1) ? parentDMABuffer.getPhysicalAddress() : (0x40000000 + (Helpers::getCore() * 0x10000000)),
+                        (Helpers::getNumCores() == 1) ? (parentDMABuffer.getPhysicalAddress() + parentDMABuffer.getSize()) : (0x50000000 + (Helpers::getCore() * 0x10000000)));
+
 
     // Check there's enough space for 1024 half words
     ASSERT_GE(dmaBuffer.getSize(), (2 * 1024));
@@ -205,11 +215,12 @@ TEST(DMAController, ReadCSR)
         });
 
     LOGI << "Creating device";
-    Device device;
+    Device device(Helpers::getCore(), Helpers::getNumCores());
+    DeviceControl deviceControl(Helpers::getNumCores());
     LOGI << "Resetting";
 
     // Put core into reset state
-    device.setEnabled(false);
+    deviceControl.setEnabled(false);
     
     LOGI << "Copying instructions (" << code.size() * sizeof(uint32_t) << " bytes)";
     device.uploadCode(code);
@@ -226,12 +237,12 @@ TEST(DMAController, ReadCSR)
     LOGI << "Enabling";
     
     // Put core into running state
-    device.setEnabled(true);
+    deviceControl.setEnabled(true);
     LOGI << "Running";
     
     // Wait until ready flag
     device.waitOnNonZero(readyFlagPtr);
-    device.setEnabled(false);
+    deviceControl.setEnabled(false);
 
     LOGI << "Done";
 
@@ -327,10 +338,15 @@ TEST_P(TransferSizeDeviceTest, FeNNDMA)
 
     if(std::get<2>(GetParam())) {
         LOGI << "Creating device";
-        Device device;
-
+        Device device(Helpers::getCore(), Helpers::getNumCores());
+        DeviceControl deviceControl(Helpers::getNumCores());
+        
         // Create DMA buffer
-        DMABuffer dmaBuffer;
+        DMABuffer parentDMABuffer;
+        DMABuffer dmaBuffer(parentDMABuffer, 
+                            (Helpers::getNumCores() == 1) ? parentDMABuffer.getPhysicalAddress() : (0x40000000 + (Helpers::getCore() * 0x10000000)),
+                            (Helpers::getNumCores() == 1) ? (parentDMABuffer.getPhysicalAddress() + parentDMABuffer.getSize()) : (0x50000000 + (Helpers::getCore() * 0x10000000)));
+
 
         // Check there's enough space for 2 copies of transfers
         ASSERT_GE(dmaBuffer.getSize(), (2 * 2 * transferHalfWords));
@@ -345,7 +361,7 @@ TEST_P(TransferSizeDeviceTest, FeNNDMA)
         
         LOGI << "Resetting";
         // Put core into reset state
-        device.setEnabled(false);
+        deviceControl.setEnabled(false);
         
         LOGI << "Copying instructions (" << code.size() * sizeof(uint32_t) << " bytes)";
         device.uploadCode(code);
@@ -355,12 +371,12 @@ TEST_P(TransferSizeDeviceTest, FeNNDMA)
         
         LOGI << "Enabling";
         // Put core into running state
-        device.setEnabled(true);
+        deviceControl.setEnabled(true);
         LOGI << "Running";
         
         // Wait until ready flag
         device.waitOnNonZero(readyFlagPtr);
-        device.setEnabled(false);
+        deviceControl.setEnabled(false);
         LOGI << "Done";
 
         // Check results
