@@ -134,10 +134,9 @@ void genStaticPulse(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAll
 // ---------------------------------------------------------------------------
 void genLIF(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator,
             ScalarRegisterAllocator &scalarRegisterAllocator,
-            uint32_t numNeurons,
-            uint32_t vPtr, uint32_t refracTimePtr, uint32_t baseSpikeAddress,
+            uint32_t vPtr, uint32_t refracTimePtr, uint32_t idStartPtr,
             uint32_t eLLPtr, uint32_t iLLPtr,
-            uint32_t fixedPoint = 8,
+            uint32_t numNeuronWords, uint32_t weightFixedPoint = 8,
             ScalarRegisterAllocator::RegisterPtr spikeRecordingBuffer = nullptr,
             ScalarRegisterAllocator::RegisterPtr vRecordingBuffer = nullptr,
             double tauM = 20.0, double tauSynExc = 5.0, double tauSynInh = 10.0,
@@ -161,17 +160,15 @@ void genLIF(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator,
     ALLOCATE_VECTOR(VSynLLOffset);
     ALLOCATE_VECTOR(VNumUnrollBytes);
 
-    const uint32_t numNeuronWords = ceilDivide(numNeurons, 32);
-
     // Load constants
-    c.vlui(*VAlpha, convertFixedPoint(std::exp(-1.0 / tauM), 14));
-    c.vlui(*VEBeta, convertFixedPoint(std::exp(-1.0 / tauSynExc), 14));
-    c.vlui(*VIBeta, convertFixedPoint(std::exp(-1.0 / tauSynInh), 14));
-    c.vlui(*VEScale, convertFixedPoint(tauSynExc * (1.0 - std::exp(-1.0 / tauSynExc)), fixedPoint));
-    c.vlui(*VIScale, convertFixedPoint(tauSynInh * (1.0 - std::exp(-1.0 / tauSynInh)), fixedPoint));
-    c.vlui(*VThresh, convertFixedPoint(vThresh, fixedPoint));
-    c.vlui(*VIOffset, convertFixedPoint(iOffset, fixedPoint));
-    c.vlui(*VRMembrane, convertFixedPoint(tauM / 1.0, fixedPoint));
+    c.vlui(*VAlpha, convertFixedPoint(std::exp(-1.0 / tauM), 15));
+    c.vlui(*VEBeta, convertFixedPoint(std::exp(-1.0 / tauSynExc), 15));
+    c.vlui(*VIBeta, convertFixedPoint(std::exp(-1.0 / tauSynInh), 15));
+    c.vlui(*VEScale, convertFixedPoint(tauSynExc * (1.0 - std::exp(-1.0 / tauSynExc)), 10));
+    c.vlui(*VIScale, convertFixedPoint(tauSynInh * (1.0 - std::exp(-1.0 / tauSynInh)), 10));
+    c.vlui(*VThresh, convertFixedPoint(vThresh, 10));
+    c.vlui(*VIOffset, convertFixedPoint(iOffset, 10));
+    c.vlui(*VRMembrane, convertFixedPoint(tauM / 1.0, 10));
     c.vlui(*VTauRefrac, 5);
     c.vlui(*VDT, 1);
     c.vlui(*VZero, 0);
@@ -181,12 +178,11 @@ void genLIF(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator,
     // Get address of buffers
     c.li(*SVBuffer, vPtr);
     c.li(*SRefracTimeBuffer, refracTimePtr);
-    c.li(*SBaseSpikeAddress, baseSpikeAddress);
 
     AssemblerUtils::unrollVectorLoopBody(
-        c, scalarRegisterAllocator, numNeurons, 4, *SVBuffer,
+        c, scalarRegisterAllocator, numNeuronWords * 32, 4, *SVBuffer,
         [&scalarRegisterAllocator, &vectorRegisterAllocator,
-         fixedPoint, eLLPtr, iLLPtr,
+         weightFixedPoint, eLLPtr, iLLPtr,
          SVBuffer, SRefracTimeBuffer, SBaseSpikeAddress,
          spikeRecordingBuffer, vRecordingBuffer,
          VAlpha, VEBeta, VIBeta, VEScale, VIScale, VDT, VRMembrane, VSynLLOffset, VTauRefrac, VThresh, VIOffset, VZero]
@@ -211,10 +207,10 @@ void genLIF(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator,
             // Excitatory
             {
                 // Scale VEISyn 
-                c.vmul_rs(fixedPoint, *VInSyn, *VESyn, *VEScale);
+                c.vmul_rs(weightFixedPoint, *VInSyn, *VESyn, *VEScale);
 
                 // Decay VEIsyn
-                c.vmul_rs(14, *VESyn, *VESyn, *VEBeta);
+                c.vmul_rs(15, *VESyn, *VESyn, *VEBeta);
             }
 
             // Inhibitory
@@ -222,11 +218,11 @@ void genLIF(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator,
                 ALLOCATE_VECTOR(VTmp);
 
                 // Scale VIISyn 
-                c.vmul_rs(fixedPoint, *VTmp, *VISyn, *VIScale);
+                c.vmul_rs(weightFixedPoint, *VTmp, *VISyn, *VIScale);
                 c.vadd_s(*VInSyn, *VInSyn, *VTmp);
 
                 // Decay VIISyn
-                c.vmul_rs(14, *VISyn, *VISyn, *VIBeta);
+                c.vmul_rs(15, *VISyn, *VISyn, *VIBeta);
             }
             
             // SRefractory = VRefracTime > 0.0 (0.0 < VRefracTime)
@@ -241,11 +237,11 @@ void genLIF(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator,
 
                 // VAlphaTemp = (VInSyn + VIoffset) * VRMembrane
                 c.vadd_s(*VAlphaTemp, *VInSyn, *VIOffset);
-                c.vmul_rs(fixedPoint, *VAlphaTemp, *VAlphaTemp, *VRMembrane);
+                c.vmul_rs(10, *VAlphaTemp, *VAlphaTemp, *VRMembrane);
 
                 // VVTemp = VAlpha * (VAlphaTemp - VV)
                 c.vsub_s(*VVTemp, *VAlphaTemp, *VV);
-                c.vmul_rs(14, *VVTemp, *VVTemp, *VAlpha);
+                c.vmul_rs(15, *VVTemp, *VVTemp, *VAlpha);
 
                 // VVTemp = VAlphaTemp - VVTemp
                 c.vsub_s(*VVTemp, *VAlphaTemp, *VVTemp);
@@ -322,6 +318,139 @@ void writeSpikes(const char *filename, const volatile uint32_t *recordingData,
         recordingData += numWords;
     }
 }
+// ---------------------------------------------------------------------------
+void simThread(const std::vector<uint32_t> &initCode, const std::vector<uint32_t> &simCode, 
+               const std::vector<uint8_t> &scalarInitData, const std::vector<int16_t> &vectorInitData,
+               SharedBusSim &sharedBus, uint32_t coreID, uint32_t numTimesteps,
+               uint32_t excSpikeRecordingPtr, uint32_t inhSpikeRecordingPtr,
+               uint32_t eeIndPtr, uint32_t eiIndPtr, uint32_t iiIndPtr, uint32_t ieIndPtr,
+               uint32_t excNeuronIDStartPtr, uint32_t inhNeuronIDStartPtr,
+               uint32_t numExcWords, uint32_t numInhWords,
+               uint32_t excNeuronIDStart, uint32_t inhNeuronIDStart,
+               const std::vector<int16_t> &eeWeights,
+               const std::vector<int16_t> &eiWeights,
+               const std::vector<int16_t> &iiWeights,
+               const std::vector<int16_t> &ieWeights)
+{
+    // Make copy of vector init data to modify for this core
+    std::vector<int16_t> coreVectorInitData(vectorInitData.cbegin(), vectorInitData.cend());
+
+    // Copy in weights
+    std::copy(eeWeights.cbegin(), eeWeights.cend(), coreVectorInitData.begin() + (eeIndPtr / 2));
+    std::copy(eiWeights.cbegin(), eiWeights.cend(), coreVectorInitData.begin() + (eiIndPtr / 2));
+    std::copy(iiWeights.cbegin(), iiWeights.cend(), coreVectorInitData.begin() + (iiIndPtr / 2));
+    std::copy(ieWeights.cbegin(), ieWeights.cend(), coreVectorInitData.begin() + (ieIndPtr / 2));
+
+    // Make copy of scalar init data to modify for this core
+    std::vector<uint8_t> coreScalarInitData(scalarInitData.cbegin(), scalarInitData.cend());
+    
+    // Copy in neuron start IDs and tail masks
+    std::memcpy(coreScalarInitData.data() + excNeuronIDStartPtr, &excNeuronIDStart, 4);
+    std::memcpy(coreScalarInitData.data() + inhNeuronIDStartPtr, &inhNeuronIDStart, 4);
+
+    // Build ISE with vector co-processor
+    RISCV riscV;
+    riscV.addCoprocessor<VectorProcessor>(vectorQuadrant);
+
+    // Create simulated DMA controller
+    RouterSim router(sharedBus, riscV.getSpikeDataMemory(), coreID);
+    riscV.setRouter(&router);
+
+    // Set instructions and init data
+    riscV.setInstructions(initCode);
+    riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getVectorDataMemory().setData(coreVectorInitData);
+    riscV.getScalarDataMemory().setData(coreScalarInitData);
+
+
+    // Run RISC-V to initialize
+    riscV.setPC(0);
+    if(!riscV.run()) {
+        assert(false);
+    }
+
+    // Reset stats for simulations
+    riscV.resetStats();
+
+    // Load simulation program
+    riscV.setInstructions(simCode);
+
+    // Reset PC and run
+    riscV.setPC(0);
+    if(!riscV.run()) {
+        assert(false);
+    }
+
+    std::cout << "Stats:" << std::endl;
+    std::cout << "\t" << riscV.getTotalNumInstructionsExecuted() << " instructions executed" << std::endl;
+    std::cout << "\t\t" << riscV.getTotalNumCoprocessorInstructionsExecuted(vectorQuadrant) << " vector instructions executed" << std::endl;
+    std::cout << "\t\t" << riscV.getNumJumps() << " jumps" << std::endl;
+    std::cout << "\t\t" << riscV.getNumMemory() << " scalar memory" << std::endl;
+    std::cout << "\t\t" << riscV.getNumALU() << " scalar ALU" << std::endl;
+    std::cout << "\t\t" << riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getNumMemory(riscV.getNumCoprocessorInstructionsExecuted(vectorQuadrant)) << " vector memory" << std::endl;
+    std::cout << "\t\t" << riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getNumALU(riscV.getNumCoprocessorInstructionsExecuted(vectorQuadrant)) << " vector ALU" << std::endl;
+
+    auto *scalarData = riscV.getScalarDataMemory().getData();
+#ifdef RECORD_SPIKES
+    const uint32_t *excSpikeRecording = reinterpret_cast<const uint32_t*>(scalarData + excSpikeRecordingPtr);
+    writeSpikes("exc_spikes_sim.csv", excSpikeRecording,
+                numTimesteps, numExcWords);
+
+    const uint32_t *inhSpikeRecording = reinterpret_cast<const uint32_t*>(scalarData + inhSpikeRecordingPtr);
+    writeSpikes("inh_spikes_sim.csv", inhSpikeRecording,
+                numTimesteps, numInhWords);
+#endif
+#ifdef RECORD_V
+    const int16_t *excVRecording = reinterpret_cast<const int16_t*>(scalarData + excVRecordingPtr);
+    std::ofstream vFile("exc_v_sim.csv");
+    for(size_t t = 0; t < numTimesteps; t++) {
+        vFile << *excVRecording++ << std::endl;
+    }
+#endif
+}
+
+/*void deviceThread(const std::vector<uint32_t> &code, const std::vector<uint8_t> &scalarInitData,
+                  uint32_t coreID, uint32_t spikeBitfield,
+                  uint32_t bitfieldPtr, uint32_t eventIDBasePtr, uint32_t outputSpikeArrayEnd, 
+                  uint32_t outputSpikeArrayPtr, uint32_t readyFlagPtr, std::vector<uint32_t> &receivedEvents,
+                  Barrier &barrier)
+{
+    LOGI << "Creating device (" << coreID << " / " << numCores << ")";
+    Device device(coreID, numCores);
+    LOGI << "Resetting";
+    // Put core into reset state
+    barrier.wait();
+    device.setEnabled(false);
+
+    LOGI << "Copying instructions (" << code.size() * sizeof(uint32_t) << " bytes)";
+    device.uploadCode(code);
+
+    LOGI << "Copying data (" << scalarInitData.size() << " bytes);";
+    device.memcpyDataToDevice(0, scalarInitData.data(), scalarInitData.size());
+
+    // Hack with bitfield and eventID baseptr
+    volatile uint32_t *wordData = reinterpret_cast<volatile uint32_t*>(device.getDataMemory());
+    wordData[bitfieldPtr / 4] = spikeBitfield;
+    wordData[eventIDBasePtr / 4] = (coreID << 14);
+    barrier.wait();
+    LOGI << "Enabling";
+    // Put core into running state
+    device.setEnabled(true);
+    LOGI << "Running " << readyFlagPtr;
+
+    // Wait until ready flag
+    device.waitOnNonZero(readyFlagPtr);
+    LOGI << "Done";
+    barrier.wait();
+    device.setEnabled(false);
+    LOGI << "Cores disabled";
+
+    // Copy spikes received into vector
+    const uint32_t num = (wordData[outputSpikeArrayEnd / 4] - spikeArrayPtr) / 4;
+    for(uint32_t i = 0; i < num; i++) {
+        receivedEvents.push_back((uint32_t)wordData[i + (outputSpikeArrayPtr / 4)]);
+    }
+}*/
+
 }
 
 int main(int argc, char** argv)
@@ -334,17 +463,13 @@ int main(int argc, char** argv)
     
     bool device = false;
     uint32_t numTimesteps = 1000;
-    int numCores = 1;
-    int core = 0;
 
     CLI::App app{"VA benchmark"};
     app.add_option("-t,--num-timesteps", numTimesteps, "How many timesteps to simulate");
-    app.add_option("-n,--num-cores", numCores, "Number of cores FeNN system has");
-    app.add_option("-c,--core", core, "Which core to run on");
     app.add_flag("-d,--device", device, "Should be run on device rather than simulator");
 
-    AppUtils::loadBinaryData<uint32_t>("shd_spikes.bin");
-    
+    CLI11_PARSE(app, argc, argv);
+
     // Load weights
     const std::vector<std::vector<int16_t>> eeWeights = {
         AppUtils::loadBinaryData<int16_t>("va_benchmark_ee_0.bin"),
@@ -358,20 +483,25 @@ int main(int argc, char** argv)
     const std::vector<std::vector<int16_t>> ieWeights = {
         AppUtils::loadBinaryData<int16_t>("va_benchmark_ie_0.bin"),
         AppUtils::loadBinaryData<int16_t>("va_benchmark_ie_1.bin")};
-    CLI11_PARSE(app, argc, argv);
+    assert(eeWeights[0].size() == eeWeights[1].size());
+    assert(eiWeights[0].size() == eiWeights[1].size());
+    assert(iiWeights[0].size() == iiWeights[1].size());
+    assert(ieWeights[0].size() == ieWeights[1].size());
+    
 
     // Allocate memory
     std::vector<uint8_t> scalarInitData;
     std::vector<int16_t> vectorInitData;
 
     // Constants
-    constexpr uint32_t fixedPoint = 10;
-    constexpr uint32_t numExc = 410;
-    constexpr uint32_t numInh = 102;
-    constexpr uint32_t numExcWords = ceilDivide(numExc, 32);
-    constexpr uint32_t numInhWords = ceilDivide(numInh, 32);
-    constexpr uint32_t numExcIncomingVectors = 7;
-    constexpr uint32_t numInhIncomingVectors = 3;
+    constexpr int numCores = 2;
+    constexpr uint32_t weightFixedPoint = 13;
+    constexpr uint32_t numExc = 256;    // Per-core
+    constexpr uint32_t numInh = 64;    // Per-core
+    constexpr uint32_t numExcWords = ceilDivide(numExc, 32);    // Per-core
+    constexpr uint32_t numInhWords = ceilDivide(numInh, 32);    
+    constexpr uint32_t numExcIncomingVectors = 5;   // Per-core
+    constexpr uint32_t numInhIncomingVectors = 2;   // Per-core
     const uint32_t numExcSpikeRecordingWords = numExcWords * numTimesteps;
     const uint32_t numInhSpikeRecordingWords = numInhWords * numTimesteps;
 
@@ -396,7 +526,8 @@ int main(int argc, char** argv)
     
     // Allocate scalar arrays
     const uint32_t readyFlagPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
-
+    const uint32_t excNeuronIDStartPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
+    const uint32_t inhNeuronIDStartPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
 #ifdef RECORD_SPIKES
      const uint32_t excSpikeRecordingPtr = AppUtils::allocateScalarAndZero(numExcSpikeRecordingWords * 4, scalarInitData);
      const uint32_t inhSpikeRecordingPtr = AppUtils::allocateScalarAndZero(numInhSpikeRecordingWords * 4, scalarInitData);
@@ -442,7 +573,7 @@ int main(int argc, char** argv)
                 
                 // Load constants
                 c.vlui(*VZero, 0);
-                c.vlui(*VScale, convertFixedPoint(10.0, fixedPoint));
+                c.vlui(*VScale, convertFixedPoint(10.0, 10));
                 c.vlui(*VSynLLOffset, 0);
                 c.vlui(*VNumUnrollBytes, 2 * std::min(numExcWords, 4u));
 
@@ -455,7 +586,7 @@ int main(int argc, char** argv)
                 AssemblerUtils::unrollVectorLoopBody(
                     c, scalarRegisterAllocator, numExcWords * 32, 4, *SVBuffer,
                     [&scalarRegisterAllocator, &vectorRegisterAllocator,
-                    fixedPoint, eeLLAddr, ieLLAddr,
+                    weightFixedPoint, eeLLAddr, ieLLAddr,
                     SRefracTimeBuffer, SVBuffer, VRandom, VScale, VSynLLOffset, VZero]
                     (CodeGenerator &c, uint32_t r, uint32_t, ScalarRegisterAllocator::RegisterPtr)
                     {
@@ -492,7 +623,7 @@ int main(int argc, char** argv)
                 
                 // Load constants
                 c.vlui(*VZero, 0);
-                c.vlui(*VScale, convertFixedPoint(10.0, fixedPoint));
+                c.vlui(*VScale, convertFixedPoint(10.0, 10));
                 c.vlui(*VSynLLOffset, 0);
                 c.vlui(*VNumUnrollBytes, 2 * std::min(numInhWords, 4u));
 
@@ -505,7 +636,7 @@ int main(int argc, char** argv)
                 AssemblerUtils::unrollVectorLoopBody(
                     c, scalarRegisterAllocator, numInhWords * 32, 4, *SVBuffer,
                     [&scalarRegisterAllocator, &vectorRegisterAllocator,
-                    fixedPoint, eiLLAddr, iiLLAddr,
+                    eiLLAddr, iiLLAddr,
                     SRefracTimeBuffer, SVBuffer, VRandom, VScale, VSynLLOffset, VZero]
                     (CodeGenerator &c, uint32_t r, uint32_t, ScalarRegisterAllocator::RegisterPtr)
                     {
@@ -589,7 +720,7 @@ int main(int argc, char** argv)
             {
                 c.L(excRow);
                 
-                const int16_t excWeight = convertFixedPoint(0.0062499999999999995, fixedPoint);
+                const int16_t excWeight = convertFixedPoint(0.005, weightFixedPoint);
                 genStaticPulse(c, vectorRegisterAllocator, scalarRegisterAllocator, *SSpike,
                                {{eiIndPtr, excWeight, numInhIncomingVectors * 32, eiLLAddr, false},
                                 {eeIndPtr, excWeight, numExcIncomingVectors * 32, eeLLAddr, false}});
@@ -601,7 +732,7 @@ int main(int argc, char** argv)
             // ---------------------------------------------------------------
             {
                 c.L(inhRow);
-                const int16_t inhWeight = convertFixedPoint(-0.07968749999999998, fixedPoint);
+                const int16_t inhWeight = convertFixedPoint(-0.06375, weightFixedPoint);
                 genStaticPulse(c, vectorRegisterAllocator, scalarRegisterAllocator, *SSpike,
                                {{iiIndPtr, inhWeight, numInhIncomingVectors * 32, iiLLAddr, false},
                                 {ieIndPtr, inhWeight, numExcIncomingVectors * 32, ieLLAddr, false}});
@@ -668,8 +799,8 @@ int main(int argc, char** argv)
                 // Excitatory neurons
                 // ---------------------------------------------------------------
                 genLIF(c, vectorRegisterAllocator, scalarRegisterAllocator,
-                       numExc, excVPtr, excRefracTimePtr, (0 << 19),
-                       eeLLAddr, ieLLAddr, fixedPoint
+                       excVPtr, excRefracTimePtr, excNeuronIDStartPtr,
+                       eeLLAddr, ieLLAddr, numExcWords, weightFixedPoint
 #ifdef RECORD_SPIKES
                        ,SExcSpikeRecordingBuffer
 #endif
@@ -682,8 +813,8 @@ int main(int argc, char** argv)
                 // Inhibitory neurons
                 // ---------------------------------------------------------------
                 genLIF(c, vectorRegisterAllocator, scalarRegisterAllocator,
-                       numInh, inhVPtr, inhRefracTimePtr, (4 << 19),
-                       eiLLAddr, iiLLAddr, fixedPoint
+                       inhVPtr, inhRefracTimePtr, inhNeuronIDStartPtr,
+                       eiLLAddr, iiLLAddr, numInhWords, weightFixedPoint
 #ifdef RECORD_SPIKES
                        ,SInhSpikeRecordingBuffer
 #endif
@@ -705,7 +836,7 @@ int main(int argc, char** argv)
 
     AppUtils::dumpCOE("va_benchmark_sim.coe", simCode);
     if(device) {
-        LOGI << "Creating device";
+        /*LOGI << "Creating device";
         DeviceControl deviceControl(numCores);
         Device device(core, numCores);
 
@@ -790,69 +921,43 @@ int main(int argc, char** argv)
         for(size_t t = 0; t < numTimesteps; t++) {
             vFile << *excVRecording++ << std::endl;
         }
-#endif
+#endif*/
+        assert(false);
     }
     else {
         // Create simulated shared bus to connect the cores
-        SharedBusSim sharedBus(1);
+        SharedBusSim sharedBus(numCores);
 
-        // Build ISE with vector co-processor
-        RISCV riscV;
-        riscV.addCoprocessor<VectorProcessor>(vectorQuadrant);
+        // Loop through cores
+        std::vector<std::thread> threads(numCores);
+        for(uint32_t i = 0; i < numCores; i++) {
+            // Generate start IDs and masks for neurons on this core
+            const uint32_t excNeuronIDStart =  (0 << 19) + (numExcWords * 32 * i);
+            const uint32_t inhNeuronIDStart = (4 << 19) + (numInhWords * 32 * i);
 
-        // Create simulated DMA controller
-        RouterSim router(sharedBus, riscV.getSpikeDataMemory(), 0);
-        riscV.setRouter(&router);
+            std::cout << "Core " << i << " exc neuron start ID = " << std::hex << excNeuronIDStart;
+            std::cout << ", inh neuron start ID = " << std::hex << inhNeuronIDStart << std::endl;
 
-        // Set instructions and init data
-        riscV.setInstructions(initCode);
-        riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getVectorDataMemory().setData(vectorInitData);
-        riscV.getScalarDataMemory().setData(scalarInitData);
-    
-        // Run RISC-V to initialize
-        riscV.setPC(0);
-        if(!riscV.run()) {
-            return 1;
+            // Create thread
+            threads[i] = std::thread(
+                simThread, std::cref(initCode), std::cref(simCode),
+                std::cref(scalarInitData), std::cref(vectorInitData),
+                std::ref(sharedBus), i, numTimesteps, excSpikeRecordingPtr,
+                inhSpikeRecordingPtr, eeIndPtr, eiIndPtr, iiIndPtr, ieIndPtr,
+                excNeuronIDStartPtr, inhNeuronIDStartPtr,
+                numExcWords, numInhWords,
+                excNeuronIDStart, inhNeuronIDStart,
+                std::cref(eeWeights[i]), std::cref(eiWeights[i]),
+                std::cref(iiWeights[i]), std::cref(ieWeights[i]));
+
+            // Name thread
+            setThreadName(threads[i], "Core " + std::to_string(i));
         }
 
-        // Reset stats for simulations
-        riscV.resetStats();
-
-        // Load simulation program
-        riscV.setInstructions(simCode);
-
-        // Reset PC and run
-        riscV.setPC(0);
-        if(!riscV.run()) {
-            return 1;
+        // Join all threads
+        for(auto &t : threads) {
+            t.join();
         }
-
-        std::cout << "Stats:" << std::endl;
-        std::cout << "\t" << riscV.getTotalNumInstructionsExecuted() << " instructions executed" << std::endl;
-        std::cout << "\t\t" << riscV.getTotalNumCoprocessorInstructionsExecuted(vectorQuadrant) << " vector instructions executed" << std::endl;
-        std::cout << "\t\t" << riscV.getNumJumps() << " jumps" << std::endl;
-        std::cout << "\t\t" << riscV.getNumMemory() << " scalar memory" << std::endl;
-        std::cout << "\t\t" << riscV.getNumALU() << " scalar ALU" << std::endl;
-        std::cout << "\t\t" << riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getNumMemory(riscV.getNumCoprocessorInstructionsExecuted(vectorQuadrant)) << " vector memory" << std::endl;
-        std::cout << "\t\t" << riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getNumALU(riscV.getNumCoprocessorInstructionsExecuted(vectorQuadrant)) << " vector ALU" << std::endl;
-        
-        auto *scalarData = riscV.getScalarDataMemory().getData();
-#ifdef RECORD_SPIKES
-        const uint32_t *excSpikeRecording = reinterpret_cast<const uint32_t*>(scalarData + excSpikeRecordingPtr);
-        writeSpikes("exc_spikes_sim.csv", excSpikeRecording,
-                    numTimesteps, numExcWords);
-        
-        const uint32_t *inhSpikeRecording = reinterpret_cast<const uint32_t*>(scalarData + inhSpikeRecordingPtr);
-        writeSpikes("inh_spikes_sim.csv", inhSpikeRecording,
-                    numTimesteps, numInhWords);
-#endif
-#ifdef RECORD_V
-        const int16_t *excVRecording = reinterpret_cast<const int16_t*>(scalarData + excVRecordingPtr);
-        std::ofstream vFile("exc_v_sim.csv");
-        for(size_t t = 0; t < numTimesteps; t++) {
-            vFile << *excVRecording++ << std::endl;
-        }
-#endif
     }
     return 0;
 }
