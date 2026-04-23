@@ -165,7 +165,7 @@ int main(int argc, char** argv)
 
     if(device) {
         LOGI << "Creating device";
-        Device device;
+        Device device(0, 2);
         LOGI << "Resetting";
         // Put core into reset state
         device.setEnabled(false);
