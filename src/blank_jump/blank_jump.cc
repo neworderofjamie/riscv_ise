@@ -30,17 +30,25 @@ void checkOutput(const std::vector<uint32_t> &spikes, volatile const uint32_t *w
 {
     auto *evenSpike = wordData + (evenSpikeBufferPtr / 4);
     auto *oddSpike = wordData + (oddSpikeBufferPtr / 4);
-
+    
+    size_t good = 0;
     for(uint32_t s : spikes) {
-        LOGI << s;
+        LOGI << s << ", " << *evenSpike << ", " << *oddSpike;
         // Even
         if((s % 2) == 0) {
-            assert(*evenSpike++ == s);
+            if(*evenSpike++ == s) {
+                good++;
+            }
         }
         else {
-            assert(*oddSpike++ == s);
+            if(*oddSpike++ == s) {
+                good++;
+            }
         }
     }
+    
+    LOGI << good << " / " << spikes.size();
+    assert(good == spikes.size());
 }
 }
 
@@ -90,7 +98,7 @@ int main(int argc, char** argv)
             Label evenSpike;
             Label oddSpike;
             Label nextSpike;
-            
+        
             c.li(*SSpikeBuffer, spikeBufferPtr);
             c.li(*SOddSpikeBuffer, oddSpikeBufferPtr);
             c.li(*SEvenSpikeBuffer, evenSpikeBufferPtr);
@@ -101,9 +109,12 @@ int main(int argc, char** argv)
 
             // Define jump table for 
             c.L(jumpTable);
+            if(device) {
+                c.nop();
+            }
             c.j_(evenSpike);
             c.j_(oddSpike);
-
+            
             // ----------------------------------   -----------------------------
             // Even spikes
             // ---------------------------------------------------------------
@@ -124,7 +135,6 @@ int main(int argc, char** argv)
                 c.j_(nextSpike);
             }
 
-            
             Label spikeLoopEnd;
 
             // While (spikeBuffer != spikeBufferEnd
