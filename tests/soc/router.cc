@@ -87,7 +87,7 @@ TEST(Router, Test) {
     const uint32_t bitfieldPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
     const uint32_t eventIDBasePtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
     const uint32_t spikeQueueEndPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
-    const uint32_t spikeQueuePtr = 31 * 4096;
+    const uint32_t spikeQueuePtr = 32 * 4096;
 
     // Generate code
     const auto code = AssemblerUtils::generateStandardKernel(
