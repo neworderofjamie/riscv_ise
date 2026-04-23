@@ -18,6 +18,7 @@
 #include "common/app_utils.h"
 #include "common/barrier.h"
 #include "common/device.h"
+#include "common/device_control.h"
 #include "common/utils.h"
 
 // RISC-V assembler includes
@@ -78,10 +79,13 @@ void deviceThread(const std::vector<uint32_t> &code, const std::vector<uint8_t> 
 {
     LOGI << "Creating device (" << coreID << " / " << numCores << ")";
     Device device(coreID, numCores);
+    DeviceControl deviceControl(numCores);
     LOGI << "Resetting";
     // Put core into reset state
     barrier.wait();
-    device.setEnabled(false);
+    if(coreID == 0) {
+        deviceControl.setEnabled(false);
+    }
     
     LOGI << "Copying instructions (" << code.size() * sizeof(uint32_t) << " bytes)";
     device.uploadCode(code);
@@ -96,14 +100,18 @@ void deviceThread(const std::vector<uint32_t> &code, const std::vector<uint8_t> 
     barrier.wait();
     LOGI << "Enabling";
     // Put core into running state
-    device.setEnabled(true);
+    if(coreID == 0) {
+        deviceControl.setEnabled(true);
+    }
     LOGI << "Running " << readyFlagPtr;
     
     // Wait until ready flag
     device.waitOnNonZero(readyFlagPtr);
     LOGI << "Done";
     barrier.wait();
-    device.setEnabled(false);
+    if(coreID == 0) {
+        deviceControl.setEnabled(false);
+    }
     LOGI << "Cores disabled";
 
     // Copy spikes received into vector
