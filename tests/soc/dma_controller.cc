@@ -95,7 +95,9 @@ TEST_P(TransferSizeTest, HostDMA)
     const size_t transferHalfWords = std::get<0>(GetParam()) * std::get<1>(GetParam());
 
     // Create DMA buffer
-    DMABuffer dmaBuffer;
+	DMABuffer parentDMABuffer;
+    DMABuffer dmaBuffer(parentDMABuffer, 0x40000000, 
+						0x50000000);
 
     // Check there's enough space for 2 copies of transfers
     ASSERT_GE(dmaBuffer.getSize(), (2 * 2 * transferHalfWords));
@@ -121,7 +123,7 @@ TEST_P(TransferSizeTest, HostDMA)
     std::cout << std::endl;
                     
     // Create DMA controller
-    DMAController dmaController("dm_cmd_and_fsm");
+    DMAController dmaController("core_0_dm_cmd_and_fsm");
     
     // Issue interleaved reads and writes
     for(size_t offsetBytes = 0; offsetBytes < (2 * transferHalfWords); offsetBytes+=(std::get<1>(GetParam()) * 2)) {
@@ -156,8 +158,10 @@ TEST(DMAController, ReadCSR)
 #ifndef __linux__ 
     GTEST_SKIP() << "Device test only supported on Linux";
 #endif
-    // Create DMA buffer
-    DMABuffer dmaBuffer;
+    /// Create DMA buffer
+	DMABuffer parentDMABuffer;
+    DMABuffer dmaBuffer(parentDMABuffer, 0x40000000, 
+						0x50000000);
 
     // Check there's enough space for 1024 half words
     ASSERT_GE(dmaBuffer.getSize(), (2 * 1024));
@@ -205,7 +209,7 @@ TEST(DMAController, ReadCSR)
         });
 
     LOGI << "Creating device";
-    Device device;
+    Device device(0, 2);
     LOGI << "Resetting";
 
     // Put core into reset state
@@ -327,10 +331,12 @@ TEST_P(TransferSizeDeviceTest, FeNNDMA)
 
     if(std::get<2>(GetParam())) {
         LOGI << "Creating device";
-        Device device;
+        Device device(0, 2);
 
-        // Create DMA buffer
-        DMABuffer dmaBuffer;
+        /// Create DMA buffer
+	    DMABuffer parentDMABuffer;
+        DMABuffer dmaBuffer(parentDMABuffer, 0x40000000, 
+						    0x50000000);
 
         // Check there's enough space for 2 copies of transfers
         ASSERT_GE(dmaBuffer.getSize(), (2 * 2 * transferHalfWords));

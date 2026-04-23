@@ -185,7 +185,7 @@ TEST_P(DeviceSimTest, LaneLocal)
 
     if(GetParam()) {
         LOGI << "Creating device";
-        Device device;
+        Device device(0, 2);
         LOGI << "Resetting";
         // Put core into reset state
         device.setEnabled(false);
@@ -270,7 +270,7 @@ TEST_P(DeviceSimTest, URAM)
     
     if(GetParam()) {
         LOGI << "Creating device";
-        Device device;
+        Device device(0, 2);
         LOGI << "Resetting";
         // Put core into reset state
         device.setEnabled(false);
