@@ -1,7 +1,7 @@
 import numpy as np
 
 from sparse_utils import generate_fixed_prob, pad_connectivity, split
-NUM_NEURONS = 801
+NUM_NEURONS = 640
 NUM_CORES = 2
 PROBABILITY_CONNECTION = 0.1
 
@@ -11,7 +11,7 @@ NUM_EXCITATORY = int(round((NUM_NEURONS * EXCITATORY_INHIBITORY_RATIO) / (1.0 + 
 NUM_INHIBITORY = NUM_NEURONS - NUM_EXCITATORY
 print(f"Num excitatory neurons: {NUM_EXCITATORY}, num inhibitory: {NUM_INHIBITORY}")
 
-np.random.seed(1234)
+np.random.seed(4567)
 
 def get_theoretical_mem(row_ind):
     return sum(len(r) for r in row_ind) * 2
@@ -30,6 +30,7 @@ theoretical_bytes = (get_theoretical_mem(ie_conn) + get_theoretical_mem(ii_conn)
 # Split between cores
 padded_num_excitatory_per_core = pad_vector(NUM_EXCITATORY // NUM_CORES)
 padded_num_inhibitory_per_core = pad_vector(NUM_INHIBITORY // NUM_CORES)
+print(f"Padded num excitatory neurons per-core: {padded_num_excitatory_per_core}, padded num inhibitory neurons per-core: {padded_num_inhibitory_per_core}")
 excitatory_split = np.cumsum([padded_num_excitatory_per_core] * (NUM_CORES - 1))
 inhibitory_split = np.cumsum([padded_num_inhibitory_per_core] * (NUM_CORES - 1))
 ie_conn = split(ie_conn, excitatory_split)

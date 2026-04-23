@@ -19,7 +19,8 @@ def pad_connectivity(row_ind: Sequence[Sequence[np.ndarray]]) -> np.ndarray:
 
     # Determine maximum number of vectors
     num_vectors = max(np.amax(c) for core_row_conns_per_lane in row_conns_per_lane
-                      for c in core_row_conns_per_lane)
+                      for c in core_row_conns_per_lane
+                      if len(c) > 0)
 
     # Calculate cumulative sum of bin count to determine where to split per-bank
     row_conn_lane_ind = [[np.cumsum(c) for c in core_row_conns_per_lane]
