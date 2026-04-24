@@ -18,6 +18,7 @@
 // RISC-V utils include
 #include "common/CLI11.hpp"
 #include "common/app_utils.h"
+#include "common/barrier.h"
 #include "common/device.h"
 #include "common/device_control.h"
 #include "common/dma_buffer.h"
@@ -411,48 +412,137 @@ void simThread(const std::vector<uint32_t> &initCode, const std::vector<uint32_t
 #endif
 }
 
-/*void deviceThread(const std::vector<uint32_t> &code, const std::vector<uint8_t> &scalarInitData,
-                  uint32_t coreID, uint32_t spikeBitfield,
-                  uint32_t bitfieldPtr, uint32_t eventIDBasePtr, uint32_t outputSpikeArrayEnd, 
-                  uint32_t outputSpikeArrayPtr, uint32_t readyFlagPtr, std::vector<uint32_t> &receivedEvents,
+void deviceThread(const std::vector<uint32_t> &initCode, const std::vector<uint32_t> &simCode, 
+                  const std::vector<uint8_t> &scalarInitData, const std::vector<int16_t> &vectorInitData,
+                  uint32_t coreID, uint32_t numTimesteps,
+                  uint32_t excSpikeRecordingPtr, uint32_t inhSpikeRecordingPtr,
+                  uint32_t eeIndPtr, uint32_t eiIndPtr, uint32_t iiIndPtr, uint32_t ieIndPtr,
+                  uint32_t excNeuronIDStartPtr, uint32_t inhNeuronIDStartPtr, uint32_t readyFlagPtr,
+                  uint32_t numExcWords, uint32_t numInhWords,
+                  uint32_t excNeuronIDStart, uint32_t inhNeuronIDStart,
+                  const std::vector<int16_t> &eeWeights,
+                  const std::vector<int16_t> &eiWeights,
+                  const std::vector<int16_t> &iiWeights,
+                  const std::vector<int16_t> &ieWeights,
                   Barrier &barrier)
 {
-    LOGI << "Creating device (" << coreID << " / " << numCores << ")";
-    Device device(coreID, numCores);
-    LOGI << "Resetting";
+    // Make copy of vector init data to modify for this core
+    std::vector<int16_t> coreVectorInitData(vectorInitData.cbegin(), vectorInitData.cend());
+
+    // Copy in weights
+    std::copy(eeWeights.cbegin(), eeWeights.cend(), coreVectorInitData.begin() + (eeIndPtr / 2));
+    std::copy(eiWeights.cbegin(), eiWeights.cend(), coreVectorInitData.begin() + (eiIndPtr / 2));
+    std::copy(iiWeights.cbegin(), iiWeights.cend(), coreVectorInitData.begin() + (iiIndPtr / 2));
+    std::copy(ieWeights.cbegin(), ieWeights.cend(), coreVectorInitData.begin() + (ieIndPtr / 2));
+
+    // Make copy of scalar init data to modify for this core
+    std::vector<uint8_t> coreScalarInitData(scalarInitData.cbegin(), scalarInitData.cend());
+    
+    // Copy in neuron start IDs and tail masks
+    std::memcpy(coreScalarInitData.data() + excNeuronIDStartPtr, &excNeuronIDStart, 4);
+    std::memcpy(coreScalarInitData.data() + inhNeuronIDStartPtr, &inhNeuronIDStart, 4);
+
+    LOGI << "Creating device (" << coreID << " / 2)";
+    DeviceControl deviceControl(2);
+    Device device(coreID, 2);
+
     // Put core into reset state
+    LOGI << "Resetting";
     barrier.wait();
-    device.setEnabled(false);
-
-    LOGI << "Copying instructions (" << code.size() * sizeof(uint32_t) << " bytes)";
-    device.uploadCode(code);
-
-    LOGI << "Copying data (" << scalarInitData.size() << " bytes);";
-    device.memcpyDataToDevice(0, scalarInitData.data(), scalarInitData.size());
-
-    // Hack with bitfield and eventID baseptr
-    volatile uint32_t *wordData = reinterpret_cast<volatile uint32_t*>(device.getDataMemory());
-    wordData[bitfieldPtr / 4] = spikeBitfield;
-    wordData[eventIDBasePtr / 4] = (coreID << 14);
-    barrier.wait();
-    LOGI << "Enabling";
-    // Put core into running state
-    device.setEnabled(true);
-    LOGI << "Running " << readyFlagPtr;
-
-    // Wait until ready flag
-    device.waitOnNonZero(readyFlagPtr);
-    LOGI << "Done";
-    barrier.wait();
-    device.setEnabled(false);
-    LOGI << "Cores disabled";
-
-    // Copy spikes received into vector
-    const uint32_t num = (wordData[outputSpikeArrayEnd / 4] - spikeArrayPtr) / 4;
-    for(uint32_t i = 0; i < num; i++) {
-        receivedEvents.push_back((uint32_t)wordData[i + (outputSpikeArrayPtr / 4)]);
+    if(coreID == 0) {
+        deviceControl.setEnabled(false);
     }
-}*/
+    
+    LOGI << "Copying data (" << coreScalarInitData.size() << " bytes);";
+    device.memcpyDataToDevice(0, coreScalarInitData.data(), coreScalarInitData.size());
+
+    {
+        LOGI << "DMAing vector init data to device";
+        
+        // Create DMA buffer
+        DMABuffer parentDMABuffer;
+        DMABuffer dmaBuffer(parentDMABuffer, 0x40000000 + (coreID * 0x10000000), 
+                            0x50000000 + (coreID * 0x10000000));
+
+        // Check there's enough space for vector init data
+        assert(dmaBuffer.getSize() > (vectorInitData.size() * 2));
+
+        // Get halfword pointer to DMA buffer
+        int16_t *bufferData = reinterpret_cast<int16_t*>(dmaBuffer.getData());
+        
+        // Copy vector init data to buffer
+        std::copy(coreVectorInitData.cbegin(), coreVectorInitData.cend(), bufferData);
+        
+        // Start DMA of data to URAM
+        device.getDMAController()->startWrite(0, dmaBuffer, 0, coreVectorInitData.size() * 2);
+
+        // Wait for write to complete
+        device.getDMAController()->waitForWriteComplete();
+    }
+    
+    // Initialisation seeding
+    const auto initStartTime = std::chrono::high_resolution_clock::now();
+    {
+        LOGI << "Copying initialisation instructions (" << initCode.size() * sizeof(uint32_t) << " bytes)";
+        device.uploadCode(initCode);
+
+        LOGI << "Running initialisation"; 
+        barrier.wait();
+        if(coreID == 0) {
+            deviceControl.setEnabled(true);
+        }
+        device.waitOnNonZero(readyFlagPtr);
+        barrier.wait();
+        if(coreID == 0) {
+            deviceControl.setEnabled(false);
+        }
+    }
+    
+    // Simulation
+    const auto simStartTime = std::chrono::high_resolution_clock::now();
+    {
+        LOGI << "Copying simulation instructions (" << simCode.size() * sizeof(uint32_t) << " bytes)";
+        device.uploadCode(simCode);
+        
+        // Put core into running state
+        LOGI << "Enabling";
+        barrier.wait();
+        if(coreID == 0) {
+            deviceControl.setEnabled(true);
+        }
+
+        // Wait until ready flag
+        device.waitOnNonZero(readyFlagPtr);
+
+        // Reset core
+        LOGI << "Disabling";
+        barrier.wait();
+        if(coreID == 0) {
+            deviceControl.setEnabled(false);
+        }
+    }
+
+    const auto simEndTime = std::chrono::high_resolution_clock::now();
+    LOGI << "Init time:" << (simStartTime - initStartTime).count() << " seconds" << std::endl;
+    LOGI << "Simulation time:" << (simEndTime - simStartTime).count() << " seconds" << std::endl;
+    
+#ifdef RECORD_SPIKES
+    const volatile uint32_t *excSpikeRecording = reinterpret_cast<const volatile uint32_t*>(device.getDataMemory() + excSpikeRecordingPtr);
+    writeSpikes(("exc_spikes_sim_" + std::to_string(coreID) + ".csv").c_str(), excSpikeRecording,
+                numTimesteps, numExcWords);
+    
+    const volatile uint32_t *inhSpikeRecording = reinterpret_cast<const volatile uint32_t*>(device.getDataMemory() + inhSpikeRecordingPtr);
+    writeSpikes(("inh_spikes_sim_" + std::to_string(coreID) + ".csv").c_str(), inhSpikeRecording,
+                numTimesteps, numInhWords);
+#endif
+#ifdef RECORD_V
+    const volatile int16_t *excVRecording = reinterpret_cast<const volatile int16_t*>(device.getDataMemory() + excVRecordingPtr);
+    std::ofstream vFile("exc_v_sim.csv");
+    for(size_t t = 0; t < numTimesteps; t++) {
+        vFile << *excVRecording++ << std::endl;
+    }
+#endif
+}
 
 }
 
@@ -843,93 +933,39 @@ int main(int argc, char** argv)
 
     AppUtils::dumpCOE("va_benchmark_sim.coe", simCode);
     if(device) {
-        /*LOGI << "Creating device";
-        DeviceControl deviceControl(numCores);
-        Device device(core, numCores);
+        // Create barrier for synchronising threads
+        Barrier barrier(numCores);
 
-        // Put core into reset state
-        LOGI << "Resetting";
-        deviceControl.setEnabled(false);
-        
-        LOGI << "Copying data (" << scalarInitData.size() << " bytes);";
-        device.memcpyDataToDevice(0, scalarInitData.data(), scalarInitData.size());
+        // Loop through cores
+        std::vector<std::thread> threads(numCores);
+        for(uint32_t i = 0; i < numCores; i++) {
+            // Generate start IDs and masks for neurons on this core
+            const uint32_t excNeuronIDStart =  (0 << 19) + (numExcWords * 32 * i);
+            const uint32_t inhNeuronIDStart = (4 << 19) + (numInhWords * 32 * i);
 
-        {
-            LOGI << "DMAing vector init data to device";
-           
-            // Create DMA buffer
-			DMABuffer parentDMABuffer;
-            DMABuffer dmaBuffer(parentDMABuffer, 0x40000000 + (core * 0x10000000), 
-								0x50000000 + (core * 0x10000000));
+            LOGI << "Core " << i << " exc neuron start ID = " << std::hex << excNeuronIDStart << ", inh neuron start ID = " << std::hex << inhNeuronIDStart;
 
-            // Check there's enough space for vector init data
-            assert(dmaBuffer.getSize() > (vectorInitData.size() * 2));
+            // Create thread
+            threads[i] = std::thread(
+                deviceThread, std::cref(initCode), std::cref(simCode),
+                std::cref(scalarInitData), std::cref(vectorInitData),
+                i, numTimesteps, excSpikeRecordingPtr,
+                inhSpikeRecordingPtr, eeIndPtr, eiIndPtr, iiIndPtr, ieIndPtr,
+                excNeuronIDStartPtr, inhNeuronIDStartPtr, readyFlagPtr,
+                numExcWords, numInhWords,
+                excNeuronIDStart, inhNeuronIDStart,
+                std::cref(eeWeights[i]), std::cref(eiWeights[i]),
+                std::cref(iiWeights[i]), std::cref(ieWeights[i]),
+                std::ref(barrier));
 
-            // Get halfword pointer to DMA buffer
-            int16_t *bufferData = reinterpret_cast<int16_t*>(dmaBuffer.getData());
-            
-            // Copy vector init data to buffer
-            std::copy(vectorInitData.cbegin(), vectorInitData.cend(), bufferData);
-            
-            // Start DMA of data to URAM
-            device.getDMAController()->startWrite(0, dmaBuffer, 0, vectorInitData.size() * 2);
-    
-            // Wait for write to complete
-            device.getDMAController()->waitForWriteComplete();
-        }
-        
-        // Initialisation seeding
-        const auto initStartTime = std::chrono::high_resolution_clock::now();
-        {
-            LOGI << "Copying initialisation instructions (" << initCode.size() * sizeof(uint32_t) << " bytes)";
-            device.uploadCode(initCode);
-
-            LOGI << "Running initialisation"; 
-            deviceControl.setEnabled(true);
-            device.waitOnNonZero(readyFlagPtr);
-            deviceControl.setEnabled(false);
-        }
-        
-        // Simulation
-        const auto simStartTime = std::chrono::high_resolution_clock::now();
-        {
-            LOGI << "Copying simulation instructions (" << simCode.size() * sizeof(uint32_t) << " bytes)";
-            device.uploadCode(simCode);
-            
-            // Put core into running state
-            LOGI << "Enabling";
-            deviceControl.setEnabled(true);
-
-            // Wait until ready flag
-            device.waitOnNonZero(readyFlagPtr);
-
-            // Reset core
-            LOGI << "Disabling";
-            deviceControl.setEnabled(false);
+            // Name thread
+            setThreadName(threads[i], "Core " + std::to_string(i));
         }
 
-        const auto simEndTime = std::chrono::high_resolution_clock::now();
-        std::cout << "Startup time:" << (initStartTime - programStartTime).count() << " seconds" << std::endl;
-        std::cout << "Init time:" << (simStartTime - initStartTime).count() << " seconds" << std::endl;
-        std::cout << "Simulation time:" << (simEndTime - simStartTime).count() << " seconds" << std::endl;
-        
-#ifdef RECORD_SPIKES
-        const volatile uint32_t *excSpikeRecording = reinterpret_cast<const volatile uint32_t*>(device.getDataMemory() + excSpikeRecordingPtr);
-        writeSpikes("exc_spikes_sim.csv", excSpikeRecording,
-                    numTimesteps, numExcWords);
-        
-        const volatile uint32_t *inhSpikeRecording = reinterpret_cast<const volatile uint32_t*>(device.getDataMemory() + inhSpikeRecordingPtr);
-        writeSpikes("inh_spikes_sim.csv", inhSpikeRecording,
-                    numTimesteps, numInhWords);
-#endif
-#ifdef RECORD_V
-        const volatile int16_t *excVRecording = reinterpret_cast<const volatile int16_t*>(device.getDataMemory() + excVRecordingPtr);
-        std::ofstream vFile("exc_v_sim.csv");
-        for(size_t t = 0; t < numTimesteps; t++) {
-            vFile << *excVRecording++ << std::endl;
+        // Join all threads
+        for(auto &t : threads) {
+            t.join();
         }
-#endif*/
-        assert(false);
     }
     else {
         // Create simulated shared bus to connect the cores
