@@ -3,16 +3,30 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 # Read CSV spikes
-spikes_e = np.loadtxt("exc_spikes_sim.csv", delimiter=",", skiprows=1,
-                      dtype={"names": ("time", "neuron_id"),
-                             "formats": (float, int)})
-spikes_i = np.loadtxt("inh_spikes_sim.csv", delimiter=",", skiprows=1,
-                      dtype={"names": ("time", "neuron_id"),
-                             "formats": (float, int)})
+spikes_e_0 = np.loadtxt("exc_spikes_sim_0.csv", delimiter=",", skiprows=1,
+                        dtype={"names": ("time", "neuron_id"),
+                               "formats": (float, int)})
+spikes_e_1 = np.loadtxt("exc_spikes_sim_1.csv", delimiter=",", skiprows=1,
+                        dtype={"names": ("time", "neuron_id"),
+                               "formats": (float, int)})                               
+spikes_i_0 = np.loadtxt("inh_spikes_sim_0.csv", delimiter=",", skiprows=1,
+                        dtype={"names": ("time", "neuron_id"),
+                               "formats": (float, int)})
+spikes_i_1 = np.loadtxt("inh_spikes_sim_1.csv", delimiter=",", skiprows=1,
+                        dtype={"names": ("time", "neuron_id"),
+                               "formats": (float, int)})
+NUM_EXC_PER_CORE = 256
+NUM_INH_PER_CORE = 64
+NUM_EXC = NUM_EXC_PER_CORE * 2
+NUM_INH = NUM_INH_PER_CORE * 2
 
-NUM_EXC = 410
-NUM_INH = 102
+spikes_e_1["neuron_id"] += NUM_EXC_PER_CORE
+spikes_i_1["neuron_id"] += NUM_INH_PER_CORE
 
+spikes_e = np.concatenate((spikes_e_0, spikes_e_1))
+spikes_i = np.concatenate((spikes_i_0, spikes_i_1))
+print(len(spikes_e_0), len(spikes_e_1), len(spikes_e))
+print(len(spikes_i_0), len(spikes_i_1), len(spikes_i))
 # Create plot
 figure, axes = plt.subplots(2, sharex=True)
 
