@@ -470,25 +470,7 @@ int main(int argc, char** argv)
 
     CLI11_PARSE(app, argc, argv);
 
-    // Load weights
-    const std::vector<std::vector<int16_t>> eeWeights = {
-        AppUtils::loadBinaryData<int16_t>("va_benchmark_ee_0.bin"),
-        AppUtils::loadBinaryData<int16_t>("va_benchmark_ee_1.bin")};
-    const std::vector<std::vector<int16_t>> eiWeights = {
-        AppUtils::loadBinaryData<int16_t>("va_benchmark_ei_0.bin"),
-        AppUtils::loadBinaryData<int16_t>("va_benchmark_ei_1.bin")};
-    const std::vector<std::vector<int16_t>> iiWeights = {
-        AppUtils::loadBinaryData<int16_t>("va_benchmark_ii_0.bin"),
-        AppUtils::loadBinaryData<int16_t>("va_benchmark_ii_1.bin")};
-    const std::vector<std::vector<int16_t>> ieWeights = {
-        AppUtils::loadBinaryData<int16_t>("va_benchmark_ie_0.bin"),
-        AppUtils::loadBinaryData<int16_t>("va_benchmark_ie_1.bin")};
-    assert(eeWeights[0].size() == eeWeights[1].size());
-    assert(eiWeights[0].size() == eiWeights[1].size());
-    assert(iiWeights[0].size() == iiWeights[1].size());
-    assert(ieWeights[0].size() == ieWeights[1].size());
     
-
     // Allocate memory
     std::vector<uint8_t> scalarInitData;
     std::vector<int16_t> vectorInitData;
@@ -510,6 +492,28 @@ int main(int argc, char** argv)
     constexpr uint32_t eiLLAddr = eeLLAddr + (numExcWords * 2);
     constexpr uint32_t iiLLAddr = eiLLAddr + (numInhWords * 2);
     constexpr uint32_t ieLLAddr = iiLLAddr + (numInhWords * 2);
+
+    // Load weights
+    const std::vector<std::vector<int16_t>> eeWeights = {
+        AppUtils::loadBinaryData<int16_t>("va_benchmark_ee_0.bin"),
+        AppUtils::loadBinaryData<int16_t>("va_benchmark_ee_1.bin")};
+    const std::vector<std::vector<int16_t>> eiWeights = {
+        AppUtils::loadBinaryData<int16_t>("va_benchmark_ei_0.bin"),
+        AppUtils::loadBinaryData<int16_t>("va_benchmark_ei_1.bin")};
+    const std::vector<std::vector<int16_t>> iiWeights = {
+        AppUtils::loadBinaryData<int16_t>("va_benchmark_ii_0.bin"),
+        AppUtils::loadBinaryData<int16_t>("va_benchmark_ii_1.bin")};
+    const std::vector<std::vector<int16_t>> ieWeights = {
+        AppUtils::loadBinaryData<int16_t>("va_benchmark_ie_0.bin"),
+        AppUtils::loadBinaryData<int16_t>("va_benchmark_ie_1.bin")};
+    assert(eeWeights[0].size() == eeWeights[1].size());
+    assert(eiWeights[0].size() == eiWeights[1].size());
+    assert(iiWeights[0].size() == iiWeights[1].size());
+    assert(ieWeights[0].size() == ieWeights[1].size());
+    assert(eeWeights[0].size() == (numExc * 2 * numExcIncomingVectors * 32));
+    assert(eiWeights[0].size() == (numExc * 2 * numInhIncomingVectors * 32));
+    assert(iiWeights[0].size() == (numInh * 2 * numInhIncomingVectors * 32));
+    assert(ieWeights[0].size() == (numInh * 2 * numExcIncomingVectors * 32));
 
     // Allocate vector arrays
     const uint32_t seedPtr = AppUtils::allocateVectorSeedAndInit(vectorInitData);
