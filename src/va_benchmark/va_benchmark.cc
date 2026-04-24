@@ -175,6 +175,9 @@ void genLIF(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator,
     c.vlui(*VSynLLOffset, 0);
     c.vlui(*VNumUnrollBytes, 2 * std::min(numNeuronWords, 4u));
 
+    // Load base address
+    c.lw(*SBaseSpikeAddress, Reg::X0, idStartPtr);
+
     // Get address of buffers
     c.li(*SVBuffer, vPtr);
     c.li(*SRefracTimeBuffer, refracTimePtr);
@@ -380,23 +383,23 @@ void simThread(const std::vector<uint32_t> &initCode, const std::vector<uint32_t
         assert(false);
     }
 
-    std::cout << "Stats:" << std::endl;
-    std::cout << "\t" << riscV.getTotalNumInstructionsExecuted() << " instructions executed" << std::endl;
-    std::cout << "\t\t" << riscV.getTotalNumCoprocessorInstructionsExecuted(vectorQuadrant) << " vector instructions executed" << std::endl;
-    std::cout << "\t\t" << riscV.getNumJumps() << " jumps" << std::endl;
-    std::cout << "\t\t" << riscV.getNumMemory() << " scalar memory" << std::endl;
-    std::cout << "\t\t" << riscV.getNumALU() << " scalar ALU" << std::endl;
-    std::cout << "\t\t" << riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getNumMemory(riscV.getNumCoprocessorInstructionsExecuted(vectorQuadrant)) << " vector memory" << std::endl;
-    std::cout << "\t\t" << riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getNumALU(riscV.getNumCoprocessorInstructionsExecuted(vectorQuadrant)) << " vector ALU" << std::endl;
+    LOGI << "Core " << std::dec << coreID << "Stats:";
+    LOGI << "\t" << riscV.getTotalNumInstructionsExecuted() << " instructions executed";
+    LOGI << "\t\t" << riscV.getTotalNumCoprocessorInstructionsExecuted(vectorQuadrant) << " vector instructions executed";
+    LOGI << "\t\t" << riscV.getNumJumps() << " jumps";
+    LOGI << "\t\t" << riscV.getNumMemory() << " scalar memory";
+    LOGI << "\t\t" << riscV.getNumALU() << " scalar ALU";
+    LOGI << "\t\t" << riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getNumMemory(riscV.getNumCoprocessorInstructionsExecuted(vectorQuadrant)) << " vector memory";
+    LOGI << "\t\t" << riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getNumALU(riscV.getNumCoprocessorInstructionsExecuted(vectorQuadrant)) << " vector ALU";
 
     auto *scalarData = riscV.getScalarDataMemory().getData();
 #ifdef RECORD_SPIKES
     const uint32_t *excSpikeRecording = reinterpret_cast<const uint32_t*>(scalarData + excSpikeRecordingPtr);
-    writeSpikes("exc_spikes_sim.csv", excSpikeRecording,
+    writeSpikes(("exc_spikes_sim_" + std::to_string(coreID) + ".csv").c_str(), excSpikeRecording,
                 numTimesteps, numExcWords);
 
     const uint32_t *inhSpikeRecording = reinterpret_cast<const uint32_t*>(scalarData + inhSpikeRecordingPtr);
-    writeSpikes("inh_spikes_sim.csv", inhSpikeRecording,
+    writeSpikes(("inh_spikes_sim_" + std::to_string(coreID) + ".csv").c_str(), inhSpikeRecording,
                 numTimesteps, numInhWords);
 #endif
 #ifdef RECORD_V
@@ -939,8 +942,7 @@ int main(int argc, char** argv)
             const uint32_t excNeuronIDStart =  (0 << 19) + (numExcWords * 32 * i);
             const uint32_t inhNeuronIDStart = (4 << 19) + (numInhWords * 32 * i);
 
-            std::cout << "Core " << i << " exc neuron start ID = " << std::hex << excNeuronIDStart;
-            std::cout << ", inh neuron start ID = " << std::hex << inhNeuronIDStart << std::endl;
+            LOGI << "Core " << i << " exc neuron start ID = " << std::hex << excNeuronIDStart << ", inh neuron start ID = " << std::hex << inhNeuronIDStart;
 
             // Create thread
             threads[i] = std::thread(
