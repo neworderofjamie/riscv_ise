@@ -890,7 +890,7 @@ int main(int argc, char** argv)
                 c.csrw(CSR::SLAVE_EVENT_ADDRESS, *SSpikeBufferStart);
 
                 // Wait for all routers to be reset
-                AssemblerUtils::generateRouterBarrier(c, scalarRegisterAllocator, 1);
+                AssemblerUtils::generateRouterBarrier(c, scalarRegisterAllocator, numCores);
 
                 // ---------------------------------------------------------------
                 // Excitatory neurons
@@ -921,7 +921,7 @@ int main(int argc, char** argv)
                        );
 
                 // Wait for all events to be communicated
-                AssemblerUtils::generateRouterBarrier(c, scalarRegisterAllocator, 1);
+                AssemblerUtils::generateRouterBarrier(c, scalarRegisterAllocator, numCores);
 
                 c.addi(*STime, *STime, 1);
                 c.bne(*STime, *STimeEnd, timeLoop);
