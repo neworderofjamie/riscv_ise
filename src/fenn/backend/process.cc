@@ -1968,6 +1968,11 @@ std::vector<std::shared_ptr<const Frontend::EventSource>> BroadcastProcess::getA
     return {};
 }
 //----------------------------------------------------------------------------
+std::vector<Frontend::Sliced<Frontend::EventSink>> BroadcastProcess::getAllEventSinks() const
+{
+    return {};
+}
+//----------------------------------------------------------------------------
 void BroadcastProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Frontend::Model &model) const
 {
     UPDATE_HASH_CLASS_NAME(BroadcastProcess);

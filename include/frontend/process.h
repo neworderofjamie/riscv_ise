@@ -90,6 +90,9 @@ public:
     //! Get vector of event source objects used by this process
     virtual std::vector<std::shared_ptr<const EventSource>> getAllEventSources() const = 0;
 
+    //! Get vector of event sink objects used by this process
+    virtual std::vector<Sliced<EventSink>> getAllEventSinks() const = 0;
+
     //! Update the provided hash with the properties of this process which determine whether it can be merged
     virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const Model &model) const = 0;
 
@@ -127,6 +130,9 @@ public:
 
     //! Get vector of event source objects used by this process
     virtual std::vector<std::shared_ptr<const EventSource>> getAllEventSources() const override final;
+
+    //! Get vector of event sink objects used by this process
+    virtual std::vector<Sliced<EventSink>> getAllEventSinks() const override final;
 
     //! Update the provided hash with the properties of this process which determine whether it can be merged
     virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const Model &model) const override;
@@ -198,6 +204,9 @@ public:
 
     //! Get vector of event source objects used by this process
     virtual std::vector<std::shared_ptr<const EventSource>> getAllEventSources() const override final;
+    
+    //! Get vector of event sink objects used by this process
+    virtual std::vector<Sliced<EventSink>> getAllEventSinks() const override final;
 
     //! Update the provided hash with the properties of this process which determine whether it can be merged
     virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const Model &model) const override;
@@ -253,6 +262,9 @@ public:
     //! Get vector of event source objects used by this process
     virtual std::vector<std::shared_ptr<const EventSource>> getAllEventSources() const override final;
 
+    //! Get vector of event sink objects used by this process
+    virtual std::vector<Sliced<EventSink>> getAllEventSinks() const override final;
+
     //! Update the provided hash with the properties of this process which determine whether it can be merged
     virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const Model &model) const override;
 
@@ -297,6 +309,9 @@ public:
 
     //! Get vector of event source objects used by this process
     virtual std::vector<std::shared_ptr<const EventSource>> getAllEventSources() const override final;
+
+    //! Get vector of event sink objects used by this process
+    virtual std::vector<Sliced<EventSink>> getAllEventSinks() const override final;
 
     //! Update the provided hash with the properties of this process which determine whether it can be merged
     virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const Model &model) const override;

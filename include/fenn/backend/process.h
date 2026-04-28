@@ -307,6 +307,9 @@ public:
     //! Get vector of event source objects used by this process
     virtual std::vector<std::shared_ptr<const Frontend::EventSource>> getAllEventSources() const override final;
 
+    //! Get vector of event source objects used by this process
+    virtual std::vector<Frontend::Sliced<Frontend::EventSink>> getAllEventSinks() const override final;
+
     //------------------------------------------------------------------------
     // Process virtuals
     //------------------------------------------------------------------------
