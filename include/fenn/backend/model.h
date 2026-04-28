@@ -6,6 +6,7 @@
 // Forward declarations
 namespace Frontend
 {
+class EventSink;
 class GraphVector;
 class ProcessGroup;
 class State;
@@ -71,5 +72,10 @@ private:
     StateMemSpaceCompatibility m_StateCompatibleMemSpaces;
 
     std::shared_ptr<const Frontend::ProcessGroup> m_EventSourceProcessGroup;
+
+    std::unordered_map<std::shared_ptr<const Frontend::EventSink>, uint32_t> m_EventSinkIDs;
+
+    uint32_t m_NumNeuronIDBits;
+    uint32_t m_NumPopulationIDBits;
 };
 }
