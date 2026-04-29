@@ -900,6 +900,7 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
                        std::vector<Assembler::ScalarRegisterPtr>> eventSinkState;
     {
         // If any output events have buffering, calculate stride in bytes
+        // **TODO** incorrect - this is only for event sinks involvoing recording bits
         Assembler::ScalarRegisterPtr numEventBytes;
         if(std::any_of(getOutputEventSinks().cbegin(), getOutputEventSinks().cend(),
                        [](const auto e){ return e.second.hasTime(); }))
@@ -1087,7 +1088,18 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
                               (auto &env, auto&, auto &scalarRegisterAllocator, auto spikeMaskReg, const auto&)
                               {
                                   auto feNNEventSink = std::dynamic_pointer_cast<const EventSinkImplementation>(e.second.getUnderlying());
-                                  return feNNEventSink->genEmit(env, scalarRegisterAllocator, spikeMaskReg, maskReg, r, state);
+
+                                  // If there's a mask, AND with spike and emit
+                                  if (maskReg) {
+                                      ALLOCATE_SCALAR(STmp);
+                                      env.getCodeGenerator().and_(*STmp, *spikeMaskReg, *maskReg);
+                                      feNNEventSink->genEmit(env, scalarRegisterAllocator, STmp, r, state);
+                                  }
+                                  // Otherwise, just emit spike mask register
+                                  else {
+                                      feNNEventSink->genEmit(env, scalarRegisterAllocator, spikeMaskReg, r, state);
+                                  }
+                                  return std::make_pair(Compiler::RegisterPtr{}, false);
                               });
             }
 

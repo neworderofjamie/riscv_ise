@@ -55,10 +55,9 @@ public:
         Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg,
         Assembler::ScalarRegisterPtr numEventBytes, bool hasTime) const = 0;
     
-    virtual std::pair<Compiler::RegisterPtr, bool> genEmit(
-        Compiler::EnvironmentBase &env, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
-        Assembler::ScalarRegisterPtr spikeMaskReg, Assembler::ScalarRegisterPtr maskReg, 
-        uint32_t r, const std::vector<Assembler::ScalarRegisterPtr> &state) const = 0;
+     virtual void genEmit(Compiler::EnvironmentBase &env, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
+                          Assembler::ScalarRegisterPtr spikeMaskReg, uint32_t r, 
+                          const std::vector<Assembler::ScalarRegisterPtr> &state) const = 0;
 
     //! Generate code to advance pointer after numUnrolls unrolled 
     virtual void genIncrement(Assembler::CodeGenerator &c, uint32_t numUnrolls, 
@@ -115,10 +114,9 @@ public:
         Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg,
         Assembler::ScalarRegisterPtr numEventBytes, bool hasTime) const override final;
 
-    virtual std::pair<Compiler::RegisterPtr, bool> genEmit(
-        Compiler::EnvironmentBase &env, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
-        Assembler::ScalarRegisterPtr spikeMaskReg, Assembler::ScalarRegisterPtr maskReg, 
-        uint32_t r, const std::vector<Assembler::ScalarRegisterPtr> &state) const override final;
+    virtual void genEmit(Compiler::EnvironmentBase &env, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
+                         Assembler::ScalarRegisterPtr spikeMaskReg, uint32_t r, 
+                         const std::vector<Assembler::ScalarRegisterPtr> &state) const override final;
 
     virtual void genIncrement(Assembler::CodeGenerator &c, uint32_t numUnrolls, 
                               const std::vector<Assembler::ScalarRegisterPtr> &state) const override final;
@@ -157,10 +155,9 @@ public:
         Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg,
         Assembler::ScalarRegisterPtr numEventBytes, bool hasTime) const override final;
 
-    virtual std::pair<Compiler::RegisterPtr, bool> genEmit(
-        Compiler::EnvironmentBase &env, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
-        Assembler::ScalarRegisterPtr spikeMaskReg, Assembler::ScalarRegisterPtr maskReg, 
-        uint32_t r, const std::vector<Assembler::ScalarRegisterPtr> &state) const override final;
+    virtual void genEmit(Compiler::EnvironmentBase &env, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
+                         Assembler::ScalarRegisterPtr spikeMaskReg, uint32_t r, 
+                         const std::vector<Assembler::ScalarRegisterPtr> &state) const override final;
 
     virtual void genIncrement(Assembler::CodeGenerator &c, uint32_t numUnrolls, 
                               const std::vector<Assembler::ScalarRegisterPtr> &state) const override final;

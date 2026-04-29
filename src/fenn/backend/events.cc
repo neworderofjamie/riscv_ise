@@ -85,24 +85,13 @@ std::vector<Assembler::ScalarRegisterPtr> EventSinkBuffer::genPreamble(
     return {reg};
 }
 //----------------------------------------------------------------------------
-std::pair<Compiler::RegisterPtr, bool> EventSinkBuffer::genEmit(
-    Compiler::EnvironmentBase &env, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
-    Assembler::ScalarRegisterPtr spikeMaskReg, Assembler::ScalarRegisterPtr maskReg,
-    uint32_t r, const std::vector<Assembler::ScalarRegisterPtr> &state) const
+void EventSinkBuffer::genEmit(Compiler::EnvironmentBase &env, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
+                              Assembler::ScalarRegisterPtr spikeMaskReg, uint32_t r, 
+                              const std::vector<Assembler::ScalarRegisterPtr> &state) const
 {
-    // If this loop iteration has a mask, AND it with spike mask and store word
+    // Store spike mask to address stored in state
     assert(state.size() == 1);
-    if(maskReg) {
-        ALLOCATE_SCALAR(STmp);
-        env.getCodeGenerator().and_(*STmp, *spikeMaskReg, *maskReg);
-        env.getCodeGenerator().sw(*STmp, *state[0], 4 * r);
-    }
-    // Otherwise, just store spike mask register
-    else {
-        env.getCodeGenerator().sw(*spikeMaskReg, *state[0], 4 * r);
-    }
-
-    return std::make_pair(Compiler::RegisterPtr{}, false);
+    env.getCodeGenerator().sw(*spikeMaskReg, *state[0], 4 * r);
 }
 //----------------------------------------------------------------------------
 void EventSinkBuffer::genIncrement(Assembler::CodeGenerator &c, uint32_t numUnrolls,
@@ -128,16 +117,17 @@ std::vector<Assembler::ScalarRegisterPtr> EventChannel::genPreamble(
     Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg,
     Assembler::ScalarRegisterPtr numEventBytes, bool hasTime) const
 {
+    // **TODO** need model
+    // **TODO** needs to add constant for per-core start event ID based on population key and split
     return {};
 }
 //----------------------------------------------------------------------------
-std::pair<Compiler::RegisterPtr, bool> EventChannel::genEmit(
-    Compiler::EnvironmentBase &env, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
-    Assembler::ScalarRegisterPtr spikeMaskReg, Assembler::ScalarRegisterPtr maskReg,
-    uint32_t r, const std::vector<Assembler::ScalarRegisterPtr> &state) const
+void EventChannel::genEmit(Compiler::EnvironmentBase &env, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
+                           Assembler::ScalarRegisterPtr spikeMaskReg, uint32_t r, 
+                           const std::vector<Assembler::ScalarRegisterPtr> &state) const
 {
-    assert(false);
-    return std::make_pair(Compiler::RegisterPtr{}, false);
+    // **TODO** do and logic for 
+    assert(false);;
 }
 //----------------------------------------------------------------------------
 void EventChannel::genIncrement(Assembler::CodeGenerator &c, uint32_t numUnrolls,
