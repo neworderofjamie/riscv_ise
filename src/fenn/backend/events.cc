@@ -4,6 +4,7 @@
 #include "compiler_frontend/type.h"
 
 // FeNN common includes
+#include "fenn/common/isa.h"
 #include "fenn/common/logging.h"
 
 // FeNN backend includes
@@ -123,16 +124,23 @@ std::vector<Assembler::ScalarRegisterPtr> EventChannel::genPreamble(
 }
 //----------------------------------------------------------------------------
 void EventChannel::genEmit(Compiler::EnvironmentBase &env, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
-                           Assembler::ScalarRegisterPtr spikeMaskReg, uint32_t r, 
+                           Assembler::ScalarRegisterPtr spikeMaskReg, uint32_t, 
                            const std::vector<Assembler::ScalarRegisterPtr> &state) const
 {
-    // **TODO** do and logic for 
-    assert(false);;
+    assert(state.size() == 1);
+
+    // Write to router and advance state by 32
+    // **YUCK** not unrolling friendly
+    env.getCodeGenerator().csrw(Common::CSR::MASTER_EVENT_ID_BASE, *state[0]);
+    env.getCodeGenerator().csrw(Common::CSR::MASTER_EVENT_BITFIELD, *spikeMaskReg);
+    env.getCodeGenerator().addi(*state[0], *state[0], 32);
+
+    // **TODO** record
 }
 //----------------------------------------------------------------------------
 void EventChannel::genIncrement(Assembler::CodeGenerator &c, uint32_t numUnrolls,
                                 const std::vector<Assembler::ScalarRegisterPtr> &state) const
 {
-    assert(false);
+    // **TODO** record
 }
 }
