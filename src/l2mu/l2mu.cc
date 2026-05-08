@@ -361,7 +361,7 @@ int main(int argc, char **argv)
 
         {
             // DMA M output from device
-            device.getDMAController()->startRead(dmaBuffer, 0, mOutPtr, numMOut * sizeof(int16_t));
+            device.getDMAController()->startRead(dmaBuffer, 0, mOutPtr, padSize(numMOut * sizeof(int16_t), 64));
             device.getDMAController()->waitForReadComplete();
 
             std::cout << "M" << std::endl;
@@ -374,7 +374,7 @@ int main(int argc, char **argv)
 
 
         // DMA U output from device
-        device.getDMAController()->startRead(dmaBuffer, 0, uOutPtr, numUOut * sizeof(int16_t));
+        device.getDMAController()->startRead(dmaBuffer, 0, uOutPtr, padSize(numUOut * sizeof(int16_t), 64));
         device.getDMAController()->waitForReadComplete();
 
         std::cout << "U" << std::endl;
