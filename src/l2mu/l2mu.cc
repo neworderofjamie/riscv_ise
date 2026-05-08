@@ -132,6 +132,7 @@ void genStaticPulse(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAll
                 ALLOCATE_SCALAR(SWeightRowBuffer);
                 ALLOCATE_SCALAR(SISynRowOffset);
                 ALLOCATE_SCALAR(SISynRowBuffer);
+                ALLOCATE_SCALAR(SISynRowBufferBytes);
                 ALLOCATE_SCALAR(STileSelectMask);
                 ALLOCATE_VECTOR(VISyn);
                 ALLOCATE_VECTOR(VWeightTile);
@@ -148,27 +149,30 @@ void genStaticPulse(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAll
                 c.slli(*SWeightRowBuffer, *SWeightRowBuffer, 6);
                 c.add(*SWeightRowBuffer, *SWeightRowBuffer, *SWeightBuffer);
 
-                // Get postsynaptic index
+                // Get postsynaptic index (half-words)
                 c.mul(*SISynRowOffset, *SISynRowOffset, *SNumCols);
 
-                // Align
+                // Align (half-words)
                 // **NOTE** this is not necessary on FeNN HW
                 c.and_(*SISynRowBuffer, *SISynRowOffset, *SResAlignMask);
 
-                // Load ISyn
-                c.add(*SISynRowBuffer, *SISynBuffer, *SISynRowBuffer);
-                c.vloadv(*VISyn, *SISynRowBuffer);
+                // **YUCK** convert to bytes
+                c.slli(*SISynRowBufferBytes, *SISynRowBuffer, 1);
 
+                // Load ISyn
+                c.add(*SISynRowBufferBytes, *SISynBuffer, *SISynRowBufferBytes);
+                c.vloadv(*VISyn, *SISynRowBufferBytes);
+                
                 // Load weight
                 c.vloadv(*VWeightTile, *SWeightRowBuffer);
 
-                // Calculate remaining offset
+                // Calculate remaining  (half-words)
                 c.sub(*SISynRowOffset, *SISynRowBuffer, *SISynRowOffset);
 
                 // Add weight
                 c.vadd_s(*VWeightTile, *VWeightTile, *VISyn);
 
-                // Build tile select mask
+                // Build tile select mask (half-words)
                 c.sll(*STileSelectMask, *SBaseTileSelectMask, *SISynRowOffset);
 
                 // VWeightTile = STileSelectMask ? VWeightTile : VISyn
@@ -179,7 +183,7 @@ void genStaticPulse(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAll
                 c.addi(*SN, *SN, -1);
 
                 // Store updated ISyn
-                c.vstore(*VWeightTile, *SISynRowBuffer);
+                c.vstore(*VWeightTile, *SISynRowBufferBytes);
             }
             
             // Load weight and Isyn
