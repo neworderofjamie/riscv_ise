@@ -175,15 +175,15 @@ void genStaticPulse(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAll
                 // Build tile select mask (half-words)
                 c.sll(*STileSelectMask, *SBaseTileSelectMask, *SISynRowOffset);
 
-                // VWeightTile = STileSelectMask ? VWeightTile : VISyn
-                c.vsel(*VWeightTile, *STileSelectMask, *VISyn);
+                // VISyn = STileSelectMask ? VWeightTile : VISyn
+                c.vsel(*VISyn, *STileSelectMask, *VWeightTile);
 
                 // SN --
                 // **NOTE** just to fill stall slot
                 c.addi(*SN, *SN, -1);
 
                 // Store updated ISyn
-                c.vstore(*VWeightTile, *SISynRowBufferBytes);
+                c.vstore(*VISyn, *SISynRowBufferBytes);
             }
             
             // Load weight and Isyn
@@ -215,26 +215,6 @@ void genStaticPulse(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAll
 
     c.L(wordEnd);
 }
-
-void check(const int16_t *hiddenIsyn, size_t numInput, size_t numHidden)
-{
-    int numCorrect = 0;
-    for(size_t i = 0; i < numHidden; i++) {
-        int16_t val = 0;
-        for(size_t j = 0; j < numInput; j++) {
-            if(0xDEADBEEF & (1u << j)) {
-                val += ((32 * j) + i); 
-            }
-        }
-        std::cout << hiddenIsyn[i] << "(" << val << "), ";
-        if(val == hiddenIsyn[i]) {
-            numCorrect++;
-        }
-    }
-    std::cout << std::endl;
-    std::cout << numCorrect << " correct" << std::endl;
-}
-
 
 int main()
 {
@@ -274,9 +254,9 @@ int main()
         [=](CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator, ScalarRegisterAllocator &scalarRegisterAllocator)
         {
             // spk_m * A
-            genStaticPulse(c, vectorRegisterAllocator, scalarRegisterAllocator,
-                           aWeightPtr, mSpikePtr, mOutPtr,
-                           numMIn, 4, 4, 4, false);
+            //genStaticPulse(c, vectorRegisterAllocator, scalarRegisterAllocator,
+            //               aWeightPtr, mSpikePtr, mOutPtr,
+            //               numMIn, 4, 4, 4, false);
             
             // spk_u * B
             genStaticPulse(c, vectorRegisterAllocator, scalarRegisterAllocator,
@@ -308,7 +288,17 @@ int main()
         auto *vectorData = riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getVectorDataMemory().getData();
         const int16_t *uOut = vectorData + (uOutPtr / 2);
         const int16_t *mOut = vectorData + (mOutPtr / 2);
-        //(hiddenIsyn, numInput, numHidden);
+        std::cout << "M" << std::endl;
+        for(uint32_t i = 0; i < numMOut; i++) {
+            std::cout << *mOut++ << ", ";
+        }
+        std::cout << std::endl;
+        
+        std::cout << "U" << std::endl;
+        for (uint32_t i = 0; i < numUOut; i++) {
+            std::cout << *uOut++ << ", ";
+        }
+        std::cout << std::endl;
 
     }
     else {
