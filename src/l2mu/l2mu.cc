@@ -15,6 +15,7 @@
 #include <plog/Appenders/ConsoleAppender.h>
 
 // RISC-V utils include
+#include "common/CLI11.hpp"
 #include "common/app_utils.h"
 #include "common/device.h"
 #include "common/dma_buffer.h"
@@ -217,18 +218,24 @@ void genStaticPulse(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAll
     c.L(wordEnd);
 }
 
-int main()
+int main(int argc, char **argv)
 {
     // Configure logging
     plog::ConsoleAppender<plog::TxtFormatter> consoleAppender;
     plog::init(plog::debug, &consoleAppender);
     
+    bool device = false;
+
+    CLI::App app{"L2MU test"};
+    app.add_flag("-d,--device", device, "Should be run on device rather than simulator");
+
+    CLI11_PARSE(app, argc, argv);
+
     // Allocate memory
     std::vector<uint8_t> scalarInitData;
     std::vector<int16_t> vectorInitData;
 
     // Constants
-    constexpr bool simulate = true;
     constexpr uint32_t numUIn = 250 * 1;
     constexpr uint32_t numMIn = 250 * 4;
     constexpr uint32_t numUOut = 250 * 4;
@@ -251,7 +258,7 @@ int main()
     
     // Generate sim code
     const auto simCode = AssemblerUtils::generateStandardKernel(
-        simulate, readyFlagPtr,
+        !device, readyFlagPtr,
         [=](CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator, ScalarRegisterAllocator &scalarRegisterAllocator)
         {
             // spk_m * A
@@ -273,7 +280,7 @@ int main()
     LOGI << vectorInitData.size() * 2 << " bytes of vector memory required (" << ceilDivide(vectorInitData.size() / 32, 4096) << " URAM cascade)";
 
     
-    if(simulate) {
+    if(!device) {
         RISCV riscV;
         riscV.setInstructions(simCode);
         riscV.getScalarDataMemory().setData(scalarInitData);
