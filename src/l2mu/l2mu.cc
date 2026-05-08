@@ -138,6 +138,7 @@ void genStaticPulse(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAll
                 ALLOCATE_VECTOR(VWeightTile);
 
                 // Calculate shift to extract row from SN
+                // **TODO** massive optimisation possible if matRows == 1
                 assert(isPOT(matRows));
                 const int matRowShift = ctz(matRows);
 
@@ -167,7 +168,7 @@ void genStaticPulse(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAll
                 c.vloadv(*VWeightTile, *SWeightRowBuffer);
 
                 // Calculate remaining  (half-words)
-                c.sub(*SISynRowOffset, *SISynRowBuffer, *SISynRowOffset);
+                c.sub(*SISynRowOffset, *SISynRowOffset, *SISynRowBuffer);
 
                 // Add weight
                 c.vadd_s(*VWeightTile, *VWeightTile, *VISyn);
@@ -287,12 +288,12 @@ int main()
 
         auto *vectorData = riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getVectorDataMemory().getData();
         const int16_t *uOut = vectorData + (uOutPtr / 2);
-        const int16_t *mOut = vectorData + (mOutPtr / 2);
+        /*const int16_t *mOut = vectorData + (mOutPtr / 2);
         std::cout << "M" << std::endl;
         for(uint32_t i = 0; i < numMOut; i++) {
             std::cout << *mOut++ << ", ";
         }
-        std::cout << std::endl;
+        std::cout << std::endl;*/
         
         std::cout << "U" << std::endl;
         for (uint32_t i = 0; i < numUOut; i++) {
