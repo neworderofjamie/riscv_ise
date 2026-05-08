@@ -5,17 +5,17 @@ include ../MakefileCommon
 LDFLAGS			+= -L$(LIBRARY_DIRECTORY) -lise$(PREFIX) -lcommon$(PREFIX) -lassembler$(PREFIX)
 
 # Determine full path to test_mnist
-SPIKE		:=$(BIN_DIRECTORY)/spike$(PREFIX)
+L2MU		:=$(BIN_DIRECTORY)/l2mu$(PREFIX)
 
 .PHONY: all clean libise libcommon libassembler
 
-all: $(SPIKE)
+all: $(L2MU)
 
--include spike.d
+-include l2mu.d
 
-$(SPIKE): spike.cc spike.d libise libcommon libassembler
+$(L2MU): l2mu.cc l2mu.d libise libcommon libassembler
 	mkdir -p $(@D)
-	$(CXX) $(CXXFLAGS) spike.cc -o $@ $(LDFLAGS)
+	$(CXX) $(CXXFLAGS) l2mu.cc -o $@ $(LDFLAGS)
 
 libassembler:
 	if [ -w $(LIBRARY_DIRECTORY) ]; then $(MAKE) -C $(RISCV_DIR)/src/assembler; fi;
