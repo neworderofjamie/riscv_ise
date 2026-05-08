@@ -51,19 +51,31 @@ NeuronUpdateProcess::NeuronUpdateProcess(Private, const std::string &code, const
 }
 
 //----------------------------------------------------------------------------
+// EventPropagationProcessBase
+//----------------------------------------------------------------------------
+EventPropagationProcessBase::EventPropagationProcessBase(std::shared_ptr<const EventContainer> inputEvents,
+                                                         const std::string &name)
+:   Process(name), m_InputEvents(inputEvents)
+{
+    if (m_InputEvents == nullptr) {
+        throw std::runtime_error("Event propagation process requires input events");
+    }
+
+
+    // Get number of source neurons from input events
+    m_NumSourceNeurons = m_InputEvents->getShape().getNumNeurons();
+}
+
+//----------------------------------------------------------------------------
 // EventPropagationProcess
 //----------------------------------------------------------------------------
 EventPropagationProcess::EventPropagationProcess(Private, std::shared_ptr<const EventContainer> inputEvents, 
                                                  VariablePtr weight, VariablePtr target, size_t numSparseConnectivityBits, 
                                                  size_t numDelayBits, const std::string &name)
-:   AcceptableModelComponent<EventPropagationProcess, Process>(name), m_InputEvents(inputEvents), 
+:   AcceptableModelComponent<EventPropagationProcess, EventPropagationProcessBase>(inputEvents, name),
     m_Weight(weight), m_Target(target), m_NumSparseConnectivityBits(numSparseConnectivityBits),
     m_NumDelayBits(numDelayBits)
 {
-    if(m_InputEvents == nullptr) {
-        throw std::runtime_error("Event propagation process requires input events");
-    }
-
     if(m_Weight == nullptr) {
         throw std::runtime_error("Event propagation process requires weight variable");
     }
@@ -72,9 +84,6 @@ EventPropagationProcess::EventPropagationProcess(Private, std::shared_ptr<const 
         throw std::runtime_error("Event propagation process requires target variable");
     }
 
-    // Get number of source neurons from input events
-    m_NumSourceNeurons = m_InputEvents->getShape().getNumNeurons();
-
     // Get number of target neurons from target variable
     m_NumTargetNeurons = m_Target->getShape().getNumNeurons();
 
@@ -82,10 +91,10 @@ EventPropagationProcess::EventPropagationProcess(Private, std::shared_ptr<const 
     m_MaxRowLength = m_Weight->getShape().getNumTargetNeurons();
 
     // Check weight number of source neurons matches
-    if(m_Weight->getShape().getNumSourceNeurons() != m_NumSourceNeurons) {
+    if(m_Weight->getShape().getNumSourceNeurons() != getNumSourceNeurons()) {
         throw std::runtime_error("Weight with shape: " + weight->getShape().toString() 
                                  + " is not compatible with event propagation process with " 
-                                 + std::to_string(m_NumSourceNeurons) + " source neurons");
+                                 + std::to_string(getNumSourceNeurons()) + " source neurons");
     }
 
     // Check delays and sparsity are not being combined
@@ -122,6 +131,25 @@ EventPropagationProcess::EventPropagationProcess(Private, std::shared_ptr<const 
         }
     }
     
+}
+
+//----------------------------------------------------------------------------
+// L2MUEventPropagationProcess
+//----------------------------------------------------------------------------
+L2MUEventPropagationProcess::L2MUEventPropagationProcess(Private, std::shared_ptr<const EventContainer> inputEvents,
+                                                         VariablePtr weight, VariablePtr target,
+                                                         size_t numMatRows, size_t numMatCols, size_t numCols,
+                                                         const std::string &name)
+:   AcceptableModelComponent<L2MUEventPropagationProcess, EventPropagationProcessBase>(inputEvents, name),
+    m_Weight(weight), m_Target(target), m_NumMatRows(numMatRows), m_NumMatCols(numMatCols), m_NumCols(numCols)
+{
+    if (m_Weight == nullptr) {
+        throw std::runtime_error("Event propagation process requires weight variable");
+    }
+
+    if (m_Target == nullptr) {
+        throw std::runtime_error("Event propagation process requires target variable");
+    }
 }
 
 //----------------------------------------------------------------------------

@@ -115,6 +115,16 @@ private:
         m_StateProcesses.get()[eventPropagationProcess->getTarget()].push_back(eventPropagationProcess);
     }
 
+    virtual void visit(std::shared_ptr<const L2MUEventPropagationProcess> l2muEventPropagationProcess)
+    {
+        LOGD << "\tL2MU event propagation process '" << l2muEventPropagationProcess->getName() << "'";
+
+        // Add back-references in state processes
+        m_StateProcesses.get()[l2muEventPropagationProcess->getInputEvents()].push_back(l2muEventPropagationProcess);
+        m_StateProcesses.get()[l2muEventPropagationProcess->getWeight()].push_back(l2muEventPropagationProcess);
+        m_StateProcesses.get()[l2muEventPropagationProcess->getTarget()].push_back(l2muEventPropagationProcess);
+    }
+
     virtual void visit(std::shared_ptr<const RNGInitProcess> rngInitProcess)
     {
         LOGD << "\tRNG init process '" << rngInitProcess->getName() << "'";
@@ -261,6 +271,25 @@ private:
         // Add process fields
         if(!m_StatefulFields.get().try_emplace(eventPropagationProcess, m_CurrentProcessFields).second) {
             throw std::runtime_error("Event propagation process '" + eventPropagationProcess->getName() + "' encountered multiple times in model traversal");
+        }
+
+        // Clear current state fields
+        m_CurrentProcessFields.clear();
+    }
+
+    virtual void visit(std::shared_ptr<const L2MUEventPropagationProcess> l2muEventPropagationProcess)
+    {
+        LOGD << "\tL2MU event propagation process '" << l2muEventPropagationProcess->getName() << "'";
+        assert(m_CurrentProcessFields.empty());
+
+        // Visit components
+        l2muEventPropagationProcess->getInputEvents()->accept(*this);
+        acceptVariable(l2muEventPropagationProcess->getWeight());
+        acceptVariable(l2muEventPropagationProcess->getTarget());
+
+        // Add process fields
+        if (!m_StatefulFields.get().try_emplace(l2muEventPropagationProcess, m_CurrentProcessFields).second) {
+            throw std::runtime_error("L2MU event propagation process '" + l2muEventPropagationProcess->getName() + "' encountered multiple times in model traversal");
         }
 
         // Clear current state fields

@@ -345,6 +345,41 @@ private:
         }
     }
 
+    virtual void visit(std::shared_ptr<const L2MUEventPropagationProcess> l2muEventPropagationProcess)
+    {
+        // If variable is weight, it can only be located in URAM
+        if (m_Variable == l2muEventPropagationProcess->getWeight()) {
+            m_LLMCompatible = false;
+            m_BRAMCompatible = false;
+            m_URAMLLMCompatible = false;           
+            m_DRAMCompatible = false;
+
+            if (!m_URAMCompatible) {
+                throw std::runtime_error("L2MU Event propagation process '" + l2muEventPropagationProcess->getName()
+                                         + "' weight array '" + l2muEventPropagationProcess->getWeight()->getName()
+                                         + "' shared with incompatible processes");
+        }
+        }
+        // Otherwise, if variable's target
+        else if (m_Variable == l2muEventPropagationProcess->getTarget()) {
+            // It can't be located in BRAM or DRAM
+            m_BRAMCompatible = false;
+            m_DRAMCompatible = false;
+            m_URAMLLMCompatible = false;
+            m_LLMCompatible = false;
+
+            
+            if (!m_URAMCompatible) {
+                throw std::runtime_error("L2MU Event propagation process '" + l2muEventPropagationProcess->getName()
+                                         + "' target array '" + l2muEventPropagationProcess->getTarget()->getName()
+                                         + "' shared with incompatible processes");
+            }
+        }
+        else {
+            assert(false);
+        }
+    }
+
     virtual void visit(std::shared_ptr<const RNGInitProcess> rngInitProcess)
     {
         assert (m_Variable == rngInitProcess->getSeed());
@@ -614,6 +649,7 @@ public:
 
         // Loop through all grouped event propagation processes
         for(const auto &e : m_EventPropagationProcesses) {
+            
             generateEventPropagationProcesses(e.second);
         }
     }
@@ -882,18 +918,57 @@ private:
         std::reference_wrapper<VectorRegisterAllocator> m_VectorRegisterAllocator;
     };
 
-    //------------------------------------------------------------------------
+    //--------------------------------------------------------------------
     // RowGeneratorBase
-    //------------------------------------------------------------------------
+    //--------------------------------------------------------------------
     class RowGeneratorBase
     {
     public:
-        RowGeneratorBase(CodeGenerator &c, std::shared_ptr<const EventPropagationProcess> process,
-                         const Model::StateFields &stateFields,
-                         ScalarRegisterAllocator &scalarRegisterAllocator, 
+        //--------------------------------------------------------------------
+        // Declared virtuals
+        //--------------------------------------------------------------------
+        virtual void generateRow(CodeGenerator &cg, ScalarRegisterAllocator::RegisterPtr weightBufferReg) = 0;
+
+        virtual ScalarRegisterAllocator::RegisterPtr loadWeightBuffer(CodeGenerator &c, ScalarRegisterAllocator::RegisterPtr idPreReg) = 0;
+        
+        virtual ScalarRegisterAllocator::RegisterPtr getStrideReg() const = 0;
+
+    protected:
+        RowGeneratorBase(const Model::StateFields &stateFields,
+                         ScalarRegisterAllocator &scalarRegisterAllocator,
                          VectorRegisterAllocator &vectorRegisterAllocator)
-        :   m_Process(process), m_StateFields(stateFields), m_ScalarRegisterAllocator(scalarRegisterAllocator), 
+        :   m_StateFields(stateFields), m_ScalarRegisterAllocator(scalarRegisterAllocator),
             m_VectorRegisterAllocator(vectorRegisterAllocator)
+        {
+        }
+
+        //--------------------------------------------------------------------
+        // Protected API
+        //--------------------------------------------------------------------
+        auto &getStateFields() { return m_StateFields.get(); }
+        auto &getScalarRegisterAllocator() { return m_ScalarRegisterAllocator.get(); }
+        auto &getVectorRegisterAllocator() { return m_VectorRegisterAllocator.get(); }
+
+    private:
+        //--------------------------------------------------------------------
+        // Members
+        //--------------------------------------------------------------------
+        std::reference_wrapper<const Model::StateFields> m_StateFields;
+        std::reference_wrapper<ScalarRegisterAllocator> m_ScalarRegisterAllocator;
+        std::reference_wrapper<VectorRegisterAllocator> m_VectorRegisterAllocator;
+   
+    };
+    //------------------------------------------------------------------------
+    // EventRowGeneratorBase
+    //------------------------------------------------------------------------
+    class EventRowGeneratorBase : public RowGeneratorBase
+    {
+    public:
+        EventRowGeneratorBase(CodeGenerator &c, std::shared_ptr<const EventPropagationProcess> process,
+                              const Model::StateFields &stateFields,
+                              ScalarRegisterAllocator &scalarRegisterAllocator, 
+                              VectorRegisterAllocator &vectorRegisterAllocator)
+        :   RowGeneratorBase(stateFields, scalarRegisterAllocator, vectorRegisterAllocator), m_Process(process)
         {
             // Allocate register for stride, calculate and load as immediate
             m_StrideReg = scalarRegisterAllocator.getRegister("SStride = X");
@@ -901,31 +976,18 @@ private:
 
         }
 
-        //--------------------------------------------------------------------
-        // Declared virtuals
-        //--------------------------------------------------------------------
-        virtual void generateRow(CodeGenerator &cg, ScalarRegisterAllocator::RegisterPtr weightBufferReg) = 0;
-
-        //--------------------------------------------------------------------
-        // Public API
-        //--------------------------------------------------------------------
-        auto getStrideReg() const{ return m_StrideReg; }
-
     protected:
         //--------------------------------------------------------------------
         // Protected API
         //--------------------------------------------------------------------
         auto getProcess() const{ return m_Process; }
   
-        auto &getStateFields(){ return m_StateFields.get(); }
-        auto &getScalarRegisterAllocator(){ return m_ScalarRegisterAllocator.get(); }
-        auto &getVectorRegisterAllocator(){ return m_VectorRegisterAllocator.get(); }
-        
+         
     public:
         //--------------------------------------------------------------------
-        // Public API
+        // RowGeneratorBase virtuals
         //--------------------------------------------------------------------
-        auto loadWeightBuffer(CodeGenerator &c, ScalarRegisterAllocator::RegisterPtr idPreReg)
+        virtual ScalarRegisterAllocator::RegisterPtr loadWeightBuffer(CodeGenerator &c, ScalarRegisterAllocator::RegisterPtr idPreReg) override final
         {
             auto &scalarRegisterAllocator = getScalarRegisterAllocator();
 
@@ -940,24 +1002,23 @@ private:
 
             return SWeightBuffer;
         }
+
+        virtual ScalarRegisterAllocator::RegisterPtr getStrideReg() const override final { return m_StrideReg; }
     private:
         //--------------------------------------------------------------------
         // Members
         //--------------------------------------------------------------------
         std::shared_ptr<const EventPropagationProcess> m_Process;
         ScalarRegisterAllocator::RegisterPtr m_StrideReg;
-        std::reference_wrapper<const Model::StateFields> m_StateFields;
-        std::reference_wrapper<ScalarRegisterAllocator> m_ScalarRegisterAllocator;
-        std::reference_wrapper<VectorRegisterAllocator> m_VectorRegisterAllocator;
     };
 
     //------------------------------------------------------------------------
     // DenseRowGenerator
     //------------------------------------------------------------------------
-    class DenseRowGenerator : public RowGeneratorBase
+    class DenseRowGenerator : public EventRowGeneratorBase
     {
     public:
-        using RowGeneratorBase::RowGeneratorBase;
+        using EventRowGeneratorBase::EventRowGeneratorBase;
     
         //--------------------------------------------------------------------
         // RowGeneratorBase virtuals
@@ -1018,14 +1079,14 @@ private:
     //------------------------------------------------------------------------
     // SparseRowGenerator
     //------------------------------------------------------------------------
-    class SparseRowGenerator : public RowGeneratorBase
+    class SparseRowGenerator : public EventRowGeneratorBase
     {
     public:
         SparseRowGenerator(CodeGenerator &c, std::shared_ptr<const EventPropagationProcess> process,
                            const Model::StateFields &stateFields,
                            ScalarRegisterAllocator &scalarRegisterAllocator, 
                            VectorRegisterAllocator &vectorRegisterAllocator)
-        :   RowGeneratorBase(c, process, stateFields, scalarRegisterAllocator, vectorRegisterAllocator)
+        :   EventRowGeneratorBase(c, process, stateFields, scalarRegisterAllocator, vectorRegisterAllocator)
         {
 
             // Allocate register for target address and load address
@@ -1094,21 +1155,21 @@ private:
     //------------------------------------------------------------------------
     // DelayedRowGenerator
     //------------------------------------------------------------------------
-    class DelayedRowGenerator : public RowGeneratorBase
+    class DelayedRowGenerator : public EventRowGeneratorBase
     {
     public:
         DelayedRowGenerator(CodeGenerator &c, std::shared_ptr<const EventPropagationProcess> process,
                             const Model::StateFields &stateFields, VectorRegisterAllocator::RegisterPtr vectorTimeReg,
                             ScalarRegisterAllocator &scalarRegisterAllocator, 
                             VectorRegisterAllocator &vectorRegisterAllocator)
-        :   RowGeneratorBase(c, process, stateFields, scalarRegisterAllocator, vectorRegisterAllocator),
+        :   EventRowGeneratorBase(c, process, stateFields, scalarRegisterAllocator, vectorRegisterAllocator),
             m_DelayStride(2 * process->getTarget()->getNumBufferTimesteps()), 
             m_TargetAddress(stateFields.at(process->getTarget()) + 4), m_VectorTimeReg(vectorTimeReg)
         {
             // Check number of buffer timesteps is P.O.T.
             if(!isPOT(process->getTarget()->getNumBufferTimesteps())) {
-                    throw std::runtime_error("When used as delayed event propagation targets, variables "
-                                            "need to have a power-of-two number of buffer timesteps");
+                throw std::runtime_error("When used as delayed event propagation targets, variables "
+                                         "need to have a power-of-two number of buffer timesteps");
             }
         }
     
@@ -1180,6 +1241,128 @@ private:
         size_t m_DelayStride;
         uint32_t m_TargetAddress;
         VectorRegisterAllocator::RegisterPtr m_VectorTimeReg;
+    };
+
+    //------------------------------------------------------------------------
+    // L2MURowGenerator
+    //------------------------------------------------------------------------
+    class L2MURowGenerator : public RowGeneratorBase
+    {
+    public:
+        L2MURowGenerator(CodeGenerator &c, std::shared_ptr<const L2MUEventPropagationProcess> process,
+                         const Model::StateFields &stateFields, ScalarRegisterAllocator &scalarRegisterAllocator,
+                         VectorRegisterAllocator &vectorRegisterAllocator)
+        :   RowGeneratorBase(stateFields, scalarRegisterAllocator, vectorRegisterAllocator), m_Process(process)
+        {
+            // Allocate register for target address and load address
+            m_BaseTileSelectMask = getScalarRegisterAllocator().getRegister("SBaseTileSelectMask X");
+            c.li(*m_BaseTileSelectMask, (1 << process->getNumMatCols()) - 1);
+
+            // **NOTE** not necessary on FeNN HW
+            m_ResAlignMask = getScalarRegisterAllocator().getRegister("SResAlignMask X");
+            c.li(*m_ResAlignMask, 0xFFFFFFE0);
+
+            m_NumCols = getScalarRegisterAllocator().getRegister("SNumCols X");
+            c.li(*m_NumCols, process->getNumCols());
+
+            // Allocate register for target address and load address
+            m_TargetAddrReg = getScalarRegisterAllocator().getRegister("STargetAddr X");
+            c.lw(*m_TargetAddrReg, Reg::X0, stateFields.at(process->getTarget()));
+
+            m_WeightAddrReg = getScalarRegisterAllocator().getRegister("SWeightAddr X");
+            c.lw(*m_WeightAddrReg, Reg::X0, stateFields.at(process->getWeight()));
+        }
+
+        //--------------------------------------------------------------------
+        // RowGeneratorBase virtuals
+        //--------------------------------------------------------------------
+        virtual ScalarRegisterAllocator::RegisterPtr loadWeightBuffer(CodeGenerator &c, ScalarRegisterAllocator::RegisterPtr idPreReg) override final
+        {
+            // **YUCK** total abuse of this method
+            return idPreReg;
+        }
+
+        virtual ScalarRegisterAllocator::RegisterPtr getStrideReg() const override final
+        {
+            assert(false);
+            return nullptr;
+        }
+
+        // **YUCK** weightReg = idPreReg
+        virtual void generateRow(CodeGenerator &c, ScalarRegisterAllocator::RegisterPtr idPreReg) final override
+        {
+            // Make some friendlier-named references
+            auto &scalarRegisterAllocator = getScalarRegisterAllocator();
+            auto &vectorRegisterAllocator = getVectorRegisterAllocator();
+
+            ALLOCATE_SCALAR(SWeightRowBuffer);
+            ALLOCATE_SCALAR(SISynRowOffset);
+            ALLOCATE_SCALAR(SISynRowBuffer);
+            ALLOCATE_SCALAR(SISynRowBufferBytes);
+            ALLOCATE_SCALAR(STileSelectMask);
+            ALLOCATE_VECTOR(VISyn);
+            ALLOCATE_VECTOR(VWeightTile);
+
+            // Calculate shift to extract row from SN
+            // **TODO** massive optimisation possible if matRows == 1
+            assert(isPOT(m_Process->getNumMatRows()));
+            const int matRowShift = ctz(m_Process->getNumMatRows());
+
+            // Extract rows and columns
+            c.srli(*SISynRowOffset, *idPreReg, matRowShift);
+            c.andi(*SWeightRowBuffer, *idPreReg, m_Process->getNumMatRows() - 1);
+
+            // Multiply column by 32*2 and add to weight address
+            c.slli(*SWeightRowBuffer, *SWeightRowBuffer, 6);
+            c.add(*SWeightRowBuffer, *SWeightRowBuffer, *m_WeightAddrReg);
+
+            // Get postsynaptic index (half-words)
+            c.mul(*SISynRowOffset, *SISynRowOffset, *m_NumCols);
+
+            // Align (half-words)
+            // **NOTE** this is not necessary on FeNN HW
+            c.and_(*SISynRowBuffer, *SISynRowOffset, *m_ResAlignMask);
+
+            // **YUCK** convert to bytes
+            c.slli(*SISynRowBufferBytes, *SISynRowBuffer, 1);
+
+            // Load ISyn
+            c.add(*SISynRowBufferBytes, *m_TargetAddrReg, *SISynRowBufferBytes);
+            c.vloadv(*VISyn, *SISynRowBufferBytes);
+
+            // Load weight
+            c.vloadv(*VWeightTile, *SWeightRowBuffer);
+
+            // Calculate remaining  (half-words)
+            c.sub(*SISynRowOffset, *SISynRowOffset, *SISynRowBuffer);
+
+            // Add weight
+            c.vadd_s(*VWeightTile, *VWeightTile, *VISyn);
+
+            // Build tile select mask (half-words)
+            c.sll(*STileSelectMask, *m_BaseTileSelectMask, *SISynRowOffset);
+
+            // VISyn = STileSelectMask ? VWeightTile : VISyn
+            c.vsel(*VISyn, *STileSelectMask, *VWeightTile);
+
+            // **YUCK** stall
+            c.nop();
+
+            // Store updated ISyn
+            c.vstore(*VISyn, *SISynRowBufferBytes);
+        }
+
+    private:
+        //--------------------------------------------------------------------
+        // Members
+        //--------------------------------------------------------------------
+        std::shared_ptr<const L2MUEventPropagationProcess> m_Process;
+        ScalarRegisterAllocator::RegisterPtr m_BaseTileSelectMask;
+        ScalarRegisterAllocator::RegisterPtr m_ResAlignMask;
+        ScalarRegisterAllocator::RegisterPtr m_NumCols;
+        ScalarRegisterAllocator::RegisterPtr m_TargetAddrReg;
+        ScalarRegisterAllocator::RegisterPtr m_WeightAddrReg;
+
     };
 
     uint32_t getBackendFieldOffset(StateObjectID id) const
@@ -1659,6 +1842,12 @@ private:
         m_EventPropagationProcesses[eventPropagationProcess->getInputEvents()].emplace_back(eventPropagationProcess);
     }
 
+    virtual void visit(std::shared_ptr<const L2MUEventPropagationProcess> l2muEventPropagationProcess)
+    {
+        // Add event propagation process to vector of processes with same input event container
+        m_EventPropagationProcesses[l2muEventPropagationProcess->getInputEvents()].emplace_back(l2muEventPropagationProcess);
+    }
+
     //------------------------------------------------------------------------
     // Private methods
     //------------------------------------------------------------------------
@@ -1727,7 +1916,7 @@ private:
             });
     }
 
-    void generateURAMWordLoop(const std::vector<std::unique_ptr<RowGeneratorBase>> &rowGenerators, 
+    void generateURAMWordLoop(const std::vector<std::unique_ptr<RowGeneratorBase>> &rowGenerators,
                               ScalarRegisterAllocator::RegisterPtr eventBufferReg, 
                               ScalarRegisterAllocator::RegisterPtr eventBufferEndReg)
     {
@@ -2086,7 +2275,7 @@ private:
         c.L(end);
     }
 
-    void generateEventPropagationProcesses(const std::vector<std::shared_ptr<const EventPropagationProcess>> &processes)
+    void generateEventPropagationProcesses(const std::vector<std::shared_ptr<const EventPropagationProcessBase>> &processes)
     {
         // Make some friendlier-named references
         auto &scalarRegisterAllocator = m_ScalarRegisterAllocator.get();
@@ -2128,33 +2317,38 @@ private:
             c.add(*SEventBufferEnd, *STmp, *SEventBuffer);
         }
 
-        // If any processes have delay, load lower 16-bits of time into vector register
-        VectorRegisterAllocator::RegisterPtr vectorTimeReg;
-        if(std::any_of(processes.cbegin(), processes.cend(), 
-           [](const auto &p){ return (p->getNumDelayBits() > 0); }))
-        {
-            vectorTimeReg = vectorRegisterAllocator.getRegister("VTime V");
-            c.vfill(*vectorTimeReg, *m_TimeRegister);
-            c.vslli(1, *vectorTimeReg, *vectorTimeReg);
-        }
-
         // Loop through postsynaptic targets and create appropriate row generator objects
         std::vector<std::unique_ptr<RowGeneratorBase>> rowGenerators;
+        VectorRegisterAllocator::RegisterPtr vectorTimeReg;
         for(const auto &p : processes) {
-            if(p->getNumSparseConnectivityBits() > 0) { 
-                rowGenerators.emplace_back(
-                    std::make_unique<SparseRowGenerator>(c, p, processFields.at(p), scalarRegisterAllocator, 
-                                                         vectorRegisterAllocator));
-            }
-            else if(p->getNumDelayBits() > 0) {
-                rowGenerators.emplace_back(
-                    std::make_unique<DelayedRowGenerator>(c, p, processFields.at(p), vectorTimeReg,
-                                                          scalarRegisterAllocator, vectorRegisterAllocator));
+            const auto &stateFields = processFields.at(p);
+            auto e = std::dynamic_pointer_cast<const EventPropagationProcess>(p);
+            if(e) {
+                if(e->getNumSparseConnectivityBits() > 0) {
+                    rowGenerators.emplace_back(
+                        std::make_unique<SparseRowGenerator>(c, e, stateFields, scalarRegisterAllocator,
+                                                             vectorRegisterAllocator));
+                }
+                else if(e->getNumDelayBits() > 0) {
+                    if(!vectorTimeReg) {
+                        vectorTimeReg = vectorRegisterAllocator.getRegister("VTime V");
+                        c.vfill(*vectorTimeReg, *m_TimeRegister);
+                        c.vslli(1, *vectorTimeReg, *vectorTimeReg);
+                    }
+                    rowGenerators.emplace_back(
+                        std::make_unique<DelayedRowGenerator>(c, e, stateFields, vectorTimeReg,
+                                                              scalarRegisterAllocator, vectorRegisterAllocator));
+                }
+                else {
+                    rowGenerators.emplace_back(
+                        std::make_unique<DenseRowGenerator>(c, e, stateFields, scalarRegisterAllocator,
+                                                            vectorRegisterAllocator));
+                }
             }
             else {
                 rowGenerators.emplace_back(
-                    std::make_unique<DenseRowGenerator>(c, p, processFields.at(p), scalarRegisterAllocator, 
-                                                        vectorRegisterAllocator));
+                    std::make_unique<L2MURowGenerator>(c, std::dynamic_pointer_cast<const L2MUEventPropagationProcess>(p), 
+                                                       stateFields, scalarRegisterAllocator, vectorRegisterAllocator));
             }
         }
     
@@ -2171,7 +2365,7 @@ private:
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
-    std::unordered_map<std::shared_ptr<const EventContainer>, std::vector<std::shared_ptr<const EventPropagationProcess>>> m_EventPropagationProcesses;
+    std::unordered_map<std::shared_ptr<const EventContainer>, std::vector<std::shared_ptr<const EventPropagationProcessBase>>> m_EventPropagationProcesses;
     ScalarRegisterAllocator::RegisterPtr m_TimeRegister;
     std::optional<uint32_t> m_NumTimesteps;
     std::reference_wrapper<CodeGenerator> m_CodeGenerator;

@@ -70,9 +70,35 @@ private:
 };
 
 //----------------------------------------------------------------------------
+// EventPropagationProcessBase
+//----------------------------------------------------------------------------
+class COMPILER_EXPORT EventPropagationProcessBase : public Process
+{
+public:
+    //------------------------------------------------------------------------
+    // Public API
+    //------------------------------------------------------------------------
+    const auto getInputEvents() const { return m_InputEvents; }
+
+    size_t getNumSourceNeurons() const { return m_NumSourceNeurons; }
+
+protected:
+    EventPropagationProcessBase(std::shared_ptr<const EventContainer> inputEvents,
+                                const std::string &name);
+
+private:
+    //------------------------------------------------------------------------
+    // Members
+    //------------------------------------------------------------------------
+    std::shared_ptr<const EventContainer> m_InputEvents;
+
+    size_t m_NumSourceNeurons;
+};
+
+//----------------------------------------------------------------------------
 // EventPropagationProcess
 //----------------------------------------------------------------------------
-class COMPILER_EXPORT EventPropagationProcess : public AcceptableModelComponent<EventPropagationProcess, Process>
+class COMPILER_EXPORT EventPropagationProcess : public AcceptableModelComponent<EventPropagationProcess, EventPropagationProcessBase>
 {
 public:
     EventPropagationProcess(Private, std::shared_ptr<const EventContainer> inputEvents, 
@@ -83,11 +109,9 @@ public:
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
-    const auto getInputEvents() const{ return m_InputEvents; }
     const auto getWeight() const{ return m_Weight; }
     const auto getTarget() const{ return m_Target; }
 
-    size_t getNumSourceNeurons() const{ return m_NumSourceNeurons; }
     size_t getNumTargetNeurons() const{ return m_NumTargetNeurons; }
     size_t getMaxRowLength() const{ return m_MaxRowLength; }
 
@@ -111,16 +135,59 @@ private:
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
-    std::shared_ptr<const EventContainer> m_InputEvents;
     VariablePtr m_Weight;
     VariablePtr m_Target;
     
-    size_t m_NumSourceNeurons;
     size_t m_NumTargetNeurons;
     size_t m_MaxRowLength;
 
     size_t m_NumSparseConnectivityBits;
     size_t m_NumDelayBits;
+};
+
+//----------------------------------------------------------------------------
+// L2MUEventPropagationProcess
+//----------------------------------------------------------------------------
+class COMPILER_EXPORT L2MUEventPropagationProcess : public AcceptableModelComponent< L2MUEventPropagationProcess, EventPropagationProcessBase>
+{
+public:
+    L2MUEventPropagationProcess(Private, std::shared_ptr<const EventContainer> inputEvents,
+                                VariablePtr weight, VariablePtr target,
+                                size_t numMatRows, size_t numMatCols, size_t numCols,
+                                const std::string &name);
+
+    //------------------------------------------------------------------------
+    // Public API
+    //------------------------------------------------------------------------
+    const auto getWeight() const { return m_Weight; }
+    const auto getTarget() const { return m_Target; }
+
+    size_t getNumMatRows() const { return m_NumMatRows; }
+    size_t getNumMatCols() const { return m_NumMatCols; }
+    size_t getNumCols() const { return m_NumCols; }
+
+
+    //------------------------------------------------------------------------
+    // Static API
+    //------------------------------------------------------------------------
+    static std::shared_ptr<L2MUEventPropagationProcess> create(std::shared_ptr<const EventContainer> inputEvents,
+                                                               VariablePtr weight, VariablePtr target,
+                                                               size_t numMatRows, size_t numMatCols, size_t numCols,
+                                                               const std::string &name = "")
+    {
+        return std::make_shared<L2MUEventPropagationProcess>(Private(), inputEvents, weight, target,
+                                                             numMatRows, numMatCols, numCols, name);
+    }
+private:
+    //------------------------------------------------------------------------
+    // Members
+    //------------------------------------------------------------------------
+    VariablePtr m_Weight;
+    VariablePtr m_Target;
+
+    size_t m_NumMatRows;
+    size_t m_NumMatCols;
+    size_t m_NumCols;
 };
 
 //----------------------------------------------------------------------------

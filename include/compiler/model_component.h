@@ -11,6 +11,7 @@ class PerformanceCounter;
 class ProcessGroup;
 class NeuronUpdateProcess;
 class EventPropagationProcess;
+class L2MUEventPropagationProcess;
 class RNGInitProcess;
 class BroadcastProcess;
 class MemsetProcess;
@@ -28,6 +29,7 @@ public:
     virtual void visit(std::shared_ptr<const ProcessGroup>){}
     virtual void visit(std::shared_ptr<const NeuronUpdateProcess>){}
     virtual void visit(std::shared_ptr<const EventPropagationProcess>){}
+    virtual void visit(std::shared_ptr<const L2MUEventPropagationProcess>){}
     virtual void visit(std::shared_ptr<const RNGInitProcess>){};
     virtual void visit(std::shared_ptr<const BroadcastProcess>){};
     virtual void visit(std::shared_ptr<const MemsetProcess>){}
