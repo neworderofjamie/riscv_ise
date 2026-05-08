@@ -287,17 +287,25 @@ static const char *__doc_EventPropagationProcess = R"doc()doc";
 
 static const char *__doc_EventPropagationProcess_2 = R"doc()doc";
 
+static const char *__doc_EventPropagationProcessBase = R"doc()doc";
+
+static const char *__doc_EventPropagationProcessBase_EventPropagationProcessBase = R"doc()doc";
+
+static const char *__doc_EventPropagationProcessBase_getInputEvents = R"doc()doc";
+
+static const char *__doc_EventPropagationProcessBase_getNumSourceNeurons = R"doc()doc";
+
+static const char *__doc_EventPropagationProcessBase_m_InputEvents = R"doc()doc";
+
+static const char *__doc_EventPropagationProcessBase_m_NumSourceNeurons = R"doc()doc";
+
 static const char *__doc_EventPropagationProcess_EventPropagationProcess = R"doc()doc";
 
 static const char *__doc_EventPropagationProcess_create = R"doc()doc";
 
-static const char *__doc_EventPropagationProcess_getInputEvents = R"doc()doc";
-
 static const char *__doc_EventPropagationProcess_getMaxRowLength = R"doc()doc";
 
 static const char *__doc_EventPropagationProcess_getNumDelayBits = R"doc()doc";
-
-static const char *__doc_EventPropagationProcess_getNumSourceNeurons = R"doc()doc";
 
 static const char *__doc_EventPropagationProcess_getNumSparseConnectivityBits = R"doc()doc";
 
@@ -307,13 +315,9 @@ static const char *__doc_EventPropagationProcess_getTarget = R"doc()doc";
 
 static const char *__doc_EventPropagationProcess_getWeight = R"doc()doc";
 
-static const char *__doc_EventPropagationProcess_m_InputEvents = R"doc()doc";
-
 static const char *__doc_EventPropagationProcess_m_MaxRowLength = R"doc()doc";
 
 static const char *__doc_EventPropagationProcess_m_NumDelayBits = R"doc()doc";
-
-static const char *__doc_EventPropagationProcess_m_NumSourceNeurons = R"doc()doc";
 
 static const char *__doc_EventPropagationProcess_m_NumSparseConnectivityBits = R"doc()doc";
 
@@ -330,6 +334,34 @@ that anages in-device memory fields structure)doc";
 static const char *__doc_IFieldArray_pushFieldsToDevice = R"doc(Copy field data to device)doc";
 
 static const char *__doc_IFieldArray_setFieldArray = R"doc(Sets field at offset to point to array)doc";
+
+static const char *__doc_L2MUEventPropagationProcess = R"doc()doc";
+
+static const char *__doc_L2MUEventPropagationProcess_2 = R"doc()doc";
+
+static const char *__doc_L2MUEventPropagationProcess_L2MUEventPropagationProcess = R"doc()doc";
+
+static const char *__doc_L2MUEventPropagationProcess_create = R"doc()doc";
+
+static const char *__doc_L2MUEventPropagationProcess_getNumCols = R"doc()doc";
+
+static const char *__doc_L2MUEventPropagationProcess_getNumMatCols = R"doc()doc";
+
+static const char *__doc_L2MUEventPropagationProcess_getNumMatRows = R"doc()doc";
+
+static const char *__doc_L2MUEventPropagationProcess_getTarget = R"doc()doc";
+
+static const char *__doc_L2MUEventPropagationProcess_getWeight = R"doc()doc";
+
+static const char *__doc_L2MUEventPropagationProcess_m_NumCols = R"doc()doc";
+
+static const char *__doc_L2MUEventPropagationProcess_m_NumMatCols = R"doc()doc";
+
+static const char *__doc_L2MUEventPropagationProcess_m_NumMatRows = R"doc()doc";
+
+static const char *__doc_L2MUEventPropagationProcess_m_Target = R"doc()doc";
+
+static const char *__doc_L2MUEventPropagationProcess_m_Weight = R"doc()doc";
 
 static const char *__doc_LLMAllocator = R"doc()doc";
 
@@ -404,6 +436,8 @@ static const char *__doc_ModelComponentVisitor_visit_8 = R"doc()doc";
 static const char *__doc_ModelComponentVisitor_visit_9 = R"doc()doc";
 
 static const char *__doc_ModelComponentVisitor_visit_10 = R"doc()doc";
+
+static const char *__doc_ModelComponentVisitor_visit_11 = R"doc()doc";
 
 static const char *__doc_ModelComponent_ModelComponent = R"doc()doc";
 
