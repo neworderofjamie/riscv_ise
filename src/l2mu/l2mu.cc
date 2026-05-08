@@ -255,9 +255,9 @@ int main()
         [=](CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator, ScalarRegisterAllocator &scalarRegisterAllocator)
         {
             // spk_m * A
-            //genStaticPulse(c, vectorRegisterAllocator, scalarRegisterAllocator,
-            //               aWeightPtr, mSpikePtr, mOutPtr,
-            //               numMIn, 4, 4, 4, false);
+            genStaticPulse(c, vectorRegisterAllocator, scalarRegisterAllocator,
+                           aWeightPtr, mSpikePtr, mOutPtr,
+                           numMIn, 4, 4, 4, false);
             
             // spk_u * B
             genStaticPulse(c, vectorRegisterAllocator, scalarRegisterAllocator,
@@ -288,12 +288,12 @@ int main()
 
         auto *vectorData = riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getVectorDataMemory().getData();
         const int16_t *uOut = vectorData + (uOutPtr / 2);
-        /*const int16_t *mOut = vectorData + (mOutPtr / 2);
+        const int16_t *mOut = vectorData + (mOutPtr / 2);
         std::cout << "M" << std::endl;
         for(uint32_t i = 0; i < numMOut; i++) {
             std::cout << *mOut++ << ", ";
         }
-        std::cout << std::endl;*/
+        std::cout << std::endl;
         
         std::cout << "U" << std::endl;
         for (uint32_t i = 0; i < numUOut; i++) {
