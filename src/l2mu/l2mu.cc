@@ -303,32 +303,80 @@ int main()
 
     }
     else {
-        /*LOGI << "Creating device";
+        LOGI << "Creating device";
         Device device;
-        LOGI << "Resetting";
+
+        // Create DMA buffer
+        DMABuffer dmaBuffer;
+        
         // Put core into reset state
+        LOGI << "Resetting";
         device.setEnabled(false);
-        
-        LOGI << "Copying instructions (" << simCode.size() * sizeof(uint32_t) << " bytes)";
-        device.uploadCode(simCode);
-        
+
         LOGI << "Copying data (" << scalarInitData.size() << " bytes);";
         device.memcpyDataToDevice(0, scalarInitData.data(), scalarInitData.size());
-        
-        LOGI << "Enabling";
-        // Put core into running state
-        device.setEnabled(true);
-        LOGI << "Running";
-        
-        // Wait until ready flag
-        device.waitOnNonZero(readyFlagPtr);
-        LOGI << "Done";
-        device.setEnabled(false);
-        
-        int16_t hiddenIsyn[32];
-        device.memcpyDataFromDevice(reinterpret_cast<uint8_t*>(&hiddenIsyn[0]), hiddenIsynScalarPtr, numHidden * 2);
-        check(hiddenIsyn, numInput, numHidden);*/
-        
+
+        {
+            LOGI << "DMAing vector init data to device";
+
+            // Check there's enough space for vector init data
+            assert(dmaBuffer.getSize() > (vectorInitData.size() * 2));
+
+            // Get halfword pointer to DMA buffer
+            int16_t *bufferData = reinterpret_cast<int16_t *>(dmaBuffer.getData());
+
+            // Copy vector init data to buffer
+            std::copy(vectorInitData.cbegin(), vectorInitData.cend(), bufferData);
+
+            // Start DMA of data to URAM
+            device.getDMAController()->startWrite(0, dmaBuffer, 0, vectorInitData.size() * 2);
+
+            // Wait for write to complete
+            device.getDMAController()->waitForWriteComplete();
+        }
+
+        // Simulation
+        {
+            LOGI << "Copying simulation instructions (" << simCode.size() * sizeof(uint32_t) << " bytes)";
+            device.uploadCode(simCode);
+
+            // Put core into running state
+            LOGI << "Enabling";
+            device.setEnabled(true);
+
+            // Wait until ready flag
+            device.waitOnNonZero(readyFlagPtr);
+
+            // Reset core
+            LOGI << "Disabling";
+            device.setEnabled(false);
+        }
+
+        {
+            // DMA M output from device
+            device.getDMAController()->startRead(dmaBuffer, 0, mOutPtr, numMOut * sizeof(int16_t));
+            device.getDMAController()->waitForReadComplete();
+
+            std::cout << "M" << std::endl;
+            const volatile int16_t *mOut = reinterpret_cast<const volatile int16_t*>(dmaBuffer.getData());
+            for (uint32_t i = 0; i < numMOut; i++) {
+                std::cout << *mOut++ << ", ";
+            }
+            std::cout << std::endl;
+        }
+
+
+        // DMA U output from device
+        device.getDMAController()->startRead(dmaBuffer, 0, uOutPtr, numUOut * sizeof(int16_t));
+        device.getDMAController()->waitForReadComplete();
+
+        std::cout << "U" << std::endl;
+        const volatile int16_t *uOut = reinterpret_cast<const volatile int16_t*>(dmaBuffer.getData());
+        for (uint32_t i = 0; i < numUOut; i++) {
+            std::cout << *uOut++ << ", ";
+        }
+        std::cout << std::endl;
     }
+     
     return 0;
 }
