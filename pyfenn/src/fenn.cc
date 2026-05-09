@@ -245,11 +245,30 @@ PYBIND11_MODULE(_fenn, m)
              pybind11::arg("target"), pybind11::arg("num_sparse_connectivity_bits") = 0,
              pybind11::arg("num_delay_bits") = 0, pybind11::arg("name") = "")
 
-        WRAP_PROPERTY_RO("input_events", EventPropagationProcess, InputEvents)
+        .def_property_readonly("input_events", &EventPropagationProcess::getInputEvents)
+        //WRAP_PROPERTY_RO("input_events", EventPropagationProcess, InputEvents)
         WRAP_PROPERTY_RO("weight", EventPropagationProcess, Weight)
         WRAP_PROPERTY_RO("target", EventPropagationProcess, Target)
-        WRAP_PROPERTY_RO("num_source_neurons", EventPropagationProcess, NumSourceNeurons)
+        //WRAP_PROPERTY_RO("num_source_neurons", EventPropagationProcess, NumSourceNeurons)
+        .def_property_readonly("num_source_neurons", &EventPropagationProcess::getNumSourceNeurons)
         WRAP_PROPERTY_RO("num_target_neurons", EventPropagationProcess, NumTargetNeurons);
+    
+    //------------------------------------------------------------------------
+    // fenn.L2MUEventPropagationProcess
+    //------------------------------------------------------------------------
+    pybind11::class_<L2MUEventPropagationProcess, Process, std::shared_ptr<L2MUEventPropagationProcess>>(m, "L2MUEventPropagationProcess")
+        .def(pybind11::init(&L2MUEventPropagationProcess::create),
+             pybind11::arg("input_events"), pybind11::arg("weight"),
+             pybind11::arg("target"), pybind11::arg("num_mat_rows"),
+             pybind11::arg("num_mat_cols"), pybind11::arg("num_cols"), pybind11::arg("name") = "")
+
+        //WRAP_PROPERTY_RO("input_events", L2MUEventPropagationProcess, InputEvents)
+        .def_property_readonly("input_events", &L2MUEventPropagationProcess::getInputEvents)
+        WRAP_PROPERTY_RO("weight", L2MUEventPropagationProcess, Weight)
+        WRAP_PROPERTY_RO("target", L2MUEventPropagationProcess, Target)
+        WRAP_PROPERTY_RO("num_mat_rows", L2MUEventPropagationProcess, NumMatRows)
+        WRAP_PROPERTY_RO("num_mat_cols", L2MUEventPropagationProcess, NumMatCols)
+        WRAP_PROPERTY_RO("num_cols", L2MUEventPropagationProcess, NumCols);
 
     //------------------------------------------------------------------------
     // fenn.RNGInitProcess
