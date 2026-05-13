@@ -808,6 +808,10 @@ int main(int argc, char** argv)
 
             // Define jump table for 
             c.L(jumpTable);
+            // **HACK**
+            if(device) {
+                c.nop();
+            }
             c.j_(excRow);
             c.j_(inhRow);
 
