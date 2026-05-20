@@ -26,24 +26,21 @@
 namespace
 {
 void checkOutput(const std::vector<uint32_t> &spikes, volatile const uint32_t *wordData,
-                 uint32_t evenSpikeBufferPtr, uint32_t oddSpikeBufferPtr)
+                 uint32_t rem0SpikeBufferPtr, uint32_t rem1SpikeBufferPtr, 
+                 uint32_t rem2SpikeBufferPtr, uint32_t rem3SpikeBufferPtr)
 {
-    auto *evenSpike = wordData + (evenSpikeBufferPtr / 4);
-    auto *oddSpike = wordData + (oddSpikeBufferPtr / 4);
+    volatile const uint32_t *remSpikes[4] = {
+        wordData + (rem0SpikeBufferPtr / 4),
+        wordData + (rem1SpikeBufferPtr / 4),
+        wordData + (rem2SpikeBufferPtr / 4),
+        wordData + (rem3SpikeBufferPtr / 4)};
     
     size_t good = 0;
     for(uint32_t s : spikes) {
-        LOGI << s << ", " << *evenSpike << ", " << *oddSpike;
-        // Even
-        if((s % 2) == 0) {
-            if(*evenSpike++ == s) {
-                good++;
-            }
-        }
-        else {
-            if(*oddSpike++ == s) {
-                good++;
-            }
+        LOGI << s << ", " << *remSpikes[0] << ", " << *remSpikes[1] << ", " << *remSpikes[2] << ", " << *remSpikes[3];
+
+        if(*remSpikes[s % 4]++ == s) {
+            good++;
         }
     }
     
@@ -76,10 +73,14 @@ int main(int argc, char** argv)
     // Allocate scalar arrays
     const uint32_t readyFlagPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
     const uint32_t spikeBufferPtr = AppUtils::allocateScalarAndZero(4 * 32, scalarInitData);
-    const uint32_t evenSpikeBufferPtr = AppUtils::allocateScalarAndZero(4 * 32, scalarInitData);
-    const uint32_t oddSpikeBufferPtr = AppUtils::allocateScalarAndZero(4 * 32, scalarInitData);
-    const uint32_t evenSpikeBufferEndPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
-    const uint32_t oddSpikeBufferEndPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
+    const uint32_t rem0SpikeBufferPtr = AppUtils::allocateScalarAndZero(4 * 32, scalarInitData);
+    const uint32_t rem1SpikeBufferPtr = AppUtils::allocateScalarAndZero(4 * 32, scalarInitData);
+    const uint32_t rem2SpikeBufferPtr = AppUtils::allocateScalarAndZero(4 * 32, scalarInitData);
+    const uint32_t rem3SpikeBufferPtr = AppUtils::allocateScalarAndZero(4 * 32, scalarInitData);
+    const uint32_t rem0SpikeBufferEndPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
+    const uint32_t rem1SpikeBufferEndPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
+    const uint32_t rem2SpikeBufferEndPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
+    const uint32_t rem3SpikeBufferEndPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
     
     // Generate code
     const auto code = AssemblerUtils::generateStandardKernel(
@@ -89,19 +90,25 @@ int main(int argc, char** argv)
             ALLOCATE_SCALAR(SSpike);
             ALLOCATE_SCALAR(SSpikeBuffer);
             ALLOCATE_SCALAR(SSpikeBufferEnd);
-            ALLOCATE_SCALAR(SOddSpikeBuffer);
-            ALLOCATE_SCALAR(SEvenSpikeBuffer);
+            ALLOCATE_SCALAR(SRem0SpikeBuffer);
+            ALLOCATE_SCALAR(SRem1SpikeBuffer);
+            ALLOCATE_SCALAR(SRem2SpikeBuffer);
+            ALLOCATE_SCALAR(SRem3SpikeBuffer);
 
             // Labels
             Label spikeLoop;
             Label jumpTable;
-            Label evenSpike;
-            Label oddSpike;
+            Label rem0Spike;
+            Label rem1Spike;
+            Label rem2Spike;
+            Label rem3Spike;
             Label nextSpike;
         
             c.li(*SSpikeBuffer, spikeBufferPtr);
-            c.li(*SOddSpikeBuffer, oddSpikeBufferPtr);
-            c.li(*SEvenSpikeBuffer, evenSpikeBufferPtr);
+            c.li(*SRem0SpikeBuffer, rem0SpikeBufferPtr);
+            c.li(*SRem1SpikeBuffer, rem1SpikeBufferPtr);
+            c.li(*SRem2SpikeBuffer, rem2SpikeBufferPtr);
+            c.li(*SRem3SpikeBuffer, rem3SpikeBufferPtr);
             c.addi(*SSpikeBufferEnd, *SSpikeBuffer, 32 * 4);
         
             // Jump over jump table etc to start of loop
@@ -112,26 +119,48 @@ int main(int argc, char** argv)
             if(device) {
                 c.nop();
             }
-            c.j_(evenSpike);
-            c.j_(oddSpike);
+            c.j_(rem0Spike);
+            c.j_(rem1Spike);
+            c.j_(rem2Spike);
+            c.j_(rem3Spike);
             
             // ----------------------------------   -----------------------------
-            // Even spikes
+            // Rem0 spikes
             // ---------------------------------------------------------------
             {
-                c.L(evenSpike);
-                c.sw(*SSpike, *SEvenSpikeBuffer);
-                c.addi(*SEvenSpikeBuffer, *SEvenSpikeBuffer, 4);
+                c.L(rem0Spike);
+                c.sw(*SSpike, *SRem0SpikeBuffer);
+                c.addi(*SRem0SpikeBuffer, *SRem0SpikeBuffer, 4);
                 c.j_(nextSpike);
             }
 
-            // ---------------------------------------------------------------
-            // Odd spikes
+            // ----------------------------------   -----------------------------
+            // Rem1 spikes
             // ---------------------------------------------------------------
             {
-                c.L(oddSpike);
-                c.sw(*SSpike, *SOddSpikeBuffer);
-                c.addi(*SOddSpikeBuffer, *SOddSpikeBuffer, 4);
+                c.L(rem1Spike);
+                c.sw(*SSpike, *SRem1SpikeBuffer);
+                c.addi(*SRem1SpikeBuffer, *SRem1SpikeBuffer, 4);
+                c.j_(nextSpike);
+            }
+
+            // ----------------------------------   -----------------------------
+            // Rem2 spikes
+            // ---------------------------------------------------------------
+            {
+                c.L(rem2Spike);
+                c.sw(*SSpike, *SRem2SpikeBuffer);
+                c.addi(*SRem2SpikeBuffer, *SRem2SpikeBuffer, 4);
+                c.j_(nextSpike);
+            }
+
+            // ----------------------------------   -----------------------------
+            // Rem3 spikes
+            // ---------------------------------------------------------------
+            {
+                c.L(rem3Spike);
+                c.sw(*SSpike, *SRem3SpikeBuffer);
+                c.addi(*SRem3SpikeBuffer, *SRem3SpikeBuffer, 4);
                 c.j_(nextSpike);
             }
 
@@ -146,8 +175,9 @@ int main(int argc, char** argv)
 
                 {
                     // Extract population ID
+                    // **NOTE** multiple by 4 to get jump bytes
                     ALLOCATE_SCALAR(SPopulationID);
-                    c.andi(*SPopulationID, *SSpike, 1);
+                    c.andi(*SPopulationID, *SSpike, 0b11);
                     c.slli(*SPopulationID, *SPopulationID, 2);
 
                     // Jump to correct population handler
@@ -162,8 +192,10 @@ int main(int argc, char** argv)
             c.L(spikeLoopEnd);
 
             // Store odd and even end pointers
-            c.sw(*SOddSpikeBuffer, Reg::X0, oddSpikeBufferEndPtr);
-            c.sw(*SEvenSpikeBuffer, Reg::X0, evenSpikeBufferEndPtr);
+            c.sw(*SRem0SpikeBuffer, Reg::X0, rem0SpikeBufferEndPtr);
+            c.sw(*SRem1SpikeBuffer, Reg::X0, rem1SpikeBufferEndPtr);
+            c.sw(*SRem2SpikeBuffer, Reg::X0, rem2SpikeBufferEndPtr);
+            c.sw(*SRem3SpikeBuffer, Reg::X0, rem3SpikeBufferEndPtr);
         });
 
     // Dump to coe file
@@ -177,6 +209,11 @@ int main(int argc, char** argv)
     
     // Copy spikes into memory
     std::memcpy(scalarInitData.data() + spikeBufferPtr, spikes.data(), 32 * 4);
+
+    // Dump initial data to coe file
+    std::vector<uint32_t> wordData(scalarInitData.size() / 4);
+    std::memcpy(wordData.data(), scalarInitData.data(), scalarInitData.size());
+    AppUtils::dumpCOE("blank_jump_data.coe", wordData);
 
     if(device) {
         LOGI << "Creating device";
@@ -204,7 +241,8 @@ int main(int argc, char** argv)
         LOGI << "Done";
 
         volatile uint32_t *wordData = reinterpret_cast<volatile uint32_t*>(device.getDataMemory());
-        checkOutput(spikes, wordData, evenSpikeBufferPtr, oddSpikeBufferPtr);
+        checkOutput(spikes, wordData, rem0SpikeBufferPtr, rem1SpikeBufferPtr, 
+                    rem2SpikeBufferPtr, rem3SpikeBufferPtr);
 
     }
     else {
@@ -222,7 +260,8 @@ int main(int argc, char** argv)
         }
 
         auto *wordData = reinterpret_cast<uint32_t*>(riscV.getScalarDataMemory().getData());
-        checkOutput(spikes, wordData, evenSpikeBufferPtr, oddSpikeBufferPtr);
+        checkOutput(spikes, wordData, rem0SpikeBufferPtr, rem1SpikeBufferPtr, 
+                    rem2SpikeBufferPtr, rem3SpikeBufferPtr);
     }
     return 0;
 
