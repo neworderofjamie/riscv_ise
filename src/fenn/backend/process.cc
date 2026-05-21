@@ -805,13 +805,14 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
     const auto emitEventFunctionType = Type::ResolvedType::createFunction(Type::Void, {});
 
     // Degine lambda function to get number of neurons
+    const auto *model = runtime.getModel<Model>();
     auto getNumNeurons =
         [&runtime](size_t d, auto p)
         {
             const auto state = (p->getVariables().empty()
                                 ? std::static_pointer_cast<const Frontend::State>(p->getOutputEventSinks().begin()->second.getUnderlying())
                                 : std::static_pointer_cast<const Frontend::State>(p->getVariables().begin()->second.getUnderlying()));
-            const auto splitDimension = runtime.getModel()->getStateData(state).splitDimension;
+            const auto splitDimension = model->getStateData(state).splitDimension;
             const auto splitShape = p->getShape().split(d, splitDimension, runtime.getNumDevices());
             return static_cast<uint32_t>(splitShape.getFlattenedSize());
         };
@@ -892,7 +893,7 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
                                  fennVar->genPreamble(processCodeGenerator, scalarRegisterAllocator,
                                                       vectorRegisterAllocator, varFieldOffset, 
                                                       numTimesteps, fieldBaseReg, timeReg, numVariableBytes, 
-                                                      v.second.hasTime(), *runtime.getModel()));
+                                                      v.second.hasTime(), *model));
         }
     }
 
@@ -945,7 +946,11 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
             if (!fennEventSink) {
                 throw std::runtime_error("FeNN backend used with incompatible event sink");
             }
+            
+            // Get ID of event sink
+            const uint32_t eventSinkID = model->getEventSinkIDBase(e.second.getUnderlying());
 
+            // **TODO** add core start neuron ID - extra field probably required
             // Generate preamble and add state to map
             eventSinkState.try_emplace(e.second.getUnderlying(), 
                                        fennEventSink->genPreamble(processCodeGenerator, scalarRegisterAllocator,
@@ -1061,7 +1066,7 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
         envLibrary.getCodeGenerator(), scalarRegisterAllocator,
         numNeurons, maxUnroll, numNeuronsNoTail, numNeuronsNoUnroll,
         [this, &envLibrary, &eventSinkState, &emitEventFunctionType, &mergedProcess, 
-         &runtime, &scalarRegisterAllocator, &varState, &vectorRegisterAllocator]
+         &model, &runtime, &scalarRegisterAllocator, &varState, &vectorRegisterAllocator]
         (auto&, uint32_t r, auto maskReg)
         {
             EnvironmentExternal unrollEnv(envLibrary);
@@ -1076,7 +1081,7 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
 
                 // Generate load
                 std::dynamic_pointer_cast<const Variable>(v.second.getUnderlying())->genLoad(
-                    unrollEnv, reg, r, varState.at(v.second.getUnderlying()), *runtime.getModel());
+                    unrollEnv, reg, r, varState.at(v.second.getUnderlying()), *model);
             }
 
             // Loop through neuron event outputsC
@@ -1125,18 +1130,18 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
                     
                 // Generate store
                 std::dynamic_pointer_cast<const Variable>(v.second.getUnderlying())->genStore(
-                    unrollEnv, reg, r, varState.at(v.second.getUnderlying()), *runtime.getModel());
+                    unrollEnv, reg, r, varState.at(v.second.getUnderlying()), *model);
             }
         },
-        [this, &eventSinkState, &runtime, &varState, &vectorRegisterAllocator]
+        [this, &eventSinkState, &model, &varState, &vectorRegisterAllocator]
         (auto &c, uint32_t numUnrolls)
         {
             // If any variables have vector addresses i.e. are stored in LLM, load number of bytes to unroll
             Assembler::VectorRegisterPtr numUnrollBytesReg;
             if(std::any_of(getVariables().cbegin(), getVariables().cend(),
-                            [&runtime](const auto &v)
+                            [&model](const auto &v)
                             { 
-                                return std::dynamic_pointer_cast<const Variable>(v.second.getUnderlying())->needsNumUnrollBytesReg(*runtime.getModel()); 
+                                return std::dynamic_pointer_cast<const Variable>(v.second.getUnderlying())->needsNumUnrollBytesReg(*model); 
                             }))
             {
                 numUnrollBytesReg = vectorRegisterAllocator.getRegister("NumUnrollBytes V");
@@ -1146,7 +1151,7 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
             // Loop through variables and increment buffers
             for(const auto &v : getVariables()) {
                 std::dynamic_pointer_cast<const Variable>(v.second.getUnderlying())->genIncrement(
-                    c, numUnrolls, numUnrollBytesReg, varState.at(v.second.getUnderlying()), *runtime.getModel());
+                    c, numUnrolls, numUnrollBytesReg, varState.at(v.second.getUnderlying()), *model);
             }
 
             // Loop through output events and increment buffers
