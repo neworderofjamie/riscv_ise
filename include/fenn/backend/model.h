@@ -65,6 +65,8 @@ public:
     //------------------------------------------------------------------------
     MemSpace getStateMemSpace(std::shared_ptr<const Frontend::State> state, bool useDRAMForWeights) const;
 
+    uint32_t getEventSinkIDBase(std::shared_ptr<const Frontend::EventSink> eventSink) const;
+    
 private:
     //------------------------------------------------------------------------
     // Members

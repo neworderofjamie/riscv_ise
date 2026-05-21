@@ -131,4 +131,13 @@ MemSpace Model::getStateMemSpace(std::shared_ptr<const Frontend::State> state, b
     // Obtain best memory space
     return static_cast<MemSpace>(1 << numTZ);
 }
+//----------------------------------------------------------------------------
+uint32_t Model::getEventSinkIDBase(std::shared_ptr<const Frontend::EventSink> eventSink) const
+{
+    // Get ID of this event sink
+    const uint32_t id = m_EventSinkIDs.at(eventSink);
+
+    // Shift up by the number of neuron ID bitss
+    return (id << m_NumNeuronIDBits);
+}
 }
