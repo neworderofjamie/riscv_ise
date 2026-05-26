@@ -21,6 +21,7 @@
     <ClCompile Include="frontend\merged_model.cc" />
     <ClCompile Include="frontend\model.cc" />
     <ClCompile Include="frontend\process.cc" />
+    <ClCompile Include="frontend\shape.cc" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
