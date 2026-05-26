@@ -30,7 +30,7 @@ TEST(MergedModel, DifferentProcessTypes)
         "V *= 0.9\n",
         {{"V", Sliced<Variable>(variable)}}, {});
     auto eventPropagationProcess = EventPropagationProcess::create(
-        EventContainer::create(20), variable);
+        EventSourceBuffer::create(20), variable);
 
     // Group together
     auto processGroup = ProcessGroup::create({rngInitProcess, memsetProcess, neuronUpdateProcess, eventPropagationProcess});
