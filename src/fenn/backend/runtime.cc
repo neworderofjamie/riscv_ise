@@ -135,7 +135,7 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                  size_t numDevices, bool generateSimulationKernels, bool useDRAMForWeights, 
                  bool keepParamsInRegisters, Compiler::RoundingMode neuronUpdateRoundingMode, 
                  size_t dmaBufferSize)
-:   Frontend::Runtime(std::make_unique<Model>(kernels), numDevices), m_UseDRAMForWeights(useDRAMForWeights), 
+:   Frontend::Runtime(std::make_unique<Model>(kernels), numDevices, 32), m_UseDRAMForWeights(useDRAMForWeights), 
     m_KeepParamsInRegisters(keepParamsInRegisters), m_NeuronUpdateRoundingMode(neuronUpdateRoundingMode), 
     m_DMABufferSize(dmaBufferSize)
 {

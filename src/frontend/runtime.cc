@@ -82,7 +82,7 @@ void Runtime::allocate()
         for(size_t i = 0; i < getNumDevices(); i++) {
             // Split shape and create array
             const auto deviceShape = s.first->getShape().split(i, s.second.splitDimension, 
-                                                               getNumDevices());
+                                                               getNumDevices(), m_StateSplitGranularity);
             getDevices()[i]->createArray(s.first, deviceShape, *getModel());
         }
     }
@@ -146,9 +146,10 @@ std::vector<ArrayBase*> Runtime::getArrays(std::shared_ptr<const State> state) c
     return arrays;
 }
 //----------------------------------------------------------------------------
-Runtime::Runtime(std::unique_ptr<Model> model, size_t numDevices)
+Runtime::Runtime(std::unique_ptr<Model> model, size_t numDevices, size_t stateSplitGranularity)
 :   m_Devices(numDevices), m_Model(std::move(model)), m_MergedModel(*m_Model), 
-    m_NumDevices(numDevices), m_WorkerRun(true), m_Command(nullptr), m_Barrier(numDevices + 1)
+    m_NumDevices(numDevices), m_StateSplitGranularity(stateSplitGranularity),
+    m_WorkerRun(true), m_Command(nullptr), m_Barrier(numDevices + 1)
 {
 }
 //----------------------------------------------------------------------------

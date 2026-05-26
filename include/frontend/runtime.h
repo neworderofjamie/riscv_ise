@@ -174,7 +174,7 @@ public:
     }
 
 protected:
-    Runtime(std::unique_ptr<Model> model, size_t numDevices);
+    Runtime(std::unique_ptr<Model> model, size_t numDevices, size_t stateSplitGranularity);
     
     //------------------------------------------------------------------------
     // Declared virtuals
@@ -330,6 +330,8 @@ private:
     std::shared_ptr<const Kernel> m_CurrentKernel;
 
     size_t m_NumDevices;
+
+    size_t m_StateSplitGranularity;
 
     std::atomic<bool> m_WorkerRun;
 

@@ -40,7 +40,8 @@ public:
 
     //! Return the shape obtained by taking the splitnth split when 
     //! the shape is split numSplits ways along the specified dimensions
-    Shape split(size_t split, std::optional<size_t> splitDimension, size_t numSplits) const;
+    Shape split(size_t split, std::optional<size_t> splitDimension, 
+                size_t numSplits, size_t splitGranularity) const;
 
     //! Return shape with last dimension padded
     Shape padLast(size_t multiple) const;
