@@ -932,9 +932,8 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
                 numNeurons);
         }
 
-        // Loop through neuron event outputs
+        // Loop through event sinks attached to neuron population
         for(const auto &e : getOutputEventSinks()) {
-  
             auto fennEventSink = std::dynamic_pointer_cast<const EventSinkImplementation>(e.second.getUnderlying());
             if (!fennEventSink) {
                 throw std::runtime_error("FeNN backend used with incompatible event sink");
@@ -944,7 +943,8 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
             eventSinkState.try_emplace(
                 e.second.getUnderlying(), 
                 fennEventSink->genPreamble(
-                    processCodeGenerator, scalarRegisterAllocator, numTimesteps, e.second.hasTime(), 
+                    processCodeGenerator, scalarRegisterAllocator, *model,
+                     numTimesteps, e.second.hasTime(), runtime.getNumDevices(),
                     timeReg, numEventBytes,
                     [&fieldBaseReg, &mergedFields, &mergedProcess, &processCodeGenerator, &runtime, 
                     &scalarRegisterAllocator, &sharedCodeGenerator, &sharedRegisters]
@@ -2009,7 +2009,7 @@ std::vector<Frontend::Sliced<Frontend::EventSink>> BroadcastProcess::getAllEvent
     return {};
 }
 //----------------------------------------------------------------------------
-void BroadcastProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Frontend::Model &model) const
+void BroadcastProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Frontend::Model&) const
 {
     UPDATE_HASH_CLASS_NAME(BroadcastProcess);
 }

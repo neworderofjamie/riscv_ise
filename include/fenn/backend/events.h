@@ -1,6 +1,7 @@
 #pragma once
 
 // Standard C++ includes
+#include <functional>
 #include <memory>
 #include <vector>
 
@@ -18,6 +19,7 @@
 
 // FeNN backend includes
 #include "fenn/backend/backend_export.h"
+#include "fenn/backend/fields.h"
 
 // Forward declarations
 namespace FeNN
@@ -28,6 +30,7 @@ class CodeGenerator;
 }
 namespace Backend
 {
+class Model;
 class NeuronUpdateProcess;
 }
 }
@@ -59,17 +62,35 @@ public:
     //----------------------------------------------------------------------------
     virtual std::vector<Assembler::ScalarRegisterPtr> genPreamble(
         Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
-        std::optional<uint32_t> numTimesteps, bool hasTime,
+        const Model &model, std::optional<uint32_t> numTimesteps, bool hasTime, size_t numDevices,
         Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr numEventBytes,
         AddScalarConstantFn addScalarConstant, AddFieldFn addField) const = 0;
     
-     virtual void genEmit(Compiler::EnvironmentBase &env, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
-                          Assembler::ScalarRegisterPtr spikeMaskReg, uint32_t r, 
-                          const std::vector<Assembler::ScalarRegisterPtr> &state) const = 0;
+    virtual void genEmit(Compiler::EnvironmentBase &env, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
+                         Assembler::ScalarRegisterPtr spikeMaskReg, uint32_t r, 
+                         const std::vector<Assembler::ScalarRegisterPtr> &state) const = 0;
 
     //! Generate code to advance pointer after numUnrolls unrolled 
     virtual void genIncrement(Assembler::CodeGenerator &c, uint32_t numUnrolls, 
                               const std::vector<Assembler::ScalarRegisterPtr> &state) const = 0;
+
+protected:
+    //----------------------------------------------------------------------------
+    // Protected API
+    //----------------------------------------------------------------------------
+    std::unique_ptr<Frontend::ArrayBase> createBitArray(const Frontend::Shape &deviceShape, Frontend::DeviceBase &device) const;
+
+    Assembler::ScalarRegisterPtr genBitArrayPreamble(
+        Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
+        std::optional<uint32_t> numTimesteps, bool hasTime, const Frontend::Shape &shape,
+        Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr numEventBytes, 
+        AddFieldFn addField) const;
+    
+    void genBitArrayEmit(Compiler::EnvironmentBase &env, Assembler::ScalarRegisterPtr spikeMaskReg, 
+                         uint32_t r, Assembler::ScalarRegisterPtr stateReg) const;
+
+    void genBitArrayIncrement(Assembler::CodeGenerator &c, uint32_t numUnrolls,
+                              Assembler::ScalarRegisterPtr stateReg) const;
 };
 
 //----------------------------------------------------------------------------
@@ -118,7 +139,7 @@ public:
     //------------------------------------------------------------------------
     virtual std::vector<Assembler::ScalarRegisterPtr> genPreamble(
         Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
-        std::optional<uint32_t> numTimesteps, bool hasTime,
+        const Model &model, std::optional<uint32_t> numTimesteps, bool hasTime, size_t numDevices,
         Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr numEventBytes, 
         AddScalarConstantFn addScalarConstant, AddFieldFn addField) const override final;
 
@@ -144,8 +165,8 @@ public:
 class FENN_BACKEND_EXPORT EventChannel : public Frontend::EventChannel, public EventSourceImplementation, public EventSinkImplementation
 {
 public:
-    EventChannel(Private, const Frontend::Shape &shape, const std::string &name)
-    :   State(name), Frontend::EventChannel(Private(), shape, name)
+    EventChannel(Private, const Frontend::Shape &shape, bool record, const std::string &name)
+    :   State(name), Frontend::EventChannel(Private(), shape, record, name)
     {}
 
     //------------------------------------------------------------------------
@@ -159,7 +180,7 @@ public:
     //------------------------------------------------------------------------
     virtual std::vector<Assembler::ScalarRegisterPtr> genPreamble(
         Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
-        std::optional<uint32_t> numTimesteps, bool hasTime, 
+        const Model &model, std::optional<uint32_t> numTimesteps, bool hasTime, size_t numDevices,
         Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr numEventBytes, 
         AddScalarConstantFn addScalarConstant, AddFieldFn addField) const override final;
 
@@ -173,9 +194,10 @@ public:
     //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------
-    static std::shared_ptr<Frontend::EventChannel> create(const Frontend::Shape &shape, const std::string &name = "")
+    static std::shared_ptr<Frontend::EventChannel> create(const Frontend::Shape &shape, bool record = false, 
+                                                          const std::string &name = "")
     {
-        return std::make_shared<EventChannel>(Private(), shape, name);
+        return std::make_shared<EventChannel>(Private(), shape, record, name);
     }
 };
 }

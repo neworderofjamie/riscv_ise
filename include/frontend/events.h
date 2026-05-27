@@ -112,8 +112,8 @@ private:
 class EventChannel : public EventSource, public EventSink
 {
 public:
-    EventChannel(Private, const Shape &shape, const std::string &name)
-    :   State(name), EventSource(name), EventSink(name), m_Shape(shape)
+    EventChannel(Private, const Shape &shape, bool record, const std::string &name)
+    :   State(name), EventSource(name), EventSink(name), m_Shape(shape), m_Record(record)
     {}
 
     //------------------------------------------------------------------------
@@ -125,13 +125,19 @@ public:
 
     virtual std::unique_ptr<ArrayBase> createArray(const Shape &deviceShape, const Model &model, 
                                                    DeviceBase &device) const override;
+    
+    //------------------------------------------------------------------------
+    // Public API
+    //------------------------------------------------------------------------
+    bool shouldRecord() const{ return m_Record; }
 
     //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------
-    static std::shared_ptr<EventChannel> create(const Shape &shape, const std::string &name = "")
+    static std::shared_ptr<EventChannel> create(const Shape &shape, bool record = false, 
+                                                const std::string &name = "")
     {
-        return std::make_shared<EventChannel>(Private(), shape, name);
+        return std::make_shared<EventChannel>(Private(), shape, record, name);
     }
 
 private:
@@ -139,5 +145,6 @@ private:
     // Members
     //------------------------------------------------------------------------
     Shape m_Shape;
+    bool m_Record;
 };
 }
