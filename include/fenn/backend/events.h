@@ -26,6 +26,10 @@ namespace Assembler
 {
 class CodeGenerator;
 }
+namespace Backend
+{
+class NeuronUpdateProcess;
+}
 }
 
 //----------------------------------------------------------------------------
@@ -45,15 +49,19 @@ public:
 //----------------------------------------------------------------------------
 class EventSinkImplementation
 {
+protected:
+    using AddScalarConstantFn = std::function<Assembler::ScalarRegisterPtr(Assembler::CodeGenerator&, MergedFields::GetFieldConstantFunc<NeuronUpdateProcess>)>;
+    using AddFieldFn = std::function<Assembler::ScalarRegisterPtr(Assembler::CodeGenerator&)>;
+
 public:
     //----------------------------------------------------------------------------
     // Declared virtuals
     //----------------------------------------------------------------------------
     virtual std::vector<Assembler::ScalarRegisterPtr> genPreamble(
         Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
-        uint32_t eventFieldOffset, std::optional<uint32_t> numTimesteps, 
-        Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg,
-        Assembler::ScalarRegisterPtr numEventBytes, bool hasTime) const = 0;
+        std::optional<uint32_t> numTimesteps, bool hasTime,
+        Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr numEventBytes,
+        AddScalarConstantFn addScalarConstant, AddFieldFn addField) const = 0;
     
      virtual void genEmit(Compiler::EnvironmentBase &env, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
                           Assembler::ScalarRegisterPtr spikeMaskReg, uint32_t r, 
@@ -110,9 +118,9 @@ public:
     //------------------------------------------------------------------------
     virtual std::vector<Assembler::ScalarRegisterPtr> genPreamble(
         Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
-        uint32_t eventFieldOffset, std::optional<uint32_t> numTimesteps, 
-        Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg,
-        Assembler::ScalarRegisterPtr numEventBytes, bool hasTime) const override final;
+        std::optional<uint32_t> numTimesteps, bool hasTime,
+        Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr numEventBytes, 
+        AddScalarConstantFn addScalarConstant, AddFieldFn addField) const override final;
 
     virtual void genEmit(Compiler::EnvironmentBase &env, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
                          Assembler::ScalarRegisterPtr spikeMaskReg, uint32_t r, 
@@ -151,9 +159,9 @@ public:
     //------------------------------------------------------------------------
     virtual std::vector<Assembler::ScalarRegisterPtr> genPreamble(
         Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
-        uint32_t eventFieldOffset, std::optional<uint32_t> numTimesteps, 
-        Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg,
-        Assembler::ScalarRegisterPtr numEventBytes, bool hasTime) const override final;
+        std::optional<uint32_t> numTimesteps, bool hasTime, 
+        Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr numEventBytes, 
+        AddScalarConstantFn addScalarConstant, AddFieldFn addField) const override final;
 
     virtual void genEmit(Compiler::EnvironmentBase &env, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
                          Assembler::ScalarRegisterPtr spikeMaskReg, uint32_t r, 

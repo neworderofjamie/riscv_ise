@@ -56,15 +56,12 @@ std::unique_ptr<Frontend::ArrayBase> EventSinkBuffer::createArray(const Frontend
 //----------------------------------------------------------------------------
 std::vector<Assembler::ScalarRegisterPtr> EventSinkBuffer::genPreamble(
     Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
-    uint32_t eventFieldOffset, std::optional<uint32_t> numTimesteps,
-    Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg,
-    Assembler::ScalarRegisterPtr numEventBytes, bool hasTime) const
+    std::optional<uint32_t> numTimesteps, bool hasTime,
+    Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr numEventBytes,
+    AddScalarConstantFn addScalarConstant, AddFieldFn addField) const
 {
-    // Allocate scalar register to hold address of variable
-    const auto reg = scalarRegisterAllocator.getRegister((getName() + "Buffer X").c_str());
-
-    // Generate code to load address
-    c.lw(*reg, *fieldBaseReg, eventFieldOffset);
+    // Add field and load it's address
+    const auto reg = addField(c);
 
     // If there are multiple timesteps, multiply timestep by stride and add to register
     // **TODO** currently this just handles providing entire simulation kernel worth of event data or
@@ -114,13 +111,33 @@ std::unique_ptr<Frontend::ArrayBase> EventChannel::createArray(const Frontend::S
 //----------------------------------------------------------------------------
 std::vector<Assembler::ScalarRegisterPtr> EventChannel::genPreamble(
     Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
-    uint32_t eventFieldOffset, std::optional<uint32_t> numTimesteps,
-    Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg,
-    Assembler::ScalarRegisterPtr numEventBytes, bool hasTime) const
+    std::optional<uint32_t> numTimesteps, bool hasTime,
+    Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr numEventBytes,
+    AddScalarConstantFn addScalarConstant, AddFieldFn addField) const
 {
-    // **TODO** need model
-    // **TODO** needs to add constant for per-core start event ID based on population key and split
-    return {};
+    const uint32_t eventSinkID = model->getEventSinkIDBase(this);
+
+    // Add scalar constant to hold start ID of event channel
+    auto neuronStartIDReg = addScalarConstant(
+        c,
+        [&e, &runtime, eventSinkID](size_t d, auto p)
+        {
+            const auto splitDimension = runtime.getModel<Model>()->getStateData(e.second.getUnderlying()).splitDimension;
+
+            // Sum up size of this process across all previous devices
+            uint32_t startID = 0;
+            for(size_t i = 0; i < d; i++) {
+                const auto splitShape = p->getShape().split(d, splitDimension, runtime.getNumDevices(), 32);
+                startID += static_cast<uint32_t>(splitShape.getFlattenedSize());
+            }
+
+            // Mask with event sink ID
+            assert((startID % 32) == 0);
+            return eventSinkID | startID;
+        });
+
+
+    return {neuronStartIDReg};
 }
 //----------------------------------------------------------------------------
 void EventChannel::genEmit(Compiler::EnvironmentBase &env, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,

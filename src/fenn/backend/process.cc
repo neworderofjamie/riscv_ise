@@ -804,16 +804,15 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
     // Define type for event-emitting function
     const auto emitEventFunctionType = Type::ResolvedType::createFunction(Type::Void, {});
 
-    // Degine lambda function to get number of neurons
-    const auto *model = runtime.getModel<Model>();
+    // Define lambda function to get number of neurons
     auto getNumNeurons =
         [&runtime](size_t d, auto p)
         {
             const auto state = (p->getVariables().empty()
                                 ? std::static_pointer_cast<const Frontend::State>(p->getOutputEventSinks().begin()->second.getUnderlying())
                                 : std::static_pointer_cast<const Frontend::State>(p->getVariables().begin()->second.getUnderlying()));
-            const auto splitDimension = model->getStateData(state).splitDimension;
-            const auto splitShape = p->getShape().split(d, splitDimension, runtime.getNumDevices());
+            const auto splitDimension = runtime.getModel<Model>()->getStateData(state).splitDimension;
+            const auto splitShape = p->getShape().split(d, splitDimension, runtime.getNumDevices(), 32);
             return static_cast<uint32_t>(splitShape.getFlattenedSize());
         };
 
@@ -840,6 +839,7 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
             return (std::get<uint32_t>(num) <= 32);
         });
 
+	const auto *model = runtime.getModel<Model>();
     std::unordered_map<std::shared_ptr<const Frontend::Variable>, std::vector<Compiler::RegisterPtr>> varState;
     {
         // If any variables have time dimension
@@ -934,28 +934,47 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
 
         // Loop through neuron event outputs
         for(const auto &e : getOutputEventSinks()) {
-            // Add field
-            const auto &outputEventName = e.first;
-            const uint32_t eventFieldOffset = mergedFields.addField<NeuronUpdateProcess>(
-                [outputEventName](const Frontend::DeviceBase &d, auto p)
-                { 
-                    return d.getArray(p->getOutputEventSinks().at(outputEventName).getUnderlying()); 
-                });
-
+  
             auto fennEventSink = std::dynamic_pointer_cast<const EventSinkImplementation>(e.second.getUnderlying());
             if (!fennEventSink) {
                 throw std::runtime_error("FeNN backend used with incompatible event sink");
             }
-            
-            // Get ID of event sink
-            const uint32_t eventSinkID = model->getEventSinkIDBase(e.second.getUnderlying());
 
-            // **TODO** add core start neuron ID - extra field probably required
             // Generate preamble and add state to map
-            eventSinkState.try_emplace(e.second.getUnderlying(), 
-                                       fennEventSink->genPreamble(processCodeGenerator, scalarRegisterAllocator,
-                                                                  eventFieldOffset, numTimesteps, fieldBaseReg, 
-                                                                  timeReg, numEventBytes, e.second.hasTime()));
+            eventSinkState.try_emplace(
+                e.second.getUnderlying(), 
+                fennEventSink->genPreamble(
+                    processCodeGenerator, scalarRegisterAllocator, numTimesteps, e.second.hasTime(), 
+                    timeReg, numEventBytes,
+                    [&fieldBaseReg, &mergedFields, &mergedProcess, &processCodeGenerator, &runtime, 
+                    &scalarRegisterAllocator, &sharedCodeGenerator, &sharedRegisters]
+                    (Assembler::CodeGenerator &c, auto func)
+                    {
+                        // **NOTE** we always want value in a register so maxBits = 0
+                        return std::get<Assembler::ScalarRegisterPtr>(
+                            addScalarValue<NeuronUpdateProcess>(
+                                0, mergedProcess, runtime.getNumDevices(), mergedFields, fieldBaseReg, 
+                                c, sharedCodeGenerator, scalarRegisterAllocator, sharedRegisters,
+                                func));
+                    },
+                    [&e, &fieldBaseReg, &mergedFields, &scalarRegisterAllocator](Assembler::CodeGenerator &c)
+                    {
+                        // Add field
+                        const auto &outputEventName = e.first;
+                        const uint32_t fieldOffset = mergedFields.addField<NeuronUpdateProcess>(
+                            [outputEventName](const Frontend::DeviceBase &d, auto p)
+                            { 
+                                return d.getArray(p->getOutputEventSinks().at(outputEventName).getUnderlying()); 
+                            });
+
+                        // Allocate scalar register to hold address of variable
+                        const auto reg = scalarRegisterAllocator.getRegister((outputEventName + "Buffer X").c_str());
+
+                        // Generate code to load address
+                        c.lw(*reg, *fieldBaseReg, fieldOffset);
+
+                        return reg;
+                    }));
         }
     }
     // Create code generation environment
@@ -1822,7 +1841,7 @@ std::vector<Compiler::RegisterPtr> MemsetProcess::generateArchetypeCode(
         [&runtime](size_t d, auto p)
         { 
             const auto splitDimension = runtime.getModel()->getStateData(p->getTarget().getUnderlying()).splitDimension;
-            const auto splitShape = p->getTarget().getShape().split(d, splitDimension, runtime.getNumDevices());
+            const auto splitShape = p->getTarget().getShape().split(d, splitDimension, runtime.getNumDevices(), 32);
             return static_cast<uint32_t>(::Common::Utils::padSize(splitShape.getFlattenedSize(), 32));
         });
 
@@ -1856,7 +1875,7 @@ std::vector<Compiler::RegisterPtr> MemsetProcess::generateArchetypeCode(
             [&runtime](size_t d, auto p)
             { 
                 const auto splitDimension = runtime.getModel()->getStateData(p->getTarget().getUnderlying()).splitDimension;
-                const auto splitShape = p->getTarget().getShape().split(d, splitDimension, runtime.getNumDevices());
+                const auto splitShape = p->getTarget().getShape().split(d, splitDimension, runtime.getNumDevices(), 32);
                 return static_cast<uint32_t>(::Common::Utils::padSize(splitShape.getFlattenedSize(), 32));
             });
             
