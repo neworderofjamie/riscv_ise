@@ -688,6 +688,44 @@ void TimeDrivenProcessImplementation::generateCode(const Frontend::MergedProcess
         c.bne(*SFieldBase, *SFieldBaseEnd, groupLoop);
     }
 }
+
+//----------------------------------------------------------------------------
+// FeNN::Backend::EventDrivenProcessImplementation
+//----------------------------------------------------------------------------
+void EventDrivenProcessImplementation::generateCode(const Frontend::MergedProcess &mergedProcess, const Runtime &runtime, 
+                                                    MergedFields &mergedFields, Assembler::ScalarRegisterPtr timeReg,
+                                                    std::optional<uint32_t> numTimesteps, uint32_t &fieldBase,
+                                                    Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
+                                                    Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
+{
+    // **TODO**
+    Assembler::ScalarRegisterPtr preIndReg;
+    Assembler::ScalarRegisterPtr groupIndReg;
+
+    // Allocate base register
+    ALLOCATE_SCALAR(SFieldBase);
+
+    // Generate archetype code and populate merged fields
+    Assembler::CodeGenerator archetypeCodeGenerator;
+    const auto sharedRegisters = generateArchetypeCode(mergedProcess, runtime, mergedFields, SFieldBase, 
+                                                       timeReg,  preIndReg, numTimesteps, archetypeCodeGenerator,
+                                                       c, scalarRegisterAllocator, vectorRegisterAllocator);
+
+    // Load fieldBase
+    c.li(*SFieldBase, fieldBase);
+
+    // Calculate offset of merged 
+    {
+        ALLOCATE_SCALAR(STmp);
+        c.li(*STmp, mergedFields.getSize());
+        c.mul(*STmp, *STmp, *groupIndReg);
+        c.add(*SFieldBase, *SFieldBase, *STmp);
+    }
+
+    // Insert generated code to simulate archetype
+    c += archetypeCodeGenerator;
+}
+
 //----------------------------------------------------------------------------
 // FeNN::Backend::NeuronUpdateProcess
 //----------------------------------------------------------------------------
@@ -812,7 +850,7 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
                                 ? std::static_pointer_cast<const Frontend::State>(p->getOutputEventSinks().begin()->second.getUnderlying())
                                 : std::static_pointer_cast<const Frontend::State>(p->getVariables().begin()->second.getUnderlying()));
             const auto splitDimension = runtime.getModel<Model>()->getStateData(state).splitDimension;
-            const auto splitShape = p->getShape().split(d, splitDimension, runtime.getNumDevices(), 32);
+            const auto splitShape = p->getShape().getSplit(d, splitDimension, runtime.getNumDevices(), 32);
             return static_cast<uint32_t>(splitShape.getFlattenedSize());
         };
 
@@ -1181,6 +1219,193 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
         });
 
     return sharedRegisters;
+}
+
+//----------------------------------------------------------------------------
+// FeNN::Backend::DenseEventPropagationProcess
+//----------------------------------------------------------------------------
+DenseEventPropagationProcess::DenseEventPropagationProcess(Private, Frontend::Sliced<Frontend::EventSource> inputEventSource, 
+                                                           Frontend::VariablePtr weight, Frontend::Sliced<Frontend::Variable> target, 
+                                                           const std::string &name)
+:   EventPropagationProcess(Private(), inputEventSource, target, name)
+{
+    if(m_Weight == nullptr) {
+        throw std::runtime_error("Dense event propagation process requires weight variable");
+    }
+
+    if (getWeight()->getShape().getNumDims() != 2) {
+        throw std::runtime_error("Dense event propagation process requires weight variable with a 2D shape");
+    }
+
+    if (getInputEventSource().getShape().getNumDims() != 1) {
+        throw std::runtime_error("Dense event propagation process requires source events with a 1D shape");
+    }  
+
+    if (getTarget().getShape().getNumDims() != 1) {
+        throw std::runtime_error("Event propagation process requires target variable with a 1D shape");
+    } 
+
+    // Check weight shape matches input event shape
+    if(getWeight()->getShape()[0] != getInputEventSource().getShape()[0]) {
+        throw std::runtime_error("Weight with shape: " + getWeight()->getShape().toString() 
+                                 + " is not compatible with event source with shape: " 
+                                 + getInputEventSource().getShape().toString());
+    }
+
+    // Check weight shape matches target shape
+    if(getWeight()->getShape()[1] != getTarget().getShape()[0]) {
+        throw std::runtime_error("Weight with shape: " + getWeight()->getShape().toString() 
+                                 + " is not compatible with target variable with shape: " 
+                                 + getTarget().getShape().toString());
+    }
+
+    // **THINK** should we check weight padding here?
+}
+//------------------------------------------------------------------------
+void DenseEventPropagationProcess::updateMaxDMABufferSize(size_t &size) const
+{
+    size = std::max(size, getWeight()->getShape()[1]);
+}
+//------------------------------------------------------------------------
+std::vector<Compiler::RegisterPtr> DenseEventPropagationProcess::generateArchetypeCode(
+    const Frontend::MergedProcess &mergedProcess, const Runtime &runtime, MergedFields &mergedFields,
+    Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr preIndReg,
+    std::optional<uint32_t> numTimesteps, Assembler::CodeGenerator &processCodeGenerator, Assembler::CodeGenerator &sharedCodeGenerator,
+    Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
+{
+    // Make some friendlier-named references
+    auto &c = processCodeGenerator;
+
+    // Add fields for weight and target
+    const uint32_t weightFieldOffset = mergedFields.addField<DenseEventPropagationProcess>(
+        [](const Frontend::DeviceBase &d, auto p)
+        { 
+            return d.getArray(p->getWeight()); 
+        });
+    
+    const uint32_t targetFieldOffset = mergedFields.addField<DenseEventPropagationProcess>(
+        [](const Frontend::DeviceBase &d, auto p)
+        { 
+            return d.getArray(p->getTarget().getUnderlying()); 
+        });
+
+    // Get stride
+    // **NOTE** this is going into a multiply so always needs to be in a register
+    std::vector<Compiler::RegisterPtr> sharedRegisters;
+    const auto strideReg = std::get<Assembler::ScalarRegisterPtr>(
+        addScalarValue<DenseEventPropagationProcess>(
+            0, mergedProcess, runtime.getNumDevices(), mergedFields, fieldBaseReg, 
+            processCodeGenerator, sharedCodeGenerator, scalarRegisterAllocator, sharedRegisters,
+            [&runtime](size_t d, auto p)
+            { 
+                const auto splitDimension = runtime.getModel()->getStateData(p->getTarget().getUnderlying()).splitDimension;
+                const auto splitShape = p->getTarget().getShape().getSplit(d, splitDimension, runtime.getNumDevices(), 32);
+                return static_cast<uint32_t>(splitShape[splitDimension]);
+            }));
+
+    // SWeightBuffer = weightInHidStart + (numPostVecs * 64 * SN);
+    ALLOCATE_SCALAR(SWeightBuffer);
+    c.lw(*SWeightBuffer, *fieldBaseReg, weightFieldOffset);
+    {
+        ALLOCATE_SCALAR(STemp);
+        c.mul(*STemp, *preIndReg, *strideReg);
+        c.add(*SWeightBuffer, *SWeightBuffer, *STemp);
+    }
+
+    // Load target register from state fields
+    ALLOCATE_SCALAR(STargetBuf);
+    c.lw(*STargetBuf, *fieldBaseReg, targetFieldOffset);
+
+    ALLOCATE_VECTOR(VWeight);
+    ALLOCATE_VECTOR(VTarget1);
+    ALLOCATE_VECTOR(VTarget2);
+    ALLOCATE_VECTOR(VTargetNew);
+    
+
+    // Preload first ISyn to avoid stall
+    c.vloadv(*VTarget1, *STargetBuf, 0);
+
+    Assembler::Utils::unrollVectorLoopBody(
+        c, scalarRegisterAllocator, getProcess()->getNumTargetNeurons(), 4, *STargetBuf,
+        [this, weightBufferReg, STargetBuf, VWeight, VTarget1, VTarget2, VTargetNew]
+        (Assembler::CodeGenerator &c, uint32_t r, bool even, Assembler::ScalarRegisterPtr maskReg)
+        {
+            // Load vector of weights
+            c.vloadv(*VWeight, *weightBufferReg, r * 64);
+
+            // Load NEXT vector of target to avoid stall
+            // **YUCK** in last iteration, while this may not be accessed, it may be out of bounds                  
+            c.vloadv(even ? *VTarget2 : *VTarget1, *STargetBuf, (r + 1) * 64);
+
+            // Add weights to ISyn
+            auto VTarget = even ? VTarget1 : VTarget2;
+            if(maskReg) {
+                c.vadd_s(*VTargetNew, *VTarget, *VWeight);
+                c.vsel(*VTarget, *maskReg, *VTargetNew);
+            }
+            else {
+                c.vadd_s(*VTarget, *VTarget, *VWeight);
+            }
+
+            // Write back target
+            c.vstore(*VTarget, *STargetBuf, r * 64);
+        },
+        [this, weightBufferReg, STargetBuf](Assembler::CodeGenerator &c, uint32_t numUnrolls)
+        {
+            // Increment pointers 
+            c.addi(*STargetBuf, *STargetBuf, 64 * numUnrolls);
+            c.addi(*weightBufferReg, *weightBufferReg, 64 * numUnrolls);
+        });
+
+    return sharedRegisters;
+}
+//----------------------------------------------------------------------------
+std::vector<std::shared_ptr<const Frontend::State>> DenseEventPropagationProcess::getAllState() const
+{
+    return {getInputEventSource().getUnderlying(), getWeight(), getTarget().getUnderlying()};
+}
+//----------------------------------------------------------------------------
+void DenseEventPropagationProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Frontend::Model &model) const
+{
+    using namespace ::Common::Utils;
+    UPDATE_HASH_CLASS_NAME(DenseEventPropagationProcess);
+
+    // **NOTE** we do not include input event source in hash as event sources are handled seperately in FeNN backend
+
+    // Targets
+    getTarget().updateMergeHash(hash, model);
+
+    // Weights
+    getWeight()->updateMergeHash(hash, model);
+}
+//----------------------------------------------------------------------------
+void DenseEventPropagationProcess::updateCompatibleSplitDimensions(std::shared_ptr<const Frontend::State> state, 
+                                                                   uint32_t &compatibleSplitDimensions) const 
+{
+    // If variable is weight, it can only be split in 2nd (postsynaptic) dimension
+    if(state == getWeight()) {
+        compatibleSplitDimensions &= (1 << 1);
+    }
+    // Otherwise, superclass
+    else {
+        Frontend::EventPropagationProcess::updateCompatibleSplitDimensions(state, compatibleSplitDimensions);
+    }
+}
+//----------------------------------------------------------------------------
+void DenseEventPropagationProcess::updateCompatibleMemSpace(std::shared_ptr<const Frontend::State> state, 
+                                                            MemSpace &compatibleMemSpaces) const
+{
+    // If variable is weight, it can  be located in URAM or DRAM
+    if(state == getWeight()) {
+        compatibleMemSpaces &= (MemSpace::DRAM | MemSpace::URAM);
+    }
+    // Otherwise, if variable's target, it can be in URAM or LLM 
+    else if(state == getTarget().getUnderlying()) {
+        compatibleMemSpaces &= (MemSpace::LLM | MemSpace::URAM_LLM | MemSpace::URAM);
+    }
+    else {
+        assert(false);
+    }
 }
 
 //----------------------------------------------------------------------------
@@ -1841,7 +2066,7 @@ std::vector<Compiler::RegisterPtr> MemsetProcess::generateArchetypeCode(
         [&runtime](size_t d, auto p)
         { 
             const auto splitDimension = runtime.getModel()->getStateData(p->getTarget().getUnderlying()).splitDimension;
-            const auto splitShape = p->getTarget().getShape().split(d, splitDimension, runtime.getNumDevices(), 32);
+            const auto splitShape = p->getTarget().getShape().getSplit(d, splitDimension, runtime.getNumDevices(), 32);
             return static_cast<uint32_t>(::Common::Utils::padSize(splitShape.getFlattenedSize(), 32));
         });
 
@@ -1875,7 +2100,7 @@ std::vector<Compiler::RegisterPtr> MemsetProcess::generateArchetypeCode(
             [&runtime](size_t d, auto p)
             { 
                 const auto splitDimension = runtime.getModel()->getStateData(p->getTarget().getUnderlying()).splitDimension;
-                const auto splitShape = p->getTarget().getShape().split(d, splitDimension, runtime.getNumDevices(), 32);
+                const auto splitShape = p->getTarget().getShape().getSplit(d, splitDimension, runtime.getNumDevices(), 32);
                 return static_cast<uint32_t>(::Common::Utils::padSize(splitShape.getFlattenedSize(), 32));
             });
             

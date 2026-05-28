@@ -81,7 +81,7 @@ void Runtime::allocate()
         // Loop through devices
         for(size_t i = 0; i < getNumDevices(); i++) {
             // Split shape and create array
-            const auto deviceShape = s.first->getShape().split(i, s.second.splitDimension, 
+            const auto deviceShape = s.first->getShape().getSplit(i, s.second.splitDimension, 
                                                                getNumDevices(), m_StateSplitGranularity);
             getDevices()[i]->createArray(s.first, deviceShape, *getModel());
         }

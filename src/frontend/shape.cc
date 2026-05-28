@@ -40,36 +40,42 @@ size_t Shape::getFlattenedSize() const
     return std::accumulate(m_Dims.cbegin(), m_Dims.cend(), 1, std::multiplies<size_t>());
 }
 //----------------------------------------------------------------------------
-Shape Shape::split(size_t split, std::optional<size_t> splitDimension, size_t numSplits, size_t splitGranularity) const
+size_t Shape::getSplitDimension(size_t split, size_t splitDimension, size_t numSplits, size_t splitGranularity) const
+{
+    // Get size of dimension to split along
+    const size_t originalSplitDimSize = m_Dims.at(splitDimension);
+    assert(originalSplitDimSize > numSplits);
+
+    // **NOTE** dimensions ABOVE split will only contain time/presynaptic neuron index not neuron ID
+
+    // Multiply together size of dimensions 'below' split
+    size_t numElementsPerSplitDim = 1;
+    for (size_t i = splitDimension + 1; i < getNumDims(); i++) {
+        numElementsPerSplitDim *= m_Dims[i];
+    }
+
+    // Multiply this by size of split dimension to get total
+    const size_t numElementsToSplit = numElementsPerSplitDim * originalSplitDimSize;
+
+    // Lowest Common Multiple of this and 32 is our split granularity
+    // as we need splits to be multiples of 32 and we don't want to break dimensions
+    const size_t finalSplitGranularity = std::lcm(numElementsPerSplitDim, splitGranularity);
+
+    // Determine size of splits (in terms of these granules)
+    const size_t roundedSplitGranules = static_cast<size_t>(std::round(numElementsToSplit / (static_cast<double>(numSplits) * finalSplitGranularity)));
+
+    // Convert into actual sizes
+    const size_t roundedSplitSize = (roundedSplitGranules * finalSplitGranularity) / numElementsPerSplitDim;
+
+    return (split < (numSplits - 1)) ? roundedSplitSize : (originalSplitDimSize - roundedSplitSize);
+}
+//----------------------------------------------------------------------------
+Shape Shape::getSplit(size_t split, std::optional<size_t> splitDimension, size_t numSplits, size_t splitGranularity) const
 {
     if(splitDimension.has_value()) {
-        // Get size of dimension to split along
-        const size_t originalSplitDimSize = m_Dims.at(splitDimension.value());
-        assert(originalSplitDimSize > numSplits);
-
-        // **NOTE** dimensions ABOVE split will only contain time/presynaptic neuron index not neuron ID
-
-        // Multiply together size of dimensions 'below' split
-        size_t numElementsPerSplitDim = 1;
-        for (size_t i = splitDimension.value() + 1; i < getNumDims(); i++) {
-            numElementsPerSplitDim *= m_Dims[i];
-        }
-
-        // Multiply this by size of split dimension to get total
-        const size_t numElementsToSplit = numElementsPerSplitDim * originalSplitDimSize;
-
-        // Lowest Common Multiple of this and 32 is our split granularity
-        // as we need splits to be multiples of 32 and we don't want to break dimensions
-        const size_t finalSplitGranularity = std::lcm(numElementsPerSplitDim, splitGranularity);
-
-        // Determine size of splits (in terms of these granules)
-        const size_t roundedSplitGranules = static_cast<size_t>(std::round(numElementsToSplit / (static_cast<double>(numSplits) * finalSplitGranularity)));
-
-        // Convert into actual sizes
-        const size_t roundedSplitSize = (roundedSplitGranules * finalSplitGranularity) / numElementsPerSplitDim;
-
         Shape splitShape = *this;
-        splitShape[splitDimension.value()] = (split < (numSplits - 1)) ? roundedSplitSize : (originalSplitDimSize - roundedSplitSize);
+        splitShape[splitDimension.value()] = getSplitDimension(split, splitDimension.value(), 
+                                                               numSplits, splitGranularity);
         return splitShape;
     }
     // Otherwise, return copy

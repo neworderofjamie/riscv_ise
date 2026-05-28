@@ -247,11 +247,7 @@ EventPropagationProcess::EventPropagationProcess(Private, Sliced<EventSource> in
 
     if(getTarget().getUnderlying() == nullptr) {
         throw std::runtime_error("Event propagation process requires target variable");
-    }
-
-    if (getSourceShape().getNumDims() != 1) {
-        throw std::runtime_error("Event propagation process requires source events with a 1D shape");
-    }    
+    }  
 }
 //----------------------------------------------------------------------------
 std::vector<std::shared_ptr<const State>> EventPropagationProcess::getAllState() const
@@ -267,18 +263,6 @@ std::vector<std::shared_ptr<const EventSource>> EventPropagationProcess::getAllE
 std::vector<Sliced<EventSink>> EventPropagationProcess::getAllEventSinks() const
 {
     return {};
-}
-//----------------------------------------------------------------------------
-void EventPropagationProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Model &model) const
-{
-    using namespace Common::Utils;
-    UPDATE_HASH_CLASS_NAME(EventPropagationProcess);
-
-    // Input events
-    getInputEventSource().updateMergeHash(hash, model);
-
-    // Targets
-    getTarget().updateMergeHash(hash, model);
 }
 //----------------------------------------------------------------------------
 void EventPropagationProcess::updateCompatibleSplitDimensions(std::shared_ptr<const State> state, 

@@ -208,9 +208,6 @@ public:
     //! Get vector of event sink objects used by this process
     virtual std::vector<Sliced<EventSink>> getAllEventSinks() const override final;
 
-    //! Update the provided hash with the properties of this process which determine whether it can be merged
-    virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const Model &model) const override;
-
     //! Update the compatible split dimensions of a state object (which should be
     //! one used by this process) with any constraints imposed by this process)
     virtual void updateCompatibleSplitDimensions(std::shared_ptr<const State> state, 
@@ -220,12 +217,8 @@ public:
     // Public API
     //------------------------------------------------------------------------
     const auto getInputEventSource() const{ return m_InputEventSource; }
-
     const auto getTarget() const{ return m_Target; }
 
-    const auto &getSourceShape() const{ return m_InputEventSource.getShape(); }
-    const auto &getTargetShape() const{ return m_Target.getShape(); }
-    
     //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------
