@@ -205,11 +205,11 @@ public:
     //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------
-    static std::shared_ptr<EventPropagationProcess> create(Frontend::Sliced<Frontend::EventSource> inputEventSourc, 
-                                                           Frontend::VariablePtr weight, Frontend::VariablePtr target, 
-                                                           const std::string &name = "")
+    static std::shared_ptr<DenseEventPropagationProcess> create(Frontend::Sliced<Frontend::EventSource> inputEventSource, 
+                                                                Frontend::VariablePtr weight, Frontend::Sliced<Frontend::Variable> target, 
+                                                                const std::string &name = "")
     {
-        return std::make_shared<EventPropagationProcess>(Private(), inputEventSourc, weight, target, name);
+        return std::make_shared<DenseEventPropagationProcess>(Private(), inputEventSource, weight, target, name);
     }
 
 private:

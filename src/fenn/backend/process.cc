@@ -869,12 +869,14 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
             return ((std::get<uint32_t>(num) % 32) == 0);
         });
     
-    // No need for unrolling if all neuron counts are less than or equal to 32
+    // No need for unrolling if all neuron counts are 
+    // less than the size of a single unrolled iteration
+    // **THINK** this could also trigger a reduction in maxUnroll
     const bool numNeuronsNoUnroll = allOf<NeuronUpdateProcess>(
         mergedProcess, runtime.getNumDevices(), getNumNeurons,
-        [](const MergedFields::FieldValue &num)
+        [maxUnroll](const MergedFields::FieldValue &num)
         {
-            return (std::get<uint32_t>(num) <= 32);
+            return (std::get<uint32_t>(num) < (maxUnroll * 32));
         });
 
 	const auto *model = runtime.getModel<Model>();
@@ -1227,7 +1229,7 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
 DenseEventPropagationProcess::DenseEventPropagationProcess(Private, Frontend::Sliced<Frontend::EventSource> inputEventSource, 
                                                            Frontend::VariablePtr weight, Frontend::Sliced<Frontend::Variable> target, 
                                                            const std::string &name)
-:   EventPropagationProcess(Private(), inputEventSource, target, name)
+:   EventPropagationProcess(Private(), inputEventSource, target, name), m_Weight(weight)
 {
     if(m_Weight == nullptr) {
         throw std::runtime_error("Dense event propagation process requires weight variable");
@@ -1273,6 +1275,8 @@ std::vector<Compiler::RegisterPtr> DenseEventPropagationProcess::generateArchety
     std::optional<uint32_t> numTimesteps, Assembler::CodeGenerator &processCodeGenerator, Assembler::CodeGenerator &sharedCodeGenerator,
     Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
+    constexpr uint32_t maxUnroll = 4;
+
     // Make some friendlier-named references
     auto &c = processCodeGenerator;
 
@@ -1289,6 +1293,14 @@ std::vector<Compiler::RegisterPtr> DenseEventPropagationProcess::generateArchety
             return d.getArray(p->getTarget().getUnderlying()); 
         });
 
+    // Define lambda function to get stride
+    auto getStride =
+        [&runtime](size_t d, auto p)
+        { 
+            return static_cast<uint32_t>(p->getWeight()->getShape().getSplitDimension(
+                                         d, 1, runtime.getNumDevices(), 32));
+        };
+    
     // Get stride
     // **NOTE** this is going into a multiply so always needs to be in a register
     std::vector<Compiler::RegisterPtr> sharedRegisters;
@@ -1296,12 +1308,38 @@ std::vector<Compiler::RegisterPtr> DenseEventPropagationProcess::generateArchety
         addScalarValue<DenseEventPropagationProcess>(
             0, mergedProcess, runtime.getNumDevices(), mergedFields, fieldBaseReg, 
             processCodeGenerator, sharedCodeGenerator, scalarRegisterAllocator, sharedRegisters,
-            [&runtime](size_t d, auto p)
-            { 
-                const auto splitDimension = runtime.getModel()->getStateData(p->getTarget().getUnderlying()).splitDimension;
-                const auto splitShape = p->getTarget().getShape().getSplit(d, splitDimension, runtime.getNumDevices(), 32);
-                return static_cast<uint32_t>(splitShape[splitDimension]);
-            }));
+            getStride));
+
+    // No need for unrolling if all strides are 
+    // less than the size of a single unrolled iteration
+    // **THINK** this could also trigger a reduction in maxUnroll
+    const bool strideNoUnroll = allOf<DenseEventPropagationProcess>(
+        mergedProcess, runtime.getNumDevices(), getStride,
+        [maxUnroll](const MergedFields::FieldValue &num)
+        {
+            return (std::get<uint32_t>(num) < (maxUnroll * 32));
+        });
+
+    // No need to unroll pairs if all strides have 
+    // less than 2 remaining after unrolling
+    const bool strideNoPairs = allOf<DenseEventPropagationProcess>(
+        mergedProcess, runtime.getNumDevices(), getStride,
+        [maxUnroll](const MergedFields::FieldValue &num)
+        {
+            // Calculate how much remains after unrolled iterations
+            const uint32_t unrollRemainder = (std::get<uint32_t>(num) % (maxUnroll * 32));
+            return (unrollRemainder < 2);
+        });
+
+    // No need to add final iteration if all strides
+    // are a multiple of two after unrolling
+    const bool strideNoFinal = allOf<DenseEventPropagationProcess>(
+        mergedProcess, runtime.getNumDevices(), getStride,
+        [maxUnroll](const MergedFields::FieldValue &num)
+        {
+            const uint32_t unrollRemainder = (std::get<uint32_t>(num) % (maxUnroll * 32));
+            return (unrollRemainder % 2) == 0;
+        });
 
     // SWeightBuffer = weightInHidStart + (numPostVecs * 64 * SN);
     ALLOCATE_SCALAR(SWeightBuffer);
@@ -1321,17 +1359,19 @@ std::vector<Compiler::RegisterPtr> DenseEventPropagationProcess::generateArchety
     ALLOCATE_VECTOR(VTarget2);
     ALLOCATE_VECTOR(VTargetNew);
     
-
     // Preload first ISyn to avoid stall
     c.vloadv(*VTarget1, *STargetBuf, 0);
 
-    Assembler::Utils::unrollVectorLoopBody(
-        c, scalarRegisterAllocator, getProcess()->getNumTargetNeurons(), 4, *STargetBuf,
-        [this, weightBufferReg, STargetBuf, VWeight, VTarget1, VTarget2, VTargetNew]
-        (Assembler::CodeGenerator &c, uint32_t r, bool even, Assembler::ScalarRegisterPtr maskReg)
+    // Unroll loop over row
+    Assembler::Utils::unrollOddEvenLoopBody(
+        c, scalarRegisterAllocator,
+        *strideReg, maxUnroll, 32,
+        strideNoUnroll, strideNoPairs, strideNoFinal,
+        [this, SWeightBuffer, STargetBuf, VWeight, VTarget1, VTarget2, VTargetNew]
+        (Assembler::CodeGenerator &c, uint32_t r, bool even)
         {
             // Load vector of weights
-            c.vloadv(*VWeight, *weightBufferReg, r * 64);
+            c.vloadv(*VWeight, *SWeightBuffer, r * 64);
 
             // Load NEXT vector of target to avoid stall
             // **YUCK** in last iteration, while this may not be accessed, it may be out of bounds                  
@@ -1339,22 +1379,16 @@ std::vector<Compiler::RegisterPtr> DenseEventPropagationProcess::generateArchety
 
             // Add weights to ISyn
             auto VTarget = even ? VTarget1 : VTarget2;
-            if(maskReg) {
-                c.vadd_s(*VTargetNew, *VTarget, *VWeight);
-                c.vsel(*VTarget, *maskReg, *VTargetNew);
-            }
-            else {
-                c.vadd_s(*VTarget, *VTarget, *VWeight);
-            }
-
+            c.vadd_s(*VTarget, *VTarget, *VWeight);
+            
             // Write back target
             c.vstore(*VTarget, *STargetBuf, r * 64);
         },
-        [this, weightBufferReg, STargetBuf](Assembler::CodeGenerator &c, uint32_t numUnrolls)
+        [this, SWeightBuffer, STargetBuf](Assembler::CodeGenerator &c, uint32_t numUnrolls)
         {
             // Increment pointers 
             c.addi(*STargetBuf, *STargetBuf, 64 * numUnrolls);
-            c.addi(*weightBufferReg, *weightBufferReg, 64 * numUnrolls);
+            c.addi(*SWeightBuffer, *SWeightBuffer, 64 * numUnrolls);
         });
 
     return sharedRegisters;
@@ -1370,7 +1404,9 @@ void DenseEventPropagationProcess::updateMergeHash(boost::uuids::detail::sha1 &h
     using namespace ::Common::Utils;
     UPDATE_HASH_CLASS_NAME(DenseEventPropagationProcess);
 
-    // **NOTE** we do not include input event source in hash as event sources are handled seperately in FeNN backend
+    // **NOTE** we do NOT call the superclass here because we want to set our 
+    // own name and do not want to include input event source in hash as 
+    // event sources are handled seperately in FeNN backend
 
     // Targets
     getTarget().updateMergeHash(hash, model);
