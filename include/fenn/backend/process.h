@@ -65,6 +65,22 @@ public:
                               std::optional<uint32_t> numTimesteps, uint32_t &fieldBase,
                               Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                               Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const = 0;
+    
+    //----------------------------------------------------------------------------
+    // Public API
+    //----------------------------------------------------------------------------
+    uint32_t getMaxUnroll() const{ return m_MaxUnroll; }
+    void setMaxUnroll(uint32_t maxUnroll){ m_MaxUnroll = maxUnroll; }
+
+protected:
+    ProcessImplementation() : m_MaxUnroll(4)
+    {}
+
+private:
+    //----------------------------------------------------------------------------
+    // Members
+    //----------------------------------------------------------------------------
+    uint32_t m_MaxUnroll;
 };
 
 //----------------------------------------------------------------------------

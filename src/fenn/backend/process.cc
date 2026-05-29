@@ -837,8 +837,6 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
         Assembler::CodeGenerator &sharedCodeGenerator, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
         Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
-    constexpr uint32_t maxUnroll = 4;
-
     // Define type for event-emitting function
     const auto emitEventFunctionType = Type::ResolvedType::createFunction(Type::Void, {});
 
@@ -874,9 +872,9 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
     // **THINK** this could also trigger a reduction in maxUnroll
     const bool numNeuronsNoUnroll = allOf<NeuronUpdateProcess>(
         mergedProcess, runtime.getNumDevices(), getNumNeurons,
-        [maxUnroll](const MergedFields::FieldValue &num)
+        [this](const MergedFields::FieldValue &num)
         {
-            return (std::get<uint32_t>(num) < (maxUnroll * 32));
+            return (std::get<uint32_t>(num) < (getMaxUnroll() * 32));
         });
 
 	const auto *model = runtime.getModel<Model>();
@@ -1123,7 +1121,7 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
     // **TODO** check all merged processes don't have multiple of 32 neurons, less than 4 * 32 neurons, multiple of 4 * 32 neurons
     unrollVectorLoopBody(
         envLibrary.getCodeGenerator(), scalarRegisterAllocator,
-        numNeurons, maxUnroll, numNeuronsNoTail, numNeuronsNoUnroll,
+        numNeurons, getMaxUnroll(), numNeuronsNoTail, numNeuronsNoUnroll,
         [this, &envLibrary, &eventSinkState, &emitEventFunctionType, &mergedProcess, 
          &model, &runtime, &scalarRegisterAllocator, &varState, &vectorRegisterAllocator]
         (auto&, uint32_t r, auto maskReg)
@@ -1273,8 +1271,6 @@ std::vector<Compiler::RegisterPtr> DenseEventPropagationProcess::generateArchety
     std::optional<uint32_t> numTimesteps, Assembler::CodeGenerator &processCodeGenerator, Assembler::CodeGenerator &sharedCodeGenerator,
     Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
-    constexpr uint32_t maxUnroll = 4;
-
     // Make some friendlier-named references
     auto &c = processCodeGenerator;
 
@@ -1314,19 +1310,19 @@ std::vector<Compiler::RegisterPtr> DenseEventPropagationProcess::generateArchety
     // **THINK** this could also trigger a reduction in maxUnroll
     const bool strideNoUnroll = allOf<DenseEventPropagationProcess>(
         mergedProcess, runtime.getNumDevices(), getStride,
-        [maxUnroll](const MergedFields::FieldValue &num)
+        [this](const MergedFields::FieldValue &num)
         {
-            return (std::get<uint32_t>(num) < (maxUnroll * 32));
+            return (std::get<uint32_t>(num) < (getMaxUnroll() * 32));
         });
 
     // No need to unroll pairs if all strides have 
     // less than 2 remaining after unrolling
     const bool strideNoPairs = allOf<DenseEventPropagationProcess>(
         mergedProcess, runtime.getNumDevices(), getStride,
-        [maxUnroll](const MergedFields::FieldValue &num)
+        [this](const MergedFields::FieldValue &num)
         {
             // Calculate how much remains after unrolled iterations
-            const uint32_t unrollRemainder = (std::get<uint32_t>(num) % (maxUnroll * 32));
+            const uint32_t unrollRemainder = (std::get<uint32_t>(num) % (getMaxUnroll() * 32));
             return (unrollRemainder < 2);
         });
 
@@ -1334,9 +1330,9 @@ std::vector<Compiler::RegisterPtr> DenseEventPropagationProcess::generateArchety
     // are a multiple of two after unrolling
     const bool strideNoFinal = allOf<DenseEventPropagationProcess>(
         mergedProcess, runtime.getNumDevices(), getStride,
-        [maxUnroll](const MergedFields::FieldValue &num)
+        [this](const MergedFields::FieldValue &num)
         {
-            const uint32_t unrollRemainder = (std::get<uint32_t>(num) % (maxUnroll * 32));
+            const uint32_t unrollRemainder = (std::get<uint32_t>(num) % (getMaxUnroll() * 32));
             return (unrollRemainder % 2) == 0;
         });
 
@@ -1364,7 +1360,7 @@ std::vector<Compiler::RegisterPtr> DenseEventPropagationProcess::generateArchety
     // Unroll loop over row
     Assembler::Utils::unrollOddEvenLoopBody(
         c, scalarRegisterAllocator,
-        *strideReg, maxUnroll, 32,
+        *strideReg, getMaxUnroll(), 32,
         strideNoUnroll, strideNoPairs, strideNoFinal,
         [this, SWeightBuffer, STargetBuf, VWeight, VTarget1, VTarget2, VTargetNew]
         (Assembler::CodeGenerator &c, uint32_t r, bool even)
@@ -2174,7 +2170,7 @@ void MemsetProcess::generateLLMMemset(Assembler::CodeGenerator &c,
     // Generate unrolled loop 
     // **TODO** figure out unrolledness
     unrollVectorLoopBody(
-        c, scalarRegisterAllocator, numElements, 4, true, false,
+        c, scalarRegisterAllocator, numElements, getMaxUnroll(), true, false,
         [VLLMAddress, VValue]
         (auto &c, uint32_t r, auto)
         {
@@ -2208,7 +2204,7 @@ void MemsetProcess::generateURAMMemset(Assembler::CodeGenerator &c,
     // Generate unrolled loop 
     // **TODO** figure out unrolled
     unrollVectorLoopBody(
-        c, scalarRegisterAllocator, numElements, 4, true, false,
+        c, scalarRegisterAllocator, numElements, getMaxUnroll(), true, false,
         [targetReg, VValue]
         (auto &c, uint32_t r, auto)
         {
