@@ -1254,14 +1254,12 @@ DenseEventPropagationProcess::DenseEventPropagationProcess(Private, Frontend::Sl
                                  + getInputEventSource().getShape().toString());
     }
 
-    // Check weight shape matches target shape
-    if(getWeight()->getShape()[1] != getTarget().getShape()[0]) {
+    // Check weight shape matches padded target shape
+    if(getWeight()->getShape()[1] != ::Common::Utils::padSize(getTarget().getShape()[0], 32)) {
         throw std::runtime_error("Weight with shape: " + getWeight()->getShape().toString() 
                                  + " is not compatible with target variable with shape: " 
                                  + getTarget().getShape().toString());
     }
-
-    // **THINK** should we check weight padding here?
 }
 //------------------------------------------------------------------------
 void DenseEventPropagationProcess::updateMaxDMABufferSize(size_t &size) const
@@ -1294,6 +1292,7 @@ std::vector<Compiler::RegisterPtr> DenseEventPropagationProcess::generateArchety
         });
 
     // Define lambda function to get stride
+    // **NOTE** we look at weight because it is padded
     auto getStride =
         [&runtime](size_t d, auto p)
         { 
