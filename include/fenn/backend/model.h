@@ -67,6 +67,8 @@ public:
 
     uint32_t getEventSinkIDBase(std::shared_ptr<const Frontend::EventSink> eventSink) const;
     
+    auto getEventSourceProcessGroup() const{ return m_EventSourceProcessGroup; }
+
 private:
     //------------------------------------------------------------------------
     // Members

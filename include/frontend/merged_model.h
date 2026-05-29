@@ -80,6 +80,12 @@ public:
     // Public API
     //----------------------------------------------------------------------------
     const auto &getModel() const{ return m_Model.get(); }
+    
+    template<typename P>
+    const auto getModel() const 
+    { 
+        return std::dynamic_pointer_cast<const P>(getModel());
+    }
 
     //! Get map of process groups to merged processes
     const auto &getMergedProcessGroups() const{ return m_MergedProcessGroups; }

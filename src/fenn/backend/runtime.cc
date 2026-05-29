@@ -145,13 +145,14 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
 
     //! Fields always start at address 4
     uint32_t fieldBase = 4;
-    
+
     // Loop through kernels
-    for (const auto &k : getMergedModel().getModel().getKernels()) {
+    const auto model = getMergedModel().getModel<Model>();
+    for (const auto &k : model.getKernels()) {
         // Generate kernel
         auto code = Assembler::Utils::generateStandardKernel(
             generateSimulationKernels, readyFlagPtr,
-            [&fieldBase, &k, this]
+            [&fieldBase, &k, &model, this]
             (Assembler::CodeGenerator &c, Assembler::VectorRegisterAllocator &vectorRegisterAllocator, 
              Assembler::ScalarRegisterAllocator &scalarRegisterAllocator)
             {
@@ -178,29 +179,81 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                      // Reserve merged fields for each process group
                                      const auto &mergedProcesses = getMergedModel().getMergedProcessGroups().at(processGroup);
                                      mergedFields.first->second.reserve(mergedProcesses.size());
+                                    
+                                     // If this is the event source process group
+                                     if(processGroup == model->getEventSourceProcessGroup()) {
+                                         ALLOCATE_SCALAR(SPreIndex);
+                                         ALLOCATE_SCALAR(SGroupIndex);
+                                         ALLOCATE_SCALAR(SMergedGroupReturn);
+                                         
+                                         // Create ordered map of event sink ids to event sinks and labels
+                                         // Create labels for each merged process
 
-                                     // Loop through merged processes
-                                     // **TODO** need to identify whether process group is the one that contains event propagation
-                                     // If it is
-                                     // 1) 
-                                     for(const auto &m : mergedProcesses) {
-                                         // Ensure process has proper base class
-                                         auto pi = std::dynamic_pointer_cast<const ProcessImplementation>(m.getArchetype());
-                                         if (!pi) {
-                                             throw std::runtime_error("FeNN backend runtime used with incompatible process");
-                                         }
+                                         // Generate event loops
+                                         // > Loop over events
+                                         //   > Extract pre index and sink ID
+                                         //   > JALR to event sink jump table
+                                         // > Jump to end
 
-                                         // Add new merged field
-                                         // **NOTE** these are relative to start of field array
-                                         mergedFields.first->second.emplace_back(std::piecewise_construct,
-                                                                                 std::make_tuple(fieldBase - 4),
-                                                                                 std::make_tuple());
+                                         // Generate event sink jump tables
+                                         // > Jump to label
 
-                                         // Generate code
-                                         pi->generateCode(m, *this, mergedFields.first->second.back().second, 
-                                                          timeRegister, numTimesteps, fieldBase, codeGenerator, 
-                                                          scalarRegisterAllocator, vectorRegisterAllocator);
+                                         // Generate sink->source mappings
+                                         // > Loop through event sink to source map and generate labels
+                                         //   > Build map of event sink IDs to merged event sources
+                                         //   > Set group index
+                                         //   > JAL to merged process, storing merged group return
+
+                                         // Generate m
+                                         for(const auto &m : mergedProcesses) {
+                                            // Ensure process has proper base class
+                                            auto pi = std::dynamic_pointer_cast<const ProcessImplementation>(m.getArchetype());
+                                            if (!pi) {
+                                                throw std::runtime_error("FeNN backend runtime used with incompatible process");
+                                            }
+                                            
+                                            // **TODO** label
+
+                                            // Add new merged field
+                                            // **NOTE** these are relative to start of field array
+                                            mergedFields.first->second.emplace_back(std::piecewise_construct,
+                                                                                    std::make_tuple(fieldBase - 4),
+                                                                                    std::make_tuple());
+
+                                            // Generate code
+                                            pi->generateCode(m, *this, mergedFields.first->second.back().second, 
+                                                            timeRegister, SPreIndex, SGroupIndex, 
+                                                            numTimesteps, fieldBase, codeGenerator, 
+                                                            scalarRegisterAllocator, vectorRegisterAllocator);
+                                            // Return
+                                            codeGenerator.jalr(*SMergedGroupReturn);
+                                        }
                                      }
+                                     else
+                                     {
+                                        // **TODO** need to identify whether process group is the one that contains event propagation
+                                        // If it is
+                                        // 1) 
+                                        for(const auto &m : mergedProcesses) {
+                                            // Ensure process has proper base class
+                                            auto pi = std::dynamic_pointer_cast<const ProcessImplementation>(m.getArchetype());
+                                            if (!pi) {
+                                                throw std::runtime_error("FeNN backend runtime used with incompatible process");
+                                            }
+
+                                            // Add new merged field
+                                            // **NOTE** these are relative to start of field array
+                                            mergedFields.first->second.emplace_back(std::piecewise_construct,
+                                                                                    std::make_tuple(fieldBase - 4),
+                                                                                    std::make_tuple());
+
+                                            // Generate code
+                                            pi->generateCode(m, *this, mergedFields.first->second.back().second, 
+                                                            timeRegister, nullptr, nullptr, 
+                                                            numTimesteps, fieldBase, codeGenerator, 
+                                                            scalarRegisterAllocator, vectorRegisterAllocator);
+                                        }
+                                    }
                                  });
             });
 
