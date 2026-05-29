@@ -654,13 +654,18 @@ namespace FeNN::Backend
 {
 void TimeDrivenProcessImplementation::generateCode(const Frontend::MergedProcess &mergedProcess, const Runtime &runtime, 
                                                    MergedFields &mergedFields, Assembler::ScalarRegisterPtr timeReg,
-                                                   std::optional<uint32_t> numTimesteps, uint32_t &fieldBase,
-                                                   Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
+                                                   Assembler::ScalarRegisterPtr preIndReg, Assembler::ScalarRegisterPtr groupIndReg, 
+                                                   std::optional<uint32_t> numTimesteps, uint32_t &fieldBase, Assembler::CodeGenerator &c, 
+                                                   Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
                                                    Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
     // Allocate base register
     ALLOCATE_SCALAR(SFieldBase);
     ALLOCATE_SCALAR(SFieldBaseEnd);
+
+    // Check presynaptic or group index registers are not set at this point
+    assert(!preIndReg);
+    assert(!groupIndReg);
 
     // Generate archetype code and populate merged fields
     Assembler::CodeGenerator archetypeCodeGenerator;
@@ -694,14 +699,11 @@ void TimeDrivenProcessImplementation::generateCode(const Frontend::MergedProcess
 //----------------------------------------------------------------------------
 void EventDrivenProcessImplementation::generateCode(const Frontend::MergedProcess &mergedProcess, const Runtime &runtime, 
                                                     MergedFields &mergedFields, Assembler::ScalarRegisterPtr timeReg,
-                                                    std::optional<uint32_t> numTimesteps, uint32_t &fieldBase,
-                                                    Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
+                                                    Assembler::ScalarRegisterPtr preIndReg, Assembler::ScalarRegisterPtr groupIndReg, 
+                                                    std::optional<uint32_t> numTimesteps, uint32_t &fieldBase, Assembler::CodeGenerator &c, 
+                                                    Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
                                                     Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
-    // **TODO**
-    Assembler::ScalarRegisterPtr preIndReg;
-    Assembler::ScalarRegisterPtr groupIndReg;
-
     // Allocate base register
     ALLOCATE_SCALAR(SFieldBase);
 
@@ -1348,6 +1350,9 @@ std::vector<Compiler::RegisterPtr> DenseEventPropagationProcess::generateArchety
     // Load target register from state fields
     ALLOCATE_SCALAR(STargetBuf);
     c.lw(*STargetBuf, *fieldBaseReg, targetFieldOffset);
+
+    // **TODO** this should be fine, just need to index target correctly
+    assert(!getTarget().hasTime());
 
     ALLOCATE_VECTOR(VWeight);
     ALLOCATE_VECTOR(VTarget1);
