@@ -265,6 +265,18 @@ std::vector<Sliced<EventSink>> EventPropagationProcess::getAllEventSinks() const
     return {};
 }
 //----------------------------------------------------------------------------
+void EventPropagationProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Frontend::Model &model) const
+{
+    using namespace Common::Utils;
+    UPDATE_HASH_CLASS_NAME(EventPropagationProcess);
+
+    // Input events
+    getInputEventSource().updateMergeHash(hash, model);
+
+    // Targets
+    getTarget().updateMergeHash(hash, model);
+}
+//----------------------------------------------------------------------------
 void EventPropagationProcess::updateCompatibleSplitDimensions(std::shared_ptr<const State> state, 
                                                               uint32_t &compatibleSplitDimensions) const 
 {
