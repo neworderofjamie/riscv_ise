@@ -155,7 +155,7 @@ std::vector<Assembler::ScalarRegisterPtr> EventChannel::genPreamble(
             // Sum up size of this process across all previous devices
             uint32_t startID = 0;
             for(size_t i = 0; i < d; i++) {
-                const auto splitShape = p->getShape().split(d, splitDimension, numDevices, 32);
+                const auto splitShape = p->getShape().getSplit(d, splitDimension, numDevices, 32);
                 startID += static_cast<uint32_t>(splitShape.getFlattenedSize());
             }
 
