@@ -442,6 +442,162 @@ void unrollVectorLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegis
     }
 }
 //----------------------------------------------------------------------------
+void unrollOddEvenLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator, 
+                           uint32_t numIterations, uint32_t maxUnroll,
+                           std::function<void(CodeGenerator&, uint32_t, bool)> genBodyFn,
+                           std::function<void(CodeGenerator&, uint32_t)> genTailFn)
+{
+    // Evenness of iterations can only be determined with even numbers of unrolls
+    assert((maxUnroll % 2) == 0);
+
+    // Determine number of unrolled iterations and remainder
+    const auto numUnrolls = std::div(static_cast<int64_t>(numIterations), maxUnroll);
+
+    // If there are are complete unrolls
+    ALLOCATE_SCALAR(SNumIterations);
+    if(numUnrolls.quot != 0) {
+        // Load number of unrolled iterations
+        c.li(*SNumIterations, numUnrolls.quot);
+
+        auto unrolledLoop = c.L();
+        {
+            // Unroll loop
+            for(uint32_t r = 0; r < maxUnroll; r++) {
+                genBodyFn(c, r, (r % 2) == 0);
+            }
+
+            // If more than 1 unroll is required or there are more iterations, generate tail
+            if(numUnrolls.quot > 1 || numUnrolls.rem != 0) {
+                genTailFn(c, maxUnroll);
+            }
+
+            // If more than 1 unroll is required
+            if(numUnrolls.quot > 1) {
+                // Decrement increment count and loop if still > 0
+                c.addi(*SNumIterations, *SNumIterations, -1);
+                c.bgt(*SNumIterations, FeNN::Common::Reg::X0, unrolledLoop);
+            }
+        }
+    }
+
+    // If all iterations weren't handled by unrolling
+    if(numUnrolls.rem != 0) {
+        // Determine number of pairs in remainder
+        const auto numPairs = std::div(numUnrolls.rem, 2l);
+
+        // If there are any pairs
+        if(numPairs.quot != 0) {
+            // Load number of iterations
+            c.li(*SNumIterations, numPairs.quot);
+
+            auto loop = c.L();
+            {
+                // Generate even and odd bodies
+                genBodyFn(c, 0, true);
+                genBodyFn(c, 1, false);
+
+                // Generate tail if required
+                if (numPairs.rem > 1) {
+                    genTailFn(c, 2);
+                }
+
+                // If more than 1 iteration is required
+                if(numPairs.quot > 1) {
+                    // Decrement increment count and loop if still > 0
+                    c.addi(*SNumIterations, *SNumIterations, -1);
+                    c.bgt(*SNumIterations, FeNN::Common::Reg::X0, loop);
+                }
+            }
+        }
+
+        // If there is a remainder
+        if(numPairs.rem != 0) {
+            assert(numPairs.rem == 1);
+
+            // Generate final even body
+            genBodyFn(c, 0, true);
+        }
+    }
+}
+//----------------------------------------------------------------------------
+void unrollOddEvenLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator, 
+                           FeNN::Common::Reg countReg, uint32_t maxUnroll, uint32_t iterationSize, 
+                           bool noUnroll, bool noPairs, bool noFinal,
+                           std::function<void(CodeGenerator&, uint32_t, bool)> genBodyFn,
+                           std::function<void(CodeGenerator&, uint32_t)> genTailFn)
+{
+    ALLOCATE_SCALAR(SLoopCountEnd);
+
+    // Evenness of iterations can only be determined with even numbers of unrolls
+    assert((maxUnroll % 2) == 0);
+
+    // Unrolled loop
+    if(!noUnroll) {
+        // Load end count for unrolled loop
+        c.li(*SLoopCountEnd, maxUnroll * iterationSize);
+
+        auto unrolledLoopEnd = createLabel();
+        auto unrolledLoopStart = c.L();
+        {
+            // If count is less than the size of a single unrolled iteration, leave loop
+            c.bltu(countReg, *SLoopCountEnd, unrolledLoopEnd);
+
+            // Generate unrolled body
+            for(uint32_t r = 0; r < maxUnroll; r++) {
+                genBodyFn(c, r, (r % 2) == 0);
+            }
+
+            // Generate tail
+            genTailFn(c, maxUnroll);
+
+            // Subtract unrolled iteration size from count
+            c.sub(countReg, countReg, *SLoopCountEnd);
+            c.j_(unrolledLoopStart);
+        }
+        c.L(unrolledLoopEnd);
+    }
+
+    // Pair loop
+    if(!noPairs) {
+        // Load end count for pair loop
+        c.li(*SLoopCountEnd, 2 * iterationSize);
+
+        auto pairLoopEnd = createLabel();
+        auto pairLoopStart = c.L();
+        {
+            // If count is less than the size of a single unrolled iteration, leave loop
+            c.bltu(countReg, *SLoopCountEnd, pairLoopEnd);
+
+            // Generate even and odd body unrolled body
+            genBodyFn(c, 0, true);
+            genBodyFn(c, 1, false);
+            
+            // Generate tail
+            genTailFn(c, 2);
+
+            // Subtract unrolled iteration size from count
+            c.sub(countReg, countReg, *SLoopCountEnd);
+            c.j_(pairLoopStart);
+        }
+        c.L(pairLoopEnd);
+    }
+
+    // Tail
+    if(!noFinal) {
+        // Load end count for tail loop
+        c.li(*SLoopCountEnd, iterationSize);
+
+        // If count is less than the size of a single iteration, jump to end
+        auto tailLoopEnd = createLabel();
+        c.bltu(countReg, *SLoopCountEnd, tailLoopEnd);
+
+        // Generate final even body
+        genBodyFn(c, 0, true);
+
+        c.L(tailLoopEnd);
+    }
+}
+//----------------------------------------------------------------------------
 std::vector<uint32_t> generateStandardKernel(bool simulate, uint32_t readyFlagPtr, 
                                              std::function<void(CodeGenerator&, VectorRegisterAllocator&, ScalarRegisterAllocator&)> genBodyFn)
 {

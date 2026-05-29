@@ -69,6 +69,19 @@ ASSEMBLER_EXPORT void unrollVectorLoopBody(CodeGenerator &c, ScalarRegisterAlloc
                                            std::function<void(CodeGenerator&, uint32_t, ScalarRegisterPtr)> genBodyFn, 
                                            std::function<void(CodeGenerator&, uint32_t)> genTailFn);
 
+//! Generate an unrolled loop with number of iterations specified at compile-time
+ASSEMBLER_EXPORT void unrollOddEvenLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator, 
+                                            uint32_t numIterations, uint32_t maxUnroll,
+                                            std::function<void(CodeGenerator&, uint32_t, bool)> genBodyFn,
+                                            std::function<void(CodeGenerator&, uint32_t)> genTailFn);
+
+//! Generate an unrolled loop with number of iterations specified at runtime
+ASSEMBLER_EXPORT void unrollOddEvenLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator, 
+                                            FeNN::Common::Reg countReg, uint32_t maxUnroll, uint32_t iterationSize, 
+                                            bool noUnroll, bool noPairs, bool noFinal,
+                                            std::function<void(CodeGenerator&, uint32_t, bool)> genBodyFn,
+                                            std::function<void(CodeGenerator&, uint32_t)> genTailFn);
+
 //! Generate preamble and postamble for code using standard ecall instruction to terminate simulations and polling on device
 ASSEMBLER_EXPORT std::vector<uint32_t> generateStandardKernel(bool simulate, uint32_t readyFlagPtr, 
                                                               std::function<void(CodeGenerator&, VectorRegisterAllocator&, ScalarRegisterAllocator&)> genBodyFn);
