@@ -82,6 +82,7 @@ class LI:
         self.i = Variable(self.shape, dtype, name=f"{name}_i")
         self.v_avg = Variable(self.shape, dtype, name=f"{name}_v_avg")
         self.bias = Variable(self.shape, dtype, name=f"{name}_bias")
+        print("Here is self.bias: ", self.bias)
         self.process = NeuronUpdateProcess(
             f"""
             V = (Alpha * V) + I + Bias;
@@ -92,3 +93,27 @@ class LI:
              "VAvgScale": Parameter(1.0 / (num_timesteps / 2), dtype)},
             {"V": self.v, "VAvg": self.v_avg, "I": self.i, "Bias": self.bias},
             {}, name)
+         
+        
+
+class Bernoulli:
+    def __init__(self, shape, prob_spike: float,
+                 record_timesteps: int = 1, fixed_point: int = 9, name: str = ""):
+        self.shape = shape
+        dtype = f"s{15 - fixed_point}_{fixed_point}_sat_t"
+        decay_dtype = "s0_15_sat_t"
+        self.out_spikes = EventContainer(self.shape, record_timesteps)
+        self.num_spikes = Variable(self.shape, dtype, name=f"{name}_v")
+        self.process = NeuronUpdateProcess(
+            f"""
+            if(ProbSpike >= fennrand()) {{
+               Spike();
+            }}
+            else {{
+               Spike();
+            }}
+            """,
+            {"ProbSpike": Parameter(prob_spike, decay_dtype)},
+            {"NumSpikes": self.num_spikes},
+            {"Spike": self.out_spikes},
+            name)
