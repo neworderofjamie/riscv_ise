@@ -33,6 +33,7 @@ namespace FeNN::Backend
 class EnvironmentExternal;
 class EnvironmentMergedField;
 class EnvironmentLiteral;
+class KernelImplementation;
 class MergedFields;
 class Runtime;
 }
@@ -61,9 +62,10 @@ public:
 
     //! Generate code to implement process
     virtual void generateCode(const Frontend::MergedProcess &mergedProcess, const Runtime &runtime, 
-                              MergedFields &mergedFields, Assembler::ScalarRegisterPtr timeReg,
-                              Assembler::ScalarRegisterPtr preIndReg, Assembler::ScalarRegisterPtr groupIndReg, 
-                              std::optional<uint32_t> numTimesteps, uint32_t &fieldBase, Assembler::CodeGenerator &c, 
+                              const KernelImplementation &kernel, MergedFields &mergedFields, 
+                              Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr preIndReg, 
+                              Assembler::ScalarRegisterPtr groupIndReg, std::optional<uint32_t> numTimesteps, 
+                              uint32_t &fieldBase, Assembler::CodeGenerator &c, 
                               Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                               Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const = 0;
     
@@ -94,7 +96,8 @@ public:
     // Declared virtuals
     //----------------------------------------------------------------------------
     virtual std::vector<Compiler::RegisterPtr> generateArchetypeCode(
-        const Frontend::MergedProcess &mergedProcess, const Runtime &runtime, MergedFields &mergedFields,
+        const Frontend::MergedProcess &mergedProcess, const Runtime &runtime, 
+        const KernelImplementation &kernel, MergedFields &mergedFields,
         Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg,
         std::optional<uint32_t> numTimesteps, Assembler::CodeGenerator &processCodeGenerator, Assembler::CodeGenerator &sharedCodeGenerator,
         Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const = 0;
@@ -103,9 +106,10 @@ public:
     // ProcessImplementation virtuals
     //----------------------------------------------------------------------------
     virtual void generateCode(const Frontend::MergedProcess &mergedProcess, const Runtime &runtime,
-                              MergedFields &mergedFields, Assembler::ScalarRegisterPtr timeReg,
-                              Assembler::ScalarRegisterPtr preIndReg, Assembler::ScalarRegisterPtr groupIndReg, 
-                              std::optional<uint32_t> numTimesteps, uint32_t &fieldBase, Assembler::CodeGenerator &c, 
+                              const KernelImplementation &kernel, MergedFields &mergedFields, 
+                              Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr preIndReg,
+                              Assembler::ScalarRegisterPtr groupIndReg, std::optional<uint32_t> numTimesteps, 
+                              uint32_t &fieldBase, Assembler::CodeGenerator &c, 
                               Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                               Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;
 };
@@ -120,7 +124,8 @@ public:
     // Declared virtuals
     //----------------------------------------------------------------------------
     virtual std::vector<Compiler::RegisterPtr> generateArchetypeCode(
-        const Frontend::MergedProcess &mergedProcess, const Runtime &runtime, MergedFields &mergedFields,
+        const Frontend::MergedProcess &mergedProcess, const Runtime &runtime, 
+        const KernelImplementation &kernel, MergedFields &mergedFields,
         Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr preIndReg,
         std::optional<uint32_t> numTimesteps, Assembler::CodeGenerator &processCodeGenerator, Assembler::CodeGenerator &sharedCodeGenerator,
         Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const = 0;
@@ -129,9 +134,10 @@ public:
     // ProcessImplementation virtuals
     //----------------------------------------------------------------------------
     virtual void generateCode(const Frontend::MergedProcess &mergedProcess, const Runtime &runtime,
-                              MergedFields &mergedFields, Assembler::ScalarRegisterPtr timeReg,
-                              Assembler::ScalarRegisterPtr preIndReg, Assembler::ScalarRegisterPtr groupIndReg, 
-                              std::optional<uint32_t> numTimesteps, uint32_t &fieldBase, Assembler::CodeGenerator &c, 
+                              const KernelImplementation &kernel, MergedFields &mergedFields, 
+                              Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr preIndReg, 
+                              Assembler::ScalarRegisterPtr groupIndReg, std::optional<uint32_t> numTimesteps, 
+                              uint32_t &fieldBase, Assembler::CodeGenerator &c, 
                               Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                               Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;
 };
@@ -155,7 +161,8 @@ public:
     // TimeDrivenProcessImplementation virtuals
     //------------------------------------------------------------------------ 
     virtual std::vector<Compiler::RegisterPtr> generateArchetypeCode(
-        const Frontend::MergedProcess &mergedProcess, const Runtime &runtime, MergedFields &mergedFields,
+        const Frontend::MergedProcess &mergedProcess, const Runtime &runtime, 
+        const KernelImplementation &kernel, MergedFields &mergedFields,
         Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg,
         std::optional<uint32_t> numTimesteps, Assembler::CodeGenerator &processCodeGenerator, 
         Assembler::CodeGenerator &sharedCodeGenerator, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
@@ -211,7 +218,8 @@ public:
     // EventDrivenProcessImplementation virtuals
     //------------------------------------------------------------------------
     virtual std::vector<Compiler::RegisterPtr> generateArchetypeCode(
-        const Frontend::MergedProcess &mergedProcess, const Runtime &runtime, MergedFields &mergedFields,
+        const Frontend::MergedProcess &mergedProcess, const Runtime &runtime, 
+        const KernelImplementation &kernel, MergedFields &mergedFields,
         Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr preIndReg,
         std::optional<uint32_t> numTimesteps, Assembler::CodeGenerator &processCodeGenerator, Assembler::CodeGenerator &sharedCodeGenerator,
         Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;
@@ -333,7 +341,8 @@ public:
     // TimeDrivenProcessImplementation virtuals
     //------------------------------------------------------------------------ 
     virtual std::vector<Compiler::RegisterPtr> generateArchetypeCode(
-        const Frontend::MergedProcess &mergedProcess, const Runtime &runtime, MergedFields &mergedFields,
+        const Frontend::MergedProcess &mergedProcess, const Runtime &runtime, 
+        const KernelImplementation &kernel, MergedFields &mergedFields,
         Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg,
         std::optional<uint32_t> numTimesteps, Assembler::CodeGenerator &processCodeGenerator, 
         Assembler::CodeGenerator &sharedCodeGenerator, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
@@ -367,7 +376,8 @@ public:
     // TimeDrivenProcessImplementation virtuals
     //------------------------------------------------------------------------ 
    virtual std::vector<Compiler::RegisterPtr> generateArchetypeCode(
-        const Frontend::MergedProcess &mergedProcess, const Runtime &runtime, MergedFields &mergedFields,
+        const Frontend::MergedProcess &mergedProcess, const Runtime &runtime, 
+        const KernelImplementation &kernel, MergedFields &mergedFields,
         Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg,
        std::optional<uint32_t> numTimesteps, Assembler::CodeGenerator &processCodeGenerator, 
         Assembler::CodeGenerator &sharedCodeGenerator, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
@@ -437,7 +447,8 @@ public:
     // TimeDrivenProcessImplementation virtuals
     //------------------------------------------------------------------------ 
     virtual std::vector<Compiler::RegisterPtr> generateArchetypeCode(
-        const Frontend::MergedProcess &mergedProcess, const Runtime &runtime, MergedFields &mergedFields,
+        const Frontend::MergedProcess &mergedProcess, const Runtime &runtime, 
+        const KernelImplementation &kernel, MergedFields &mergedFields,
         Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg,
         std::optional<uint32_t> numTimesteps, Assembler::CodeGenerator &processCodeGenerator, 
         Assembler::CodeGenerator &sharedCodeGenerator, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 

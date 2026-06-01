@@ -9,6 +9,7 @@
 
 // FeNN backend includes
 #include "fenn/backend/environment.h"
+#include "fenn/backend/kernel.h"
 #include "fenn/backend/model.h"
 #include "fenn/backend/process.h"
 #include "fenn/backend/runtime.h"
@@ -94,8 +95,9 @@ std::unique_ptr<Frontend::ArrayBase> EventSinkBuffer::createArray(const Frontend
 }
 //----------------------------------------------------------------------------
 std::vector<Assembler::ScalarRegisterPtr> EventSinkBuffer::genPreamble(
+    const Model&, const KernelImplementation&,
     Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
-    const Model&, std::optional<uint32_t> numTimesteps, bool hasTime, size_t,
+    std::optional<uint32_t> numTimesteps, bool hasTime, size_t,
     Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr numEventBytes,
     AddScalarConstantFn, AddFieldFn addField) const
 {
@@ -137,13 +139,14 @@ std::unique_ptr<Frontend::ArrayBase> EventChannel::createArray(const Frontend::S
 }
 //----------------------------------------------------------------------------
 std::vector<Assembler::ScalarRegisterPtr> EventChannel::genPreamble(
+    const Model &model, const KernelImplementation &kernel,
     Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
-    const Model &model, std::optional<uint32_t> numTimesteps, bool hasTime, size_t numDevices,
+    std::optional<uint32_t> numTimesteps, bool hasTime, size_t numDevices,
     Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr numEventBytes,
     AddScalarConstantFn addScalarConstant, AddFieldFn addField) const
 {
     auto sharedThis = std::dynamic_pointer_cast<const Frontend::EventSink>(shared_from_this());
-    const uint32_t eventSinkID = model.getEventSinkIDBase(sharedThis);
+    const uint32_t eventSinkID = kernel.getEventSinkIDBase(sharedThis);
 
     // Add scalar constant to hold start ID of event channel
     auto neuronStartIDReg = addScalarConstant(

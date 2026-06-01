@@ -165,7 +165,7 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
 
                 // Generate code for kernel
                 ki->generateCode(c, scalarRegisterAllocator, vectorRegisterAllocator,
-                                 [this, &fieldBase, &model]
+                                 [this, &fieldBase, &ki]
                                  (auto processGroup, auto timeRegister, auto numTimesteps, auto &c,
                                   auto &scalarRegisterAllocator, auto &vectorRegisterAllocator)
                                  {
@@ -182,24 +182,23 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                      mergedFields.first->second.reserve(mergedProcesses.size());
                                     
                                      // If this is the event source process group
-                                     if(processGroup == model.getEventSourceProcessGroup()) {
+                                     if(processGroup == ki->getEventSourceProcessGroup()) {
                                          ALLOCATE_SCALAR(SPreIndex);
                                          ALLOCATE_SCALAR(SGroupIndex);
                                          ALLOCATE_SCALAR(SMergedGroupReturn);
                                          
-                                         // Declare a label for the archetype of each merged process group
+                                         // Create map containing a label new for each merged process (key is archectype progress group)
                                          std::unordered_map<std::shared_ptr<Frontend::Process const>,
-                                                            Assembler::Label> mergedProcessGroupLabels;
+                                                            Assembler::Label> mergedProcessLabels;
                                          std::transform(mergedProcesses.cbegin(), mergedProcesses.cend(),
-                                                        std::inserter(mergedProcessGroupLabels, mergedProcessGroupLabels.end()),
+                                                        std::inserter(mergedProcessLabels, mergedProcessLabels.end()),
                                                         [](const auto &m)
                                                         {
                                                             return std::make_pair(m.getArchetype(), Assembler::createLabel());
                                                         });
 
                                          // Create ordered map of event sink ids to event sinks and labels
-                                         // Create labels for each merged process
-
+  
                                          // Generate event loops
                                          // > Loop over events
                                          //   > Extract pre index and sink ID
@@ -224,7 +223,7 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                             }
                                             
                                             // Define label
-                                            c.L(mergedProcessGroupLabels.at(m.getArchetype()));
+                                            c.L(mergedProcessLabels.at(m.getArchetype()));
 
                                             // Add new merged field
                                             // **NOTE** these are relative to start of field array
@@ -233,18 +232,16 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                                                                     std::make_tuple());
 
                                             // Generate code
-                                            pi->generateCode(m, *this, mergedFields.first->second.back().second, 
-                                                            timeRegister, SPreIndex, SGroupIndex, 
-                                                            numTimesteps, fieldBase, c, 
-                                                            scalarRegisterAllocator, vectorRegisterAllocator);
+                                            pi->generateCode(m, *this, *ki, mergedFields.first->second.back().second, 
+                                                             timeRegister, SPreIndex, SGroupIndex, 
+                                                             numTimesteps, fieldBase, c, 
+                                                             scalarRegisterAllocator, vectorRegisterAllocator);
                                             // Return
                                             c.jalr(*SMergedGroupReturn);
                                         }
                                      }
+                                     // Otherwise
                                      else {
-                                        // **TODO** need to identify whether process group is the one that contains event propagation
-                                        // If it is
-                                        // 1) 
                                         for(const auto &m : mergedProcesses) {
                                             // Ensure process has proper base class
                                             auto pi = std::dynamic_pointer_cast<const ProcessImplementation>(m.getArchetype());
@@ -259,7 +256,7 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                                                                     std::make_tuple());
 
                                             // Generate code
-                                            pi->generateCode(m, *this, mergedFields.first->second.back().second, 
+                                            pi->generateCode(m, *this, *ki, mergedFields.first->second.back().second, 
                                                             timeRegister, nullptr, nullptr, 
                                                             numTimesteps, fieldBase, c, 
                                                             scalarRegisterAllocator, vectorRegisterAllocator);

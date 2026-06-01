@@ -653,9 +653,10 @@ private:
 namespace FeNN::Backend
 {
 void TimeDrivenProcessImplementation::generateCode(const Frontend::MergedProcess &mergedProcess, const Runtime &runtime, 
-                                                   MergedFields &mergedFields, Assembler::ScalarRegisterPtr timeReg,
-                                                   Assembler::ScalarRegisterPtr preIndReg, Assembler::ScalarRegisterPtr groupIndReg, 
-                                                   std::optional<uint32_t> numTimesteps, uint32_t &fieldBase, Assembler::CodeGenerator &c, 
+                                                   const KernelImplementation &kernel, MergedFields &mergedFields, 
+                                                   Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr preIndReg, 
+                                                   Assembler::ScalarRegisterPtr groupIndReg, std::optional<uint32_t> numTimesteps, 
+                                                   uint32_t &fieldBase, Assembler::CodeGenerator &c, 
                                                    Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
                                                    Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
@@ -669,7 +670,7 @@ void TimeDrivenProcessImplementation::generateCode(const Frontend::MergedProcess
 
     // Generate archetype code and populate merged fields
     Assembler::CodeGenerator archetypeCodeGenerator;
-    const auto sharedRegisters = generateArchetypeCode(mergedProcess, runtime, mergedFields,
+    const auto sharedRegisters = generateArchetypeCode(mergedProcess, runtime, kernel, mergedFields,
                                                        SFieldBase, timeReg, numTimesteps, archetypeCodeGenerator,
                                                        c, scalarRegisterAllocator, vectorRegisterAllocator);
 
@@ -698,9 +699,10 @@ void TimeDrivenProcessImplementation::generateCode(const Frontend::MergedProcess
 // FeNN::Backend::EventDrivenProcessImplementation
 //----------------------------------------------------------------------------
 void EventDrivenProcessImplementation::generateCode(const Frontend::MergedProcess &mergedProcess, const Runtime &runtime, 
-                                                    MergedFields &mergedFields, Assembler::ScalarRegisterPtr timeReg,
-                                                    Assembler::ScalarRegisterPtr preIndReg, Assembler::ScalarRegisterPtr groupIndReg, 
-                                                    std::optional<uint32_t> numTimesteps, uint32_t &fieldBase, Assembler::CodeGenerator &c, 
+                                                    const KernelImplementation &kernel, MergedFields &mergedFields, 
+                                                    Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr preIndReg, 
+                                                    Assembler::ScalarRegisterPtr groupIndReg, std::optional<uint32_t> numTimesteps, 
+                                                    uint32_t &fieldBase, Assembler::CodeGenerator &c, 
                                                     Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
                                                     Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
@@ -709,8 +711,8 @@ void EventDrivenProcessImplementation::generateCode(const Frontend::MergedProces
 
     // Generate archetype code and populate merged fields
     Assembler::CodeGenerator archetypeCodeGenerator;
-    const auto sharedRegisters = generateArchetypeCode(mergedProcess, runtime, mergedFields, SFieldBase, 
-                                                       timeReg,  preIndReg, numTimesteps, archetypeCodeGenerator,
+    const auto sharedRegisters = generateArchetypeCode(mergedProcess, runtime, kernel, mergedFields, 
+                                                       SFieldBase, timeReg,  preIndReg, numTimesteps, archetypeCodeGenerator,
                                                        c, scalarRegisterAllocator, vectorRegisterAllocator);
 
     // Load fieldBase
@@ -833,8 +835,8 @@ void NeuronUpdateProcess::updateCompatibleMemSpace(std::shared_ptr<const Fronten
 }*/
 //----------------------------------------------------------------------------
 std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
-        const Frontend::MergedProcess &mergedProcess, const Runtime &runtime, MergedFields &mergedFields,
-        Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg,
+        const Frontend::MergedProcess &mergedProcess, const Runtime &runtime, const KernelImplementation &kernel, 
+        MergedFields &mergedFields, Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg,
         std::optional<uint32_t> numTimesteps, Assembler::CodeGenerator &processCodeGenerator, 
         Assembler::CodeGenerator &sharedCodeGenerator, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
         Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
@@ -983,7 +985,7 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
             eventSinkState.try_emplace(
                 e.second.getUnderlying(), 
                 fennEventSink->genPreamble(
-                    processCodeGenerator, scalarRegisterAllocator, *model,
+                    *model, kernel, processCodeGenerator, scalarRegisterAllocator, 
                      numTimesteps, e.second.hasTime(), runtime.getNumDevices(),
                     timeReg, numEventBytes,
                     [&fieldBaseReg, &mergedFields, &mergedProcess, &processCodeGenerator, &runtime, 
@@ -1268,8 +1270,8 @@ void DenseEventPropagationProcess::updateMaxDMABufferSize(size_t &size) const
 }
 //------------------------------------------------------------------------
 std::vector<Compiler::RegisterPtr> DenseEventPropagationProcess::generateArchetypeCode(
-    const Frontend::MergedProcess &mergedProcess, const Runtime &runtime, MergedFields &mergedFields,
-    Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr preIndReg,
+    const Frontend::MergedProcess &mergedProcess, const Runtime &runtime, const KernelImplementation&, 
+    MergedFields &mergedFields, Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr preIndReg,
     std::optional<uint32_t> numTimesteps, Assembler::CodeGenerator &processCodeGenerator, Assembler::CodeGenerator &sharedCodeGenerator,
     Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
@@ -2036,7 +2038,7 @@ void RNGInitProcess::updateCompatibleMemSpace(std::shared_ptr<const Frontend::St
 }
 //----------------------------------------------------------------------------
 std::vector<Compiler::RegisterPtr> RNGInitProcess::generateArchetypeCode(
-        const Frontend::MergedProcess&, const Runtime&, MergedFields &mergedFields,
+        const Frontend::MergedProcess&, const Runtime&, const KernelImplementation&, MergedFields &mergedFields,
         Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr,
         std::optional<uint32_t>, Assembler::CodeGenerator &processCodeGenerator, 
         Assembler::CodeGenerator &, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
@@ -2076,8 +2078,8 @@ void MemsetProcess::updateCompatibleMemSpace(std::shared_ptr<const Frontend::Sta
 }
 //----------------------------------------------------------------------------
 std::vector<Compiler::RegisterPtr> MemsetProcess::generateArchetypeCode(
-    const Frontend::MergedProcess &mergedProcess, const Runtime &runtime, MergedFields &mergedFields,
-    Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr,
+    const Frontend::MergedProcess &mergedProcess, const Runtime &runtime, const KernelImplementation&, 
+    MergedFields &mergedFields, Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr,
     std::optional<uint32_t>, Assembler::CodeGenerator &processCodeGenerator, 
     Assembler::CodeGenerator &sharedCodeGenerator, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
     Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
@@ -2300,8 +2302,8 @@ void BroadcastProcess::updateCompatibleMemSpace(std::shared_ptr<const Frontend::
 }
 //----------------------------------------------------------------------------
 std::vector<Compiler::RegisterPtr> BroadcastProcess::generateArchetypeCode(
-    const Frontend::MergedProcess &mergedProcess, const Runtime &runtime, MergedFields &mergedFields,
-    Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr,
+    const Frontend::MergedProcess &mergedProcess, const Runtime &runtime, const KernelImplementation&, 
+    MergedFields &mergedFields, Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr,
     std::optional<uint32_t>, Assembler::CodeGenerator &processCodeGenerator, Assembler::CodeGenerator &sharedCodeGenerator,
     Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {

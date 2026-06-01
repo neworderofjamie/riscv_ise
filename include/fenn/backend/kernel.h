@@ -11,6 +11,10 @@
 #include "fenn/assembler/register_allocator.h"
 
 // Forward declarations
+namespace Frontend
+{
+class EventSink;
+}
 namespace FeNN::Assembler
 {
 class CodeGenerator;
@@ -29,11 +33,37 @@ public:
                                                       std::optional<uint32_t>, Assembler::CodeGenerator&,
                                                       Assembler::ScalarRegisterAllocator&,
                                                       Assembler::VectorRegisterAllocator&)>;
+    
+    KernelImplementation(const Frontend::ProcessGroupVector &processGroups);
+
     //! Generate code to implement process
     virtual void generateCode(Assembler::CodeGenerator &c,
                               Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                               Assembler::VectorRegisterAllocator &vectorRegisterAllocator,
                               GenerateProcessGroupFn generateProcessGroup) const = 0;
+
+    //------------------------------------------------------------------------
+    // Public API
+    //------------------------------------------------------------------------
+    //! Get map of event sinks to their IDs
+    const auto &getEventSinkIDs() const{ return m_EventSinkIDs; }
+
+    //! Get the base ID of this event sink
+    uint32_t getEventSinkIDBase(std::shared_ptr<const Frontend::EventSink> eventSink) const;
+    
+    //! Get the process group in this kernel 
+    auto getEventSourceProcessGroup() const{ return m_EventSourceProcessGroup; }
+
+private:
+    //------------------------------------------------------------------------
+    // Members
+    //------------------------------------------------------------------------
+    std::shared_ptr<const Frontend::ProcessGroup> m_EventSourceProcessGroup;
+
+    std::unordered_map<std::shared_ptr<const Frontend::EventSink>, uint32_t> m_EventSinkIDs;
+
+    uint32_t m_NumNeuronIDBits;
+    uint32_t m_NumPopulationIDBits;
 };
 
 //----------------------------------------------------------------------------
@@ -42,7 +72,9 @@ public:
 class SimpleKernel : public KernelImplementation, public Frontend::SimpleKernel
 {
 public:
-    using Frontend::SimpleKernel::SimpleKernel;
+    SimpleKernel(Private, const Frontend::ProcessGroupVector &processGroups, const std::string &name)
+    :   KernelImplementation(processGroups), Frontend::SimpleKernel(Private(), processGroups, name)
+    {}
 
     //------------------------------------------------------------------------
     // GraphImplementation virtuals
@@ -69,8 +101,14 @@ public:
 class SimulationLoopKernel : public KernelImplementation, public Frontend::SimulationLoopKernel
 {
 public:
-    using Frontend::SimulationLoopKernel::SimulationLoopKernel;
-
+    SimulationLoopKernel(Private, unsigned int numTimesteps, 
+                         const Frontend::ProcessGroupVector &timestepProcessGroups, 
+                         const Frontend::ProcessGroupVector &beginProcessGroups,
+                         const Frontend::ProcessGroupVector &endProcessGroups, const std::string &name)
+    :   KernelImplementation(timestepProcessGroups), 
+        Frontend::SimulationLoopKernel(Private(), numTimesteps, timestepProcessGroups, 
+                                       beginProcessGroups, endProcessGroups, name)
+    {}
 
     //------------------------------------------------------------------------
     // GraphImplementation virtuals
