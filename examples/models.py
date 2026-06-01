@@ -83,17 +83,18 @@ class LI:
         self.v_avg = Variable(self.shape, dtype, name=f"{name}_v_avg")
         self.bias = Variable(self.shape, dtype, name=f"{name}_bias")
         print("Here is self.bias: ", self.bias)
+        ## REMEMBER TO DELETE THE BIAS =0 I=0
         self.process = NeuronUpdateProcess(
             f"""
-            V = (Alpha * V) + I + Bias;
-            I = 0.0h{fixed_point};
-            VAvg += (VAvgScale * V);
+            Bias = 0.0h{fixed_point};
+            V = I + Bias;
+            VAvg = V;
             """,
             {"Alpha": Parameter(np.exp(-dt / tau_m), dtype), 
              "VAvgScale": Parameter(1.0 / (num_timesteps / 2), dtype)},
             {"V": self.v, "VAvg": self.v_avg, "I": self.i, "Bias": self.bias},
             {}, name)
-         
+# Looks like the bias defaults to approx -133       
         
 
 class Bernoulli:
@@ -106,14 +107,20 @@ class Bernoulli:
         self.num_spikes = Variable(self.shape, dtype, name=f"{name}_v")
         self.process = NeuronUpdateProcess(
             f"""
-            if(ProbSpike >= fennrand()) {{
-               Spike();
-            }}
-            else {{
-               Spike();
+            if(3 >= 6) {{
+               Test();
             }}
             """,
             {"ProbSpike": Parameter(prob_spike, decay_dtype)},
             {"NumSpikes": self.num_spikes},
-            {"Spike": self.out_spikes},
+            {"Test": self.out_spikes},
             name)
+        
+            # f"""
+            # if(ProbSpike >= fennrand()) {{
+            #    Test();
+            # }}
+            # else {{
+            #    Test();
+            # }}
+            # """,
