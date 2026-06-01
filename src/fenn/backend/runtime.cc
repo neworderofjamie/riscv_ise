@@ -14,6 +14,7 @@
 
 // Frontend includes
 #include "frontend/events.h"
+#include "frontend/merged_model.h"
 #include "frontend/process_group.h"
 #include "frontend/variable.h"
 
@@ -147,7 +148,7 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
     uint32_t fieldBase = 4;
 
     // Loop through kernels
-    const auto model = getMergedModel().getModel<Model>();
+    const auto &model = getMergedModel().getModel<Model>();
     for (const auto &k : model.getKernels()) {
         // Generate kernel
         auto code = Assembler::Utils::generateStandardKernel(
@@ -164,8 +165,8 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
 
                 // Generate code for kernel
                 ki->generateCode(c, scalarRegisterAllocator, vectorRegisterAllocator,
-                                 [this, &fieldBase]
-                                 (auto processGroup, auto timeRegister, auto numTimesteps, auto &codeGenerator,
+                                 [this, &fieldBase, &model]
+                                 (auto processGroup, auto timeRegister, auto numTimesteps, auto &c,
                                   auto &scalarRegisterAllocator, auto &vectorRegisterAllocator)
                                  {
                                      // Create empty vector of merged fields associated with these processes
@@ -181,11 +182,21 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                      mergedFields.first->second.reserve(mergedProcesses.size());
                                     
                                      // If this is the event source process group
-                                     if(processGroup == model->getEventSourceProcessGroup()) {
+                                     if(processGroup == model.getEventSourceProcessGroup()) {
                                          ALLOCATE_SCALAR(SPreIndex);
                                          ALLOCATE_SCALAR(SGroupIndex);
                                          ALLOCATE_SCALAR(SMergedGroupReturn);
                                          
+                                         // Declare a label for the archetype of each merged process group
+                                         std::unordered_map<std::shared_ptr<Frontend::Process const>,
+                                                            Assembler::Label> mergedProcessGroupLabels;
+                                         std::transform(mergedProcesses.cbegin(), mergedProcesses.cend(),
+                                                        std::inserter(mergedProcessGroupLabels, mergedProcessGroupLabels.end()),
+                                                        [](const auto &m)
+                                                        {
+                                                            return std::make_pair(m.getArchetype(), Assembler::createLabel());
+                                                        });
+
                                          // Create ordered map of event sink ids to event sinks and labels
                                          // Create labels for each merged process
 
@@ -212,7 +223,8 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                                 throw std::runtime_error("FeNN backend runtime used with incompatible process");
                                             }
                                             
-                                            // **TODO** label
+                                            // Define label
+                                            c.L(mergedProcessGroupLabels.at(m.getArchetype()));
 
                                             // Add new merged field
                                             // **NOTE** these are relative to start of field array
@@ -223,14 +235,13 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                             // Generate code
                                             pi->generateCode(m, *this, mergedFields.first->second.back().second, 
                                                             timeRegister, SPreIndex, SGroupIndex, 
-                                                            numTimesteps, fieldBase, codeGenerator, 
+                                                            numTimesteps, fieldBase, c, 
                                                             scalarRegisterAllocator, vectorRegisterAllocator);
                                             // Return
-                                            codeGenerator.jalr(*SMergedGroupReturn);
+                                            c.jalr(*SMergedGroupReturn);
                                         }
                                      }
-                                     else
-                                     {
+                                     else {
                                         // **TODO** need to identify whether process group is the one that contains event propagation
                                         // If it is
                                         // 1) 
@@ -250,10 +261,10 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                             // Generate code
                                             pi->generateCode(m, *this, mergedFields.first->second.back().second, 
                                                             timeRegister, nullptr, nullptr, 
-                                                            numTimesteps, fieldBase, codeGenerator, 
+                                                            numTimesteps, fieldBase, c, 
                                                             scalarRegisterAllocator, vectorRegisterAllocator);
                                         }
-                                    }
+                                     }
                                  });
             });
 
