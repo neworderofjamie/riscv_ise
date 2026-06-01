@@ -5,7 +5,7 @@ from argparse import ArgumentParser
 from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer, Model, 
                     PerformanceCounter, ProcessGroup, Runtime, Shape)
 from pyfenn.models import Linear, Memset
-from models import LI, LIF, Bernoulli
+from models import LI, LI_SIMPLE, LIF, Bernoulli, ALIF_STDP
 
 from pyfenn import disassemble, init_logging
 from pyfenn.utils import (get_array_view, get_latency_spikes, copy_and_push,
@@ -32,17 +32,19 @@ num_fixed_point_bits=6
 #                  record_timesteps= 1, fixed_point= num_fixed_point_bits, name= "")
 
 input = EventContainer(Shape(input_shape), num_timesteps)
-output = LI(output_shape, .0001, num_timesteps=2, fixed_point=num_fixed_point_bits, name="output")
+# output = LI_SIMPLE(output_shape, tau_m=.0001, num_timesteps=2, fixed_point=num_fixed_point_bits, name="output")
+output = ALIF_STDP(output_shape, tau_m=.0001, tau_a=.0001, tau_refrac=3, v_thresh=0, beta=0, record_timesteps=1, fixed_point=num_fixed_point_bits, dt=1, name="output")
 # input_output = Linear(input.out_spikes, output.i, "s9_6_sat_t", name="input_output")
 input_output = Linear(input, output.i, "s9_6_sat_t", name="input_output")
 
-avg_zero = Memset(output.v_avg)
+v_zero = Memset(output.v)
+spike_zero = Memset(output.num_spikes)
 
 # Group processes
 # neuron_update_processes = ProcessGroup([input.process, output.process], PerformanceCounter() if args.time else None)
 neuron_update_processes = ProcessGroup([output.process], PerformanceCounter() if args.time else None)
 synapse_update_processes = ProcessGroup([input_output.process], PerformanceCounter() if args.time else None)
-zero_processes = ProcessGroup([avg_zero.process], PerformanceCounter() if args.time else None)
+zero_processes = ProcessGroup([v_zero.process, spike_zero.process], PerformanceCounter() if args.time else None)
 
 # Create backend
 backend = BackendFeNNHW() if args.device else BackendFeNNSim()
@@ -74,8 +76,8 @@ runtime.allocate()
 # element corresponds to a fixed point int with 6 fractional bits, so 32 is .5,
 # 64 is 1, 128 is 2.
 weights = np.zeros(input_shape*8,dtype='uint64')*64
-weights[8]=2**10
-# weights[1]=64
+weights[0]=2**6
+weights[8]=2**6
 copy_and_push(weights, input_output.weight, runtime)
 # I could instead do 
 # copy_and_push(np.ones(input_shape*64,dtype='uint8'), input_output.weight, runtime)
@@ -83,7 +85,6 @@ copy_and_push(weights, input_output.weight, runtime)
 # Zero remaining state
 zero_and_push(output.v, runtime)
 zero_and_push(output.i, runtime)
-zero_and_push(output.v_avg, runtime)
 
 if args.time:
     zero_and_push(neuron_update_processes.performance_counter, runtime)
@@ -96,49 +97,37 @@ runtime.set_instructions(code)
 # Initialize variables to hold input spike and output voltages
 input_spike_array, input_spike_view = get_array_view(runtime, input,
                                                      np.uint32)
-output_v_avg_array, output_v_avg_view = get_array_view(runtime, output.v_avg, np.int16)
+output_v_array, output_v_view = get_array_view(runtime, output.v, np.int16)
+output_spike_array, output_spike_view = get_array_view(runtime, output.num_spikes, np.int16)
+
+
 
 # Change the input spike array and push to device
 # Use a 32 bit unsigned int to determine which of the 32 potential neurons have spiked 
 # e.g., input_spike_code = 5 means first and third neuron spiked (101)
-input_spike_code = 2
+input_spike_code = 3
 input_spike_view[:] = np.array([input_spike_code],dtype=np.uint32)
 input_spike_array.push_to_device()
 
 # Copy input spike array and output voltage from device
 input_spike_array.pull_from_device()
-output_v_avg_array.pull_from_device()
-print(input_spike_view)
-print(output_v_avg_view/(2**num_fixed_point_bits))
+output_v_array.pull_from_device()
+output_spike_array.pull_from_device()
+print("Input spikes: ", input_spike_view)
+print("Output voltages: ", output_v_view/(2**num_fixed_point_bits))
+print("Output spikes: ", output_spike_view)
+print()
 
-# Run the model
-runtime.run()
-
-# Copy input spike array and output voltage from device
-input_spike_array.pull_from_device()
-output_v_avg_array.pull_from_device()
-print(input_spike_view)
-print(output_v_avg_view/(2**num_fixed_point_bits))
-
-
-runtime.run()
-
-# Copy input spike array and output voltage from device
-input_spike_array.pull_from_device()
-output_v_avg_array.pull_from_device()
-print(input_spike_view)
-print(output_v_avg_view/(2**num_fixed_point_bits))
-
-
-runtime.run()
-
-# Copy input spike array and output voltage from device
-input_spike_array.pull_from_device()
-output_v_avg_array.pull_from_device()
-print(input_spike_view)
-print(output_v_avg_view/(2**num_fixed_point_bits))
-
-
+for i in range(5):
+    # Run the model
+    runtime.run()
+    # Copy input spike array and output voltage from device
+    input_spike_array.pull_from_device()
+    output_v_array.pull_from_device()
+    print("Input spikes: ", input_spike_view)
+    print("Output voltages: ", output_v_view/(2**num_fixed_point_bits))
+    print("Output spikes: ", output_spike_view)
+    print()
 
 
 
