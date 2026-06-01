@@ -48,7 +48,7 @@ TEST(MergedModel, DifferentProcessTypes)
     const auto &mergedProcessGroups = mergedModel.getMergedProcessGroups().at(processGroup);
     EXPECT_EQ(mergedProcessGroups.size(), 4);
     for(const auto &m : mergedProcessGroups) {
-        EXPECT_EQ(m.getProcesses().size(), 1);
+        EXPECT_EQ(m.getMerged().size(), 1);
     }
 
 

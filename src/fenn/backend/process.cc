@@ -219,7 +219,7 @@ bool isHeterogeneous(const Frontend::MergedProcess &mergedProcess, size_t numDev
     // Loop through each device and each process and determine if any values differ
     bool heterogeneous = false;
     for(size_t d = 0; d < numDevices; d++) {
-        mergedProcess.forEachProcess<P>(
+        mergedProcess.forEachMerged<P>(
             [&archetypeValue, &getFieldValueFn, &heterogeneous, d]
             (auto p)
             {
@@ -241,7 +241,7 @@ bool allOf(const Frontend::MergedProcess &mergedProcess, size_t numDevices,
     // **YUCK** nov
     bool value = true;
     for (size_t d = 0; d < numDevices; d++) {
-        mergedProcess.forEachProcess<P>(
+        mergedProcess.forEachMerged<P>(
             [&getFieldValueFn, &unaryPredicateFn, &value, d]
             (auto p)
             {
@@ -678,7 +678,7 @@ void TimeDrivenProcessImplementation::generateCode(const Frontend::MergedProcess
     c.li(*SFieldBase, fieldBase);
 
     // Calculate and load fieldEnd
-    fieldBase += (mergedProcess.getProcesses().size() * mergedFields.getSize());
+    fieldBase += (mergedProcess.getMerged().size() * mergedFields.getSize());
     c.li(*SFieldBaseEnd, fieldBase);
 
     // Generate loop over merged groups
@@ -776,7 +776,7 @@ void NeuronUpdateProcess::updateCompatibleMemSpace(std::shared_ptr<const Fronten
         std::vector<bool> literalSelfSimilarity(numLiterals * numLiterals, true);
 
         // Loop through merged processed
-        mergedProcess.forEachProcess<NeuronUpdateProcess>(
+        mergedProcess.forEachMerged<NeuronUpdateProcess>(
             [&literalSelfSimilarity, numLiterals](const auto &np)
             {
                 // Update upper-triangular portion of matrix (excluding diagonal) with comparison
@@ -1055,7 +1055,7 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
         // Loop through merged processes
         // **NOTE** literals don't change across devices
         // **TODO** comparisons should be made based on FeNN-processed values
-        mergedProcess.forEachProcess<NeuronUpdateProcess>(
+        mergedProcess.forEachMerged<NeuronUpdateProcess>(
             [&literalSelfSimilarity, numLiterals](const auto &np)
             {
                 // Update upper-triangular portion of matrix (excluding diagonal) with comparison

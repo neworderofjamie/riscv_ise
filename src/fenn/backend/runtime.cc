@@ -198,9 +198,10 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                                         });
 
                                          // Create ordered map of event sink ids to event sinks and labels
+                                         //std::vector<
   
                                          // Generate event loops
-                                         // > Loop over events
+                                         // > Loop over event sources
                                          //   > Extract pre index and sink ID
                                          //   > JALR to event sink jump table
                                          // > Jump to end
@@ -303,11 +304,11 @@ void Runtime::allocatePostamble()
             LOGD_FENN_BACKEND << "\tMerged group " << g;
 
             // Loop through processes
-            for(size_t p = 0; p < mergedProcess.getProcesses().size(); p++) {
+            for(size_t p = 0; p < mergedProcess.getMerged().size(); p++) {
                 // Get base address of this process's fields
                 const uint32_t fieldBaseAddress = mergedFields.first + (p * mergedFields.second.getSize());
 
-                auto process = mergedProcess.getProcesses()[p];
+                auto process = mergedProcess.getMerged()[p];
                 LOGD_FENN_BACKEND << "\t\tProcess '" << process->getName() << "'";
 
                 // Loop through the fields in this merged group
