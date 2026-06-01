@@ -82,9 +82,9 @@ public:
     const auto &getModel() const{ return m_Model.get(); }
     
     template<typename P>
-    const auto getModel() const 
+    const P &getModel() const 
     { 
-        return std::dynamic_pointer_cast<const P>(getModel());
+        return static_cast<const P&>(getModel());
     }
 
     //! Get map of process groups to merged processes
