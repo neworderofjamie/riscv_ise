@@ -97,6 +97,31 @@ KernelImplementation::KernelImplementation(const Frontend::ProcessGroupVector &p
 
     if(m_EventSourceProcessGroup) {
         LOGI_FENN_BACKEND << "Event source process group found: '" << m_EventSourceProcessGroup->getName();
+
+        // Create a hash map to group together processes with the same SHA1 digest
+        std::unordered_map<boost::uuids::detail::sha1::digest_type, 
+                            std::vector<std::shared_ptr<Frontend::EventSource const>>, 
+                            ::Common::Utils::SHA1Hash> protoMergedEventSources;
+
+        // Loop through all processes in event source process group
+        for (const auto &p : m_EventSourceProcessGroup->getProcesses()) {
+            for(const auto &e : p->getAllEventSources()) {
+                // Build hash digest
+                boost::uuids::detail::sha1 hash;
+                e->updateMergeHash(hash, model);
+                const auto digest = hash.get_digest();
+
+                // Add to map
+                protoMergedEventSources[digest].push_back(e);
+            }
+        }
+
+        // Construct final merged event source array
+        size_t i = 0;
+        m_MergedEventSources.reserve(protoMergedEventSources.size());
+        for(auto &s : protoMergedEventSources) {
+            m_MergedEventSources.emplace_back(i++, s.second);
+        }
     }
     else {
         LOGI_FENN_BACKEND << "No event source process group found";

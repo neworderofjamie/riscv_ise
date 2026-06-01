@@ -4,6 +4,7 @@
 #include "common/utils.h"
 
 // Frontend includes
+#include "frontend/merged_model.h"
 #include "frontend/process.h"
 
 // FeNN common includes
@@ -20,10 +21,6 @@
 #include "fenn/backend/model.h"
 
 // Forward declarations
-namespace Frontend
-{
-class MergedProcess;
-}
 namespace FeNN::Assembler
 {
 class CodeGenerator;

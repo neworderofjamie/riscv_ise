@@ -6,6 +6,7 @@
 
 // Frontend includes
 #include "frontend/kernel.h"
+#include "frontend/merged_model.h"
 
 // Assembler includes
 #include "fenn/assembler/register_allocator.h"
@@ -62,6 +63,8 @@ private:
 
     std::unordered_map<std::shared_ptr<const Frontend::EventSink>, uint32_t> m_EventSinkIDs;
 
+    std::vector<Frontend::Merged<Frontend::EventSource>> m_MergedEventSources;
+    
     uint32_t m_NumNeuronIDBits;
     uint32_t m_NumPopulationIDBits;
 };

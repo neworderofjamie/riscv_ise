@@ -21,11 +21,12 @@ class State;
 //----------------------------------------------------------------------------
 namespace Frontend
 {
-class MergedProcess
+template<typename T>
+class Merged
 {
 public:
-    MergedProcess(size_t index, const std::vector<std::shared_ptr<Process const>> &processes)
-    :   m_Index(index), m_Processes(processes)
+    Merged(size_t index, const std::vector<std::shared_ptr<T const>> &merged)
+    :   m_Index(index), m_Merged(merged)
     {}
 
     //------------------------------------------------------------------------
@@ -34,7 +35,7 @@ public:
     size_t getIndex() const { return m_Index; }
 
     //! Get 'archetype' process - it's properties represent those of all other merged processes
-    const auto &getArchetype() const { return m_Processes.front(); }
+    const auto &getArchetype() const { return m_Merged.front(); }
 
     //! Get 'archetype' process - it's properties represent those of all other merged processes
     template<typename P>
@@ -44,7 +45,7 @@ public:
     }
 
     //! Get vector of merged processes
-    const auto &getMerged() const{ return m_Processes; }
+    const auto &getMerged() const{ return m_Merged; }
 
     template<typename P = Process, typename F>
     void forEachMerged(F func) const
@@ -65,8 +66,10 @@ private:
     // Members
     //------------------------------------------------------------------------
     size_t m_Index;
-    std::vector<std::shared_ptr<Process const>> m_Processes;
+    std::vector<std::shared_ptr<T const>> m_Merged;
 };
+
+using MergedProcess = Merged<Process>;
 
 //----------------------------------------------------------------------------
 // Backend::MergedModel
