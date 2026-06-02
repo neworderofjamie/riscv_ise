@@ -1,8 +1,5 @@
 #include "fenn/common/dma_buffer.h"
 
-// PLOG includes
-#include <plog/Log.h>
-
 #ifdef __linux__     
     // POSIX includes
     #include <fcntl.h>
@@ -14,6 +11,9 @@
     // UDMABUF includes
     #include "fenn/common/u-dma-buf-ioctl.h"
 #endif
+
+// FeNN common includes
+#include "fenn/common/logging.h"
 
 //----------------------------------------------------------------------------
 // Anonymous namespace
