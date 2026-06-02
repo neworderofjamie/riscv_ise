@@ -21,3 +21,4 @@
 /**/__pycache__/
 *.coe
 /pyfenn.egg-info/dependency_links.txt
+*.dylib
