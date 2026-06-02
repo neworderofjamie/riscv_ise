@@ -159,14 +159,14 @@ void NeuronUpdateProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, cons
     Utils::updateHash(getVariables().size(), hash);
     for(const auto &v : getVariables()) {
         Utils::updateHash(v.first, hash);
-        v.second.updateMergeHash(hash, model);
+        v.second.updateMergeHash(hash);
     }
 
     // Output events
     Utils::updateHash(getOutputEventSinks().size(), hash);
     for(const auto &e : getOutputEventSinks()) {
         Utils::updateHash(e.first, hash);
-        e.second.updateMergeHash(hash, model);
+        e.second.updateMergeHash(hash);
     }
 
     // Tokens
@@ -271,10 +271,10 @@ void EventPropagationProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, 
     UPDATE_HASH_CLASS_NAME(EventPropagationProcess);
 
     // Input events
-    getInputEventSource().updateMergeHash(hash, model);
+    getInputEventSource().updateMergeHash(hash);
 
     // Targets
-    getTarget().updateMergeHash(hash, model);
+    getTarget().updateMergeHash(hash);
 }
 //----------------------------------------------------------------------------
 void EventPropagationProcess::updateCompatibleSplitDimensions(std::shared_ptr<const State> state, 
@@ -326,6 +326,8 @@ std::vector<Sliced<EventSink>> RNGInitProcess::getAllEventSinks() const
 void RNGInitProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Model&) const
 {
     UPDATE_HASH_CLASS_NAME(RNGInitProcess);
+
+    m_Seed->updateMergeHash(hash);
 }
 //----------------------------------------------------------------------------
 void RNGInitProcess::updateCompatibleSplitDimensions(std::shared_ptr<const State> state, 
@@ -366,6 +368,8 @@ std::vector<Sliced<EventSink>> MemsetProcess::getAllEventSinks() const
 void MemsetProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Model&) const
 {
     UPDATE_HASH_CLASS_NAME(MemsetProcess);
+
+    m_Target.updateMergeHash(hash);    
 }
 //----------------------------------------------------------------------------
 void MemsetProcess::updateCompatibleSplitDimensions(std::shared_ptr<const State> state, 

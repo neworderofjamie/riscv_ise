@@ -108,7 +108,7 @@ KernelImplementation::KernelImplementation(const Frontend::ProcessGroupVector &p
             for(const auto &e : p->getAllEventSources()) {
                 // Build hash digest
                 boost::uuids::detail::sha1 hash;
-                e->updateMergeHash(hash, model);
+                e->updateMergeHash(hash);
                 const auto digest = hash.get_digest();
 
                 // Add to map

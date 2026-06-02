@@ -5,6 +5,7 @@
 #include <optional>
 
 // Frontend includes
+#include "frontend/events.h"
 #include "frontend/kernel.h"
 #include "frontend/merged_model.h"
 
@@ -64,7 +65,7 @@ private:
     std::unordered_map<std::shared_ptr<const Frontend::EventSink>, uint32_t> m_EventSinkIDs;
 
     std::vector<Frontend::Merged<Frontend::EventSource>> m_MergedEventSources;
-    
+
     uint32_t m_NumNeuronIDBits;
     uint32_t m_NumPopulationIDBits;
 };

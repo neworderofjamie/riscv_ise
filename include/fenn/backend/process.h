@@ -148,6 +148,11 @@ public:
     using Frontend::NeuronUpdateProcess::NeuronUpdateProcess;
 
     //------------------------------------------------------------------------
+    // Process virtuals
+    //------------------------------------------------------------------------
+    virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const Frontend::Model &model) const override final;
+    
+    //------------------------------------------------------------------------
     // ProcessImplementation virtuals
     //------------------------------------------------------------------------
     //! Update the memory compatibility of a variable associated with this process
@@ -242,82 +247,6 @@ private:
     //------------------------------------------------------------------------
     Frontend::VariablePtr m_Weight;
 };
-//----------------------------------------------------------------------------
-// FeNN::Backend::EventPropagationProcess
-//----------------------------------------------------------------------------
-/*class FENN_BACKEND_EXPORT EventPropagationProcess : public Frontend::EventPropagationProcess, public ProcessImplementation
-{
-public:
-    EventPropagationProcess(Private, Sliced<EventContainer> inputEvents, 
-                            VariablePtr weight, Sliced<Variable> target,
-                            size_t numSparseConnectivityBits, size_t numDelayBits,
-                            const std::string &name);
-    
-    //------------------------------------------------------------------------
-    // Process virtuals
-    //------------------------------------------------------------------------
-    //! Get vector of state objects used by this process
-    virtual std::vector<std::shared_ptr<const State>> getAllState() const override final;
-    
-    //! Update the provided hash with the properties of this process which determine whether it can be merged
-    virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const Model &model) const override final;
-
-    //! Update the compatible split dimensions of a state object (which should be
-    //! one used by this process) with any constraints imposed by this process)
-    virtual void updateCompatibleSplitDimensions(std::shared_ptr<const State> state, 
-                                                 uint32_t &compatibleSplitDimensions) const override final;
-
-    //------------------------------------------------------------------------
-    // ProcessImplementation virtuals
-    //------------------------------------------------------------------------
-    //! Update the memory compatibility of a variable associated with this process
-    virtual void updateCompatibleMemSpace(std::shared_ptr<const Frontend::State> state,
-                                          MemSpace &compatibleMemSpaces) const override final;
-
-    //! Update the maximum DMA buffer size to support this process
-    virtual void updateMaxDMABufferSize(size_t &maxRowLength) const override final;
-
-    //! Generate code to implement process
-    virtual void generateCode(const Frontend::MergedProcess &mergedProcess, 
-                              const Runtime &runtime, Assembler::ScalarRegisterPtr timeReg,
-                              std::optional<uint32_t> numTimesteps, Assembler::CodeGenerator &c,
-                              Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
-                              Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;
-    
-    //------------------------------------------------------------------------
-    // Public API
-    //------------------------------------------------------------------------
-    const auto getWeight() const{ return m_Weight; }
-
-    size_t getMaxRowLength() const{ return m_MaxRowLength; }
-
-    size_t getNumSparseConnectivityBits() const{ return m_NumSparseConnectivityBits; }
-    size_t getNumDelayBits() const{ return m_NumDelayBits; }
-
-    //------------------------------------------------------------------------
-    // Static API
-    //------------------------------------------------------------------------
-    static std::shared_ptr<EventPropagationProcess> create(std::shared_ptr<const Frontend::EventContainer> inputEvents, 
-                                                           Frontend::VariablePtr weight, Frontend::VariablePtr target, 
-                                                           size_t numSparseConnectivityBits = 0,
-                                                           size_t numDelayBits = 0,
-                                                           const std::string &name = "")
-    {
-        return std::make_shared<EventPropagationProcess>(Private(), inputEvents, weight, target, 
-                                                         numSparseConnectivityBits, numDelayBits, name);
-    }
-
-private:
-    //------------------------------------------------------------------------
-    // Members
-    //------------------------------------------------------------------------
-    VariablePtr m_Weight;
-
-    size_t m_MaxRowLength;
-
-    size_t m_NumSparseConnectivityBits;
-    size_t m_NumDelayBits;
-};*/
 
 //----------------------------------------------------------------------------
 // FeNN::Backend::RNGInitProcess
@@ -327,6 +256,11 @@ class FENN_BACKEND_EXPORT RNGInitProcess : public Frontend::RNGInitProcess, publ
 public:
     RNGInitProcess(Private, Frontend::VariablePtr seed, const std::string &name);
 
+    //------------------------------------------------------------------------
+    // Process virtuals
+    //------------------------------------------------------------------------
+    virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const Frontend::Model &model) const override final;
+    
     //------------------------------------------------------------------------
     // ProcessImplementation virtuals
     //------------------------------------------------------------------------
@@ -362,6 +296,11 @@ class FENN_BACKEND_EXPORT MemsetProcess : public Frontend::MemsetProcess, public
 public:
     using Frontend::MemsetProcess::MemsetProcess;
 
+    //------------------------------------------------------------------------
+    // Process virtuals
+    //------------------------------------------------------------------------
+    virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const Frontend::Model &model) const override final;
+    
     //------------------------------------------------------------------------
     // ProcessImplementation virtuals
     //------------------------------------------------------------------------
@@ -428,7 +367,7 @@ public:
     //------------------------------------------------------------------------
     // Process virtuals
     //------------------------------------------------------------------------
-    virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const Frontend::Model &model) const override;
+    virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const Frontend::Model &model) const override final;
     virtual void updateCompatibleSplitDimensions(std::shared_ptr<const Frontend::State> state, 
                                                  uint32_t &compatibleSplitDimensions) const override;
 

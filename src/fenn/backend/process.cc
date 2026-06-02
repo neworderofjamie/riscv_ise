@@ -733,6 +733,19 @@ void EventDrivenProcessImplementation::generateCode(const Frontend::MergedProces
 //----------------------------------------------------------------------------
 // FeNN::Backend::NeuronUpdateProcess
 //----------------------------------------------------------------------------
+void NeuronUpdateProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Frontend::Model &model) const
+{
+    // Superclass
+    Frontend::NeuronUpdateProcess::updateMergeHash(hash, model);
+
+    // Loop through neuron variables and include hash of their memory spaces
+    for(const auto &v : getVariables()) {
+        ::Common::Utils::updateHash(
+            static_cast<const Model&>(model).getStateMemSpace(v.second.getUnderlying(), 
+                                                              true/*getRuntime().shouldUseDRAMForWeights()*/), hash);
+    }
+}
+//----------------------------------------------------------------------------
 void NeuronUpdateProcess::updateCompatibleMemSpace(std::shared_ptr<const Frontend::State> state, 
                                                    MemSpace &compatibleMemSpaces) const
 {
@@ -1411,10 +1424,19 @@ void DenseEventPropagationProcess::updateMergeHash(boost::uuids::detail::sha1 &h
     // event sources are handled seperately in FeNN backend
 
     // Targets
-    getTarget().updateMergeHash(hash, model);
+    getTarget().updateMergeHash(hash);
 
+    // Include hash of target memory space
+    ::Common::Utils::updateHash(
+        static_cast<const Model&>(model).getStateMemSpace(getTarget().getUnderlying(), 
+                                                          true/*getRuntime().shouldUseDRAMForWeights()*/), hash);
     // Weights
-    getWeight()->updateMergeHash(hash, model);
+    getWeight()->updateMergeHash(hash);
+
+    // Include hash of weight memory space
+    ::Common::Utils::updateHash(
+        static_cast<const Model&>(model).getStateMemSpace(getTarget().getUnderlying(), 
+                                                          true/*getRuntime().shouldUseDRAMForWeights()*/), hash);
 }
 //----------------------------------------------------------------------------
 void DenseEventPropagationProcess::updateCompatibleSplitDimensions(std::shared_ptr<const Frontend::State> state, 
@@ -2028,6 +2050,17 @@ RNGInitProcess::RNGInitProcess(Private, Frontend::VariablePtr seed, const std::s
     }
 }
 //----------------------------------------------------------------------------
+void RNGInitProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Frontend::Model &model) const
+{
+    // Superclass
+    Frontend::RNGInitProcess::updateMergeHash(hash, model);
+
+    // Include hash of seed memory space
+    ::Common::Utils::updateHash(
+        static_cast<const Model&>(model).getStateMemSpace(getSeed(), 
+                                                          true/*getRuntime().shouldUseDRAMForWeights()*/), hash);
+}
+//----------------------------------------------------------------------------
 void RNGInitProcess::updateCompatibleMemSpace(std::shared_ptr<const Frontend::State> state, 
                                               MemSpace &compatibleMemSpaces) const
 {
@@ -2067,6 +2100,17 @@ std::vector<Compiler::RegisterPtr> RNGInitProcess::generateArchetypeCode(
 
 //----------------------------------------------------------------------------
 // FeNN::Backend::MemsetProcess
+//----------------------------------------------------------------------------
+void MemsetProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Frontend::Model &model) const
+{
+    // Superclass
+    Frontend::MemsetProcess::updateMergeHash(hash, model);
+
+    // Include hash of target memory space
+    ::Common::Utils::updateHash(
+        static_cast<const Model&>(model).getStateMemSpace(getTarget().getUnderlying(), 
+                                                          true/*getRuntime().shouldUseDRAMForWeights()*/), hash);
+}
 //----------------------------------------------------------------------------
 void MemsetProcess::updateCompatibleMemSpace(std::shared_ptr<const Frontend::State> state, 
                                              MemSpace &compatibleMemSpaces) const
@@ -2272,9 +2316,20 @@ std::vector<Frontend::Sliced<Frontend::EventSink>> BroadcastProcess::getAllEvent
     return {};
 }
 //----------------------------------------------------------------------------
-void BroadcastProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Frontend::Model&) const
+void BroadcastProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Frontend::Model &model) const
 {
     UPDATE_HASH_CLASS_NAME(BroadcastProcess);
+
+    getSource()->updateMergeHash(hash);
+    getTarget()->updateMergeHash(hash);
+
+    // Include hash of source and target memory spaces
+    ::Common::Utils::updateHash(
+        static_cast<const Model&>(model).getStateMemSpace(getSource(), 
+                                                          true/*getRuntime().shouldUseDRAMForWeights()*/), hash);
+    ::Common::Utils::updateHash(
+        static_cast<const Model&>(model).getStateMemSpace(getTarget(), 
+                                                          true/*getRuntime().shouldUseDRAMForWeights()*/), hash);
 }
 //----------------------------------------------------------------------------
 void BroadcastProcess::updateCompatibleSplitDimensions(std::shared_ptr<const Frontend::State> state, 

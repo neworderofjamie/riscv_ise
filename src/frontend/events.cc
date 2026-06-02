@@ -8,7 +8,7 @@
 //----------------------------------------------------------------------------
 namespace Frontend
 {
-void EventSourceBuffer::updateMergeHash(boost::uuids::detail::sha1 &hash, const Model&) const
+void EventSourceBuffer::updateMergeHash(boost::uuids::detail::sha1 &hash) const
 {
     UPDATE_HASH_CLASS_NAME(EventSourceBuffer);
 }
@@ -21,7 +21,7 @@ std::unique_ptr<ArrayBase> EventSourceBuffer::createArray(const Shape&, const Mo
 //----------------------------------------------------------------------------
 // Frontend::EventSinkBuffer
 //----------------------------------------------------------------------------
-void EventSinkBuffer::updateMergeHash(boost::uuids::detail::sha1 &hash, const Model&) const
+void EventSinkBuffer::updateMergeHash(boost::uuids::detail::sha1 &hash) const
 {
     UPDATE_HASH_CLASS_NAME(EventSinkBuffer);
 }
@@ -34,7 +34,7 @@ std::unique_ptr<ArrayBase> EventSinkBuffer::createArray(const Shape&, const Mode
 //----------------------------------------------------------------------------
 // Frontend::EventChannel
 //----------------------------------------------------------------------------
-void EventChannel::updateMergeHash(boost::uuids::detail::sha1 &hash, const Model&) const
+void EventChannel::updateMergeHash(boost::uuids::detail::sha1 &hash) const
 {
     UPDATE_HASH_CLASS_NAME(EventChannel);
 }
