@@ -72,9 +72,11 @@ runtime = Runtime(model, backend)
 runtime.allocate()
 
 # Load weights
-load_and_push("mnist_in_hid.bin", input_hidden.weight, runtime)
-load_and_push("mnist_hid_out.bin", hidden_output.weight, runtime)
-load_and_push("mnist_bias.bin", output.bias, runtime)
+print(np.asarray(runtime.get_array(hidden_output.weight).host_view).shape)
+
+load_and_push("./examples/mnist_in_hid.bin", input_hidden.weight, runtime)
+load_and_push("./examples/mnist_hid_out.bin", hidden_output.weight, runtime)
+load_and_push("./examples/mnist_bias.bin", output.bias, runtime)
 
 # Zero remaining state
 zero_and_push(hidden.v, runtime)
