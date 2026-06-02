@@ -12,6 +12,8 @@ from pyfenn.utils import (get_array_view, get_latency_spikes, copy_and_push,
                           read_perf_counter, zero_and_push, quantise)
 from tqdm.auto import tqdm
 
+# One trial can consist of several timesteps, determining how many
+# times the processes are run
 num_timesteps = 1
 input_shape = 10
 output_shape = 1
@@ -33,10 +35,11 @@ num_fixed_point_bits=6
 
 input = EventContainer(Shape(input_shape), num_timesteps)
 # output = LI_SIMPLE(output_shape, tau_m=.0001, num_timesteps=2, fixed_point=num_fixed_point_bits, name="output")
-output = LIF_STDP(output_shape, tau_m=.0001, tau_a=.0001, tau_refrac=3, v_thresh=5, v_reset=0, beta=0, record_timesteps=1, fixed_point=num_fixed_point_bits, dt=1, name="output")
+output = LIF_STDP(output_shape, alpha=.01, v_thresh=5, v_reset=0, record_timesteps=1, fixed_point=num_fixed_point_bits, dt=1, name="output")
 # input_output = Linear(input.out_spikes, output.i, "s9_6_sat_t", name="input_output")
 input_output = Linear(input, output.i, "s9_6_sat_t", name="input_output")
 
+# Note that memset will clear the variable at the end of the trial!!
 # v_zero = Memset(output.v)
 
 # Group processes
@@ -115,8 +118,8 @@ for i in range(10):
     output_v_array.pull_from_device()
     output_spike_array.pull_from_device()
     print("Input spikes: ", input_spike_view)
-    print("Output voltages: ", output_v_view/(2**num_fixed_point_bits))
-    print("Output spikes: ", output_spike_view)
+    print("Output voltages: ", output_v_view[0]/(2**num_fixed_point_bits))
+    print("Output spikes: ", output_spike_view[0])
     print()
 
 
