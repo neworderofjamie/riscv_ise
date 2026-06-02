@@ -36,7 +36,7 @@ std::unique_ptr<ArrayBase> EventSinkBuffer::createArray(const Shape&, const Mode
 //----------------------------------------------------------------------------
 void EventChannel::updateMergeHash(boost::uuids::detail::sha1 &hash, const Model&) const
 {
-    UPDATE_HASH_CLASS_NAME(EventSourceBuffer);
+    UPDATE_HASH_CLASS_NAME(EventChannel);
 }
 //----------------------------------------------------------------------------
 std::unique_ptr<ArrayBase> EventChannel::createArray(const Shape&, const Model&, DeviceBase&) const
