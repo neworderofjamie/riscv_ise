@@ -74,35 +74,33 @@ class ALIF:
 
 
 class LIF_STDP:
-    def __init__(self, shape, tau_m: float, tau_a: float, tau_refrac: int,
-                 v_thresh: float, v_reset: float, beta: float = 0.0174,
+    def __init__(self, shape, alpha: float,
+                 v_thresh: float, v_reset: float,
                  record_timesteps: int = 1, fixed_point: int = 9,
                  dt: float = 1.0, name: str = ""):
         self.shape = shape
         dtype = f"s{15 - fixed_point}_{fixed_point}_sat_t"
-        decay_dtype = "s0_15_sat_t"
         self.v = Variable(self.shape, dtype, name=f"{name}_v")
-        self.a = Variable(self.shape, dtype, name=f"{name}_a")
         self.i = Variable(self.shape, dtype, name=f"{name}_i")
-        self.refrac_time = Variable(self.shape, "int16_t",
-                                    name=f"{name}_refrac_time")
         self.out_spikes = EventContainer(self.shape, record_timesteps)
         self.process = NeuronUpdateProcess(
             f"""
-            V = V+I;
-            I = 0.0h{fixed_point};
             if(V > VThresh) {{
-                Spike();
-                V = 0.0h{fixed_point};
+                V = VReset;
             }}
+            V = V+I-Alpha;
+            if(V >= VThresh) {{
+                Spike();
+            }} 
+            else if(V<VReset) {{
+                V = VReset;
+            }}
+            I = 0.0h{fixed_point};
             """,
-            {"Alpha": Parameter(np.exp(-dt / tau_m), decay_dtype),
-             "Rho": Parameter(np.exp(-dt / tau_a), decay_dtype),
-             "Beta": Parameter(beta, dtype),
+            {"Alpha": Parameter(alpha, dtype),
              "VThresh": Parameter(v_thresh, dtype),
-             "VReset": Parameter(v_reset,dtype),
-             "TauRefrac": Parameter(int(round(tau_refrac / dt)), "int16_t")},
-            {"V": self.v, "A": self.a, "I": self.i, "RefracTime": self.refrac_time},
+             "VReset": Parameter(v_reset,dtype)},
+            {"V": self.v, "I": self.i},
             {"Spike": self.out_spikes},
             name)
 
