@@ -149,7 +149,7 @@ std::vector<Sliced<EventSink>> NeuronUpdateProcess::getAllEventSinks() const
     return eventSinks;
 }
 //----------------------------------------------------------------------------
-void NeuronUpdateProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Model &model) const
+void NeuronUpdateProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Model&) const
 {
     using namespace Common;
 
@@ -265,7 +265,7 @@ std::vector<Sliced<EventSink>> EventPropagationProcess::getAllEventSinks() const
     return {};
 }
 //----------------------------------------------------------------------------
-void EventPropagationProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Frontend::Model &model) const
+void EventPropagationProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Frontend::Model&) const
 {
     using namespace Common::Utils;
     UPDATE_HASH_CLASS_NAME(EventPropagationProcess);
