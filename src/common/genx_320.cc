@@ -93,7 +93,7 @@ void GenX320::writeCamRegister(RegisterAddress address, uint32_t value, int numR
             m_CamI2C.write(buffer);
         }
         catch(std::runtime_error &e) {
-            LOGW << std::hex << "I2C write 0x" << address << "=0x" << value << " failed (attempt " << std::dec << i + 1 << " / " << numRetries << ")";
+            LOGW << std::hex << "I2C write 0x" << static_cast<uint16_t>(address) << "=0x" << value << " failed (attempt " << std::dec << i + 1 << " / " << numRetries << ")";
         }
     }
 
