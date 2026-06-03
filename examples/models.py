@@ -144,6 +144,7 @@ class Bernoulli:
             {"NumSpikes": self.num_spikes},
             {"Spike": self.out_spikes},
             name)
+
 # Remember calling Spike() activates the event associated with that event container
 # Remember that fennrand() outputs a 15 fractional bit number (between 0 and 1) so 
 # any comparisons must also be with numbers containing 15 fractional bits.
