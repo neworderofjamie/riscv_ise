@@ -79,7 +79,7 @@ uint32_t GenX320::readCamRegister(RegisterAddress address)
     return val;
 }
 //----------------------------------------------------------------------------
-void GenX320::writeCamRegister(RegisterAddress address, uint32_t value)
+void GenX320::writeCamRegister(RegisterAddress address, uint32_t value, int numRetries)
 {
     // Send 2-byte register address followed by 4-byte data (big-endian) 
     const uint8_t buffer[6] = {(static_cast<uint16_t>(address) >> 8) & 0xFF,
@@ -88,7 +88,16 @@ void GenX320::writeCamRegister(RegisterAddress address, uint32_t value)
                                (value >> 16) & 0xFF,
                                (value >> 8) & 0xFF,
                                value & 0xFF};
-    m_CamI2C.write(buffer);
+    for(int i = 0; i < numRetries; i++) {
+        try {
+            m_CamI2C.write(buffer);
+        }
+        catch(std::runtime_error &e) {
+            LOGW << std::hex << "I2C write 0x" << address << "=0x" << value << " failed (attempt " << std::dec << i + 1 << " / " << numRetries << ")";
+        }
+    }
+
+    throw std::runtime_error("Write failed");
 }
 //----------------------------------------------------------------------------
 void GenX320::waitBoot(int numRetries)

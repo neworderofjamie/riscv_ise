@@ -87,7 +87,7 @@ private:
     // Private API
     //------------------------------------------------------------------------
     uint32_t readCamRegister(RegisterAddress address);
-    void writeCamRegister(RegisterAddress address, uint32_t value);
+    void writeCamRegister(RegisterAddress address, uint32_t value, int numRetries = 3);
 
     void waitBoot(int numRetries = 50);
 
