@@ -88,7 +88,7 @@ class LIF_STDP:
             if(V > VThresh) {{
                 V = VReset;
             }}
-            V = V+I-Alpha;
+            V += I-Alpha;
             if(V >= VThresh) {{
                 Spike();
             }} 
@@ -102,29 +102,7 @@ class LIF_STDP:
              "VReset": Parameter(v_reset,dtype)},
             {"V": self.v, "I": self.i},
             {"Spike": self.out_spikes},
-            name)
-
-class LI_SIMPLE:
-    def __init__(self, shape, tau_m: float, num_timesteps: int,
-                 fixed_point: int = 5, dt: float = 1.0, name: str = ""):
-        self.shape = shape
-        dtype = f"s{15 - fixed_point}_{fixed_point}_sat_t"
-
-        self.v = Variable(self.shape, dtype, name=f"{name}_v")
-        self.i = Variable(self.shape, dtype, name=f"{name}_i")
-        self.bias = Variable(self.shape, dtype, name=f"{name}_bias")
-        print("Here is self.bias: ", self.bias)
-        ## REMEMBER TO DELETE THE BIAS =0 I=0
-        self.process = NeuronUpdateProcess(
-            f"""
-            Bias = 0.0h{fixed_point};
-            V = I + Bias;
-            """,
-            {"Alpha": Parameter(np.exp(-dt / tau_m), dtype), 
-             "VAvgScale": Parameter(1.0 / (num_timesteps / 2), dtype)},
-            {"V": self.v, "I": self.i, "Bias": self.bias},
-            {}, name)
-# Looks like the bias defaults to approx -133       
+            name)   
         
 
 class LI:
@@ -150,28 +128,22 @@ class LI:
         
 class Bernoulli:
     def __init__(self, shape, prob_spike: float,
-                 record_timesteps: int = 1, fixed_point: int = 9, name: str = ""):
+                 record_timesteps: int = 1, fixed_point: int = 5, name: str = ""):
         self.shape = shape
         dtype = f"s{15 - fixed_point}_{fixed_point}_sat_t"
         decay_dtype = "s0_15_sat_t"
         self.out_spikes = EventContainer(self.shape, record_timesteps)
-        self.num_spikes = Variable(self.shape, dtype, name=f"{name}_v")
+        self.num_spikes = Variable(self.shape, dtype, name=f"{name}_num_spikes")
         self.process = NeuronUpdateProcess(
             f"""
-            if(3 >= 6) {{
-               Test();
+            if(ProbSpike >= fennrand()) {{
+               Spike();
             }}
             """,
             {"ProbSpike": Parameter(prob_spike, decay_dtype)},
             {"NumSpikes": self.num_spikes},
-            {"Test": self.out_spikes},
+            {"Spike": self.out_spikes},
             name)
-        
-            # f"""
-            # if(ProbSpike >= fennrand()) {{
-            #    Test();
-            # }}
-            # else {{
-            #    Test();
-            # }}
-            # """,
+# Remember calling Spike() activates the event associated with that event container
+# Remember that fennrand() outputs a 15 fractional bit number (between 0 and 1) so 
+# any comparisons must also be with numbers containing 15 fractional bits.
