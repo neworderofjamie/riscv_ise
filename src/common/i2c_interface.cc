@@ -31,6 +31,7 @@ extern "C"
 // I2CInterface
 //----------------------------------------------------------------------------
 I2CInterface::I2CInterface(const std::string &path, int slaveAddress)
+:   m_SlaveAddress(slaveAddress)
 {
 #ifdef __linux__ 
     m_I2C = open(path.c_str(), O_RDWR);
@@ -65,34 +66,6 @@ I2CInterface::~I2CInterface()
 #endif  // __linux__
 }
 //---------------------------------------------------------------------
-uint8_t I2CInterface::readByteCommand(uint8_t address)
-{
-#ifdef __linux__ 
-    const auto data = i2c_smbus_read_byte_data(m_I2C, address);
-    if (data < 0) {
-        throw std::runtime_error("Failed to read byte from i2c bus");
-    } else {
-        return static_cast<uint8_t>(data);
-    }
-#else
-    throw std::runtime_error("I2C interface only supports Linux");
-#endif  // __linux__
-}
-//---------------------------------------------------------------------
-uint8_t I2CInterface::readByte()
-{
-#ifdef __linux__ 
-    const auto data = i2c_smbus_read_byte(m_I2C);
-    if (data < 0) {
-        throw std::runtime_error("Failed to read byte from i2c bus");
-    } else {
-        return static_cast<uint8_t>(data);
-    }
-#else
-    throw std::runtime_error("I2C interface only supports Linux");
-#endif  // __linux__
-}
-//---------------------------------------------------------------------
 void I2CInterface::read(void *data, size_t size)
 {
 #ifdef __linux__ 
@@ -100,28 +73,6 @@ void I2CInterface::read(void *data, size_t size)
         throw std::runtime_error("Failed to read from i2c bus: " +
                                  std::string(strerror(errno)) +
                                  " (" + std::to_string(errno) + ")");
-    }
-#else
-    throw std::runtime_error("I2C interface only supports Linux");
-#endif  // __linux__
-}
-//---------------------------------------------------------------------
-void I2CInterface::writeByteCommand(uint8_t address, uint8_t byte)
-{
-#ifdef __linux__ 
-    if (i2c_smbus_write_byte_data(m_I2C, address, byte) < 0) {
-        throw std::runtime_error("Failed to write byte to i2c bus");
-    }
-#else
-    throw std::runtime_error("I2C interface only supports Linux");
-#endif  // __linux__
-}
-//---------------------------------------------------------------------
-void I2CInterface::writeByte(uint8_t byte)
-{
-#ifdef __linux__ 
-    if (i2c_smbus_write_byte(m_I2C, byte) < 0) {
-        throw std::runtime_error("Failed to write byte to i2c bus");
     }
 #else
     throw std::runtime_error("I2C interface only supports Linux");
@@ -136,6 +87,29 @@ void I2CInterface::write(const void *data, size_t size)
                                  std::string(strerror(errno)) +
                                  " (" + std::to_string(errno) + ")");
     }
+#else
+    throw std::runtime_error("I2C interface only supports Linux");
+#endif  // __linux__
+}
+//---------------------------------------------------------------------
+void I2CInterface::writeRead(const uint8_t *writeData, size_t writeSize,
+                             uint8_t *readData, size_t readSize)
+{
+#ifdef __linux__ 
+    i2c_msg messages[2];
+    messages[0].addr = m_SlaveAddress;
+    messages[0].buf = const_cast<uint8_t*>(writeData);
+    messages[0].len = writeSize;
+    messages[0].flags = 0;
+    
+    messages[1].addr = m_SlaveAddress;
+    messages[1].buf = readData;
+    messages[1].len = readSize;
+    messages[1].flags = I2C_M_RD;
+
+    if (ioctl(m_I2C, I2C_RDWR, &messages[0]) < 0) {
+        throw std::runtime_error("Cannot send combined R/W transfer");
+    } 
 #else
     throw std::runtime_error("I2C interface only supports Linux");
 #endif  // __linux__
