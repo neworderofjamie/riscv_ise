@@ -2,7 +2,7 @@
 include ../MakefileCommon
 
 # Add compiler and linker flags to link libGeNN and correct backend; and to configure generator to use backend
-LDFLAGS			+= -L$(LIBRARY_DIRECTORY) -lcommon$(PREFIX)
+LDFLAGS			+= -L$(LIBRARY_DIRECTORY) -lcommon$(PREFIX) -li2c
 
 # Determine full path to test_mnist
 GENX320 :=$(BIN_DIRECTORY)/genx320$(PREFIX)
