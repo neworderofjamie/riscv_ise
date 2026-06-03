@@ -58,14 +58,11 @@ void GenX320::powerOn()
 //----------------------------------------------------------------------------
 uint32_t GenX320::readCamRegister(RegisterAddress address)
 {
-    // Send 2-byte register address (big-endian) 
+    // Make combined transaction, writing 2-byte (big-endian) address and reading 4-byte payload
     const uint8_t addressBuffer[2] = {(static_cast<uint16_t>(address) >> 8) & 0xFF,
                                       static_cast<uint16_t>(address) & 0xFF};
-    m_CamI2C.write(addressBuffer);
-
-    // Read 4 byte response
     uint8_t dataBuffer[4];
-    m_CamI2C.read(dataBuffer);
+    m_CamI2C.writeRead(addressBuffer, dataBuffer);
 
     // Re-assemble little-endian data
     const uint32_t val = ((dataBuffer[0] << 24) |
