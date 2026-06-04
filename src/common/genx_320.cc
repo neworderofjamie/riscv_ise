@@ -10,6 +10,28 @@
 // Common includes
 #include "common/genx320_reg.h"
 
+namespace
+{
+struct BiasDefault
+{
+    uint16_t address;
+    uint32_t value;
+};
+
+BiasDefault factoryBiasDefaults[] = {
+    {0x1000, 0x0301003D},  // BIAS_PR_HV0
+    {0x1004, 0x03010022},  // BIAS_FO_HV0
+    {0x1008, 0x0101003F},  // BIAS_FES_HV0
+    {0x1100, 0x03010028},  // BIAS_HPF_LV0
+    {0x1104, 0x01010019},  // BIAS_DIFF_ON_LV0
+    {0x1108, 0x01010033},  // BIAS_DIFF_LV0
+    {0x110C, 0x0101001C},  // BIAS_DIFF_OFF_LV0
+    {0x1110, 0x01010039},  // BIAS_INV_LV0
+    {0x1114, 0x0309000A},  // BIAS_REFR_LV0
+    {0x1118, 0x03010038},  // BIAS_INVP_LV0
+    {0x111C, 0x03000074},  // BIAS_REQ_PU_LV0
+    {0x1120, 0x010000A4}}; // BIAS_SM_PDY_LV0
+}
 //----------------------------------------------------------------------------
 // GenX320
 //----------------------------------------------------------------------------
@@ -97,11 +119,11 @@ void GenX320::powerOn()
     writeCamRegisterFields<SRAM::Pd1>([](auto &s){ s.mipi_pd = 0; });
 
     // Enable MIPI CSI
-    //self.write_field("mipi_csi_ctrl", "enable", 1)
+    writeCamRegisterFields<MipiCsi::Ctrl>([](auto &s){ s.enable = 1; });
     
     // Blanking frame register
-    //self.write_reg(REGISTERS["mipi_csi_bl_frame"]["addr"], 0x80003E80)
-    //self.write_field("mipi_csi_stat_ctrl", "enable", 1)
+    writeCamRegister<MipiCsi::BlFrame>(0x80003E80);
+    writeCamRegisterFields<MipiCsi::Stat::Ctrl>([](auto &s){ s.enable = 1; });
     
     // Configure FPGA-side MIPI RX if provided
     //self._configure_fpga_mipi()
@@ -110,7 +132,45 @@ void GenX320::powerOn()
     
     setEventFormat(m_EventFormat);
     
-    //self._tune_analog()
+    //------------------------------------------------------------------------
+    // Write factory-default bias values and burst-transfer them.
+    //------------------------------------------------------------------------
+    // Enable bias reset lines
+    writeCamRegisterFields<BgenCtrl>([](auto &s)
+                                     {
+                                         s.bias_rstn_hv = 1;
+                                         s.bias_rstn_lv = 1;
+                                     });
+    
+    std::this_thread::sleep_for(200us);
+
+    // Clear ibtype_sel on DIFF_ON and DIFF_OFF (vdac type)
+    {
+        // ibtype_sel bit in bgen register layout
+        const uint32_t ibtypeMask = (1 << 19)  ;
+
+        clearCamRegisterBits(0x1104, ibtypeMask);   // BIAS_DIFF_ON_LV0
+        clearCamRegisterBits(0x110C, ibtypeMask);   // BIAS_DIFF_OFF_LV0
+    }
+    
+    // Write all factory defaults
+    for(const auto &f : factoryBiasDefaults) {
+        writeCamRegister(f.address, f.value);
+    }
+
+    // Burst-transfer both HV and LV bank 0
+    writeCamRegisterFields<BgenCtrl>([](auto &s)
+                                     {
+                                         s.burst_transfer_hv_bank_0 = 1;
+                                         s.burst_transfer_hv_bank_1 = 0;
+                                         s.burst_transfer_lv_bank_0 = 1;
+                                         s.burst_transfer_lv_bank_1 = 0;
+                                         s.bias_rstn_hv = 1;
+                                         s.bias_rstn_lv = 1;
+                                     });
+    
+    LOGD << "Analog bias tuning complete";
+    
     //self._roi_window_init()
     //self._erc_init()
     //self._bias_init()
@@ -120,13 +180,19 @@ void GenX320::setEventFormat(EventFormat eventFormat)
 {
     m_EventFormat = eventFormat;
 
+    writeCamRegisterFields<EDF::Control>([this](auto &s)
+                                         {
+                                             s.format = m_EventFormat; 
+                                             s.endianness = 0;   // little-endian
+                                         });
 
-    /*self.write_field("edf_control", "format", EVT_FMT[fmt])
-    self.write_field("edf_control", "endianness", 0)  # little-endian
-    self.write_field("edf_pipeline_control", "bypass", 0)
-    self.write_field("edf_pipeline_control", "enable", 1)
+    writeCamRegisterFields<EDF::PipelineControl>([](auto &s)
+                                                 {
+                                                     s.bypass = 0;
+                                                     s.enable = 1;
+                                                 });
     
-    log.info("Event format set to %s", fmt)*/
+    LOGI << "Event format set to " << m_EventFormat._to_string();
 }
 //----------------------------------------------------------------------------
 void GenX320::waitBoot(int numRetries)
@@ -202,5 +268,17 @@ void GenX320::writeCamRegister(uint16_t address, uint32_t value, int numRetries)
     }
 
     throw std::runtime_error("I2C write at 0x" + std::to_string(address) + "failed after " + std::to_string(numRetries) + " retries");
+}
+//----------------------------------------------------------------------------
+void GenX320::setCamRegisterBits(uint16_t address, uint32_t mask, int numRetries)
+{
+    const uint32_t val = readCamRegister(address);
+    writeCamRegister(address, val | mask, numRetries);
+}
+//----------------------------------------------------------------------------
+void GenX320::clearCamRegisterBits(uint16_t address, uint32_t mask, int numRetries)
+{
+    const uint32_t val = readCamRegister(address);
+    writeCamRegister(address, val & ~mask, numRetries);
 }
 

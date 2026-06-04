@@ -202,7 +202,7 @@ PSEE_REGISTER_DEF(ResetTdropCounterOnMtagFirst, 0x60B4, {
 //----------------------------------------------------------------------------
 namespace EDF
 {
-PSEE_REGISTER_DEF(Pipeline_control, 0x7000, {
+PSEE_REGISTER_DEF(PipelineControl, 0x7000, {
 	uint32_t enable :1;
 	uint32_t drop_nbackpressure :1;
 	uint32_t bypass :1;
