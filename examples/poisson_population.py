@@ -4,12 +4,12 @@ import mnist
 from argparse import ArgumentParser
 from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer, Model, 
                     PerformanceCounter, ProcessGroup, Runtime, Shape)
-from pyfenn.models import Linear, Memset
+from pyfenn.models import Linear, Memset, RNGInit
 from models import LI, LIF, Bernoulli, LIF_STDP
 
-from pyfenn import disassemble, init_logging
+from pyfenn import disassemble, init_logging, RNGInitProcess
 from pyfenn.utils import (get_array_view, get_latency_spikes, copy_and_push,
-                          read_perf_counter, zero_and_push, quantise)
+                          read_perf_counter, zero_and_push, quantise, seed_and_push)
 from tqdm.auto import tqdm
 import matplotlib.pyplot as plt
 
@@ -42,7 +42,7 @@ postsyn_v_thresh_LTP = v_threshold*.8
 # weird things happen when prob_spike can't be expressed as a fraction with denom=64
 primary_input = Bernoulli(Shape(primary_input_shape),prob_spike=(2**3)/(2**6),record_timesteps=1,fixed_point=num_fixed_point_bits,name="primary_input")
 extra_input = Bernoulli(Shape(extra_input_shape),prob_spike=(2**4)/(2**6),record_timesteps=1,fixed_point=num_fixed_point_bits,name="extra_input")
-output = LIF_STDP(output_shape, alpha=.01, v_thresh=v_threshold, v_reset=0, record_timesteps=1, fixed_point=num_fixed_point_bits, dt=1, name="output")
+output = LIF_STDP(output_shape, alpha=.01, c_tau=60, j_c=(2**6)/(2**6), v_thresh=v_threshold, v_reset=0, record_timesteps=1, fixed_point=num_fixed_point_bits, dt=1, name="output")
 
 extra_input_output = Linear(extra_input.out_spikes, output.i, "s9_6_sat_t", name="extra_input_output")
 primary_input_output = Linear(primary_input.out_spikes, output.i, "s9_6_sat_t", name="primary_input_output")
@@ -55,16 +55,20 @@ neuron_update_processes = ProcessGroup([extra_input.process, primary_input.proce
 synapse_update_processes = ProcessGroup([extra_input_output.process, primary_input_output.process], PerformanceCounter() if args.time else None)
 # zero_processes = ProcessGroup([v_zero.process], PerformanceCounter() if args.time else None)
 
+# Initial processes
+rng_init = RNGInit()
+init_processes = ProcessGroup([rng_init.process])
+
 # Create backend
-backend = BackendFeNNHW() if args.device else BackendFeNNSim()
+backend = BackendFeNNSim()
 
 # Create model
-model = Model([neuron_update_processes, synapse_update_processes],
+model = Model([init_processes, neuron_update_processes, synapse_update_processes],
               backend)
 
 # Generate sim code
 code = backend.generate_simulation_kernel([synapse_update_processes,neuron_update_processes],  # Update synapses and then neurons every timestep
-                                          [], [],
+                                          [init_processes], [],
                                           num_timesteps, model)
 
 # Disassemble if required
@@ -99,6 +103,8 @@ copy_and_push(primary_input_weights, primary_input_output.weight, runtime)
 # Zero remaining state
 zero_and_push(output.v, runtime)
 zero_and_push(output.i, runtime)
+zero_and_push(output.c, runtime)
+
 
 if args.time:
     zero_and_push(neuron_update_processes.performance_counter, runtime)
@@ -113,10 +119,13 @@ primary_input_spike_array, primary_input_spike_view = get_array_view(runtime, pr
 extra_input_spike_array, extra_input_spike_view = get_array_view(runtime, extra_input.out_spikes, np.uint32)
 output_v_array, output_v_view = get_array_view(runtime, output.v, np.int16)
 output_spike_array, output_spike_view = get_array_view(runtime, output.out_spikes, np.int16)
+output_c_array, output_c_view = get_array_view(runtime, output.c, np.int16)
 
-neural_activity = [[0] * 4 for i in range(num_trials)]
+neural_activity = [[0] * 5 for i in range(num_trials)]
 
 for i in range(num_trials):
+    # Load the RNG seed
+    seed_and_push(rng_init.seed, runtime)
     # run the model
     runtime.run()
 
@@ -124,6 +133,7 @@ for i in range(num_trials):
     extra_input_spike_array.pull_from_device()
     primary_input_spike_array.pull_from_device()
     output_v_array.pull_from_device()
+    output_c_array.pull_from_device()
     output_spike_array.pull_from_device()
     # print("extra_input spikes: ", extra_input_spike_view)
     # print("Output voltages: ", output_v_view[0]/(2**num_fixed_point_bits))
@@ -133,12 +143,14 @@ for i in range(num_trials):
     neural_activity[i][1] = output_v_view[0]/(2**num_fixed_point_bits)
     neural_activity[i][2] = output_spike_view[0]
     neural_activity[i][3] = primary_input_spike_view[0]
+    neural_activity[i][4] = output_c_view[0]/(2**num_fixed_point_bits)
 
 
 extra_presyn_spikes = [neural_act[0] for neural_act in neural_activity]
 postsyn_voltages = [neural_act[1] for neural_act in neural_activity]
 postsyn_spikes = [neural_act[2] for neural_act in neural_activity]
 primary_presyn_spikes = [neural_act[3] for neural_act in neural_activity]
+postsyn_calcium = [neural_act[4] for neural_act in neural_activity]
 
 postsyn_spike_rate = np.sum(postsyn_spikes) / (num_trials/trials_per_second)
 
@@ -163,6 +175,13 @@ postsyn_spike_times = np.where(np.array(postsyn_spikes) == 1)[0]
 for s in postsyn_spike_times:
     axes[2].axvline(s, color="red", linewidth=0.5)
 
+# plot C
+axes[3].plot(postsyn_calcium)
+axes[3].title.set_text("Calcium variable C(t)")
+for i in [3, 4, 13]:
+    axes[3].axhline(i, linestyle="--", color="black", linewidth=0.5)
+
+plt.show()
 
 if args.time:
     neuron_update_cycles, neuron_update_instructions = read_perf_counter(

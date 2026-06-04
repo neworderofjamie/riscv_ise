@@ -74,19 +74,24 @@ class ALIF:
 
 
 class LIF_STDP:
-    def __init__(self, shape, alpha: float,
+    def __init__(self, shape, alpha: float, c_tau:float, j_c:float,
                  v_thresh: float, v_reset: float,
                  record_timesteps: int = 1, fixed_point: int = 9,
                  dt: float = 1.0, name: str = ""):
         self.shape = shape
         dtype = f"s{15 - fixed_point}_{fixed_point}_sat_t"
+        decay_dtype = "s0_15_sat_t"
         self.v = Variable(self.shape, dtype, name=f"{name}_v")
         self.i = Variable(self.shape, dtype, name=f"{name}_i")
+        self.c = Variable(self.shape, dtype, name=f"{name}_c")
         self.out_spikes = EventContainer(self.shape, record_timesteps)
         self.process = NeuronUpdateProcess(
             f"""
+            C *= CTau;
+
             if(V > VThresh) {{
                 V = VReset;
+                C += Jc;
             }}
             V += I-Alpha;
             if(V >= VThresh) {{
@@ -99,8 +104,10 @@ class LIF_STDP:
             """,
             {"Alpha": Parameter(alpha, dtype),
              "VThresh": Parameter(v_thresh, dtype),
-             "VReset": Parameter(v_reset,dtype)},
-            {"V": self.v, "I": self.i},
+             "VReset": Parameter(v_reset,dtype),
+             "CTau": Parameter(np.exp(-1/c_tau),decay_dtype),
+             "Jc": Parameter(j_c,dtype)},
+            {"V": self.v, "I": self.i, "C":self.c},
             {"Spike": self.out_spikes},
             name)   
         
@@ -131,7 +138,7 @@ class Bernoulli:
                  record_timesteps: int = 1, fixed_point: int = 5, name: str = ""):
         self.shape = shape
         dtype = f"s{15 - fixed_point}_{fixed_point}_sat_t"
-        decay_dtype = "s0_15_sat_t"
+        rand_dtype = "s0_15_sat_t"
         self.out_spikes = EventContainer(self.shape, record_timesteps)
         self.num_spikes = Variable(self.shape, dtype, name=f"{name}_num_spikes")
         self.process = NeuronUpdateProcess(
@@ -140,7 +147,7 @@ class Bernoulli:
                Spike();
             }}
             """,
-            {"ProbSpike": Parameter(prob_spike, decay_dtype)},
+            {"ProbSpike": Parameter(prob_spike, rand_dtype)},
             {"NumSpikes": self.num_spikes},
             {"Spike": self.out_spikes},
             name)
