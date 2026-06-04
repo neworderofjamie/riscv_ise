@@ -22,11 +22,11 @@ void GenX320::powerOn()
     LOGI << "Power-on sequence startin";
 
     // Assert enable low
-    m_GPIUIO.getData<uint32_t>()[0] = 0;
+    m_GPIUIO.getData<uint32_t>()[0] = 0b00;
     std::this_thread::sleep_for(20ms);
 
     // Assert enable high
-    m_GPIUIO.getData<uint32_t>()[0] = 1;
+    m_GPIUIO.getData<uint32_t>()[0] = 0b11;
     std::this_thread::sleep_for(200ms);
 
     // Setup the I2C multiplexer to allow all channels to be reached

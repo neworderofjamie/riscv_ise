@@ -107,8 +107,14 @@ void I2CInterface::writeRead(const uint8_t *writeData, size_t writeSize,
     messages[1].len = readSize;
     messages[1].flags = I2C_M_RD;
 
-    if (ioctl(m_I2C, I2C_RDWR, &messages[0]) < 0) {
-        throw std::runtime_error("Cannot send combined R/W transfer");
+    i2c_rdwr_ioctl_data data;
+    data.msgs = &messages[0];
+    data.nmsgs = 2;
+    
+    if (ioctl(m_I2C, I2C_RDWR, &data) < 0) {
+        throw std::runtime_error("Cannot send combined R/W transfer"
+                                 + std::string(strerror(errno)) +
+                                 " (" + std::to_string(errno) + ")");
     } 
 #else
     throw std::runtime_error("I2C interface only supports Linux");
