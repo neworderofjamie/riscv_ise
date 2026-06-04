@@ -15,7 +15,18 @@
 class COMMON_EXPORT GenX320
 {
 public:
-    GenX320(const std::string &gpioUIOName, const std::string &i2cPath = "/dev/i2c-3", 
+    //------------------------------------------------------------------------
+    // Enumerations
+    //------------------------------------------------------------------------
+    enum EventFormat 
+    {
+         EVT2   = 0,
+         EVT3   = 1,
+         EVT21  = 2,
+    };
+
+    GenX320(EventFormat eventFormat, const std::string &gpioUIOName, 
+            const std::string &i2cPath = "/dev/i2c-3", 
             int muxSlaveAddress = 0x74, int camSlaveAddress = 0x3C);
 
     //------------------------------------------------------------------------
@@ -23,6 +34,7 @@ public:
     //------------------------------------------------------------------------
     void powerOn();
 
+    void setEventFormat(EventFormat eventFormat);
 private:
     //------------------------------------------------------------------------
     // Constants
@@ -33,7 +45,7 @@ private:
     //------------------------------------------------------------------------
     // Enumerations
     //------------------------------------------------------------------------
-    // DMA controller registers
+    // GenX320 registers
     enum class RegisterAddress : uint16_t
     {
         ROI_CONTROL                             = 0x0000,
@@ -91,9 +103,33 @@ private:
 
     void waitBoot(int numRetries = 50);
 
+    template<typename S, typename F>
+    void writeCamRegisterFields(RegisterAddress address, F updateFields, int numRetries = 3)
+    {
+        // Check register struct is 32-bit
+        static_assert(sizeof(S) <= 4, "Register structs must be less than 4 bytes");
+
+        // Create anonymous union with struct and raw
+        union 
+        {
+            S s;
+            uint32_t r;
+        } regView;
+
+        // Read current value into raw
+        regView.r = readCamRegister(address);
+
+        // Allow user to update struct fields
+        updateFields(regView.s);
+
+        // Write back new value
+        writeCamRegister(address, regView.r, numRetries);
+    }
+
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
+    EventFormat m_EventFormat;
     I2CInterface m_MuxI2C;
     I2CInterface m_CamI2C;
     UIO m_GPIUIO;

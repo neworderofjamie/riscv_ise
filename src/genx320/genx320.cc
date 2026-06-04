@@ -16,7 +16,7 @@ int main()
     plog::ConsoleAppender<plog::TxtFormatter> consoleAppender;
     plog::init(plog::debug, &consoleAppender);
 
-    GenX320 genX320("axi_gpio_0");
+    GenX320 genX320(GenX320::EventFormat::EVT2, "axi_gpio_0");
     // Create devices
     //MIPICSI2Receiver mipiReceiver("mipi_csi2_rx_subsyst_0");
     //AxisTkeepHandler axisTkeep("axis_tkeep_handler_0");

@@ -8,11 +8,142 @@
 #include <plog/Log.h>
 
 //----------------------------------------------------------------------------
+// MIPI CSI register fields
+//----------------------------------------------------------------------------
+namespace 
+{
+namespace MIPICSI
+{
+struct Ctrl
+{
+    uint32_t enable :1;
+    uint32_t empty :1;
+    uint32_t busy :1;
+    uint32_t frameSyncEn :1;
+    uint32_t lineSyncEn :1;
+    uint32_t:3;
+    uint32_t channel :2;
+    uint32_t dataType :6;
+    uint32_t pktSize :14;
+};
+
+struct FrameCtrl
+{
+    uint32_t pktTimeoutEn :1;
+    uint32_t pktFixRateEn :1;
+    uint32_t pktFixSizeEn :1;
+    uint32_t frameFixRateEn :1;
+    uint32_t frameFixSizeEn :1;
+    uint32_t fixRateEmptyPkt :1;
+    uint32_t:26;
+};
+
+struct BLFrame 
+{
+    uint32_t val :24;
+    uint32_t:6;
+    uint32_t ckLaneHs :1;
+    uint32_t enable :1;
+};
+
+struct StatCtrl
+{
+    uint32_t enable :1;
+    uint32_t trigger :1;
+    uint32_t clear :1;
+};
+}   // namespace MIPICSI
+
+//----------------------------------------------------------------------------
+// Bias generator register fields
+//----------------------------------------------------------------------------
+namespace BGen
+{
+struct Ctrl
+{
+    uint32_t burstTransferHvBank_0 :1;
+    uint32_t burstTransferHvBank_1 :1;
+    uint32_t burstTransferLvBank_0 :1;
+    uint32_t burstTransferLvBank_1 :1;
+    uint32_t biasRstnHv :1;
+    uint32_t biasRstnLv :1;
+};
+}
+
+//----------------------------------------------------------------------------
+// EDF register fields
+//----------------------------------------------------------------------------
+namespace EDF
+{
+struct PipelineControl
+{
+	uint32_t enable :1;
+	uint32_t dropNBackPressure :1;
+	uint32_t bypass :1;
+};
+
+struct Control
+{
+	uint32_t format :2;
+	uint32_t:2;
+	uint32_t endianness :1;
+};
+
+struct OutputInterfaceControl
+{
+	uint32_t:4;
+	uint32_t startOfFrameTimeout :12;
+	uint32_t:16;
+};
+
+struct ExternalOutputAdapter
+{
+	uint32_t qosTimeout :16;
+	uint32_t atomicQosMode :1;
+};
+}
+
+//----------------------------------------------------------------------------
+// SRAM register fields
+//----------------------------------------------------------------------------
+namespace SRAM
+{
+struct InitN
+{
+    uint32_t afkInitN :1;
+    uint32_t ehcSTCInitN :1;
+    uint32_t ercDLInitN :1;
+    uint32_t ercIlgInitn :1;
+    uint32_t ercTdropInitn :1;
+    uint32_t mipiInitN :1;
+    uint32_t cpiInitN :1;
+    uint32_t imemInitN :1;
+    uint32_t dmemInitN :1;
+    uint32_t romInitN :1;
+    uint32_t:22;
+};
+
+struct PD1
+{
+    uint32_t dmemPD :1;
+    uint32_t imemPD :1;
+    uint32_t romPD :1;
+    uint32_t ercDlPd :1;
+    uint32_t ercIlgPd :1;
+    uint32_t ercTdropPd :1;
+    uint32_t mipiPd :1;
+    uint32_t cpPd :1;
+};
+}
+}
+
+//----------------------------------------------------------------------------
 // GenX320
 //----------------------------------------------------------------------------
-GenX320::GenX320(const std::string &gpioUIOName, const std::string &i2cPath, 
-                 int muxSlaveAddress, int camSlaveAddress)
-:   m_MuxI2C(i2cPath, muxSlaveAddress), m_CamI2C(i2cPath, camSlaveAddress), m_GPIUIO(gpioUIOName)
+GenX320::GenX320(EventFormat eventFormat, const std::string &gpioUIOName, 
+                 const std::string &i2cPath, int muxSlaveAddress, int camSlaveAddress)
+:   m_EventFormat(eventFormat), m_MuxI2C(i2cPath, muxSlaveAddress), 
+    m_CamI2C(i2cPath, camSlaveAddress), m_GPIUIO(gpioUIOName)
 {
 }
 //----------------------------------------------------------------------------
@@ -54,6 +185,86 @@ void GenX320::powerOn()
                                  ", expected 0x" + std::to_string(chipIDExpected));
     }
     LOGI << std::hex << "Chip ID OK: 0x" << cid;
+
+    //------------------------------------------------------------------
+    // Configure MIPI CSI-2 for 1-lane, 800 Mbps, variable-size packets
+    //------------------------------------------------------------------
+    // Frame ctrl: all zero (variable size)
+    writeCamRegisterFields<MIPICSI::FrameCtrl>(RegisterAddress::MIPI_CSI_FRAME_CTRL,
+                                               [](auto &s)
+                                               {
+                                                   s.pktTimeoutEn = 0;
+                                                   s.pktFixRateEn = 0;
+                                                   s.pktFixSizeEn = 0;
+                                                   s.frameFixRateEn = 0;
+                                                   s.frameFixSizeEn = 0;
+                                                   s.fixRateEmptyPkt = 0;
+                                               });
+    
+    // Packet size
+    {
+        uint32_t raw = readCamRegister(RegisterAddress::MIPI_CSI_CTRL);
+        raw = (raw & ~(0x3FFF << 16)) | (0x1000 << 16);
+        writeCamRegister(RegisterAddress::MIPI_CSI_CTRL, raw);
+    }
+
+    // EDF output interface control – start_of_frame_timeout
+    writeCamRegisterFields<EDF::OutputInterfaceControl>(RegisterAddress::EDF_OUTPUT_INTERFACE_CONTROL,
+                                                        [](auto &s){ s.startOfFrameTimeout = 0x271; });
+    
+    // EDF external output adapter
+    writeCamRegisterFields<EDF::ExternalOutputAdapter>(RegisterAddress::EDF_EXTERNAL_OUTPUT_ADAPTER,
+                                                       [](auto &s)
+                                                       { 
+                                                           s.qosTimeout = 0xFFFF;
+                                                           s.atomicQosMode = 0;
+                                                       });
+
+    
+    // Power up MIPI SRAM
+    writeCamRegisterFields<SRAM::InitN>(RegisterAddress::SRAM_INITN,
+                                        [](auto &s)
+                                        { 
+                                            s.mipiInitN = 1;
+                                        });
+
+    writeCamRegisterFields<SRAM::PD1>(RegisterAddress::SRAM_PD1,
+                                      [](auto &s)
+                                      { 
+                                          s.mipiPd = 0;
+                                      });
+
+    // Enable MIPI CSI
+    //self.write_field("mipi_csi_ctrl", "enable", 1)
+    
+    // Blanking frame register
+    //self.write_reg(REGISTERS["mipi_csi_bl_frame"]["addr"], 0x80003E80)
+    //self.write_field("mipi_csi_stat_ctrl", "enable", 1)
+    
+    // Configure FPGA-side MIPI RX if provided
+    //self._configure_fpga_mipi()
+    
+    LOGD << "MIPI CSI-2 configured (1 lane, 800 Mbps, variable-size)";
+    
+    setEventFormat(m_EventFormat);
+    
+    //self._tune_analog()
+    //self._roi_window_init()
+    //self._erc_init()
+    //self._bias_init()
+}
+//----------------------------------------------------------------------------
+void GenX320::setEventFormat(EventFormat eventFormat)
+{
+    m_EventFormat = eventFormat;
+
+
+    /*self.write_field("edf_control", "format", EVT_FMT[fmt])
+    self.write_field("edf_control", "endianness", 0)  # little-endian
+    self.write_field("edf_pipeline_control", "bypass", 0)
+    self.write_field("edf_pipeline_control", "enable", 1)
+    
+    log.info("Event format set to %s", fmt)*/
 }
 //----------------------------------------------------------------------------
 uint32_t GenX320::readCamRegister(RegisterAddress address)
