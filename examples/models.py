@@ -84,14 +84,17 @@ class LIF_STDP:
         self.v = Variable(self.shape, dtype, name=f"{name}_v")
         self.i = Variable(self.shape, dtype, name=f"{name}_i")
         self.c = Variable(self.shape, dtype, name=f"{name}_c")
+        self.decay_product = Variable(self.shape, decay_dtype, name=f"{name}_time_since_spike")
         self.out_spikes = EventContainer(self.shape, record_timesteps)
         self.process = NeuronUpdateProcess(
             f"""
-            C *= CTau;
+            DecayProd *= CTau;
 
             if(V > VThresh) {{
                 V = VReset;
+                C *= DecayProd;
                 C += Jc;
+                DecayProd = CTau;
             }}
             V += I-Alpha;
             if(V >= VThresh) {{
@@ -107,7 +110,7 @@ class LIF_STDP:
              "VReset": Parameter(v_reset,dtype),
              "CTau": Parameter(np.exp(-1/c_tau),decay_dtype),
              "Jc": Parameter(j_c,dtype)},
-            {"V": self.v, "I": self.i, "C":self.c},
+            {"V": self.v, "I": self.i, "C":self.c, "DecayProd":self.decay_product},
             {"Spike": self.out_spikes},
             name)   
         
