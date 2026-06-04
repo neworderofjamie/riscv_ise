@@ -104,6 +104,7 @@ copy_and_push(primary_input_weights, primary_input_output.weight, runtime)
 zero_and_push(output.v, runtime)
 zero_and_push(output.i, runtime)
 zero_and_push(output.c, runtime)
+zero_and_push(output.decay_product, runtime)
 
 
 if args.time:
