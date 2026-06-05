@@ -11,6 +11,10 @@
 #include "common/uio.h"
 
 BETTER_ENUM(EventFormat, uint32_t, EVT2 = 0, EVT3 = 1, EVT21 = 2)
+BETTER_ENUM(StreamingSource, uint32_t, PIXEL_ARRAY, RO_PATTERN, TS_PATTERN)
+
+// Forward declarations
+class MIPICSI2Receiver;
 
 //----------------------------------------------------------------------------
 // GenX320
@@ -22,13 +26,20 @@ public:
     // Enumerations
     //------------------------------------------------------------------------
     GenX320(EventFormat eventFormat, const std::string &gpioUIOName, 
-            const std::string &i2cPath = "/dev/i2c-3", 
+            MIPICSI2Receiver *mipiCSI2Receiver = nullptr, const std::string &i2cPath = "/dev/i2c-3", 
             int muxSlaveAddress = 0x74, int camSlaveAddress = 0x3C);
 
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
+    // Full power-on sequence: reset -> surgical force boot -> detect -> init.
     void powerOn();
+
+    //! Graceful power-off: stop streaming and reset.
+    void powerOff();
+
+    void startStreaming(StreamingSource source = StreamingSource::PIXEL_ARRAY);
+    void stopStreaming();
 
     void setEventFormat(EventFormat eventFormat);
 
@@ -42,6 +53,7 @@ private:
     //------------------------------------------------------------------------
     // Private API
     //------------------------------------------------------------------------
+    // Poll for boot magic with retries.
     void waitBoot(int numRetries = 50);
 
     uint32_t readCamRegister(uint16_t address);
@@ -109,4 +121,6 @@ private:
     I2CInterface m_MuxI2C;
     I2CInterface m_CamI2C;
     UIO m_GPIUIO;
+    MIPICSI2Receiver *m_MIPICSI2Receiver;
+    bool m_Streaming;
 };

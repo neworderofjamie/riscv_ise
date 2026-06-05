@@ -23,6 +23,7 @@ class COMMON_EXPORT MIPICSI2Receiver
         CORE_CONFIG     = 0x0,  // Core configuration options 
         PROTOCOL_CONFIG = 0x4,  // Protocol configuration options 
         CORE_STATUS     = 0x10, // Configuration register
+        INT_STATUS      = 0x24, // Interrupt Status (CRC, Frame Sync, etc.)
     };
 
     // Core config register bits
@@ -48,15 +49,18 @@ public:
     // Public API
     //------------------------------------------------------------------------
     void setCoreEnabled(bool enable){ setRegBit(Register::CORE_CONFIG, CoreConfigBits::CORE_ENABLE, enable); }
-    bool isCoreEnabled() const{ return getRegBit(Register::CORE_CONFIG, CoreConfigBits::CORE_ENABLE); }
+    void setLanes(uint32_t activeLanes, uint32_t maxLanes);
 
     void setSoftReset(bool softReset){ setRegBit(Register::CORE_CONFIG, CoreConfigBits::SOFT_RESET, softReset); }
+
+    void setInterruptStatus(uint32_t mask){ writeReg(Register::INT_STATUS, mask); }
 
     bool isResetDisableInProgress() const{ return getRegBit(Register::CORE_STATUS, CoreStatusBits::RESET_DISABLE_IN_PROCESS); }
     bool isStreamLineBufferFull() const{ return getRegBit(Register::CORE_STATUS, CoreStatusBits::STREAM_LINE_BUFFER_FULL); }
     bool isShortPacketFIFONotempty() const{ return getRegBit(Register::CORE_STATUS, CoreStatusBits::SHORT_PACKET_FIFO_NOT_EMPTY); }
     bool isShortPacketFIFOFull() const{ return getRegBit(Register::CORE_STATUS, CoreStatusBits::SHORT_PACKET_FIFO_FULL); }
     
+    bool isCoreEnabled() const{ return getRegBit(Register::CORE_CONFIG, CoreConfigBits::CORE_ENABLE); }
     uint32_t getMaxLanes() const;
     uint32_t getActiveLanes() const;
 

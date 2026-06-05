@@ -9,6 +9,7 @@
 
 // Common includes
 #include "common/genx320_reg.h"
+#include "common/mipi_csi2_receiver.h"
 
 namespace
 {
@@ -36,9 +37,10 @@ BiasDefault factoryBiasDefaults[] = {
 // GenX320
 //----------------------------------------------------------------------------
 GenX320::GenX320(EventFormat eventFormat, const std::string &gpioUIOName, 
-                 const std::string &i2cPath, int muxSlaveAddress, int camSlaveAddress)
+                 MIPICSI2Receiver *mipiCSI2Receiver, const std::string &i2cPath, int muxSlaveAddress, int camSlaveAddress)
 :   m_EventFormat(eventFormat), m_MuxI2C(i2cPath, muxSlaveAddress), 
-    m_CamI2C(i2cPath, camSlaveAddress), m_GPIUIO(gpioUIOName)
+    m_CamI2C(i2cPath, camSlaveAddress), m_GPIUIO(gpioUIOName), 
+    m_MIPICSI2Receiver(mipiCSI2Receiver), m_Streaming(false)
 {
 }
 //----------------------------------------------------------------------------
@@ -126,8 +128,25 @@ void GenX320::powerOn()
     writeCamRegisterFields<MipiCsi::Stat::Ctrl>([](auto &s){ s.enable = 1; });
     
     // Configure FPGA-side MIPI RX if provided
-    //self._configure_fpga_mipi()
-    
+    if(m_MIPICSI2Receiver) {
+        LOGI << "Configuring FPGA-side MIPI CSI-2 RX Subsystem...";
+        
+        // 1. Enable Core
+        m_MIPICSI2Receiver->setCoreEnabled(true);
+        
+        // 2. Set active lanes to 1 (00 = 1 lane)
+        // Note: Even if hardware is 1-lane, setting this ensures consistency.
+        m_MIPICSI2Receiver->setLanes(1, 1);
+        
+        // 3. Clear interrupts
+        m_MIPICSI2Receiver->setInterruptStatus(0xFFFFFFFF);
+        
+        LOGI << "FPGA-side MIPI RX configured and enabled";
+    }
+    else {
+        LOGD << "No FPGA MIPI RX instance provided; skipping FGPA-side config.";
+    }
+
     LOGD << "MIPI CSI-2 configured (1 lane, 800 Mbps, variable-size)";
     
     setEventFormat(m_EventFormat);
@@ -174,6 +193,106 @@ void GenX320::powerOn()
     //self._roi_window_init()
     //self._erc_init()
     //self._bias_init()
+}
+//----------------------------------------------------------------------------
+void GenX320::powerOff()
+{
+    using namespace std::chrono_literals;
+
+    if(m_Streaming) {
+        stopStreaming();
+        std::this_thread::sleep_for(15ms);
+    }
+
+    m_GPIUIO.getData<uint32_t>()[0] = 0b00;
+    std::this_thread::sleep_for(1ms);
+
+    LOGI << "GenX320 powered off";
+}
+//----------------------------------------------------------------------------
+void GenX320::startStreaming(StreamingSource source)
+{
+    // Enable MIPI
+    writeCamRegisterFields<MipiCsi::Ctrl>([](auto &s){ s.enable = 1; });
+    
+    // Enable LP output
+    writeCamRegisterFields<Readout::LpCtrl>([](auto &s){ s.lp_output_disable = 0; });
+    
+    // Enable time base
+    writeCamRegisterFields<Readout::TimeBaseCtrl>([](auto &s){ s.time_base_enable = 1; });
+
+    if(source == +StreamingSource::PIXEL_ARRAY) {
+        writeCamRegisterFields<Readout::ReadoutCtrl>([](auto &s)
+                                                     {
+                                                         s.ro_self_test_en = 0;
+                                                         s.ro_digital_pipe_en = 1;
+                                                     });
+
+        writeCamRegisterFields<Readout::TdCtrl>([](auto &s)
+                                                {
+                                                    s.ro_td_ack_y_rstn = 1;
+                                                    s.ro_td_arb_y_rstn = 1;
+                                                    s.ro_td_addr_y_rstn = 1;
+                                                    s.ro_td_sendreq_y_rstn = 1;
+                                                    s.ro_td_int_x_rstn = 1;
+                                                    s.ro_td_int_y_rstn = 1;
+                                                });
+        writeCamRegisterFields<ROI::Ctrl>([](auto &s)
+                                          {
+                                              s.px_sw_rstn = 1;
+                                              s.roi_td_en = 1;
+                                          });
+    }
+    else if(source == +StreamingSource::RO_PATTERN) {
+        writeCamRegisterFields<Readout::ReadoutCtrl>([](auto &s)
+                                                     {
+                                                         s.ro_self_test_en = 1;
+                                                         s.ro_digital_pipe_en = 1;
+                                                     });
+    }
+    else if(source == +StreamingSource::TS_PATTERN) {
+        writeCamRegister<Readout::ReadoutCtrl>(0);
+    }
+    
+    LOGI << "Streaming started (source="<< source._to_string() << ")";
+    m_Streaming = true;
+}
+//----------------------------------------------------------------------------
+void GenX320::stopStreaming()
+{
+    using namespace std::chrono_literals;
+
+    assert(m_Streaming);
+
+    // Disable pixel readout
+    writeCamRegisterFields<ROI::Ctrl>([](auto &s)
+                                      {
+                                          s.px_sw_rstn = 0;
+                                      });
+    writeCamRegisterFields<Readout::TdCtrl>([](auto &s)
+                                            {
+                                                s.ro_td_ack_y_rstn = 0;
+                                                s.ro_td_arb_y_rstn = 0;
+                                                s.ro_td_addr_y_rstn = 0;
+                                                s.ro_td_sendreq_y_rstn = 0;
+                                            });
+                        
+    // Disable LP
+    writeCamRegisterFields<Readout::LpCtrl>([](auto &s)
+                                            {
+                                                s.lp_output_disable = 1; 
+                                                s.lp_keep_th = 0;
+                                            });
+    std::this_thread::sleep_for(1ms);
+
+    // Disable time base
+    writeCamRegisterFields<Readout::TimeBaseCtrl>([](auto &s){ s.time_base_enable = 0; });
+
+    // Disable MIPI
+    writeCamRegisterFields<MipiCsi::Ctrl>([](auto &s){ s. enable = 0; });
+
+    LOGI << "Streaming stopped";
+    m_Streaming = false;
 }
 //----------------------------------------------------------------------------
 void GenX320::setEventFormat(EventFormat eventFormat)

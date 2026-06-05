@@ -15,6 +15,14 @@ MIPICSI2Receiver::MIPICSI2Receiver(const std::string &uioName)
     LOGI << "MIPI CSI-2 Receiver  using UIO '" << uioName << "'";
 }
 //----------------------------------------------------------------------------
+void MIPICSI2Receiver::setLanes(uint32_t activeLanes, uint32_t maxLanes)
+{
+    assert(activeLanes >= 1 && activeLanes <= 4);
+    assert(maxLanes >= 1 && maxLanes <= 4);
+    
+    writeReg(Register::PROTOCOL_CONFIG, ((maxLanes - 1) << 3) | (activeLanes - 1));
+}
+//----------------------------------------------------------------------------
 uint32_t MIPICSI2Receiver::getMaxLanes() const
 {
     // Maximum lanes of the core
