@@ -26,5 +26,4 @@ int main()
     //UIO lowMemoryUIO("axi_bram_ctrl_0");
     //UIO highMemoryUIO("axi_bram_ctrl_1");
 
-    genX320.powerOn();
 }

@@ -42,10 +42,6 @@ GenX320::GenX320(EventFormat eventFormat, const std::string &gpioUIOName,
     m_CamI2C(i2cPath, camSlaveAddress), m_GPIUIO(gpioUIOName), 
     m_MIPICSI2Receiver(mipiCSI2Receiver), m_Streaming(false)
 {
-}
-//----------------------------------------------------------------------------
-void GenX320::powerOn()
-{
     using namespace std::chrono_literals;
     LOGI << "Power-on sequence startin";
 
@@ -195,7 +191,7 @@ void GenX320::powerOn()
     //self._bias_init()
 }
 //----------------------------------------------------------------------------
-void GenX320::powerOff()
+GenX320::~GenX320()
 {
     using namespace std::chrono_literals;
 

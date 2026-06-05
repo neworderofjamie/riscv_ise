@@ -25,19 +25,17 @@ public:
     //------------------------------------------------------------------------
     // Enumerations
     //------------------------------------------------------------------------
+    // Perform full power-on sequence on GenX320: reset -> surgical force boot -> detect -> init.
     GenX320(EventFormat eventFormat, const std::string &gpioUIOName, 
             MIPICSI2Receiver *mipiCSI2Receiver = nullptr, const std::string &i2cPath = "/dev/i2c-3", 
             int muxSlaveAddress = 0x74, int camSlaveAddress = 0x3C);
-
+    
+    //! Graceful power-off: stop streaming and reset.
+    ~GenX320();
+    
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
-    // Full power-on sequence: reset -> surgical force boot -> detect -> init.
-    void powerOn();
-
-    //! Graceful power-off: stop streaming and reset.
-    void powerOff();
-
     void startStreaming(StreamingSource source = StreamingSource::PIXEL_ARRAY);
     void stopStreaming();
 
