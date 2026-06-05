@@ -88,13 +88,11 @@ class LIF_STDP:
         self.out_spikes = EventContainer(self.shape, record_timesteps)
         self.process = NeuronUpdateProcess(
             f"""
-            DecayProd *= CTau;
+            C *= CTau;
 
             if(V > VThresh) {{
                 V = VReset;
-                C *= DecayProd;
                 C += Jc;
-                DecayProd = CTau;
             }}
             V += I-Alpha;
             if(V >= VThresh) {{
