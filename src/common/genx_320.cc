@@ -59,20 +59,20 @@ GenX320::GenX320(EventFormat eventFormat, const std::string &gpioUIOName,
     LOGD << "Pulsing Digital and CPU resets...";
 
     // Assert
-    writeCamRegister<DigSoftReset>(0x05);
-    writeCamRegister<Mbx::CpuSoftReset>(0x01);
+    writeReg<DigSoftReset>(0x05);
+    writeReg<Mbx::CpuSoftReset>(0x01);
     std::this_thread::sleep_for(20ms);
 
     // Release
-    writeCamRegister<DigSoftReset>(0x04);
-    writeCamRegister<Mbx::CpuSoftReset>(0x00);
+    writeReg<DigSoftReset>(0x04);
+    writeReg<Mbx::CpuSoftReset>(0x00);
     std::this_thread::sleep_for(10ms);
 
     // Wait for camera to boot
     waitBoot();
 
     // Read and verify the chip ID register.
-    const uint32_t cid = readCamRegister<ChipId>();
+    const uint32_t cid = readReg<ChipId>();
     if(cid != chipIDExpected) {
         throw std::runtime_error("GenX320 chip ID mismatch: got 0x" + std::to_string(cid) +
                                  ", expected 0x" + std::to_string(chipIDExpected));
@@ -83,45 +83,45 @@ GenX320::GenX320(EventFormat eventFormat, const std::string &gpioUIOName,
     // Configure MIPI CSI-2 for 1-lane, 800 Mbps, variable-size packets
     //------------------------------------------------------------------
     // Frame ctrl: all zero (variable size)
-    writeCamRegisterFields<MipiCsi::FrameCtrl>([](auto &s)
-                                               {
-                                                   s.pkt_timeout_en = 0;
-                                                   s.pkt_fix_rate_en = 0;
-                                                   s.pkt_fix_size_en = 0;
-                                                   s.frame_fix_rate_en = 0;
-                                                   s.frame_fix_size_en = 0;
-                                                   s.fix_rate_empty_pkt = 0;
-                                               });
+    writeRegFields<MipiCsi::FrameCtrl>([](auto &s)
+                                       {
+                                           s.pkt_timeout_en = 0;
+                                           s.pkt_fix_rate_en = 0;
+                                           s.pkt_fix_size_en = 0;
+                                           s.frame_fix_rate_en = 0;
+                                           s.frame_fix_size_en = 0;
+                                           s.fix_rate_empty_pkt = 0;
+                                       });
     
     // Packet size
     {
-        uint32_t raw = readCamRegister<MipiCsi::Ctrl>();
+        uint32_t raw = readReg<MipiCsi::Ctrl>();
         raw = (raw & ~(0x3FFF << 16)) | (0x1000 << 16);
-        writeCamRegister<MipiCsi::Ctrl>(raw);
+        writeReg<MipiCsi::Ctrl>(raw);
     }
 
     // EDF output interface control – start_of_frame_timeout
-    writeCamRegisterFields<EDF::OutputInterfaceControl>([](auto &s){ s.start_of_frame_timeout = 0x271; });
+    writeRegFields<EDF::OutputInterfaceControl>([](auto &s){ s.start_of_frame_timeout = 0x271; });
     
     // EDF external output adapter
-    writeCamRegisterFields<EDF::ExternalOutputAdapter>([](auto &s)
-                                                       { 
-                                                           s.qos_timeout = 0xFFFF;
-                                                           s.atomic_qos_mode = 0;
-                                                       });
+    writeRegFields<EDF::ExternalOutputAdapter>([](auto &s)
+                                               { 
+                                                   s.qos_timeout = 0xFFFF;
+                                                   s.atomic_qos_mode = 0;
+                                               });
 
     
     // Power up MIPI SRAM
-    writeCamRegisterFields<SRAM::InitN>([](auto &s){ s.mipi_initn = 1; });
+    writeRegFields<SRAM::InitN>([](auto &s){ s.mipi_initn = 1; });
 
-    writeCamRegisterFields<SRAM::Pd1>([](auto &s){ s.mipi_pd = 0; });
+    writeRegFields<SRAM::Pd1>([](auto &s){ s.mipi_pd = 0; });
 
     // Enable MIPI CSI
-    writeCamRegisterFields<MipiCsi::Ctrl>([](auto &s){ s.enable = 1; });
+    writeRegFields<MipiCsi::Ctrl>([](auto &s){ s.enable = 1; });
     
     // Blanking frame register
-    writeCamRegister<MipiCsi::BlFrame>(0x80003E80);
-    writeCamRegisterFields<MipiCsi::Stat::Ctrl>([](auto &s){ s.enable = 1; });
+    writeReg<MipiCsi::BlFrame>(0x80003E80);
+    writeRegFields<MipiCsi::Stat::Ctrl>([](auto &s){ s.enable = 1; });
     
     // Configure FPGA-side MIPI RX if provided
     if(m_MIPICSI2Receiver) {
@@ -151,11 +151,11 @@ GenX320::GenX320(EventFormat eventFormat, const std::string &gpioUIOName,
     // Write factory-default bias values and burst-transfer them.
     //------------------------------------------------------------------------
     // Enable bias reset lines
-    writeCamRegisterFields<BgenCtrl>([](auto &s)
-                                     {
-                                         s.bias_rstn_hv = 1;
-                                         s.bias_rstn_lv = 1;
-                                     });
+    writeRegFields<BgenCtrl>([](auto &s)
+                             {
+                                 s.bias_rstn_hv = 1;
+                                 s.bias_rstn_lv = 1;
+                             });
     
     std::this_thread::sleep_for(200us);
 
@@ -164,29 +164,48 @@ GenX320::GenX320(EventFormat eventFormat, const std::string &gpioUIOName,
         // ibtype_sel bit in bgen register layout
         const uint32_t ibtypeMask = (1 << 19)  ;
 
-        clearCamRegisterBits(0x1104, ibtypeMask);   // BIAS_DIFF_ON_LV0
-        clearCamRegisterBits(0x110C, ibtypeMask);   // BIAS_DIFF_OFF_LV0
+        clearRegBits(0x1104, ibtypeMask);   // BIAS_DIFF_ON_LV0
+        clearRegBits(0x110C, ibtypeMask);   // BIAS_DIFF_OFF_LV0
     }
     
     // Write all factory defaults
     for(const auto &f : factoryBiasDefaults) {
-        writeCamRegister(f.address, f.value);
+        writeReg(f.address, f.value);
     }
 
     // Burst-transfer both HV and LV bank 0
-    writeCamRegisterFields<BgenCtrl>([](auto &s)
-                                     {
-                                         s.burst_transfer_hv_bank_0 = 1;
-                                         s.burst_transfer_hv_bank_1 = 0;
-                                         s.burst_transfer_lv_bank_0 = 1;
-                                         s.burst_transfer_lv_bank_1 = 0;
-                                         s.bias_rstn_hv = 1;
-                                         s.bias_rstn_lv = 1;
-                                     });
+    writeRegFields<BgenCtrl>([](auto &s)
+                             {
+                                 s.burst_transfer_hv_bank_0 = 1;
+                                 s.burst_transfer_hv_bank_1 = 0;
+                                 s.burst_transfer_lv_bank_0 = 1;
+                                 s.burst_transfer_lv_bank_1 = 0;
+                                 s.bias_rstn_hv = 1;
+                                 s.bias_rstn_lv = 1;
+                             });
     
     LOGD << "Analog bias tuning complete";
     
-    //self._roi_window_init()
+    //------------------------------------------------------------------------
+    // Set default ROI
+    //------------------------------------------------------------------------
+    writeRegFields<ROI::Ctrl>([](auto &s)
+                              {
+                                  s.roi_td_en = 1;
+                                  s.px_iphoto_en = 0;
+                                  s.px_sw_rstn = 1;
+                                  s.td_shadow_trigger = 0;
+                              });
+    writeRegFields<ROI::MasterChickenBit>([](auto &s){ s.driver_register_if_en = 0; });
+    writeRegFields<ROI::Ctrl>([](auto &s){ s.px_roi_halt_programming = 0; });
+    writeRegFields<ROI::MasterCtrl>([](auto &s)
+                                    {
+                                        s.master_en = 1;
+                                        s.master_run = 0;
+                                    });
+    resetROI();
+
+
     //self._erc_init()
     //self._bias_init()
 }
@@ -209,45 +228,45 @@ GenX320::~GenX320()
 void GenX320::startStreaming(StreamingSource source)
 {
     // Enable MIPI
-    writeCamRegisterFields<MipiCsi::Ctrl>([](auto &s){ s.enable = 1; });
+    writeRegFields<MipiCsi::Ctrl>([](auto &s){ s.enable = 1; });
     
     // Enable LP output
-    writeCamRegisterFields<Readout::LpCtrl>([](auto &s){ s.lp_output_disable = 0; });
+    writeRegFields<Readout::LpCtrl>([](auto &s){ s.lp_output_disable = 0; });
     
     // Enable time base
-    writeCamRegisterFields<Readout::TimeBaseCtrl>([](auto &s){ s.time_base_enable = 1; });
+    writeRegFields<Readout::TimeBaseCtrl>([](auto &s){ s.time_base_enable = 1; });
 
     if(source == +StreamingSource::PIXEL_ARRAY) {
-        writeCamRegisterFields<Readout::ReadoutCtrl>([](auto &s)
-                                                     {
-                                                         s.ro_self_test_en = 0;
-                                                         s.ro_digital_pipe_en = 1;
-                                                     });
+        writeRegFields<Readout::ReadoutCtrl>([](auto &s)
+                                             {
+                                                 s.ro_self_test_en = 0;
+                                                 s.ro_digital_pipe_en = 1;
+                                             });
 
-        writeCamRegisterFields<Readout::TdCtrl>([](auto &s)
-                                                {
-                                                    s.ro_td_ack_y_rstn = 1;
-                                                    s.ro_td_arb_y_rstn = 1;
-                                                    s.ro_td_addr_y_rstn = 1;
-                                                    s.ro_td_sendreq_y_rstn = 1;
-                                                    s.ro_td_int_x_rstn = 1;
-                                                    s.ro_td_int_y_rstn = 1;
-                                                });
-        writeCamRegisterFields<ROI::Ctrl>([](auto &s)
-                                          {
-                                              s.px_sw_rstn = 1;
-                                              s.roi_td_en = 1;
-                                          });
+        writeRegFields<Readout::TdCtrl>([](auto &s)
+                                        {
+                                            s.ro_td_ack_y_rstn = 1;
+                                            s.ro_td_arb_y_rstn = 1;
+                                            s.ro_td_addr_y_rstn = 1;
+                                            s.ro_td_sendreq_y_rstn = 1;
+                                            s.ro_td_int_x_rstn = 1;
+                                            s.ro_td_int_y_rstn = 1;
+                                        });
+        writeRegFields<ROI::Ctrl>([](auto &s)
+                                  {
+                                      s.px_sw_rstn = 1;
+                                      s.roi_td_en = 1;
+                                  });
     }
     else if(source == +StreamingSource::RO_PATTERN) {
-        writeCamRegisterFields<Readout::ReadoutCtrl>([](auto &s)
-                                                     {
-                                                         s.ro_self_test_en = 1;
-                                                         s.ro_digital_pipe_en = 1;
-                                                     });
+        writeRegFields<Readout::ReadoutCtrl>([](auto &s)
+                                             {
+                                                 s.ro_self_test_en = 1;
+                                                 s.ro_digital_pipe_en = 1;
+                                             });
     }
     else if(source == +StreamingSource::TS_PATTERN) {
-        writeCamRegister<Readout::ReadoutCtrl>(0);
+        writeReg<Readout::ReadoutCtrl>(0);
     }
     
     LOGI << "Streaming started (source="<< source._to_string() << ")";
@@ -261,51 +280,57 @@ void GenX320::stopStreaming()
     assert(m_Streaming);
 
     // Disable pixel readout
-    writeCamRegisterFields<ROI::Ctrl>([](auto &s)
-                                      {
-                                          s.px_sw_rstn = 0;
-                                      });
-    writeCamRegisterFields<Readout::TdCtrl>([](auto &s)
-                                            {
-                                                s.ro_td_ack_y_rstn = 0;
-                                                s.ro_td_arb_y_rstn = 0;
-                                                s.ro_td_addr_y_rstn = 0;
-                                                s.ro_td_sendreq_y_rstn = 0;
-                                            });
+    writeRegFields<ROI::Ctrl>([](auto &s){ s.px_sw_rstn = 0; });
+    writeRegFields<Readout::TdCtrl>([](auto &s)
+                                    {
+                                        s.ro_td_ack_y_rstn = 0;
+                                        s.ro_td_arb_y_rstn = 0;
+                                        s.ro_td_addr_y_rstn = 0;
+                                        s.ro_td_sendreq_y_rstn = 0;
+                                    });
                         
     // Disable LP
-    writeCamRegisterFields<Readout::LpCtrl>([](auto &s)
-                                            {
-                                                s.lp_output_disable = 1; 
-                                                s.lp_keep_th = 0;
-                                            });
+    writeRegFields<Readout::LpCtrl>([](auto &s)
+                                    {
+                                        s.lp_output_disable = 1; 
+                                        s.lp_keep_th = 0;
+                                    });
     std::this_thread::sleep_for(1ms);
 
     // Disable time base
-    writeCamRegisterFields<Readout::TimeBaseCtrl>([](auto &s){ s.time_base_enable = 0; });
+    writeRegFields<Readout::TimeBaseCtrl>([](auto &s){ s.time_base_enable = 0; });
 
     // Disable MIPI
-    writeCamRegisterFields<MipiCsi::Ctrl>([](auto &s){ s. enable = 0; });
+    writeRegFields<MipiCsi::Ctrl>([](auto &s){ s. enable = 0; });
 
     LOGI << "Streaming stopped";
     m_Streaming = false;
+}
+//----------------------------------------------------------------------------
+void GenX320::resetROI()
+{
+    // Set 1ast ROI as full image
+    setROIWindow(0, 0, 320, 320, 0);
+
+    // Apply 1 ROI
+    applyROI(1, ROIMode::ROI);
 }
 //----------------------------------------------------------------------------
 void GenX320::setEventFormat(EventFormat eventFormat)
 {
     m_EventFormat = eventFormat;
 
-    writeCamRegisterFields<EDF::Control>([this](auto &s)
-                                         {
-                                             s.format = m_EventFormat; 
-                                             s.endianness = 0;   // little-endian
-                                         });
+    writeRegFields<EDF::Control>([this](auto &s)
+                                        {
+                                            s.format = m_EventFormat; 
+                                            s.endianness = 0;   // little-endian
+                                        });
 
-    writeCamRegisterFields<EDF::PipelineControl>([](auto &s)
-                                                 {
-                                                     s.bypass = 0;
-                                                     s.enable = 1;
-                                                 });
+    writeRegFields<EDF::PipelineControl>([](auto &s)
+                                         {
+                                             s.bypass = 0;
+                                             s.enable = 1;
+                                         });
     
     LOGI << "Event format set to " << m_EventFormat._to_string();
 }
@@ -315,7 +340,7 @@ void GenX320::waitBoot(int numRetries)
     using namespace std::chrono_literals;
     LOGI << "Waiting for sensor boot magic...";
     for(int i = 0; i < numRetries; i++) {
-        const uint32_t magic = readCamRegister<Mbx::Misc>();
+        const uint32_t magic = readReg<Mbx::Misc>();
         if(magic == bootMagic) {
             LOGI << std::hex << "Boot magic OK (0x" << magic << ") after " << std::dec << i << " retries";
             return;
@@ -328,12 +353,12 @@ void GenX320::waitBoot(int numRetries)
     }
 
 
-    const uint32_t magic = readCamRegister<Mbx::Misc>();
+    const uint32_t magic = readReg<Mbx::Misc>();
     if(magic != bootMagic) {
         // Diagnostic: read some other registers to see if digital core is alive
-        const uint32_t cid = readCamRegister<ChipId>();
-        const uint32_t dsr = readCamRegister<DigSoftReset>();
-        const uint32_t scc = readCamRegister<SysClkCtrl>();
+        const uint32_t cid = readReg<ChipId>();
+        const uint32_t dsr = readReg<DigSoftReset>();
+        const uint32_t scc = readReg<SysClkCtrl>();
         
         LOGE << std::hex << "GenX320 boot magic mismatch: got 0x" << magic << ", expected 0x" << bootMagic << ".";
         LOGE << std::hex << "Diagnostics: ChipID=" << cid << ", DigReset=0x" << dsr << ", SysClk=0x" << scc;
@@ -343,7 +368,48 @@ void GenX320::waitBoot(int numRetries)
     LOGI << std::hex << "Boot magic OK (0x" << magic << ")";
 }
 //----------------------------------------------------------------------------
-uint32_t GenX320::readCamRegister(uint16_t address)
+void GenX320::setROIWindow(uint16_t x, uint16_t y, uint16_t w, uint16_t h, int index)
+{
+    const uint16_t xAddress = ROI::WinArray::address + (8 * index);
+    const uint16_t yAddress = xAddress + 4;
+    
+    writeReg(xAddress, (x & 0x1FF) | (((x + w) & 0x1FF) << 16));
+    writeReg(yAddress, (y & 0x1FF) | (((y + h) & 0x1FF) << 16));
+}
+//----------------------------------------------------------------------------
+void GenX320::applyROI(uint32_t numROI, ROIMode roiMode)
+{
+    assert(numROI < 32);
+
+    writeRegFields<ROI::Ctrl>([](auto &s)
+                              {
+                                s.px_roi_halt_programming = 0;
+                              });
+    writeRegFields<ROI::MasterCtrl>([numROI, roiMode](auto &s)
+                                    {
+                                        s.master_run = 1;
+                                        s.master_mode = static_cast<uint32_t>(roiMode);
+                                        s.win_nb = numROI;
+                                    });
+
+    // Wait until master isn't busy
+    for(int i = 0; i < 50; i++) {
+        if(!readRegFields<ROI::MasterCtrl>().master_busy) {
+            break;
+        }
+    }
+
+    // Wait until master is done
+    for(int i = 0; i < 50; i++) {
+        if(!readRegFields<ROI::MasterCtrl>().master_done) {
+            return;
+        }
+    }
+    
+    throw std::runtime_error("ROI apply timed out");
+}
+//----------------------------------------------------------------------------
+uint32_t GenX320::readReg(uint16_t address)
 {
     // Make combined transaction, writing 2-byte (big-endian) address and reading 4-byte payload
     const uint8_t addressBuffer[2] = {(address >> 8) & 0xFF,
@@ -363,7 +429,7 @@ uint32_t GenX320::readCamRegister(uint16_t address)
     return val;
 }
 //----------------------------------------------------------------------------
-void GenX320::writeCamRegister(uint16_t address, uint32_t value, int numRetries)
+void GenX320::writeReg(uint16_t address, uint32_t value, int numRetries)
 {
     // Send 2-byte register address followed by 4-byte data (big-endian) 
     const uint8_t buffer[6] = {(address >> 8) & 0xFF,
@@ -385,15 +451,15 @@ void GenX320::writeCamRegister(uint16_t address, uint32_t value, int numRetries)
     throw std::runtime_error("I2C write at 0x" + std::to_string(address) + "failed after " + std::to_string(numRetries) + " retries");
 }
 //----------------------------------------------------------------------------
-void GenX320::setCamRegisterBits(uint16_t address, uint32_t mask, int numRetries)
+void GenX320::setRegBits(uint16_t address, uint32_t mask, int numRetries)
 {
-    const uint32_t val = readCamRegister(address);
-    writeCamRegister(address, val | mask, numRetries);
+    const uint32_t val = readReg(address);
+    writeReg(address, val | mask, numRetries);
 }
 //----------------------------------------------------------------------------
-void GenX320::clearCamRegisterBits(uint16_t address, uint32_t mask, int numRetries)
+void GenX320::clearRegBits(uint16_t address, uint32_t mask, int numRetries)
 {
-    const uint32_t val = readCamRegister(address);
-    writeCamRegister(address, val & ~mask, numRetries);
+    const uint32_t val = readReg(address);
+    writeReg(address, val & ~mask, numRetries);
 }
 

@@ -12,6 +12,7 @@
 
 BETTER_ENUM(EventFormat, uint32_t, EVT2 = 0, EVT3 = 1, EVT21 = 2)
 BETTER_ENUM(StreamingSource, uint32_t, PIXEL_ARRAY, RO_PATTERN, TS_PATTERN)
+BETTER_ENUM(ROIMode, uint32_t, ROI=0, RONI=1)
 
 // Forward declarations
 class MIPICSI2Receiver;
@@ -39,6 +40,9 @@ public:
     void startStreaming(StreamingSource source = StreamingSource::PIXEL_ARRAY);
     void stopStreaming();
 
+    //! Reset ROI to full frame
+    void resetROI();
+
     void setEventFormat(EventFormat eventFormat);
 
 private:
@@ -54,29 +58,55 @@ private:
     // Poll for boot magic with retries.
     void waitBoot(int numRetries = 50);
 
-    uint32_t readCamRegister(uint16_t address);
-    void writeCamRegister(uint16_t address, uint32_t value, int numRetries = 3);
+    //! Set the ROI specified by inde
+    void setROIWindow(uint16_t x, uint16_t y, uint16_t w, uint16_t h, int index);
 
-    // Set bits indicated by *mask* in register at *address*
-    void setCamRegisterBits(uint16_t address, uint32_t mask, int numRetries = 3);
+    //! Apply the configured ROI windows
+    void applyROI(uint32_t numROI, ROIMode roiMode);
 
-    // Clear bits indicated by *mask* in register  at *address*
-    void clearCamRegisterBits(uint16_t address, uint32_t mask, int numRetries = 3);
+    //! Read the 32-bit camera register specified by address
+    uint32_t readReg(uint16_t address);
 
+    //! Write value to the 32-bit camera register specified by address
+    void writeReg(uint16_t address, uint32_t value, int numRetries = 3);
+
+    //! Set bits indicated by *mask* in register at *address*
+    void setRegBits(uint16_t address, uint32_t mask, int numRetries = 3);
+
+    //! Clear bits indicated by *mask* in register  at *address*
+    void clearRegBits(uint16_t address, uint32_t mask, int numRetries = 3);
+
+    //
     template<typename S>
-    uint32_t readCamRegister()
+    uint32_t readReg()
     {
-        return readCamRegister(S::address);
+        return readReg(S::address);
     }
 
     template<typename S>
-    void writeCamRegister(uint32_t value, int numRetries = 3)
+    void writeReg(uint32_t value, int numRetries = 3)
     {
-        return writeCamRegister(S::address, value, numRetries);
+        return writeReg(S::address, value, numRetries);
+    }
+
+    template<typename S>
+    S readRegFields()
+    {
+        // Create anonymous union with struct and raw
+        union 
+        {
+            S s;
+            uint32_t r;
+        } regView;
+
+        // Read current value into raw
+        regView.r = readReg(S::address);
+
+        return regView.s;
     }
 
     template<typename S, typename F>
-    void writeCamRegisterFields(F updateFields, int numRetries = 3)
+    void writeRegFields(F updateFields, int numRetries = 3)
     {
         // Check register struct is 32-bit
         static_assert(sizeof(S) <= 4, "Register structs must be less than 4 bytes");
@@ -89,27 +119,27 @@ private:
         } regView;
 
         // Read current value into raw
-        regView.r = readCamRegister(S::address);
+        regView.r = readReg(S::address);
 
         // Allow user to update struct fields
         updateFields(regView.s);
 
         // Write back new value
-        writeCamRegister(S::address, regView.r, numRetries);
+        writeReg(S::address, regView.r, numRetries);
     }
 
-    // Set bits indicated by *mask* in register S
+    //! Set bits indicated by *mask* in register S
     template<typename S>
-    void setCamRegisterBits(uint32_t mask, int numRetries = 3)
+    void setRegBits(uint32_t mask, int numRetries = 3)
     {
-        setCamRegisterBits(S::address, mask, numRetries);
+        setRegBits(S::address, mask, numRetries);
     }
 
-    // Clear bits indicated by *mask* in register S
+    //! Clear bits indicated by *mask* in register S
     template<typename S>
-    void clearCamRegisterBits(uint32_t mask, int numRetries = 3)
+    void clearRegBits(uint32_t mask, int numRetries = 3)
     {
-        clearCamRegisterBits(S::address, mask, numRetries);
+        clearRegBits(S::address, mask, numRetries);
     }
 
     //------------------------------------------------------------------------
