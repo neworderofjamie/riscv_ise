@@ -5,7 +5,7 @@ from argparse import ArgumentParser
 from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer, Model, 
                     PerformanceCounter, ProcessGroup, Runtime, Shape)
 from pyfenn.models import Linear, Memset, RNGInit
-from models import LI, LIF, Bernoulli, LIF_STDP
+from models import LI, LIF, Bernoulli, Linear_LIF_STDP
 
 from pyfenn import disassemble, init_logging, RNGInitProcess
 from pyfenn.utils import (get_array_view, get_latency_spikes, copy_and_push,
@@ -42,7 +42,7 @@ postsyn_v_thresh_LTP = v_threshold*.8
 # weird things happen when prob_spike can't be expressed as a fraction with denom=64
 primary_input = Bernoulli(Shape(primary_input_shape),prob_spike=(2**3)/(2**6),record_timesteps=1,fixed_point=num_fixed_point_bits,name="primary_input")
 extra_input = Bernoulli(Shape(extra_input_shape),prob_spike=(2**4)/(2**6),record_timesteps=1,fixed_point=num_fixed_point_bits,name="extra_input")
-output = LIF_STDP(output_shape, alpha=.01, c_tau=60, j_c=(2**6)/(2**6), v_thresh=v_threshold, v_reset=0, record_timesteps=1, fixed_point=num_fixed_point_bits, dt=1, name="output")
+output = Linear_LIF_STDP(output_shape, alpha=.01, c_tau=60, j_c=(2**6)/(2**6), v_thresh=v_threshold, v_reset=0, record_timesteps=1, fixed_point=num_fixed_point_bits, dt=1, name="output")
 
 extra_input_output = Linear(extra_input.out_spikes, output.i, "s9_6_sat_t", name="extra_input_output")
 primary_input_output = Linear(primary_input.out_spikes, output.i, "s9_6_sat_t", name="primary_input_output")
@@ -51,13 +51,13 @@ primary_input_output = Linear(primary_input.out_spikes, output.i, "s9_6_sat_t", 
 # v_zero = Memset(output.v)
 
 # Group processes
-neuron_update_processes = ProcessGroup([extra_input.process, primary_input.process, output.process], PerformanceCounter() if args.time else None)
-synapse_update_processes = ProcessGroup([extra_input_output.process, primary_input_output.process], PerformanceCounter() if args.time else None)
+neuron_update_processes = ProcessGroup([extra_input.process, primary_input.process, output.process], PerformanceCounter() if args.time else None,name="neuron_update_processes_group")
+synapse_update_processes = ProcessGroup([extra_input_output.process, primary_input_output.process], PerformanceCounter() if args.time else None,name="synapse_update_processes_group")
 # zero_processes = ProcessGroup([v_zero.process], PerformanceCounter() if args.time else None)
 
 # Initial processes
 rng_init = RNGInit()
-init_processes = ProcessGroup([rng_init.process])
+init_processes = ProcessGroup([rng_init.process],name="init_processes_group")
 
 # Create backend
 backend = BackendFeNNSim()
