@@ -401,7 +401,7 @@ void GenX320::applyROI(uint32_t numROI, ROIMode roiMode)
 
     // Wait until master is done
     for(int i = 0; i < 50; i++) {
-        if(!readRegFields<ROI::MasterCtrl>().master_done) {
+        if(readRegFields<ROI::MasterCtrl>().master_done) {
             return;
         }
     }
