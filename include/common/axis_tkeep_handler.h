@@ -41,7 +41,7 @@ public:
     void setEnabled(bool enable){ setControlBit(ControlBits::ENABLE, enable); }
     bool isEnabled() const{ return getControlBit(ControlBits::ENABLE); }
 
-    void setBypased(bool bypass) { setControlBit(ControlBits::BYPASS, bypass); }
+    void setBypassed(bool bypass) { setControlBit(ControlBits::BYPASS, bypass); }
     bool isBypassed() const{ return getControlBit(ControlBits::BYPASS); }
 
     void setClear(bool clear) { setControlBit(ControlBits::CLEAR, clear); }
