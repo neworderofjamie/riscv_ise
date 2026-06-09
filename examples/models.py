@@ -73,7 +73,7 @@ class ALIF:
             name)
 
 
-class LIF_STDP:
+class Linear_LIF_STDP:
     def __init__(self, shape, alpha: float, c_tau:float, j_c:float,
                  v_thresh: float, v_reset: float,
                  record_timesteps: int = 1, fixed_point: int = 9,
