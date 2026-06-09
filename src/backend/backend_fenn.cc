@@ -673,8 +673,10 @@ private:
 
                 // Allocate additional register for writing variable
                 // **TODO** should be lazy
-                m_WriteBufferReg = scalarRegisterAllocator.getRegister((varName + "BufferWrite X").c_str());
-                c.add(*m_WriteBufferReg, *m_ReadBufferReg, *numVarBytesReg);
+                if(!var->getType().isConst) {
+                    m_WriteBufferReg = scalarRegisterAllocator.getRegister((varName + "BufferWrite X").c_str());
+                    c.add(*m_WriteBufferReg, *m_ReadBufferReg, *numVarBytesReg);
+                }
             }
         }
 
@@ -1440,11 +1442,13 @@ private:
 
                 // Loop through variables
                 for(const auto &v : neuronUpdateProcess->getVariables()) {
-                    // Get register
-                    const auto reg = std::get<VectorRegisterAllocator::RegisterPtr>(unrollEnv.getRegister(v.first));
-                    
-                    // Generate store
-                    varBuffers.at(v.second)->genStore(unrollEnv, reg, r);
+                    if(!v.second->getType().isConst) {
+                        // Get register
+                        const auto reg = std::get<VectorRegisterAllocator::RegisterPtr>(unrollEnv.getRegister(v.first));
+                        
+                        // Generate store
+                        varBuffers.at(v.second)->genStore(unrollEnv, reg, r);
+                    }
                 }
             },
             [this, &eventBufferRegisters, &neuronUpdateProcess, &varBuffers]

@@ -24,12 +24,12 @@ class ALIF:
         decay_dtype = "s0_15_sat_t"
         self.v = Variable(self.shape, v_dtype, num_timesteps + 1)
         self.a = Variable(self.shape, a_dtype, num_timesteps + 1)
-        self.i = Variable(self.shape, "int16_t", num_timesteps + 1)
+        self.i = Variable(self.shape, "const int16_t", num_timesteps + 1)
         self.refrac_time = Variable(self.shape, "int16_t")
         self.process = NeuronUpdateProcess(
             """
-            V = mul_rs(Alpha, V) + (Weight * I);
-            A = mul_rs(A, Rho);
+            V = (Alpha * V) + (Weight * I);
+            A *= Rho;
 
             if (RefracTime > 0) {
                RefracTime -= 1;
