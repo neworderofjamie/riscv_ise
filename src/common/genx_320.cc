@@ -321,10 +321,10 @@ void GenX320::setEventFormat(EventFormat eventFormat)
     m_EventFormat = eventFormat;
 
     writeRegFields<EDF::Control>([this](auto &s)
-                                        {
-                                            s.format = m_EventFormat; 
-                                            s.endianness = 0;   // little-endian
-                                        });
+                                  {
+                                      s.format = m_EventFormat; 
+                                      s.endianness = 0;   // little-endian
+                                  });
 
     writeRegFields<EDF::PipelineControl>([](auto &s)
                                          {
