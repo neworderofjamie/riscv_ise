@@ -97,7 +97,7 @@ public:
     void setClear(bool clear) { setRegBit(Register::CONTROL, ControlBits::CLEAR, clear); }
 
     // Config register
-    void setBypased(bool bypass) { setRegBit(Register::CONFIG, ConfigBits::BYPASS, bypass); }
+    void setBypassed(bool bypass) { setRegBit(Register::CONFIG, ConfigBits::BYPASS, bypass); }
     bool isBypassed() const{ return getRegBit(Register::CONFIG, ConfigBits::BYPASS); }
 
     // Status register
