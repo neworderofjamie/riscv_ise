@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+from argparse import ArgumentParser
 from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer, Model,
                     NeuronUpdateProcess, Parameter, PlogSeverity,
                     ProcessGroup, Runtime, Variable)
@@ -9,11 +10,15 @@ from pyfenn.models import RNGInit
 from pyfenn import disassemble, init_logging
 from pyfenn.utils import get_array_view, seed_and_push, zero_and_push
 
-device = False
-num_timesteps = 1000
 background_rate = 0.5
 rate = 7846 / 1370
-disassemble_code = False
+
+parser = ArgumentParser("Adaptive LIF neuron")
+parser.add_argument("--device", action="store_true", help="Run model on FeNN hardware")
+parser.add_argument("--disassemble", action="store_true", help="Disassemble generated code")
+parser.add_argument("--num-timesteps", type=int, default=1000, help="Number of timesteps to sample for")
+args = parser.parse_args()
+
 
 class ALIF:
     def __init__(self, shape, tau_m: float, tau_a: float, tau_refrac: int,
@@ -49,8 +54,8 @@ class ALIF:
             {"V": self.v, "A": self.a, "I": self.i, "RefracTime": self.refrac_time})
 
 # Generate poisson data with two periods of average firing interspersed by background
-data = np.zeros(num_timesteps + 1)
-data[0:] = np.random.poisson(rate, num_timesteps + 1)
+data = np.zeros(args.num_timesteps + 1)
+data[0:] = np.random.poisson(rate, args.num_timesteps + 1)
 #data[0:2000] = np.random.poisson(rate, 2000)
 #data[2000:4000] = np.random.poisson(background_rate, 2000)
 #data[4000:5000] = np.random.poisson(rate, 1000)
@@ -68,14 +73,14 @@ init_logging()
 
 # Model
 rng_init = RNGInit()
-neurons = ALIF(32, 20.0, 2000, 5, 0.6, 0.0174, 0.01, num_timesteps)
+neurons = ALIF(32, 20.0, 2000, 5, 0.6, 0.0174, 0.01, args.num_timesteps)
 
 # Group processes
 init_processes = ProcessGroup([rng_init.process])
 neuron_update_processes = ProcessGroup([neurons.process])
 
 # Create backend
-backend = BackendFeNNHW() if device else BackendFeNNSim()
+backend = BackendFeNNHW() if args.device else BackendFeNNSim()
 
 # Create model
 model = Model([init_processes, neuron_update_processes],
@@ -85,10 +90,10 @@ model = Model([init_processes, neuron_update_processes],
 init_code = backend.generate_kernel([init_processes], model)
 code = backend.generate_simulation_kernel([neuron_update_processes],
                                           [], [],
-                                          num_timesteps, model)
+                                          args.num_timesteps, model)
 
 # Disassemble if required
-if disassemble_code:
+if args.disassemble:
     for i, c in enumerate(code):
         print(f"{i * 4} : {disassemble(c)}")
 
@@ -141,7 +146,7 @@ fig, axis = plt.subplots()
 
 a_axis = axis.twinx()
 
-timesteps = np.arange(num_timesteps + 1)
+timesteps = np.arange(args.num_timesteps + 1)
 axis.plot(timesteps, neurons_v_mean, color="red")
 axis.fill_between(timesteps, (neurons_v_mean - neurons_v_std), 
                   (neurons_v_mean + neurons_v_std),
