@@ -9,13 +9,14 @@ from pybind11.setup_helpers import Pybind11Extension, build_ext, WIN, MACOS
 from setuptools import find_packages, setup
 
 # Loop through command line arguments
-debug_build = False
+debug_build = True
 coverage_build = False
 build_fenn_libs = True
 filtered_args = []
 for arg in sys.argv:
     if arg == "--debug":
         debug_build = True
+        print("Creating the debug build!")
     elif arg == "--coverage":
         coverage_build = True
         continue
