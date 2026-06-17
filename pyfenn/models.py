@@ -1,7 +1,7 @@
 from typing import Optional
 
 from pyfenn import (BroadcastProcess, EventContainer, EventPropagationProcess,
-                    MemsetProcess, RNGInitProcess, Variable)
+                    STDPEventPropagationProcess, MemsetProcess, RNGInitProcess, Variable)
 
 class RNGInit:
     def __init__(self):
@@ -29,7 +29,7 @@ class Linear:
                          if num_sparse_connectivity_bits == 0 
                          else max_row_length))
         self.weight = Variable(weight_shape, weight_dtype, 1, f"{name}_weight")
-        self.process = EventPropagationProcess(source_events, self.weight,
+        self.process = STDPEventPropagationProcess(source_events, self.weight,
                                                target_var, 
                                                num_sparse_connectivity_bits,
                                                num_delay_bits, name)
