@@ -117,7 +117,7 @@ private:
 
     virtual void visit(std::shared_ptr<const STDPEventPropagationProcess> stdpEventPropagationProcess)
     {
-        LOGD << "\tEvent propagation process '" << stdpEventPropagationProcess->getName() << "'";
+        LOGD << "\tSTDP Event propagation process '" << stdpEventPropagationProcess->getName() << "'";
 
         // Add back-references in state processes
         m_StateProcesses.get()[stdpEventPropagationProcess->getInputEvents()].push_back(stdpEventPropagationProcess);
@@ -279,7 +279,7 @@ private:
 
     virtual void visit(std::shared_ptr<const STDPEventPropagationProcess> stdpEventPropagationProcess)
     {
-        LOGD << "\tEvent propagation process '" << stdpEventPropagationProcess->getName() << "'";
+        LOGD << "\tSTDP Event propagation process '" << stdpEventPropagationProcess->getName() << "'";
         assert(m_CurrentProcessFields.empty());
 
         // Visit components
@@ -289,7 +289,7 @@ private:
 
         // Add process fields
         if(!m_StatefulFields.get().try_emplace(stdpEventPropagationProcess, m_CurrentProcessFields).second) {
-            throw std::runtime_error("Event propagation process '" + stdpEventPropagationProcess->getName() + "' encountered multiple times in model traversal");
+            throw std::runtime_error("STDP Event propagation process '" + stdpEventPropagationProcess->getName() + "' encountered multiple times in model traversal");
         }
 
         // Clear current state fields

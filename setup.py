@@ -54,6 +54,9 @@ genn_third_party_include = os.path.join(genn_path, "include", "genn", "third_par
 
 fenn_libraries = ["backend", "ise", "compiler", "disassembler", "assembler", "common"]
 
+# Carter needs additional library for libffi because doesn't have command line tools
+carters_libffi = '/usr/local/opt/libffi/include'
+
 # Always package LibGeNN
 if WIN:
     package_data = [f"genn{lib_suffix}.dll",
@@ -65,7 +68,7 @@ else:
 
 # Define standard kwargs for building all extensions
 fenn_extension_kwargs = {
-    "include_dirs": [fenn_include, genn_third_party_include, genn_include],
+    "include_dirs": [carters_libffi, fenn_include, genn_third_party_include, genn_include],
     "library_dirs": [pyfenn_path],
     "libraries": [f"genn{lib_suffix}"] + [f"{l}{lib_suffix}" for l in fenn_libraries],
     "cxx_std": 17,
