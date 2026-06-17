@@ -144,11 +144,11 @@ STDPEventPropagationProcess::STDPEventPropagationProcess(Private, std::shared_pt
     m_NumDelayBits(numDelayBits)
 {
     if(m_Weight == nullptr) {
-        throw std::runtime_error("Event propagation process requires weight variable");
+        throw std::runtime_error("STDP Event propagation process requires weight variable");
     }
 
     if(m_Target == nullptr) {
-        throw std::runtime_error("Event propagation process requires target variable");
+        throw std::runtime_error("STDP Event propagation process requires target variable");
     }
 
     // Get number of target neurons from target variable
@@ -160,26 +160,26 @@ STDPEventPropagationProcess::STDPEventPropagationProcess(Private, std::shared_pt
     // Check weight number of source neurons matches
     if(m_Weight->getShape().getNumSourceNeurons() != getNumSourceNeurons()) {
         throw std::runtime_error("Weight with shape: " + weight->getShape().toString() 
-                                 + " is not compatible with event propagation process with " 
+                                 + " is not compatible with stdp event propagation process with " 
                                  + std::to_string(getNumSourceNeurons()) + " source neurons");
     }
 
     // Check delays and sparsity are not being combined
     if(m_NumDelayBits > 0 && m_NumSparseConnectivityBits > 0) {
-        throw std::runtime_error("Event propagation processes with both events "
+        throw std::runtime_error("STDP Event propagation processes with both events "
                                  "and delays are not currently supported");
     }
 
     // Check weight number of target neurons matches if no sparsity
     if(m_NumSparseConnectivityBits == 0 && m_MaxRowLength != m_NumTargetNeurons) {
         throw std::runtime_error("Weight with shape: " + weight->getShape().toString() 
-                                 + " is not compatible with dense event propagation process with " 
+                                 + " is not compatible with dense stdp event propagation process with " 
                                  + std::to_string(m_NumTargetNeurons) + " target neurons");
     }
 
     if (m_Weight->getNumBufferTimesteps() != 1) {
         throw std::runtime_error("Weight has more than 1 buffer timestep which isn't "
-                                 "currently supported by event propagation processes");
+                                 "currently supported by stdp event propagation processes");
     }
 
     // If there are no delays, check target only has one buffer timestep
