@@ -1131,6 +1131,9 @@ private:
             c.li(*m_StrideReg, ceilDivide(process->getMaxRowLength(), 32) * 64);
 
         }
+
+        auto getProcess() const{ return m_Process; }
+
         //--------------------------------------------------------------------
         // RowGeneratorBase virtuals
         //--------------------------------------------------------------------
@@ -1144,6 +1147,7 @@ private:
             c.lw(*SWeightBuffer, Reg::X0, getStateFields().at(m_Process->getWeight()));
             // c.lw(*SWeightBuffer, Reg::X0, getStateFields().at(std::dynamic_pointer_cast<const EventPropagationProcess>(getProcess())->getWeight()));
             {
+                // idPreReg tells us which weights we actually want to load
                 ALLOCATE_SCALAR(STemp);
                 c.mul(*STemp, *idPreReg, *m_StrideReg);
                 c.add(*SWeightBuffer, *SWeightBuffer, *STemp);
@@ -1154,7 +1158,8 @@ private:
 
         virtual ScalarRegisterAllocator::RegisterPtr getStrideReg() const override final { return m_StrideReg; }
     
-        
+        // weightBufferReg contains the address of the weights from one presynaptic neuron which spiked 
+        // to its many downstream postsynaptic neurons
         virtual void generateRow(CodeGenerator &c, ScalarRegisterAllocator::RegisterPtr weightBufferReg) final override
         {
             // Make some friendlier-named references
@@ -1188,6 +1193,8 @@ private:
                 
                     // Add weights to ISyn
                     auto VTarget = even ? VTarget1 : VTarget2;
+                    // If the number of postsynaptic neurons is not cleanly divisible by number of vector elements 
+                    // we apply a mask for the remainder
                     if(maskReg) {
                         c.vadd_s(*VTargetNew, *VTarget, *VWeight);
                         c.vsel(*VTarget, *maskReg, *VTargetNew);
@@ -1941,8 +1948,76 @@ private:
     {
         // Make some friendlier-named references
         auto &scalarRegisterAllocator = m_ScalarRegisterAllocator.get();
+        auto &vectorRegisterAllocator = m_VectorRegisterAllocator.get();
+
         auto &c = m_CodeGenerator.get();
 
+
+        // If one of the rowgenerators is an STDPDenseRowGenerator, the weight w
+        // is going to be the synaptic variable X. Every synapse must update on 
+        // every timestep
+        for(auto &r : rowGenerators) {
+            auto  stdp_row_gen = dynamic_cast<STDPDenseRowGenerator*>(r.get());
+            if (stdp_row_gen){
+                ALLOCATE_SCALAR(weight_counter);
+                ALLOCATE_VECTOR(weight_decay);
+                c.vlui(*weight_decay, 1);
+                // todo load lower bits
+
+                std::cout << "Casted to STDPDenseRowGenerator" << std::endl;
+                // Loop over each weight
+                for (auto i=1; i<=(*stdp_row_gen).getProcess()->getNumSourceNeurons();i++) {
+                    for (auto weight_idx=0; weight_idx<32; weight_idx++) {
+                        c.li(*weight_counter, weight_idx);
+                        auto weightBufferReg = r->loadWeightBuffer(c, weight_counter);
+                        // update weights following rules for X
+                        ALLOCATE_VECTOR(weight_vector);
+                        ALLOCATE_VECTOR(WTarget1);
+                        ALLOCATE_VECTOR(WTarget2);
+                        ALLOCATE_VECTOR(WTargetNew);
+                        ALLOCATE_SCALAR(STargetBuf);
+
+
+                        
+                        AssemblerUtils::unrollVectorLoopBody(
+                            c, scalarRegisterAllocator, (*stdp_row_gen).getProcess()->getNumTargetNeurons(), 4, *weightBufferReg,
+                            [this, weightBufferReg, weight_vector, weight_decay, WTargetNew]
+                            (CodeGenerator &c, uint32_t r, bool even, ScalarRegisterAllocator::RegisterPtr maskReg)
+                            {
+                                // Load vector of weights
+                                c.vloadv(*weight_vector, *weightBufferReg, r * 64);
+                                // No-op to avoid stall
+                                c.nop();
+                                // If the number of postsynaptic neurons is not cleanly divisible by number of vector elements 
+                                // we apply a mask for the remainder
+                                if(maskReg) {
+                                    c.vadd_s(*WTargetNew, *weight_decay, *weight_vector);
+                                    c.vsel(*weight_vector, *maskReg, *WTargetNew);
+                                }
+                                else {
+                                    c.vadd_s(*weight_vector, *weight_decay, *weight_vector);
+                                }
+                                // Write back target
+                                c.vstore(*weight_vector, *weightBufferReg, r * 64);
+                            },
+                            [this, weightBufferReg](CodeGenerator &c, uint32_t numUnrolls)
+                            {
+                                // Increment pointers 
+                                c.addi(*weightBufferReg, *weightBufferReg, 64 * numUnrolls);
+                            });
+
+                        
+                    }
+                }
+            } else {
+                std::cout << "Did NOT cast to STDPDenseRowGenerator" << std::endl;
+            }
+        }
+
+
+
+
+        //////// YAY!!!!
         ALLOCATE_SCALAR(SWordNStart);
         ALLOCATE_SCALAR(SConst1);
         ALLOCATE_SCALAR(SEventWord);
@@ -1961,6 +2036,8 @@ private:
         // SWordNStart = 31
         c.li(*SWordNStart, 31);
         
+        // This iterates through the bitfield of spikes by having an outer loop of 32-bit words
+        // and an inner loop which counts the number of leading zeros (CLZ instruction)
         // Outer word loop
         c.L(wordLoop);
         {
@@ -2002,6 +2079,7 @@ private:
 
                 // Loop through row generators and generate code to process rows
                 for(auto &r : rowGenerators) {
+                    // SN tells us which weights we actually want to load
                     auto weightBufferReg = r->loadWeightBuffer(c, SN);
                     r->generateRow(c, weightBufferReg);
                 }

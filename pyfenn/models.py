@@ -29,6 +29,23 @@ class Linear:
                          if num_sparse_connectivity_bits == 0 
                          else max_row_length))
         self.weight = Variable(weight_shape, weight_dtype, 1, f"{name}_weight")
+        self.process = EventPropagationProcess(source_events, self.weight,
+                                               target_var, 
+                                               num_sparse_connectivity_bits,
+                                               num_delay_bits, name)
+
+class LinearWithSTDP:
+    def __init__(self, source_events: EventContainer, target_var: Variable,
+                 weight_dtype: str, max_row_length: Optional[int] = None, 
+                 num_sparse_connectivity_bits: int = 0, 
+                 num_delay_bits: int = 0, name: str = ""):
+        self.shape = (source_events.shape.num_neurons,
+                      target_var.shape.num_neurons)
+        weight_shape = (source_events.shape.num_neurons,
+                        (target_var.shape.num_neurons 
+                         if num_sparse_connectivity_bits == 0 
+                         else max_row_length))
+        self.weight = Variable(weight_shape, weight_dtype, 1, f"{name}_weight")
         self.process = STDPEventPropagationProcess(source_events, self.weight,
                                                target_var, 
                                                num_sparse_connectivity_bits,

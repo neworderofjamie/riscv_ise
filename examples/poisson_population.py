@@ -4,7 +4,7 @@ import mnist
 from argparse import ArgumentParser
 from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer, Model, 
                     PerformanceCounter, ProcessGroup, Runtime, Shape)
-from pyfenn.models import Linear, Memset, RNGInit
+from pyfenn.models import Linear, LinearWithSTDP, Memset, RNGInit
 from models import LI, LIF, Bernoulli, Linear_LIF_STDP
 
 from pyfenn import disassemble, init_logging, RNGInitProcess
@@ -45,7 +45,7 @@ extra_input = Bernoulli(Shape(extra_input_shape),prob_spike=(2**4)/(2**6),record
 output = Linear_LIF_STDP(output_shape, alpha=.01, c_tau=60, j_c=(2**6)/(2**6), v_thresh=v_threshold, v_reset=0, record_timesteps=1, fixed_point=num_fixed_point_bits, dt=1, name="output")
 
 extra_input_output = Linear(extra_input.out_spikes, output.i, "s9_6_sat_t", name="extra_input_output")
-primary_input_output = Linear(primary_input.out_spikes, output.i, "s9_6_sat_t", name="primary_input_output")
+primary_input_output = LinearWithSTDP(primary_input.out_spikes, output.i, "s9_6_sat_t", name="primary_input_output")
 
 # Note that memset will clear the variable at the end of the trial!!
 # v_zero = Memset(output.v)
@@ -121,8 +121,9 @@ extra_input_spike_array, extra_input_spike_view = get_array_view(runtime, extra_
 output_v_array, output_v_view = get_array_view(runtime, output.v, np.int16)
 output_spike_array, output_spike_view = get_array_view(runtime, output.out_spikes, np.int16)
 output_c_array, output_c_view = get_array_view(runtime, output.c, np.int16)
+primary_weight_array, primary_weight_view = get_array_view(runtime, primary_input_output.weight,np.int16)
 
-neural_activity = [[0] * 5 for i in range(num_trials)]
+neural_activity = [[0] * 6 for i in range(num_trials)]
 
 for i in range(num_trials):
     # Load the RNG seed
@@ -136,6 +137,7 @@ for i in range(num_trials):
     output_v_array.pull_from_device()
     output_c_array.pull_from_device()
     output_spike_array.pull_from_device()
+    primary_weight_array.pull_from_device()
     # print("extra_input spikes: ", extra_input_spike_view)
     # print("Output voltages: ", output_v_view[0]/(2**num_fixed_point_bits))
     # print("Output spikes: ", output_spike_view[0])
@@ -145,6 +147,7 @@ for i in range(num_trials):
     neural_activity[i][2] = output_spike_view[0]
     neural_activity[i][3] = primary_input_spike_view[0]
     neural_activity[i][4] = output_c_view[0]/(2**num_fixed_point_bits)
+    neural_activity[i][5] = primary_weight_view[0]
 
 
 extra_presyn_spikes = [neural_act[0] for neural_act in neural_activity]
@@ -152,6 +155,7 @@ postsyn_voltages = [neural_act[1] for neural_act in neural_activity]
 postsyn_spikes = [neural_act[2] for neural_act in neural_activity]
 primary_presyn_spikes = [neural_act[3] for neural_act in neural_activity]
 postsyn_calcium = [neural_act[4] for neural_act in neural_activity]
+primary_weights = [neural_act[5] for neural_act in neural_activity]
 
 postsyn_spike_rate = np.sum(postsyn_spikes) / (num_trials/trials_per_second)
 
@@ -164,6 +168,12 @@ for s in presyn_spike_times:
     axes[0].set_xlim((0,num_trials))
     axes[0].axvline(s)
 axes[0].title.set_text("Presynaptic spikes")
+
+# plot C
+axes[1].plot(primary_weights)
+axes[1].title.set_text("Synaptic internal variable X(t)")
+for i in [.5, 1]:
+    axes[3].axhline(i, linestyle="--", color="black", linewidth=0.5)
 
 
 # plot postsyn V
