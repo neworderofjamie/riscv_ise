@@ -1981,39 +1981,54 @@ private:
                         ALLOCATE_VECTOR(WTarget2);
                         ALLOCATE_VECTOR(WTargetNew);
                         ALLOCATE_SCALAR(STargetBuf);
-                        ALLOCATE_SCALAR(compare_to_one);
+                        ALLOCATE_SCALAR(compare_vec);
                         ALLOCATE_VECTOR(ones_vec);
+                        ALLOCATE_VECTOR(zeros_vec);
 
 
 
                         
                         AssemblerUtils::unrollVectorLoopBody(
                             c, scalarRegisterAllocator, (*stdp_row_gen).getProcess()->getNumTargetNeurons(), 4, *weightBufferReg,
-                            [this, weightBufferReg, weight_vector, weight_decay, WTargetNew, compare_to_one, ones_vec]
+                            [this, weightBufferReg, weight_vector, weight_decay, WTargetNew, compare_vec, ones_vec, zeros_vec]
                             (CodeGenerator &c, uint32_t r, bool even, ScalarRegisterAllocator::RegisterPtr maskReg)
                             {
                                 // Load vector of ones
                                 c.vlui(*ones_vec, 64);
-                                c.li(*compare_to_one,0);
+                                // Load vector of zeros
+                                c.vfill(*zeros_vec, Reg::X0);
+
+                                c.li(*compare_vec,0);
                                 // Load vector of weights
                                 c.vloadv(*weight_vector, *weightBufferReg, r * 64);
+                                // No-op to avoid stall
+                                c.nop();
+                                c.vloadv(*WTargetNew, *weightBufferReg, r * 64);
                                 // No-op to avoid stall
                                 c.nop();
                                 // If the number of postsynaptic neurons is not cleanly divisible by number of vector elements 
                                 // we apply a mask for the remainder
                                 if(maskReg) {
-                                    c.vadd_s(*WTargetNew, *weight_decay, *weight_vector);
+                                    c.vsub_s(*WTargetNew, *weight_vector, *weight_decay);
+
                                     // if the weight is greater than 1, reset back to 1
-                                    c.vtlt(*compare_to_one, *ones_vec, *WTargetNew);
-                                    c.vsel(*WTargetNew, *compare_to_one, *ones_vec);
+                                    c.vtlt(*compare_vec, *ones_vec, *WTargetNew);
+                                    c.vsel(*WTargetNew, *compare_vec, *ones_vec);
+                                    // if the weight is less than 0, reset back to 0
+                                    c.vtge(*compare_vec, *zeros_vec, *WTargetNew);
+                                    c.vsel(*WTargetNew, *compare_vec, *zeros_vec);
+
+                                    // apply mask
                                     c.vsel(*weight_vector, *maskReg, *WTargetNew);
                                 }
                                 else {
-                                    c.vadd_s(*weight_vector, *weight_decay, *weight_vector);
+                                    c.vsub_s(*weight_vector, *weight_vector, *weight_decay);
                                     // if the weight is greater than 1, reset back to 1
-                                    c.vtlt(*compare_to_one, *ones_vec, *weight_vector);
-                                    c.vsel(*weight_vector, *compare_to_one, *ones_vec);
-
+                                    c.vtlt(*compare_vec, *ones_vec, *weight_vector);
+                                    c.vsel(*weight_vector, *compare_vec, *ones_vec);
+                                    // if the weight is less than 0, reset back to 0
+                                    c.vtge(*compare_vec, *zeros_vec, *weight_vector);
+                                    c.vsel(*weight_vector, *compare_vec, *zeros_vec);
                                 }
                                 // Write back target
                                 c.vstore(*weight_vector, *weightBufferReg, r * 64);
