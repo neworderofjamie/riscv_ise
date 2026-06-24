@@ -147,7 +147,7 @@ for i in range(num_trials):
     neural_activity[i][2] = output_spike_view[0]
     neural_activity[i][3] = primary_input_spike_view[0]
     neural_activity[i][4] = output_c_view[0]/(2**num_fixed_point_bits)
-    neural_activity[i][5] = primary_weight_view[0]
+    neural_activity[i][5] = primary_weight_view[0]/(2**num_fixed_point_bits)
 
 
 extra_presyn_spikes = [neural_act[0] for neural_act in neural_activity]
