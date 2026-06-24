@@ -96,7 +96,7 @@ copy_and_push(extra_input_weights, extra_input_output.weight, runtime)
 # copy_and_push(np.ones(extra_input_shape*64,dtype='uint8'), extra_input_output.weight, runtime)
 
 primary_input_weights = np.zeros(primary_input_shape*8,dtype='uint64')*64
-primary_input_weights[0]=40
+primary_input_weights[0]=32
 copy_and_push(primary_input_weights, primary_input_output.weight, runtime)
 
 
