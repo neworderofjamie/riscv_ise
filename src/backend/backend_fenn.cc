@@ -1961,9 +1961,12 @@ private:
             if (stdp_row_gen){
                 ALLOCATE_SCALAR(weight_counter);
                 ALLOCATE_VECTOR(weight_decay);
+                ALLOCATE_VECTOR(weight_growth);
+                
 
                 // Remember that immediates are imm/(2**num_fractional_bits) e.g., imm/2**6
                 c.vlui(*weight_decay, 1);
+                c.vlui(*weight_growth, 1);
 
                 std::cout << "Casted to STDPDenseRowGenerator" << std::endl;
                 // Loop over each weight
@@ -1973,26 +1976,38 @@ private:
                         auto weightBufferReg = r->loadWeightBuffer(c, weight_counter);
                         // update weights following rules for X
                         ALLOCATE_VECTOR(weight_vector);
+                        ALLOCATE_VECTOR(decayed_weight_vector);
+                        ALLOCATE_VECTOR(grown_weight_vector);
                         ALLOCATE_VECTOR(WTarget1);
                         ALLOCATE_VECTOR(WTarget2);
                         ALLOCATE_VECTOR(WTargetNew);
                         ALLOCATE_SCALAR(STargetBuf);
                         ALLOCATE_SCALAR(compare_vec);
                         ALLOCATE_VECTOR(ones_vec);
+                        ALLOCATE_VECTOR(thresh_vec_less_decay);
+                        ALLOCATE_VECTOR(thresh_vec_plus_growth);
                         ALLOCATE_VECTOR(zeros_vec);
+                        ALLOCATE_VECTOR(intermediate_vec);
+                        ALLOCATE_SCALAR(all_true_scalar)
 
 
 
                         
                         AssemblerUtils::unrollVectorLoopBody(
                             c, scalarRegisterAllocator, (*stdp_row_gen).getProcess()->getNumTargetNeurons(), 4, *weightBufferReg,
-                            [this, weightBufferReg, weight_vector, weight_decay, WTargetNew, compare_vec, ones_vec, zeros_vec]
+                            [this, weightBufferReg, weight_vector, weight_decay, weight_growth, WTargetNew, compare_vec, ones_vec, zeros_vec, thresh_vec_less_decay, thresh_vec_plus_growth, decayed_weight_vector, grown_weight_vector, all_true_scalar, intermediate_vec]
                             (CodeGenerator &c, uint32_t r, bool even, ScalarRegisterAllocator::RegisterPtr maskReg)
                             {
-                                // Load vector of ones
+                                // Load all true scalar
+                                c.li(*all_true_scalar, 64);
+                                // Load vector of ones (remember that 64/2**6=1)
                                 c.vlui(*ones_vec, 64);
                                 // Load vector of zeros
                                 c.vfill(*zeros_vec, Reg::X0);
+                                // Load vector of threshold vals less decay (remember that 32/2**6=1)
+                                c.vlui(*thresh_vec_less_decay, 32-1);
+                                // Load vector of threshold vals plus growth (remember that 32/2**6=1)
+                                c.vlui(*thresh_vec_plus_growth, 32+1);
 
                                 c.li(*compare_vec,0);
                                 // Load vector of weights
@@ -2005,26 +2020,59 @@ private:
                                 // If the number of postsynaptic neurons is not cleanly divisible by number of vector elements 
                                 // we apply a mask for the remainder
                                 if(maskReg) {
+                                    // Subtract decay weight from synaptic weights
                                     c.vsub_s(*WTargetNew, *weight_vector, *weight_decay);
+                                    // If the updated synaptic weights aren't less than threshold - weight_decay, 
+                                    // they were above the threshold prior to subtraction, so undo it
+                                    c.vtlt(*compare_vec, *thresh_vec_less_decay, *WTargetNew);
+                                    c.vsel(*WTargetNew, *compare_vec, *weight_vector);
 
+                                    // Add growth weight from synaptic weights
+                                    c.vadd_s(*intermediate_vec, *WTargetNew, *weight_growth);
+
+                                    // If the updated synaptic weights aren't greater than threshold + weight_decay, 
+                                    // they were below the threshold prior to subtraction, so undo it
+                                    c.vtge(*compare_vec, *thresh_vec_plus_growth, *intermediate_vec);
+                                    c.vsel(*intermediate_vec, *compare_vec, *WTargetNew);
+
+                                    
                                     // if the weight is greater than 1, reset back to 1
-                                    c.vtlt(*compare_vec, *ones_vec, *WTargetNew);
-                                    c.vsel(*WTargetNew, *compare_vec, *ones_vec);
+                                    c.vtlt(*compare_vec, *ones_vec, *intermediate_vec);
+                                    c.vsel(*intermediate_vec, *compare_vec, *ones_vec);
                                     // if the weight is less than 0, reset back to 0
-                                    c.vtge(*compare_vec, *zeros_vec, *WTargetNew);
-                                    c.vsel(*WTargetNew, *compare_vec, *zeros_vec);
+                                    c.vtge(*compare_vec, *zeros_vec, *intermediate_vec);
+                                    c.vsel(*intermediate_vec, *compare_vec, *zeros_vec);
 
                                     // apply mask
-                                    c.vsel(*weight_vector, *maskReg, *WTargetNew);
+                                    c.vsel(*weight_vector, *maskReg, *intermediate_vec);
                                 }
                                 else {
-                                    c.vsub_s(*weight_vector, *weight_vector, *weight_decay);
+                                    // Subtract decay weight from synaptic weights
+                                    c.vsub_s(*WTargetNew, *weight_vector, *weight_decay);
+                                    // If the updated synaptic weights aren't less than threshold - weight_decay, 
+                                    // they were above the threshold prior to subtraction, so undo it
+                                    c.vtlt(*compare_vec, *thresh_vec_less_decay, *WTargetNew);
+                                    c.vsel(*WTargetNew, *compare_vec, *weight_vector);
+
+                                    // Add growth weight from synaptic weights
+                                    c.vadd_s(*intermediate_vec, *WTargetNew, *weight_growth);
+
+                                    // If the updated synaptic weights aren't greater than threshold + weight_decay, 
+                                    // they were below the threshold prior to subtraction, so undo it
+                                    c.vtge(*compare_vec, *thresh_vec_plus_growth, *intermediate_vec);
+                                    c.vsel(*intermediate_vec, *compare_vec, *WTargetNew);
+
+                                    
                                     // if the weight is greater than 1, reset back to 1
-                                    c.vtlt(*compare_vec, *ones_vec, *weight_vector);
-                                    c.vsel(*weight_vector, *compare_vec, *ones_vec);
+                                    c.vtlt(*compare_vec, *ones_vec, *intermediate_vec);
+                                    c.vsel(*intermediate_vec, *compare_vec, *ones_vec);
                                     // if the weight is less than 0, reset back to 0
-                                    c.vtge(*compare_vec, *zeros_vec, *weight_vector);
-                                    c.vsel(*weight_vector, *compare_vec, *zeros_vec);
+                                    c.vtge(*compare_vec, *zeros_vec, *intermediate_vec);
+                                    c.vsel(*intermediate_vec, *compare_vec, *zeros_vec);
+
+                                    // Assign weight_vector the value of intermediate_vec
+                                    c.vsel(*weight_vector, *all_true_scalar, *intermediate_vec);
+
                                 }
                                 // Write back target
                                 c.vstore(*weight_vector, *weightBufferReg, r * 64);
