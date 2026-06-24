@@ -1965,8 +1965,9 @@ private:
             if (stdp_row_gen){
                 ALLOCATE_SCALAR(weight_counter);
                 ALLOCATE_VECTOR(weight_decay);
+
+                // Remember that immediates are imm/(2**num_fractional_bits) e.g., imm/2**6
                 c.vlui(*weight_decay, 1);
-                // todo load lower bits
 
                 std::cout << "Casted to STDPDenseRowGenerator" << std::endl;
                 // Loop over each weight
@@ -1980,14 +1981,20 @@ private:
                         ALLOCATE_VECTOR(WTarget2);
                         ALLOCATE_VECTOR(WTargetNew);
                         ALLOCATE_SCALAR(STargetBuf);
+                        ALLOCATE_SCALAR(compare_to_one);
+                        ALLOCATE_VECTOR(ones_vec);
+
 
 
                         
                         AssemblerUtils::unrollVectorLoopBody(
                             c, scalarRegisterAllocator, (*stdp_row_gen).getProcess()->getNumTargetNeurons(), 4, *weightBufferReg,
-                            [this, weightBufferReg, weight_vector, weight_decay, WTargetNew]
+                            [this, weightBufferReg, weight_vector, weight_decay, WTargetNew, compare_to_one, ones_vec]
                             (CodeGenerator &c, uint32_t r, bool even, ScalarRegisterAllocator::RegisterPtr maskReg)
                             {
+                                // Load vector of ones
+                                c.vlui(*ones_vec, 64);
+                                c.li(*compare_to_one,0);
                                 // Load vector of weights
                                 c.vloadv(*weight_vector, *weightBufferReg, r * 64);
                                 // No-op to avoid stall
@@ -1996,10 +2003,17 @@ private:
                                 // we apply a mask for the remainder
                                 if(maskReg) {
                                     c.vadd_s(*WTargetNew, *weight_decay, *weight_vector);
+                                    // if the weight is greater than 1, reset back to 1
+                                    c.vtlt(*compare_to_one, *ones_vec, *WTargetNew);
+                                    c.vsel(*WTargetNew, *compare_to_one, *ones_vec);
                                     c.vsel(*weight_vector, *maskReg, *WTargetNew);
                                 }
                                 else {
                                     c.vadd_s(*weight_vector, *weight_decay, *weight_vector);
+                                    // if the weight is greater than 1, reset back to 1
+                                    c.vtlt(*compare_to_one, *ones_vec, *weight_vector);
+                                    c.vsel(*weight_vector, *compare_to_one, *ones_vec);
+
                                 }
                                 // Write back target
                                 c.vstore(*weight_vector, *weightBufferReg, r * 64);
