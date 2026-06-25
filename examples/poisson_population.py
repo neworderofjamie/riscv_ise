@@ -46,7 +46,7 @@ output = Linear_LIF_STDP(output_shape, alpha=.01, c_tau=60, j_c=(2**6)/(2**6), v
 
 extra_input_output = Linear(extra_input.out_spikes, output.i, "s9_6_sat_t", name="extra_input_output")
 # Remember both positive and negative synaptic weight should be positive integer arguments
-primary_input_output = LinearWithSTDP(primary_input.out_spikes, output.i, "s9_6_sat_t", syn_thresh=32, syn_inc_without_spike=1,syn_dec_without_spike=1, syn_inc_with_spike=1,syn_dec_with_spike=1, pos_syn_weight=32, neg_syn_weight=32, name="primary_input_output")
+primary_input_output = LinearWithSTDP(primary_input.out_spikes, output.i, "s9_6_sat_t", syn_thresh=32, syn_inc_without_spike=1,syn_dec_without_spike=1, syn_inc_with_spike=1,syn_dec_with_spike=1, pos_syn_weight=4, neg_syn_weight=4, name="primary_input_output")
 
 # Note that memset will clear the variable at the end of the trial!!
 # v_zero = Memset(output.v)
@@ -91,13 +91,13 @@ runtime.allocate()
 # 64 is 1, 128 is 2.
 extra_input_weights = np.zeros(extra_input_shape*8,dtype='uint64')*64
 for idx in range(0,80,8):
-    extra_input_weights[idx]=4 # usually 2**1
+    extra_input_weights[idx]=0 # usually 2**1
 copy_and_push(extra_input_weights, extra_input_output.weight, runtime)
 # I could instead do 
 # copy_and_push(np.ones(extra_input_shape*64,dtype='uint8'), extra_input_output.weight, runtime)
 
 primary_input_weights = np.zeros(primary_input_shape*8,dtype='uint64')*64
-primary_input_weights[0]=31
+primary_input_weights[0]=33
 copy_and_push(primary_input_weights, primary_input_output.weight, runtime)
 
 
