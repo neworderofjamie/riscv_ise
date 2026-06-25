@@ -38,6 +38,7 @@ class LinearWithSTDP:
     def __init__(self, source_events: EventContainer, target_var: Variable,
                  weight_dtype: str, syn_thresh: int, syn_inc_without_spike: int, 
                  syn_dec_without_spike: int,syn_inc_with_spike: int, syn_dec_with_spike: int, 
+                 pos_syn_weight: int, neg_syn_weight: int,
                  max_row_length: Optional[int] = None, 
                  num_sparse_connectivity_bits: int = 0, 
                  num_delay_bits: int = 0, name: str = ""):
@@ -54,12 +55,18 @@ class LinearWithSTDP:
         self.syn_dec_without_spike = syn_dec_without_spike
         self.syn_inc_with_spike = syn_inc_with_spike
         self.syn_dec_with_spike = syn_dec_with_spike
+
+        self.pos_syn_weight = pos_syn_weight
+        self.neg_syn_weight = neg_syn_weight
+
         self.process = STDPEventPropagationProcess(source_events, self.weight,
                                                target_var, self.syn_thresh,
                                                self.syn_inc_without_spike,
                                                self.syn_dec_without_spike,
                                                self.syn_inc_with_spike,
                                                self.syn_dec_with_spike,
+                                               self.pos_syn_weight,
+                                               self.neg_syn_weight,
                                                num_sparse_connectivity_bits,
                                                num_delay_bits, name)
         

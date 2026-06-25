@@ -159,6 +159,7 @@ public:
                             VariablePtr weight, VariablePtr target, int64_t synThresh, 
                              int64_t synIncWithoutSpike, int64_t synDecWithoutSpike, 
                              int64_t synIncWithSpike, int64_t synDecWithSpike, 
+                             int64_t posSynWeight, int64_t negSynWeight, 
                             size_t numSparseConnectivityBits, size_t numDelayBits,
                             const std::string &name);
 
@@ -173,6 +174,9 @@ public:
     int64_t getSynIncWithSpike() const {return m_Syn_Inc_With_Spike;}
     int64_t getSynDecWithSpike() const {return m_Syn_Dec_With_Spike;}
 
+    int64_t getPosSynWeight() const {return m_Pos_Syn_Weight;}
+    int64_t getNegSynWeight() const {return m_Neg_Syn_Weight;}
+
 
     size_t getNumTargetNeurons() const{ return m_NumTargetNeurons; }
     size_t getMaxRowLength() const{ return m_MaxRowLength; }
@@ -185,12 +189,13 @@ public:
     static std::shared_ptr<STDPEventPropagationProcess> create(std::shared_ptr<const EventContainer> inputEvents, 
                                                            VariablePtr weight, VariablePtr target, int64_t synThresh, int64_t synIncWithoutSpike, 
                                                            int64_t synDecWithoutSpike, int64_t synIncWithSpike, int64_t synDecWithSpike, 
+                                                           int64_t posSynWeight, int64_t negSynWeight, 
                                                            size_t numSparseConnectivityBits = 0,
                                                            size_t numDelayBits = 0,
                                                            const std::string &name = "")
     {
         return std::make_shared<STDPEventPropagationProcess>(Private(), inputEvents, weight, target, synThresh, synIncWithoutSpike, synDecWithoutSpike,
-                                                         synIncWithSpike, synDecWithSpike, numSparseConnectivityBits, numDelayBits, name);
+                                                         synIncWithSpike, synDecWithSpike, posSynWeight, negSynWeight, numSparseConnectivityBits, numDelayBits, name);
     }
 
 private:
@@ -205,6 +210,10 @@ private:
     int64_t m_Syn_Dec_Without_Spike;
     int64_t m_Syn_Inc_With_Spike;
     int64_t m_Syn_Dec_With_Spike;
+
+    int64_t m_Pos_Syn_Weight;
+    int64_t m_Neg_Syn_Weight;
+
 
     size_t m_NumTargetNeurons;
     size_t m_MaxRowLength;
