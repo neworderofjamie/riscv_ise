@@ -1193,19 +1193,21 @@ private:
                 {
                     // Load vector of synaptic weights (i.e., synaptic variable X)
                     c.vloadv(*VWeight, *weightBufferReg, r * 64);
-                    // Initialize synapse as the negative synaptic weight (i.e., J- in the Fusi et al paper)
+                    // Initialize synapse as 0
                     c.vfill(*synaptic_weight, Reg::X0);
-                    // c.vlui(*neg_synaptic_weight, getProcess()->getNegSynWeight());
-                    // c.vsub(*synaptic_weight,*synaptic_weight,*neg_synaptic_weight);
-                    // Load the synaptic threshold that determines if synapse is positive (J+) or negative (J-)
+                    // Load the threshold: if the weight is below threshold, 
+                    // synapse is negative, but if it's above threshold, synapse is positive
                     c.vlui(*thresh_vec, getProcess()->getSynThresh());
                     // Determine which weights are greater than the threshold
                     c.vtlt(*compare_scalar, *thresh_vec, *VWeight);
-                    // Load the positive synaptic weight
+                    // Load the negative and positive synaptic weight
+                    c.vlui(*neg_synaptic_weight, (uint16_t)getProcess()->getNegSynWeight());
                     c.vlui(*pos_synaptic_weight, getProcess()->getPosSynWeight());
                     // For the weights that are above the threshold, change the synapse to be the positive weight
                     c.vsel(*synaptic_weight, *compare_scalar, *pos_synaptic_weight);
-
+                    // For the weights that are below or equal to threshold, change the synapse to be the negative weight
+                    c.vtge(*compare_scalar, *thresh_vec, *VWeight);
+                    c.vsel(*synaptic_weight, *compare_scalar, *neg_synaptic_weight);
 
 
                     // Load NEXT vector of target to avoid stall
