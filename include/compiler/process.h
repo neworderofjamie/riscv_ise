@@ -156,7 +156,9 @@ class COMPILER_EXPORT STDPEventPropagationProcess : public AcceptableModelCompon
 {
 public:
     STDPEventPropagationProcess(Private, std::shared_ptr<const EventContainer> inputEvents, 
-                            VariablePtr weight, VariablePtr target,
+                            VariablePtr weight, VariablePtr target, int64_t synThresh, 
+                             int64_t synIncWithoutSpike, int64_t synDecWithoutSpike, 
+                             int64_t synIncWithSpike, int64_t synDecWithSpike, 
                             size_t numSparseConnectivityBits, size_t numDelayBits,
                             const std::string &name);
 
@@ -165,6 +167,12 @@ public:
     //------------------------------------------------------------------------
     const auto getWeight() const { return m_Weight; }
     const auto getTarget() const { return m_Target; }
+    int64_t getSynThresh() const {return m_Syn_Thresh;}
+    int64_t getSynIncWithoutSpike() const {return m_Syn_Inc_Without_Spike;}
+    int64_t getSynDecWithoutSpike() const {return m_Syn_Dec_Without_Spike;}
+    int64_t getSynIncWithSpike() const {return m_Syn_Inc_With_Spike;}
+    int64_t getSynDecWithSpike() const {return m_Syn_Dec_With_Spike;}
+
 
     size_t getNumTargetNeurons() const{ return m_NumTargetNeurons; }
     size_t getMaxRowLength() const{ return m_MaxRowLength; }
@@ -175,13 +183,14 @@ public:
     // Static API
     //------------------------------------------------------------------------
     static std::shared_ptr<STDPEventPropagationProcess> create(std::shared_ptr<const EventContainer> inputEvents, 
-                                                           VariablePtr weight, VariablePtr target, 
+                                                           VariablePtr weight, VariablePtr target, int64_t synThresh, int64_t synIncWithoutSpike, 
+                                                           int64_t synDecWithoutSpike, int64_t synIncWithSpike, int64_t synDecWithSpike, 
                                                            size_t numSparseConnectivityBits = 0,
                                                            size_t numDelayBits = 0,
                                                            const std::string &name = "")
     {
-        return std::make_shared<STDPEventPropagationProcess>(Private(), inputEvents, weight, target, 
-                                                         numSparseConnectivityBits, numDelayBits, name);
+        return std::make_shared<STDPEventPropagationProcess>(Private(), inputEvents, weight, target, synThresh, synIncWithoutSpike, synDecWithoutSpike,
+                                                         synIncWithSpike, synDecWithSpike, numSparseConnectivityBits, numDelayBits, name);
     }
 
 private:
@@ -190,7 +199,13 @@ private:
     //------------------------------------------------------------------------
     VariablePtr m_Weight;
     VariablePtr m_Target;
-    
+
+    int64_t m_Syn_Thresh;
+    int64_t m_Syn_Inc_Without_Spike;
+    int64_t m_Syn_Dec_Without_Spike;
+    int64_t m_Syn_Inc_With_Spike;
+    int64_t m_Syn_Dec_With_Spike;
+
     size_t m_NumTargetNeurons;
     size_t m_MaxRowLength;
 

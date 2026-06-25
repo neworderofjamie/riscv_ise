@@ -1964,13 +1964,13 @@ private:
             auto  stdp_row_gen = dynamic_cast<STDPDenseRowGenerator*>(r.get());
             if (stdp_row_gen){
                 ALLOCATE_SCALAR(weight_counter);
-                ALLOCATE_VECTOR(weight_decay);
-                ALLOCATE_VECTOR(weight_growth);
+                ALLOCATE_VECTOR(weight_decrease);
+                ALLOCATE_VECTOR(weight_increase);
                 
 
                 // Remember that immediates are imm/(2**num_fractional_bits) e.g., imm/2**6
-                c.vlui(*weight_decay, 1);
-                c.vlui(*weight_growth, 1);
+                c.vlui(*weight_decrease, (*stdp_row_gen).getProcess()->getSynDecWithoutSpike());
+                c.vlui(*weight_increase, (*stdp_row_gen).getProcess()->getSynIncWithoutSpike());
 
                 std::cout << "Casted to STDPDenseRowGenerator" << std::endl;
                 // Loop over each weight
@@ -1981,7 +1981,6 @@ private:
                         // update weights following rules for X
                         ALLOCATE_VECTOR(weight_vector);
                         ALLOCATE_VECTOR(weight_after_decrease);
-                        // ALLOCATE_SCALAR(STargetBuf);
                         ALLOCATE_SCALAR(compare_vec);
                         ALLOCATE_VECTOR(ones_vec);
                         ALLOCATE_VECTOR(thresh_vec_after_decrease);
@@ -1995,7 +1994,7 @@ private:
                         
                         AssemblerUtils::unrollVectorLoopBody(
                             c, scalarRegisterAllocator, (*stdp_row_gen).getProcess()->getNumTargetNeurons(), 4, *weightBufferReg,
-                            [this, weightBufferReg, weight_vector, weight_decay, weight_growth, weight_after_decrease, compare_vec, ones_vec, zeros_vec, thresh_vec_after_decrease, thresh_vec_after_increase, all_true_scalar, weight_after_increase]
+                            [this, weightBufferReg, weight_vector, weight_decrease, weight_increase, weight_after_decrease, compare_vec, ones_vec, zeros_vec, thresh_vec_after_decrease, thresh_vec_after_increase, all_true_scalar, weight_after_increase, stdp_row_gen]
                             (CodeGenerator &c, uint32_t r, bool even, ScalarRegisterAllocator::RegisterPtr maskReg)
                             {
                                 // Load all true scalar
@@ -2005,9 +2004,9 @@ private:
                                 // Load vector of zeros
                                 c.vfill(*zeros_vec, Reg::X0);
                                 // Load vector of threshold vals less decay (remember that 32/2**6=1)
-                                c.vlui(*thresh_vec_after_decrease, 32-1);
+                                c.vlui(*thresh_vec_after_decrease, (*stdp_row_gen).getProcess()->getSynThresh()-1);
                                 // Load vector of threshold vals plus growth (remember that 32/2**6=1)
-                                c.vlui(*thresh_vec_after_increase, 32+1);
+                                c.vlui(*thresh_vec_after_increase, (*stdp_row_gen).getProcess()->getSynThresh()+1);
                                 // Initialize vector used for boolean logic
                                 c.li(*compare_vec,0);
                                 // Load vector of weights
@@ -2019,16 +2018,16 @@ private:
                                 // we apply a mask for the remainder
                                 if(maskReg) {
                                     // Subtract decay weight from synaptic weights
-                                    c.vsub_s(*weight_after_decrease, *weight_vector, *weight_decay);
-                                    // If the updated synaptic weights aren't less than threshold - weight_decay, 
+                                    c.vsub_s(*weight_after_decrease, *weight_vector, *weight_decrease);
+                                    // If the updated synaptic weights aren't less than threshold - weight_decrease, 
                                     // they were above the threshold prior to subtraction, so undo it
                                     c.vtlt(*compare_vec, *thresh_vec_after_decrease, *weight_after_decrease);
                                     c.vsel(*weight_after_decrease, *compare_vec, *weight_vector);
 
                                     // Add growth weight from synaptic weights
-                                    c.vadd_s(*weight_after_increase, *weight_after_decrease, *weight_growth);
+                                    c.vadd_s(*weight_after_increase, *weight_after_decrease, *weight_increase);
 
-                                    // If the updated synaptic weights aren't greater than threshold + weight_decay, 
+                                    // If the updated synaptic weights aren't greater than threshold + weight_decrease, 
                                     // they were below the threshold prior to subtraction, so undo it
                                     c.vtge(*compare_vec, *thresh_vec_after_increase, *weight_after_increase);
                                     c.vsel(*weight_after_increase, *compare_vec, *weight_after_decrease);
@@ -2046,16 +2045,16 @@ private:
                                 }
                                 else {
                                     // Subtract decay weight from synaptic weights
-                                    c.vsub_s(*weight_after_decrease, *weight_vector, *weight_decay);
-                                    // If the updated synaptic weights aren't less than threshold - weight_decay, 
+                                    c.vsub_s(*weight_after_decrease, *weight_vector, *weight_decrease);
+                                    // If the updated synaptic weights aren't less than threshold - weight_decrease, 
                                     // they were above the threshold prior to subtraction, so undo it
                                     c.vtlt(*compare_vec, *thresh_vec_after_decrease, *weight_after_decrease);
                                     c.vsel(*weight_after_decrease, *compare_vec, *weight_vector);
 
                                     // Add growth weight from synaptic weights
-                                    c.vadd_s(*weight_after_increase, *weight_after_decrease, *weight_growth);
+                                    c.vadd_s(*weight_after_increase, *weight_after_decrease, *weight_increase);
 
-                                    // If the updated synaptic weights aren't greater than threshold + weight_decay, 
+                                    // If the updated synaptic weights aren't greater than threshold + weight_decrease, 
                                     // they were below the threshold prior to subtraction, so undo it
                                     c.vtge(*compare_vec, *thresh_vec_after_increase, *weight_after_increase);
                                     c.vsel(*weight_after_increase, *compare_vec, *weight_after_decrease);

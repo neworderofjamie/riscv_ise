@@ -45,7 +45,7 @@ extra_input = Bernoulli(Shape(extra_input_shape),prob_spike=(2**4)/(2**6),record
 output = Linear_LIF_STDP(output_shape, alpha=.01, c_tau=60, j_c=(2**6)/(2**6), v_thresh=v_threshold, v_reset=0, record_timesteps=1, fixed_point=num_fixed_point_bits, dt=1, name="output")
 
 extra_input_output = Linear(extra_input.out_spikes, output.i, "s9_6_sat_t", name="extra_input_output")
-primary_input_output = LinearWithSTDP(primary_input.out_spikes, output.i, "s9_6_sat_t", name="primary_input_output")
+primary_input_output = LinearWithSTDP(primary_input.out_spikes, output.i, "s9_6_sat_t", syn_thresh=32, syn_inc_without_spike=1,syn_dec_without_spike=1, syn_inc_with_spike=1,syn_dec_with_spike=1, name="primary_input_output")
 
 # Note that memset will clear the variable at the end of the trial!!
 # v_zero = Memset(output.v)

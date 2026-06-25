@@ -259,7 +259,10 @@ PYBIND11_MODULE(_fenn, m)
     pybind11::class_<STDPEventPropagationProcess, Process, std::shared_ptr<STDPEventPropagationProcess>>(m, "STDPEventPropagationProcess")
         .def(pybind11::init(&STDPEventPropagationProcess::create),
              pybind11::arg("input_events"), pybind11::arg("weight"),
-             pybind11::arg("target"), pybind11::arg("num_sparse_connectivity_bits") = 0,
+             pybind11::arg("target"), pybind11::arg("syn_thresh"), 
+             pybind11::arg("syn_inc_without_spike"), pybind11::arg("syn_dec_without_spike"), 
+             pybind11::arg("syn_inc_with_spike"), pybind11::arg("syn_dec_with_spike"), 
+             pybind11::arg("num_sparse_connectivity_bits") = 0,
              pybind11::arg("num_delay_bits") = 0, pybind11::arg("name") = "")
 
         .def_property_readonly("input_events", &STDPEventPropagationProcess::getInputEvents)
