@@ -587,11 +587,15 @@ static const char *__doc_STDPEventPropagationProcess_create = R"doc()doc";
 
 static const char *__doc_STDPEventPropagationProcess_getMaxRowLength = R"doc()doc";
 
+static const char *__doc_STDPEventPropagationProcess_getNegSynWeight = R"doc()doc";
+
 static const char *__doc_STDPEventPropagationProcess_getNumDelayBits = R"doc()doc";
 
 static const char *__doc_STDPEventPropagationProcess_getNumSparseConnectivityBits = R"doc()doc";
 
 static const char *__doc_STDPEventPropagationProcess_getNumTargetNeurons = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_getPosSynWeight = R"doc()doc";
 
 static const char *__doc_STDPEventPropagationProcess_getSynDecWithSpike = R"doc()doc";
 
@@ -609,11 +613,15 @@ static const char *__doc_STDPEventPropagationProcess_getWeight = R"doc()doc";
 
 static const char *__doc_STDPEventPropagationProcess_m_MaxRowLength = R"doc()doc";
 
+static const char *__doc_STDPEventPropagationProcess_m_Neg_Syn_Weight = R"doc()doc";
+
 static const char *__doc_STDPEventPropagationProcess_m_NumDelayBits = R"doc()doc";
 
 static const char *__doc_STDPEventPropagationProcess_m_NumSparseConnectivityBits = R"doc()doc";
 
 static const char *__doc_STDPEventPropagationProcess_m_NumTargetNeurons = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_m_Pos_Syn_Weight = R"doc()doc";
 
 static const char *__doc_STDPEventPropagationProcess_m_Syn_Dec_With_Spike = R"doc()doc";
 

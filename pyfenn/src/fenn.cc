@@ -262,6 +262,7 @@ PYBIND11_MODULE(_fenn, m)
              pybind11::arg("target"), pybind11::arg("syn_thresh"), 
              pybind11::arg("syn_inc_without_spike"), pybind11::arg("syn_dec_without_spike"), 
              pybind11::arg("syn_inc_with_spike"), pybind11::arg("syn_dec_with_spike"), 
+             pybind11::arg("pos_syn_weight"), pybind11::arg("neg_syn_weight"), 
              pybind11::arg("num_sparse_connectivity_bits") = 0,
              pybind11::arg("num_delay_bits") = 0, pybind11::arg("name") = "")
 
