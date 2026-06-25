@@ -1191,12 +1191,10 @@ private:
                 {
                     // Load vector of synaptic weights (i.e., synaptic variable X)
                     c.vloadv(*VWeight, *weightBufferReg, r * 64);
-                    std::cout << getProcess()->getNegSynWeight() <<std::endl;
-                    std::cout << (*this).getProcess()->getNegSynWeight() <<std::endl;
                     // Initialize synapse as the negative synaptic weight (i.e., J- in the Fusi et al paper)
                     c.vfill(*synaptic_weight, Reg::X0);
-                    c.vlui(*neg_synaptic_weight, getProcess()->getNegSynWeight());
-                    c.vsub(*synaptic_weight,*synaptic_weight,*neg_synaptic_weight);
+                    // c.vlui(*neg_synaptic_weight, getProcess()->getNegSynWeight());
+                    // c.vsub(*synaptic_weight,*synaptic_weight,*neg_synaptic_weight);
                     // Load the synaptic threshold that determines if synapse is positive (J+) or negative (J-)
                     c.vlui(*thresh_vec, getProcess()->getSynThresh());
                     // Determine which weights are greater than the threshold
@@ -1225,8 +1223,7 @@ private:
                     }
 
                     // Write back target
-                    // UNDO THIS!!!!!!!!!!
-                    // c.vstore(*VTarget, *STargetBuf, r * 64);
+                    c.vstore(*VTarget, *STargetBuf, r * 64);
                 },
                 [this, weightBufferReg, STargetBuf](CodeGenerator &c, uint32_t numUnrolls)
                 {
@@ -2089,10 +2086,10 @@ private:
 
                             }
                             // Write back target
-                            // UNDO THIS!!!!!!!!!!
-                            c.vstore(*zeros_vec, *weightBufferReg, r * 64);
+                            // For testing, write all zeros to weightBufferReg
+                            // c.vstore(*zeros_vec, *weightBufferReg, r * 64);
 
-                            // c.vstore(*weight_vector, *weightBufferReg, r * 64);
+                            c.vstore(*weight_vector, *weightBufferReg, r * 64);
                         },
                         [this, weightBufferReg](CodeGenerator &c, uint32_t numUnrolls)
                         {
