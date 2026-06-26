@@ -1196,12 +1196,11 @@ private:
                     // Load the threshold: if the weight is below threshold, 
                     // synapse is negative, but if it's above threshold, synapse is positive
                     c.vlui(*thresh_vec, getProcess()->getSynThresh());
-                    // Determine which weights are greater than the threshold
-                    c.vtlt(*compare_scalar, *thresh_vec, *VWeight);
                     // Load the negative and positive synaptic weight
                     c.vlui(*neg_synaptic_weight, (uint16_t)getProcess()->getNegSynWeight());
                     c.vlui(*pos_synaptic_weight, getProcess()->getPosSynWeight());
                     // For the weights that are above the threshold, change the synapse to be the positive weight
+                    c.vtlt(*compare_scalar, *thresh_vec, *VWeight);
                     c.vsel(*synaptic_weight, *compare_scalar, *pos_synaptic_weight);
                     // For the weights that are below or equal to threshold, change the synapse to be the negative weight
                     c.vtge(*compare_scalar, *thresh_vec, *VWeight);
