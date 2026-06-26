@@ -75,16 +75,15 @@ class ALIF:
 
 class Linear_LIF_STDP:
     def __init__(self, shape, alpha: float, c_tau:float, j_c:float,
-                 v_thresh: float, v_reset: float,
-                 record_timesteps: int = 1, fixed_point: int = 9,
+                 v_thresh: float, v_reset: float, fixed_point: int,
+                 record_timesteps: int = 1,
                  dt: float = 1.0, name: str = ""):
         self.shape = shape
         dtype = f"s{15 - fixed_point}_{fixed_point}_sat_t"
-        decay_dtype = "s0_15_sat_t"
+        # decay_dtype = "s0_15_sat_t"
         self.v = Variable(self.shape, dtype, name=f"{name}_v")
         self.i = Variable(self.shape, dtype, name=f"{name}_i")
         self.c = Variable(self.shape, dtype, name=f"{name}_c")
-        self.decay_product = Variable(self.shape, decay_dtype, name=f"{name}_time_since_spike")
         self.out_spikes = EventContainer(self.shape, record_timesteps)
         self.process = NeuronUpdateProcess(
             f"""
@@ -105,9 +104,9 @@ class Linear_LIF_STDP:
             {"Alpha": Parameter(alpha, dtype),
              "VThresh": Parameter(v_thresh, dtype),
              "VReset": Parameter(v_reset,dtype),
-             "CTau": Parameter(np.exp(-1/c_tau),decay_dtype),
+             "CTau": Parameter(c_tau, dtype),
              "Jc": Parameter(j_c,dtype)},
-            {"V": self.v, "I": self.i, "C":self.c, "DecayProd":self.decay_product},
+            {"V": self.v, "I": self.i, "C":self.c},
             {"Spike": self.out_spikes},
             name)   
 
@@ -138,12 +137,12 @@ class LI:
         
 class Bernoulli:
     def __init__(self, shape, prob_spike: float,
-                 record_timesteps: int = 1, fixed_point: int = 5, name: str = ""):
+                 record_timesteps: int = 1, name: str = ""):
         self.shape = shape
-        dtype = f"s{15 - fixed_point}_{fixed_point}_sat_t"
         rand_dtype = "s0_15_sat_t"
+        spike_type = "int16_t"
         self.out_spikes = EventContainer(self.shape, record_timesteps)
-        self.num_spikes = Variable(self.shape, dtype, name=f"{name}_num_spikes")
+        self.num_spikes = Variable(self.shape, spike_type, name=f"{name}_num_spikes")
         self.process = NeuronUpdateProcess(
             f"""
             if(ProbSpike >= fennrand()) {{
