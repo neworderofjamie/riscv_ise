@@ -34,19 +34,28 @@ args = parser.parse_args()
 
 init_logging()
 
-num_fixed_point_bits=6
+num_fixed_point_bits=7
 # Model
 v_threshold = 1
 postsyn_v_thresh_LTP = v_threshold*.8
 
 # weird things happen when prob_spike can't be expressed as a fraction with denom=64
-primary_input = Bernoulli(Shape(primary_input_shape),prob_spike=(2**3)/(2**6),record_timesteps=1,fixed_point=num_fixed_point_bits,name="primary_input")
-extra_input = Bernoulli(Shape(extra_input_shape),prob_spike=(2**4)/(2**6),record_timesteps=1,fixed_point=num_fixed_point_bits,name="extra_input")
-output = Linear_LIF_STDP(output_shape, alpha=.01, c_tau=60, j_c=(2**6)/(2**6), v_thresh=v_threshold, v_reset=0, record_timesteps=1, fixed_point=num_fixed_point_bits, dt=1, name="output")
+primary_input = Bernoulli(Shape(primary_input_shape),prob_spike=(2**3)/(2**6),
+                        record_timesteps=1,fixed_point=num_fixed_point_bits,name="primary_input")
+extra_input = Bernoulli(Shape(extra_input_shape),prob_spike=(2**4)/(2**6),
+                        record_timesteps=1,fixed_point=num_fixed_point_bits,name="extra_input")
+
+
+output = Linear_LIF_STDP(output_shape, alpha=.01, c_tau=60, j_c=(2**6)/(2**6), 
+                        v_thresh=v_threshold, v_reset=0, record_timesteps=1, 
+                        fixed_point=num_fixed_point_bits, dt=1, name="output")
 
 extra_input_output = Linear(extra_input.out_spikes, output.i, "s9_6_sat_t", name="extra_input_output")
 
-primary_input_output = LinearWithSTDP(primary_input.out_spikes, output.i, "s9_6_sat_t", syn_thresh=32, syn_inc_without_spike=1,syn_dec_without_spike=1, syn_inc_with_spike=1,syn_dec_with_spike=1, pos_syn_weight=8, neg_syn_weight=-8, name="primary_input_output")
+primary_input_output = LinearWithSTDP(primary_input.out_spikes, output.i, "s9_6_sat_t", 
+                                      syn_thresh=32, syn_inc_without_spike=1,syn_dec_without_spike=1,
+                                      syn_inc_with_spike=1,syn_dec_with_spike=1, pos_syn_weight=0, 
+                                      neg_syn_weight=0, name="primary_input_output")
 
 # Note that memset will clear the variable at the end of the trial!!
 # v_zero = Memset(output.v)
@@ -96,8 +105,9 @@ copy_and_push(extra_input_weights, extra_input_output.weight, runtime)
 # I could instead do 
 # copy_and_push(np.ones(extra_input_shape*64,dtype='uint8'), extra_input_output.weight, runtime)
 
+# Here we set the synaptic variable X in the Fusi paper
 primary_input_weights = np.zeros(primary_input_shape*8,dtype='uint64')*64
-primary_input_weights[0]=29
+primary_input_weights[0]=0
 copy_and_push(primary_input_weights, primary_input_output.weight, runtime)
 
 
@@ -180,7 +190,7 @@ for i in [.5, 1]:
 # plot postsyn V
 axes[2].title.set_text('Postsynaptic voltage V(t) (Spike rate: ' + str(postsyn_spike_rate) + " Hz)")
 axes[2].plot(postsyn_voltages)
-axes[2].set_ylim((0,v_threshold*1.5))
+# axes[2].set_ylim((0,v_threshold*1.5))
 axes[2].axhline(v_threshold, linestyle="--", color="black", linewidth=0.5)
 axes[2].axhline(postsyn_v_thresh_LTP, linestyle="--", color="black", linewidth=0.5)
 postsyn_spike_times = np.where(np.array(postsyn_spikes) == 1)[0]
