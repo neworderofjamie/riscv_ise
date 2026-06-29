@@ -156,8 +156,8 @@ class COMPILER_EXPORT STDPEventPropagationProcess : public AcceptableModelCompon
 {
 public:
     STDPEventPropagationProcess(Private, std::shared_ptr<const EventContainer> inputEvents, 
-                            VariablePtr weight, VariablePtr target, int64_t synThresh, 
-                             int64_t synIncWithoutSpike, int64_t synDecWithoutSpike, 
+                            VariablePtr weight, VariablePtr target, VariablePtr postSynVoltage, VariablePtr postSynCalcium,
+                            int64_t synThresh, int64_t synIncWithoutSpike, int64_t synDecWithoutSpike, 
                              int64_t synIncWithSpike, int64_t synDecWithSpike, 
                              int64_t posSynWeight, int64_t negSynWeight, 
                             size_t numSparseConnectivityBits, size_t numDelayBits,
@@ -168,6 +168,11 @@ public:
     //------------------------------------------------------------------------
     const auto getWeight() const { return m_Weight; }
     const auto getTarget() const { return m_Target; }
+
+    const auto getPostSynVoltage() const { return m_PostSynVoltage; }
+    const auto getPostSynCalcium() const { return m_PostSynCalcium; }
+
+
     int64_t getSynThresh() const {return m_Syn_Thresh;}
     int64_t getSynIncWithoutSpike() const {return m_Syn_Inc_Without_Spike;}
     int64_t getSynDecWithoutSpike() const {return m_Syn_Dec_Without_Spike;}
@@ -187,14 +192,15 @@ public:
     // Static API
     //------------------------------------------------------------------------
     static std::shared_ptr<STDPEventPropagationProcess> create(std::shared_ptr<const EventContainer> inputEvents, 
-                                                           VariablePtr weight, VariablePtr target, int64_t synThresh, int64_t synIncWithoutSpike, 
+                                                           VariablePtr weight, VariablePtr target, VariablePtr postSynVoltage, VariablePtr postSynCalcium,
+                                                           int64_t synThresh, int64_t synIncWithoutSpike, 
                                                            int64_t synDecWithoutSpike, int64_t synIncWithSpike, int64_t synDecWithSpike, 
                                                            int64_t posSynWeight, int64_t negSynWeight, 
                                                            size_t numSparseConnectivityBits = 0,
                                                            size_t numDelayBits = 0,
                                                            const std::string &name = "")
     {
-        return std::make_shared<STDPEventPropagationProcess>(Private(), inputEvents, weight, target, synThresh, synIncWithoutSpike, synDecWithoutSpike,
+        return std::make_shared<STDPEventPropagationProcess>(Private(), inputEvents, weight, target, postSynVoltage, postSynCalcium, synThresh, synIncWithoutSpike, synDecWithoutSpike,
                                                          synIncWithSpike, synDecWithSpike, posSynWeight, negSynWeight, numSparseConnectivityBits, numDelayBits, name);
     }
 
@@ -204,6 +210,9 @@ private:
     //------------------------------------------------------------------------
     VariablePtr m_Weight;
     VariablePtr m_Target;
+
+    VariablePtr m_PostSynVoltage;
+    VariablePtr m_PostSynCalcium;
 
     int64_t m_Syn_Thresh;
     int64_t m_Syn_Inc_Without_Spike;

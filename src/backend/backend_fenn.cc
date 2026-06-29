@@ -1177,20 +1177,35 @@ private:
             ALLOCATE_VECTOR(pos_synaptic_weight);
             ALLOCATE_VECTOR(neg_synaptic_weight);
 
+            ALLOCATE_SCALAR(STargetVoltage);
+            ALLOCATE_SCALAR(STargetCalcium);
+            ALLOCATE_VECTOR(TARGET_VOLTAGE);
+            ALLOCATE_VECTOR(TARGET_CALCIUM);
+
             // Load target register from state fields
             // **NOTE** no point in caching this as it needs resetting every row
             c.lw(*STargetBuf, Reg::X0, getStateFields().at(getProcess()->getTarget()));
 
+            // Load postsynaptic voltage and calcium needed for STDP
+            c.lw(*STargetVoltage, Reg::X0, getStateFields().at(getProcess()->getPostSynVoltage()));
+            c.lw(*STargetCalcium, Reg::X0, getStateFields().at(getProcess()->getPostSynCalcium()));
+
+            
             // Preload first ISyn to avoid stall
             c.vloadv(*VTarget1, *STargetBuf, 0);
 
             AssemblerUtils::unrollVectorLoopBody(
                 c, scalarRegisterAllocator, getProcess()->getNumTargetNeurons(), 4, *STargetBuf,
-                [this, weightBufferReg, STargetBuf, VWeight, VTarget1, VTarget2, VTargetNew, compare_scalar, synaptic_weight, thresh_vec, pos_synaptic_weight, neg_synaptic_weight]
+                [this, weightBufferReg, STargetBuf, VWeight, VTarget1, VTarget2, VTargetNew, compare_scalar, synaptic_weight, thresh_vec, pos_synaptic_weight, neg_synaptic_weight, STargetVoltage, STargetCalcium, TARGET_VOLTAGE, TARGET_CALCIUM]
                 (CodeGenerator &c, uint32_t r, bool even, ScalarRegisterAllocator::RegisterPtr maskReg)
                 {
                     // Load vector of synaptic weights (i.e., synaptic variable X)
                     c.vloadv(*VWeight, *weightBufferReg, r * 64);
+                    // TODO: undo the effect of increasing/decreasing the synaptic variable in generateURAMWordLoop, 
+                    // as this is done for EVERY weight, instead of just weights for presynaptic neurons which did 
+                    // NOT FIRE. Thus, for neurons which did fire, we undo the effect:
+
+
                     // Initialize synapse as 0
                     c.vfill(*synaptic_weight, Reg::X0);
                     // Load the threshold: if the weight is below threshold, 
@@ -1225,6 +1240,16 @@ private:
 
                     // Write back target
                     c.vstore(*VTarget, *STargetBuf, r * 64);
+
+                    // Modify synaptic variable following a spike
+                    // Load voltage
+                    c.vloadv(*TARGET_VOLTAGE, *STargetVoltage, 0);
+                    // Load calcium variable
+                    c.vloadv(*TARGET_CALCIUM, *STargetCalcium, 0);
+                    // TODO: Implement logic modifying synaptic variable based on postsynaptic voltage and calcium
+                    
+                    // Write back synaptic variable
+                    // c.vstore(*VWeight, *weightBufferReg, r * 64);
                 },
                 [this, weightBufferReg, STargetBuf](CodeGenerator &c, uint32_t numUnrolls)
                 {
@@ -2012,12 +2037,18 @@ private:
                         [this, weightBufferReg, weight_vector, weight_decrease, weight_increase, weight_after_decrease, compare_scalar, ones_vec, zeros_vec, thresh_vec_after_decrease, thresh_vec_after_increase, all_true_scalar, weight_after_increase, stdp_row_gen]
                         (CodeGenerator &c, uint32_t r, bool even, ScalarRegisterAllocator::RegisterPtr maskReg)
                         {
-                            // Load all true scalar
-                            c.li(*all_true_scalar, 64);
-                            // Load vector of ones (remember that 64/2**6=1)
-                            c.vlui(*ones_vec, 64);
                             // Load vector of zeros
                             c.vfill(*zeros_vec, Reg::X0);
+                            // Make scalar filled with ones
+                            // Why doesn't the commented code work?
+                            // c.vteq(*all_true_scalar, *zeros_vec, *zeros_vec);
+                            // c.vfill(*ones_vec, *all_true_scalar);
+
+                            // Load all true scalar
+                            c.li(*all_true_scalar, 64);
+                            // Load vector of ones
+                            c.vlui(*ones_vec, 64);
+
                             // Load vector of threshold vals less decay (remember that 32/2**6=1)
                             c.vlui(*thresh_vec_after_decrease, (*stdp_row_gen).getProcess()->getSynThresh()-(*stdp_row_gen).getProcess()->getSynDecWithoutSpike());
                             // Load vector of threshold vals plus growth (remember that 32/2**6=1)

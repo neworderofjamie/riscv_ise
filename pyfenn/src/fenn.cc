@@ -259,7 +259,7 @@ PYBIND11_MODULE(_fenn, m)
     pybind11::class_<STDPEventPropagationProcess, Process, std::shared_ptr<STDPEventPropagationProcess>>(m, "STDPEventPropagationProcess")
         .def(pybind11::init(&STDPEventPropagationProcess::create),
              pybind11::arg("input_events"), pybind11::arg("weight"),
-             pybind11::arg("target"), pybind11::arg("syn_thresh"), 
+             pybind11::arg("target"), pybind11::arg("post_syn_voltage"), pybind11::arg("post_syn_calcium"), pybind11::arg("syn_thresh"), 
              pybind11::arg("syn_inc_without_spike"), pybind11::arg("syn_dec_without_spike"), 
              pybind11::arg("syn_inc_with_spike"), pybind11::arg("syn_dec_with_spike"), 
              pybind11::arg("pos_syn_weight"), pybind11::arg("neg_syn_weight"), 

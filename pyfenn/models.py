@@ -35,8 +35,8 @@ class Linear:
                                                num_delay_bits, name)
 
 class LinearWithSTDP:
-    def __init__(self, source_events: EventContainer, target_var: Variable,
-                 weight_dtype: str, syn_thresh: int, syn_inc_without_spike: int, 
+    def __init__(self, source_events: EventContainer, target_var: Variable, post_syn_voltage:Variable, 
+                 post_syn_calcium:Variable, weight_dtype: str, syn_thresh: int, syn_inc_without_spike: int, 
                  syn_dec_without_spike: int,syn_inc_with_spike: int, syn_dec_with_spike: int, 
                  pos_syn_weight: int, neg_syn_weight: int,
                  max_row_length: Optional[int] = None, 
@@ -60,7 +60,8 @@ class LinearWithSTDP:
         self.neg_syn_weight = neg_syn_weight
 
         self.process = STDPEventPropagationProcess(source_events, self.weight,
-                                               target_var, self.syn_thresh,
+                                               target_var, post_syn_voltage,
+                                               post_syn_calcium, self.syn_thresh,
                                                self.syn_inc_without_spike,
                                                self.syn_dec_without_spike,
                                                self.syn_inc_with_spike,

@@ -52,13 +52,12 @@ output = Linear_LIF_STDP(output_shape, alpha=.01, c_tau=.98, j_c=1,
 
 extra_input_output = Linear(extra_input.out_spikes, output.i, f"s{num_int_bits}_{num_frac_bits}_sat_t", name="extra_input_output")
 
-primary_input_output = LinearWithSTDP(primary_input.out_spikes, output.i, f"s{num_int_bits}_{num_frac_bits}_sat_t", 
+primary_input_output = LinearWithSTDP(primary_input.out_spikes, output.i, output.v, output.c, f"s{num_int_bits}_{num_frac_bits}_sat_t", 
                                       syn_thresh=32, syn_inc_without_spike=1,syn_dec_without_spike=1,
-                                      syn_inc_with_spike=1,syn_dec_with_spike=1, pos_syn_weight=0, 
+                                      syn_inc_with_spike=1,syn_dec_with_spike=1, pos_syn_weight=100, 
                                       neg_syn_weight=0, name="primary_input_output")
 
-# Note that memset will clear the variable at the end of the trial!!
-# v_zero = Memset(output.v)
+
 
 # Group processes
 neuron_update_processes = ProcessGroup([extra_input.process, primary_input.process, output.process], PerformanceCounter() if args.time else None,name="neuron_update_processes_group")
@@ -100,14 +99,14 @@ runtime.allocate()
 # 64 is 1, 128 is 2.
 extra_input_weights = np.zeros(extra_input_shape*8,dtype='uint64')*64
 for idx in range(0,80,8):
-    extra_input_weights[idx]=0 # usually 2**1
+    extra_input_weights[idx]=0 # usually 2
 copy_and_push(extra_input_weights, extra_input_output.weight, runtime)
 # I could instead do 
 # copy_and_push(np.ones(extra_input_shape*64,dtype='uint8'), extra_input_output.weight, runtime)
 
 # Here we set the synaptic variable X in the Fusi paper
 primary_input_weights = np.zeros(primary_input_shape*8,dtype='uint64')*64
-primary_input_weights[0]=0
+primary_input_weights[0]=33
 copy_and_push(primary_input_weights, primary_input_output.weight, runtime)
 
 
@@ -129,7 +128,7 @@ runtime.set_instructions(code)
 primary_input_spike_array, primary_input_spike_view = get_array_view(runtime, primary_input.out_spikes, np.uint32)
 extra_input_spike_array, extra_input_spike_view = get_array_view(runtime, extra_input.out_spikes, np.uint32)
 output_v_array, output_v_view = get_array_view(runtime, output.v, np.int16)
-output_spike_array, output_spike_view = get_array_view(runtime, output.out_spikes, np.int16)
+output_spike_array, output_spike_view = get_array_view(runtime, output.out_spikes, np.uint32)
 output_c_array, output_c_view = get_array_view(runtime, output.c, np.int16)
 primary_weight_array, primary_weight_view = get_array_view(runtime, primary_input_output.weight,np.int16)
 
