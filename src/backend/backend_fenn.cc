@@ -1172,6 +1172,8 @@ private:
             ALLOCATE_SCALAR(STargetBuf);
 
             ALLOCATE_SCALAR(compare_scalar);
+            ALLOCATE_SCALAR(compare_scalar2);
+            ALLOCATE_SCALAR(compare_scalar3);
             ALLOCATE_VECTOR(synaptic_weight);
             ALLOCATE_VECTOR(thresh_vec);
             ALLOCATE_VECTOR(pos_synaptic_weight);
@@ -1181,6 +1183,28 @@ private:
             ALLOCATE_SCALAR(STargetCalcium);
             ALLOCATE_VECTOR(TARGET_VOLTAGE);
             ALLOCATE_VECTOR(TARGET_CALCIUM);
+
+            ALLOCATE_VECTOR(HighVoltCalciumLowThresh);
+            ALLOCATE_VECTOR(HighVoltCalciumHighThresh);
+            ALLOCATE_VECTOR(LowVoltCalciumLowThresh);
+            ALLOCATE_VECTOR(LowVoltCalciumHighThresh);
+
+            ALLOCATE_VECTOR(zeros_vec);
+            ALLOCATE_VECTOR(ones_vec);
+            ALLOCATE_SCALAR(all_true_scalar);
+
+            ALLOCATE_VECTOR(voltage_thresh_vec);
+            ALLOCATE_VECTOR(weight_after_decrease);
+            ALLOCATE_VECTOR(weight_after_increase);
+            ALLOCATE_VECTOR(weight_decrease);
+            ALLOCATE_VECTOR(weight_increase);
+
+            c.vlui(*voltage_thresh_vec, getProcess()->getVoltageThresh());
+                
+
+            // Remember that immediates are imm/(2**num_fractional_bits) e.g., imm/2**6
+            c.vlui(*weight_decrease, getProcess()->getSynDecWithSpike());
+            c.vlui(*weight_increase, getProcess()->getSynIncWithSpike());
 
             // Load target register from state fields
             // **NOTE** no point in caching this as it needs resetting every row
@@ -1194,9 +1218,33 @@ private:
             // Preload first ISyn to avoid stall
             c.vloadv(*VTarget1, *STargetBuf, 0);
 
+            // Load threshold variables
+            c.vlui(*HighVoltCalciumLowThresh, getProcess()->getHighVoltCalciumLowThresh());
+            c.vlui(*HighVoltCalciumHighThresh, getProcess()->getHighVoltCalciumHighThresh());
+            c.vlui(*LowVoltCalciumLowThresh, getProcess()->getLowVoltCalciumLowThresh());
+            c.vlui(*LowVoltCalciumHighThresh, getProcess()->getLowVoltCalciumHighThresh());
+
+            // Load vector of zeros
+            c.vfill(*zeros_vec, Reg::X0);
+            // Make scalar filled with ones
+            // Why doesn't the commented code work?
+            // c.vteq(*all_true_scalar, *zeros_vec, *zeros_vec);
+            // c.vfill(*ones_vec, *all_true_scalar);
+
+            // Load all true scalar
+            c.li(*all_true_scalar, 64);
+            // Load vector of ones
+            c.vlui(*ones_vec, 64);
+
             AssemblerUtils::unrollVectorLoopBody(
                 c, scalarRegisterAllocator, getProcess()->getNumTargetNeurons(), 4, *STargetBuf,
-                [this, weightBufferReg, STargetBuf, VWeight, VTarget1, VTarget2, VTargetNew, compare_scalar, synaptic_weight, thresh_vec, pos_synaptic_weight, neg_synaptic_weight, STargetVoltage, STargetCalcium, TARGET_VOLTAGE, TARGET_CALCIUM]
+                [this, weightBufferReg, STargetBuf, VWeight, VTarget1, VTarget2, VTargetNew, 
+                compare_scalar, compare_scalar2, compare_scalar3, ones_vec, zeros_vec, all_true_scalar,
+                synaptic_weight, thresh_vec, pos_synaptic_weight, neg_synaptic_weight, STargetVoltage, 
+                weight_increase, weight_decrease,
+                STargetCalcium, TARGET_VOLTAGE, TARGET_CALCIUM, HighVoltCalciumLowThresh, 
+                voltage_thresh_vec, weight_after_decrease, weight_after_increase,
+                HighVoltCalciumHighThresh, LowVoltCalciumLowThresh, LowVoltCalciumHighThresh]
                 (CodeGenerator &c, uint32_t r, bool even, ScalarRegisterAllocator::RegisterPtr maskReg)
                 {
                     // Load vector of synaptic weights (i.e., synaptic variable X)
@@ -1221,7 +1269,6 @@ private:
                     c.vtge(*compare_scalar, *thresh_vec, *VWeight);
                     c.vsel(*synaptic_weight, *compare_scalar, *neg_synaptic_weight);
 
-
                     // Load NEXT vector of target to avoid stall
                     // **YUCK** in last iteration, while this may not be accessed, it may be out of bounds                  
                     c.vloadv(even ? *VTarget2 : *VTarget1, *STargetBuf, (r + 1) * 64);
@@ -1237,19 +1284,86 @@ private:
                     else {
                         c.vadd_s(*VTarget, *VTarget, *synaptic_weight);
                     }
-
                     // Write back target
                     c.vstore(*VTarget, *STargetBuf, r * 64);
 
+
+
+                    // Implement logic modifying synaptic variable based on postsynaptic voltage and calcium
                     // Modify synaptic variable following a spike
                     // Load voltage
-                    c.vloadv(*TARGET_VOLTAGE, *STargetVoltage, 0);
+                    c.vloadv(*TARGET_VOLTAGE, *STargetVoltage, r * 64);
                     // Load calcium variable
-                    c.vloadv(*TARGET_CALCIUM, *STargetCalcium, 0);
-                    // TODO: Implement logic modifying synaptic variable based on postsynaptic voltage and calcium
+                    c.vloadv(*TARGET_CALCIUM, *STargetCalcium, r * 64);
+                    // Load variable to store synaptic weight after it gets decreased
+                    c.vloadv(*weight_after_decrease, *weightBufferReg, r * 64);
+                    // No-op to avoid stall
+                    c.nop();          
                     
-                    // Write back synaptic variable
-                    // c.vstore(*VWeight, *weightBufferReg, r * 64);
+                    // Decrease synaptic weight as if all criteria were met
+                    c.vsub_s(*weight_after_decrease, *VWeight, *weight_decrease);
+
+                    // Figure out for which synapses the criteria was not met i.e.,
+                    // weights corresponded to postsynaptic neurons above threshold 
+                    // or not between the calcium bounds
+                    c.vtge(*compare_scalar, *TARGET_VOLTAGE, *voltage_thresh_vec);
+                    // Determine if calcium is out of bounds
+                    c.vtge(*compare_scalar2, *TARGET_CALCIUM, *LowVoltCalciumLowThresh);
+                    c.vtge(*compare_scalar2, *LowVoltCalciumHighThresh, *TARGET_CALCIUM);
+
+                    // Isolate the synapses that correspond to postsynaptic neurons who did not 
+                    // meet criteria for synaptic decrease
+                    c.and_(*compare_scalar, *compare_scalar,*compare_scalar2);
+                    c.and_(*compare_scalar, *compare_scalar,*compare_scalar3);
+                    // Reset those weights back to original weight if criteria where criteria not met
+                    c.vsel(*weight_after_decrease, *compare_scalar, *VWeight);
+
+                    // Add growth weight from synaptic weights
+                    c.vadd_s(*weight_after_increase, *weight_after_decrease, *weight_increase);
+
+                    // Figure out for which synapses the criteria was not met i.e.,
+                    // weights corresponded to postsynaptic neurons above threshold 
+                    // or not between the calcium bounds
+                    c.vtge(*compare_scalar, *voltage_thresh_vec,*TARGET_VOLTAGE);
+                    // Determine if calcium is out of bounds
+                    c.vtge(*compare_scalar2, *TARGET_CALCIUM, *HighVoltCalciumLowThresh);
+                    c.vtge(*compare_scalar2, *HighVoltCalciumHighThresh, *TARGET_CALCIUM);
+
+                    // Isolate the synapses that correspond to postsynaptic neurons who did not 
+                    // meet criteria for synaptic decrease
+                    c.and_(*compare_scalar, *compare_scalar,*compare_scalar2);
+                    c.and_(*compare_scalar, *compare_scalar,*compare_scalar3);
+                    // Reset those weights back to original weight if criteria where criteria not met
+                    c.vsel(*weight_after_increase, *compare_scalar, *weight_after_decrease);
+
+                    
+                    // if the weight is greater than 1, reset back to 1
+                    c.vtlt(*compare_scalar, *ones_vec, *weight_after_increase);
+                    c.vsel(*weight_after_increase, *compare_scalar, *ones_vec);
+                    // if the weight is less than 0, reset back to 0
+                    c.vtge(*compare_scalar, *zeros_vec, *weight_after_increase);
+                    c.vsel(*weight_after_increase, *compare_scalar, *zeros_vec);
+
+                    // If the number of postsynaptic neurons is not cleanly divisible by number of vector elements 
+                    // we apply a mask for the remainder
+                    if(maskReg) {
+                        // apply mask
+                        c.vsel(*VWeight, *maskReg, *weight_after_increase);
+                    }
+                    else {
+                        // Assign weight_vector the value of weight_after_increase
+                        c.vsel(*VWeight, *all_true_scalar, *weight_after_increase);
+
+                    }
+                    // Write back target
+                    // For testing, write all zeros to weightBufferReg
+                    // c.vstore(*zeros_vec, *weightBufferReg, r * 64);
+
+                    c.vstore(*VWeight, *weightBufferReg, r * 64);
+
+
+
+
                 },
                 [this, weightBufferReg, STargetBuf](CodeGenerator &c, uint32_t numUnrolls)
                 {
@@ -2029,25 +2143,26 @@ private:
                     ALLOCATE_VECTOR(weight_after_increase);
                     ALLOCATE_SCALAR(all_true_scalar)
 
+                    // Load vector of zeros
+                    c.vfill(*zeros_vec, Reg::X0);
+                    // Make scalar filled with ones
+                    // Why doesn't the commented code work?
+                    // c.vteq(*all_true_scalar, *zeros_vec, *zeros_vec);
+                    // c.vfill(*ones_vec, *all_true_scalar);
 
+                    // Load all true scalar
+                    c.li(*all_true_scalar, 64);
+                    // Load vector of ones
+                    c.vlui(*ones_vec, 64);
 
                     
                     AssemblerUtils::unrollVectorLoopBody(
                         c, scalarRegisterAllocator, (*stdp_row_gen).getProcess()->getNumTargetNeurons(), 4, *weightBufferReg,
-                        [this, weightBufferReg, weight_vector, weight_decrease, weight_increase, weight_after_decrease, compare_scalar, ones_vec, zeros_vec, thresh_vec_after_decrease, thresh_vec_after_increase, all_true_scalar, weight_after_increase, stdp_row_gen]
+                        [this, weightBufferReg, weight_vector, weight_decrease, weight_increase, weight_after_decrease, 
+                            compare_scalar, ones_vec, zeros_vec, thresh_vec_after_decrease, thresh_vec_after_increase, 
+                            all_true_scalar, weight_after_increase, stdp_row_gen]
                         (CodeGenerator &c, uint32_t r, bool even, ScalarRegisterAllocator::RegisterPtr maskReg)
                         {
-                            // Load vector of zeros
-                            c.vfill(*zeros_vec, Reg::X0);
-                            // Make scalar filled with ones
-                            // Why doesn't the commented code work?
-                            // c.vteq(*all_true_scalar, *zeros_vec, *zeros_vec);
-                            // c.vfill(*ones_vec, *all_true_scalar);
-
-                            // Load all true scalar
-                            c.li(*all_true_scalar, 64);
-                            // Load vector of ones
-                            c.vlui(*ones_vec, 64);
 
                             // Load vector of threshold vals less decay (remember that 32/2**6=1)
                             c.vlui(*thresh_vec_after_decrease, (*stdp_row_gen).getProcess()->getSynThresh()-(*stdp_row_gen).getProcess()->getSynDecWithoutSpike());
@@ -2060,59 +2175,37 @@ private:
                             c.vloadv(*weight_after_decrease, *weightBufferReg, r * 64);
                             // No-op to avoid stall
                             c.nop();
+
+                            // Subtract decay weight from synaptic weights
+                            c.vsub_s(*weight_after_decrease, *weight_vector, *weight_decrease);
+                            // If the updated synaptic weights aren't less than threshold - weight_decrease, 
+                            // they were above the threshold prior to subtraction, so undo it
+                            c.vtlt(*compare_scalar, *thresh_vec_after_decrease, *weight_after_decrease);
+                            c.vsel(*weight_after_decrease, *compare_scalar, *weight_vector);
+
+                            // Add growth weight from synaptic weights
+                            c.vadd_s(*weight_after_increase, *weight_after_decrease, *weight_increase);
+
+                            // If the updated synaptic weights aren't greater than threshold + weight_decrease, 
+                            // they were below the threshold prior to subtraction, so undo it
+                            c.vtge(*compare_scalar, *thresh_vec_after_increase, *weight_after_increase);
+                            c.vsel(*weight_after_increase, *compare_scalar, *weight_after_decrease);
+
+                            
+                            // if the weight is greater than 1, reset back to 1
+                            c.vtlt(*compare_scalar, *ones_vec, *weight_after_increase);
+                            c.vsel(*weight_after_increase, *compare_scalar, *ones_vec);
+                            // if the weight is less than 0, reset back to 0
+                            c.vtge(*compare_scalar, *zeros_vec, *weight_after_increase);
+                            c.vsel(*weight_after_increase, *compare_scalar, *zeros_vec);
+
                             // If the number of postsynaptic neurons is not cleanly divisible by number of vector elements 
                             // we apply a mask for the remainder
                             if(maskReg) {
-                                // Subtract decay weight from synaptic weights
-                                c.vsub_s(*weight_after_decrease, *weight_vector, *weight_decrease);
-                                // If the updated synaptic weights aren't less than threshold - weight_decrease, 
-                                // they were above the threshold prior to subtraction, so undo it
-                                c.vtlt(*compare_scalar, *thresh_vec_after_decrease, *weight_after_decrease);
-                                c.vsel(*weight_after_decrease, *compare_scalar, *weight_vector);
-
-                                // Add growth weight from synaptic weights
-                                c.vadd_s(*weight_after_increase, *weight_after_decrease, *weight_increase);
-
-                                // If the updated synaptic weights aren't greater than threshold + weight_decrease, 
-                                // they were below the threshold prior to subtraction, so undo it
-                                c.vtge(*compare_scalar, *thresh_vec_after_increase, *weight_after_increase);
-                                c.vsel(*weight_after_increase, *compare_scalar, *weight_after_decrease);
-
-                                
-                                // if the weight is greater than 1, reset back to 1
-                                c.vtlt(*compare_scalar, *ones_vec, *weight_after_increase);
-                                c.vsel(*weight_after_increase, *compare_scalar, *ones_vec);
-                                // if the weight is less than 0, reset back to 0
-                                c.vtge(*compare_scalar, *zeros_vec, *weight_after_increase);
-                                c.vsel(*weight_after_increase, *compare_scalar, *zeros_vec);
-
                                 // apply mask
                                 c.vsel(*weight_vector, *maskReg, *weight_after_increase);
                             }
                             else {
-                                // Subtract decay weight from synaptic weights
-                                c.vsub_s(*weight_after_decrease, *weight_vector, *weight_decrease);
-                                // If the updated synaptic weights aren't less than threshold - weight_decrease, 
-                                // they were above the threshold prior to subtraction, so undo it
-                                c.vtlt(*compare_scalar, *thresh_vec_after_decrease, *weight_after_decrease);
-                                c.vsel(*weight_after_decrease, *compare_scalar, *weight_vector);
-
-                                // Add growth weight from synaptic weights
-                                c.vadd_s(*weight_after_increase, *weight_after_decrease, *weight_increase);
-
-                                // If the updated synaptic weights aren't greater than threshold + weight_decrease, 
-                                // they were below the threshold prior to subtraction, so undo it
-                                c.vtge(*compare_scalar, *thresh_vec_after_increase, *weight_after_increase);
-                                c.vsel(*weight_after_increase, *compare_scalar, *weight_after_decrease);
-
-                                
-                                // if the weight is greater than 1, reset back to 1
-                                c.vtlt(*compare_scalar, *ones_vec, *weight_after_increase);
-                                c.vsel(*weight_after_increase, *compare_scalar, *ones_vec);
-                                // if the weight is less than 0, reset back to 0
-                                c.vtge(*compare_scalar, *zeros_vec, *weight_after_increase);
-                                c.vsel(*weight_after_increase, *compare_scalar, *zeros_vec);
-
                                 // Assign weight_vector the value of weight_after_increase
                                 c.vsel(*weight_vector, *all_true_scalar, *weight_after_increase);
 

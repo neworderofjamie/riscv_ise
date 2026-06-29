@@ -38,7 +38,9 @@ class LinearWithSTDP:
     def __init__(self, source_events: EventContainer, target_var: Variable, post_syn_voltage:Variable, 
                  post_syn_calcium:Variable, weight_dtype: str, syn_thresh: int, syn_inc_without_spike: int, 
                  syn_dec_without_spike: int,syn_inc_with_spike: int, syn_dec_with_spike: int, 
-                 pos_syn_weight: int, neg_syn_weight: int,
+                 pos_syn_weight: int, neg_syn_weight: int, voltage_thresh:int, 
+                 high_volt_calcium_low_thresh: int, high_volt_calcium_high_thresh:int,
+                 low_volt_calcium_low_thresh:int, low_volt_calcium_high_thresh:int,
                  max_row_length: Optional[int] = None, 
                  num_sparse_connectivity_bits: int = 0, 
                  num_delay_bits: int = 0, name: str = ""):
@@ -59,6 +61,13 @@ class LinearWithSTDP:
         self.pos_syn_weight = pos_syn_weight
         self.neg_syn_weight = neg_syn_weight
 
+        self.voltage_thresh = voltage_thresh
+        self.high_volt_calcium_low_thresh = high_volt_calcium_low_thresh
+        self.high_volt_calcium_high_thresh = high_volt_calcium_high_thresh
+        self.low_volt_calcium_low_thresh = low_volt_calcium_low_thresh
+        self.low_volt_calcium_high_thresh = low_volt_calcium_high_thresh
+
+
         self.process = STDPEventPropagationProcess(source_events, self.weight,
                                                target_var, post_syn_voltage,
                                                post_syn_calcium, self.syn_thresh,
@@ -68,6 +77,11 @@ class LinearWithSTDP:
                                                self.syn_dec_with_spike,
                                                self.pos_syn_weight,
                                                self.neg_syn_weight,
+                                               self.voltage_thresh,
+                                               self.high_volt_calcium_low_thresh,
+                                               self.high_volt_calcium_high_thresh,
+                                               self.low_volt_calcium_low_thresh,
+                                               self.low_volt_calcium_high_thresh,
                                                num_sparse_connectivity_bits,
                                                num_delay_bits, name)
         

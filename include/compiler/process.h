@@ -160,6 +160,9 @@ public:
                             int64_t synThresh, int64_t synIncWithoutSpike, int64_t synDecWithoutSpike, 
                              int64_t synIncWithSpike, int64_t synDecWithSpike, 
                              int64_t posSynWeight, int64_t negSynWeight, 
+                             int64_t voltageThresh,int64_t highVoltCalciumLowThresh, 
+                             int64_t highVoltCalciumHighThresh, int64_t lowVoltCalciumLowThresh, 
+                             int64_t lowVoltCalciumHighThresh,
                             size_t numSparseConnectivityBits, size_t numDelayBits,
                             const std::string &name);
 
@@ -182,6 +185,11 @@ public:
     int64_t getPosSynWeight() const {return m_Pos_Syn_Weight;}
     int64_t getNegSynWeight() const {return m_Neg_Syn_Weight;}
 
+    int64_t getVoltageThresh() const {return m_Voltage_Thresh;}
+    int64_t getHighVoltCalciumLowThresh() const {return m_High_Volt_Calcium_Low_Thresh;}
+    int64_t getHighVoltCalciumHighThresh() const {return m_High_Volt_Calcium_High_Thresh;}
+    int64_t getLowVoltCalciumLowThresh() const {return m_Low_Volt_Calcium_Low_Thresh;}
+    int64_t getLowVoltCalciumHighThresh() const {return m_Low_Volt_Calcium_High_Thresh;}
 
     size_t getNumTargetNeurons() const{ return m_NumTargetNeurons; }
     size_t getMaxRowLength() const{ return m_MaxRowLength; }
@@ -196,12 +204,16 @@ public:
                                                            int64_t synThresh, int64_t synIncWithoutSpike, 
                                                            int64_t synDecWithoutSpike, int64_t synIncWithSpike, int64_t synDecWithSpike, 
                                                            int64_t posSynWeight, int64_t negSynWeight, 
+                                                           int64_t voltageThresh,
+                                                           int64_t highVoltCalciumLowThresh, int64_t highVoltCalciumHighThresh, 
+                                                           int64_t lowVoltCalciumLowThresh, int64_t lowVoltCalciumHighThresh,
                                                            size_t numSparseConnectivityBits = 0,
                                                            size_t numDelayBits = 0,
                                                            const std::string &name = "")
     {
         return std::make_shared<STDPEventPropagationProcess>(Private(), inputEvents, weight, target, postSynVoltage, postSynCalcium, synThresh, synIncWithoutSpike, synDecWithoutSpike,
-                                                         synIncWithSpike, synDecWithSpike, posSynWeight, negSynWeight, numSparseConnectivityBits, numDelayBits, name);
+                                                         synIncWithSpike, synDecWithSpike, posSynWeight, negSynWeight, voltageThresh, highVoltCalciumLowThresh, 
+                                                         highVoltCalciumHighThresh, lowVoltCalciumLowThresh, lowVoltCalciumHighThresh, numSparseConnectivityBits, numDelayBits, name);
     }
 
 private:
@@ -222,6 +234,12 @@ private:
 
     int64_t m_Pos_Syn_Weight;
     int64_t m_Neg_Syn_Weight;
+
+    int64_t m_Voltage_Thresh;
+    int64_t m_High_Volt_Calcium_Low_Thresh;
+    int64_t m_High_Volt_Calcium_High_Thresh;
+    int64_t m_Low_Volt_Calcium_Low_Thresh;
+    int64_t m_Low_Volt_Calcium_High_Thresh;
 
 
     size_t m_NumTargetNeurons;
