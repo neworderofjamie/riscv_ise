@@ -96,8 +96,9 @@ class Linear_LIF_STDP:
             V += I-Alpha;
             if(V >= VThresh) {{
                 Spike();
-            }} 
-
+            }} else if(V<VReset) {{
+                V = VReset;
+            }}   
 
             I = 0.0h{fixed_point};
             """,
@@ -110,9 +111,7 @@ class Linear_LIF_STDP:
             {"Spike": self.out_spikes},
             name)   
 
-            #    else if(V<VReset) {{
-            #     V = VReset;
-            # }}   
+
 
 class LI:
     def __init__(self, shape, tau_m: float, num_timesteps: int,

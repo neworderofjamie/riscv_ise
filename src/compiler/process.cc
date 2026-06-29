@@ -137,14 +137,16 @@ EventPropagationProcess::EventPropagationProcess(Private, std::shared_ptr<const 
 // STDPEventPropagationProcess
 //----------------------------------------------------------------------------
 STDPEventPropagationProcess::STDPEventPropagationProcess(Private, std::shared_ptr<const EventContainer> inputEvents, 
-                                                 VariablePtr weight, VariablePtr target,  int64_t synThresh, 
+                                                 VariablePtr weight, VariablePtr target, VariablePtr postSynVoltage, 
+                                                 VariablePtr postSynCalcium, int64_t synThresh,
                                                  int64_t synIncWithoutSpike, int64_t synDecWithoutSpike, 
                                                  int64_t synIncWithSpike, int64_t synDecWithSpike,  
                                                  int64_t posSynWeight, int64_t negSynWeight, 
                                                  size_t numSparseConnectivityBits, 
                                                  size_t numDelayBits, const std::string &name)
 :   AcceptableModelComponent<STDPEventPropagationProcess, EventPropagationProcessBase>(inputEvents, name),
-    m_Weight(weight), m_Target(target), m_NumSparseConnectivityBits(numSparseConnectivityBits),
+    m_Weight(weight), m_Target(target), m_PostSynVoltage(postSynVoltage), m_PostSynCalcium(postSynVoltage),
+    m_NumSparseConnectivityBits(numSparseConnectivityBits),
     m_NumDelayBits(numDelayBits), m_Syn_Thresh(synThresh), m_Syn_Inc_Without_Spike(synIncWithoutSpike),
     m_Syn_Dec_Without_Spike(synDecWithoutSpike),m_Syn_Inc_With_Spike(synIncWithSpike),
     m_Syn_Dec_With_Spike(synDecWithSpike), m_Pos_Syn_Weight(posSynWeight), m_Neg_Syn_Weight(negSynWeight)
