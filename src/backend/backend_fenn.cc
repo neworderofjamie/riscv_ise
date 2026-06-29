@@ -934,81 +934,58 @@ private:
     class RowGeneratorBase
     {
     public:
+        virtual ~RowGeneratorBase() = default;
+
+        RowGeneratorBase(CodeGenerator &c, std::shared_ptr<const EventPropagationProcessBase> process,
+                         const Model::StateFields &stateFields,
+                         ScalarRegisterAllocator &scalarRegisterAllocator, 
+                         VectorRegisterAllocator &vectorRegisterAllocator)
+        :   m_Process(process), m_StateFields(stateFields), m_ScalarRegisterAllocator(scalarRegisterAllocator), 
+            m_VectorRegisterAllocator(vectorRegisterAllocator)
+        {
+            // Allocate register for stride, calculate and load as immediate
+            m_StrideReg = scalarRegisterAllocator.getRegister("SStride = X");
+            c.li(*m_StrideReg, ceilDivide(getProcess()->getMaxRowLength(), 32) * 64);
+
+        }
+
         //--------------------------------------------------------------------
         // Declared virtuals
         //--------------------------------------------------------------------
         virtual void generateRow(CodeGenerator &cg, ScalarRegisterAllocator::RegisterPtr weightBufferReg) = 0;
 
-        virtual ScalarRegisterAllocator::RegisterPtr loadWeightBuffer(CodeGenerator &c, ScalarRegisterAllocator::RegisterPtr idPreReg) = 0;
-        
-        virtual ScalarRegisterAllocator::RegisterPtr getStrideReg() const = 0;
-        
-        
-    protected:
+        //--------------------------------------------------------------------
+        // Public API
+        //--------------------------------------------------------------------
+        auto getStrideReg() const{ return m_StrideReg; }
 
-        RowGeneratorBase(const Model::StateFields &stateFields,
-                        ScalarRegisterAllocator &scalarRegisterAllocator,
-                        VectorRegisterAllocator &vectorRegisterAllocator)
-        :   m_StateFields(stateFields), m_ScalarRegisterAllocator(scalarRegisterAllocator),
-            m_VectorRegisterAllocator(vectorRegisterAllocator)
+        // **TODO** make protected once extra loop is removed
+        template<typename T = EventPropagationProcess>
+        std::shared_ptr<const T> getProcess() const
         {
+            return std::static_pointer_cast<const T>(m_Process);
         }
-        //--------------------------------------------------------------------
-        // Protected API
-        //--------------------------------------------------------------------
-        auto &getStateFields() { return m_StateFields.get(); }
-        auto &getScalarRegisterAllocator() { return m_ScalarRegisterAllocator.get(); }
-        auto &getVectorRegisterAllocator() { return m_VectorRegisterAllocator.get(); }
-
-    private:
-        //--------------------------------------------------------------------
-        // Members
-        //--------------------------------------------------------------------
-        std::reference_wrapper<const Model::StateFields> m_StateFields;
-        std::reference_wrapper<ScalarRegisterAllocator> m_ScalarRegisterAllocator;
-        std::reference_wrapper<VectorRegisterAllocator> m_VectorRegisterAllocator;
-
-    };
-
-
-    //------------------------------------------------------------------------
-    // EventRowGeneratorBase
-    //------------------------------------------------------------------------
-    class EventRowGeneratorBase : public RowGeneratorBase
-    {
-    public:
-        EventRowGeneratorBase(CodeGenerator &c, std::shared_ptr<const EventPropagationProcess> process,
-                              const Model::StateFields &stateFields,
-                              ScalarRegisterAllocator &scalarRegisterAllocator, 
-                              VectorRegisterAllocator &vectorRegisterAllocator)
-        :   RowGeneratorBase(stateFields, scalarRegisterAllocator, vectorRegisterAllocator), m_Process(process)
-        {
-            // Allocate register for stride, calculate and load as immediate
-            m_StrideReg = scalarRegisterAllocator.getRegister("SStride = X");
-            c.li(*m_StrideReg, ceilDivide(process->getMaxRowLength(), 32) * 64);
-
-        }
-
-    protected:
-        //--------------------------------------------------------------------
-        // Protected API
-        //--------------------------------------------------------------------
-        auto getProcess() const{ return m_Process; }
   
-         
+
+    protected:
+        //--------------------------------------------------------------------
+        // Protected API
+        //--------------------------------------------------------------------
+        auto &getStateFields(){ return m_StateFields.get(); }
+        auto &getScalarRegisterAllocator(){ return m_ScalarRegisterAllocator.get(); }
+        auto &getVectorRegisterAllocator(){ return m_VectorRegisterAllocator.get(); }
+        
     public:
         //--------------------------------------------------------------------
-        // RowGeneratorBase virtuals
+        // Public API
         //--------------------------------------------------------------------
-        virtual ScalarRegisterAllocator::RegisterPtr loadWeightBuffer(CodeGenerator &c, ScalarRegisterAllocator::RegisterPtr idPreReg) override final
+        auto loadWeightBuffer(CodeGenerator &c, ScalarRegisterAllocator::RegisterPtr idPreReg)
         {
             auto &scalarRegisterAllocator = getScalarRegisterAllocator();
 
             // SWeightBuffer = weightInHidStart + (numPostVecs * 64 * SN);
             ALLOCATE_SCALAR(SWeightBuffer);
-
-            c.lw(*SWeightBuffer, Reg::X0, getStateFields().at(getProcess()->getWeight()));
-            // c.lw(*SWeightBuffer, Reg::X0, getStateFields().at(std::dynamic_pointer_cast<const EventPropagationProcess>(getProcess())->getWeight()));
+            c.lw(*SWeightBuffer, Reg::X0, getStateFields().at(getProcess<EventPropagationProcess>()->getWeight()));
             {
                 ALLOCATE_SCALAR(STemp);
                 c.mul(*STemp, *idPreReg, *m_StrideReg);
@@ -1017,24 +994,25 @@ private:
 
             return SWeightBuffer;
         }
-
-        virtual ScalarRegisterAllocator::RegisterPtr getStrideReg() const override final { return m_StrideReg; }
     private:
         //--------------------------------------------------------------------
         // Members
         //--------------------------------------------------------------------
-        std::shared_ptr<const EventPropagationProcess> m_Process;
+        std::shared_ptr<const EventPropagationProcessBase> m_Process;
         ScalarRegisterAllocator::RegisterPtr m_StrideReg;
+        std::reference_wrapper<const Model::StateFields> m_StateFields;
+        std::reference_wrapper<ScalarRegisterAllocator> m_ScalarRegisterAllocator;
+        std::reference_wrapper<VectorRegisterAllocator> m_VectorRegisterAllocator;
     };
 
 
     //------------------------------------------------------------------------
     // DenseRowGenerator
     //------------------------------------------------------------------------
-    class DenseRowGenerator : public EventRowGeneratorBase
+    class DenseRowGenerator : public RowGeneratorBase
     {
     public:
-        using EventRowGeneratorBase::EventRowGeneratorBase;
+        using RowGeneratorBase::RowGeneratorBase;
     
         //--------------------------------------------------------------------
         // RowGeneratorBase virtuals
@@ -1098,43 +1076,11 @@ private:
     class STDPDenseRowGenerator : public RowGeneratorBase
     {
     public:
-        STDPDenseRowGenerator(CodeGenerator &c, std::shared_ptr<const STDPEventPropagationProcess> process,
-                         const Model::StateFields &stateFields, ScalarRegisterAllocator &scalarRegisterAllocator,
-                         VectorRegisterAllocator &vectorRegisterAllocator)
-        :   RowGeneratorBase(stateFields, scalarRegisterAllocator, vectorRegisterAllocator), m_Process(process)
-        {
-            // Allocate register for stride, calculate and load as immediate
-            m_StrideReg = scalarRegisterAllocator.getRegister("SStride = X");
-            c.li(*m_StrideReg, ceilDivide(process->getMaxRowLength(), 32) * 64);
-
-        }
-
-        auto getProcess() const{ return m_Process; }
+        using RowGeneratorBase::RowGeneratorBase;
 
         //--------------------------------------------------------------------
         // RowGeneratorBase virtuals
         //--------------------------------------------------------------------
-        virtual ScalarRegisterAllocator::RegisterPtr loadWeightBuffer(CodeGenerator &c, ScalarRegisterAllocator::RegisterPtr idPreReg) override final
-        {
-            auto &scalarRegisterAllocator = getScalarRegisterAllocator();
-
-            // SWeightBuffer = weightInHidStart + (numPostVecs * 64 * SN);
-            ALLOCATE_SCALAR(SWeightBuffer);
-
-            c.lw(*SWeightBuffer, Reg::X0, getStateFields().at(getProcess()->getX()));
-            // c.lw(*SWeightBuffer, Reg::X0, getStateFields().at(std::dynamic_pointer_cast<const EventPropagationProcess>(getProcess())->getWeight()));
-            {
-                // idPreReg tells us which weights we actually want to load
-                ALLOCATE_SCALAR(STemp);
-                c.mul(*STemp, *idPreReg, *m_StrideReg);
-                c.add(*SWeightBuffer, *SWeightBuffer, *STemp);
-            }
-
-            return SWeightBuffer;
-        }
-
-        virtual ScalarRegisterAllocator::RegisterPtr getStrideReg() const override final { return m_StrideReg; }
-    
         // weightBufferReg contains the address of the weights from one presynaptic neuron which spiked 
         // to its many downstream postsynaptic neurons
         virtual void generateRow(CodeGenerator &c, ScalarRegisterAllocator::RegisterPtr weightBufferReg) final override
@@ -1177,30 +1123,30 @@ private:
             ALLOCATE_VECTOR(B);
             ALLOCATE_VECTOR(A);
 
-            c.vlui(*ThetaV, getProcess()->getThetaV());
+            auto process = getProcess<STDPEventPropagationProcess>();
+            c.vlui(*ThetaV, process->getThetaV());
                 
 
-            // Remember that immediates are imm/(2**num_fractional_bits) e.g., imm/2**6
-            c.vlui(*B, getProcess()->getB());
-            c.vlui(*A, getProcess()->getA());
+            c.vlui(*A, process->getA());
+            c.vlui(*B, process->getB());
 
             // Load target register from state fields
             // **NOTE** no point in caching this as it needs resetting every row
-            c.lw(*STargetBuf, Reg::X0, getStateFields().at(getProcess()->getTarget()));
+            c.lw(*STargetBuf, Reg::X0, getStateFields().at(process->getTarget()));
 
             // Load postsynaptic voltage and calcium needed for STDP
-            c.lw(*STargetVoltage, Reg::X0, getStateFields().at(getProcess()->getVPre()));
-            c.lw(*STargetCalcium, Reg::X0, getStateFields().at(getProcess()->getCPre()));
+            c.lw(*STargetVoltage, Reg::X0, getStateFields().at(process->getVPre()));
+            c.lw(*STargetCalcium, Reg::X0, getStateFields().at(process->getCPre()));
 
             
             // Preload first ISyn to avoid stall
             c.vloadv(*VTarget1, *STargetBuf, 0);
 
             // Load threshold variables
-            c.vlui(*ThetaLowUp, getProcess()->getThetaLowUp());
-            c.vlui(*ThetaHighUp, getProcess()->getThetaHighUp());
-            c.vlui(*ThetaLowDown, getProcess()->getThetaLowDown());
-            c.vlui(*ThetaHighDown, getProcess()->getThetaHighDown());
+            c.vlui(*ThetaLowUp, process->getThetaLowUp());
+            c.vlui(*ThetaHighUp, process->getThetaHighUp());
+            c.vlui(*ThetaLowDown, process->getThetaLowDown());
+            c.vlui(*ThetaHighDown, process->getThetaHighDown());
 
             // Load vector of zeros
             c.vfill(*ZeroVec, Reg::X0);
@@ -1219,13 +1165,13 @@ private:
             c.vfill(*J, Reg::X0);
             // Load the threshold: if the weight is below threshold, 
             // synapse is negative, but if it's above threshold, synapse is positive
-            c.vlui(*thresh_vec, getProcess()->getThetaX());
+            c.vlui(*thresh_vec, process->getThetaX());
             // Load the negative and positive synaptic weight
-            c.vlui(*JMinus, (uint16_t)getProcess()->getJMinus());
-            c.vlui(*JPlus, getProcess()->getJPlus());
+            c.vlui(*JMinus, (uint16_t)process->getJMinus());
+            c.vlui(*JPlus, process->getJPlus());
 
             AssemblerUtils::unrollVectorLoopBody(
-                c, scalarRegisterAllocator, getProcess()->getNumTargetNeurons(), 4, *STargetBuf,
+                c, scalarRegisterAllocator, process->getNumTargetNeurons(), 4, *STargetBuf,
                 [this, weightBufferReg, STargetBuf, VWeight, VTarget1, VTarget2, VTargetNew, 
                 CompareScalar, CompareScalar2, CompareScalar3, OneVec, ZeroVec, TrueScalar,
                 J, thresh_vec, JPlus, JMinus, STargetVoltage, 
@@ -1348,32 +1294,22 @@ private:
                     // Increment pointers 
                     c.addi(*STargetBuf, *STargetBuf, 64 * numUnrolls);
                     c.addi(*weightBufferReg, *weightBufferReg, 64 * numUnrolls);
-                    c.addi(*STargetVoltage, *STargetVoltage, 64 * numUnrolls);
-                    c.addi(*STargetCalcium, *STargetCalcium, 64 * numUnrolls);
                 });
-        }   
-        private:
-            //--------------------------------------------------------------------
-            // Members
-            //--------------------------------------------------------------------
-            std::shared_ptr<const STDPEventPropagationProcess> m_Process;
-            ScalarRegisterAllocator::RegisterPtr m_StrideReg;
-
-            
+        }               
     };
 
 
     //------------------------------------------------------------------------
     // SparseRowGenerator
     //------------------------------------------------------------------------
-    class SparseRowGenerator : public EventRowGeneratorBase
+    class SparseRowGenerator : public RowGeneratorBase
     {
     public:
         SparseRowGenerator(CodeGenerator &c, std::shared_ptr<const EventPropagationProcess> process,
                            const Model::StateFields &stateFields,
                            ScalarRegisterAllocator &scalarRegisterAllocator, 
                            VectorRegisterAllocator &vectorRegisterAllocator)
-        :   EventRowGeneratorBase(c, process, stateFields, scalarRegisterAllocator, vectorRegisterAllocator)
+        :   RowGeneratorBase(c, process, stateFields, scalarRegisterAllocator, vectorRegisterAllocator)
         {
 
             // Allocate register for target address and load address
@@ -1442,14 +1378,14 @@ private:
     //------------------------------------------------------------------------
     // DelayedRowGenerator
     //------------------------------------------------------------------------
-    class DelayedRowGenerator : public EventRowGeneratorBase
+    class DelayedRowGenerator : public RowGeneratorBase
     {
     public:
         DelayedRowGenerator(CodeGenerator &c, std::shared_ptr<const EventPropagationProcess> process,
                             const Model::StateFields &stateFields, VectorRegisterAllocator::RegisterPtr vectorTimeReg,
                             ScalarRegisterAllocator &scalarRegisterAllocator, 
                             VectorRegisterAllocator &vectorRegisterAllocator)
-        :   EventRowGeneratorBase(c, process, stateFields, scalarRegisterAllocator, vectorRegisterAllocator),
+        :   RowGeneratorBase(c, process, stateFields, scalarRegisterAllocator, vectorRegisterAllocator),
             m_DelayStride(2 * process->getTarget()->getNumBufferTimesteps()), 
             m_TargetAddress(stateFields.at(process->getTarget()) + 4), m_VectorTimeReg(vectorTimeReg)
         {
@@ -2104,12 +2040,13 @@ private:
                 
 
                 // Remember that immediates are imm/(2**num_fractional_bits) e.g., imm/2**6
-                c.vlui(*Beta, (*stdp_row_gen).getProcess()->getBeta());
-                c.vlui(*Alpha, (*stdp_row_gen).getProcess()->getAlpha());
+                auto process = stdp_row_gen->getProcess<STDPEventPropagationProcess>();
+                c.vlui(*Beta, process->getBeta());
+                c.vlui(*Alpha, process->getAlpha());
 
                 std::cout << "Casted to STDPDenseRowGenerator" << std::endl;
                 // Loop over each weight
-                for (auto weight_idx=0; weight_idx<(*stdp_row_gen).getProcess()->getNumSourceNeurons();weight_idx++) {
+                for (auto weight_idx=0; weight_idx < process->getNumSourceNeurons();weight_idx++) {
                     c.li(*weight_counter, weight_idx);
                     auto weightBufferReg = r->loadWeightBuffer(c, weight_counter);
                     // update weights following rules for X
@@ -2140,14 +2077,14 @@ private:
                         c, scalarRegisterAllocator, (*stdp_row_gen).getProcess()->getNumTargetNeurons(), 4, *weightBufferReg,
                         [this, weightBufferReg, J, Beta, Alpha, XMinusBeta, 
                             CompareScalar, OneVec, ZeroVec, ThetaXMinusBeta, ThetaXPlusAlpha, 
-                            TrueScalar, XPlusAlpha, stdp_row_gen]
+                            TrueScalar, XPlusAlpha, stdp_row_gen, process]
                         (CodeGenerator &c, uint32_t r, bool even, ScalarRegisterAllocator::RegisterPtr maskReg)
                         {
 
                             // Load vector of threshold vals less decay (remember that 32/2**6=1)
-                            c.vlui(*ThetaXMinusBeta, (*stdp_row_gen).getProcess()->getThetaX()-(*stdp_row_gen).getProcess()->getBeta());
+                            c.vlui(*XMinusBeta, process->getThetaX()-process->getBeta());
                             // Load vector of threshold vals plus growth (remember that 32/2**6=1)
-                            c.vlui(*ThetaXPlusAlpha, (*stdp_row_gen).getProcess()->getThetaX()+(*stdp_row_gen).getProcess()->getAlpha());
+                            c.vlui(*XPlusAlpha, process->getThetaX()+process->getAlpha());
                             // Initialize vector used for boolean logic
                             c.li(*CompareScalar,0);
                             // Load vector of weights
