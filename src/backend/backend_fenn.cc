@@ -972,38 +972,22 @@ private:
             c.li(*m_StrideReg, ceilDivide(getProcess()->getMaxRowLength(), 32) * 64);
 
         }
-
-        //--------------------------------------------------------------------
-        // Declared virtuals
-        //--------------------------------------------------------------------
-        virtual void generateRow(CodeGenerator &cg, ScalarRegisterAllocator::RegisterPtr weightBufferReg) = 0;
-
-        //--------------------------------------------------------------------
-        // Public API
-        //--------------------------------------------------------------------
-        auto getStrideReg() const{ return m_StrideReg; }
-
-        // **TODO** make protected once extra loop is removed
-        template<typename T = EventPropagationProcess>
-        std::shared_ptr<const T> getProcess() const
-        {
-            return std::static_pointer_cast<const T>(m_Process);
-        }
-  
-
-    protected:
+    
+protected:
         //--------------------------------------------------------------------
         // Protected API
         //--------------------------------------------------------------------
         auto &getStateFields(){ return m_StateFields.get(); }
         auto &getScalarRegisterAllocator(){ return m_ScalarRegisterAllocator.get(); }
         auto &getVectorRegisterAllocator(){ return m_VectorRegisterAllocator.get(); }
-        
-    public:
+
+public:
         //--------------------------------------------------------------------
-        // Public API
+        // Declared virtuals
         //--------------------------------------------------------------------
-        auto loadWeightBuffer(CodeGenerator &c, ScalarRegisterAllocator::RegisterPtr idPreReg)
+        virtual void generateRow(CodeGenerator &cg, ScalarRegisterAllocator::RegisterPtr weightBufferReg) = 0;
+
+        virtual ScalarRegisterAllocator::RegisterPtr loadWeightBuffer(CodeGenerator &c, ScalarRegisterAllocator::RegisterPtr idPreReg)
         {
             auto &scalarRegisterAllocator = getScalarRegisterAllocator();
 
@@ -1018,6 +1002,27 @@ private:
 
             return SWeightBuffer;
         }
+
+        //! Load next vector of presynaptic state
+        virtual void loadPreStateVector(CodeGenerator &c) {}
+
+        //! Extract presynaptic state corresponding to ID pre into buffer
+        //! **NOTE** when used with double-buffered loop, two buffers may be used
+        virtual void extractPreState(CodeGenerator &c, ScalarRegisterAllocator::RegisterPtr idPreReg, 
+                                     bool firstBuffer) {}
+
+        //--------------------------------------------------------------------
+        // Public API
+        //--------------------------------------------------------------------
+        auto getStrideReg() const{ return m_StrideReg; }
+
+        // **TODO** make protected once extra loop is removed
+        template<typename T = EventPropagationProcess>
+        std::shared_ptr<const T> getProcess() const
+        {
+            return std::static_pointer_cast<const T>(m_Process);
+        }
+      
     private:
         //--------------------------------------------------------------------
         // Members
@@ -1100,11 +1105,47 @@ private:
     class STDPDenseRowGenerator : public RowGeneratorBase
     {
     public:
-        using RowGeneratorBase::RowGeneratorBase;
+        STDPDenseRowGenerator(CodeGenerator &c, std::shared_ptr<const EventPropagationProcessBase> process,
+                              const Model::StateFields &stateFields,
+                              ScalarRegisterAllocator &scalarRegisterAllocator, 
+                              VectorRegisterAllocator &vectorRegisterAllocator,
+                              bool useDRAMForWeights)
+        :   RowGeneratorBase(c, process, stateFields, scalarRegisterAllocator, vectorRegisterAllocator)
+        {
+
+            // Load address of presynaptic state into register
+            c.lw(*m_TimeSinceLastSpikeBuf, Reg::X0, getStateFields().at(process->getTarget()));
+        }
 
         //--------------------------------------------------------------------
         // RowGeneratorBase virtuals
         //--------------------------------------------------------------------
+        //! Load next vector of presynaptic state
+        virtual void loadPreStateVector(CodeGenerator &c) override final
+        {
+            // Load vector of times since last spike and increment
+            c.vloadv(*m_TimeSinceLastSpikeVector, *m_TimeSinceLastSpikeBuf);
+            c.addi(*m_TimeSinceLastSpikeBuf, *m_TimeSinceLastSpikeBuf, 64);
+        }
+
+        //! Extract presynaptic state corresponding to ID pre into buffer
+        //! **NOTE** when used with double-buffered loop, two buffers may be used
+        virtual void extractPreState(CodeGenerator &c, ScalarRegisterAllocator::RegisterPtr idPreReg, 
+                                     bool firstBuffer)
+        {
+            auto &scalarRegisterAllocator = getScalarRegisterAllocator();
+
+            // Get index within presynaptic state vector from id-pre
+            ALLOCATE_SCALAR(STmp);
+            c.andi(*STmp, *idPreReg, 0x1f);
+            
+            // Extract time since last spike into appropriate buffer
+            c.vextractfill(firstBuffer ? *m_TimeSinceLastSpikeA : *m_TimeSinceLastSpikeB,
+                           *m_TimeSinceLastSpikeVector, *STmp);
+            // **TODO** multiple by dt and alpha + beta
+        }
+
+
         // weightBufferReg contains the address of the weights from one presynaptic neuron which spiked 
         // to its many downstream postsynaptic neurons
         virtual void generateRow(CodeGenerator &c, ScalarRegisterAllocator::RegisterPtr weightBufferReg) final override
@@ -1320,7 +1361,15 @@ private:
                     c.addi(*STargetBuf, *STargetBuf, 64 * numUnrolls);
                     c.addi(*weightBufferReg, *weightBufferReg, 64 * numUnrolls);
                 });
-        }               
+        }
+    private:
+        //--------------------------------------------------------------------
+        // Members
+        //--------------------------------------------------------------------
+        ScalarRegisterAllocator::RegisterPtr m_TimeSinceLastSpikeBuf;
+        ScalarRegisterAllocator::RegisterPtr m_TimeSinceLastSpikeA;
+        ScalarRegisterAllocator::RegisterPtr m_TimeSinceLastSpikeB;
+        VectorRegisterAllocator::RegisterPtr m_TimeSinceLastSpikeVector;
     };
 
 
@@ -2208,6 +2257,11 @@ private:
             c.lw(*SEventWord, *eventBufferReg);
             c.addi(*eventBufferReg, *eventBufferReg, 4);
 
+            // Load any presynaptic state associated with each row generator
+            for(auto &r : rowGenerators) {
+                r->loadPreStateVector(c);
+            }
+
             // If SEventWord == 0, goto bitloop end
             c.beq(*SEventWord, Reg::X0, bitLoopEnd);
 
@@ -2241,6 +2295,7 @@ private:
                 for(auto &r : rowGenerators) {
                     // SN tells us which weights we actually want to load
                     auto weightBufferReg = r->loadWeightBuffer(c, SN);
+                    r->extractPreState(c, SN, true);
                     r->generateRow(c, weightBufferReg);
                 }
 
@@ -2324,6 +2379,11 @@ private:
             c.lw(*SPrefetchEventWord, *eventBufferReg);
             c.addi(*eventBufferReg, *eventBufferReg, 4);
 
+            // Load any presynaptic state associated with each row generator
+            for(auto &r : rowGenerators) {
+                r->loadPreStateVector(c);
+            }
+            
             c.addi(*SPrefetchCurrentWordStartID, *SCurrentWordStartID, 32);
 
             // If PrefetchEventWord != 0, goto prefetchWord
@@ -2495,6 +2555,11 @@ private:
                 c.addi(*SNextEventBuffer, *eventBufferReg, 4);
                 c.lw(*SCurrentEventWord, *eventBufferReg);
                 c.addi(*SPrevWordStartID, *SCurrentWordStartID, 32);
+                
+                // Load any presynaptic state associated with each row generator
+                for(auto &r : rowGenerators) {
+                    r->loadPreStateVector(c);
+                }
                 
                 // If nextEventWord < eventWordEnd i.e. there is a next goto nextEventWord
                 c.bgeu(*eventBufferEndReg, *SNextEventBuffer, nextEventWord);
