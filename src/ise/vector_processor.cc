@@ -306,6 +306,8 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
             const uint16_t mask = (1 << fixedPoint) - 1;
 
             PLOGV << "VANDADD " << rs1 << " " << rs2;
+            PLOGV << "\t" << rd;
+
             const auto &val = readVReg(rs1);
             const int16_t val2 = reg[rs2];
             writeVReg(rd, 
@@ -314,6 +316,18 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
                         { 
                             return (a & mask) + val2; 
                         }));
+        }
+        else if(type == +VSpcType::VEXTRACTFILL) {
+            PLOGV << "VEXTRACTFILL " << rs1 << " " << rs2;
+            PLOGV << "\t" << rd;
+
+            // Read source vector
+            const auto &val = readVReg(rs1);
+            
+            // Fill vector with value specified by register
+            Vector rdVec;
+            std::fill(rdVec.begin(), rdVec.end(), val[reg[rs2] & 0x1F]);
+            writeVReg(rd, rdVec);
         }
         else {
             throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);

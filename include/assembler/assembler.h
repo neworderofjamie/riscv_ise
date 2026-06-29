@@ -266,6 +266,7 @@ public:
     // VSPC
     void vrng(VReg rd){ Rtype(VectorOpCode::VSPC, 0b000, 0x0, rd, 0, 0);}
     void vandadd(Bit<4> shift, VReg rd, VReg rs1, Reg rs2){ Rtype(VectorOpCode::VSPC, 0b001, shift, rd, rs1, rs2); }
+    void vextractfill(VReg rd, VReg rs1, Reg rs2){ Rtype(VectorOpCode::VSPC, 0b010, 0, rd, rs1, rs2); }
 
     // VLOAD
     void vloadv(VReg rd, Reg addr, int imm = 0){ Itype(VectorOpCode::VLOAD, 0b000, rd, addr, imm); }
