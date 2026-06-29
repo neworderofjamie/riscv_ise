@@ -18,9 +18,16 @@ DEPS			:=$(OBJECTS:.o=.d)
 all: $(LIBASSEMBLER)
 
 ifdef DYNAMIC
+ifeq ($(DARWIN),DARWIN)
+$(LIBASSEMBLER): $(OBJECTS)
+	mkdir -p $(@D)
+	$(CXX) -dynamiclib -undefined dynamic_lookup $(CXXFLAGS) -o $@ $(OBJECTS)
+	install_name_tool -id "@loader_path/$(@F)" $@
+else
 $(LIBASSEMBLER): $(OBJECTS)
 	mkdir -p $(@D)
 	$(CXX) -shared $(CXXFLAGS) -o $@ $(OBJECTS)
+endif
 else
 $(LIBASSEMBLER): $(OBJECTS)
 	mkdir -p $(@D)
