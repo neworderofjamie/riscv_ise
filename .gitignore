@@ -16,9 +16,9 @@
 /bin/lif
 /bin/lif_debug
 /obj_debug/
-/.vscode/
 /bin/
 /**/__pycache__/
 *.coe
 /pyfenn.egg-info/dependency_links.txt
 *.dylib
+pyfenn/src/build_doc_strings.sh

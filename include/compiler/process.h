@@ -156,97 +156,97 @@ class COMPILER_EXPORT STDPEventPropagationProcess : public AcceptableModelCompon
 {
 public:
     STDPEventPropagationProcess(Private, std::shared_ptr<const EventContainer> inputEvents, 
-                            VariablePtr weight, VariablePtr target, VariablePtr postSynVoltage, VariablePtr postSynCalcium,
-                            int64_t synThresh, int64_t synIncWithoutSpike, int64_t synDecWithoutSpike, 
-                             int64_t synIncWithSpike, int64_t synDecWithSpike, 
-                             int64_t posSynWeight, int64_t negSynWeight, 
-                             int64_t voltageThresh,int64_t highVoltCalciumLowThresh, 
-                             int64_t highVoltCalciumHighThresh, int64_t lowVoltCalciumLowThresh, 
-                             int64_t lowVoltCalciumHighThresh,
-                            size_t numSparseConnectivityBits, size_t numDelayBits,
+                            VariablePtr x, VariablePtr target, VariablePtr vPre, VariablePtr cPre,
+                            float thetaX, float a, float b, 
+                             float alpha, float beta, 
+                             float jPlus, float jMinus, 
+                             float thetaV,float thetaLowUp, 
+                             float thetaLowDown, float thetaHighUp, 
+                             float thetaHighDown,
                             const std::string &name);
 
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
-    const auto getWeight() const { return m_Weight; }
+    const auto getX() const { return m_X; }
     const auto getTarget() const { return m_Target; }
 
-    const auto getPostSynVoltage() const { return m_PostSynVoltage; }
-    const auto getPostSynCalcium() const { return m_PostSynCalcium; }
+    const auto getVPre() const { return m_VPre; }
+    const auto getCPre() const { return m_CPre; }
 
 
-    int64_t getSynThresh() const {return m_Syn_Thresh;}
-    int64_t getSynIncWithoutSpike() const {return m_Syn_Inc_Without_Spike;}
-    int64_t getSynDecWithoutSpike() const {return m_Syn_Dec_Without_Spike;}
-    int64_t getSynIncWithSpike() const {return m_Syn_Inc_With_Spike;}
-    int64_t getSynDecWithSpike() const {return m_Syn_Dec_With_Spike;}
+    int64_t getThetaX() const {return m_ThetaX;}
+    int64_t getA() const {return m_A;}
+    int64_t getB() const {return m_B;}
+    int64_t getAlpha() const {return m_Alpha;}
+    int64_t getBeta() const {return m_Beta;}
 
-    int64_t getPosSynWeight() const {return m_Pos_Syn_Weight;}
-    int64_t getNegSynWeight() const {return m_Neg_Syn_Weight;}
+    int64_t getJPlus() const {return m_JPlus;}
+    int64_t getJMinus() const {return m_JMinus;}
 
-    int64_t getVoltageThresh() const {return m_Voltage_Thresh;}
-    int64_t getHighVoltCalciumLowThresh() const {return m_High_Volt_Calcium_Low_Thresh;}
-    int64_t getHighVoltCalciumHighThresh() const {return m_High_Volt_Calcium_High_Thresh;}
-    int64_t getLowVoltCalciumLowThresh() const {return m_Low_Volt_Calcium_Low_Thresh;}
-    int64_t getLowVoltCalciumHighThresh() const {return m_Low_Volt_Calcium_High_Thresh;}
+    int64_t getThetaV() const {return m_ThetaV;}
+    int64_t getThetaLowUp() const {return m_ThetaLowUp;}
+    int64_t getThetaLowDown() const {return m_ThetaLowDown;}
+    int64_t getThetaHighUp() const {return m_ThetaHighUp;}
+    int64_t getThetaHighDown() const {return m_ThetaHighDown;}
 
     size_t getNumTargetNeurons() const{ return m_NumTargetNeurons; }
     size_t getMaxRowLength() const{ return m_MaxRowLength; }
 
-    size_t getNumSparseConnectivityBits() const{ return m_NumSparseConnectivityBits; }
-    size_t getNumDelayBits() const{ return m_NumDelayBits; }
+
     //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------
     static std::shared_ptr<STDPEventPropagationProcess> create(std::shared_ptr<const EventContainer> inputEvents, 
-                                                           VariablePtr weight, VariablePtr target, VariablePtr postSynVoltage, VariablePtr postSynCalcium,
-                                                           int64_t synThresh, int64_t synIncWithoutSpike, 
-                                                           int64_t synDecWithoutSpike, int64_t synIncWithSpike, int64_t synDecWithSpike, 
-                                                           int64_t posSynWeight, int64_t negSynWeight, 
-                                                           int64_t voltageThresh,
-                                                           int64_t highVoltCalciumLowThresh, int64_t highVoltCalciumHighThresh, 
-                                                           int64_t lowVoltCalciumLowThresh, int64_t lowVoltCalciumHighThresh,
-                                                           size_t numSparseConnectivityBits = 0,
-                                                           size_t numDelayBits = 0,
-                                                           const std::string &name = "")
+                                                           VariablePtr x, VariablePtr target, VariablePtr vPre, VariablePtr cPre,
+                                                            float thetaX, float a, float b, 
+                                                            float alpha, float beta, 
+                                                            float jPlus, float jMinus, 
+                                                            float thetaV,float thetaLowUp, 
+                                                            float thetaLowDown, float thetaHighUp, 
+                                                            float thetaHighDown,
+                                                            const std::string &name)
     {
-        return std::make_shared<STDPEventPropagationProcess>(Private(), inputEvents, weight, target, postSynVoltage, postSynCalcium, synThresh, synIncWithoutSpike, synDecWithoutSpike,
-                                                         synIncWithSpike, synDecWithSpike, posSynWeight, negSynWeight, voltageThresh, highVoltCalciumLowThresh, 
-                                                         highVoltCalciumHighThresh, lowVoltCalciumLowThresh, lowVoltCalciumHighThresh, numSparseConnectivityBits, numDelayBits, name);
+        return std::make_shared<STDPEventPropagationProcess>(Private(), inputEvents, 
+                                                            x, target, vPre, cPre,
+                                                            thetaX, a, b, 
+                                                            alpha, beta, 
+                                                            jPlus, jMinus, 
+                                                            thetaV,thetaLowUp, 
+                                                            thetaLowDown, thetaHighUp, 
+                                                            thetaHighDown,
+                                                            name);
     }
 
 private:
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
-    VariablePtr m_Weight;
+    VariablePtr m_X;
     VariablePtr m_Target;
 
-    VariablePtr m_PostSynVoltage;
-    VariablePtr m_PostSynCalcium;
+    VariablePtr m_VPre;
+    VariablePtr m_CPre;
 
-    int64_t m_Syn_Thresh;
-    int64_t m_Syn_Inc_Without_Spike;
-    int64_t m_Syn_Dec_Without_Spike;
-    int64_t m_Syn_Inc_With_Spike;
-    int64_t m_Syn_Dec_With_Spike;
+    int64_t m_ThetaX;
+    int64_t m_A;
+    int64_t m_B;
+    int64_t m_Alpha;
+    int64_t m_Beta;
 
-    int64_t m_Pos_Syn_Weight;
-    int64_t m_Neg_Syn_Weight;
+    int64_t m_JPlus;
+    int64_t m_JMinus;
 
-    int64_t m_Voltage_Thresh;
-    int64_t m_High_Volt_Calcium_Low_Thresh;
-    int64_t m_High_Volt_Calcium_High_Thresh;
-    int64_t m_Low_Volt_Calcium_Low_Thresh;
-    int64_t m_Low_Volt_Calcium_High_Thresh;
+    int64_t m_ThetaV;
+    int64_t m_ThetaLowUp;
+    int64_t m_ThetaLowDown;
+    int64_t m_ThetaHighUp;
+    int64_t m_ThetaHighDown;
 
 
     size_t m_NumTargetNeurons;
     size_t m_MaxRowLength;
 
-    size_t m_NumSparseConnectivityBits;
-    size_t m_NumDelayBits;
 };
 
 

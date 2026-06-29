@@ -258,19 +258,18 @@ PYBIND11_MODULE(_fenn, m)
     //------------------------------------------------------------------------
     pybind11::class_<STDPEventPropagationProcess, Process, std::shared_ptr<STDPEventPropagationProcess>>(m, "STDPEventPropagationProcess")
         .def(pybind11::init(&STDPEventPropagationProcess::create),
-             pybind11::arg("input_events"), pybind11::arg("weight"),
-             pybind11::arg("target"), pybind11::arg("post_syn_voltage"), pybind11::arg("post_syn_calcium"), pybind11::arg("syn_thresh"), 
-             pybind11::arg("syn_inc_without_spike"), pybind11::arg("syn_dec_without_spike"), 
-             pybind11::arg("syn_inc_with_spike"), pybind11::arg("syn_dec_with_spike"), 
-             pybind11::arg("pos_syn_weight"), pybind11::arg("neg_syn_weight"), 
-             pybind11::arg("voltage_thresh"), pybind11::arg("high_volt_calcium_low_thresh"), 
-             pybind11::arg("high_volt_calcium_high_thresh"), pybind11::arg("low_volt_calcium_low_thresh"), 
-             pybind11::arg("low_volt_calcium_high_thresh"), 
-             pybind11::arg("num_sparse_connectivity_bits") = 0,
-             pybind11::arg("num_delay_bits") = 0, pybind11::arg("name") = "")
+             pybind11::arg("input_events"), pybind11::arg("x"),
+             pybind11::arg("target"), pybind11::arg("v_pre"), pybind11::arg("c_pre"), 
+             pybind11::arg("theta_x"), 
+             pybind11::arg("a"), pybind11::arg("b"), 
+             pybind11::arg("alpha"), pybind11::arg("beta"), 
+             pybind11::arg("j_minus"), pybind11::arg("j_plus"), 
+             pybind11::arg("theta_v"), pybind11::arg("theta_low_up"), 
+             pybind11::arg("theta_low_down"), pybind11::arg("theta_high_up"), 
+             pybind11::arg("theta_high_down"), pybind11::arg("name") = "")
 
         .def_property_readonly("input_events", &STDPEventPropagationProcess::getInputEvents)
-        WRAP_PROPERTY_RO("weight", STDPEventPropagationProcess, Weight)
+        WRAP_PROPERTY_RO("x", STDPEventPropagationProcess, X)
         WRAP_PROPERTY_RO("target", STDPEventPropagationProcess, Target)
         .def_property_readonly("num_source_neurons", &STDPEventPropagationProcess::getNumSourceNeurons)
         WRAP_PROPERTY_RO("num_target_neurons", STDPEventPropagationProcess, NumTargetNeurons);

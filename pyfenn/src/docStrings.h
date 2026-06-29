@@ -585,6 +585,14 @@ static const char *__doc_STDPEventPropagationProcess_STDPEventPropagationProcess
 
 static const char *__doc_STDPEventPropagationProcess_create = R"doc()doc";
 
+static const char *__doc_STDPEventPropagationProcess_getHighVoltCalciumHighThresh = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_getHighVoltCalciumLowThresh = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_getLowVoltCalciumHighThresh = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_getLowVoltCalciumLowThresh = R"doc()doc";
+
 static const char *__doc_STDPEventPropagationProcess_getMaxRowLength = R"doc()doc";
 
 static const char *__doc_STDPEventPropagationProcess_getNegSynWeight = R"doc()doc";
@@ -601,19 +609,29 @@ static const char *__doc_STDPEventPropagationProcess_getPostSynCalcium = R"doc()
 
 static const char *__doc_STDPEventPropagationProcess_getPostSynVoltage = R"doc()doc";
 
-static const char *__doc_STDPEventPropagationProcess_getSynDecWithSpike = R"doc()doc";
-
-static const char *__doc_STDPEventPropagationProcess_getSynDecWithoutSpike = R"doc()doc";
-
-static const char *__doc_STDPEventPropagationProcess_getSynIncWithSpike = R"doc()doc";
-
-static const char *__doc_STDPEventPropagationProcess_getSynIncWithoutSpike = R"doc()doc";
-
-static const char *__doc_STDPEventPropagationProcess_getSynThresh = R"doc()doc";
-
 static const char *__doc_STDPEventPropagationProcess_getTarget = R"doc()doc";
 
-static const char *__doc_STDPEventPropagationProcess_getWeight = R"doc()doc";
+static const char *__doc_STDPEventPropagationProcess_getVoltageThresh = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_getX = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_getXdecWithSpike = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_getXdecWithoutSpike = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_getXincWithSpike = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_getXincWithoutSpike = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_getXthresh = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_m_High_Volt_Calcium_High_Thresh = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_m_High_Volt_Calcium_Low_Thresh = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_m_Low_Volt_Calcium_High_Thresh = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_m_Low_Volt_Calcium_Low_Thresh = R"doc()doc";
 
 static const char *__doc_STDPEventPropagationProcess_m_MaxRowLength = R"doc()doc";
 
@@ -631,19 +649,21 @@ static const char *__doc_STDPEventPropagationProcess_m_PostSynCalcium = R"doc()d
 
 static const char *__doc_STDPEventPropagationProcess_m_PostSynVoltage = R"doc()doc";
 
-static const char *__doc_STDPEventPropagationProcess_m_Syn_Dec_With_Spike = R"doc()doc";
-
-static const char *__doc_STDPEventPropagationProcess_m_Syn_Dec_Without_Spike = R"doc()doc";
-
-static const char *__doc_STDPEventPropagationProcess_m_Syn_Inc_With_Spike = R"doc()doc";
-
-static const char *__doc_STDPEventPropagationProcess_m_Syn_Inc_Without_Spike = R"doc()doc";
-
-static const char *__doc_STDPEventPropagationProcess_m_Syn_Thresh = R"doc()doc";
-
 static const char *__doc_STDPEventPropagationProcess_m_Target = R"doc()doc";
 
-static const char *__doc_STDPEventPropagationProcess_m_Weight = R"doc()doc";
+static const char *__doc_STDPEventPropagationProcess_m_Voltage_Thresh = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_m_X_Dec_With_Spike = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_m_X_Dec_Without_Spike = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_m_X_Inc_With_Spike = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_m_X_Inc_Without_Spike = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_m_X_Thresh = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_m_X_Var = R"doc()doc";
 
 static const char *__doc_ScalarRegsiterAllocator = R"doc()doc";
 

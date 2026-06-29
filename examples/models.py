@@ -74,7 +74,7 @@ class ALIF:
 
 
 class Linear_LIF_STDP:
-    def __init__(self, shape, alpha: float, c_tau:float, j_c:float,
+    def __init__(self, shape, alpha: float, tau:float, j_c:float,
                  v_thresh: float, v_reset: float, fixed_point: int,
                  record_timesteps: int = 1,
                  dt: float = 1.0, name: str = ""):
@@ -105,7 +105,7 @@ class Linear_LIF_STDP:
             {"Alpha": Parameter(alpha, dtype),
              "VThresh": Parameter(v_thresh, dtype),
              "VReset": Parameter(v_reset,dtype),
-             "CTau": Parameter(c_tau, dtype),
+             "CTau": Parameter(np.exp(-tau / dt), dtype),
              "Jc": Parameter(j_c,dtype)},
             {"V": self.v, "I": self.i, "C":self.c},
             {"Spike": self.out_spikes},
@@ -138,21 +138,15 @@ class Bernoulli:
     def __init__(self, shape, prob_spike: float,
                  record_timesteps: int = 1, name: str = ""):
         self.shape = shape
-        rand_dtype = "s0_15_sat_t"
-        spike_type = "int16_t"
         self.out_spikes = EventContainer(self.shape, record_timesteps)
-        self.num_spikes = Variable(self.shape, spike_type, name=f"{name}_num_spikes")
         self.process = NeuronUpdateProcess(
             f"""
             if(ProbSpike >= fennrand()) {{
                Spike();
             }}
             """,
-            {"ProbSpike": Parameter(prob_spike, rand_dtype)},
+            {"ProbSpike": Parameter(prob_spike, "s0_15_sat_t")},
             {"NumSpikes": self.num_spikes},
             {"Spike": self.out_spikes},
             name)
 
-# Remember calling Spike() activates the event associated with that event container
-# Remember that fennrand() outputs a 15 fractional bit number (between 0 and 1) so 
-# any comparisons must also be with numbers containing 15 fractional bits.

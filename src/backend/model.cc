@@ -121,7 +121,7 @@ private:
 
         // Add back-references in state processes
         m_StateProcesses.get()[stdpEventPropagationProcess->getInputEvents()].push_back(stdpEventPropagationProcess);
-        m_StateProcesses.get()[stdpEventPropagationProcess->getWeight()].push_back(stdpEventPropagationProcess);
+        m_StateProcesses.get()[stdpEventPropagationProcess->getX()].push_back(stdpEventPropagationProcess);
         m_StateProcesses.get()[stdpEventPropagationProcess->getTarget()].push_back(stdpEventPropagationProcess);
     }
 
@@ -284,7 +284,7 @@ private:
 
         // Visit components
         stdpEventPropagationProcess->getInputEvents()->accept(*this);
-        acceptVariable(stdpEventPropagationProcess->getWeight());
+        acceptVariable(stdpEventPropagationProcess->getX());
         acceptVariable(stdpEventPropagationProcess->getTarget());
 
         // Add process fields

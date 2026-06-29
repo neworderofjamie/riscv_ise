@@ -1,0 +1,71 @@
+{
+    "configurations": [
+    {
+        "name": "Launch project",
+        "type": "cppdbg",
+        "request": "launch",
+        "program": "${workspaceFolder}/bin/${input:example}_debug",
+        "stopAtEntry": false,
+        "cwd": "${workspaceFolder}/bin",
+        "environment": [],
+        "externalConsole": false,
+        "MIMode": "lldb",
+        "setupCommands": [
+            { "text": "-enable-pretty-printing", "description": "enable pretty printing", "ignoreFailures": true },
+        ]
+    },
+    {
+        "name": "Launch python",
+        "logging": { "engineLogging": true },
+        "type": "cppdbg",
+        "request": "launch",
+        "program": "/Users/cartergoldman/opt/anaconda3/envs/riscv_ise_py3.10_debug/bin/python",
+        "args": ["${file}"],
+        "stopAtEntry": false,
+        "cwd": "${fileDirname}",
+        "environment": [],
+        "externalConsole": false,
+        "MIMode": "lldb",
+    },
+    {
+        "name": "(lldb) Attach",
+        "type": "cppdbg",
+        "request": "attach",
+        "program": "/Users/cartergoldman/opt/anaconda3/envs/riscv_ise_py3.10_debug/bin/python",
+        "MIMode": "lldb"
+      },
+    {
+        "name": "Debug mkdoc",
+        "type": "debugpy",
+        "request": "launch",
+        "program": "${file}",      
+        "args": ["-o", "docStrings.h", "-std=c++17", "-I", "../../include/", "-I", "../../genn/include/genn/genn", "-I", "../../genn/include/genn/third_party", "../../include/backend/*.h", "../../include/compiler/*.h", "../../genn/include/genn/genn/type.h"]
+      }
+    ],
+    "inputs": [
+    {
+      "type": "pickString",
+      "id": "example",
+      "description": "What example do you want to debug?",
+      "options": [
+        "alif",
+        "compiler_test",
+        "decay",
+        "dma_test_fenn",
+        "dump_coe",
+        "init_vram",
+        "lane_local_test",
+        "lif",
+        "lif_with_fusi_stdp",
+        "mnist",
+        "poisson",
+        "shd",
+        "sparse_spike",
+        "spike_dma",
+        "special_function_test",
+        "va_benchmark"
+      ],
+      "default": "lif"
+    }
+  ]
+}

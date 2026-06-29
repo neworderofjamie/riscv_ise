@@ -53,8 +53,8 @@ output = Linear_LIF_STDP(output_shape, alpha=.01, c_tau=.98, j_c=1,
 extra_input_output = Linear(extra_input.out_spikes, output.i, f"s{num_int_bits}_{num_frac_bits}_sat_t", name="extra_input_output")
 
 primary_input_output = LinearWithSTDP(primary_input.out_spikes, output.i, output.v, output.c, f"s{num_int_bits}_{num_frac_bits}_sat_t", 
-                                      syn_thresh=32, syn_inc_without_spike=1,syn_dec_without_spike=1,
-                                      syn_inc_with_spike=1,syn_dec_with_spike=1,
+                                      x_thresh=32, x_inc_without_spike=1,x_dec_without_spike=1,
+                                      x_inc_with_spike=1,x_dec_with_spike=1,
                                       pos_syn_weight=100, 
                                       neg_syn_weight=0, voltage_thresh=40, 
                                       high_volt_calcium_low_thresh=3, high_volt_calcium_high_thresh=13,

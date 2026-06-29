@@ -137,27 +137,24 @@ EventPropagationProcess::EventPropagationProcess(Private, std::shared_ptr<const 
 // STDPEventPropagationProcess
 //----------------------------------------------------------------------------
 STDPEventPropagationProcess::STDPEventPropagationProcess(Private, std::shared_ptr<const EventContainer> inputEvents, 
-                                                 VariablePtr weight, VariablePtr target, VariablePtr postSynVoltage, 
-                                                 VariablePtr postSynCalcium, int64_t synThresh,
-                                                 int64_t synIncWithoutSpike, int64_t synDecWithoutSpike, 
-                                                 int64_t synIncWithSpike, int64_t synDecWithSpike,  
-                                                 int64_t posSynWeight, int64_t negSynWeight, 
-                                                 int64_t voltageThresh, int64_t highVoltCalciumLowThresh, 
-                                                 int64_t highVoltCalciumHighThresh, 
-                                                 int64_t lowVoltCalciumLowThresh, int64_t lowVoltCalciumHighThresh,
-                                                 size_t numSparseConnectivityBits, 
-                                                 size_t numDelayBits, const std::string &name)
+                                                           VariablePtr x, VariablePtr target, VariablePtr vPre, VariablePtr cPre,
+                                                            float thetaX, float a, float b, 
+                                                            float alpha, float beta, 
+                                                            float jPlus, float jMinus, 
+                                                            float thetaV,float thetaLowUp, 
+                                                            float thetaLowDown, float thetaHighUp, 
+                                                            float thetaHighDown,
+                                                            const std::string &name)
 :   AcceptableModelComponent<STDPEventPropagationProcess, EventPropagationProcessBase>(inputEvents, name),
-    m_Weight(weight), m_Target(target), m_PostSynVoltage(postSynVoltage), m_PostSynCalcium(postSynVoltage),
-    m_NumSparseConnectivityBits(numSparseConnectivityBits),
-    m_NumDelayBits(numDelayBits), m_Syn_Thresh(synThresh), m_Syn_Inc_Without_Spike(synIncWithoutSpike),
-    m_Syn_Dec_Without_Spike(synDecWithoutSpike),m_Syn_Inc_With_Spike(synIncWithSpike),
-    m_Syn_Dec_With_Spike(synDecWithSpike), m_Pos_Syn_Weight(posSynWeight), m_Neg_Syn_Weight(negSynWeight),
-    m_Voltage_Thresh(voltageThresh), m_High_Volt_Calcium_Low_Thresh(highVoltCalciumLowThresh), m_High_Volt_Calcium_High_Thresh(highVoltCalciumHighThresh),
-    m_Low_Volt_Calcium_Low_Thresh(lowVoltCalciumLowThresh), m_Low_Volt_Calcium_High_Thresh(lowVoltCalciumHighThresh)
+    m_X(x), m_Target(target), m_VPre(vPre), m_CPre(cPre),
+    m_ThetaX(thetaX), m_A(a),
+    m_B(b),m_Alpha(alpha),
+    m_Beta(beta), m_JPlus(jPlus), m_JMinus(jMinus),
+    m_ThetaV(thetaV), m_ThetaLowUp(thetaLowUp), m_ThetaLowDown(thetaLowDown),
+    m_ThetaHighUp(thetaHighUp), m_ThetaHighDown(thetaHighDown)
 {
-    if(m_Weight == nullptr) {
-        throw std::runtime_error("STDP Event propagation process requires weight variable");
+    if(m_X == nullptr) {
+        throw std::runtime_error("STDP Event propagation process requires X variable");
     }
 
     if(m_Target == nullptr) {
@@ -168,47 +165,20 @@ STDPEventPropagationProcess::STDPEventPropagationProcess(Private, std::shared_pt
     m_NumTargetNeurons = m_Target->getShape().getNumNeurons();
 
     // Get maximum row length from weight variable shape
-    m_MaxRowLength = m_Weight->getShape().getNumTargetNeurons();
+    m_MaxRowLength = m_X->getShape().getNumTargetNeurons();
 
     // Check weight number of source neurons matches
-    if(m_Weight->getShape().getNumSourceNeurons() != getNumSourceNeurons()) {
-        throw std::runtime_error("Weight with shape: " + weight->getShape().toString() 
+    if(m_X->getShape().getNumSourceNeurons() != getNumSourceNeurons()) {
+        throw std::runtime_error("Weight with shape: " + m_X->getShape().toString() 
                                  + " is not compatible with stdp event propagation process with " 
                                  + std::to_string(getNumSourceNeurons()) + " source neurons");
     }
 
-    // Check delays and sparsity are not being combined
-    if(m_NumDelayBits > 0 && m_NumSparseConnectivityBits > 0) {
-        throw std::runtime_error("STDP Event propagation processes with both events "
-                                 "and delays are not currently supported");
-    }
 
-    // Check weight number of target neurons matches if no sparsity
-    if(m_NumSparseConnectivityBits == 0 && m_MaxRowLength != m_NumTargetNeurons) {
-        throw std::runtime_error("Weight with shape: " + weight->getShape().toString() 
-                                 + " is not compatible with dense stdp event propagation process with " 
-                                 + std::to_string(m_NumTargetNeurons) + " target neurons");
-    }
 
-    if (m_Weight->getNumBufferTimesteps() != 1) {
+    if (m_X->getNumBufferTimesteps() != 1) {
         throw std::runtime_error("Weight has more than 1 buffer timestep which isn't "
                                  "currently supported by stdp event propagation processes");
-    }
-
-    // If there are no delays, check target only has one buffer timestep
-    if (m_NumDelayBits == 0) {
-        if(m_Target->getNumBufferTimesteps() != 1) {
-            throw std::runtime_error("Target has more than 1 buffer timestep "
-                                     "but no delay bits are specified");
-        }
-    }
-    // Otherwise, check buffer size matches
-    // **YUCK** the fact delays are actually addresses to 2 byte things is very FeNN-specific
-    else {
-        if(m_Target->getNumBufferTimesteps() != (1 << (m_NumDelayBits - 1))) {
-            throw std::runtime_error("Number of target buffer timestep does not "
-                                     "match specified number of delay bits");
-        }
     }
     
 }
