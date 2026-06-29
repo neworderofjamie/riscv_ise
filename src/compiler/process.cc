@@ -142,6 +142,9 @@ STDPEventPropagationProcess::STDPEventPropagationProcess(Private, std::shared_pt
                                                  int64_t synIncWithoutSpike, int64_t synDecWithoutSpike, 
                                                  int64_t synIncWithSpike, int64_t synDecWithSpike,  
                                                  int64_t posSynWeight, int64_t negSynWeight, 
+                                                 int64_t voltageThresh, int64_t highVoltCalciumLowThresh, 
+                                                 int64_t highVoltCalciumHighThresh, 
+                                                 int64_t lowVoltCalciumLowThresh, int64_t lowVoltCalciumHighThresh,
                                                  size_t numSparseConnectivityBits, 
                                                  size_t numDelayBits, const std::string &name)
 :   AcceptableModelComponent<STDPEventPropagationProcess, EventPropagationProcessBase>(inputEvents, name),
@@ -149,7 +152,9 @@ STDPEventPropagationProcess::STDPEventPropagationProcess(Private, std::shared_pt
     m_NumSparseConnectivityBits(numSparseConnectivityBits),
     m_NumDelayBits(numDelayBits), m_Syn_Thresh(synThresh), m_Syn_Inc_Without_Spike(synIncWithoutSpike),
     m_Syn_Dec_Without_Spike(synDecWithoutSpike),m_Syn_Inc_With_Spike(synIncWithSpike),
-    m_Syn_Dec_With_Spike(synDecWithSpike), m_Pos_Syn_Weight(posSynWeight), m_Neg_Syn_Weight(negSynWeight)
+    m_Syn_Dec_With_Spike(synDecWithSpike), m_Pos_Syn_Weight(posSynWeight), m_Neg_Syn_Weight(negSynWeight),
+    m_Voltage_Thresh(voltageThresh), m_High_Volt_Calcium_Low_Thresh(highVoltCalciumLowThresh), m_High_Volt_Calcium_High_Thresh(highVoltCalciumHighThresh),
+    m_Low_Volt_Calcium_Low_Thresh(lowVoltCalciumLowThresh), m_Low_Volt_Calcium_High_Thresh(lowVoltCalciumHighThresh)
 {
     if(m_Weight == nullptr) {
         throw std::runtime_error("STDP Event propagation process requires weight variable");

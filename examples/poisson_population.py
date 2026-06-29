@@ -54,8 +54,12 @@ extra_input_output = Linear(extra_input.out_spikes, output.i, f"s{num_int_bits}_
 
 primary_input_output = LinearWithSTDP(primary_input.out_spikes, output.i, output.v, output.c, f"s{num_int_bits}_{num_frac_bits}_sat_t", 
                                       syn_thresh=32, syn_inc_without_spike=1,syn_dec_without_spike=1,
-                                      syn_inc_with_spike=1,syn_dec_with_spike=1, pos_syn_weight=100, 
-                                      neg_syn_weight=0, name="primary_input_output")
+                                      syn_inc_with_spike=1,syn_dec_with_spike=1,
+                                      pos_syn_weight=100, 
+                                      neg_syn_weight=0, voltage_thresh=40, 
+                                      high_volt_calcium_low_thresh=3, high_volt_calcium_high_thresh=13,
+                                      low_volt_calcium_low_thresh=3, low_volt_calcium_high_thresh=4,
+                                      name="primary_input_output")
 
 
 

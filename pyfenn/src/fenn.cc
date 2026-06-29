@@ -263,6 +263,9 @@ PYBIND11_MODULE(_fenn, m)
              pybind11::arg("syn_inc_without_spike"), pybind11::arg("syn_dec_without_spike"), 
              pybind11::arg("syn_inc_with_spike"), pybind11::arg("syn_dec_with_spike"), 
              pybind11::arg("pos_syn_weight"), pybind11::arg("neg_syn_weight"), 
+             pybind11::arg("voltage_thresh"), pybind11::arg("high_volt_calcium_low_thresh"), 
+             pybind11::arg("high_volt_calcium_high_thresh"), pybind11::arg("low_volt_calcium_low_thresh"), 
+             pybind11::arg("low_volt_calcium_high_thresh"), 
              pybind11::arg("num_sparse_connectivity_bits") = 0,
              pybind11::arg("num_delay_bits") = 0, pybind11::arg("name") = "")
 
