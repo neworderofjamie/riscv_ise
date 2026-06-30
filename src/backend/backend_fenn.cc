@@ -1330,7 +1330,6 @@ public:
                     // weights corresponded to postsynaptic neurons above threshold 
                     // or not between the calcium bounds
                     c.vtlt(*CompareScalar, *ThetaV, *TargetVoltage);
-                    // Determine if calcium is out of bounds
                     c.vtge(*CompareScalar2, *ThetaLowDown, *TargetCalcium);
                     c.vtge(*CompareScalar3, *TargetCalcium, *ThetaHighDown);
                     // Determine which neurons did not meet any of the criteria for the update
@@ -1346,7 +1345,6 @@ public:
                     // weights corresponded to postsynaptic neurons less than or equal to threshold 
                     // or not between the calcium bounds
                     c.vtge(*CompareScalar, *ThetaV,*TargetVoltage);
-                    // Determine if calcium is out of bounds
                     c.vtge(*CompareScalar2, *ThetaLowUp, *TargetCalcium);
                     c.vtge(*CompareScalar3, *TargetCalcium, *ThetaHighUp);
                     // Determine which neurons did not meet any of the criteria for the update
@@ -1363,9 +1361,6 @@ public:
 
                     // Write back target
                     c.vstore(*XPlusA, *weightBufferReg, r * 64);
-
-
-
 
                 },
                 [this, weightBufferReg, TargetBuf, TargetVoltageBuf, TargetCalciumBuf](CodeGenerator &c, uint32_t numUnrolls)
