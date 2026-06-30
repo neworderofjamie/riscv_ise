@@ -47,12 +47,13 @@ extra_input = Bernoulli(Shape(extra_input_shape),prob_spike=.25, record_timestep
 
 
 output = Linear_LIF_STDP(output_shape, alpha=.01, c_tau=.98, j_c=1, 
-                        v_thresh=v_threshold, v_reset=0, fixed_point=num_frac_bits,
-                        record_timesteps=1, dt=1, name="output")
+                         v_thresh=v_threshold, v_reset=0, fixed_point=num_frac_bits,
+                         record_timesteps=1, dt=1, name="output")
 
 extra_input_output = Linear(extra_input.out_spikes, output.i, f"s{num_int_bits}_{num_frac_bits}_sat_t", name="extra_input_output")
 
-primary_input_output = LinearWithSTDP(primary_input.out_spikes, output.i, output.v, output.c, f"s{num_int_bits}_{num_frac_bits}_sat_t", 
+primary_input_output = LinearWithSTDP(primary_input.out_spikes, output.i, primary_input.time_since_last_spike,
+                                      output.v, output.c, f"s{num_int_bits}_{num_frac_bits}_sat_t", 
                                       syn_thresh=32, syn_inc_without_spike=1,syn_dec_without_spike=1,
                                       syn_inc_with_spike=1,syn_dec_with_spike=1,
                                       pos_syn_weight=100, 
