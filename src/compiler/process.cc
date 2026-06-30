@@ -137,8 +137,8 @@ EventPropagationProcess::EventPropagationProcess(Private, std::shared_ptr<const 
 // STDPEventPropagationProcess
 //----------------------------------------------------------------------------
 STDPEventPropagationProcess::STDPEventPropagationProcess(Private, std::shared_ptr<const EventContainer> inputEvents, 
-                                                         VariablePtr x, VariablePtr target, VariablePtr preTimeSinceLastSpike,
-                                                         VariablePtr vPre, VariablePtr cPre,
+                                                         VariablePtr preTimeSinceLastSpike, VariablePtr x, 
+                                                         VariablePtr target, VariablePtr vPre, VariablePtr cPre,
                                                          float thetaX, float a, float b, 
                                                          float alpha, float beta, 
                                                          float jPlus, float jMinus, 
@@ -147,7 +147,7 @@ STDPEventPropagationProcess::STDPEventPropagationProcess(Private, std::shared_pt
                                                          float thetaHighDown,
                                                          const std::string &name)
 :   AcceptableModelComponent<STDPEventPropagationProcess, EventPropagationProcessBase>(inputEvents, name),
-    m_X(x), m_Target(target), m_PreTimeSinceLastSpike(preTimeSinceLastSpike), m_VPre(vPre), m_CPre(cPre),
+    m_X(x), m_PreTimeSinceLastSpike(preTimeSinceLastSpike), m_Target(target), m_VPre(vPre), m_CPre(cPre),
     m_ThetaX(thetaX), m_A(a),
     m_B(b),m_Alpha(alpha),
     m_Beta(beta), m_JPlus(jPlus), m_JMinus(jMinus),

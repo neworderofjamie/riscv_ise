@@ -259,8 +259,8 @@ PYBIND11_MODULE(_fenn, m)
     pybind11::class_<STDPEventPropagationProcess, Process, std::shared_ptr<STDPEventPropagationProcess>>(m, "STDPEventPropagationProcess")
         .def(pybind11::init(&STDPEventPropagationProcess::create),
              pybind11::arg("input_events"), pybind11::arg("x"),
-             pybind11::arg("target"), pybind11::arg("pre_time_since_last_spike"),
-             pybind11::arg("v_pre"), pybind11::arg("c_pre"), 
+             pybind11::arg("pre_time_since_last_spike"),
+             pybind11::arg("target"), pybind11::arg("v_pre"), pybind11::arg("c_pre"), 
              pybind11::arg("theta_x"), 
              pybind11::arg("a"), pybind11::arg("b"), 
              pybind11::arg("alpha"), pybind11::arg("beta"), 

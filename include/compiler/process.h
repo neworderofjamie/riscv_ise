@@ -156,8 +156,8 @@ class COMPILER_EXPORT STDPEventPropagationProcess : public AcceptableModelCompon
 {
 public:
     STDPEventPropagationProcess(Private, std::shared_ptr<const EventContainer> inputEvents, 
-                                VariablePtr x, VariablePtr target, VariablePtr preTimeSinceLastSpike,
-                                VariablePtr vPre, VariablePtr cPre,
+                                VariablePtr x, VariablePtr preTimeSinceLastSpike,
+                                VariablePtr target, VariablePtr vPre, VariablePtr cPre,
                                 float thetaX, float a, float b, 
                                 float alpha, float beta, 
                                 float jPlus, float jMinus, 
@@ -200,7 +200,8 @@ public:
     // Static API
     //------------------------------------------------------------------------
     static std::shared_ptr<STDPEventPropagationProcess> create(std::shared_ptr<const EventContainer> inputEvents,
-                                                               VariablePtr x, VariablePtr target, VariablePtr preTimeSinceLastSpike, VariablePtr vPre, VariablePtr cPre,
+                                                               VariablePtr x, VariablePtr preTimeSinceLastSpike, 
+                                                               VariablePtr target, VariablePtr vPre, VariablePtr cPre,
                                                                float thetaX, float a, float b, 
                                                                float alpha, float beta, 
                                                                float jPlus, float jMinus, 
@@ -210,7 +211,7 @@ public:
                                                                const std::string &name)
     {
         return std::make_shared<STDPEventPropagationProcess>(Private(), inputEvents, 
-                                                            x, target, preTimeSinceLastSpike, vPre, cPre,
+                                                            x, preTimeSinceLastSpike, target, vPre, cPre,
                                                             thetaX, a, b, 
                                                             alpha, beta, 
                                                             jPlus, jMinus, 

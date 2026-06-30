@@ -35,13 +35,13 @@ class Linear:
                                                num_delay_bits, name)
 
 class LinearWithSTDP:
-    def __init__(self, source_events: EventContainer, target_var: Variable,
-                 pre_time_since_last_spike: Variable, v_pre:Variable, 
-                 c_pre:Variable, x_dtype: str, theta_x: int, a: int, 
-                 b: int, alpha: int, beta: int, 
-                 j_minus: int, j_plus: int, theta_v:int, 
-                 theta_low_up: float, theta_low_down:float,
-                 theta_high_up: float, theta_high_down:float,
+    def __init__(self, source_events: EventContainer, 
+                 pre_time_since_last_spike: Variable, target_var: Variable,
+                 v_pre:Variable, c_pre:Variable, x_dtype: str, 
+                 theta_x: float, a: float, b: float, alpha: float,
+                 beta: float, j_minus: float, j_plus: float, theta_v: float,
+                 theta_low_up: float, theta_low_down: float,
+                 theta_high_up: float, theta_high_down: float,
                  name: str = ""):
         # Remember the synaptic threshold is divided by 2**(num fractional bits)
         self.shape = (source_events.shape.num_neurons,
@@ -52,7 +52,8 @@ class LinearWithSTDP:
 
 
         self.process = STDPEventPropagationProcess(
-            source_events, self.x, target_var, pre_time_since_last_spike,
-            v_pre, c_pre, theta_x, a,  b, alpha, beta, j_minus, j_plus,
-            theta_v, theta_low_up, theta_low_down, theta_high_up, theta_high_down, name)
+            source_events, self.x, pre_time_since_last_spike, target_var, 
+            v_pre, c_pre, theta_x, a,  b, alpha, beta, j_minus, j_plus, 
+            theta_v, theta_low_up, theta_low_down, theta_high_up, 
+            theta_high_down, name)
         
