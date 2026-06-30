@@ -372,8 +372,10 @@ private:
                 }
             }
         }
-        // Otherwise, if variable's target
-        else if(m_Variable == stdpEventPropagationProcess->getTarget()) {
+        // Otherwise, if variable's postsynaptic
+        else if(m_Variable == stdpEventPropagationProcess->getTarget()
+                || m_Variable == stdpEventPropagationProcess->getPostSynVoltage()
+                || m_Variable == stdpEventPropagationProcess->getPostSynCalcium()) {
             // It can't be located in BRAM or DRAM
             m_BRAMCompatible = false;
             m_DRAMCompatible = false;
@@ -385,7 +387,7 @@ private:
 
                 if(!m_LLMCompatible) {
                     throw std::runtime_error("Event propagation process '" + stdpEventPropagationProcess->getName()
-                                            + "' target array '" + stdpEventPropagationProcess->getTarget()->getName()
+                                            + "' array '" + m_Variable->getName()
                                             + "' shared with incompatible processes");
                 }
             }
@@ -399,6 +401,20 @@ private:
                                             + "' target array '" + stdpEventPropagationProcess->getTarget()->getName()
                                             + "' shared with incompatible processes");
                 }
+            }
+        }
+        // Otherwise, if it's a presynaptic variable, it can only be located in URAM
+        else if(m_Variable == stdpEventPropagationProcess->getPreTimeSinceLastSpike()) {
+            m_LLMCompatible = false;
+            m_BRAMCompatible = false;
+            m_URAMLLMCompatible = false;
+            m_DRAMCompatible = false;
+
+            if(!m_URAMCompatible) {
+                throw std::runtime_error("STDP event propagation process '" + stdpEventPropagationProcess->getName() 
+                                         + "' presynaptic time since last spike array '" 
+                                         + stdpEventPropagationProcess->getPreTimeSinceLastSpike()->getName()
+                                         + "' shared with incompatible processes");
             }
         }
         else {
@@ -985,7 +1001,7 @@ public:
         //--------------------------------------------------------------------
         // Declared virtuals
         //--------------------------------------------------------------------
-        virtual void generateRow(CodeGenerator &cg, ScalarRegisterAllocator::RegisterPtr weightBufferReg) = 0;
+        virtual void generateRow(CodeGenerator &cg, ScalarRegisterAllocator::RegisterPtr weightBufferReg, bool firstBuffer) = 0;
 
         virtual ScalarRegisterAllocator::RegisterPtr loadWeightBuffer(CodeGenerator &c, ScalarRegisterAllocator::RegisterPtr idPreReg)
         {
@@ -1046,7 +1062,7 @@ public:
         //--------------------------------------------------------------------
         // RowGeneratorBase virtuals
         //--------------------------------------------------------------------
-        virtual void generateRow(CodeGenerator &c, ScalarRegisterAllocator::RegisterPtr weightBufferReg) final override
+        virtual void generateRow(CodeGenerator &c, ScalarRegisterAllocator::RegisterPtr weightBufferReg, bool) final override
         {
             // Make some friendlier-named references
             auto &scalarRegisterAllocator = getScalarRegisterAllocator();
@@ -1105,16 +1121,25 @@ public:
     class STDPDenseRowGenerator : public RowGeneratorBase
     {
     public:
-        STDPDenseRowGenerator(CodeGenerator &c, std::shared_ptr<const EventPropagationProcessBase> process,
+        STDPDenseRowGenerator(CodeGenerator &c, std::shared_ptr<const STDPEventPropagationProcess> process,
                               const Model::StateFields &stateFields,
                               ScalarRegisterAllocator &scalarRegisterAllocator, 
                               VectorRegisterAllocator &vectorRegisterAllocator,
                               bool useDRAMForWeights)
         :   RowGeneratorBase(c, process, stateFields, scalarRegisterAllocator, vectorRegisterAllocator)
         {
+            // Allocate registers
+            m_TimeSinceLastSpikeVector = vectorRegisterAllocator.getRegister("VTimeSinceLastSpike");
+            m_TimeSinceLastSpikeBuf = scalarRegisterAllocator.getRegister("STimeSinceLastSpikeBuf");
+            m_TimeSinceLastSpikeA = scalarRegisterAllocator.getRegister("STimeSinceLastSpikeA");
 
-            // Load address of presynaptic state into register
-            c.lw(*m_TimeSinceLastSpikeBuf, Reg::X0, getStateFields().at(process->getTarget()));
+            // If we are using DRAM for weights, we need to double-buffer these values so allocate additional register
+            if(useDRAMForWeights) {
+                m_TimeSinceLastSpikeB = scalarRegisterAllocator.getRegister("STimeSinceLastSpikeB");
+            }
+            
+            // Load address of time since last spike
+            c.lw(*m_TimeSinceLastSpikeBuf, Reg::X0, getStateFields().at(process->getPreTimeSinceLastSpike()));
         }
 
         //--------------------------------------------------------------------
@@ -1140,19 +1165,23 @@ public:
             c.andi(*STmp, *idPreReg, 0x1f);
             
             // Extract time since last spike into appropriate buffer
-            c.vextractfill(firstBuffer ? *m_TimeSinceLastSpikeA : *m_TimeSinceLastSpikeB,
-                           *m_TimeSinceLastSpikeVector, *STmp);
+            c.vextract(firstBuffer ? *m_TimeSinceLastSpikeA : *m_TimeSinceLastSpikeB,
+                       *m_TimeSinceLastSpikeVector, *STmp);
             // **TODO** multiple by dt and alpha + beta
         }
 
 
         // weightBufferReg contains the address of the weights from one presynaptic neuron which spiked 
         // to its many downstream postsynaptic neurons
-        virtual void generateRow(CodeGenerator &c, ScalarRegisterAllocator::RegisterPtr weightBufferReg) final override
+        virtual void generateRow(CodeGenerator &c, ScalarRegisterAllocator::RegisterPtr weightBufferReg, bool firstBuffer) final override
         {
             // Make some friendlier-named references
             auto &scalarRegisterAllocator = getScalarRegisterAllocator();
             auto &vectorRegisterAllocator = getVectorRegisterAllocator();
+
+            // Get reference to scalar register containing time since presynpatic spike
+            // **CARTER** use this to calculate weight decay if no criteria met
+            auto &timeSinceLastSpike = firstBuffer ? m_TimeSinceLastSpikeA : m_TimeSinceLastSpikeB;
 
             ALLOCATE_VECTOR(VWeight);
             ALLOCATE_VECTOR(VTarget1);
@@ -1394,7 +1423,7 @@ public:
         //--------------------------------------------------------------------
         // RowGeneratorBase virtuals
         //--------------------------------------------------------------------
-        virtual void generateRow(CodeGenerator &c, ScalarRegisterAllocator::RegisterPtr weightBufferReg) final override
+        virtual void generateRow(CodeGenerator &c, ScalarRegisterAllocator::RegisterPtr weightBufferReg, bool) final override
         {
             // Make some friendlier-named references
             auto &scalarRegisterAllocator = getScalarRegisterAllocator();
@@ -1473,7 +1502,7 @@ public:
         //--------------------------------------------------------------------
         // RowGeneratorBase virtuals
         //--------------------------------------------------------------------
-        virtual void generateRow(CodeGenerator &c, ScalarRegisterAllocator::RegisterPtr weightBufferReg) final override
+        virtual void generateRow(CodeGenerator &c, ScalarRegisterAllocator::RegisterPtr weightBufferReg, bool) final override
         {
             // Make some friendlier-named references
             auto &scalarRegisterAllocator = getScalarRegisterAllocator();
@@ -2296,7 +2325,7 @@ public:
                     // SN tells us which weights we actually want to load
                     auto weightBufferReg = r->loadWeightBuffer(c, SN);
                     r->extractPreState(c, SN, true);
-                    r->generateRow(c, weightBufferReg);
+                    r->generateRow(c, weightBufferReg, true);
                 }
 
                 // SN --
@@ -2480,7 +2509,7 @@ public:
                 {
                     ALLOCATE_SCALAR(SRowBuffer);
                     c.mv(*SRowBuffer, evenRow ? *SRowBufferA : *SRowBufferB);
-                    rowGenerators[r]->generateRow(c, SRowBuffer);
+                    rowGenerators[r]->generateRow(c, SRowBuffer, evenRow);
                 }
             }    
 
@@ -2517,7 +2546,7 @@ public:
             {
                 ALLOCATE_SCALAR(SRowBuffer);
                 c.mv(*SRowBuffer, evenNumRows ? *SRowBufferB : *SRowBufferA);
-                rowGenerators.back()->generateRow(c, SRowBuffer);
+                rowGenerators.back()->generateRow(c, SRowBuffer, !evenNumRows);
             }
 
             // If we have an odd number of rows, swap buffers
@@ -2583,14 +2612,14 @@ public:
                 {
                     ALLOCATE_SCALAR(SRowBuffer);
                     c.mv(*SRowBuffer, evenRow ? *SRowBufferA : *SRowBufferB);
-                    rowGenerators[r]->generateRow(c, SRowBuffer);
+                    rowGenerators[r]->generateRow(c, SRowBuffer, evenRow);
                 }
 
             }
 
             // Generate code to process final row
             AssemblerUtils::generateDMAWaitForWriteComplete(c, scalarRegisterAllocator);
-            rowGenerators.back()->generateRow(c, evenNumRows ? SRowBufferB : SRowBufferA);
+            rowGenerators.back()->generateRow(c, evenNumRows ? SRowBufferB : SRowBufferA, !evenNumRows);
 
         }
 
@@ -2670,7 +2699,9 @@ public:
             }
             else {
                 rowGenerators.emplace_back(
-                    std::make_unique<STDPDenseRowGenerator>(c, std::dynamic_pointer_cast<const STDPEventPropagationProcess>(p), stateFields, scalarRegisterAllocator, vectorRegisterAllocator));
+                    std::make_unique<STDPDenseRowGenerator>(c, std::dynamic_pointer_cast<const STDPEventPropagationProcess>(p), 
+                                                            stateFields, scalarRegisterAllocator, vectorRegisterAllocator, 
+                                                            m_UseDRAMForWeights));
             }
         }
     

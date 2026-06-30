@@ -123,6 +123,9 @@ private:
         m_StateProcesses.get()[stdpEventPropagationProcess->getInputEvents()].push_back(stdpEventPropagationProcess);
         m_StateProcesses.get()[stdpEventPropagationProcess->getWeight()].push_back(stdpEventPropagationProcess);
         m_StateProcesses.get()[stdpEventPropagationProcess->getTarget()].push_back(stdpEventPropagationProcess);
+        m_StateProcesses.get()[stdpEventPropagationProcess->getPreTimeSinceLastSpike()].push_back(stdpEventPropagationProcess);
+        m_StateProcesses.get()[stdpEventPropagationProcess->getPostSynVoltage()].push_back(stdpEventPropagationProcess);
+        m_StateProcesses.get()[stdpEventPropagationProcess->getPostSynCalcium()].push_back(stdpEventPropagationProcess);
     }
 
     virtual void visit(std::shared_ptr<const RNGInitProcess> rngInitProcess)
@@ -286,6 +289,9 @@ private:
         stdpEventPropagationProcess->getInputEvents()->accept(*this);
         acceptVariable(stdpEventPropagationProcess->getWeight());
         acceptVariable(stdpEventPropagationProcess->getTarget());
+        acceptVariable(stdpEventPropagationProcess->getPreTimeSinceLastSpike());
+        acceptVariable(stdpEventPropagationProcess->getPostSynVoltage());
+        acceptVariable(stdpEventPropagationProcess->getPostSynCalcium());
 
         // Add process fields
         if(!m_StatefulFields.get().try_emplace(stdpEventPropagationProcess, m_CurrentProcessFields).second) {

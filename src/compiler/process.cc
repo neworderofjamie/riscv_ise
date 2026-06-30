@@ -137,18 +137,19 @@ EventPropagationProcess::EventPropagationProcess(Private, std::shared_ptr<const 
 // STDPEventPropagationProcess
 //----------------------------------------------------------------------------
 STDPEventPropagationProcess::STDPEventPropagationProcess(Private, std::shared_ptr<const EventContainer> inputEvents, 
-                                                 VariablePtr weight, VariablePtr target, VariablePtr postSynVoltage, 
-                                                 VariablePtr postSynCalcium, int64_t synThresh,
-                                                 int64_t synIncWithoutSpike, int64_t synDecWithoutSpike, 
-                                                 int64_t synIncWithSpike, int64_t synDecWithSpike,  
-                                                 int64_t posSynWeight, int64_t negSynWeight, 
-                                                 int64_t voltageThresh, int64_t highVoltCalciumLowThresh, 
-                                                 int64_t highVoltCalciumHighThresh, 
-                                                 int64_t lowVoltCalciumLowThresh, int64_t lowVoltCalciumHighThresh,
-                                                 size_t numSparseConnectivityBits, 
-                                                 size_t numDelayBits, const std::string &name)
+                                                         VariablePtr weight, VariablePtr target,  VariablePtr preTimeSinceLastSpike,
+                                                         VariablePtr postSynVoltage, VariablePtr postSynCalcium, int64_t synThresh,
+                                                         int64_t synIncWithoutSpike, int64_t synDecWithoutSpike, 
+                                                         int64_t synIncWithSpike, int64_t synDecWithSpike,  
+                                                         int64_t posSynWeight, int64_t negSynWeight, 
+                                                         int64_t voltageThresh, int64_t highVoltCalciumLowThresh, 
+                                                         int64_t highVoltCalciumHighThresh, 
+                                                         int64_t lowVoltCalciumLowThresh, int64_t lowVoltCalciumHighThresh,
+                                                         size_t numSparseConnectivityBits, 
+                                                         size_t numDelayBits, const std::string &name)
 :   AcceptableModelComponent<STDPEventPropagationProcess, EventPropagationProcessBase>(inputEvents, name),
-    m_Weight(weight), m_Target(target), m_PostSynVoltage(postSynVoltage), m_PostSynCalcium(postSynVoltage),
+    m_Weight(weight), m_Target(target), m_PreTimeSinceLastSpike(preTimeSinceLastSpike), 
+    m_PostSynVoltage(postSynVoltage), m_PostSynCalcium(postSynVoltage),
     m_NumSparseConnectivityBits(numSparseConnectivityBits),
     m_NumDelayBits(numDelayBits), m_Syn_Thresh(synThresh), m_Syn_Inc_Without_Spike(synIncWithoutSpike),
     m_Syn_Dec_Without_Spike(synDecWithoutSpike),m_Syn_Inc_With_Spike(synIncWithSpike),
@@ -162,6 +163,18 @@ STDPEventPropagationProcess::STDPEventPropagationProcess(Private, std::shared_pt
 
     if(m_Target == nullptr) {
         throw std::runtime_error("STDP Event propagation process requires target variable");
+    }
+
+    if(m_PreTimeSinceLastSpike == nullptr) {
+        throw std::runtime_error("STDP Event propagation process requires presynaptic time since last spike variable");
+    }
+
+    if(m_PostSynVoltage == nullptr) {
+        throw std::runtime_error("STDP Event propagation process requires postsynaptic voltage variable");
+    }
+
+    if(m_PostSynCalcium == nullptr) {
+        throw std::runtime_error("STDP Event propagation process requires postsynaptic calcium variable");
     }
 
     // Get number of target neurons from target variable
@@ -211,6 +224,27 @@ STDPEventPropagationProcess::STDPEventPropagationProcess(Private, std::shared_pt
         }
     }
     
+    // Check presynaptic time since last spike shape is compatible
+    if (getPreTimeSinceLastSpike()->getShape().getNumNeurons() != getNumSourceNeurons()) {
+        throw std::runtime_error("Presynaptic time since last spike with shape: " 
+                                 + getPreTimeSinceLastSpike()->getShape().toString() 
+                                 + " is not compatible with STDP event propagation process with " 
+                                 + std::to_string(getNumSourceNeurons()) + " source neurons");
+    }
+
+    // Check postsymaptic calcium shape is compatible
+    if (getPostSynCalcium()->getShape().getNumNeurons() != getNumTargetNeurons()) {
+        throw std::runtime_error("Postsynaptic calcium with shape: " + getPostSynCalcium()->getShape().toString() 
+                                 + " is not compatible with STDP event propagation process with " 
+                                 + std::to_string(getNumTargetNeurons()) + " target neurons");
+    }
+    // Check postsymaptic voltage shape is compatible
+    if (getPostSynVoltage()->getShape().getNumNeurons() != getNumTargetNeurons()) {
+        throw std::runtime_error("Postsynaptic voltage with shape: " + getPostSynVoltage()->getShape().toString() 
+                                 + " is not compatible with STDP event propagation process with " 
+                                 + std::to_string(getNumTargetNeurons()) + " target neurons");
+    }
+
 }
 
 

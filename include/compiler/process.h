@@ -156,21 +156,24 @@ class COMPILER_EXPORT STDPEventPropagationProcess : public AcceptableModelCompon
 {
 public:
     STDPEventPropagationProcess(Private, std::shared_ptr<const EventContainer> inputEvents, 
-                            VariablePtr weight, VariablePtr target, VariablePtr postSynVoltage, VariablePtr postSynCalcium,
-                            int64_t synThresh, int64_t synIncWithoutSpike, int64_t synDecWithoutSpike, 
-                             int64_t synIncWithSpike, int64_t synDecWithSpike, 
-                             int64_t posSynWeight, int64_t negSynWeight, 
-                             int64_t voltageThresh,int64_t highVoltCalciumLowThresh, 
-                             int64_t highVoltCalciumHighThresh, int64_t lowVoltCalciumLowThresh, 
-                             int64_t lowVoltCalciumHighThresh,
-                            size_t numSparseConnectivityBits, size_t numDelayBits,
-                            const std::string &name);
+                                VariablePtr weight, VariablePtr target, VariablePtr preTimeSinceLastSpike,
+                                VariablePtr postSynVoltage, VariablePtr postSynCalcium,
+                                int64_t synThresh, int64_t synIncWithoutSpike, int64_t synDecWithoutSpike, 
+                                int64_t synIncWithSpike, int64_t synDecWithSpike, 
+                                int64_t posSynWeight, int64_t negSynWeight, 
+                                int64_t voltageThresh,int64_t highVoltCalciumLowThresh, 
+                                int64_t highVoltCalciumHighThresh, int64_t lowVoltCalciumLowThresh, 
+                                int64_t lowVoltCalciumHighThresh,
+                                size_t numSparseConnectivityBits, size_t numDelayBits,
+                                const std::string &name);
 
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
     const auto getWeight() const { return m_Weight; }
     const auto getTarget() const { return m_Target; }
+
+    const auto getPreTimeSinceLastSpike() const{ return m_PreTimeSinceLastSpike; }
 
     const auto getPostSynVoltage() const { return m_PostSynVoltage; }
     const auto getPostSynCalcium() const { return m_PostSynCalcium; }
@@ -200,20 +203,22 @@ public:
     // Static API
     //------------------------------------------------------------------------
     static std::shared_ptr<STDPEventPropagationProcess> create(std::shared_ptr<const EventContainer> inputEvents, 
-                                                           VariablePtr weight, VariablePtr target, VariablePtr postSynVoltage, VariablePtr postSynCalcium,
-                                                           int64_t synThresh, int64_t synIncWithoutSpike, 
-                                                           int64_t synDecWithoutSpike, int64_t synIncWithSpike, int64_t synDecWithSpike, 
-                                                           int64_t posSynWeight, int64_t negSynWeight, 
-                                                           int64_t voltageThresh,
-                                                           int64_t highVoltCalciumLowThresh, int64_t highVoltCalciumHighThresh, 
-                                                           int64_t lowVoltCalciumLowThresh, int64_t lowVoltCalciumHighThresh,
-                                                           size_t numSparseConnectivityBits = 0,
-                                                           size_t numDelayBits = 0,
-                                                           const std::string &name = "")
+                                                               VariablePtr weight, VariablePtr target, VariablePtr preTimeSinceLastSpike,
+                                                               VariablePtr postSynVoltage, VariablePtr postSynCalcium,
+                                                               int64_t synThresh, int64_t synIncWithoutSpike, 
+                                                               int64_t synDecWithoutSpike, int64_t synIncWithSpike, int64_t synDecWithSpike, 
+                                                               int64_t posSynWeight, int64_t negSynWeight, 
+                                                               int64_t voltageThresh,
+                                                               int64_t highVoltCalciumLowThresh, int64_t highVoltCalciumHighThresh, 
+                                                               int64_t lowVoltCalciumLowThresh, int64_t lowVoltCalciumHighThresh,
+                                                               size_t numSparseConnectivityBits = 0,
+                                                               size_t numDelayBits = 0,
+                                                               const std::string &name = "")
     {
-        return std::make_shared<STDPEventPropagationProcess>(Private(), inputEvents, weight, target, postSynVoltage, postSynCalcium, synThresh, synIncWithoutSpike, synDecWithoutSpike,
-                                                         synIncWithSpike, synDecWithSpike, posSynWeight, negSynWeight, voltageThresh, highVoltCalciumLowThresh, 
-                                                         highVoltCalciumHighThresh, lowVoltCalciumLowThresh, lowVoltCalciumHighThresh, numSparseConnectivityBits, numDelayBits, name);
+        return std::make_shared<STDPEventPropagationProcess>(Private(), inputEvents, weight, target, preTimeSinceLastSpike, 
+                                                             postSynVoltage, postSynCalcium, synThresh, synIncWithoutSpike, synDecWithoutSpike,
+                                                             synIncWithSpike, synDecWithSpike, posSynWeight, negSynWeight, voltageThresh, highVoltCalciumLowThresh, 
+                                                             highVoltCalciumHighThresh, lowVoltCalciumLowThresh, lowVoltCalciumHighThresh, numSparseConnectivityBits, numDelayBits, name);
     }
 
 private:
@@ -222,6 +227,8 @@ private:
     //------------------------------------------------------------------------
     VariablePtr m_Weight;
     VariablePtr m_Target;
+
+    VariablePtr m_PreTimeSinceLastSpike;
 
     VariablePtr m_PostSynVoltage;
     VariablePtr m_PostSynCalcium;
