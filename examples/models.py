@@ -146,7 +146,7 @@ class Bernoulli:
             }}
             """,
             {"ProbSpike": Parameter(prob_spike, "s0_15_sat_t")},
-            {"NumSpikes": self.num_spikes},
+            {},
             {"Spike": self.out_spikes},
             name)
 

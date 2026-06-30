@@ -46,19 +46,19 @@ primary_input = Bernoulli(Shape(primary_input_shape),prob_spike=.125,record_time
 extra_input = Bernoulli(Shape(extra_input_shape),prob_spike=.25, record_timesteps=1,name="extra_input")
 
 
-output = Linear_LIF_STDP(output_shape, alpha=.01, c_tau=.98, j_c=1, 
+output = Linear_LIF_STDP(output_shape, alpha=.01, tau=.98, j_c=1, 
                         v_thresh=v_threshold, v_reset=0, fixed_point=num_frac_bits,
                         record_timesteps=1, dt=1, name="output")
 
 extra_input_output = Linear(extra_input.out_spikes, output.i, f"s{num_int_bits}_{num_frac_bits}_sat_t", name="extra_input_output")
 
 primary_input_output = LinearWithSTDP(primary_input.out_spikes, output.i, output.v, output.c, f"s{num_int_bits}_{num_frac_bits}_sat_t", 
-                                      x_thresh=32, x_inc_without_spike=1,x_dec_without_spike=1,
-                                      x_inc_with_spike=1,x_dec_with_spike=1,
-                                      pos_syn_weight=100, 
-                                      neg_syn_weight=0, voltage_thresh=40, 
-                                      high_volt_calcium_low_thresh=3, high_volt_calcium_high_thresh=13,
-                                      low_volt_calcium_low_thresh=3, low_volt_calcium_high_thresh=4,
+                                      theta_x=.5, a=1,b=1,
+                                      alpha=.1,beta=.1,
+                                      j_minus=3.5, 
+                                      j_plus=3.5, theta_v=.8, 
+                                      theta_low_up=3, theta_low_down=3,
+                                      theta_high_up=13, theta_high_down=4,
                                       name="primary_input_output")
 
 

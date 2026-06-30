@@ -175,20 +175,20 @@ public:
     const auto getCPre() const { return m_CPre; }
 
 
-    int64_t getThetaX() const {return m_ThetaX;}
-    int64_t getA() const {return m_A;}
-    int64_t getB() const {return m_B;}
-    int64_t getAlpha() const {return m_Alpha;}
-    int64_t getBeta() const {return m_Beta;}
+    float getThetaX() const {return m_ThetaX;}
+    float getA() const {return m_A;}
+    float getB() const {return m_B;}
+    float getAlpha() const {return m_Alpha;}
+    float getBeta() const {return m_Beta;}
 
-    int64_t getJPlus() const {return m_JPlus;}
-    int64_t getJMinus() const {return m_JMinus;}
+    float getJPlus() const {return m_JPlus;}
+    float getJMinus() const {return m_JMinus;}
 
-    int64_t getThetaV() const {return m_ThetaV;}
-    int64_t getThetaLowUp() const {return m_ThetaLowUp;}
-    int64_t getThetaLowDown() const {return m_ThetaLowDown;}
-    int64_t getThetaHighUp() const {return m_ThetaHighUp;}
-    int64_t getThetaHighDown() const {return m_ThetaHighDown;}
+    float getThetaV() const {return m_ThetaV;}
+    float getThetaLowUp() const {return m_ThetaLowUp;}
+    float getThetaLowDown() const {return m_ThetaLowDown;}
+    float getThetaHighUp() const {return m_ThetaHighUp;}
+    float getThetaHighDown() const {return m_ThetaHighDown;}
 
     size_t getNumTargetNeurons() const{ return m_NumTargetNeurons; }
     size_t getMaxRowLength() const{ return m_MaxRowLength; }
@@ -228,20 +228,20 @@ private:
     VariablePtr m_VPre;
     VariablePtr m_CPre;
 
-    int64_t m_ThetaX;
-    int64_t m_A;
-    int64_t m_B;
-    int64_t m_Alpha;
-    int64_t m_Beta;
+    float m_ThetaX;
+    float m_A;
+    float m_B;
+    float m_Alpha;
+    float m_Beta;
 
-    int64_t m_JPlus;
-    int64_t m_JMinus;
+    float m_JPlus;
+    float m_JMinus;
 
-    int64_t m_ThetaV;
-    int64_t m_ThetaLowUp;
-    int64_t m_ThetaLowDown;
-    int64_t m_ThetaHighUp;
-    int64_t m_ThetaHighDown;
+    float m_ThetaV;
+    float m_ThetaLowUp;
+    float m_ThetaLowDown;
+    float m_ThetaHighUp;
+    float m_ThetaHighDown;
 
 
     size_t m_NumTargetNeurons;

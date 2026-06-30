@@ -1081,19 +1081,24 @@ private:
         //--------------------------------------------------------------------
         // RowGeneratorBase virtuals
         //--------------------------------------------------------------------
-        // weightBufferReg contains the address of the weights from one presynaptic neuron which spiked 
-        // to its many downstream postsynaptic neurons
-        virtual void generateRow(CodeGenerator &c, ScalarRegisterAllocator::RegisterPtr weightBufferReg) final override
+
+        virtual void generateRow(CodeGenerator &c, ScalarRegisterAllocator::RegisterPtr xBufferReg) final override
         {
             // Make some friendlier-named references
             auto &scalarRegisterAllocator = getScalarRegisterAllocator();
             auto &vectorRegisterAllocator = getVectorRegisterAllocator();
 
-            ALLOCATE_VECTOR(VWeight);
+            ALLOCATE_VECTOR(X);
             ALLOCATE_VECTOR(VTarget1);
             ALLOCATE_VECTOR(VTarget2);
             ALLOCATE_VECTOR(VTargetNew);
-            ALLOCATE_SCALAR(STargetBuf);
+            ALLOCATE_VECTOR(Target);
+            ALLOCATE_VECTOR(TargetVoltage);
+            ALLOCATE_VECTOR(TargetCalcium);   
+            
+            ALLOCATE_SCALAR(TargetBuf);
+            ALLOCATE_SCALAR(TargetVoltageBuf);
+            ALLOCATE_SCALAR(TargetCalciumBuf);
 
             ALLOCATE_SCALAR(CompareScalar);
             ALLOCATE_SCALAR(CompareScalar2);
@@ -1103,10 +1108,7 @@ private:
             ALLOCATE_VECTOR(JPlus);
             ALLOCATE_VECTOR(JMinus);
 
-            ALLOCATE_SCALAR(STargetVoltage);
-            ALLOCATE_SCALAR(STargetCalcium);
-            ALLOCATE_VECTOR(TargetVoltage);
-            ALLOCATE_VECTOR(TargetCalcium);
+
 
             ALLOCATE_VECTOR(ThetaLowUp);
             ALLOCATE_VECTOR(ThetaHighUp);
@@ -1124,29 +1126,42 @@ private:
             ALLOCATE_VECTOR(A);
 
             auto process = getProcess<STDPEventPropagationProcess>();
-            c.vlui(*ThetaV, process->getThetaV());
-                
 
-            c.vlui(*A, process->getA());
-            c.vlui(*B, process->getB());
+            // Get the type of the Target, Calcium, Voltage, and X
+            const auto &numericTypeTarget = process->getTarget()->getType().getNumeric();
+            assert(numericTypeTarget.fixedPoint);
+            const auto &numericTypeCPre = process->getCPre()->getType().getNumeric();
+            assert(numericTypeCPre.fixedPoint);
+            const auto &numericTypeVPre = process->getVPre()->getType().getNumeric();
+            assert(numericTypeVPre.fixedPoint);
+            const auto &numericTypeX = process->getX()->getType().getNumeric();
+            assert(numericTypeX.fixedPoint);
+            // Assert each of the above vars uses the same number of fixed point bits
+            assert((numericTypeTarget.fixedPoint.value() == numericTypeCPre.fixedPoint.value()) && 
+                (numericTypeTarget.fixedPoint.value() == numericTypeVPre.fixedPoint.value()) &&
+                (numericTypeTarget.fixedPoint.value() == numericTypeX.fixedPoint.value()));
 
-            // Load target register from state fields
-            // **NOTE** no point in caching this as it needs resetting every row
-            c.lw(*STargetBuf, Reg::X0, getStateFields().at(process->getTarget()));
 
-            // Load postsynaptic voltage and calcium needed for STDP
-            c.lw(*STargetVoltage, Reg::X0, getStateFields().at(process->getVPre()));
-            c.lw(*STargetCalcium, Reg::X0, getStateFields().at(process->getCPre()));
-
-            
-            // Preload first ISyn to avoid stall
-            c.vloadv(*VTarget1, *STargetBuf, 0);
-
+            c.vlui(*ThetaV, convertFixedPoint(process->getThetaV(), numericTypeTarget.fixedPoint.value()));
+            c.vlui(*A, convertFixedPoint(process->getA(), numericTypeTarget.fixedPoint.value()));
+            c.vlui(*B, convertFixedPoint(process->getB(), numericTypeTarget.fixedPoint.value()));
             // Load threshold variables
-            c.vlui(*ThetaLowUp, process->getThetaLowUp());
-            c.vlui(*ThetaHighUp, process->getThetaHighUp());
-            c.vlui(*ThetaLowDown, process->getThetaLowDown());
-            c.vlui(*ThetaHighDown, process->getThetaHighDown());
+            c.vlui(*ThetaLowUp, convertFixedPoint(process->getThetaLowUp(), numericTypeTarget.fixedPoint.value()));
+            c.vlui(*ThetaHighUp, convertFixedPoint(process->getThetaHighUp(), numericTypeTarget.fixedPoint.value()));
+            c.vlui(*ThetaLowDown, convertFixedPoint(process->getThetaLowDown(), numericTypeTarget.fixedPoint.value()));
+            c.vlui(*ThetaHighDown, convertFixedPoint(process->getThetaHighDown(), numericTypeTarget.fixedPoint.value()));
+            // Load the threshold: if X is above (below) threshold, synapse is J+ (J-)
+            c.vlui(*thresh_vec, convertFixedPoint(process->getThetaX(), numericTypeTarget.fixedPoint.value()));
+            c.vlui(*JMinus, convertFixedPoint(process->getJMinus(), numericTypeTarget.fixedPoint.value()));
+            c.vlui(*JPlus, convertFixedPoint(process->getJPlus(), numericTypeTarget.fixedPoint.value()));
+
+            // Load target register, voltage, and calcium vars from state fields
+            // **NOTE** no point in caching this as it needs resetting every row
+            c.lw(*TargetBuf, Reg::X0, getStateFields().at(process->getTarget()));
+            c.lw(*TargetVoltageBuf, Reg::X0, getStateFields().at(process->getVPre()));
+            c.lw(*TargetCalciumBuf, Reg::X0, getStateFields().at(process->getCPre()));
+            // Preload first ISyn to avoid stall
+            c.vloadv(*VTarget1, *TargetBuf, 0);
 
             // Load vector of zeros
             c.vfill(*ZeroVec, Reg::X0);
@@ -1154,49 +1169,48 @@ private:
             // Why doesn't the commented code work?
             // c.vteq(*TrueScalar, *ZeroVec, *ZeroVec);
             // c.vfill(*OneVec, *TrueScalar);
-
             // Load all true scalar
             c.li(*TrueScalar, 64);
             // Load vector of ones
             c.vlui(*OneVec, 64);
 
-
             // Initialize synapse as 0
             c.vfill(*J, Reg::X0);
-            // Load the threshold: if the weight is below threshold, 
-            // synapse is negative, but if it's above threshold, synapse is positive
-            c.vlui(*thresh_vec, process->getThetaX());
-            // Load the negative and positive synaptic weight
-            c.vlui(*JMinus, (uint16_t)process->getJMinus());
-            c.vlui(*JPlus, process->getJPlus());
+
 
             AssemblerUtils::unrollVectorLoopBody(
-                c, scalarRegisterAllocator, process->getNumTargetNeurons(), 4, *STargetBuf,
-                [this, weightBufferReg, STargetBuf, VWeight, VTarget1, VTarget2, VTargetNew, 
+                c, scalarRegisterAllocator, process->getNumTargetNeurons(), 4, *TargetBuf,
+                [this, xBufferReg, TargetBuf, X, VTarget1, VTarget2, VTargetNew, 
                 CompareScalar, CompareScalar2, CompareScalar3, OneVec, ZeroVec, TrueScalar,
-                J, thresh_vec, JPlus, JMinus, STargetVoltage, 
-                A, B,
-                STargetCalcium, TargetVoltage, TargetCalcium, ThetaLowUp, 
+                J, thresh_vec, JPlus, JMinus, TargetVoltage, TargetCalcium,
+                A, B, TargetCalciumBuf, TargetVoltageBuf, ThetaLowUp, 
                 ThetaV, XMinusB, XPlusA,
                 ThetaHighUp, ThetaLowDown, ThetaHighDown]
                 (CodeGenerator &c, uint32_t r, bool even, ScalarRegisterAllocator::RegisterPtr maskReg)
                 {
-                    // Load vector of synaptic weights (i.e., synaptic variable X)
-                    c.vloadv(*VWeight, *weightBufferReg, r * 64);
+                    // Load X
+                    c.vloadv(*X, *xBufferReg, r * 64);
+                    // Load postsynaptic voltage
+                    c.vloadv(*TargetVoltage, *TargetVoltageBuf, r * 64);
+                    // Load calcium variable
+                    c.vloadv(*TargetCalcium, *TargetCalciumBuf, r * 64);
+                    // Load variable to store synaptic weight after it gets decreased
+                    c.vloadv(*XMinusB, *xBufferReg, r * 64);
+      
                     // TODO: undo the effect of increasing/decreasing the synaptic variable in generateURAMWordLoop, 
                     // as this is done for EVERY weight, instead of just weights for presynaptic neurons which did 
                     // NOT FIRE. Thus, for neurons which did fire, we undo the effect:
 
                     // For the weights that are above the threshold, change the synapse to be the positive weight
-                    c.vtlt(*CompareScalar, *thresh_vec, *VWeight);
+                    c.vtlt(*CompareScalar, *thresh_vec, *X);
                     c.vsel(*J, *CompareScalar, *JPlus);
                     // For the weights that are below or equal to threshold, change the synapse to be the negative weight
-                    c.vtge(*CompareScalar, *thresh_vec, *VWeight);
+                    c.vtge(*CompareScalar, *thresh_vec, *X);
                     c.vsel(*J, *CompareScalar, *JMinus);
 
                     // Load NEXT vector of target to avoid stall
                     // **YUCK** in last iteration, while this may not be accessed, it may be out of bounds                  
-                    c.vloadv(even ? *VTarget2 : *VTarget1, *STargetBuf, (r + 1) * 64);
+                    c.vloadv(even ? *VTarget2 : *VTarget1, *TargetBuf, (r + 1) * 64);
                 
                     // Add weights to ISyn
                     auto VTarget = even ? VTarget1 : VTarget2;
@@ -1210,25 +1224,16 @@ private:
                         c.vadd_s(*VTarget, *VTarget, *J);
                     }
                     // Write back target
-                    c.vstore(*VTarget, *STargetBuf, r * 64);
+                    c.vstore(*VTarget, *TargetBuf, r * 64);
 
 
 
-                    // Implement logic modifying synaptic variable based on postsynaptic voltage and calcium
-                    // Modify synaptic variable following a spike
-                    // Load voltage
-                    c.vloadv(*TargetVoltage, *STargetVoltage, r * 64);
-                    // Load calcium variable
-                    c.vloadv(*TargetCalcium, *STargetCalcium, r * 64);
-                    // Load variable to store synaptic weight after it gets decreased
-                    c.vloadv(*XMinusB, *weightBufferReg, r * 64);
-                    // No-op to avoid stall
-                    c.nop();          
+ 
                     
                     // Decrease synaptic weight as if all criteria were met for the decrease 
                     // (.e., postsynaptic voltage <= voltage_thresh and 
                     //       ThetaLowDown <  postsynaptic calcium < ThetaHighDown )
-                    c.vsub_s(*XMinusB, *VWeight, *B);
+                    c.vsub_s(*XMinusB, *X, *B);
                     // Figure out for which synapses the criteria was not met i.e.,
                     // weights corresponded to postsynaptic neurons above threshold 
                     // or not between the calcium bounds
@@ -1240,7 +1245,7 @@ private:
                     c.or_(*CompareScalar, *CompareScalar,*CompareScalar2);
                     c.or_(*CompareScalar, *CompareScalar,*CompareScalar3);
                     // Reset those weights back to original weight if any of the criteria were not met
-                    c.vsel(*XMinusB, *CompareScalar, *VWeight);
+                    c.vsel(*XMinusB, *CompareScalar, *X);
                     
                     
                     // Increase synaptic weight as if all criteria were met for the increase 
@@ -1272,28 +1277,33 @@ private:
                     // we apply a mask for the remainder
                     if(maskReg) {
                         // apply mask
-                        c.vsel(*VWeight, *maskReg, *XPlusA);
+                        c.vsel(*X, *maskReg, *XPlusA);
                     }
                     else {
-                        // Assign J the value of XPlusA
-                        c.vsel(*VWeight, *TrueScalar, *XPlusA);
+                        // Assign X the value of XPlusA
+                        c.vsel(*X, *TrueScalar, *XPlusA);
 
                     }
                     // Write back target
                     // For testing, write all zeros to weightBufferReg
                     // c.vstore(*ZeroVec, *weightBufferReg, r * 64);
 
-                    c.vstore(*VWeight, *weightBufferReg, r * 64);
+                    c.vstore(*X, *xBufferReg, r * 64);
 
 
 
 
                 },
-                [this, weightBufferReg, STargetBuf, STargetVoltage, STargetCalcium](CodeGenerator &c, uint32_t numUnrolls)
+                [this, xBufferReg, TargetBuf, TargetVoltageBuf, TargetCalciumBuf](CodeGenerator &c, uint32_t numUnrolls)
                 {
                     // Increment pointers 
-                    c.addi(*STargetBuf, *STargetBuf, 64 * numUnrolls);
-                    c.addi(*weightBufferReg, *weightBufferReg, 64 * numUnrolls);
+                    c.addi(*xBufferReg, *xBufferReg, 64 * numUnrolls);
+                    c.addi(*TargetBuf, *TargetBuf, 64 * numUnrolls);
+                    c.addi(*TargetVoltageBuf, *TargetVoltageBuf, 64 * numUnrolls);
+                    c.addi(*TargetCalciumBuf, *TargetCalciumBuf, 64 * numUnrolls);
+
+                    
+
                 });
         }               
     };
@@ -2034,71 +2044,70 @@ private:
         for(auto &r : rowGenerators) {
             auto  stdp_row_gen = dynamic_cast<STDPDenseRowGenerator*>(r.get());
             if (stdp_row_gen){
-                ALLOCATE_SCALAR(weight_counter);
+                ALLOCATE_SCALAR(XCounter);
                 ALLOCATE_VECTOR(Beta);
                 ALLOCATE_VECTOR(Alpha);
-                
+                ALLOCATE_VECTOR(X);
+                ALLOCATE_SCALAR(CompareScalar);
+                ALLOCATE_VECTOR(OneVec);
+                ALLOCATE_VECTOR(ThetaXMinusBeta);
+                ALLOCATE_VECTOR(ThetaXPlusAlpha);
+                ALLOCATE_VECTOR(ZeroVec);
+                ALLOCATE_VECTOR(XPlusAlpha);
+                ALLOCATE_VECTOR(XMinusBeta);
+                ALLOCATE_SCALAR(TrueScalar)
 
                 // Remember that immediates are imm/(2**num_fractional_bits) e.g., imm/2**6
                 auto process = stdp_row_gen->getProcess<STDPEventPropagationProcess>();
-                c.vlui(*Beta, process->getBeta());
-                c.vlui(*Alpha, process->getAlpha());
+                const auto &numericTypeX = process->getX()->getType().getNumeric();
+                assert(numericTypeX.fixedPoint);
 
-                std::cout << "Casted to STDPDenseRowGenerator" << std::endl;
-                // Loop over each weight
-                for (auto weight_idx=0; weight_idx < process->getNumSourceNeurons();weight_idx++) {
-                    c.li(*weight_counter, weight_idx);
-                    auto weightBufferReg = r->loadWeightBuffer(c, weight_counter);
-                    // update weights following rules for X
-                    ALLOCATE_VECTOR(J);
-                    ALLOCATE_SCALAR(CompareScalar);
-                    ALLOCATE_VECTOR(OneVec);
-                    ALLOCATE_VECTOR(ThetaXMinusBeta);
-                    ALLOCATE_VECTOR(ThetaXPlusAlpha);
-                    ALLOCATE_VECTOR(ZeroVec);
-                    ALLOCATE_VECTOR(XPlusAlpha);
-                    ALLOCATE_VECTOR(XMinusBeta);
-                    ALLOCATE_SCALAR(TrueScalar)
+                // Load Alpha and Beta vars to update X
+                c.vlui(*Beta, convertFixedPoint(process->getBeta(), numericTypeX.fixedPoint.value()));
+                c.vlui(*Alpha, convertFixedPoint(process->getAlpha(), numericTypeX.fixedPoint.value()));
+                // Load vector of threshold vals minus Beta
+                c.vlui(*XMinusBeta, convertFixedPoint(process->getThetaX()-process->getBeta(), numericTypeX.fixedPoint.value()));
+                // Load vector of threshold vals plus Alpha 
+                c.vlui(*XPlusAlpha, convertFixedPoint(process->getThetaX()+process->getAlpha(), numericTypeX.fixedPoint.value()));
+                // Initialize vector used for boolean logic
+                c.li(*CompareScalar,0);
 
-                    // Load vector of zeros
-                    c.vfill(*ZeroVec, Reg::X0);
-                    // Make scalar filled with ones
-                    // Why doesn't the commented code work?
-                    // c.vteq(*TrueScalar, *ZeroVec, *ZeroVec);
-                    // c.vfill(*OneVec, *TrueScalar);
+                // Load vector of zeros
+                c.vfill(*ZeroVec, Reg::X0);
+                // c.vteq(*TrueScalar, *ZeroVec, *ZeroVec);
+                // c.vfill(*OneVec, *TrueScalar);
+                // Load all true scalar
+                c.li(*TrueScalar, 64);
+                // Load vector of ones
+                c.vlui(*OneVec, 64);
 
-                    // Load all true scalar
-                    c.li(*TrueScalar, 64);
-                    // Load vector of ones
-                    c.vlui(*OneVec, 64);
+                // Loop over each X
+                for (auto x_idx=0; x_idx < process->getNumSourceNeurons();x_idx++) {
+                    c.li(*XCounter, x_idx);
+                    auto xBufferReg = r->loadWeightBuffer(c, XCounter);
 
                     
                     AssemblerUtils::unrollVectorLoopBody(
-                        c, scalarRegisterAllocator, (*stdp_row_gen).getProcess()->getNumTargetNeurons(), 4, *weightBufferReg,
-                        [this, weightBufferReg, J, Beta, Alpha, XMinusBeta, 
+                        c, scalarRegisterAllocator, (*stdp_row_gen).getProcess()->getNumTargetNeurons(), 4, *xBufferReg,
+                        [this, xBufferReg, X, Beta, Alpha, XMinusBeta, 
                             CompareScalar, OneVec, ZeroVec, ThetaXMinusBeta, ThetaXPlusAlpha, 
                             TrueScalar, XPlusAlpha, stdp_row_gen, process]
                         (CodeGenerator &c, uint32_t r, bool even, ScalarRegisterAllocator::RegisterPtr maskReg)
                         {
 
-                            // Load vector of threshold vals less decay (remember that 32/2**6=1)
-                            c.vlui(*XMinusBeta, process->getThetaX()-process->getBeta());
-                            // Load vector of threshold vals plus growth (remember that 32/2**6=1)
-                            c.vlui(*XPlusAlpha, process->getThetaX()+process->getAlpha());
-                            // Initialize vector used for boolean logic
-                            c.li(*CompareScalar,0);
+
                             // Load vector of weights
-                            c.vloadv(*J, *weightBufferReg, r * 64);
-                            c.vloadv(*XMinusBeta, *weightBufferReg, r * 64);
+                            c.vloadv(*X, *xBufferReg, r * 64);
+                            c.vloadv(*XMinusBeta, *xBufferReg, r * 64);
                             // No-op to avoid stall
                             c.nop();
 
                             // Subtract decay weight from synaptic weights
-                            c.vsub_s(*XMinusBeta, *J, *Beta);
+                            c.vsub_s(*XMinusBeta, *X, *Beta);
                             // If the updated synaptic weights aren't less than threshold - Beta, 
                             // they were above the threshold prior to subtraction, so undo it
                             c.vtlt(*CompareScalar, *ThetaXMinusBeta, *XMinusBeta);
-                            c.vsel(*XMinusBeta, *CompareScalar, *J);
+                            c.vsel(*XMinusBeta, *CompareScalar, *X);
 
                             // Add growth weight from synaptic weights
                             c.vadd_s(*XPlusAlpha, *XMinusBeta, *Alpha);
@@ -2120,31 +2129,30 @@ private:
                             // we apply a mask for the remainder
                             if(maskReg) {
                                 // apply mask
-                                c.vsel(*J, *maskReg, *XPlusAlpha);
+                                c.vsel(*X, *maskReg, *XPlusAlpha);
                             }
                             else {
-                                // Assign J the value of XPlusAlpha
-                                c.vsel(*J, *TrueScalar, *XPlusAlpha);
+                                // Assign X the value of XPlusAlpha
+                                c.vsel(*X, *TrueScalar, *XPlusAlpha);
 
                             }
                             // Write back target
-                            // For testing, write all zeros to weightBufferReg
-                            // c.vstore(*ZeroVec, *weightBufferReg, r * 64);
+                            // For testing, write all zeros to xBufferReg
+                            // c.vstore(*ZeroVec, *xBufferReg, r * 64);
 
-                            c.vstore(*J, *weightBufferReg, r * 64);
+                            c.vstore(*X, *xBufferReg, r * 64);
                         },
-                        [this, weightBufferReg](CodeGenerator &c, uint32_t numUnrolls)
+                        [this, xBufferReg](CodeGenerator &c, uint32_t numUnrolls)
                         {
                             // Increment pointers 
-                            c.addi(*weightBufferReg, *weightBufferReg, 64 * numUnrolls);
+                            c.addi(*xBufferReg, *xBufferReg, 64 * numUnrolls);
                         });
 
                     
                 }
                 
-            } else {
-                std::cout << "Did NOT cast to STDPDenseRowGenerator" << std::endl;
-            }
+            } 
+            
         }
 
 

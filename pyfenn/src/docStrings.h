@@ -585,85 +585,77 @@ static const char *__doc_STDPEventPropagationProcess_STDPEventPropagationProcess
 
 static const char *__doc_STDPEventPropagationProcess_create = R"doc()doc";
 
-static const char *__doc_STDPEventPropagationProcess_getHighVoltCalciumHighThresh = R"doc()doc";
+static const char *__doc_STDPEventPropagationProcess_getA = R"doc()doc";
 
-static const char *__doc_STDPEventPropagationProcess_getHighVoltCalciumLowThresh = R"doc()doc";
+static const char *__doc_STDPEventPropagationProcess_getAlpha = R"doc()doc";
 
-static const char *__doc_STDPEventPropagationProcess_getLowVoltCalciumHighThresh = R"doc()doc";
+static const char *__doc_STDPEventPropagationProcess_getB = R"doc()doc";
 
-static const char *__doc_STDPEventPropagationProcess_getLowVoltCalciumLowThresh = R"doc()doc";
+static const char *__doc_STDPEventPropagationProcess_getBeta = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_getCPre = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_getJMinus = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_getJPlus = R"doc()doc";
 
 static const char *__doc_STDPEventPropagationProcess_getMaxRowLength = R"doc()doc";
 
-static const char *__doc_STDPEventPropagationProcess_getNegSynWeight = R"doc()doc";
-
-static const char *__doc_STDPEventPropagationProcess_getNumDelayBits = R"doc()doc";
-
-static const char *__doc_STDPEventPropagationProcess_getNumSparseConnectivityBits = R"doc()doc";
-
 static const char *__doc_STDPEventPropagationProcess_getNumTargetNeurons = R"doc()doc";
-
-static const char *__doc_STDPEventPropagationProcess_getPosSynWeight = R"doc()doc";
-
-static const char *__doc_STDPEventPropagationProcess_getPostSynCalcium = R"doc()doc";
-
-static const char *__doc_STDPEventPropagationProcess_getPostSynVoltage = R"doc()doc";
 
 static const char *__doc_STDPEventPropagationProcess_getTarget = R"doc()doc";
 
-static const char *__doc_STDPEventPropagationProcess_getVoltageThresh = R"doc()doc";
+static const char *__doc_STDPEventPropagationProcess_getThetaHighDown = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_getThetaHighUp = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_getThetaLowDown = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_getThetaLowUp = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_getThetaV = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_getThetaX = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_getVPre = R"doc()doc";
 
 static const char *__doc_STDPEventPropagationProcess_getX = R"doc()doc";
 
-static const char *__doc_STDPEventPropagationProcess_getXdecWithSpike = R"doc()doc";
+static const char *__doc_STDPEventPropagationProcess_m_A = R"doc()doc";
 
-static const char *__doc_STDPEventPropagationProcess_getXdecWithoutSpike = R"doc()doc";
+static const char *__doc_STDPEventPropagationProcess_m_Alpha = R"doc()doc";
 
-static const char *__doc_STDPEventPropagationProcess_getXincWithSpike = R"doc()doc";
+static const char *__doc_STDPEventPropagationProcess_m_B = R"doc()doc";
 
-static const char *__doc_STDPEventPropagationProcess_getXincWithoutSpike = R"doc()doc";
+static const char *__doc_STDPEventPropagationProcess_m_Beta = R"doc()doc";
 
-static const char *__doc_STDPEventPropagationProcess_getXthresh = R"doc()doc";
+static const char *__doc_STDPEventPropagationProcess_m_CPre = R"doc()doc";
 
-static const char *__doc_STDPEventPropagationProcess_m_High_Volt_Calcium_High_Thresh = R"doc()doc";
+static const char *__doc_STDPEventPropagationProcess_m_JMinus = R"doc()doc";
 
-static const char *__doc_STDPEventPropagationProcess_m_High_Volt_Calcium_Low_Thresh = R"doc()doc";
-
-static const char *__doc_STDPEventPropagationProcess_m_Low_Volt_Calcium_High_Thresh = R"doc()doc";
-
-static const char *__doc_STDPEventPropagationProcess_m_Low_Volt_Calcium_Low_Thresh = R"doc()doc";
+static const char *__doc_STDPEventPropagationProcess_m_JPlus = R"doc()doc";
 
 static const char *__doc_STDPEventPropagationProcess_m_MaxRowLength = R"doc()doc";
 
-static const char *__doc_STDPEventPropagationProcess_m_Neg_Syn_Weight = R"doc()doc";
-
-static const char *__doc_STDPEventPropagationProcess_m_NumDelayBits = R"doc()doc";
-
-static const char *__doc_STDPEventPropagationProcess_m_NumSparseConnectivityBits = R"doc()doc";
-
 static const char *__doc_STDPEventPropagationProcess_m_NumTargetNeurons = R"doc()doc";
-
-static const char *__doc_STDPEventPropagationProcess_m_Pos_Syn_Weight = R"doc()doc";
-
-static const char *__doc_STDPEventPropagationProcess_m_PostSynCalcium = R"doc()doc";
-
-static const char *__doc_STDPEventPropagationProcess_m_PostSynVoltage = R"doc()doc";
 
 static const char *__doc_STDPEventPropagationProcess_m_Target = R"doc()doc";
 
-static const char *__doc_STDPEventPropagationProcess_m_Voltage_Thresh = R"doc()doc";
+static const char *__doc_STDPEventPropagationProcess_m_ThetaHighDown = R"doc()doc";
 
-static const char *__doc_STDPEventPropagationProcess_m_X_Dec_With_Spike = R"doc()doc";
+static const char *__doc_STDPEventPropagationProcess_m_ThetaHighUp = R"doc()doc";
 
-static const char *__doc_STDPEventPropagationProcess_m_X_Dec_Without_Spike = R"doc()doc";
+static const char *__doc_STDPEventPropagationProcess_m_ThetaLowDown = R"doc()doc";
 
-static const char *__doc_STDPEventPropagationProcess_m_X_Inc_With_Spike = R"doc()doc";
+static const char *__doc_STDPEventPropagationProcess_m_ThetaLowUp = R"doc()doc";
 
-static const char *__doc_STDPEventPropagationProcess_m_X_Inc_Without_Spike = R"doc()doc";
+static const char *__doc_STDPEventPropagationProcess_m_ThetaV = R"doc()doc";
 
-static const char *__doc_STDPEventPropagationProcess_m_X_Thresh = R"doc()doc";
+static const char *__doc_STDPEventPropagationProcess_m_ThetaX = R"doc()doc";
 
-static const char *__doc_STDPEventPropagationProcess_m_X_Var = R"doc()doc";
+static const char *__doc_STDPEventPropagationProcess_m_VPre = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_m_X = R"doc()doc";
 
 static const char *__doc_ScalarRegsiterAllocator = R"doc()doc";
 
