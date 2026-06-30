@@ -143,8 +143,8 @@ std::vector<uint32_t> generateCode(bool simulate, size_t numTimesteps, bool satu
                     ALLOCATE_SCALAR(SVTmp);
                     ALLOCATE_SCALAR(SATmp);
                     for(int i = 0; i < 32; i++) {
-                        c.vextract(*SVTmp, *VV, i);
-                        c.vextract(*SATmp, *VA, i);
+                        c.vextracti(*SVTmp, *VV, i);
+                        c.vextracti(*SATmp, *VA, i);
 
                         c.sh(*SVTmp, *SVBuffer, i * 2);
                         c.sh(*SATmp, *SABuffer, i * 2);

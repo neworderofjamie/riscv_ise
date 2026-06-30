@@ -169,8 +169,8 @@ void disassembleVMov(std::ostream &os, uint32_t inst)
     if(type == +VMovType::VFILL) {
         os << "VFILL V" << rd << ", X" << rs1;
     }
-    else if(type == +VMovType::VEXTRACT) {
-        os << "VEXTRACT X" << rd << ", V" << rs1 << ", " << imm;
+    else if(type == +VMovType::VEXTRACTI) {
+        os << "VEXTRACTI X" << rd << ", V" << rs1 << ", " << imm;
     }
 }
 

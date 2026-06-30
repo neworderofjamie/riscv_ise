@@ -342,7 +342,7 @@ VMovType getVMovType(uint32_t funct3)
         return VMovType::VFILL;
 
     case 0b001:
-        return VMovType::VEXTRACT;
+        return VMovType::VEXTRACTI;
     
     default:
         return VMovType::INVALID;

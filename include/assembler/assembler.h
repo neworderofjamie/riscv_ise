@@ -261,7 +261,7 @@ public:
 
     // VMOV
     void vfill(VReg rd, Reg rs){ Itype(VectorOpCode::VMOV, 0b000, rd, rs, 0); }
-    void vextract(Reg rd, VReg rs, Bit<5> lane){ Itype(VectorOpCode::VMOV, 0b001, rd, rs, lane); }
+    void vextracti(Reg rd, VReg rs, Bit<5> lane){ Itype(VectorOpCode::VMOV, 0b001, rd, rs, lane); }
 
     // VSPC
     void vrng(VReg rd){ Rtype(VectorOpCode::VSPC, 0b000, 0x0, rd, 0, 0);}

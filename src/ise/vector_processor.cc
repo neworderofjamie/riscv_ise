@@ -258,9 +258,9 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
                       (int16_t)((val & 0x80000000) >> 16 | (val & 0x7FFF)));
             writeVReg(rd, rdVec);
         }
-        // VEXTRACT
-        else if(type == +VMovType::VEXTRACT) {
-            PLOGV << "VEXTRACT " << rs1;
+        // VEXTRACTI
+        else if(type == +VMovType::VEXTRACTI) {
+            PLOGV << "VEXTRACTI " << rs1;
             PLOGV << "\t" << rd;
             if(imm < 0 || imm > 31) {
                 throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);

@@ -625,7 +625,7 @@ int main(int argc, char** argv)
                     ALLOCATE_SCALAR(SVal);
             
                     // Extract lane into scalar registers
-                    c.vextract(*SVal, *VVSum, l);
+                    c.vextracti(*SVal, *VVSum, l);
 
                     // Store halfword
                     c.sh(*SVal, *SVSumScalarBuffer, l * 2);
