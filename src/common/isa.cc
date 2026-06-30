@@ -393,7 +393,7 @@ VSpcType getVSpcType(uint32_t funct3)
         return VSpcType::VANDADD;
     
     case 0b010:
-        return VSpcType::VEXTRACTFILL;
+        return VSpcType::VEXTRACT;
     
     default:
         return VSpcType::INVALID;

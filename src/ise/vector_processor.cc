@@ -317,17 +317,13 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
                             return (a & mask) + val2; 
                         }));
         }
-        else if(type == +VSpcType::VEXTRACTFILL) {
-            PLOGV << "VEXTRACTFILL " << rs1 << " " << rs2;
+        else if(type == +VSpcType::VEXTRACT) {
+            PLOGV << "VEXTRACT " << rs1 << " " << rs2;
             PLOGV << "\t" << rd;
 
-            // Read source vector
-            const auto &val = readVReg(rs1);
-            
-            // Fill vector with value specified by register
-            Vector rdVec;
-            std::fill(rdVec.begin(), rdVec.end(), val[reg[rs2] & 0x1F]);
-            writeVReg(rd, rdVec);
+            // Sign extend to 32-bit
+            const int32_t val = readVReg(rs1).at(reg[rs2]);
+            reg[rd] = (uint32_t)val;
         }
         else {
             throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
