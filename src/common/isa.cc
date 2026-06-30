@@ -342,7 +342,7 @@ VMovType getVMovType(uint32_t funct3)
         return VMovType::VFILL;
 
     case 0b001:
-        return VMovType::VEXTRACT;
+        return VMovType::VEXTRACTI;
     
     default:
         return VMovType::INVALID;
@@ -391,6 +391,9 @@ VSpcType getVSpcType(uint32_t funct3)
     
     case 0b001:
         return VSpcType::VANDADD;
+    
+    case 0b010:
+        return VSpcType::VEXTRACT;
     
     default:
         return VSpcType::INVALID;

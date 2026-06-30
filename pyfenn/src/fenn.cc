@@ -259,7 +259,8 @@ PYBIND11_MODULE(_fenn, m)
     pybind11::class_<STDPEventPropagationProcess, Process, std::shared_ptr<STDPEventPropagationProcess>>(m, "STDPEventPropagationProcess")
         .def(pybind11::init(&STDPEventPropagationProcess::create),
              pybind11::arg("input_events"), pybind11::arg("x"),
-             pybind11::arg("target"), pybind11::arg("v_pre"), pybind11::arg("c_pre"), 
+             pybind11::arg("target"), pybind11::arg("pre_time_since_last_spike"),
+             pybind11::arg("v_pre"), pybind11::arg("c_pre"), 
              pybind11::arg("theta_x"), 
              pybind11::arg("a"), pybind11::arg("b"), 
              pybind11::arg("alpha"), pybind11::arg("beta"), 
@@ -271,6 +272,10 @@ PYBIND11_MODULE(_fenn, m)
         .def_property_readonly("input_events", &STDPEventPropagationProcess::getInputEvents)
         WRAP_PROPERTY_RO("x", STDPEventPropagationProcess, X)
         WRAP_PROPERTY_RO("target", STDPEventPropagationProcess, Target)
+        .def_property_readonly("num_source_neurons", &STDPEventPropagationProcess::getNumSourceNeurons)
+        .def_property_readonly("pre_time_since_last_spike", &STDPEventPropagationProcess::getPreTimeSinceLastSpike)
+		.def_property_readonly("post_syn_voltage", &STDPEventPropagationProcess::getVPre)
+		.def_property_readonly("post_syn_calcium", &STDPEventPropagationProcess::getCPre)
         .def_property_readonly("num_source_neurons", &STDPEventPropagationProcess::getNumSourceNeurons)
         WRAP_PROPERTY_RO("num_target_neurons", STDPEventPropagationProcess, NumTargetNeurons);
 

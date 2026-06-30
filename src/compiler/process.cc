@@ -137,16 +137,17 @@ EventPropagationProcess::EventPropagationProcess(Private, std::shared_ptr<const 
 // STDPEventPropagationProcess
 //----------------------------------------------------------------------------
 STDPEventPropagationProcess::STDPEventPropagationProcess(Private, std::shared_ptr<const EventContainer> inputEvents, 
-                                                           VariablePtr x, VariablePtr target, VariablePtr vPre, VariablePtr cPre,
-                                                            float thetaX, float a, float b, 
-                                                            float alpha, float beta, 
-                                                            float jPlus, float jMinus, 
-                                                            float thetaV,float thetaLowUp, 
-                                                            float thetaLowDown, float thetaHighUp, 
-                                                            float thetaHighDown,
-                                                            const std::string &name)
+                                                         VariablePtr x, VariablePtr target, VariablePtr preTimeSinceLastSpike,
+                                                         VariablePtr vPre, VariablePtr cPre,
+                                                         float thetaX, float a, float b, 
+                                                         float alpha, float beta, 
+                                                         float jPlus, float jMinus, 
+                                                         float thetaV,float thetaLowUp, 
+                                                         float thetaLowDown, float thetaHighUp, 
+                                                         float thetaHighDown,
+                                                         const std::string &name)
 :   AcceptableModelComponent<STDPEventPropagationProcess, EventPropagationProcessBase>(inputEvents, name),
-    m_X(x), m_Target(target), m_VPre(vPre), m_CPre(cPre),
+    m_X(x), m_Target(target), m_PreTimeSinceLastSpike(preTimeSinceLastSpike), m_VPre(vPre), m_CPre(cPre),
     m_ThetaX(thetaX), m_A(a),
     m_B(b),m_Alpha(alpha),
     m_Beta(beta), m_JPlus(jPlus), m_JMinus(jMinus),
@@ -161,6 +162,19 @@ STDPEventPropagationProcess::STDPEventPropagationProcess(Private, std::shared_pt
         throw std::runtime_error("STDP Event propagation process requires target variable");
     }
 
+
+    if(m_PreTimeSinceLastSpike == nullptr) {
+        throw std::runtime_error("STDP Event propagation process requires presynaptic time since last spike variable");
+    }
+
+    if(m_VPre == nullptr) {
+        throw std::runtime_error("STDP Event propagation process requires postsynaptic voltage variable");
+    }
+
+    if(m_CPre == nullptr) {
+        throw std::runtime_error("STDP Event propagation process requires postsynaptic calcium variable");
+    }
+
     // Get number of target neurons from target variable
     m_NumTargetNeurons = m_Target->getShape().getNumNeurons();
 
@@ -169,7 +183,7 @@ STDPEventPropagationProcess::STDPEventPropagationProcess(Private, std::shared_pt
 
     // Check weight number of source neurons matches
     if(m_X->getShape().getNumSourceNeurons() != getNumSourceNeurons()) {
-        throw std::runtime_error("Weight with shape: " + m_X->getShape().toString() 
+        throw std::runtime_error("Weight with shape: " + m_X->getShape().toString()
                                  + " is not compatible with stdp event propagation process with " 
                                  + std::to_string(getNumSourceNeurons()) + " source neurons");
     }
@@ -180,7 +194,29 @@ STDPEventPropagationProcess::STDPEventPropagationProcess(Private, std::shared_pt
         throw std::runtime_error("Weight has more than 1 buffer timestep which isn't "
                                  "currently supported by stdp event propagation processes");
     }
+
     
+    // Check presynaptic time since last spike shape is compatible
+    if (getPreTimeSinceLastSpike()->getShape().getNumNeurons() != getNumSourceNeurons()) {
+        throw std::runtime_error("Presynaptic time since last spike with shape: " 
+                                 + getPreTimeSinceLastSpike()->getShape().toString() 
+                                 + " is not compatible with STDP event propagation process with " 
+                                 + std::to_string(getNumSourceNeurons()) + " source neurons");
+    }
+
+    // Check postsymaptic calcium shape is compatible
+    if (m_CPre->getShape().getNumNeurons() != getNumTargetNeurons()) {
+        throw std::runtime_error("Postsynaptic calcium with shape: " + m_CPre->getShape().toString() 
+                                 + " is not compatible with STDP event propagation process with " 
+                                 + std::to_string(getNumTargetNeurons()) + " target neurons");
+    }
+    // Check postsymaptic voltage shape is compatible
+    if (m_VPre->getShape().getNumNeurons() != getNumTargetNeurons()) {
+        throw std::runtime_error("Postsynaptic voltage with shape: " + m_VPre->getShape().toString() 
+                                 + " is not compatible with STDP event propagation process with " 
+                                 + std::to_string(getNumTargetNeurons()) + " target neurons");
+    }
+
 }
 
 

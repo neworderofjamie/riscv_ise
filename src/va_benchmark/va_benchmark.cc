@@ -390,7 +390,7 @@ void genLIF(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator,
             // Record v of first neuron
             /*if(vRecordingBuffer && i == 0) {
                 ALLOCATE_SCALAR(STmp);
-                c.vextract(*STmp, *VV, 0);
+                c.vextracti(*STmp, *VV, 0);
                 c.sh(*STmp, *vRecordingBuffer);
                 c.addi(*vRecordingBuffer, *vRecordingBuffer, 2);
             }*/

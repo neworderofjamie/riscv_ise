@@ -52,7 +52,8 @@ output = Linear_LIF_STDP(output_shape, alpha=.01, tau=.98, j_c=1,
 
 extra_input_output = Linear(extra_input.out_spikes, output.i, f"s{num_int_bits}_{num_frac_bits}_sat_t", name="extra_input_output")
 
-primary_input_output = LinearWithSTDP(primary_input.out_spikes, output.i, output.v, output.c, f"s{num_int_bits}_{num_frac_bits}_sat_t", 
+primary_input_output = LinearWithSTDP(primary_input.out_spikes, output.i,
+                                      primary_input.time_since_last_spike, output.v, output.c, f"s{num_int_bits}_{num_frac_bits}_sat_t", 
                                       theta_x=.5, a=1,b=1,
                                       alpha=.1,beta=.1,
                                       j_minus=3.5, 

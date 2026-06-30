@@ -123,6 +123,9 @@ private:
         m_StateProcesses.get()[stdpEventPropagationProcess->getInputEvents()].push_back(stdpEventPropagationProcess);
         m_StateProcesses.get()[stdpEventPropagationProcess->getX()].push_back(stdpEventPropagationProcess);
         m_StateProcesses.get()[stdpEventPropagationProcess->getTarget()].push_back(stdpEventPropagationProcess);
+        m_StateProcesses.get()[stdpEventPropagationProcess->getPreTimeSinceLastSpike()].push_back(stdpEventPropagationProcess);
+        m_StateProcesses.get()[stdpEventPropagationProcess->getVPre()].push_back(stdpEventPropagationProcess);
+        m_StateProcesses.get()[stdpEventPropagationProcess->getCPre()].push_back(stdpEventPropagationProcess);
     }
 
     virtual void visit(std::shared_ptr<const RNGInitProcess> rngInitProcess)
@@ -284,8 +287,12 @@ private:
 
         // Visit components
         stdpEventPropagationProcess->getInputEvents()->accept(*this);
+
         acceptVariable(stdpEventPropagationProcess->getX());
         acceptVariable(stdpEventPropagationProcess->getTarget());
+        acceptVariable(stdpEventPropagationProcess->getPreTimeSinceLastSpike());
+        acceptVariable(stdpEventPropagationProcess->getVPre());
+        acceptVariable(stdpEventPropagationProcess->getCPre());
 
         // Add process fields
         if(!m_StatefulFields.get().try_emplace(stdpEventPropagationProcess, m_CurrentProcessFields).second) {

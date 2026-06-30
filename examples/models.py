@@ -139,14 +139,19 @@ class Bernoulli:
                  record_timesteps: int = 1, name: str = ""):
         self.shape = shape
         self.out_spikes = EventContainer(self.shape, record_timesteps)
+        self.time_since_last_spike = Variable(self.shape, "int16_t",
+                                              name=f"{name}_time_since_last_spike")
         self.process = NeuronUpdateProcess(
             f"""
             if(ProbSpike >= fennrand()) {{
                Spike();
+               TimeSinceLastSpike = 0;
+            }}
+            else {{
+               TimeSinceLastSpike++;
             }}
             """,
             {"ProbSpike": Parameter(prob_spike, "s0_15_sat_t")},
-            {},
+            {"TimeSinceLastSpike": self.time_since_last_spike},
             {"Spike": self.out_spikes},
             name)
-

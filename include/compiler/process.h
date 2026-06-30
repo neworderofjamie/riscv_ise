@@ -156,20 +156,23 @@ class COMPILER_EXPORT STDPEventPropagationProcess : public AcceptableModelCompon
 {
 public:
     STDPEventPropagationProcess(Private, std::shared_ptr<const EventContainer> inputEvents, 
-                            VariablePtr x, VariablePtr target, VariablePtr vPre, VariablePtr cPre,
-                            float thetaX, float a, float b, 
-                             float alpha, float beta, 
-                             float jPlus, float jMinus, 
-                             float thetaV,float thetaLowUp, 
-                             float thetaLowDown, float thetaHighUp, 
-                             float thetaHighDown,
-                            const std::string &name);
+                                VariablePtr x, VariablePtr target, VariablePtr preTimeSinceLastSpike,
+                                VariablePtr vPre, VariablePtr cPre,
+                                float thetaX, float a, float b, 
+                                float alpha, float beta, 
+                                float jPlus, float jMinus, 
+                                float thetaV,float thetaLowUp, 
+                                float thetaLowDown, float thetaHighUp, 
+                                float thetaHighDown,
+                                const std::string &name);
 
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
     const auto getX() const { return m_X; }
     const auto getTarget() const { return m_Target; }
+
+    const auto getPreTimeSinceLastSpike() const{ return m_PreTimeSinceLastSpike; }
 
     const auto getVPre() const { return m_VPre; }
     const auto getCPre() const { return m_CPre; }
@@ -193,22 +196,21 @@ public:
     size_t getNumTargetNeurons() const{ return m_NumTargetNeurons; }
     size_t getMaxRowLength() const{ return m_MaxRowLength; }
 
-
     //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------
-    static std::shared_ptr<STDPEventPropagationProcess> create(std::shared_ptr<const EventContainer> inputEvents, 
-                                                           VariablePtr x, VariablePtr target, VariablePtr vPre, VariablePtr cPre,
-                                                            float thetaX, float a, float b, 
-                                                            float alpha, float beta, 
-                                                            float jPlus, float jMinus, 
-                                                            float thetaV,float thetaLowUp, 
-                                                            float thetaLowDown, float thetaHighUp, 
-                                                            float thetaHighDown,
-                                                            const std::string &name)
+    static std::shared_ptr<STDPEventPropagationProcess> create(std::shared_ptr<const EventContainer> inputEvents,
+                                                               VariablePtr x, VariablePtr target, VariablePtr preTimeSinceLastSpike, VariablePtr vPre, VariablePtr cPre,
+                                                               float thetaX, float a, float b, 
+                                                               float alpha, float beta, 
+                                                               float jPlus, float jMinus, 
+                                                               float thetaV,float thetaLowUp, 
+                                                               float thetaLowDown, float thetaHighUp, 
+                                                               float thetaHighDown,
+                                                               const std::string &name)
     {
         return std::make_shared<STDPEventPropagationProcess>(Private(), inputEvents, 
-                                                            x, target, vPre, cPre,
+                                                            x, target, preTimeSinceLastSpike, vPre, cPre,
                                                             thetaX, a, b, 
                                                             alpha, beta, 
                                                             jPlus, jMinus, 
@@ -224,6 +226,8 @@ private:
     //------------------------------------------------------------------------
     VariablePtr m_X;
     VariablePtr m_Target;
+
+    VariablePtr m_PreTimeSinceLastSpike;
 
     VariablePtr m_VPre;
     VariablePtr m_CPre;
@@ -246,7 +250,6 @@ private:
 
     size_t m_NumTargetNeurons;
     size_t m_MaxRowLength;
-
 };
 
 

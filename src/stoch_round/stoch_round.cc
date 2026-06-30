@@ -101,15 +101,15 @@ std::vector<uint32_t> generateCode(bool simulate, unsigned int numVectorMultiply
                     ALLOCATE_SCALAR(SVal);
                     for(int i = 0; i < 32; i++) {
                         // Extract VRz into scalar registers and store
-                        c.vextract(*SVal, *VRz, i);
+                        c.vextracti(*SVal, *VRz, i);
                         c.sh(*SVal, *SBuffer, i * 2);
 
                         // Extract VRn into scalar registers and store
-                        c.vextract(*SVal, *VRn, i);
+                        c.vextracti(*SVal, *VRn, i);
                         c.sh(*SVal, *SBuffer, (i * 2) + 64);
 
                         // Extract VRz into scalar registers and store
-                        c.vextract(*SVal, *VRs, i);
+                        c.vextracti(*SVal, *VRs, i);
                         c.sh(*SVal, *SBuffer, (i * 2) + 128);
                     }
                 }
