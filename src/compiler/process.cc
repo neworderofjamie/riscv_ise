@@ -144,7 +144,7 @@ STDPEventPropagationProcess::STDPEventPropagationProcess(Private, std::shared_pt
                                                          float jPlus, float jMinus, 
                                                          float thetaV,float thetaLowUp, 
                                                          float thetaLowDown, float thetaHighUp, 
-                                                         float thetaHighDown,
+                                                         float thetaHighDown, float xMax,
                                                          const std::string &name)
 :   AcceptableModelComponent<STDPEventPropagationProcess, EventPropagationProcessBase>(inputEvents, name),
     m_X(x), m_PreTimeSinceLastSpike(preTimeSinceLastSpike), m_Target(target), m_VPre(vPre), m_CPre(cPre),
@@ -152,7 +152,7 @@ STDPEventPropagationProcess::STDPEventPropagationProcess(Private, std::shared_pt
     m_B(b),m_Alpha(alpha),
     m_Beta(beta), m_JPlus(jPlus), m_JMinus(jMinus),
     m_ThetaV(thetaV), m_ThetaLowUp(thetaLowUp), m_ThetaLowDown(thetaLowDown),
-    m_ThetaHighUp(thetaHighUp), m_ThetaHighDown(thetaHighDown)
+    m_ThetaHighUp(thetaHighUp), m_ThetaHighDown(thetaHighDown), m_XMax(xMax)
 {
     if(m_X == nullptr) {
         throw std::runtime_error("STDP Event propagation process requires X variable");

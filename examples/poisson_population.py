@@ -61,6 +61,7 @@ primary_input_output = LinearWithSTDP(primary_input.out_spikes, primary_input.ti
                                       j_plus=3.5, theta_v=.8, 
                                       theta_low_up=3, theta_low_down=3,
                                       theta_high_up=13, theta_high_down=4,
+                                      x_max=1,
                                       name="primary_input_output")
 
 

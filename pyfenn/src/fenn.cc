@@ -267,7 +267,8 @@ PYBIND11_MODULE(_fenn, m)
              pybind11::arg("j_minus"), pybind11::arg("j_plus"), 
              pybind11::arg("theta_v"), pybind11::arg("theta_low_up"), 
              pybind11::arg("theta_low_down"), pybind11::arg("theta_high_up"), 
-             pybind11::arg("theta_high_down"), pybind11::arg("name") = "")
+             pybind11::arg("theta_high_down"), pybind11::arg("x_max"), 
+             pybind11::arg("name") = "")
 
         .def_property_readonly("input_events", &STDPEventPropagationProcess::getInputEvents)
         WRAP_PROPERTY_RO("x", STDPEventPropagationProcess, X)

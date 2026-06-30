@@ -163,7 +163,7 @@ public:
                                 float jPlus, float jMinus, 
                                 float thetaV,float thetaLowUp, 
                                 float thetaLowDown, float thetaHighUp, 
-                                float thetaHighDown,
+                                float thetaHighDown, float xMax,
                                 const std::string &name);
 
     //------------------------------------------------------------------------
@@ -192,6 +192,7 @@ public:
     float getThetaLowDown() const {return m_ThetaLowDown;}
     float getThetaHighUp() const {return m_ThetaHighUp;}
     float getThetaHighDown() const {return m_ThetaHighDown;}
+    float getXMax() const {return m_XMax;}
 
     size_t getNumTargetNeurons() const{ return m_NumTargetNeurons; }
     size_t getMaxRowLength() const{ return m_MaxRowLength; }
@@ -207,7 +208,7 @@ public:
                                                                float jPlus, float jMinus, 
                                                                float thetaV,float thetaLowUp, 
                                                                float thetaLowDown, float thetaHighUp, 
-                                                               float thetaHighDown,
+                                                               float thetaHighDown, float xMax,
                                                                const std::string &name)
     {
         return std::make_shared<STDPEventPropagationProcess>(Private(), inputEvents, 
@@ -217,7 +218,7 @@ public:
                                                             jPlus, jMinus, 
                                                             thetaV,thetaLowUp, 
                                                             thetaLowDown, thetaHighUp, 
-                                                            thetaHighDown,
+                                                            thetaHighDown, xMax,
                                                             name);
     }
 
@@ -247,6 +248,7 @@ private:
     float m_ThetaLowDown;
     float m_ThetaHighUp;
     float m_ThetaHighDown;
+    float m_XMax;
 
 
     size_t m_NumTargetNeurons;
