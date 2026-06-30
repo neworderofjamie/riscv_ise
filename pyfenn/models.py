@@ -43,12 +43,12 @@ class LinearWithSTDP:
                  theta_low_up: float, theta_low_down: float,
                  theta_high_up: float, theta_high_down: float, x_max: float,
                  name: str = ""):
-        # Remember the synaptic threshold is divided by 2**(num fractional bits)
+
         self.shape = (source_events.shape.num_neurons,
                       target_var.shape.num_neurons)
-        weight_shape = (source_events.shape.num_neurons,
+        x_shape = (source_events.shape.num_neurons,
                         (target_var.shape.num_neurons))
-        self.x = Variable(weight_shape, x_dtype, 1, f"{name}_x")
+        self.x = Variable(x_shape, x_dtype, 1, f"{name}_x")
 
 
         self.process = STDPEventPropagationProcess(

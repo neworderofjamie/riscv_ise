@@ -17,6 +17,7 @@ import matplotlib.pyplot as plt
 # times the processes are run
 num_timesteps = 1
 extra_input_shape = 10
+
 primary_input_shape = 1
 output_shape = 1
 num_trials = 1000
@@ -46,7 +47,7 @@ primary_input = Bernoulli(Shape(primary_input_shape),prob_spike=.125,record_time
 extra_input = Bernoulli(Shape(extra_input_shape),prob_spike=.25, record_timesteps=1,name="extra_input")
 
 
-output = Linear_LIF_STDP(output_shape, alpha=.01, tau=.98, j_c=1, 
+output = Linear_LIF_STDP(output_shape, gamma=10, tau=.06, j_c=1, 
                         v_thresh=v_threshold, v_reset=0, fixed_point=num_frac_bits,
                         record_timesteps=1, dt=1, name="output")
 
@@ -99,22 +100,12 @@ runtime = Runtime(model, backend)
 runtime.allocate()
 
 # Load weights
-# print(np.asarray(runtime.get_array(extra_input_output.weight).host_view).shape)
-# extra_input_output.weight variable is an 80 element array where every 8*ith element
-# corresponds to the i-th synapse (e.g., index 16 is the third synapse). Each 
-# element corresponds to a fixed point int with 6 fractional bits, so 32 is .5,
-# 64 is 1, 128 is 2.
-extra_input_weights = np.zeros(extra_input_shape*8,dtype='uint64')*64
-for idx in range(0,80,8):
-    extra_input_weights[idx]=0 # usually 2
+extra_input_weights = np.ones(32*10,dtype='int16') * np.round(.05 * (1 << num_frac_bits)).astype(np.int16)
 copy_and_push(extra_input_weights, extra_input_output.weight, runtime)
-# I could instead do 
-# copy_and_push(np.ones(extra_input_shape*64,dtype='uint8'), extra_input_output.weight, runtime)
 
 # Here we set the synaptic variable X in the Fusi paper
-primary_input_weights = np.zeros(primary_input_shape*8,dtype='uint64')*64
-primary_input_weights[0]=33
-copy_and_push(primary_input_weights, primary_input_output.weight, runtime)
+primary_input_weights = np.ones(32,dtype='int16') * np.round(.1 * (1 << num_frac_bits)).astype(np.int16)
+copy_and_push(primary_input_weights, primary_input_output.x, runtime)
 
 
 # Zero remaining state
@@ -137,7 +128,7 @@ extra_input_spike_array, extra_input_spike_view = get_array_view(runtime, extra_
 output_v_array, output_v_view = get_array_view(runtime, output.v, np.int16)
 output_spike_array, output_spike_view = get_array_view(runtime, output.out_spikes, np.uint32)
 output_c_array, output_c_view = get_array_view(runtime, output.c, np.int16)
-primary_weight_array, primary_weight_view = get_array_view(runtime, primary_input_output.weight,np.int16)
+primary_x_array, primary_x_view = get_array_view(runtime, primary_input_output.x,np.int16)
 
 neural_activity = [[0] * 6 for i in range(num_trials)]
 
@@ -153,14 +144,14 @@ for i in range(num_trials):
     output_v_array.pull_from_device()
     output_c_array.pull_from_device()
     output_spike_array.pull_from_device()
-    primary_weight_array.pull_from_device()
+    primary_x_array.pull_from_device()
 
     neural_activity[i][0] = extra_input_spike_view[0]
     neural_activity[i][1] = output_v_view[0]/(2**num_frac_bits)
     neural_activity[i][2] = output_spike_view[0]
     neural_activity[i][3] = primary_input_spike_view[0]
     neural_activity[i][4] = output_c_view[0]/(2**num_frac_bits)
-    neural_activity[i][5] = primary_weight_view[0]/(2**num_frac_bits)
+    neural_activity[i][5] = primary_x_view[0]/(2**num_frac_bits)
 
 
 extra_presyn_spikes = [neural_act[0] for neural_act in neural_activity]
@@ -168,7 +159,7 @@ postsyn_voltages = [neural_act[1] for neural_act in neural_activity]
 postsyn_spikes = [neural_act[2] for neural_act in neural_activity]
 primary_presyn_spikes = [neural_act[3] for neural_act in neural_activity]
 postsyn_calcium = [neural_act[4] for neural_act in neural_activity]
-primary_weights = [neural_act[5] for neural_act in neural_activity]
+primary_x = [neural_act[5] for neural_act in neural_activity]
 
 postsyn_spike_rate = np.sum(postsyn_spikes) / (num_trials/trials_per_second)
 
@@ -182,8 +173,8 @@ for s in presyn_spike_times:
     axes[0].axvline(s)
 axes[0].title.set_text("Presynaptic spikes")
 
-# plot C
-axes[1].plot(primary_weights)
+# plot X
+axes[1].plot(primary_x)
 axes[1].title.set_text("Synaptic internal variable X(t)")
 for i in [.5, 1]:
     axes[3].axhline(i, linestyle="--", color="black", linewidth=0.5)

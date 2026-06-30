@@ -74,13 +74,12 @@ class ALIF:
 
 
 class Linear_LIF_STDP:
-    def __init__(self, shape, alpha: float, tau:float, j_c:float,
+    def __init__(self, shape, gamma: float, tau:float, j_c:float,
                  v_thresh: float, v_reset: float, fixed_point: int,
                  record_timesteps: int = 1,
                  dt: float = 1.0, name: str = ""):
         self.shape = shape
         dtype = f"s{15 - fixed_point}_{fixed_point}_sat_t"
-        # decay_dtype = "s0_15_sat_t"
         self.v = Variable(self.shape, dtype, name=f"{name}_v")
         self.i = Variable(self.shape, dtype, name=f"{name}_i")
         self.c = Variable(self.shape, dtype, name=f"{name}_c")
@@ -93,7 +92,7 @@ class Linear_LIF_STDP:
                 V = VReset;
                 C += Jc;
             }}
-            V += I-Alpha;
+            V += I-Gamma;
             if(V >= VThresh) {{
                 Spike();
             }} else if(V<VReset) {{
@@ -102,10 +101,10 @@ class Linear_LIF_STDP:
 
             I = 0.0h{fixed_point};
             """,
-            {"Alpha": Parameter(alpha, dtype),
+            {"Gamma": Parameter(gamma, dtype),
              "VThresh": Parameter(v_thresh, dtype),
              "VReset": Parameter(v_reset,dtype),
-             "CTau": Parameter(np.exp(-tau / dt), dtype),
+             "CTau": Parameter(np.exp(-dt / tau), dtype),
              "Jc": Parameter(j_c,dtype)},
             {"V": self.v, "I": self.i, "C":self.c},
             {"Spike": self.out_spikes},

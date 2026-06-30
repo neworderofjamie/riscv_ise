@@ -137,7 +137,7 @@ EventPropagationProcess::EventPropagationProcess(Private, std::shared_ptr<const 
 // STDPEventPropagationProcess
 //----------------------------------------------------------------------------
 STDPEventPropagationProcess::STDPEventPropagationProcess(Private, std::shared_ptr<const EventContainer> inputEvents, 
-                                                         VariablePtr preTimeSinceLastSpike, VariablePtr x, 
+                                                         VariablePtr x, VariablePtr preTimeSinceLastSpike,
                                                          VariablePtr target, VariablePtr vPre, VariablePtr cPre,
                                                          float thetaX, float a, float b, 
                                                          float alpha, float beta, 
