@@ -1155,6 +1155,22 @@ public:
             // **TODO** multiple by dt and alpha + beta
         }
 
+        virtual ScalarRegisterAllocator::RegisterPtr loadWeightBuffer(CodeGenerator &c, ScalarRegisterAllocator::RegisterPtr idPreReg)
+        {
+            auto &scalarRegisterAllocator = getScalarRegisterAllocator();
+
+            // SWeightBuffer = weightInHidStart + (numPostVecs * 64 * SN);
+            ALLOCATE_SCALAR(SWeightBuffer);
+            c.lw(*SWeightBuffer, Reg::X0, getStateFields().at(getProcess<STDPEventPropagationProcess>()->getX()));
+            {
+                ALLOCATE_SCALAR(STemp);
+                c.mul(*STemp, *idPreReg, *getStrideReg());
+                c.add(*SWeightBuffer, *SWeightBuffer, *STemp);
+            }
+
+            return SWeightBuffer;
+        }
+
 
         // weightBufferReg contains the address of the weights from one presynaptic neuron which spiked 
         // to its many downstream postsynaptic neurons
@@ -1164,8 +1180,8 @@ public:
             auto &scalarRegisterAllocator = getScalarRegisterAllocator();
             auto &vectorRegisterAllocator = getVectorRegisterAllocator();
 
-            ALLOCATE_VECTOR(X);
             ALLOCATE_VECTOR(VTarget1);
+            ALLOCATE_VECTOR(X);
             ALLOCATE_VECTOR(VTarget2);
             ALLOCATE_VECTOR(VTargetNew);
             ALLOCATE_VECTOR(Target);
@@ -1184,8 +1200,9 @@ public:
             ALLOCATE_VECTOR(JMinus);
 
             ALLOCATE_VECTOR(Beta);
-            ALLOCATE_VECTOR(SummedBeta);
             ALLOCATE_VECTOR(Alpha);
+            ALLOCATE_VECTOR(SummedBeta);
+            ALLOCATE_VECTOR(SummedAlpha);
             ALLOCATE_VECTOR(ThetaXMinusBeta);
             ALLOCATE_VECTOR(XPlusSummedAlpha);
             ALLOCATE_VECTOR(ThetaX);
@@ -1257,27 +1274,38 @@ public:
             c.vmul(numericTypeX.fixedPoint.value(), *SummedBeta, *Beta, *SummedBeta);
             c.vsub(*ThetaXMinusBeta, *ThetaX, *SummedBeta);
             
+            c.vfill(*SummedAlpha, *timeSinceLastSpike);
+            c.vmul(numericTypeX.fixedPoint.value(), *SummedAlpha, *Alpha, *SummedAlpha);
 
-            c.vfill(*XPlusSummedAlpha, *timeSinceLastSpike);
-            c.vmul(numericTypeX.fixedPoint.value(), *XPlusSummedAlpha, *Alpha, *XPlusSummedAlpha);
-            c.vadd(*XPlusSummedAlpha, *XPlusSummedAlpha, *X);
+            // Preload first ISyn, X, Target, Calcium, Voltage to avoid stall
+            c.vloadv(*VTarget1, *TargetBuf, 0);
+                                
+            // TESTING
+            c.vloadv(*X, *weightBufferReg, 0);
 
 
-            
             AssemblerUtils::unrollVectorLoopBody(
                 c, scalarRegisterAllocator, process->getNumTargetNeurons(), 4, *TargetBuf,
                 [this, weightBufferReg, TargetBuf, X, VTarget1, VTarget2, VTargetNew, 
                 CompareScalar, CompareScalar2, CompareScalar3, ZeroVec,
                 J, ThetaX, JPlus, JMinus, TargetVoltage, TargetCalcium,
                 A, B, TargetCalciumBuf, TargetVoltageBuf, ThetaLowUp, 
-                ThetaV, XMinusB, XPlusA, SummedBeta, XPlusSummedAlpha, ThetaXMinusBeta,
+                ThetaV, XMinusB, XPlusA, SummedBeta, SummedAlpha, XPlusSummedAlpha, ThetaXMinusBeta,
                 ThetaHighUp, ThetaLowDown, ThetaHighDown, XMax]
                 (CodeGenerator &c, uint32_t r, bool even, ScalarRegisterAllocator::RegisterPtr maskReg)
                 {
+                    // TESTING TO GET THIS SHIT TO WORK
+                    c.vloadv(*TargetCalcium, *TargetCalciumBuf, r * 64);
+
+
+
                     ///////////////////////////////////////////////////////////////////////////////////////////
                     // Update X based on time since last spike 
                     // Load X
                     c.vloadv(*X, *weightBufferReg, r * 64);
+                    c.nop();
+                    // Calculate X plus summed alpha
+                    c.vadd(*XPlusSummedAlpha, *SummedAlpha, *X);
                     // Subtract summed beta from X as if we knew X was less than or equal to ThetaX
                     c.vsub_s(*X, *X, *SummedBeta);
                     // Determine which X are still greater than ThetaX-(timeSinceLastSpike*Beta), indicating
@@ -2107,11 +2135,9 @@ public:
     {
         // Make some friendlier-named references
         auto &scalarRegisterAllocator = m_ScalarRegisterAllocator.get();
-        auto &vectorRegisterAllocator = m_VectorRegisterAllocator.get();
 
         auto &c = m_CodeGenerator.get();
 
-        //////// YAY!!!!
         ALLOCATE_SCALAR(SWordNStart);
         ALLOCATE_SCALAR(SConst1);
         ALLOCATE_SCALAR(SEventWord);

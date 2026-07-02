@@ -70,6 +70,8 @@ primary_input_output = LinearWithSTDP(primary_input.out_spikes, primary_input.ti
 # Group processes
 neuron_update_processes = ProcessGroup([extra_input.process, primary_input.process, output.process], PerformanceCounter() if args.time else None,name="neuron_update_processes_group")
 synapse_update_processes = ProcessGroup([extra_input_output.process, primary_input_output.process], PerformanceCounter() if args.time else None,name="synapse_update_processes_group")
+# synapse_update_processes = ProcessGroup([extra_input_output.process], PerformanceCounter() if args.time else None,name="synapse_update_processes_group")
+
 # zero_processes = ProcessGroup([v_zero.process], PerformanceCounter() if args.time else None)
 
 # Initial processes
@@ -91,7 +93,7 @@ code = backend.generate_simulation_kernel([synapse_update_processes,neuron_updat
 # Disassemble if required
 if args.disassemble:
     for i, c in enumerate(code):
-        print(f"{i * 4} : {disassemble(c)}")
+        print(f"PC:{i * 4}   Inst:{c}  Disassembled:{disassemble(c)}")
 
 # Create runtime
 runtime = Runtime(model, backend)
@@ -100,7 +102,7 @@ runtime = Runtime(model, backend)
 runtime.allocate()
 
 # Load weights
-extra_input_weights = np.ones(32*10,dtype='int16') * np.round(.05 * (1 << num_frac_bits)).astype(np.int16)
+extra_input_weights = np.ones(32*10,dtype='int16') * np.round(.2 * (1 << num_frac_bits)).astype(np.int16)
 copy_and_push(extra_input_weights, extra_input_output.weight, runtime)
 
 # Here we set the synaptic variable X in the Fusi paper

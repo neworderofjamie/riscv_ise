@@ -169,8 +169,10 @@ public:
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
-    const auto getX() const { return m_X; }
+
     const auto getTarget() const { return m_Target; }
+    // const auto getX() const { return m_X; }
+    const auto getX() const { return m_X; }
 
     const auto getPreTimeSinceLastSpike() const{ return m_PreTimeSinceLastSpike; }
 
