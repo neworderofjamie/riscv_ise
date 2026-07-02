@@ -1191,6 +1191,7 @@ public:
             ALLOCATE_SCALAR(TargetBuf);
             ALLOCATE_SCALAR(TargetVoltageBuf);
             ALLOCATE_SCALAR(TargetCalciumBuf);
+            ALLOCATE_SCALAR(XBuf);
 
             ALLOCATE_SCALAR(CompareScalar);
             ALLOCATE_SCALAR(CompareScalar2);
@@ -1267,6 +1268,7 @@ public:
             c.lw(*TargetBuf, Reg::X0, getStateFields().at(process->getTarget()));
             c.lw(*TargetVoltageBuf, Reg::X0, getStateFields().at(process->getVPre()));
             c.lw(*TargetCalciumBuf, Reg::X0, getStateFields().at(process->getCPre()));
+            c.lw(*XBuf, Reg::X0, getStateFields().at(process->getX()));
             
 
             // TODO: Confirm spiking on last trial means timeSinceLastSpike=0
@@ -1277,33 +1279,32 @@ public:
             c.vfill(*SummedAlpha, *timeSinceLastSpike);
             c.vmul(numericTypeX.fixedPoint.value(), *SummedAlpha, *Alpha, *SummedAlpha);
 
-            // Preload first ISyn, X, Target, Calcium, Voltage to avoid stall
-            c.vloadv(*VTarget1, *TargetBuf, 0);
-                                
+            
             // TESTING
-            c.vloadv(*X, *weightBufferReg, 0);
+            c.nop();
+            
+            // Preload first ISyn to avoid stall
+            c.vloadv(*VTarget1, *TargetBuf, 0);
 
 
+                                
             AssemblerUtils::unrollVectorLoopBody(
                 c, scalarRegisterAllocator, process->getNumTargetNeurons(), 4, *TargetBuf,
                 [this, weightBufferReg, TargetBuf, X, VTarget1, VTarget2, VTargetNew, 
                 CompareScalar, CompareScalar2, CompareScalar3, ZeroVec,
                 J, ThetaX, JPlus, JMinus, TargetVoltage, TargetCalcium,
-                A, B, TargetCalciumBuf, TargetVoltageBuf, ThetaLowUp, 
+                A, B, TargetCalciumBuf, TargetVoltageBuf, ThetaLowUp, XBuf,
                 ThetaV, XMinusB, XPlusA, SummedBeta, SummedAlpha, XPlusSummedAlpha, ThetaXMinusBeta,
                 ThetaHighUp, ThetaLowDown, ThetaHighDown, XMax]
                 (CodeGenerator &c, uint32_t r, bool even, ScalarRegisterAllocator::RegisterPtr maskReg)
                 {
-                    // TESTING TO GET THIS SHIT TO WORK
-                    c.vloadv(*TargetCalcium, *TargetCalciumBuf, r * 64);
-
-
-
                     ///////////////////////////////////////////////////////////////////////////////////////////
                     // Update X based on time since last spike 
                     // Load X
-                    c.vloadv(*X, *weightBufferReg, r * 64);
+                    // c.vloadv(*X, *weightBufferReg, r * 64);
+                    c.vloadv(*X, *XBuf, r * 64); 
                     c.nop();
+
                     // Calculate X plus summed alpha
                     c.vadd(*XPlusSummedAlpha, *SummedAlpha, *X);
                     // Subtract summed beta from X as if we knew X was less than or equal to ThetaX
@@ -1325,8 +1326,6 @@ public:
                     // Remember that J was already assigned the value of JMinus
                     c.vtlt(*CompareScalar, *ThetaX, *X);
                     c.vsel(*J, *CompareScalar, *JPlus);
-                    // Load target input
-                    c.vloadv(*VTarget1, *TargetBuf, 0);
                     // Load NEXT vector of target to avoid stall
                     // **YUCK** in last iteration, while this may not be accessed, it may be out of bounds                  
                     c.vloadv(even ? *VTarget2 : *VTarget1, *TargetBuf, (r + 1) * 64);
@@ -1352,6 +1351,7 @@ public:
                     // Load target voltage and calcium variables
                     c.vloadv(*TargetVoltage, *TargetVoltageBuf, r * 64);
                     c.vloadv(*TargetCalcium, *TargetCalciumBuf, r * 64);
+                    c.nop();
                     c.vadd(*XMinusB, *ZeroVec, *X);
                     c.vsub_s(*XMinusB, *X, *B);
                     // Figure out for which synapses the criteria was not met i.e.,
@@ -1388,16 +1388,17 @@ public:
                     c.vsel(*XPlusA, *CompareScalar, *ZeroVec);
 
                     // Write back target
-                    c.vstore(*XPlusA, *weightBufferReg, r * 64);
+                    c.vstore(*XPlusA, *XBuf, r * 64);
 
                 },
-                [this, weightBufferReg, TargetBuf, TargetVoltageBuf, TargetCalciumBuf](CodeGenerator &c, uint32_t numUnrolls)
+                [this, weightBufferReg, TargetBuf, TargetVoltageBuf, TargetCalciumBuf, XBuf](CodeGenerator &c, uint32_t numUnrolls)
                 {
                     // Increment pointers 
                     c.addi(*weightBufferReg, *weightBufferReg, 64 * numUnrolls);
                     c.addi(*TargetBuf, *TargetBuf, 64 * numUnrolls);
                     c.addi(*TargetVoltageBuf, *TargetVoltageBuf, 64 * numUnrolls);
                     c.addi(*TargetCalciumBuf, *TargetCalciumBuf, 64 * numUnrolls);
+                    c.addi(*XBuf, *XBuf, 64 * numUnrolls);
 
                 });
         }

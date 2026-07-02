@@ -102,11 +102,11 @@ runtime = Runtime(model, backend)
 runtime.allocate()
 
 # Load weights
-extra_input_weights = np.ones(32*10,dtype='int16') * np.round(.2 * (1 << num_frac_bits)).astype(np.int16)
+extra_input_weights = np.ones(32*10,dtype='int16') * np.round(2 * (1 << num_frac_bits)).astype(np.int16)
 copy_and_push(extra_input_weights, extra_input_output.weight, runtime)
 
 # Here we set the synaptic variable X in the Fusi paper
-primary_input_weights = np.ones(32,dtype='int16') * np.round(.1 * (1 << num_frac_bits)).astype(np.int16)
+primary_input_weights = np.ones(32,dtype='int16') * np.round(2 * (1 << num_frac_bits)).astype(np.int16)
 copy_and_push(primary_input_weights, primary_input_output.x, runtime)
 
 
