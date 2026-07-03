@@ -1,6 +1,9 @@
 // Google test includes
 #include "gtest/gtest.h"
 
+// Common includes
+#include "common/utils.h"
+
 // Compiler frontend includes
 #include "compiler_frontend/type.h"
 
@@ -13,6 +16,7 @@
 #include "fenn/backend/process.h"
 #include "fenn/backend/variable.h"
 
+using namespace ::Common;
 using namespace CompilerFrontend;
 using namespace Frontend;
 using namespace FeNN;
@@ -20,43 +24,68 @@ using namespace FeNN;
 //--------------------------------------------------------------------------
 // Tests
 //--------------------------------------------------------------------------
-TEST(Kernel, EventSinkIDAllocation)
+class EventSinkIDTest : public testing::TestWithParam<std::tuple<size_t, size_t, bool>>
 {
-    const Shape hidden1Shape{{32}};
-    const Shape hidden2Shape{{30}};
+};
+TEST_P(EventSinkIDTest, EventSinkIDAllocation)
+{
+    const Shape shape{{std::get<0>(GetParam())}};
 
-    // Hidden neurons
-    const auto hidden1V = Backend::Variable::create(hidden1Shape, Type::S2_13Sat);
-    const auto hidden1I = Backend::Variable::create(hidden1Shape, Type::S2_13Sat);
-    const auto hidden1Spikes = Backend::EventSinkBuffer::create(hidden1Shape);
-    const auto hidden1 = Backend::NeuronUpdateProcess::create(
-        "V = (" + std::to_string(std::exp(-1.0 / 20.0)) + " * V) + I;\n"
-        "if(V >= 1.0) {\n"
-        "   Spike();\n"
-        "   V = 0.0;\n"
-        "}\n",
-        {{"V", Sliced<Variable>(hidden1V, true)}, {"I", Sliced<Variable>(hidden1I)}}, 
-        {{"Spike", Sliced<EventSink>(hidden1Spikes, true)}},
-        Type::S2_13);
+    std::vector<std::shared_ptr<const Process>> processes;
 
-    // Hidden neurons
-    const auto hidden2V = Backend::Variable::create(hidden2Shape, Type::S2_13Sat);
-    const auto hidden2I = Backend::Variable::create(hidden2Shape, Type::S2_13Sat);
-    const auto hidden2Spikes = Backend::EventSinkBuffer::create(hidden2Shape);
-    const auto hidden2 = Backend::NeuronUpdateProcess::create(
-        "V = (" + std::to_string(std::exp(-1.0 / 20.0)) + " * V) + I;\n"
-        "if(V >= 0.8) {\n"
-        "   Spike();\n"
-        "   V = 0.0;\n"
-        "}\n",
-        {{"V", Sliced<Variable>(hidden2V, true)}, {"I", Sliced<Variable>(hidden2I)}}, 
-        {{"Spike", Sliced<EventSink>(hidden2Spikes, true)}},
-        Type::S2_13);
+    for(size_t p = 0; p < std::get<1>(GetParam()); p++) {
+        // Hidden neurons
+        const auto v = Backend::Variable::create(shape, Type::S2_13Sat);
+        const auto i = Backend::Variable::create(shape, Type::S2_13Sat);
+        const auto spikes = Backend::EventSinkBuffer::create(shape);
+        processes.push_back(Backend::NeuronUpdateProcess::create(
+            "V = (" + std::to_string(std::exp(-1.0 / 20.0)) + " * V) + I;\n"
+            "if(V >= 1.0) {\n"
+            "   Spike();\n"
+            "   V = 0.0;\n"
+            "}\n",
+            {{"V", Sliced<Variable>(v)}, {"I", Sliced<Variable>(i)}},
+            {{"Spike", Sliced<EventSink>(spikes)}},
+            Type::S2_13));
+    }
+   
 
     // Group processes
-    const auto neuronUpdateProcesses = ProcessGroup::create({hidden1, hidden2});
+    const auto neuronUpdateProcesses = ProcessGroup::create(processes);
 
     // Create simple kernel
-    const auto kernel = Backend::SimpleKernel::create({neuronUpdateProcesses});
+    std::shared_ptr<Backend::SimpleKernel> kernel;
+    try {
+        kernel = Backend::SimpleKernel::create({neuronUpdateProcesses});
+    }
+    catch(const std::runtime_error &e) {
+        // If test SHOULD suceed, rethrow exception
+        if(std::get<2>(GetParam())) {
+            throw e;
+        }
+        // Otherwise, exit cleanly
+        else {
+            return;
+        }
+    }
     
+    // Check allocated number of bits
+    ASSERT_EQ(kernel->getNumNeuronIDBits(), (32 - Utils::clz(std::get<0>(GetParam()) - 1)));
+    ASSERT_EQ(kernel->getNumPopulationIDBits(), (32 - Utils::clz(std::get<1>(GetParam()) - 1)));
+
+    /*
+    // Get event sink IDs for the two groups and assert that they are different
+    const auto hidden1EventSinkID = kernel->getEventSinkIDs().at(hidden1Spikes);
+    const auto hidden2EventSinkID = kernel->getEventSinkIDs().at(hidden2Spikes);
+    ASSERT_NE(hidden1EventSinkID, hidden2EventSinkID);
+
+    const uint32_t hidden1EventIDBase = kernel->getEventSinkIDBase(hidden1Spikes);
+    const uint32_t hidden2EventIDBase = kernel->getEventSinkIDBase(hidden2Spikes);*/   
 }
+
+INSTANTIATE_TEST_SUITE_P(Kernel,
+                         EventSinkIDTest,
+                         testing::Values(std::make_tuple(32, 4, true),
+                                         std::make_tuple(1024, 10, true),
+                                         std::make_tuple((1 << 24) - 1, 1, true),
+                                         std::make_tuple((1 << 24) - 1, 100, false)));

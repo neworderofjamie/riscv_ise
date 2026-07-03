@@ -56,6 +56,10 @@ public:
     //! Get the process group in this kernel 
     auto getEventSourceProcessGroup() const{ return m_EventSourceProcessGroup; }
 
+    uint32_t getNumNeuronIDBits() const{ return m_NumNeuronIDBits; }
+
+    uint32_t getNumPopulationIDBits() const { return m_NumPopulationIDBits; }
+
 private:
     //------------------------------------------------------------------------
     // Members
