@@ -38,32 +38,55 @@ init_logging()
 num_int_bits=6
 num_frac_bits = 15-num_int_bits
 
-# Model
-v_threshold = 1
-postsyn_v_thresh_LTP = v_threshold*.8
+# Scaling Parameters
+v_theta = 1
+x_max = 1
+j_c = 1
+
+# Neural Parameters
+lamb = .01
+theta_v = .8 
+v_reset = 0
+prob_spike_primary = .05
+prob_spike_extra = .1
+
+# Calcium Parameters
+tau_c =  60
+theta_low_up=3
+theta_low_down=3
+theta_high_up=13
+theta_high_down=4
+
+# Synaptic Parameters
+theta_x=.5
+a=.1
+b=.1
+alpha=.0035
+beta=.0035
+
+# Input layer
+j_plus = 1
+j_minus = 0
+
+
+postsyn_v_thresh_LTP = v_theta*.8
 
 # weird things happen when prob_spike can't be expressed as a fraction with denom=64
-primary_input = Bernoulli(Shape(primary_input_shape),prob_spike=.125,record_timesteps=1,name="primary_input")
-extra_input = Bernoulli(Shape(extra_input_shape),prob_spike=.25, record_timesteps=1,name="extra_input")
+primary_input = Bernoulli(Shape(primary_input_shape),prob_spike=prob_spike_primary,record_timesteps=1,name="primary_input")
+extra_input = Bernoulli(Shape(extra_input_shape),prob_spike=prob_spike_extra, record_timesteps=1,name="extra_input")
 
 
-output = Linear_LIF_STDP(output_shape, gamma=10, tau=.06, j_c=1, 
-                        v_thresh=v_threshold, v_reset=0, fixed_point=num_frac_bits,
-                        record_timesteps=1, dt=1, name="output")
+output = Linear_LIF_STDP(output_shape, lamb=lamb, tau_c=tau_c, j_c=1,v_thresh=v_theta, v_reset=v_reset, 
+                         fixed_point=num_frac_bits,record_timesteps=1, dt=1, name="output")
 
 extra_input_output = Linear(extra_input.out_spikes, output.i, f"s{num_int_bits}_{num_frac_bits}_sat_t", name="extra_input_output")
 
-primary_input_output = LinearWithSTDP(primary_input.out_spikes, primary_input.time_since_last_spike,
-                                      output.i, output.v, output.c, 
-                                      f"s{num_int_bits}_{num_frac_bits}_sat_t", 
-                                      theta_x=.5, a=1,b=1,
-                                      alpha=.1,beta=.1,
-                                      j_minus=3.5, 
-                                      j_plus=3.5, theta_v=.8, 
-                                      theta_low_up=3, theta_low_down=3,
-                                      theta_high_up=13, theta_high_down=4,
-                                      x_max=1,
-                                      name="primary_input_output")
+primary_input_output = LinearWithSTDP(primary_input.out_spikes, primary_input.time_since_last_spike, output.i, 
+                                      output.v, output.c,f"s{num_int_bits}_{num_frac_bits}_sat_t", theta_x=theta_x,
+                                      a=a, b=b, alpha=alpha, beta=beta, j_minus=j_minus,j_plus=j_plus, theta_v=theta_v, 
+                                      theta_low_up=theta_low_up, theta_low_down=theta_low_down,
+                                      theta_high_up=theta_high_up, theta_high_down=theta_high_down,
+                                      x_max=x_max, name="primary_input_output")
 
 
 
@@ -102,12 +125,12 @@ runtime = Runtime(model, backend)
 runtime.allocate()
 
 # Load weights
-extra_input_weights = np.ones(32*10,dtype='int16') * np.round(2 * (1 << num_frac_bits)).astype(np.int16)
+extra_input_weights = np.ones(32*10,dtype='int16') * np.round(.09 * (1 << num_frac_bits)).astype(np.int16)
 copy_and_push(extra_input_weights, extra_input_output.weight, runtime)
 
 # Here we set the synaptic variable X in the Fusi paper
-primary_input_weights = np.ones(32,dtype='int16') * np.round(2 * (1 << num_frac_bits)).astype(np.int16)
-copy_and_push(primary_input_weights, primary_input_output.x, runtime)
+primary_input_x = np.ones(32,dtype='int16') * np.round(.8 * (1 << num_frac_bits)).astype(np.int16)
+copy_and_push(primary_input_x, primary_input_output.x, runtime)
 
 
 # Zero remaining state
@@ -185,8 +208,8 @@ for i in [.5, 1]:
 # plot postsyn V
 axes[2].title.set_text('Postsynaptic voltage V(t) (Spike rate: ' + str(postsyn_spike_rate) + " Hz)")
 axes[2].plot(postsyn_voltages)
-# axes[2].set_ylim((0,v_threshold*1.5))
-axes[2].axhline(v_threshold, linestyle="--", color="black", linewidth=0.5)
+# axes[2].set_ylim((0,v_theta*1.5))
+axes[2].axhline(v_theta, linestyle="--", color="black", linewidth=0.5)
 axes[2].axhline(postsyn_v_thresh_LTP, linestyle="--", color="black", linewidth=0.5)
 postsyn_spike_times = np.where(np.array(postsyn_spikes) == 1)[0]
 for s in postsyn_spike_times:

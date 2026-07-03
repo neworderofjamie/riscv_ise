@@ -74,7 +74,7 @@ class ALIF:
 
 
 class Linear_LIF_STDP:
-    def __init__(self, shape, gamma: float, tau:float, j_c:float,
+    def __init__(self, shape, lamb: float, tau_c:float, j_c:float,
                  v_thresh: float, v_reset: float, fixed_point: int,
                  record_timesteps: int = 1,
                  dt: float = 1.0, name: str = ""):
@@ -92,7 +92,7 @@ class Linear_LIF_STDP:
                 V = VReset;
                 C += Jc;
             }}
-            V += I-Gamma;
+            V += I-Lambda;
             if(V >= VThresh) {{
                 Spike();
             }} else if(V<VReset) {{
@@ -101,10 +101,10 @@ class Linear_LIF_STDP:
 
             I = 0.0h{fixed_point};
             """,
-            {"Gamma": Parameter(gamma, dtype),
+            {"Lambda": Parameter(lamb, dtype),
              "VThresh": Parameter(v_thresh, dtype),
              "VReset": Parameter(v_reset,dtype),
-             "CTau": Parameter(np.exp(-dt / tau), dtype),
+             "CTau": Parameter(np.exp(-dt / tau_c), dtype),
              "Jc": Parameter(j_c,dtype)},
             {"V": self.v, "I": self.i, "C":self.c},
             {"Spike": self.out_spikes},
