@@ -1202,9 +1202,11 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
                 // Get register
                 const auto reg = unrollEnv.getVectorRegister(v.first);
                     
-                // Generate store
-                std::dynamic_pointer_cast<const Variable>(v.second.getUnderlying())->genStore(
-                    unrollEnv, reg, r, varState.at(v.second.getUnderlying()), *model);
+                // Generate store if variable isn't const
+                if (!v.second.getUnderlying()->getType().isConst) {
+                    std::dynamic_pointer_cast<const Variable>(v.second.getUnderlying())->genStore(
+                        unrollEnv, reg, r, varState.at(v.second.getUnderlying()), *model);
+                }
             }
         },
         [this, &eventSinkState, &model, &varState, &vectorRegisterAllocator]

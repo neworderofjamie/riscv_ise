@@ -53,14 +53,27 @@ private:
 //--------------------------------------------------------------------------
 TEST(Parser, Numeric)
 {
-    // Scan
     TestErrorHandler errorHandler;
-    const auto tokens = Scanner::scanSource("uint32_t", errorHandler, Type::Float);
-    ASSERT_FALSE(errorHandler.hasError());
+
+    {
+        // Scan
+        const auto tokens = Scanner::scanSource("uint32_t", errorHandler, Type::Float);
+        ASSERT_FALSE(errorHandler.hasError());
  
-    // Parse
-    ASSERT_EQ(Parser::parseNumericType(tokens, errorHandler), Type::Uint32);
-    ASSERT_FALSE(errorHandler.hasError());
+        // Parse
+        ASSERT_EQ(Parser::parseNumericType(tokens, errorHandler), Type::Uint32);
+        ASSERT_FALSE(errorHandler.hasError());
+    }
+
+    {
+        // Scan
+        const auto tokens = Scanner::scanSource("const s1_14_sat_t", errorHandler, Type::Float);
+        ASSERT_FALSE(errorHandler.hasError());
+
+        // Parse
+        ASSERT_EQ(Parser::parseNumericType(tokens, errorHandler), Type::S1_14Sat.addConst());
+        ASSERT_FALSE(errorHandler.hasError());
+    }
 }
 //--------------------------------------------------------------------------
 TEST(Parser, NumericExtraTokens)

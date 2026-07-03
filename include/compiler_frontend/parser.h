@@ -39,6 +39,6 @@ COMPILER_FRONTEND_EXPORT Expression::ExpressionPtr parseExpression(const std::ve
 COMPILER_FRONTEND_EXPORT Statement::StatementList parseBlockItemList(const std::vector<Token> &tokens, ErrorHandlerBase &errorHandler);
 
 //! Parse type from tokens
-COMPILER_FRONTEND_EXPORT const Type::ResolvedType parseNumericType(const std::vector<Token> &tokens, ErrorHandlerBase &errorHandler);
+COMPILER_FRONTEND_EXPORT Type::ResolvedType parseNumericType(const std::vector<Token> &tokens, ErrorHandlerBase &errorHandler);
 
 }   // MiniParse::MiniParse

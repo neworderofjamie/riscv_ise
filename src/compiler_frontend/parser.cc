@@ -978,21 +978,40 @@ Statement::StatementList parseBlockItemList(const std::vector<Token> &tokens, Er
     return statements;
 }
 //---------------------------------------------------------------------------
-const Type::ResolvedType parseNumericType(const std::vector<Token> &tokens, ErrorHandlerBase &errorHandler)
+Type::ResolvedType parseNumericType(const std::vector<Token> &tokens, ErrorHandlerBase &errorHandler)
 {
     // Parse type specifiers
     ParserState parserState(tokens, errorHandler);
     std::multiset<std::string> typeSpecifiers;
-    while(parserState.match(Token::Type::TYPE_SPECIFIER)) {
-        typeSpecifiers.insert(parserState.previous().lexeme);
-    };
+    std::set<std::string> typeQualifiers;
+    
+    while (true) {
+        if (parserState.match(Token::Type::TYPE_SPECIFIER)) {
+            typeSpecifiers.insert(parserState.previous().lexeme);
+        }
+        else if (parserState.match(Token::Type::TYPE_QUALIFIER)) {
+            typeQualifiers.insert(parserState.previous().lexeme);
+        }
+        else {
+            break;
+        }
+
+    }
 
     // If there are more tokens, raise error
     if(!parserState.isAtEnd()) {
         parserState.error(parserState.peek(), "Unexpected token after type");
     }
     
-    // Return numeric type
-    return getNumericType(typeSpecifiers);
+    // Lookup numeric type
+    auto type = getNumericType(typeSpecifiers);
+
+    // If there are any type qualifiers, add const
+    // **THINK** this relies of const being only qualifier
+    if (!typeQualifiers.empty()) {
+        type = type.addConst();
+    }
+
+    return type;
 }
 }
