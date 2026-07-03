@@ -483,7 +483,7 @@ void unrollOddEvenLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegi
     // If all iterations weren't handled by unrolling
     if(numUnrolls.rem != 0) {
         // Determine number of pairs in remainder
-        const auto numPairs = std::div(numUnrolls.rem, 2l);
+        const auto numPairs = std::div(numUnrolls.rem, 2ll);
 
         // If there are any pairs
         if(numPairs.quot != 0) {
