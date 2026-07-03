@@ -1,3 +1,6 @@
+// Standard C++ includes
+#include <unordered_set>
+
 // Google test includes
 #include "gtest/gtest.h"
 
@@ -29,12 +32,13 @@ class EventSinkIDTest : public testing::TestWithParam<std::tuple<size_t, size_t,
 };
 TEST_P(EventSinkIDTest, EventSinkIDAllocation)
 {
+    // Build shape from first parameter
     const Shape shape{{std::get<0>(GetParam())}};
 
+    // Populate vector with second parameter number of populations of this size
     std::vector<std::shared_ptr<const Process>> processes;
-
+    processes.reserve(std::get<1>(GetParam()));
     for(size_t p = 0; p < std::get<1>(GetParam()); p++) {
-        // Hidden neurons
         const auto v = Backend::Variable::create(shape, Type::S2_13Sat);
         const auto i = Backend::Variable::create(shape, Type::S2_13Sat);
         const auto spikes = Backend::EventSinkBuffer::create(shape);
@@ -48,7 +52,6 @@ TEST_P(EventSinkIDTest, EventSinkIDAllocation)
             {{"Spike", Sliced<EventSink>(spikes)}},
             Type::S2_13));
     }
-   
 
     // Group processes
     const auto neuronUpdateProcesses = ProcessGroup::create(processes);
@@ -70,22 +73,33 @@ TEST_P(EventSinkIDTest, EventSinkIDAllocation)
     }
     
     // Check allocated number of bits
-    ASSERT_EQ(kernel->getNumNeuronIDBits(), (32 - Utils::clz(std::get<0>(GetParam()) - 1)));
+    ASSERT_EQ(kernel->getNumNeuronIDBits(), (32 - Utils::clz(std::max(32ull, std::get<0>(GetParam())) - 1)));
     ASSERT_EQ(kernel->getNumPopulationIDBits(), (32 - Utils::clz(std::get<1>(GetParam()) - 1)));
 
-    /*
-    // Get event sink IDs for the two groups and assert that they are different
-    const auto hidden1EventSinkID = kernel->getEventSinkIDs().at(hidden1Spikes);
-    const auto hidden2EventSinkID = kernel->getEventSinkIDs().at(hidden2Spikes);
-    ASSERT_NE(hidden1EventSinkID, hidden2EventSinkID);
+    // Loop through allocated event sink IDs
+    std::unordered_set<uint32_t> ids;
+    for(const auto &e : kernel->getEventSinkIDs()) {
+        // Add to set
+        ids.insert(e.second);
 
-    const uint32_t hidden1EventIDBase = kernel->getEventSinkIDBase(hidden1Spikes);
-    const uint32_t hidden2EventIDBase = kernel->getEventSinkIDBase(hidden2Spikes);*/   
+        // Get event ID base for this event sink
+        const uint32_t eventIDBase = kernel->getEventSinkIDBase(e.first);
+
+        // Check that base event ID doens't have lower bits set
+        ASSERT_EQ(eventIDBase & 0x1F, 0);
+
+        // Check that it matches the ID shifted up
+        ASSERT_EQ(eventIDBase, e.second << kernel->getNumNeuronIDBits());
+    }
+
+    // Check that a unique ID has been allocated for each 
+    EXPECT_EQ(ids.size(), std::get<1>(GetParam()));
 }
 
 INSTANTIATE_TEST_SUITE_P(Kernel,
                          EventSinkIDTest,
-                         testing::Values(std::make_tuple(32, 4, true),
-                                         std::make_tuple(1024, 10, true),
-                                         std::make_tuple((1 << 24) - 1, 1, true),
-                                         std::make_tuple((1 << 24) - 1, 100, false)));
+                         testing::Values(std::make_tuple(10, 2, true),                  // Small population - event id base needs padding
+                                         std::make_tuple(32, 4, true),                  // Fine
+                                         std::make_tuple(1024, 10, true),               // Fine
+                                         std::make_tuple((1 << 24) - 1, 1, true),       // Whole keyspace goes to one population - weird but maybe ok
+                                         std::make_tuple((1 << 24) - 1, 100, false)));  // Not enough keyspace - should fail
