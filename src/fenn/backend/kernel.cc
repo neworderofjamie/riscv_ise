@@ -87,7 +87,8 @@ KernelImplementation::KernelImplementation(const Frontend::ProcessGroupVector &p
     // Otherwise
     else {
         // Count bits required to represent largest neuron and population index
-        m_NumNeuronIDBits = 32 - ::Common::Utils::clz(maxEventSinkSize - 1);
+        // **NOTE** at least bottom 5 bits need to be used for neuron ID
+        m_NumNeuronIDBits = 32 - ::Common::Utils::clz(std::max(32ull, maxEventSinkSize) - 1);
         m_NumPopulationIDBits = 32 - ::Common::Utils::clz(m_EventSinkIDs.size() - 1);
         LOGI_FENN_BACKEND << "Neuron IDs require " << m_NumNeuronIDBits << " and population IDs require " << m_NumPopulationIDBits << " bits";
         if ((m_NumNeuronIDBits + m_NumPopulationIDBits) > 24) {
