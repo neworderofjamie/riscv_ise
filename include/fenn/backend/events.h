@@ -198,8 +198,8 @@ public:
     //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------
-    static std::shared_ptr<Frontend::EventChannel> create(const Frontend::Shape &shape, bool record = false, 
-                                                          const std::string &name = "")
+    static std::shared_ptr<EventChannel> create(const Frontend::Shape &shape, bool record = false, 
+                                                const std::string &name = "")
     {
         return std::make_shared<EventChannel>(Private(), shape, record, name);
     }
