@@ -60,6 +60,9 @@ public:
 
     uint32_t getNumPopulationIDBits() const { return m_NumPopulationIDBits; }
 
+    //! Get merged event sources
+    const auto &getMergedEventSources() const { return m_MergedEventSources; }
+
 private:
     //------------------------------------------------------------------------
     // Members
