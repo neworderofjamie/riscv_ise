@@ -12,6 +12,7 @@ from pyfenn.utils import (get_array_view, get_latency_spikes, copy_and_push,
                           read_perf_counter, zero_and_push, quantise, seed_and_push)
 from tqdm.auto import tqdm
 import matplotlib.pyplot as plt
+import pandas as pd
 
 # One trial can consist of several timesteps, determining how many
 # times the processes are run
@@ -136,11 +137,14 @@ primary_x_array, primary_x_view = get_array_view(runtime, primary_input_output.x
 probs_spike_primary = [.05, .1, .15, .2]
 extra_spike_weight = [0.03, 0.04, 0.05, 0.06, 0.07, 0.08]
 
-probs_spike_primary = [0, .1, .2]
-extra_spike_weight = [0, .04, .06]
+probs_spike_primary = [0, .1]
+extra_spike_weight = [0, .04]
 
-iterations = 1
-do_plot = True
+iterations = 10
+do_plot = False
+
+results_df = pd.DataFrame(columns=["primary_prob_spike", "primary_spike_rate", "post_weight", "iteration", "post_spike_freq", "LTP_transition"])
+
 
 for primary_prob_spike in probs_spike_primary:
 
@@ -207,9 +211,15 @@ for primary_prob_spike in probs_spike_primary:
             primary_x = [neural_act[5] for neural_act in neural_activity]
 
             postsyn_spike_rate = np.sum(postsyn_spikes) / (num_trials/trials_per_second)
+            primary_spike_rate = np.sum(primary_presyn_spikes) / (num_trials/trials_per_second)
 
             LTP_transition = max(primary_x) > .5
 
+
+            new_row = {"primary_prob_spike": primary_prob_spike, "primary_spike_rate":primary_spike_rate, "post_weight":post_weight, "post_spike_freq": postsyn_spike_rate,"iteration": iter_num, "LTP_transition": LTP_transition}
+
+            # Add a single new employee using loc[]
+            results_df.loc[len(results_df)] = new_row
 
             if do_plot:
 
@@ -253,3 +263,51 @@ for primary_prob_spike in probs_spike_primary:
                 plt.pause(0.001)
 
 print("hi")
+
+def bin_presyn(row):  
+    if row['primary_spike_rate'] >= 0 and row['primary_spike_rate'] <= 20:
+        return '0-20 Hz'
+    elif row['primary_spike_rate'] > 20 and row['primary_spike_rate'] <= 30:
+        return '20-30 Hz'
+    elif row['primary_spike_rate'] > 30 and row['primary_spike_rate'] <= 40:
+        return '30-40 Hz'
+    elif row['primary_spike_rate'] > 40 and row['primary_spike_rate'] <= 50:
+        return '40-50 Hz'
+    elif row['primary_spike_rate'] > 50 and row['primary_spike_rate'] <= 70:
+        return '50-70 Hz'
+    else:
+        return '>70'
+
+results_df['binned_presyn_freqs'] = results_df.apply(lambda row: bin_presyn(row), axis=1)
+
+
+# Process data before plotting
+total = len(results_df.index)
+all_post_rates = results_df.post_spike_freq.unique()
+all_post_rates.sort()
+binned_presyn_freqs = results_df.binned_presyn_freqs.unique()
+binned_presyn_freqs.sort()
+prob = dict()
+for pre_rate in binned_presyn_freqs:
+    
+    prob[pre_rate] = [[],[]]
+    
+    rate_df = results_df[results_df["binned_presyn_freqs"] == pre_rate]
+    post_spike_freqs = rate_df.post_spike_freq.unique()
+    
+    for post_rate in all_post_rates:
+        if post_rate in post_spike_freqs:
+            post_rate_df = rate_df[rate_df["post_spike_freq"] == post_rate]
+            success_df = post_rate_df[post_rate_df["LTP_transition"] == 1]
+            success_count = len(success_df.index)
+            prob[pre_rate][0].append(post_rate)
+            prob[pre_rate][1].append(success_count / total)
+
+# Plot probability of LTP transition by postsyn and presyn spike rate
+fig, ax = plt.subplots()
+for pre_rate in prob.keys():
+    ax.plot(prob[pre_rate][0], prob[pre_rate][1], 'o-', label=str(pre_rate)+" Hz", alpha=0.5)
+leg = ax.legend(title="Presyn spike rate")
+ax.set_xlabel("Postsyn spike rate")
+ax.set_ylabel("Probability of LTP transition")
+plt.show()
