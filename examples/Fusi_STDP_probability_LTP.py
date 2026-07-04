@@ -42,8 +42,7 @@ j_c = 1
 lamb = .01
 theta_v = .8 
 v_reset = 0
-prob_spike_extra = .2
-prob_spike_primary = .125 # Filler value
+prob_spike_extra = .3
 
 # Calcium Parameters
 tau_c =  60
@@ -119,7 +118,6 @@ runtime.set_instructions(code)
 
 
 num_frac_bits_prob_spike = 15
-prob_spike_extra = .2 
 prob_spike_extra_formatted = np.round(prob_spike_extra * (1 << num_frac_bits_prob_spike)).astype(np.int16)
 copy_and_push(prob_spike_extra_formatted, extra_input.prob_spike, runtime)
 
@@ -134,13 +132,11 @@ primary_x_array, primary_x_view = get_array_view(runtime, primary_input_output.x
 
 
 
-probs_spike_primary = [.05, .1, .15, .2]
-extra_spike_weight = [0.03, 0.04, 0.05, 0.06, 0.07, 0.08]
 
-probs_spike_primary = [0, .1]
-extra_spike_weight = [0, .04]
+probs_spike_primary = [.04, .07, .1, .13]
+extra_spike_weight = [.01]
 
-iterations = 10
+iterations = 30
 do_plot = False
 
 results_df = pd.DataFrame(columns=["primary_prob_spike", "primary_spike_rate", "post_weight", "iteration", "post_spike_freq", "LTP_transition"])
@@ -266,15 +262,15 @@ print("hi")
 
 def bin_presyn(row):  
     if row['primary_spike_rate'] >= 0 and row['primary_spike_rate'] <= 20:
-        return '0-20 Hz'
+        return '0-20'
     elif row['primary_spike_rate'] > 20 and row['primary_spike_rate'] <= 30:
-        return '20-30 Hz'
+        return '20-30'
     elif row['primary_spike_rate'] > 30 and row['primary_spike_rate'] <= 40:
-        return '30-40 Hz'
+        return '30-40'
     elif row['primary_spike_rate'] > 40 and row['primary_spike_rate'] <= 50:
-        return '40-50 Hz'
+        return '40-50'
     elif row['primary_spike_rate'] > 50 and row['primary_spike_rate'] <= 70:
-        return '50-70 Hz'
+        return '50-70'
     else:
         return '>70'
 
