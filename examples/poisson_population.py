@@ -218,7 +218,7 @@ for s in postsyn_spike_times:
 # plot C
 axes[3].plot(postsyn_calcium)
 axes[3].title.set_text("Calcium variable C(t)")
-for i in [3, 4, 13]:
+for i in [theta_low_up, theta_high_up, theta_high_down]:
     axes[3].axhline(i, linestyle="--", color="black", linewidth=0.5)
 
 plt.show()

@@ -1155,7 +1155,7 @@ public:
             // **TODO** multiple by dt and alpha + beta
         }
 
-        virtual ScalarRegisterAllocator::RegisterPtr loadWeightBuffer(CodeGenerator &c, ScalarRegisterAllocator::RegisterPtr idPreReg)
+        virtual ScalarRegisterAllocator::RegisterPtr loadWeightBuffer(CodeGenerator &c, ScalarRegisterAllocator::RegisterPtr idPreReg) override final
         {
             auto &scalarRegisterAllocator = getScalarRegisterAllocator();
 
@@ -1206,6 +1206,7 @@ public:
             ALLOCATE_VECTOR(SummedAlpha);
             ALLOCATE_VECTOR(ThetaXMinusBeta);
             ALLOCATE_VECTOR(XPlusSummedAlpha);
+            ALLOCATE_VECTOR(XOld);
             ALLOCATE_VECTOR(ThetaX);
             ALLOCATE_VECTOR(XMax);
     
@@ -1261,7 +1262,7 @@ public:
             // Load vector of zeros
             c.vfill(*ZeroVec, Reg::X0);
             // Initialize J as JMinus
-            c.vadd(*J, *ZeroVec, *JMinus);
+            c.vadd_s(*J, *ZeroVec, *JMinus);
 
             // Load target register, voltage, and calcium vars from state fields
             // **NOTE** no point in caching this as it needs resetting every row
@@ -1273,11 +1274,11 @@ public:
 
             // TODO: Confirm spiking on last trial means timeSinceLastSpike=0
             c.vfill(*SummedBeta, *timeSinceLastSpike);
-            c.vmul(numericTypeX.fixedPoint.value(), *SummedBeta, *Beta, *SummedBeta);
-            c.vsub(*ThetaXMinusBeta, *ThetaX, *SummedBeta);
+            c.vmul_s_rn(numericTypeX.fixedPoint.value(), *SummedBeta, *Beta, *SummedBeta);
+            c.vsub_s(*ThetaXMinusBeta, *ThetaX, *SummedBeta);
             
             c.vfill(*SummedAlpha, *timeSinceLastSpike);
-            c.vmul(numericTypeX.fixedPoint.value(), *SummedAlpha, *Alpha, *SummedAlpha);
+            c.vmul_s_rn(numericTypeX.fixedPoint.value(), *SummedAlpha, *Alpha, *SummedAlpha);
 
             
             // TESTING
@@ -1295,7 +1296,7 @@ public:
                 J, ThetaX, JPlus, JMinus, TargetVoltage, TargetCalcium,
                 A, B, TargetCalciumBuf, TargetVoltageBuf, ThetaLowUp, XBuf,
                 ThetaV, XMinusB, XPlusA, SummedBeta, SummedAlpha, XPlusSummedAlpha, ThetaXMinusBeta,
-                ThetaHighUp, ThetaLowDown, ThetaHighDown, XMax]
+                ThetaHighUp, ThetaLowDown, ThetaHighDown, XMax, XOld]
                 (CodeGenerator &c, uint32_t r, bool even, ScalarRegisterAllocator::RegisterPtr maskReg)
                 {
                     ///////////////////////////////////////////////////////////////////////////////////////////
@@ -1303,10 +1304,11 @@ public:
                     // Load X
                     // c.vloadv(*X, *weightBufferReg, r * 64);
                     c.vloadv(*X, *XBuf, r * 64); 
+                    c.vloadv(*XOld, *XBuf, r * 64); 
                     c.nop();
 
                     // Calculate X plus summed alpha
-                    c.vadd(*XPlusSummedAlpha, *SummedAlpha, *X);
+                    c.vadd_s(*XPlusSummedAlpha, *SummedAlpha, *X);
                     // Subtract summed beta from X as if we knew X was less than or equal to ThetaX
                     c.vsub_s(*X, *X, *SummedBeta);
                     // Determine which X are still greater than ThetaX-(timeSinceLastSpike*Beta), indicating
@@ -1352,7 +1354,7 @@ public:
                     c.vloadv(*TargetVoltage, *TargetVoltageBuf, r * 64);
                     c.vloadv(*TargetCalcium, *TargetCalciumBuf, r * 64);
                     c.nop();
-                    c.vadd(*XMinusB, *ZeroVec, *X);
+                    c.vadd_s(*XMinusB, *ZeroVec, *X);
                     c.vsub_s(*XMinusB, *X, *B);
                     // Figure out for which synapses the criteria was not met i.e.,
                     // weights corresponded to postsynaptic neurons above threshold 
@@ -1388,6 +1390,9 @@ public:
                     c.vsel(*XPlusA, *CompareScalar, *ZeroVec);
 
                     // Write back target
+                    // if(maskReg) {
+                    //     c.vsel(*XPlusA, *maskReg, *XOld);
+                    // }
                     c.vstore(*XPlusA, *XBuf, r * 64);
 
                 },
