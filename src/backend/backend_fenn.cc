@@ -1206,7 +1206,7 @@ public:
             ALLOCATE_VECTOR(SummedAlpha);
             ALLOCATE_VECTOR(ThetaXMinusBeta);
             ALLOCATE_VECTOR(XPlusSummedAlpha);
-            ALLOCATE_VECTOR(XOld);
+            // ALLOCATE_VECTOR(XOld);
             ALLOCATE_VECTOR(ThetaX);
             ALLOCATE_VECTOR(XMax);
     
@@ -1296,7 +1296,7 @@ public:
                 J, ThetaX, JPlus, JMinus, TargetVoltage, TargetCalcium,
                 A, B, TargetCalciumBuf, TargetVoltageBuf, ThetaLowUp, XBuf,
                 ThetaV, XMinusB, XPlusA, SummedBeta, SummedAlpha, XPlusSummedAlpha, ThetaXMinusBeta,
-                ThetaHighUp, ThetaLowDown, ThetaHighDown, XMax, XOld]
+                ThetaHighUp, ThetaLowDown, ThetaHighDown, XMax]
                 (CodeGenerator &c, uint32_t r, bool even, ScalarRegisterAllocator::RegisterPtr maskReg)
                 {
                     ///////////////////////////////////////////////////////////////////////////////////////////
@@ -1304,7 +1304,7 @@ public:
                     // Load X
                     // c.vloadv(*X, *weightBufferReg, r * 64);
                     c.vloadv(*X, *XBuf, r * 64); 
-                    c.vloadv(*XOld, *XBuf, r * 64); 
+                    // c.vloadv(*XOld, *XBuf, r * 64); 
                     c.nop();
 
                     // Calculate X plus summed alpha

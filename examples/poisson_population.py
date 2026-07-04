@@ -129,7 +129,7 @@ extra_input_weights = np.ones(32*10,dtype='int16') * np.round(.09 * (1 << num_fr
 copy_and_push(extra_input_weights, extra_input_output.weight, runtime)
 
 # Here we set the synaptic variable X in the Fusi paper
-primary_input_x = np.ones(32,dtype='int16') * np.round(.8 * (1 << num_frac_bits)).astype(np.int16)
+primary_input_x = np.ones(32,dtype='int16') * np.round(0 * (1 << num_frac_bits)).astype(np.int16)
 copy_and_push(primary_input_x, primary_input_output.x, runtime)
 
 
@@ -137,7 +137,8 @@ copy_and_push(primary_input_x, primary_input_output.x, runtime)
 zero_and_push(output.v, runtime)
 zero_and_push(output.i, runtime)
 zero_and_push(output.c, runtime)
-
+zero_and_push(primary_input.time_since_last_spike, runtime)
+zero_and_push(extra_input.time_since_last_spike, runtime)
 
 if args.time:
     zero_and_push(neuron_update_processes.performance_counter, runtime)
