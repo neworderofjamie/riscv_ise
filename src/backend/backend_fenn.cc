@@ -1180,9 +1180,8 @@ public:
             auto &scalarRegisterAllocator = getScalarRegisterAllocator();
             auto &vectorRegisterAllocator = getVectorRegisterAllocator();
 
-            ALLOCATE_VECTOR(VTarget1);
+            ALLOCATE_VECTOR(VTarget);
             ALLOCATE_VECTOR(X);
-            ALLOCATE_VECTOR(VTarget2);
             ALLOCATE_VECTOR(VTargetNew);
             ALLOCATE_VECTOR(Target);
             ALLOCATE_VECTOR(TargetVoltage);
@@ -1206,7 +1205,6 @@ public:
             ALLOCATE_VECTOR(SummedAlpha);
             ALLOCATE_VECTOR(ThetaXMinusBeta);
             ALLOCATE_VECTOR(XPlusSummedAlpha);
-            // ALLOCATE_VECTOR(XOld);
             ALLOCATE_VECTOR(ThetaX);
             ALLOCATE_VECTOR(XMax);
     
@@ -1279,19 +1277,10 @@ public:
             
             c.vfill(*SummedAlpha, *timeSinceLastSpike);
             c.vmul_s_rn(numericTypeX.fixedPoint.value(), *SummedAlpha, *Alpha, *SummedAlpha);
-
-            
-            // TESTING
-            c.nop();
-            
-            // Preload first ISyn to avoid stall
-            c.vloadv(*VTarget1, *TargetBuf, 0);
-
-
-                                
+                                            
             AssemblerUtils::unrollVectorLoopBody(
                 c, scalarRegisterAllocator, process->getNumTargetNeurons(), 4, *TargetBuf,
-                [this, weightBufferReg, TargetBuf, X, VTarget1, VTarget2, VTargetNew, 
+                [this, weightBufferReg, TargetBuf, X, VTarget, VTargetNew, 
                 CompareScalar, CompareScalar2, CompareScalar3, ZeroVec,
                 J, ThetaX, JPlus, JMinus, TargetVoltage, TargetCalcium,
                 A, B, TargetCalciumBuf, TargetVoltageBuf, ThetaLowUp, XBuf,
@@ -1304,9 +1293,11 @@ public:
                     // Load X
                     // c.vloadv(*X, *weightBufferReg, r * 64);
                     c.vloadv(*X, *XBuf, r * 64); 
-                    // c.vloadv(*XOld, *XBuf, r * 64); 
-                    c.nop();
-
+                    // Load target voltage since using X on next timestep; this keeps us from needing a no-op
+                    // to prevent a RAW hazard
+                    c.vloadv(*TargetVoltage, *TargetVoltageBuf, r * 64);
+                    // Might as well also load target postsynaptic input here
+                    c.vloadv(*VTarget, *TargetBuf, r * 64);
                     // Calculate X plus summed alpha
                     c.vadd_s(*XPlusSummedAlpha, *SummedAlpha, *X);
                     // Subtract summed beta from X as if we knew X was less than or equal to ThetaX
@@ -1328,11 +1319,8 @@ public:
                     // Remember that J was already assigned the value of JMinus
                     c.vtlt(*CompareScalar, *ThetaX, *X);
                     c.vsel(*J, *CompareScalar, *JPlus);
-                    // Load NEXT vector of target to avoid stall
-                    // **YUCK** in last iteration, while this may not be accessed, it may be out of bounds                  
-                    c.vloadv(even ? *VTarget2 : *VTarget1, *TargetBuf, (r + 1) * 64);
+
                     // Add weights to ISyn
-                    auto VTarget = even ? VTarget1 : VTarget2;
                     // If the number of postsynaptic neurons is not cleanly divisible by number of vector elements 
                     // we apply a mask for the remainder
                     if(maskReg) {
@@ -1350,10 +1338,9 @@ public:
                     //
                     // If (postsynaptic voltage <= voltage_thresh and ThetaLowDown <  postsynaptic calcium < ThetaHighDown )
                     //      X = X - b
-                    // Load target voltage and calcium variables
-                    c.vloadv(*TargetVoltage, *TargetVoltageBuf, r * 64);
+                    // Load target calcium variables
                     c.vloadv(*TargetCalcium, *TargetCalciumBuf, r * 64);
-                    c.nop();
+
                     c.vadd_s(*XMinusB, *ZeroVec, *X);
                     c.vsub_s(*XMinusB, *X, *B);
                     // Figure out for which synapses the criteria was not met i.e.,
@@ -1388,11 +1375,6 @@ public:
                     c.vsel(*XPlusA, *CompareScalar, *XMax);
                     c.vtlt(*CompareScalar, *XPlusA, *ZeroVec);
                     c.vsel(*XPlusA, *CompareScalar, *ZeroVec);
-
-                    // Write back target
-                    // if(maskReg) {
-                    //     c.vsel(*XPlusA, *maskReg, *XOld);
-                    // }
                     c.vstore(*XPlusA, *XBuf, r * 64);
 
                 },
