@@ -1272,11 +1272,12 @@ public:
 
             // TODO: Confirm spiking on last trial means timeSinceLastSpike=0
             c.vfill(*SummedBeta, *timeSinceLastSpike);
-            c.vmul_s_rn(numericTypeX.fixedPoint.value(), *SummedBeta, *Beta, *SummedBeta);
+            // Use shift of 0 because timeSinceLastSpike is an integer
+            c.vmul_s_rn(0, *SummedBeta, *Beta, *SummedBeta);
             c.vsub_s(*ThetaXMinusBeta, *ThetaX, *SummedBeta);
-            
+            // Use shift of 0 because timeSinceLastSpike is an integer
             c.vfill(*SummedAlpha, *timeSinceLastSpike);
-            c.vmul_s_rn(numericTypeX.fixedPoint.value(), *SummedAlpha, *Alpha, *SummedAlpha);
+            c.vmul_s_rn(0, *SummedAlpha, *Alpha, *SummedAlpha);
                                             
             AssemblerUtils::unrollVectorLoopBody(
                 c, scalarRegisterAllocator, process->getNumTargetNeurons(), 4, *TargetBuf,

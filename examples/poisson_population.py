@@ -20,7 +20,7 @@ extra_input_shape = 10
 
 primary_input_shape = 1
 output_shape = 1
-num_trials = 1000
+num_trials = 1500
 # Pretend as if 1000 trials correspond to 1 second
 trials_per_second = 1000
 
@@ -47,8 +47,8 @@ j_c = 1
 lamb = .01
 theta_v = .8 
 v_reset = 0
-prob_spike_primary = .05
-prob_spike_extra = .1
+prob_spike_primary = .07
+prob_spike_extra = .14
 
 # Calcium Parameters
 tau_c =  60
@@ -63,8 +63,7 @@ a=.1
 b=.1
 alpha=.0035
 beta=.0035
-alpha=.1
-beta=.1
+
 
 # Input layer
 j_plus = 1
@@ -132,13 +131,21 @@ copy_and_push(extra_input_weights, extra_input_output.weight, runtime)
 primary_input_x = np.ones(32,dtype='int16') * np.round(0 * (1 << num_frac_bits)).astype(np.int16)
 copy_and_push(primary_input_x, primary_input_output.x, runtime)
 
+# Initialize calcium variable at 2
+output_calcium =  np.ones(32,dtype='int16') * np.round(2.5 * (1 << num_frac_bits)).astype(np.int16)
+copy_and_push(output_calcium, output.c, runtime)
+
 
 # Zero remaining state
 zero_and_push(output.v, runtime)
 zero_and_push(output.i, runtime)
-zero_and_push(output.c, runtime)
+# zero_and_push(output.c, runtime)
 zero_and_push(primary_input.time_since_last_spike, runtime)
+zero_and_push(primary_input.next_time_since_last_spike, runtime)
+zero_and_push(primary_input.out_spikes, runtime)
 zero_and_push(extra_input.time_since_last_spike, runtime)
+zero_and_push(extra_input.next_time_since_last_spike, runtime)
+zero_and_push(extra_input.out_spikes, runtime)
 
 if args.time:
     zero_and_push(neuron_update_processes.performance_counter, runtime)
@@ -188,6 +195,7 @@ postsyn_calcium = [neural_act[4] for neural_act in neural_activity]
 primary_x = [neural_act[5] for neural_act in neural_activity]
 
 postsyn_spike_rate = np.sum(postsyn_spikes) / (num_trials/trials_per_second)
+primary_spike_rate = np.sum(primary_presyn_spikes) / (num_trials/trials_per_second)
 
 fig, axes = plt.subplots(4, sharex=True, figsize=(12, 5))
 fig.tight_layout(pad=2.0)

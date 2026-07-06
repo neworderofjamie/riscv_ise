@@ -21,7 +21,7 @@ extra_input_shape = 10
 
 primary_input_shape = 1
 output_shape = 1
-num_trials = 1000
+num_trials = 1500
 # Pretend as if 1000 trials correspond to 1 second
 trials_per_second = 1000
 
@@ -42,7 +42,7 @@ j_c = 1
 lamb = .01
 theta_v = .8 
 v_reset = 0
-prob_spike_extra = .3
+prob_spike_extra = .14
 
 # Calcium Parameters
 tau_c =  60
@@ -63,21 +63,19 @@ j_plus = 1
 j_minus = 0
 
 
-postsyn_v_thresh_LTP = v_theta*.8
-
 # weird things happen when prob_spike can't be expressed as a fraction with denom=64
 primary_input = BernoulliProbSpikeVar(Shape(primary_input_shape),record_timesteps=1,name="primary_input")
 extra_input = BernoulliProbSpikeVar(Shape(extra_input_shape), record_timesteps=1,name="extra_input")
 
 
-output = Linear_LIF_STDP(output_shape, lamb=lamb, tau_c=tau_c, j_c=1,v_thresh=v_theta, v_reset=v_reset, 
+output = Linear_LIF_STDP(output_shape, lamb=lamb, tau_c=tau_c, j_c=j_c,v_thresh=v_theta, v_reset=v_reset, 
                          fixed_point=num_frac_bits,record_timesteps=1, dt=1, name="output")
 
 extra_input_output = Linear(extra_input.out_spikes, output.i, f"s{num_int_bits}_{num_frac_bits}_sat_t", name="extra_input_output")
 
 primary_input_output = LinearWithSTDP(primary_input.out_spikes, primary_input.time_since_last_spike, output.i, 
                                       output.v, output.c,f"s{num_int_bits}_{num_frac_bits}_sat_t", theta_x=theta_x,
-                                      a=a, b=b, alpha=alpha, beta=beta, j_minus=j_minus,j_plus=j_plus, theta_v=theta_v, 
+                                      a=a, b=b, alpha=alpha, beta=beta,j_plus=j_plus, j_minus=j_minus, theta_v=theta_v, 
                                       theta_low_up=theta_low_up, theta_low_down=theta_low_down,
                                       theta_high_up=theta_high_up, theta_high_down=theta_high_down,
                                       x_max=x_max, name="primary_input_output")
@@ -243,7 +241,6 @@ for primary_prob_spike in probs_spike_primary:
                 axes[2].plot(postsyn_voltages)
                 # axes[2].set_ylim((0,v_theta*1.5))
                 axes[2].axhline(v_theta, linestyle="--", color="black", linewidth=0.5)
-                axes[2].axhline(postsyn_v_thresh_LTP, linestyle="--", color="black", linewidth=0.5)
                 postsyn_spike_times = np.where(np.array(postsyn_spikes) == 1)[0]
                 for s in postsyn_spike_times:
                     axes[2].axvline(s, color="red", linewidth=0.5)
