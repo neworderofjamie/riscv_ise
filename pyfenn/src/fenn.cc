@@ -264,7 +264,7 @@ PYBIND11_MODULE(_fenn, m)
              pybind11::arg("theta_x"), 
              pybind11::arg("a"), pybind11::arg("b"), 
              pybind11::arg("alpha"), pybind11::arg("beta"), 
-             pybind11::arg("j_minus"), pybind11::arg("j_plus"), 
+             pybind11::arg("j_plus"), pybind11::arg("j_minus"), 
              pybind11::arg("theta_v"), pybind11::arg("theta_low_up"), 
              pybind11::arg("theta_low_down"), pybind11::arg("theta_high_up"), 
              pybind11::arg("theta_high_down"), pybind11::arg("x_max"), 

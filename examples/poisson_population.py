@@ -63,13 +63,13 @@ a=.1
 b=.1
 alpha=.0035
 beta=.0035
+alpha=.1
+beta=.1
 
 # Input layer
 j_plus = 1
 j_minus = 0
 
-
-postsyn_v_thresh_LTP = v_theta*.8
 
 # weird things happen when prob_spike can't be expressed as a fraction with denom=64
 primary_input = Bernoulli(Shape(primary_input_shape),prob_spike=prob_spike_primary,record_timesteps=1,name="primary_input")
@@ -83,7 +83,7 @@ extra_input_output = Linear(extra_input.out_spikes, output.i, f"s{num_int_bits}_
 
 primary_input_output = LinearWithSTDP(primary_input.out_spikes, primary_input.time_since_last_spike, output.i, 
                                       output.v, output.c,f"s{num_int_bits}_{num_frac_bits}_sat_t", theta_x=theta_x,
-                                      a=a, b=b, alpha=alpha, beta=beta, j_minus=j_minus,j_plus=j_plus, theta_v=theta_v, 
+                                      a=a, b=b, alpha=alpha, beta=beta,j_plus=j_plus, j_minus=j_minus, theta_v=theta_v, 
                                       theta_low_up=theta_low_up, theta_low_down=theta_low_down,
                                       theta_high_up=theta_high_up, theta_high_down=theta_high_down,
                                       x_max=x_max, name="primary_input_output")
@@ -202,16 +202,15 @@ axes[0].title.set_text("Presynaptic spikes")
 # plot X
 axes[1].plot(primary_x)
 axes[1].title.set_text("Synaptic internal variable X(t)")
-for i in [.5, 1]:
-    axes[3].axhline(i, linestyle="--", color="black", linewidth=0.5)
+for i in [theta_x, x_max]:
+    axes[1].axhline(i, linestyle="--", color="black", linewidth=0.5)
 
 
 # plot postsyn V
 axes[2].title.set_text('Postsynaptic voltage V(t) (Spike rate: ' + str(postsyn_spike_rate) + " Hz)")
 axes[2].plot(postsyn_voltages)
-# axes[2].set_ylim((0,v_theta*1.5))
-axes[2].axhline(v_theta, linestyle="--", color="black", linewidth=0.5)
-axes[2].axhline(postsyn_v_thresh_LTP, linestyle="--", color="black", linewidth=0.5)
+for i in [theta_v, v_theta]:
+    axes[2].axhline(i, linestyle="--", color="black", linewidth=0.5)
 postsyn_spike_times = np.where(np.array(postsyn_spikes) == 1)[0]
 for s in postsyn_spike_times:
     axes[2].axvline(s, color="red", linewidth=0.5)
@@ -219,7 +218,7 @@ for s in postsyn_spike_times:
 # plot C
 axes[3].plot(postsyn_calcium)
 axes[3].title.set_text("Calcium variable C(t)")
-for i in [theta_low_up, theta_high_up, theta_high_down]:
+for i in [theta_low_up, theta_low_down, theta_high_up, theta_high_down]:
     axes[3].axhline(i, linestyle="--", color="black", linewidth=0.5)
 
 plt.show()

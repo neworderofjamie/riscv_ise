@@ -1242,8 +1242,8 @@ public:
                 (numericTypeTarget.fixedPoint.value() == numericTypeVPre.fixedPoint.value()) &&
                 (numericTypeTarget.fixedPoint.value() == numericTypeX.fixedPoint.value()));
 
-            c.vlui(*Beta, convertFixedPoint(process->getBeta(), numericTypeX.fixedPoint.value()));
-            c.vlui(*Alpha, convertFixedPoint(process->getAlpha(), numericTypeX.fixedPoint.value()));
+            c.vlui(*Beta, convertFixedPoint(process->getBeta(), numericTypeTarget.fixedPoint.value()));
+            c.vlui(*Alpha, convertFixedPoint(process->getAlpha(), numericTypeTarget.fixedPoint.value()));
             c.vlui(*ThetaV, convertFixedPoint(process->getThetaV(), numericTypeTarget.fixedPoint.value()));
             c.vlui(*A, convertFixedPoint(process->getA(), numericTypeTarget.fixedPoint.value()));
             c.vlui(*B, convertFixedPoint(process->getB(), numericTypeTarget.fixedPoint.value()));
@@ -1282,7 +1282,7 @@ public:
                 c, scalarRegisterAllocator, process->getNumTargetNeurons(), 4, *TargetBuf,
                 [this, weightBufferReg, TargetBuf, X, VTarget, VTargetNew, 
                 CompareScalar, CompareScalar2, CompareScalar3, ZeroVec,
-                J, ThetaX, JPlus, JMinus, TargetVoltage, TargetCalcium,
+                J, ThetaX, JPlus, TargetVoltage, TargetCalcium,
                 A, B, TargetCalciumBuf, TargetVoltageBuf, ThetaLowUp, XBuf,
                 ThetaV, XMinusB, XPlusA, SummedBeta, SummedAlpha, XPlusSummedAlpha, ThetaXMinusBeta,
                 ThetaHighUp, ThetaLowDown, ThetaHighDown, XMax]
