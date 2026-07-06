@@ -48,7 +48,7 @@ lamb = .01
 theta_v = .8 
 v_reset = 0
 prob_spike_primary = .07
-prob_spike_extra = .14
+prob_spike_extra = .1 # This is equal to 100Hz because 1000 samples/per second
 
 # Calcium Parameters
 tau_c =  60
@@ -75,7 +75,7 @@ primary_input = Bernoulli(Shape(primary_input_shape),prob_spike=prob_spike_prima
 extra_input = Bernoulli(Shape(extra_input_shape),prob_spike=prob_spike_extra, record_timesteps=1,name="extra_input")
 
 
-output = Linear_LIF_STDP(output_shape, lamb=lamb, tau_c=tau_c, j_c=1,v_thresh=v_theta, v_reset=v_reset, 
+output = Linear_LIF_STDP(output_shape, lamb=lamb, tau_c=tau_c, j_c=j_c,v_thresh=v_theta, v_reset=v_reset, 
                          fixed_point=num_frac_bits,record_timesteps=1, dt=1, name="output")
 
 extra_input_output = Linear(extra_input.out_spikes, output.i, f"s{num_int_bits}_{num_frac_bits}_sat_t", name="extra_input_output")
@@ -124,7 +124,7 @@ runtime = Runtime(model, backend)
 runtime.allocate()
 
 # Load weights
-extra_input_weights = np.ones(32*10,dtype='int16') * np.round(.09 * (1 << num_frac_bits)).astype(np.int16)
+extra_input_weights = np.ones(32*10,dtype='int16') * np.round(.06 * (1 << num_frac_bits)).astype(np.int16)
 copy_and_push(extra_input_weights, extra_input_output.weight, runtime)
 
 # Here we set the synaptic variable X in the Fusi paper

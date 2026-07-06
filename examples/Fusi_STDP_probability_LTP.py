@@ -21,7 +21,7 @@ extra_input_shape = 10
 
 primary_input_shape = 1
 output_shape = 1
-num_trials = 1500
+num_trials = 300
 # Pretend as if 1000 trials correspond to 1 second
 trials_per_second = 1000
 
@@ -42,7 +42,7 @@ j_c = 1
 lamb = .01
 theta_v = .8 
 v_reset = 0
-prob_spike_extra = .14
+prob_spike_extra = .1
 
 # Calcium Parameters
 tau_c =  60
@@ -131,10 +131,10 @@ primary_x_array, primary_x_view = get_array_view(runtime, primary_input_output.x
 
 
 
-probs_spike_primary = [.04, .07, .1, .13]
-extra_spike_weight = [.01]
+probs_spike_primary = [.02, .03, .04, .05]
+extra_spike_weight = [0.03, .04, 0.05, .06, .07, 0.08]
 
-iterations = 30
+iterations = 100
 do_plot = False
 
 results_df = pd.DataFrame(columns=["primary_prob_spike", "primary_spike_rate", "post_weight", "iteration", "post_spike_freq", "LTP_transition"])
@@ -163,13 +163,20 @@ for primary_prob_spike in probs_spike_primary:
             if iter_num % 10 == 0:
                 print("Iteration number: " + str(iter_num))
 
+            output_calcium =  np.ones(32,dtype='int16') * np.round(2.5 * (1 << num_frac_bits)).astype(np.int16)
+            copy_and_push(output_calcium, output.c, runtime)
+
+
             # Zero remaining state
             zero_and_push(output.v, runtime)
             zero_and_push(output.i, runtime)
-            zero_and_push(output.c, runtime)
-            zero_and_push(primary_input_output.x, runtime)
+            # zero_and_push(output.c, runtime)
             zero_and_push(primary_input.time_since_last_spike, runtime)
+            zero_and_push(primary_input.next_time_since_last_spike, runtime)
+            zero_and_push(primary_input.out_spikes, runtime)
             zero_and_push(extra_input.time_since_last_spike, runtime)
+            zero_and_push(extra_input.next_time_since_last_spike, runtime)
+            zero_and_push(extra_input.out_spikes, runtime)
 
 
             neural_activity = [[0] * 6 for i in range(num_trials)]
@@ -216,10 +223,7 @@ for primary_prob_spike in probs_spike_primary:
             results_df.loc[len(results_df)] = new_row
 
             if do_plot:
-
                 fig, axes = plt.subplots(4, sharex=True, figsize=(12, 5))
-                fig.suptitle(f'Voltage, X, Calcium for primary_prob_spike={primary_prob_spike} and post_weight={post_weight}',y=.04, fontsize=15)
-
                 fig.tight_layout(pad=2.0)
 
                 # plot presyn spikes
@@ -232,15 +236,15 @@ for primary_prob_spike in probs_spike_primary:
                 # plot X
                 axes[1].plot(primary_x)
                 axes[1].title.set_text("Synaptic internal variable X(t)")
-                for i in [.5, 1]:
-                    axes[3].axhline(i, linestyle="--", color="black", linewidth=0.5)
+                for i in [theta_x, x_max]:
+                    axes[1].axhline(i, linestyle="--", color="black", linewidth=0.5)
 
 
                 # plot postsyn V
                 axes[2].title.set_text('Postsynaptic voltage V(t) (Spike rate: ' + str(postsyn_spike_rate) + " Hz)")
                 axes[2].plot(postsyn_voltages)
-                # axes[2].set_ylim((0,v_theta*1.5))
-                axes[2].axhline(v_theta, linestyle="--", color="black", linewidth=0.5)
+                for i in [theta_v, v_theta]:
+                    axes[2].axhline(i, linestyle="--", color="black", linewidth=0.5)
                 postsyn_spike_times = np.where(np.array(postsyn_spikes) == 1)[0]
                 for s in postsyn_spike_times:
                     axes[2].axvline(s, color="red", linewidth=0.5)
@@ -248,14 +252,14 @@ for primary_prob_spike in probs_spike_primary:
                 # plot C
                 axes[3].plot(postsyn_calcium)
                 axes[3].title.set_text("Calcium variable C(t)")
-                for i in [theta_low_up, theta_high_up, theta_high_down]:
+                for i in [theta_low_up, theta_low_down, theta_high_up, theta_high_down]:
                     axes[3].axhline(i, linestyle="--", color="black", linewidth=0.5)
+
 
                 # plt.show()
                 plt.draw()
                 plt.pause(0.001)
 
-print("hi")
 
 def bin_presyn(row):  
     if row['primary_spike_rate'] >= 0 and row['primary_spike_rate'] <= 20:
@@ -268,8 +272,12 @@ def bin_presyn(row):
         return '40-50'
     elif row['primary_spike_rate'] > 50 and row['primary_spike_rate'] <= 70:
         return '50-70'
+    elif row['primary_spike_rate'] > 70 and row['primary_spike_rate'] <= 90:
+        return '70-90'
+    elif row['primary_spike_rate'] > 90 and row['primary_spike_rate'] <= 110:
+        return '90-110'
     else:
-        return '>70'
+        return '>110'
 
 results_df['binned_presyn_freqs'] = results_df.apply(lambda row: bin_presyn(row), axis=1)
 
