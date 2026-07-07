@@ -8,5 +8,5 @@
 #
 #################################################
 
-source /its/home/cg610/Desktop/fenn/fennvenv/bin/activate
+source /its/home/cg610/Desktop/fenn/fenn_venv/bin/activate
 python ./examples/Fusi_STDP_probability_LTP.py $1
