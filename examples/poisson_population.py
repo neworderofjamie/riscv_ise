@@ -20,7 +20,7 @@ extra_input_shape = 10
 
 primary_input_shape = 1
 output_shape = 1
-num_trials = 1500
+num_trials = 300
 # Pretend as if 1000 trials correspond to 1 second
 trials_per_second = 1000
 
@@ -124,7 +124,7 @@ runtime = Runtime(model, backend)
 runtime.allocate()
 
 # Load weights
-extra_input_weights = np.ones(32*10,dtype='int16') * np.round(.09 * (1 << num_frac_bits)).astype(np.int16)
+extra_input_weights = np.ones(32*10,dtype='int16') * np.round(.08 * (1 << num_frac_bits)).astype(np.int16)
 copy_and_push(extra_input_weights, extra_input_output.weight, runtime)
 
 # Here we set the synaptic variable X in the Fusi paper
@@ -205,7 +205,7 @@ presyn_spike_times = np.where(np.array(primary_presyn_spikes) == 1)[0]
 for s in presyn_spike_times:
     axes[0].set_xlim((0,num_trials))
     axes[0].axvline(s)
-axes[0].title.set_text("Presynaptic spikes")
+axes[0].title.set_text('Presynaptic spikes (Spike rate: ' + str(primary_spike_rate) + " Hz)")
 
 # plot X
 axes[1].plot(primary_x)

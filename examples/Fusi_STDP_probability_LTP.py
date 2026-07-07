@@ -131,10 +131,10 @@ primary_x_array, primary_x_view = get_array_view(runtime, primary_input_output.x
 
 
 
-probs_spike_primary = [.05, .04, .03, .02]
-extra_spike_weight = [.08, .07, 0.06, .05, .04, 0.03]
+probs_spike_primary = [.02, .03, .04, .05]
+extra_spike_weight = [.03, .04, .05, .06, .07, .08]
 
-iterations = 100
+iterations = 500
 do_plot = False
 
 results_df = pd.DataFrame(columns=["primary_prob_spike", "primary_spike_rate", "post_weight", "iteration", "post_spike_freq", "LTP_transition"])
@@ -166,6 +166,9 @@ for primary_prob_spike in probs_spike_primary:
             output_calcium =  np.ones(32,dtype='int16') * np.round(2 * (1 << num_frac_bits)).astype(np.int16)
             copy_and_push(output_calcium, output.c, runtime)
 
+            # Zero X variable
+            primary_input_x = np.ones(32,dtype='int16') * np.round(0 * (1 << num_frac_bits)).astype(np.int16)
+            copy_and_push(primary_input_x, primary_input_output.x, runtime)
 
             # Zero remaining state
             zero_and_push(output.v, runtime)
