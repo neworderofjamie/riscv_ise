@@ -25,4 +25,4 @@ for id in range(5):
 
     print(f"SUBMITTED JOB [{jobname}]")
 
-# python ./examples/batch_LTP_probability ../results/
+# python ./examples/batch_LTP_probability "../results/"

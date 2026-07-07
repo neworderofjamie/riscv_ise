@@ -11,4 +11,5 @@
 RESULTS=$1
 export RESULTS
 
+source ../fennvenv/bin/activate
 python ./examples/Fusi_STDP_probability_LTP.py
