@@ -25,10 +25,10 @@ for id in range(5):
     stdout_name = f"{results}/logs/id{id}_%J.stdout"
     stderr_name = f"{results}/logs/id{id}_%J.stderr"
 
-    results = f"{results}/output/results{id}.csv"
+    results_id = f"{results}/output/results{id}.csv"
     jobname = f'LTP_prob_id{id}'
-    os.system(f"sbatch -J {jobname} -o {stdout_name} -e {stderr_name} {ssub_path} {results}")
+    os.system(f"sbatch -J {jobname} -o {stdout_name} -e {stderr_name} {ssub_path} {results_id}")
 
     print(f"SUBMITTED JOB [{jobname}]")
 
-# python /its/home/cg610/Desktop/fenn/riscv_ise/batch_LTP_probability.py "/its/home/cg610/Desktop/fenn/results/"
+# python /its/home/cg610/Desktop/fenn/riscv_ise/examples/batch_LTP_probability.py "/its/home/cg610/Desktop/fenn/results/"
