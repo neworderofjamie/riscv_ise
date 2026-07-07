@@ -17,7 +17,7 @@ import pandas as pd
 
 
 parser = ArgumentParser("Script to get probability of LTP Transition")
-parser.add_argument("id", help="provide an id number for this run",type=int)
+parser.add_argument("results_dir", help="tell us the directory to store results in")
 args = parser.parse_args()
 
 
@@ -324,4 +324,4 @@ ax.set_xlabel("Postsyn spike rate")
 ax.set_ylabel("Probability of LTP transition")
 plt.show()
 
-results_df.to_csv(f"../results/test{args.id}.csv")
+results_df.to_csv(args.results_dir)
