@@ -131,8 +131,8 @@ primary_x_array, primary_x_view = get_array_view(runtime, primary_input_output.x
 
 
 
-probs_spike_primary = [.02, .03, .04, .05]
-extra_spike_weight = [0.03, .04, 0.05, .06, .07, 0.08]
+probs_spike_primary = [.05, .04, .03, .02]
+extra_spike_weight = [.08, .07, 0.06, .05, .04, 0.03]
 
 iterations = 100
 do_plot = False
