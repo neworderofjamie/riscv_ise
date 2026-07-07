@@ -31,4 +31,4 @@ for id in range(5):
 
     print(f"SUBMITTED JOB [{jobname}]")
 
-# python ./examples/batch_LTP_probability.py "../results/"
+# python /its/home/cg610/Desktop/fenn/riscv_ise/batch_LTP_probability.py "/its/home/cg610/Desktop/fenn/results/"
