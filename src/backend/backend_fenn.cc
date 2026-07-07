@@ -1182,6 +1182,7 @@ public:
 
             ALLOCATE_VECTOR(VTarget);
             ALLOCATE_VECTOR(X);
+            ALLOCATE_VECTOR(XAdjusted)
             ALLOCATE_VECTOR(VTargetNew);
             ALLOCATE_VECTOR(Target);
             ALLOCATE_VECTOR(TargetVoltage);
@@ -1286,7 +1287,7 @@ public:
                 J, ThetaX, JPlus, TargetVoltage, TargetCalcium,
                 A, B, TargetCalciumBuf, TargetVoltageBuf, ThetaLowUp, XBuf,
                 ThetaV, XMinusB, XPlusA, SummedBeta, SummedAlpha, XPlusSummedAlpha, ThetaXMinusBeta,
-                ThetaHighUp, ThetaLowDown, ThetaHighDown, XMax]
+                ThetaHighUp, ThetaLowDown, ThetaHighDown, XMax, XAdjusted]
                 (CodeGenerator &c, uint32_t r, bool even, ScalarRegisterAllocator::RegisterPtr maskReg)
                 {
                     ///////////////////////////////////////////////////////////////////////////////////////////
@@ -1302,23 +1303,55 @@ public:
                     // Calculate X plus summed alpha
                     c.vadd_s(*XPlusSummedAlpha, *SummedAlpha, *X);
                     // Subtract summed beta from X as if we knew X was less than or equal to ThetaX
-                    c.vsub_s(*X, *X, *SummedBeta);
+                    c.vsub_s(*XAdjusted, *X, *SummedBeta);
                     // Determine which X are still greater than ThetaX-(timeSinceLastSpike*Beta), indicating
                     // X was greater than ThetaX prior to the subtraction
-                    c.vtlt(*CompareScalar, *ThetaXMinusBeta, *X);
+                    c.vtlt(*CompareScalar, *ThetaXMinusBeta, *XAdjusted);
                     // For these X, change their values to X+(timeSinceLastSpike*Alpha)
-                    c.vsel(*X, *CompareScalar, *XPlusSummedAlpha);
-                    // Ensure 0 <= X <= XMax
-                    c.vtlt(*CompareScalar, *XMax, *X);
-                    c.vsel(*X, *CompareScalar, *XMax);
-                    c.vtlt(*CompareScalar, *X, *ZeroVec);
-                    c.vsel(*X, *CompareScalar, *ZeroVec);
+                    c.vsel(*XAdjusted, *CompareScalar, *XPlusSummedAlpha);
+
+                    ///////////////////////////////////////////////////////////////////////////////////////////
+                    // Adjust X following the spike 
+                    //
+                    // If (postsynaptic voltage <= voltage_thresh and ThetaLowDown <  postsynaptic calcium < ThetaHighDown )
+                    //      X = X - b
+                    // Load target calcium variables
+                    c.vloadv(*TargetCalcium, *TargetCalciumBuf, r * 64);
+                    c.vsub_s(*XMinusB, *X, *B);
+                    c.vtge(*CompareScalar, *ThetaV, *TargetVoltage);
+                    c.vtlt(*CompareScalar2, *ThetaLowDown, *TargetCalcium);
+                    c.vtlt(*CompareScalar3, *TargetCalcium, *ThetaHighDown);
+                    // Determine which neurons met all criteria for the update
+                    c.and_(*CompareScalar, *CompareScalar,*CompareScalar2);
+                    c.and_(*CompareScalar, *CompareScalar,*CompareScalar3);
+                    // Change XAdjusted for those neurons
+                    c.vsel(*XAdjusted, *CompareScalar, *XMinusB);
                     
+                    // If (postsynaptic voltage > voltage_thresh and ThetaLowUp <  postsynaptic calcium < ThetaHighUp )
+                    //      X = X + a
+                    c.vadd_s(*XPlusA, *X, *A);
+                    c.vtlt(*CompareScalar, *ThetaV,*TargetVoltage);
+                    c.vtlt(*CompareScalar2, *ThetaLowUp, *TargetCalcium);
+                    c.vtlt(*CompareScalar3, *TargetCalcium, *ThetaHighUp);
+                    // Determine which neurons met all criteria for the update
+                    c.and_(*CompareScalar, *CompareScalar,*CompareScalar2);
+                    c.and_(*CompareScalar, *CompareScalar,*CompareScalar3);
+                    // Change XAdjusted for those neurons
+                    c.vsel(*XAdjusted, *CompareScalar, *XPlusA);
+
+                    // Ensure 0 <= X <= XMax
+                    c.vtlt(*CompareScalar, *XMax, *XAdjusted);
+                    c.vsel(*XAdjusted, *CompareScalar, *XMax);
+                    c.vtlt(*CompareScalar, *XAdjusted, *ZeroVec);
+                    c.vsel(*XAdjusted, *CompareScalar, *ZeroVec);
+                    c.vstore(*XAdjusted, *XBuf, r * 64);
+                   
+                   
                     ///////////////////////////////////////////////////////////////////////////////////////////
                     // Calculate input to postsynaptic target after calculating J 
                     // X > ThetaX ? J=JPlus : J=JMinus
                     // Remember that J was already assigned the value of JMinus
-                    c.vtlt(*CompareScalar, *ThetaX, *X);
+                    c.vtlt(*CompareScalar, *ThetaX, *XAdjusted);
                     c.vsel(*J, *CompareScalar, *JPlus);
 
                     // Add weights to ISyn
@@ -1334,49 +1367,7 @@ public:
                     // Write back target
                     c.vstore(*VTarget, *TargetBuf, r * 64);
                     
-                    ///////////////////////////////////////////////////////////////////////////////////////////
-                    // Adjust X following the spike 
-                    //
-                    // If (postsynaptic voltage <= voltage_thresh and ThetaLowDown <  postsynaptic calcium < ThetaHighDown )
-                    //      X = X - b
-                    // Load target calcium variables
-                    c.vloadv(*TargetCalcium, *TargetCalciumBuf, r * 64);
-
-                    c.vadd_s(*XMinusB, *ZeroVec, *X);
-                    c.vsub_s(*XMinusB, *X, *B);
-                    // Figure out for which synapses the criteria was not met i.e.,
-                    // weights corresponded to postsynaptic neurons above threshold 
-                    // or not between the calcium bounds
-                    c.vtlt(*CompareScalar, *ThetaV, *TargetVoltage);
-                    c.vtge(*CompareScalar2, *ThetaLowDown, *TargetCalcium);
-                    c.vtge(*CompareScalar3, *TargetCalcium, *ThetaHighDown);
-                    // Determine which neurons did not meet any of the criteria for the update
-                    c.or_(*CompareScalar, *CompareScalar,*CompareScalar2);
-                    c.or_(*CompareScalar, *CompareScalar,*CompareScalar3);
-                    // Reset those weights back to original weight if any of the criteria were not met
-                    c.vsel(*XMinusB, *CompareScalar, *X);
-                    
-                    // If (postsynaptic voltage > voltage_thresh and ThetaLowUp <  postsynaptic calcium < ThetaHighUp )
-                    //      X = X + a
-                    c.vadd_s(*XPlusA, *XMinusB, *A);
-                    // Figure out for which synapses the criteria was not met i.e.,
-                    // weights corresponded to postsynaptic neurons less than or equal to threshold 
-                    // or not between the calcium bounds
-                    c.vtge(*CompareScalar, *ThetaV,*TargetVoltage);
-                    c.vtge(*CompareScalar2, *ThetaLowUp, *TargetCalcium);
-                    c.vtge(*CompareScalar3, *TargetCalcium, *ThetaHighUp);
-                    // Determine which neurons did not meet any of the criteria for the update
-                    c.or_(*CompareScalar, *CompareScalar,*CompareScalar2);
-                    c.or_(*CompareScalar, *CompareScalar,*CompareScalar3);
-                    // Reset those weights back to original weight if criteria where criteria not met
-                    c.vsel(*XPlusA, *CompareScalar, *XMinusB);
-
-                    // Ensure 0 <= X <= XMax
-                    c.vtlt(*CompareScalar, *XMax, *XPlusA);
-                    c.vsel(*XPlusA, *CompareScalar, *XMax);
-                    c.vtlt(*CompareScalar, *XPlusA, *ZeroVec);
-                    c.vsel(*XPlusA, *CompareScalar, *ZeroVec);
-                    c.vstore(*XPlusA, *XBuf, r * 64);
+                   
 
                 },
                 [this, weightBufferReg, TargetBuf, TargetVoltageBuf, TargetCalciumBuf, XBuf](CodeGenerator &c, uint32_t numUnrolls)

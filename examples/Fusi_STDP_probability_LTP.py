@@ -163,7 +163,7 @@ for primary_prob_spike in probs_spike_primary:
             if iter_num % 10 == 0:
                 print("Iteration number: " + str(iter_num))
 
-            output_calcium =  np.ones(32,dtype='int16') * np.round(2.5 * (1 << num_frac_bits)).astype(np.int16)
+            output_calcium =  np.ones(32,dtype='int16') * np.round(2 * (1 << num_frac_bits)).astype(np.int16)
             copy_and_push(output_calcium, output.c, runtime)
 
 

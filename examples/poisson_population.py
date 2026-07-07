@@ -20,7 +20,7 @@ extra_input_shape = 10
 
 primary_input_shape = 1
 output_shape = 1
-num_trials = 1000
+num_trials = 1500
 # Pretend as if 1000 trials correspond to 1 second
 trials_per_second = 1000
 
@@ -47,7 +47,7 @@ j_c = 1
 lamb = .01
 theta_v = .8 
 v_reset = 0
-prob_spike_primary = .03
+prob_spike_primary = .05
 prob_spike_extra = .1 # Multiply this number by 1000 to get expected frequency since we imagine 1000 samples per second
 
 # Calcium Parameters
@@ -124,7 +124,7 @@ runtime = Runtime(model, backend)
 runtime.allocate()
 
 # Load weights
-extra_input_weights = np.ones(32*10,dtype='int16') * np.round(.08 * (1 << num_frac_bits)).astype(np.int16)
+extra_input_weights = np.ones(32*10,dtype='int16') * np.round(.09 * (1 << num_frac_bits)).astype(np.int16)
 copy_and_push(extra_input_weights, extra_input_output.weight, runtime)
 
 # Here we set the synaptic variable X in the Fusi paper
@@ -132,7 +132,7 @@ primary_input_x = np.ones(32,dtype='int16') * np.round(0 * (1 << num_frac_bits))
 copy_and_push(primary_input_x, primary_input_output.x, runtime)
 
 # Initialize calcium variable at 2
-output_calcium =  np.ones(32,dtype='int16') * np.round(2.5 * (1 << num_frac_bits)).astype(np.int16)
+output_calcium =  np.ones(32,dtype='int16') * np.round(2 * (1 << num_frac_bits)).astype(np.int16)
 copy_and_push(output_calcium, output.c, runtime)
 
 
@@ -209,13 +209,13 @@ axes[0].title.set_text("Presynaptic spikes")
 
 # plot X
 axes[1].plot(primary_x)
-# axes[1].title.set_text("Synaptic internal variable X(t)")
+axes[1].title.set_text("Synaptic internal variable X(t)")
 for i in [theta_x, x_max]:
     axes[1].axhline(i, linestyle="--", color="black", linewidth=0.5)
 
 
 # plot postsyn V
-# axes[2].title.set_text('Postsynaptic voltage V(t) (Spike rate: ' + str(postsyn_spike_rate) + " Hz)")
+axes[2].title.set_text('Postsynaptic voltage V(t) (Spike rate: ' + str(postsyn_spike_rate) + " Hz)")
 axes[2].plot(postsyn_voltages)
 for i in [theta_v, v_theta]:
     axes[2].axhline(i, linestyle="--", color="black", linewidth=0.5)
@@ -225,7 +225,7 @@ for s in postsyn_spike_times:
 
 # plot C
 axes[3].plot(postsyn_calcium)
-# axes[3].title.set_text("Calcium variable C(t)")
+axes[3].title.set_text("Calcium variable C(t)")
 for i in [theta_low_up, theta_low_down, theta_high_up, theta_high_down]:
     axes[3].axhline(i, linestyle="--", color="black", linewidth=0.5)
 
