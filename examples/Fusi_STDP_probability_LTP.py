@@ -14,6 +14,14 @@ from tqdm.auto import tqdm
 import matplotlib.pyplot as plt
 import pandas as pd
 
+
+
+parser = ArgumentParser("Script to get probability of LTP Transition")
+parser.add_argument("id", help="provide an id number for this run",type=int)
+args = parser.parse_args()
+
+
+
 # One trial can consist of several timesteps, determining how many
 # times the processes are run
 num_timesteps = 1
@@ -134,7 +142,7 @@ primary_x_array, primary_x_view = get_array_view(runtime, primary_input_output.x
 probs_spike_primary = [.02, .03, .04, .05]
 extra_spike_weight = [.03, .04, .05, .06, .07, .08]
 
-iterations = 500
+iterations = 200
 do_plot = False
 
 results_df = pd.DataFrame(columns=["primary_prob_spike", "primary_spike_rate", "post_weight", "iteration", "post_spike_freq", "LTP_transition"])
@@ -315,3 +323,5 @@ leg = ax.legend(title="Presyn spike rate")
 ax.set_xlabel("Postsyn spike rate")
 ax.set_ylabel("Probability of LTP transition")
 plt.show()
+
+results_df.to_csv(f"../results/test{args.id}.csv")
