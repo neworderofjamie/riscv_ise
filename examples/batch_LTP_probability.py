@@ -21,7 +21,7 @@ if not os.path.exists(f"{results}output/"):
 
 ssub_path = './examples/LTP_probability.ssub'
 
-for id in range(5):
+for id in range(1000):
     stdout_name = f"{results}/logs/id{id}_%J.stdout"
     stderr_name = f"{results}/logs/id{id}_%J.stderr"
 

@@ -1,5 +1,6 @@
 import numpy as np
 import mnist
+import os
 
 from argparse import ArgumentParser
 from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer, Model, 
@@ -17,7 +18,7 @@ import pandas as pd
 
 
 parser = ArgumentParser("Script to get probability of LTP Transition")
-parser.add_argument("results_dir", help="tell us the directory to store results in")
+parser.add_argument("results_dir", help="tell us the directory to store results in", nargs='?',default=f"{os.getcwd()}/test.csv")
 args = parser.parse_args()
 
 
