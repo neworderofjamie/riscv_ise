@@ -7,7 +7,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 # Get all files in results directory
-result_dir = "/its/home/cg610/Desktop/fenn/results/"
+# Call this file from inside results directory
+result_dir = "./output/"
 result_files = [f for f in listdir(result_dir) if isfile(join(result_dir, f))]
 
 
@@ -56,4 +57,4 @@ ax.set_ylabel("Probability of LTP transition")
 plt.savefig('/its/home/cg610/Desktop/fenn/results/summarized_data_plog.png')
 
 # Save results
-np.save('/its/home/cg610/Desktop/fenn/results/summarized_data.npy', summarized_data, allow_pickle=True)
+np.save('./', summarized_data, allow_pickle=True)
