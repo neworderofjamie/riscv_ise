@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 
 # Get all files in results directory
 # Call this file from inside results directory
-result_dir = "./output/"
+result_dir = './output/'
 result_files = [f for f in listdir(result_dir) if isfile(join(result_dir, f))]
 
 
@@ -18,7 +18,7 @@ total = 0
 # Loop through each file
 for file in result_files:
     print(f"Processing: {file}")
-    results_df = pd.read_csv(file)
+    results_df = pd.read_csv(f'./output/{file}')
     # Convert post synaptic spike rate to integer
     results_df.post_spike_freq = results_df.post_spike_freq.astype(int)
 
@@ -54,7 +54,7 @@ for pre_rate in summarized_data.keys():
 leg = ax.legend(title=f"Presyn spike rate (N={total})")
 ax.set_xlabel("Postsyn spike rate")
 ax.set_ylabel("Probability of LTP transition")
-plt.savefig('/its/home/cg610/Desktop/fenn/results/summarized_data_plog.png')
+plt.savefig('./summarized_data_plog.png')
 
 # Save results
-np.save('./', summarized_data, allow_pickle=True)
+np.save('./summarized_data.npy', summarized_data, allow_pickle=True)
