@@ -50,7 +50,7 @@ for file in result_files:
 fig, ax = plt.subplots()
 for pre_rate in summarized_data.keys():
     ax.plot(summarized_data[pre_rate][0], summarized_data[pre_rate][1], 'o-', label=str(pre_rate)+" Hz", alpha=0.5)
-leg = ax.legend(title="Presyn spike rate")
+leg = ax.legend(title=f"Presyn spike rate (N={total})")
 ax.set_xlabel("Postsyn spike rate")
 ax.set_ylabel("Probability of LTP transition")
 plt.savefig('/its/home/cg610/Desktop/fenn/results/summarized_data_plog.png')
