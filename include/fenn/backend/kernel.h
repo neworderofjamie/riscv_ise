@@ -50,6 +50,9 @@ public:
     //! Get map of event sinks to their IDs
     const auto &getEventSinkIDs() const{ return m_EventSinkIDs; }
 
+    //! Get map of event sources to the processes they provide input to
+    const auto &getEventSourceProcesses() const{ return m_EventSourceProcesses; }
+
     //! Get the base ID of this event sink
     uint32_t getEventSinkIDBase(std::shared_ptr<const Frontend::EventSink> eventSink) const;
     
@@ -70,6 +73,9 @@ private:
     std::shared_ptr<const Frontend::ProcessGroup> m_EventSourceProcessGroup;
 
     std::unordered_map<std::shared_ptr<const Frontend::EventSink>, uint32_t> m_EventSinkIDs;
+
+    std::unordered_map<std::shared_ptr<const Frontend::EventSource>, 
+                       std::vector<std::shared_ptr<const Frontend::Process>>> m_EventSourceProcesses;
 
     std::vector<Frontend::Merged<Frontend::EventSource>> m_MergedEventSources;
 
