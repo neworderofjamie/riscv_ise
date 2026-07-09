@@ -19,7 +19,7 @@ if not os.path.exists(f"{results}output/"):
     print(f"Created results-output directory {results}output/")
 
 
-ssub_path = './examples/STDP/LTP_probability.ssub'
+ssub_path = './examples/STDP/bash_calculate_LTP_prob.ssub'
 
 for id in range(1000):
     stdout_name = f"{results}/logs/id{id}_%J.stdout"
@@ -31,4 +31,4 @@ for id in range(1000):
 
     print(f"SUBMITTED JOB [{jobname}]")
 
-# python /its/home/cg610/Desktop/fenn/riscv_ise/examples/STDP/batch_LTP_probability.py "/its/home/cg610/Desktop/fenn/results/"
+# python /its/home/cg610/Desktop/fenn/riscv_ise/examples/STDP/batch_calculate_LTP_probability.py "/its/home/cg610/Desktop/fenn/results/"

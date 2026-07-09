@@ -9,4 +9,4 @@
 #################################################
 
 source /its/home/cg610/Desktop/fenn/fenn_venv/bin/activate
-python ./examples/STDP/Fusi_STDP_probability_LTP.py $1
+python ./examples/STDP/calculate_LTP_prob.py $1
