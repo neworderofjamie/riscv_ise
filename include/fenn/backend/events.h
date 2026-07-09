@@ -12,6 +12,7 @@
 #include "frontend/events.h"
 
 // FeNN assembler includes
+#include "fenn/assembler/assembler.h"
 #include "fenn/assembler/register_allocator.h"
 
 // FeNN compiler includes
@@ -33,6 +34,7 @@ namespace Backend
 class KernelImplementation;
 class Model;
 class NeuronUpdateProcess;
+class Runtime;
 }
 }
 
@@ -44,8 +46,13 @@ namespace FeNN::Backend
 class EventSourceImplementation
 {
 public:
-    //! Generate code to implement process
-    virtual void generateCode() const{}
+    //----------------------------------------------------------------------------
+    // Declared virtuals
+    //----------------------------------------------------------------------------
+    //! Generate code to implement event loop
+    virtual void generateEventLoop(const Frontend::Merged<Frontend::EventSource> &mergedEventSource, const Runtime &runtime, const KernelImplementation &kernel, 
+                                   Assembler::ScalarRegisterPtr preIndReg, Assembler::ScalarRegisterPtr spikeReturnReg, Assembler::Label jumpTable,
+                                   Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator) const = 0;
 };
 
 //----------------------------------------------------------------------------
@@ -110,6 +117,14 @@ public:
     //------------------------------------------------------------------------
     virtual std::unique_ptr<Frontend::ArrayBase> createArray(const Frontend::Shape &deviceShape, const Frontend::Model &model,
                                                              Frontend::DeviceBase &device) const override final;
+
+    //----------------------------------------------------------------------------
+    // EventSourceImplementation virtuals
+    //----------------------------------------------------------------------------
+    //! Generate code to implement event loop
+    virtual void generateEventLoop(const Frontend::Merged<Frontend::EventSource> &mergedEventSource, const Runtime &runtime, const KernelImplementation &kernel, 
+                                   Assembler::ScalarRegisterPtr preIndReg, Assembler::ScalarRegisterPtr spikeReturnReg, Assembler::Label jumpTable,
+                                   Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator) const override final;
 
     //------------------------------------------------------------------------
     // Static API
@@ -177,6 +192,14 @@ public:
     //------------------------------------------------------------------------
     virtual std::unique_ptr<Frontend::ArrayBase> createArray(const Frontend::Shape &deviceShape, const Frontend::Model &model,
                                                              Frontend::DeviceBase &device) const override final;
+
+    //----------------------------------------------------------------------------
+    // EventSourceImplementation virtuals
+    //----------------------------------------------------------------------------
+    //! Generate code to implement event loop
+    virtual void generateEventLoop(const Frontend::Merged<Frontend::EventSource> &mergedEventSource, const Runtime &runtime, const KernelImplementation &kernel, 
+                                   Assembler::ScalarRegisterPtr preIndReg, Assembler::ScalarRegisterPtr spikeReturnReg, Assembler::Label jumpTable,
+                                   Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator) const override final;
 
     //------------------------------------------------------------------------
     // EventSinkImplementation virtuals

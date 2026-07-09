@@ -82,6 +82,14 @@ std::unique_ptr<Frontend::ArrayBase> EventSourceBuffer::createArray(const Fronte
     assert(false);
     return nullptr;
 }
+//----------------------------------------------------------------------------
+void EventSourceBuffer::generateEventLoop(const Frontend::Merged<Frontend::EventSource> &mergedEventSource, const Runtime &runtime, const KernelImplementation &kernel, 
+                                          Assembler::ScalarRegisterPtr preIndReg, Assembler::ScalarRegisterPtr spikeReturnReg, Assembler::Label jumpTable,
+                                          Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator) const
+{
+    // **TODO** loop through merged processes, get their buffers etc etc
+    assert(false);
+}
 
 //----------------------------------------------------------------------------
 // FeNN::Backend::EventSinkBuffer
@@ -136,6 +144,49 @@ std::unique_ptr<Frontend::ArrayBase> EventChannel::createArray(const Frontend::S
     else {
         return nullptr;
     }
+}
+//----------------------------------------------------------------------------
+void EventChannel::generateEventLoop(const Frontend::Merged<Frontend::EventSource>&, const Runtime &runtime, const KernelImplementation &kernel, 
+                                     Assembler::ScalarRegisterPtr preIndReg, Assembler::ScalarRegisterPtr spikeReturnReg, Assembler::Label jumpTable,
+                                     Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator) const
+{
+    // **TODO** these can't be allocated here - they need to be scoped around whole nightmare
+    ALLOCATE_SCALAR(SSpikeBuffer);
+    ALLOCATE_SCALAR(SSpikeBufferStart);
+    ALLOCATE_SCALAR(SSpikeBufferEnd);
+
+    // Load start and end of this timestep's spike buffer
+    // **NOTE** because all event channels will be merged together, we ignore the merged event sources here
+    c.csrr(*SSpikeBufferEnd, Common::CSR::SLAVE_EVENT_ADDRESS);
+    c.li(*SSpikeBufferStart, 32 * 4096);
+    c.mv(*SSpikeBuffer, *SSpikeBufferStart);
+
+    // While (spikeBuffer != spikeBufferEnd
+    auto spikeLoopEnd = Assembler::createLabel();
+    auto spikeLoop = c.L();
+    c.beq(*SSpikeBuffer, *SSpikeBufferEnd, spikeLoopEnd);
+    {
+        // Load spike from buffer
+        c.lw(*preIndReg, *SSpikeBuffer);
+
+        {
+            // Extract event sink ID
+            // **TODO** these were multiplied by 4 to obtain bytes in order to save an instruction
+            ALLOCATE_SCALAR(SEventSinkID);
+            c.srli(*SEventSinkID, *preIndReg, kernel.getNumNeuronIDBits());
+
+            // Jump to correct population handler, storing return address in register
+            c.jalr(*spikeReturnReg, *SEventSinkID, c.getAddress(jumpTable).value());
+        }
+
+        // Loop until spikes are processed
+        c.addi(*SSpikeBuffer, *SSpikeBuffer, 4);
+        c.j_(spikeLoop);
+    }
+    c.L(spikeLoopEnd);
+
+    // Reset router slave to start writing at beginning of spike buffer
+    c.csrw(Common::CSR::SLAVE_EVENT_ADDRESS, *SSpikeBufferStart);
 }
 //----------------------------------------------------------------------------
 std::vector<Assembler::ScalarRegisterPtr> EventChannel::genPreamble(

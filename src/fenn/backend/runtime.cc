@@ -22,6 +22,7 @@
 #include "fenn/assembler/assembler_utils.h"
 
 // FeNN backend includes
+#include "fenn/backend/events.h"
 #include "fenn/backend/model.h"
 #include "fenn/backend/process.h"
 #include "fenn/backend/kernel.h"
@@ -143,7 +144,6 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
     //! Same ready flag is used by all kernels and located at BRAM address zero
     constexpr uint32_t readyFlagPtr = 0;
 
-
     //! Fields always start at address 4
     uint32_t fieldBase = 4;
 
@@ -153,7 +153,7 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
         // Generate kernel
         auto code = Assembler::Utils::generateStandardKernel(
             generateSimulationKernels, readyFlagPtr,
-            [&fieldBase, &k, &model, this]
+            [this, generateSimulationKernels, &fieldBase, &k, &model]
             (Assembler::CodeGenerator &c, Assembler::VectorRegisterAllocator &vectorRegisterAllocator, 
              Assembler::ScalarRegisterAllocator &scalarRegisterAllocator)
             {
@@ -163,9 +163,24 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                     throw std::runtime_error("FeNN backend runtime used with incompatible kernel");
                 }
 
+                // Define jump table for handling incoming events
+                auto jumpTable = c.L();
+                
+                if(!ki->getEventSinkIDs().empty()) {
+                    // **HACK**
+                    if(!generateSimulationKernels) {
+                        c.nop();
+                    }
+                    // **TODO** generate jump table
+                    // Generate event sink jump tables
+                    // > Jump to label
+                    //c.j_(excRow);
+                    //c.j_(inhRow);
+                }
+
                 // Generate code for kernel
                 ki->generateCode(c, scalarRegisterAllocator, vectorRegisterAllocator,
-                                 [this, &fieldBase, &ki]
+                                 [this,jumpTable, &fieldBase, &ki]
                                  (auto processGroup, auto timeRegister, auto numTimesteps, auto &c,
                                   auto &scalarRegisterAllocator, auto &vectorRegisterAllocator)
                                  {
@@ -186,6 +201,7 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                          ALLOCATE_SCALAR(SPreIndex);
                                          ALLOCATE_SCALAR(SGroupIndex);
                                          ALLOCATE_SCALAR(SMergedGroupReturn);
+                                         ALLOCATE_SCALAR(SSpikeReturn);
                                          
                                          // Create map containing a label new for each merged process (key is archectype progress group)
                                          std::unordered_map<std::shared_ptr<Frontend::Process const>,
@@ -200,14 +216,20 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                          // Create ordered map of event sink ids to event sinks and labels
                                          //std::vector<
   
-                                         // Generate event loops
-                                         // > Loop over event sources
-                                         //   > Extract pre index and sink ID
-                                         //   > JALR to event sink jump table
-                                         // > Jump to end
+                                         // Loop over merged event sources
+                                         auto endProcessGroupLabel = Assembler::createLabel();
+                                         for(const auto &m : ki->getMergedEventSources()) {
+                                             m.getArchetype<EventSourceImplementation>()->generateEventLoop(m, *this, *ki, 
+                                                                                                            SPreIndex, SSpikeReturn, jumpTable, c,
+                                                                                                            scalarRegisterAllocator);
+                                         }
 
-                                         // Generate event sink jump tables
-                                         // > Jump to label
+
+                                         // Wait for all routers to be reset
+                                         Assembler::Utils::generateRouterBarrier(c, scalarRegisterAllocator, getNumDevices());
+
+                                         // Jump over event handlers
+                                         c.j_(endProcessGroupLabel);
 
                                          // Generate sink->source mappings
                                          // > Loop through event sink to source map and generate labels
@@ -215,31 +237,36 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                          //   > Set group index
                                          //   > JAL to merged process, storing merged group return
 
-                                         // Generate m
+                                         // Generate blocks of code to update each merged evenrt propagation process
+                                         // These code blocks are event driven so expect SPreIndex, SGroupIndex 
+                                         // and SMergedGroupReturn to be populated before jumping to them
                                          for(const auto &m : mergedProcesses) {
-                                            // Ensure process has proper base class
-                                            auto pi = std::dynamic_pointer_cast<const ProcessImplementation>(m.getArchetype());
-                                            if (!pi) {
-                                                throw std::runtime_error("FeNN backend runtime used with incompatible process");
-                                            }
+                                             // Ensure process has proper base class
+                                             auto pi = std::dynamic_pointer_cast<const ProcessImplementation>(m.getArchetype());
+                                             if (!pi) {
+                                                 throw std::runtime_error("FeNN backend runtime used with incompatible process");
+                                             }
                                             
-                                            // Define label
-                                            c.L(mergedProcessLabels.at(m.getArchetype()));
+                                             // Define label
+                                             c.L(mergedProcessLabels.at(m.getArchetype()));
 
-                                            // Add new merged field
-                                            // **NOTE** these are relative to start of field array
-                                            mergedFields.first->second.emplace_back(std::piecewise_construct,
-                                                                                    std::make_tuple(fieldBase - 4),
-                                                                                    std::make_tuple());
+                                             // Add new merged field
+                                             // **NOTE** these are relative to start of field array
+                                             mergedFields.first->second.emplace_back(std::piecewise_construct,
+                                                                                     std::make_tuple(fieldBase - 4),
+                                                                                     std::make_tuple());
 
-                                            // Generate code
-                                            pi->generateCode(m, *this, *ki, mergedFields.first->second.back().second, 
-                                                             timeRegister, SPreIndex, SGroupIndex, 
-                                                             numTimesteps, fieldBase, c, 
-                                                             scalarRegisterAllocator, vectorRegisterAllocator);
-                                            // Return
-                                            c.jalr(*SMergedGroupReturn);
-                                        }
+                                             // Generate code
+                                             pi->generateCode(m, *this, *ki, mergedFields.first->second.back().second, 
+                                                              timeRegister, SPreIndex, SGroupIndex, 
+                                                              numTimesteps, fieldBase, c, 
+                                                              scalarRegisterAllocator, vectorRegisterAllocator);
+                                             // Return
+                                             c.jalr(*SMergedGroupReturn);
+                                         }
+
+                                         // End of kernel
+                                         c.L(endProcessGroupLabel);
                                      }
                                      // Otherwise
                                      else {
