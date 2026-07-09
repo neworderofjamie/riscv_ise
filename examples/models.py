@@ -174,12 +174,13 @@ class BernoulliProbSpikeVar:
         
         self.process = NeuronUpdateProcess(
             f"""
+            TimeSinceLastSpike = NextTimeSinceLastSpike;
             if(ProbSpike >= fennrand()) {{
-               Spike();
-               TimeSinceLastSpike = 0;
+                Spike();
+                NextTimeSinceLastSpike= 0;
             }}
             else {{
-               TimeSinceLastSpike++;
+                NextTimeSinceLastSpike++;
             }}
             """,
             {},
