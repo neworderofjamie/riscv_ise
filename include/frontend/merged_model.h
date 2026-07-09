@@ -25,7 +25,7 @@ template<typename T>
 class Merged
 {
 public:
-    Merged(size_t index, const std::vector<std::shared_ptr<T const>> &merged)
+    Merged(size_t index, const std::vector<std::shared_ptr<const T>> &merged)
     :   m_Index(index), m_Merged(merged)
     {}
 
@@ -72,7 +72,40 @@ private:
 using MergedProcess = Merged<Process>;
 
 //----------------------------------------------------------------------------
-// Backend::MergedModel
+// Frontend::MergedProcessGroup
+//----------------------------------------------------------------------------
+class MergedProcessGroup
+{
+public:
+    //! The archetype process it has been merged with and
+    using Destination = std::pair<std::shared_ptr<Process const>, size_t>;
+
+    MergedProcessGroup(const Model &model, std::shared_ptr<ProcessGroup const> processGroup);
+
+    //----------------------------------------------------------------------------
+    // Public API
+    //----------------------------------------------------------------------------
+    //! Get vector of merged processes within this groups
+    const auto &getMergedProcesses() const{ return m_MergedProcesses; }
+
+    //! Determine which merged process a process has ended up in following merging
+    const Destination &getDestination(std::shared_ptr<Process const> process) const
+    {
+        return m_Destinations.at(process);
+    }
+
+private:
+    //----------------------------------------------------------------------------
+    // Members
+    //----------------------------------------------------------------------------
+    std::vector<MergedProcess> m_MergedProcesses;
+
+    // Reverse look up structure to find where process ended up in merging process
+    std::unordered_map<std::shared_ptr<Process const>, Destination> m_Destinations;
+};
+
+//----------------------------------------------------------------------------
+// Frontend::MergedModel
 //----------------------------------------------------------------------------
 class MergedModel
 {
@@ -93,14 +126,15 @@ public:
     //! Get map of process groups to merged processes
     const auto &getMergedProcessGroups() const{ return m_MergedProcessGroups; }
 
+
 private:
     //----------------------------------------------------------------------------
     // Members
     //----------------------------------------------------------------------------
     std::reference_wrapper<const Model> m_Model;
     
-    // Map of process groups to vector of mergeable processes
-    std::unordered_map<std::shared_ptr<ProcessGroup const>, 
-                       std::vector<MergedProcess>> m_MergedProcessGroups;
+    // Map of process groups to merged process groups
+    std::unordered_map<std::shared_ptr<ProcessGroup const>, MergedProcessGroup> m_MergedProcessGroups;
+
 };
 }

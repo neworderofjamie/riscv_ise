@@ -10,10 +10,50 @@
 #include "frontend/process_group.h"
 
 //----------------------------------------------------------------------------
-// Frontend::MergedModel
+// Frontend::MergedProcessGroup
 //----------------------------------------------------------------------------
 namespace Frontend
 {
+MergedProcessGroup::MergedProcessGroup(const Model &model, std::shared_ptr<ProcessGroup const> processGroup)
+{
+    // Create a hash map to group together processes with the same SHA1 digest
+    std::unordered_map<boost::uuids::detail::sha1::digest_type, 
+                        std::vector<std::shared_ptr<Process const>>, 
+                        Common::Utils::SHA1Hash> protoMergedProcesses;
+    
+    // Add unmerged processes to correct vector
+    for(const auto &p : processGroup->getProcesses()) {
+        // Build hash digest
+        boost::uuids::detail::sha1 hash;
+        p->updateMergeHash(hash, model);
+        const auto digest = hash.get_digest();
+
+        // Add to map
+        protoMergedProcesses[digest].push_back(p);
+    }
+
+    // Reserve final merged groups vector
+    m_MergedProcesses.reserve(protoMergedProcesses.size());
+
+    // Construct merged groups
+    size_t i = 0;
+    for(auto &p : protoMergedProcesses) {
+        m_MergedProcesses.emplace_back(i++, p.second);
+
+        // Add all processes in merged group to reverse lookup structure
+        for(size_t j = 0; j < p.second.size(); j++) {
+            const auto res = m_Destinations.try_emplace(p.second[j], 
+                                                        m_MergedProcesses.back().getArchetype(), 
+                                                        j);
+            if(!res.second) {
+                throw("Process in multiple groups");
+            }
+        }
+    }
+
+//----------------------------------------------------------------------------
+// Frontend::MergedModel
+//----------------------------------------------------------------------------
 MergedModel::MergedModel(const Model &model)
 :   m_Model(model)
 {
@@ -22,31 +62,7 @@ MergedModel::MergedModel(const Model &model)
         // Loop through all process groups in kernel
         const auto processGroups = k->getAllProcessGroups();
         for (const auto &g : processGroups) {
-            // Create a hash map to group together processes with the same SHA1 digest
-            std::unordered_map<boost::uuids::detail::sha1::digest_type, 
-                               std::vector<std::shared_ptr<Process const>>, 
-                               Common::Utils::SHA1Hash> protoMergedProcesses;
             
-            // Add unmerged processes to correct vector
-            for(const auto &p : g->getProcesses()) {
-                // Build hash digest
-                boost::uuids::detail::sha1 hash;
-                p->updateMergeHash(hash, model);
-                const auto digest = hash.get_digest();
-
-                // Add to map
-                protoMergedProcesses[digest].push_back(p);
-            }
-
-            // Reserve final merged groups vector
-            auto &mergedProcessGroup = m_MergedProcessGroups[g];
-            mergedProcessGroup.reserve(protoMergedProcesses.size());
-
-            // Construct merged groups
-            size_t i = 0;
-            for(auto &p : protoMergedProcesses) {
-                mergedProcessGroup.emplace_back(i++, p.second);
-            }
         }
     }
 }
