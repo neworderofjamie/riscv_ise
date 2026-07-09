@@ -164,48 +164,60 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                 }
 
                 // Define jump table for handling incoming events
+                // **NOTE** this is at the top of the kernel so it can be easily addressed
                 auto jumpTable = c.L();
-                
+                std::vector<std::pair<Assembler::Label, std::shared_ptr<const Frontend::EventSink>>> eventSinkLabels(ki->getEventSinkIDs().size());
                 if(!ki->getEventSinkIDs().empty()) {
                     // **HACK**
                     if(!generateSimulationKernels) {
                         c.nop();
                     }
-                    // **TODO** generate jump table
+
+                    // Loop through event sink ids
+                    for (const auto &e : ki->getEventSinkIDs()) {
+                        // Get corresponding label
+                        auto &l = eventSinkLabels.at(e.second / 4);
+                        assert(!l.first);
+                        assert(!l.second);
+
+                        // Create label and assign event sink
+                        l.first = Assembler::createLabel();
+                        l.second = e.first;
+                    }
                     // Generate event sink jump tables
-                    // > Jump to label
-                    //c.j_(excRow);
-                    //c.j_(inhRow);
+                    for (const auto &l : eventSinkLabels) {
+                        c.j_(l.first);
+                    }
                 }
 
                 // Generate code for kernel
                 ki->generateCode(c, scalarRegisterAllocator, vectorRegisterAllocator,
-                                 [this,jumpTable, &fieldBase, &ki]
+                                 [this, jumpTable, &eventSinkLabels, &fieldBase, &ki]
                                  (auto processGroup, auto timeRegister, auto numTimesteps, auto &c,
                                   auto &scalarRegisterAllocator, auto &vectorRegisterAllocator)
                                  {
                                      // Create empty vector of merged fields associated with these processes
                                      auto mergedFields = m_MergedField.emplace(std::piecewise_construct,
-                                                                               std::make_tuple(processGroup), 
+                                                                               std::make_tuple(processGroup),
                                                                                std::make_tuple());
-                                     if(!mergedFields.second) {
+                                     if (!mergedFields.second) {
                                          throw std::runtime_error("Process groups should not be used multiple times in kernels");
                                      }
 
                                      // Reserve merged fields for each process group
                                      const auto &mergedProcesses = getMergedModel().getMergedProcessGroups().at(processGroup);
                                      mergedFields.first->second.reserve(mergedProcesses.size());
-                                    
+
                                      // If this is the event source process group
-                                     if(processGroup == ki->getEventSourceProcessGroup()) {
+                                     if (processGroup == ki->getEventSourceProcessGroup()) {
                                          ALLOCATE_SCALAR(SPreIndex);
                                          ALLOCATE_SCALAR(SGroupIndex);
                                          ALLOCATE_SCALAR(SMergedGroupReturn);
                                          ALLOCATE_SCALAR(SSpikeReturn);
-                                         
+
                                          // Create map containing a label new for each merged process (key is archectype progress group)
-                                         std::unordered_map<std::shared_ptr<Frontend::Process const>,
-                                                            Assembler::Label> mergedProcessLabels;
+                                         std::unordered_map<std::shared_ptr<const Frontend::Process>,
+                                             Assembler::Label> mergedProcessLabels;
                                          std::transform(mergedProcesses.cbegin(), mergedProcesses.cend(),
                                                         std::inserter(mergedProcessLabels, mergedProcessLabels.end()),
                                                         [](const auto &m)
@@ -213,13 +225,10 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                                             return std::make_pair(m.getArchetype(), Assembler::createLabel());
                                                         });
 
-                                         // Create ordered map of event sink ids to event sinks and labels
-                                         //std::vector<
-  
                                          // Loop over merged event sources
                                          auto endProcessGroupLabel = Assembler::createLabel();
-                                         for(const auto &m : ki->getMergedEventSources()) {
-                                             m.getArchetype<EventSourceImplementation>()->generateEventLoop(m, *this, *ki, 
+                                         for (const auto &m : ki->getMergedEventSources()) {
+                                             m.getArchetype<EventSourceImplementation>()->generateEventLoop(m, *this, *ki,
                                                                                                             SPreIndex, SSpikeReturn, jumpTable, c,
                                                                                                             scalarRegisterAllocator);
                                          }
@@ -231,13 +240,30 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                          // Jump over event handlers
                                          c.j_(endProcessGroupLabel);
 
-                                         // Generate sink->source mappings
-                                         // > Loop through event sink to source map and generate labels
-                                         //   > Build map of event sink IDs to merged event sources
-                                         //   > Set group index
-                                         //   > JAL to merged process, storing merged group return
+                                         // Map of event sinks to merged processes with sources which should handle the events
+                                         std::unordered_map<std::shared_ptr<const Frontend::EventSink>,
+                                                            std::vector<std::pair<std::shared_ptr<const Frontend::Process>, uint32_t>>> sinkSourceMap;
 
-                                         // Generate blocks of code to update each merged evenrt propagation process
+                                         // **TODO** Generate sink->source mappings
+                              
+                                         for (const auto &e : eventSinkLabels) {
+                                             // Define label
+                                             c.L(e.first);
+
+                                             // Loop through all processes which should handle this
+                                             for (const auto &p : sinkSourceMap.at(e.second)) {
+                                                 // Set group index
+                                                 c.li(*SGroupIndex, p.second);
+
+                                                 // Jump to merged process handler, storing return address
+                                                 c.jal(*SMergedGroupReturn, mergedProcessLabels.at(p.first));
+                                             }
+
+                                             // Return to spike loop to process next spike
+                                             c.jr(*SSpikeReturn);
+                                         }
+
+                                         // Generate blocks of code to update each merged event propagation process
                                          // These code blocks are event driven so expect SPreIndex, SGroupIndex 
                                          // and SMergedGroupReturn to be populated before jumping to them
                                          for(const auto &m : mergedProcesses) {
