@@ -233,9 +233,9 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                          // Loop over merged event sources and generate event processing loops
                                          auto endProcessGroupLabel = Assembler::createLabel();
                                          for (const auto &m : ki->getMergedEventSources()) {
-                                             m.getArchetype<EventSourceImplementation>()->generateEventLoop(m, *this, *ki,
-                                                                                                            SPreIndex, SSpikeReturn, jumpTable, c,
-                                                                                                            scalarRegisterAllocator);
+                                             m.getArchetype<EventSourceImplementation>()->generateEventLoop(
+                                                m, *this, *ki, SPreIndex, SSpikeReturn, jumpTable, 
+                                                c, scalarRegisterAllocator);
                                          }
 
 
