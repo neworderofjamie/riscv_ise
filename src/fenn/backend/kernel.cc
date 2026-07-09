@@ -61,7 +61,8 @@ KernelImplementation::KernelImplementation(const Frontend::ProcessGroupVector &p
             const auto eventSinks = p->getAllEventSinks();
             for(const auto &e : eventSinks) {
                 // Allocate event sink ID and add to mape
-                if(!m_EventSinkIDs.try_emplace(e.getUnderlying(), m_EventSinkIDs.size()).second) {
+                // **NOTE** these are multiplied by 4 to save an instruction when processing events - we are going to have 2 bits spare for a while!
+                if(!m_EventSinkIDs.try_emplace(e.getUnderlying(), m_EventSinkIDs.size() * 4).second) {
                     throw std::runtime_error("Duplicate event sinks encountered in model");
                 }
 
@@ -89,7 +90,7 @@ KernelImplementation::KernelImplementation(const Frontend::ProcessGroupVector &p
         // Count bits required to represent largest neuron and population index
         // **NOTE** at least bottom 5 bits need to be used for neuron ID
         m_NumNeuronIDBits = 32 - ::Common::Utils::clz(std::max(32ull, maxEventSinkSize) - 1);
-        m_NumPopulationIDBits = 32 - ::Common::Utils::clz(m_EventSinkIDs.size() - 1);
+        m_NumPopulationIDBits = 32 - ::Common::Utils::clz((m_EventSinkIDs.size() * 4) - 1);
         LOGI_FENN_BACKEND << "Neuron IDs require " << m_NumNeuronIDBits << " and population IDs require " << m_NumPopulationIDBits << " bits";
         if ((m_NumNeuronIDBits + m_NumPopulationIDBits) > 24) {
             throw std::runtime_error("Insufficient event address space");
