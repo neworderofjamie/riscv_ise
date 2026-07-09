@@ -125,7 +125,7 @@ TEST_P(EventSinkIDTest, EventSinkIDAllocation)
     
     // Check allocated number of bits
     ASSERT_EQ(kernel->getNumNeuronIDBits(), (32 - Utils::clz(std::max(32ull, std::get<0>(GetParam())) - 1)));
-    ASSERT_EQ(kernel->getNumPopulationIDBits(), (32 - Utils::clz(std::get<1>(GetParam()) - 1)));
+    ASSERT_EQ(kernel->getNumPopulationIDBits(), (32 - Utils::clz((4 * std::get<1>(GetParam())) - 1)));
 
     // Loop through allocated event sink IDs
     std::unordered_set<uint32_t> ids;
@@ -257,5 +257,5 @@ INSTANTIATE_TEST_SUITE_P(Kernel,
                          testing::Values(std::make_tuple(10, 2, true),                  // Small population - event id base needs padding
                                          std::make_tuple(32, 4, true),                  // Fine
                                          std::make_tuple(1024, 10, true),               // Fine
-                                         std::make_tuple((1 << 24) - 1, 1, true),       // Whole keyspace goes to one population - weird but maybe ok
-                                         std::make_tuple((1 << 24) - 1, 100, false)));  // Not enough keyspace - should fail
+                                         std::make_tuple((1 << 22) - 1, 1, true),       // Whole keyspace goes to one population - weird but maybe ok
+                                         std::make_tuple((1 << 22) - 1, 100, false)));  // Not enough keyspace - should fail
