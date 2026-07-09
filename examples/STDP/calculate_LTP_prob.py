@@ -147,7 +147,7 @@ primary_x_array, primary_x_view = get_array_view(runtime, primary_input_output.x
 probs_spike_primary = [.02, .03, .04, .05]
 extra_spike_weight = [.03, .04, .05, .06, .07, .08]
 
-iterations = 1
+iterations = 200
 do_plot = False
 
 results_df = pd.DataFrame(columns=["primary_prob_spike", "primary_spike_rate", "post_weight", "iteration", "post_spike_freq", "LTP_transition"])
