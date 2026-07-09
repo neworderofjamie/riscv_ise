@@ -89,6 +89,52 @@ void EventSourceBuffer::generateEventLoop(const Frontend::Merged<Frontend::Event
 {
     // **TODO** loop through merged processes, get their buffers etc etc
     assert(false);
+    /*// Generate archetype code and populate merged fields
+    Assembler::CodeGenerator archetypeCodeGenerator;
+    const auto sharedRegisters = generateArchetypeCode(mergedProcess, runtime, kernel, mergedFields,
+                                                       SFieldBase, timeReg, numTimesteps, archetypeCodeGenerator,
+                                                       c, scalarRegisterAllocator, vectorRegisterAllocator);
+
+    // Load fieldBase
+    c.li(*SFieldBase, fieldBase);
+
+    // Calculate and load fieldEnd
+    fieldBase += (mergedProcess.getMerged().size() * mergedFields.getSize());
+    c.li(*SFieldBaseEnd, fieldBase);
+
+    // Generate loop over merged groups
+    auto groupLoop = c.L();
+    {
+        // Insert generated code to simulate archetype
+        c += archetypeCodeGenerator;
+
+        // Advance to next group's fields
+        c.addi(*SFieldBase, *SFieldBase, mergedFields.getSize());
+
+        // Keep looping
+        c.bne(*SFieldBase, *SFieldBaseEnd, groupLoop);
+    }
+    */
+}
+//----------------------------------------------------------------------------
+void EventSourceBuffer::generateArchetypeEventLoop() const
+{
+    // **NOTE** this prototol assumes there is a timestamp at the indexed position in the merged field
+
+    // Read timestamp from start of buffer
+    // If time == timestamp
+    //     while true
+    //         Increment index
+    //         Load index
+    //         if top bit == 1 // timestamp
+    //             return  
+    //         else
+    //             set spike register to 1st
+    //             jalr to handler
+    //             if 2nd top bit == 1
+    //                 set spike register to 2nd
+    //                 jalr to handler
+    //             
 }
 
 //----------------------------------------------------------------------------

@@ -133,6 +133,9 @@ public:
     {
         return std::make_shared<EventSourceBuffer>(Private(), shape, name);
     }
+
+private:
+    void generateArchetypeEventLoop() const;
 };
 
 //----------------------------------------------------------------------------
