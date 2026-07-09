@@ -59,7 +59,7 @@ summarized_data.pop('90-110')
 summarized_data.pop('70-90')
 for pre_rate in summarized_data.keys():
     summarized_data[pre_rate][1] = [LTP_transitions/total for LTP_transitions in summarized_data[pre_rate][1]]
-    ax.plot(summarized_data[pre_rate][0], summarized_data[pre_rate][1], 'o-', label=str(pre_rate)+" Hz", alpha=0.5)
+    ax.plot(summarized_data[pre_rate][0], summarized_data[pre_rate][1], 'o', label=str(pre_rate)+" Hz", alpha=0.5)
 leg = ax.legend(title=f"Presyn spike rate (N={total})")
 ax.set_xlabel("Postsyn spike rate")
 ax.set_ylabel("Probability of LTP transition")
