@@ -49,19 +49,34 @@ for file in result_files:
                     summarized_data[pre_rate][0].append(post_rate)
                     summarized_data[pre_rate][1].append(success_count)                
 
+out_dir = '/its/home/cg610/Desktop/fenn/riscv_ise/examples/STDP/'
+date_str = datetime.now().strftime("%Y%m%d")
+
 # Save results
-np.save('./summarized_data.npy', summarized_data, allow_pickle=True)
+np.save(f'{out_dir}summarized_data_{date_str}.npy', summarized_data, allow_pickle=True)
 
 # Plot
-fig, ax = plt.subplots()
 summarized_data.pop('>110')
 summarized_data.pop('90-110')
 summarized_data.pop('70-90')
 for pre_rate in summarized_data.keys():
     summarized_data[pre_rate][1] = [LTP_transitions/total for LTP_transitions in summarized_data[pre_rate][1]]
+
+# With connecting lines
+fig, ax = plt.subplots()
+for pre_rate in summarized_data.keys():
+    ax.plot(summarized_data[pre_rate][0], summarized_data[pre_rate][1], 'o-', label=str(pre_rate)+" Hz", alpha=0.5)
+leg = ax.legend(title=f"Presyn spike rate (N={total})")
+ax.set_xlabel("Postsyn spike rate")
+ax.set_ylabel("Probability of LTP transition")
+plt.savefig(f'{out_dir}summarized_data_plot_clean_lines_{date_str}.png')
+
+# Without connecting lines (dots only)
+fig, ax = plt.subplots()
+for pre_rate in summarized_data.keys():
     ax.plot(summarized_data[pre_rate][0], summarized_data[pre_rate][1], 'o', label=str(pre_rate)+" Hz", alpha=0.5)
 leg = ax.legend(title=f"Presyn spike rate (N={total})")
 ax.set_xlabel("Postsyn spike rate")
 ax.set_ylabel("Probability of LTP transition")
-plt.savefig('./summarized_data_plot_clean.png')
+plt.savefig(f'{out_dir}summarized_data_plot_clean_dots_{date_str}.png')
 
