@@ -56,8 +56,8 @@ int64_t getVectorLiteralValue(const Frontend::Literals::value_type &literal)
     }
     // Otherwise, if it is fixed point
     else if(numericType.fixedPoint) {
-        integerResult = std::round(std::get<1>(literal).cast<double>() 
-                                    * (1u << numericType.fixedPoint.value()));
+        integerResult = static_cast<int64_t>(
+            std::round(std::get<1>(literal).cast<double>() * (1u << numericType.fixedPoint.value())));
     }
     else {
         throw std::runtime_error("FeNN does not support floating point types");
@@ -298,6 +298,37 @@ Assembler::VectorRegisterPtr addVectorConstant(const Frontend::MergedProcess &me
         sharedRegisters.push_back(VReg);
 
         return VReg;
+    }
+}
+
+template<typename P>
+ScalarConstant addScalarValue(int maxBits, const Frontend::MergedProcess &mergedProcess, size_t numDevices,
+                              MergedFields &mergedFields, Assembler::ScalarRegisterPtr fieldBaseReg,
+                              Assembler::CodeGenerator &processCodeGenerator, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
+                              MergedFields::GetFieldConstantFunc<P> getFieldValueFn)
+{
+    // Convert homogeneous value to int
+    const int archetypeValue = std::visit([](auto v){ return static_cast<int>(v); },
+                                          getFieldValueFn(0, mergedProcess.getArchetype<P>()));
+
+    // If value is heterogeneous or it doesn't fit into intermediate bits
+    if(isHeterogeneous(mergedProcess, numDevices, getFieldValueFn) 
+       || !FeNN::Common::inSBit(archetypeValue, maxBits)) 
+    {
+        // Add field
+        const uint32_t fieldOffset = mergedFields.addField<P>(getFieldValueFn, 4);
+
+        // Allocate register
+        ALLOCATE_SCALAR(SReg);
+
+        // Load value into register
+        processCodeGenerator.lw(*SReg, *fieldBaseReg, fieldOffset);
+
+        return SReg;
+    }
+    // Otherwise
+    else {
+        return archetypeValue;
     }
 }
 
@@ -711,9 +742,9 @@ void EventDrivenProcessImplementation::generateCode(const Frontend::MergedProces
 
     // Generate archetype code and populate merged fields
     Assembler::CodeGenerator archetypeCodeGenerator;
-    const auto sharedRegisters = generateArchetypeCode(mergedProcess, runtime, kernel, mergedFields, 
-                                                       SFieldBase, timeReg,  preIndReg, numTimesteps, archetypeCodeGenerator,
-                                                       c, scalarRegisterAllocator, vectorRegisterAllocator);
+    generateArchetypeCode(mergedProcess, runtime, kernel, mergedFields, 
+                          SFieldBase, timeReg,  preIndReg, numTimesteps, archetypeCodeGenerator,
+                          scalarRegisterAllocator, vectorRegisterAllocator);
 
     // Load fieldBase
     c.li(*SFieldBase, fieldBase);
@@ -1284,11 +1315,12 @@ void DenseEventPropagationProcess::updateMaxDMABufferSize(size_t &size) const
     size = std::max(size, getWeight()->getShape()[1]);
 }
 //------------------------------------------------------------------------
-std::vector<Compiler::RegisterPtr> DenseEventPropagationProcess::generateArchetypeCode(
-    const Frontend::MergedProcess &mergedProcess, const Runtime &runtime, const KernelImplementation&, 
-    MergedFields &mergedFields, Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr preIndReg,
-    std::optional<uint32_t> numTimesteps, Assembler::CodeGenerator &processCodeGenerator, Assembler::CodeGenerator &sharedCodeGenerator,
-    Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
+void DenseEventPropagationProcess::generateArchetypeCode(const Frontend::MergedProcess &mergedProcess, const Runtime &runtime, 
+                                                         const KernelImplementation&, MergedFields &mergedFields, 
+                                                         Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg, 
+                                                         Assembler::ScalarRegisterPtr preIndReg, std::optional<uint32_t> numTimesteps, 
+                                                         Assembler::CodeGenerator &processCodeGenerator, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
+                                                         Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
     // Make some friendlier-named references
     auto &c = processCodeGenerator;
@@ -1321,8 +1353,7 @@ std::vector<Compiler::RegisterPtr> DenseEventPropagationProcess::generateArchety
     const auto strideReg = std::get<Assembler::ScalarRegisterPtr>(
         addScalarValue<DenseEventPropagationProcess>(
             0, mergedProcess, runtime.getNumDevices(), mergedFields, fieldBaseReg, 
-            processCodeGenerator, sharedCodeGenerator, scalarRegisterAllocator, sharedRegisters,
-            getStride));
+            processCodeGenerator, scalarRegisterAllocator, getStride));
 
     // No need for unrolling if all strides are 
     // less than the size of a single unrolled iteration
@@ -1407,8 +1438,6 @@ std::vector<Compiler::RegisterPtr> DenseEventPropagationProcess::generateArchety
             c.addi(*STargetBuf, *STargetBuf, 64 * numUnrolls);
             c.addi(*SWeightBuffer, *SWeightBuffer, 64 * numUnrolls);
         });
-
-    return sharedRegisters;
 }
 //----------------------------------------------------------------------------
 std::vector<std::shared_ptr<const Frontend::State>> DenseEventPropagationProcess::getAllState() const
