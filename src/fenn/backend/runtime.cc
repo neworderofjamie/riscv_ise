@@ -166,32 +166,51 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                 // Define jump table for routing events
                 // **NOTE** this is at the top of the kernel so it can be easily addressed
                 auto jumpTable = c.L();
-                std::vector<std::pair<Assembler::Label, std::shared_ptr<const Frontend::EventSource>>> eventSourceLabels(ki->getEventSinkIDs().size());
+                std::unordered_map<std::shared_ptr<const Frontend::EventSource>, Assembler::Label> eventSourceLabels;
                 if(!ki->getEventSinkIDs().empty()) {
+                    // Jump over jump table
+                    auto endOfJumpTable = Assembler::createLabel();
+                    c.j_(endOfJumpTable);
+
                     // **HACK**
                     if(!generateSimulationKernels) {
                         c.nop();
                     }
 
                     // Loop through event sink ids
+                    std::vector<Assembler::Label> labels;
+                    labels.resize(ki->getEventSinkIDs().size());
                     for (const auto &e : ki->getEventSinkIDs()) {
-                        // If event sink is also a source i.e. it's a channel (**YUCK**)
+                        // **YUCK** if event sink is also an event source i.e. it's a channel
                         auto eventSource = std::dynamic_pointer_cast<const Frontend::EventSource>(e.first);
                         if(eventSource) {
-                            // Get corresponding label
-                            auto &l = eventSourceLabels.at(e.second / 4);
-                            assert(!l.first);
-                            assert(!l.second);
+                            // Create new label to jump to
+                            auto label = Assembler::createLabel();
 
-                            // Create label and assign event sink
-                            l.first = Assembler::createLabel();
-                            l.second = eventSource;
+                            // Insert label at correct index in vector
+                            auto &l = labels.at(e.second / 4);
+                            assert(!l);
+                            l = label;
+
+                            // Add mapping between event source and label
+                            eventSourceLabels.try_emplace(eventSource, label);
                         }
                     }
+
                     // Generate event sink jump tables
-                    for (const auto &l : eventSourceLabels) {
-                        c.j_(l.first);
+                    bool gapEncountered = false;
+                    for (const auto &l : labels) {
+                        if(l) {
+                            assert(!gapEncountered);
+                            c.j_(l);
+                        }
+                        else {
+                            gapEncountered = true;
+                        }
                     }
+
+                    // Label at end of jump table
+                    c.L(endOfJumpTable);
                 }
 
                 // Generate code for kernel
@@ -231,6 +250,7 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                                         });
 
                                          // Loop over merged event sources and generate event processing loops
+                                         // **TODO** pass through fields so event source buffer can be implemented
                                          auto endProcessGroupLabel = Assembler::createLabel();
                                          for (const auto &m : ki->getMergedEventSources()) {
                                              m.getArchetype<EventSourceImplementation>()->generateEventLoop(
@@ -247,8 +267,9 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
 
                                          // Loop through event sources and their proceses
                                          for (const auto &e : ki->getEventSourceProcesses()) {
-                                             // Define label
-                                             //c.L(e.first);
+                                             // Get corresponding label and define
+                                             const auto &label = eventSourceLabels.at(e.first);
+                                             c.L(label);
 
                                              // Loop through all processes which should handle this
                                              for (const auto &p : e.second) {
@@ -259,7 +280,7 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                                  c.li(*SGroupIndex, destination.second);
 
                                                  // Jump to merged process handler, storing return address
-                                                 //c.jal(*SMergedGroupReturn, mergedProcessLabels.at(p.first));
+                                                 c.jal(*SMergedGroupReturn, mergedProcessLabels.at(p));
                                              }
 
                                              // Return to spike loop to process next spike
@@ -291,7 +312,7 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                                               numTimesteps, fieldBase, c, 
                                                               scalarRegisterAllocator, vectorRegisterAllocator);
                                              // Return
-                                             c.jalr(*SMergedGroupReturn);
+                                             c.jr(*SMergedGroupReturn);
                                          }
 
                                          // End of kernel
