@@ -46,7 +46,7 @@ MergedProcessGroup::MergedProcessGroup(const Model &model, std::shared_ptr<Proce
                                                         m_MergedProcesses.back().getArchetype(), 
                                                         j);
             if(!res.second) {
-                throw("Process in multiple groups");
+                throw std::runtime_error("Process '" + p.second[j]->getName() + "' included multiple times in process group");
             }
         }
     }
@@ -63,7 +63,10 @@ MergedModel::MergedModel(const Model &model)
         // Loop through all process groups in kernel
         const auto processGroups = k->getAllProcessGroups();
         for (const auto &g : processGroups) {
-            
+            // Create merged process group for each process group
+            if (!m_MergedProcessGroups.try_emplace(g, model, g).second) {
+                throw std::runtime_error("Process group '" + g->getName() + "' referenced multiples time in model");
+            }
         }
     }
 }

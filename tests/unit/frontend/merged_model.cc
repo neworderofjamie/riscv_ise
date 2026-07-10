@@ -45,7 +45,7 @@ TEST(MergedModel, DifferentProcessTypes)
     MergedModel mergedModel(model);
 
     // Check merging has resulted in 4 seperate merged process groups with one process in each
-    const auto &mergedProcessGroups = mergedModel.getMergedProcessGroups().at(processGroup);
+    const auto &mergedProcessGroups = mergedModel.getMergedProcessGroups().at(processGroup).getMergedProcesses();
     EXPECT_EQ(mergedProcessGroups.size(), 4);
     for(const auto &m : mergedProcessGroups) {
         EXPECT_EQ(m.getMerged().size(), 1);
