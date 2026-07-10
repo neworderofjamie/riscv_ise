@@ -60,7 +60,10 @@ summarized_data.pop('>110')
 summarized_data.pop('90-110')
 summarized_data.pop('70-90')
 for pre_rate in summarized_data.keys():
-    summarized_data[pre_rate][1] = [LTP_transitions/total for LTP_transitions in summarized_data[pre_rate][1]]
+    x, y = summarized_data[pre_rate]
+    y = [LTP_transitions/total for LTP_transitions in y]
+    x, y = zip(*sorted(zip(x, y)))
+    summarized_data[pre_rate] = [list(x), list(y)]
 
 # With connecting lines
 fig, ax = plt.subplots()
@@ -70,13 +73,4 @@ leg = ax.legend(title=f"Presyn spike rate (N={total})")
 ax.set_xlabel("Postsyn spike rate")
 ax.set_ylabel("Probability of LTP transition")
 plt.savefig(f'{out_dir}summarized_data_plot_clean_lines_{date_str}.png')
-
-# Without connecting lines (dots only)
-fig, ax = plt.subplots()
-for pre_rate in summarized_data.keys():
-    ax.plot(summarized_data[pre_rate][0], summarized_data[pre_rate][1], 'o', label=str(pre_rate)+" Hz", alpha=0.5)
-leg = ax.legend(title=f"Presyn spike rate (N={total})")
-ax.set_xlabel("Postsyn spike rate")
-ax.set_ylabel("Probability of LTP transition")
-plt.savefig(f'{out_dir}summarized_data_plot_clean_dots_{date_str}.png')
 
