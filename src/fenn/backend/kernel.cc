@@ -36,6 +36,7 @@ bool arePerformanceCountersRequired(const Frontend::ProcessGroupVector &processG
 namespace FeNN::Backend
 {
 KernelImplementation::KernelImplementation(const Frontend::ProcessGroupVector &processGroups)
+:   m_NumNeuronIDBits(0), m_NumPopulationIDBits(0)
 {
     // Loop through kernels
     size_t maxEventSinkSize = 0;
