@@ -1349,7 +1349,6 @@ void DenseEventPropagationProcess::generateArchetypeCode(const Frontend::MergedP
     
     // Get stride
     // **NOTE** this is going into a multiply so always needs to be in a register
-    std::vector<Compiler::RegisterPtr> sharedRegisters;
     const auto strideReg = std::get<Assembler::ScalarRegisterPtr>(
         addScalarValue<DenseEventPropagationProcess>(
             0, mergedProcess, runtime.getNumDevices(), mergedFields, fieldBaseReg, 
@@ -1366,14 +1365,14 @@ void DenseEventPropagationProcess::generateArchetypeCode(const Frontend::MergedP
         });
 
     // No need to unroll pairs if all strides have 
-    // less than 2 remaining after unrolling
+    // less than 2 vector remaining after unrolling
     const bool strideNoPairs = allOf<DenseEventPropagationProcess>(
         mergedProcess, runtime.getNumDevices(), getStride,
         [this](const MergedFields::FieldValue &num)
         {
             // Calculate how much remains after unrolled iterations
             const uint32_t unrollRemainder = (std::get<uint32_t>(num) % (getMaxUnroll() * 32));
-            return (unrollRemainder < 2);
+            return (unrollRemainder < 64);
         });
 
     // No need to add final iteration if all strides
@@ -1383,8 +1382,12 @@ void DenseEventPropagationProcess::generateArchetypeCode(const Frontend::MergedP
         [this](const MergedFields::FieldValue &num)
         {
             const uint32_t unrollRemainder = (std::get<uint32_t>(num) % (getMaxUnroll() * 32));
-            return (unrollRemainder % 2) == 0;
+            return (unrollRemainder % 64) == 0;
         });
+
+    // Load target register from state fields
+    ALLOCATE_SCALAR(STargetBuf);
+    c.lw(*STargetBuf, *fieldBaseReg, targetFieldOffset);
 
     // SWeightBuffer = weightInHidStart + (numPostVecs * 64 * SN);
     ALLOCATE_SCALAR(SWeightBuffer);
@@ -1394,10 +1397,6 @@ void DenseEventPropagationProcess::generateArchetypeCode(const Frontend::MergedP
         c.mul(*STemp, *preIndReg, *strideReg);
         c.add(*SWeightBuffer, *SWeightBuffer, *STemp);
     }
-
-    // Load target register from state fields
-    ALLOCATE_SCALAR(STargetBuf);
-    c.lw(*STargetBuf, *fieldBaseReg, targetFieldOffset);
 
     // **TODO** this should be fine, just need to index target correctly
     assert(!getTarget().hasTime());
@@ -1495,7 +1494,7 @@ void DenseEventPropagationProcess::updateCompatibleMemSpace(std::shared_ptr<cons
         compatibleMemSpaces &= (MemSpace::LLM | MemSpace::URAM_LLM | MemSpace::URAM);
     }
     else {
-        assert(false);
+        assert(state == getInputEventSource().getUnderlying());
     }
 }
 
