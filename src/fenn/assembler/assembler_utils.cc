@@ -584,17 +584,7 @@ void unrollOddEvenLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegi
 
     // Tail
     if(!noFinal) {
-        // Load end count for tail loop
-        c.li(*SLoopCountEnd, iterationSize);
-
-        // If count is less than the size of a single iteration, jump to end
-        auto tailLoopEnd = createLabel();
-        c.bltu(countReg, *SLoopCountEnd, tailLoopEnd);
-
-        // Generate final even body
         genBodyFn(c, 0, true);
-
-        c.L(tailLoopEnd);
     }
 }
 //----------------------------------------------------------------------------
