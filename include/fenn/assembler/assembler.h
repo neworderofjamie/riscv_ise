@@ -197,7 +197,6 @@ public:
     void j_(const Label& label) { jal(Common::Reg::X0, label); }
     void jal(Common::Reg rd, const Label& label) { Jmp jmp(getCurr(), rd); opJmp(label, jmp); }
     void jr(Common::Reg rs) { jalr(Common::Reg::X0, rs, 0); }
-    void jalr(Common::Reg rs) { jalr(Common::Reg::X1, rs, 0); }
     void jalr(Common::Reg rd, Common::Reg rs, const Label& label) { Jmp jmp(getCurr(), rd, rs); opJmp(label, jmp); }
     void ret() { jalr(Common::Reg::X0, Common::Reg::X1); }
 
