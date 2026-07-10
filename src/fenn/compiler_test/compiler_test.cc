@@ -143,10 +143,10 @@ int main(int argc, char** argv)
 
     constexpr size_t numTimesteps = 79;
     //const Shape inputShape{{28 * 28}};
-    const Shape hidden1Shape{{32}};
-    const Shape hidden1ShapeTime{{numTimesteps + 1, 32}};
-    const Shape hidden2Shape{{30}};
-    const Shape hidden2ShapeTime{{numTimesteps + 1, 30}};
+    const Shape inputShape{{32}};
+    const Shape inputShapeTime{{numTimesteps + 1, 32}};
+    const Shape hiddenShape{{30}};
+    const Shape hiddenShapeTime{{numTimesteps + 1, 30}};
 
     //const Shape outputShape{{10}};
     //const Shape inputHiddenShape{{28 * 28, 128}};
@@ -158,33 +158,39 @@ int main(int argc, char** argv)
     // Input spikes
     //const auto inputSpikes = EventContainer::create(inputShape, numTimesteps);
 
-    // Hidden neurons
-    const auto hidden1V = Backend::Variable::create(hidden1ShapeTime, Type::S2_13Sat);
-    const auto hidden1I = Backend::Variable::create(hidden1Shape, Type::S2_13Sat);
-    const auto hidden1Spikes = Backend::EventSinkBuffer::create(hidden1ShapeTime);
-    const auto hidden1 = Backend::NeuronUpdateProcess::create(
+    // Input neurons
+    const auto inputV = Backend::Variable::create(inputShapeTime, Type::S2_13Sat);
+    const auto inputI = Backend::Variable::create(inputShape, Type::S2_13Sat);
+    const auto inputSpikes = Backend::EventChannel::create(inputShapeTime);
+    const auto input = Backend::NeuronUpdateProcess::create(
         "V = (" + std::to_string(std::exp(-1.0 / 20.0)) + " * V) + I;\n"
         "if(V >= 1.0) {\n"
         "   Spike();\n"
         "   V = 0.0;\n"
         "}\n",
-        {{"V", Sliced<Variable>(hidden1V, true)}, {"I", Sliced<Variable>(hidden1I)}}, 
-        {{"Spike", Sliced<EventSink>(hidden1Spikes, true)}},
+        {{"V", Sliced<Variable>(inputV, true)}, {"I", Sliced<Variable>(inputI)}}, 
+        {{"Spike", Sliced<EventSink>(inputSpikes, true)}},
         Type::S2_13);
 
     // Hidden neurons
-    const auto hidden2V = Backend::Variable::create(hidden2ShapeTime, Type::S2_13Sat);
-    const auto hidden2I = Backend::Variable::create(hidden2Shape, Type::S2_13Sat);
-    const auto hidden2Spikes = Backend::EventSinkBuffer::create(hidden2ShapeTime);
-    const auto hidden2 = Backend::NeuronUpdateProcess::create(
+    const auto hiddenV = Backend::Variable::create(hiddenShapeTime, Type::S2_13Sat);
+    const auto hiddenI = Backend::Variable::create(hiddenShape, Type::S2_13Sat);
+    const auto hiddenSpikes = Backend::EventSinkBuffer::create(hiddenShapeTime);
+    const auto hidden = Backend::NeuronUpdateProcess::create(
         "V = (" + std::to_string(std::exp(-1.0 / 20.0)) + " * V) + I;\n"
         "if(V >= 0.8) {\n"
         "   Spike();\n"
         "   V = 0.0;\n"
         "}\n",
-        {{"V", Sliced<Variable>(hidden2V, true)}, {"I", Sliced<Variable>(hidden2I)}}, 
-        {{"Spike", Sliced<EventSink>(hidden2Spikes, true)}},
+        {{"V", Sliced<Variable>(hiddenV, true)}, {"I", Sliced<Variable>(hiddenI)}}, 
+        {{"Spike", Sliced<EventSink>(hiddenSpikes, true)}},
         Type::S2_13);
+
+    // Connect pre1 to post 1
+    const auto inputHiddenWeight = Backend::Variable::create(Frontend::Shape({32, 32}), Type::S2_13Sat);
+    const auto inputHidden = Backend::DenseEventPropagationProcess::create(Sliced<EventSource>(inputSpikes, true),
+                                                                           inputHiddenWeight,
+                                                                           Sliced<Variable>(hiddenI));
 
     // Output neurons
     //const auto outputV = Variable::create(outputShape, GeNN::Type::S9_6Sat);
@@ -216,11 +222,11 @@ int main(int argc, char** argv)
     //const auto zeroPerfCounter = PerformanceCounter::create();
 
     // Group processes
-    const auto neuronUpdateProcesses = ProcessGroup::create({hidden1, hidden2,/*, output*/}, time);
-    //const auto synapseUpdateProcesses = ProcessGroup::create({inputHidden, hiddenOutput}, time);
+    const auto neuronUpdateProcesses = ProcessGroup::create({input, hidden,/*, output*/}, time);
+    const auto synapseUpdateProcesses = ProcessGroup::create({inputHidden}, time);
     //const auto zeroProcesses = ProcessGroup::create({zeroOutputSum}, time);
 
-    const auto kernel = Backend::SimulationLoopKernel::create(numTimesteps, {neuronUpdateProcesses/*, synapseUpdateProcesses*/}/*,
+    const auto kernel = Backend::SimulationLoopKernel::create(numTimesteps, {synapseUpdateProcesses, neuronUpdateProcesses}/*,
                                                               {zeroProcesses}*/);
     
     std::vector<std::shared_ptr<const Frontend::Kernel>> kernels{kernel};
@@ -258,14 +264,15 @@ int main(int argc, char** argv)
     loadAndPush("mnist_bias.bin", outputBias, runtime);*/
 
     // Zero remaining state
-    zeroAndPush(hidden1V, runtime.get());
-    zeroAndPush(hidden2V, runtime.get());
-    //zeroAndPush(hiddenI, runtime.get());
+    zeroAndPush(inputV, runtime.get());
+    zeroAndPush(inputI, runtime.get());
+    zeroAndPush(hiddenV, runtime.get());
+    zeroAndPush(hiddenI, runtime.get());
 
-    std::vector<int16_t> test{0, 26, 53, 79, 106, 132, 159, 185, 211, 238, 264, 291, 317, 344, 370, 396, 423, 449,
+    /*std::vector<int16_t> test{0, 26, 53, 79, 106, 132, 159, 185, 211, 238, 264, 291, 317, 344, 370, 396, 423, 449,
                               476, 502, 529, 555, 581, 608, 634, 661, 687, 713, 740, 766, 793, 819};
     copyAndPush(test, hidden1I, runtime.get());
-    copyAndPush(test, hidden2I, runtime.get());
+    copyAndPush(test, hidden2I, runtime.get());*/
     //zeroAndPush(outputV, runtime.get());
     //zeroAndPush(outputI, runtime.get());
     //zeroAndPush(outputVAvg, runtime.get());
@@ -315,8 +322,8 @@ int main(int argc, char** argv)
     //}
 
     // Pull recorded spikes and voltages from device
-    runtime->pullStateFromDevice(hidden1Spikes);
-    runtime->pullStateFromDevice(hidden2Spikes);
+    /*runtime->pullStateFromDevice(hiddenSpikes);
+    runtime->pullStateFromDevice(hiddenSpikes);
     runtime->pullStateFromDevice(hidden1V);
     runtime->pullStateFromDevice(hidden2V);
 
@@ -339,7 +346,7 @@ int main(int argc, char** argv)
             }
         }
         voltages << std::endl;
-    }
+    }*/
     //std::cout << numCorrect << " / " << numExamples << " correct (" << 100.0 * (numCorrect / double(numExamples)) << "%)" << std::endl;
 
     // If timing is enabled
