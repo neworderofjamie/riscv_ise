@@ -7,8 +7,10 @@
 #include "fenn/common/isa.h"
 #include "fenn/common/logging.h"
 
+// FeNN assembler includes
+#include "fenn/assembler/assembler_utils.h"
+
 // FeNN backend includes
-#include "fenn/backend/environment.h"
 #include "fenn/backend/kernel.h"
 #include "fenn/backend/model.h"
 #include "fenn/backend/process.h"
@@ -196,6 +198,9 @@ void EventChannel::generateEventLoop(const Frontend::Merged<Frontend::EventSourc
                                      Assembler::ScalarRegisterPtr preIndReg, Assembler::ScalarRegisterPtr spikeReturnReg, Assembler::Label jumpTable,
                                      Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator) const
 {
+    // Wait for all events from last timestep to be communicated
+    Assembler::Utils::generateRouterBarrier(c, scalarRegisterAllocator, runtime.getNumDevices());
+
     // **TODO** these can't be allocated here - they need to be scoped around whole nightmare
     ALLOCATE_SCALAR(SSpikeBuffer);
     ALLOCATE_SCALAR(SSpikeBufferStart);
@@ -233,6 +238,9 @@ void EventChannel::generateEventLoop(const Frontend::Merged<Frontend::EventSourc
 
     // Reset router slave to start writing at beginning of spike buffer
     c.csrw(Common::CSR::SLAVE_EVENT_ADDRESS, *SSpikeBufferStart);
+
+    // Wait for all routers to be reset so it's safe for other process groups to start SENDING new events
+    Assembler::Utils::generateRouterBarrier(c, scalarRegisterAllocator, runtime.getNumDevices());
 }
 //----------------------------------------------------------------------------
 std::vector<Assembler::ScalarRegisterPtr> EventChannel::genPreamble(

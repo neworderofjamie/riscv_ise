@@ -6,29 +6,15 @@
 // Frontend include
 #include "frontend/process_group.h"
 
-// FeNN common includes
-#include "fenn/common/isa.h"
-
 // FeNN assembler includes
 #include "fenn/assembler/assembler.h"
+#include "fenn/assembler/assembler_utils.h"
 #include "fenn/assembler/register_allocator.h"
 
 // FeNN backend includes
 #include "fenn/backend/process.h"
 
 using namespace FeNN;
-
-//----------------------------------------------------------------------------
-// FeNN::Backend::SimpleGraph
-//----------------------------------------------------------------------------
-namespace
-{
-bool arePerformanceCountersRequired(const Frontend::ProcessGroupVector &processGroups)
-{
-    return std::any_of(processGroups.cbegin(), processGroups.cend(),
-                       [](const auto &p){ return p->shouldRecordPerformance(); });
-}
-}
 
 //----------------------------------------------------------------------------
 // FeNN::Backend::KernelImplementation
@@ -156,12 +142,6 @@ void SimpleKernel::generateCode(Assembler::CodeGenerator &c,
                                 Assembler::VectorRegisterAllocator &vectorRegisterAllocator,
                                 GenerateProcessGroupFn generateProcessGroup) const
 {
-    // If performance counters are enabled, disinhibit them
-    // **NOTE** on device, this takes a few cycles to make it through the pipeline so we do it well before we try and access counters
-    if(arePerformanceCountersRequired(getProcessGroups())) {
-        c.csrw(Common::CSR::MCOUNTINHIBIT, Common::Reg::X0);
-    }
-
     // Visit process groups
     for (const auto &p : getProcessGroups()) {
         generateProcessGroup(p, nullptr, std::nullopt, c, 
@@ -179,15 +159,6 @@ void SimulationLoopKernel::generateCode(Assembler::CodeGenerator &c,
     // Register allocation
     ALLOCATE_SCALAR(STime);
     ALLOCATE_SCALAR(STimeEnd);
-
-    // If performance counters are enabled, disinhibit them
-    // **NOTE** on device, this takes a few cycles to make it through the pipeline so we do it well before we try and access counters
-    if(arePerformanceCountersRequired(getTimestepProcessGroups()) 
-       || arePerformanceCountersRequired(getBeginProcessGroups())
-       || arePerformanceCountersRequired(getEndProcessGroups())) 
-    {
-        c.csrw(Common::CSR::MCOUNTINHIBIT, Common::Reg::X0);
-    }
 
     // Set timestep range and load ready flag pointer
     c.li(*STime, 0);

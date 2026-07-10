@@ -163,6 +163,24 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                     throw std::runtime_error("FeNN backend runtime used with incompatible kernel");
                 }
 
+                // If performance counters are enabled, disinhibit them
+                // **NOTE** on device, this takes a few cycles to make it through the pipeline so we do it well before we try and access counters
+                {
+                    const auto processGroups = k->getAllProcessGroups();
+                    if (std::any_of(processGroups.cbegin(), processGroups.cend(),
+                                    [](const auto &p) { return p->shouldRecordPerformance(); }))
+                    {
+                        c.csrw(Common::CSR::MCOUNTINHIBIT, Common::Reg::X0);
+                    }
+                }
+                
+                // Reset router slave address
+                {
+                    ALLOCATE_SCALAR(STmp);
+                    c.li(*STmp, 32 * 4096);
+                    c.csrw(Common::CSR::SLAVE_EVENT_ADDRESS, *STmp);
+                }
+
                 // Define jump table for routing events
                 // **NOTE** this is at the top of the kernel so it can be easily addressed
                 auto jumpTable = c.L();
@@ -257,10 +275,6 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                                 m, *this, *ki, SPreIndex, SSpikeReturn, jumpTable, 
                                                 c, scalarRegisterAllocator);
                                          }
-
-
-                                         // Wait for all routers to be reset
-                                         Assembler::Utils::generateRouterBarrier(c, scalarRegisterAllocator, getNumDevices());
 
                                          // Jump over event handlers
                                          c.j_(endProcessGroupLabel);

@@ -118,6 +118,7 @@ public:
 class SimulationLoopKernel : public KernelImplementation, public Frontend::SimulationLoopKernel
 {
 public:
+    // **YUCK** this is really bad - getAllProcessGroups should really be passed through here but it breaks stuff
     SimulationLoopKernel(Private, unsigned int numTimesteps, 
                          const Frontend::ProcessGroupVector &timestepProcessGroups, 
                          const Frontend::ProcessGroupVector &beginProcessGroups,
