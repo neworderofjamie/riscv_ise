@@ -159,9 +159,9 @@ int main(int argc, char** argv)
     //const auto inputSpikes = EventContainer::create(inputShape, numTimesteps);
 
     // Input neurons
-    const auto inputV = Backend::Variable::create(inputShapeTime, Type::S2_13Sat);
-    const auto inputI = Backend::Variable::create(inputShape, Type::S2_13Sat);
-    const auto inputSpikes = Backend::EventChannel::create(inputShapeTime);
+    const auto inputV = Backend::Variable::create(inputShapeTime, Type::S2_13Sat, "inputV");
+    const auto inputI = Backend::Variable::create(inputShape, Type::S2_13Sat, "inputI");
+    const auto inputSpikes = Backend::EventChannel::create(inputShapeTime, false, "inputSpikes");
     const auto input = Backend::NeuronUpdateProcess::create(
         "V = (" + std::to_string(std::exp(-1.0 / 20.0)) + " * V) + I;\n"
         "if(V >= 1.0) {\n"
@@ -170,12 +170,12 @@ int main(int argc, char** argv)
         "}\n",
         {{"V", Sliced<Variable>(inputV, true)}, {"I", Sliced<Variable>(inputI)}}, 
         {{"Spike", Sliced<EventSink>(inputSpikes, true)}},
-        Type::S2_13);
+        Type::S2_13, "input");
 
     // Hidden neurons
-    const auto hiddenV = Backend::Variable::create(hiddenShapeTime, Type::S2_13Sat);
-    const auto hiddenI = Backend::Variable::create(hiddenShape, Type::S2_13Sat);
-    const auto hiddenSpikes = Backend::EventSinkBuffer::create(hiddenShapeTime);
+    const auto hiddenV = Backend::Variable::create(hiddenShapeTime, Type::S2_13Sat, "hiddenV");
+    const auto hiddenI = Backend::Variable::create(hiddenShape, Type::S2_13Sat, "hiddenI");
+    const auto hiddenSpikes = Backend::EventSinkBuffer::create(hiddenShapeTime, "hiddenSpikes");
     const auto hidden = Backend::NeuronUpdateProcess::create(
         "V = (" + std::to_string(std::exp(-1.0 / 20.0)) + " * V) + I;\n"
         "if(V >= 0.8) {\n"
@@ -184,13 +184,14 @@ int main(int argc, char** argv)
         "}\n",
         {{"V", Sliced<Variable>(hiddenV, true)}, {"I", Sliced<Variable>(hiddenI)}}, 
         {{"Spike", Sliced<EventSink>(hiddenSpikes, true)}},
-        Type::S2_13);
+        Type::S2_13, "hidden");
 
     // Connect pre1 to post 1
-    const auto inputHiddenWeight = Backend::Variable::create(Frontend::Shape({32, 32}), Type::S2_13Sat);
+    const auto inputHiddenWeight = Backend::Variable::create(Frontend::Shape({32, 32}), Type::S2_13Sat, "inputHiddenWeight");
     const auto inputHidden = Backend::DenseEventPropagationProcess::create(Sliced<EventSource>(inputSpikes, true),
                                                                            inputHiddenWeight,
-                                                                           Sliced<Variable>(hiddenI));
+                                                                           Sliced<Variable>(hiddenI),
+                                                                           "inputHidden");
 
     // Output neurons
     //const auto outputV = Variable::create(outputShape, GeNN::Type::S9_6Sat);
@@ -222,8 +223,8 @@ int main(int argc, char** argv)
     //const auto zeroPerfCounter = PerformanceCounter::create();
 
     // Group processes
-    const auto neuronUpdateProcesses = ProcessGroup::create({input, hidden,/*, output*/}, time);
-    const auto synapseUpdateProcesses = ProcessGroup::create({inputHidden}, time);
+    const auto neuronUpdateProcesses = ProcessGroup::create({input, hidden,/*, output*/}, time, "neuronUpdateProcesses");
+    const auto synapseUpdateProcesses = ProcessGroup::create({inputHidden}, time, "synapseUpdateProcesses");
     //const auto zeroProcesses = ProcessGroup::create({zeroOutputSum}, time);
 
     const auto kernel = Backend::SimulationLoopKernel::create(numTimesteps, {synapseUpdateProcesses, neuronUpdateProcesses}/*,
