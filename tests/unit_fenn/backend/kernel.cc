@@ -33,49 +33,45 @@ class EventSinkIDTest : public testing::TestWithParam<std::tuple<size_t, size_t,
 {
 };
 
-class EventSourceTest : public testing::Test
+std::tuple<std::shared_ptr<Backend::NeuronUpdateProcess>, 
+           std::shared_ptr<Backend::EventChannel>> createPre(size_t numNeurons)
 {
-protected:
-    std::tuple<std::shared_ptr<Backend::NeuronUpdateProcess>, 
-               std::shared_ptr<Backend::EventChannel>> createPre(size_t numNeurons)
-    {
-        const Shape shape{{numNeurons}};
-        const auto v = Backend::Variable::create(shape, Type::S2_13Sat);
-        const auto i = Backend::Variable::create(shape, Type::S2_13Sat);
-        const auto eventChannel = Backend::EventChannel::create(shape);
-        const auto process = Backend::NeuronUpdateProcess::create(
-            "V = (" + std::to_string(std::exp(-1.0 / 20.0)) + " * V) + I;\n"
-            "if(V >= 1.0) {\n"
-            "   Spike();\n"
-            "   V = 0.0;\n"
-            "}\n",
-            {{"V", Sliced<Variable>(v)}, {"I", Sliced<Variable>(i)}},
-            {{"Spike", Sliced<EventSink>(eventChannel)}},
-            Type::S2_13);
+    const Shape shape{{numNeurons}};
+    const auto v = Backend::Variable::create(shape, Type::S2_13Sat);
+    const auto i = Backend::Variable::create(shape, Type::S2_13Sat);
+    const auto eventChannel = Backend::EventChannel::create(shape);
+    const auto process = Backend::NeuronUpdateProcess::create(
+        "V = (" + std::to_string(std::exp(-1.0 / 20.0)) + " * V) + I;\n"
+        "if(V >= 1.0) {\n"
+        "   Spike();\n"
+        "   V = 0.0;\n"
+        "}\n",
+        {{"V", Sliced<Variable>(v)}, {"I", Sliced<Variable>(i)}},
+        {{"Spike", Sliced<EventSink>(eventChannel)}},
+        Type::S2_13);
 
-        return std::make_tuple(process, eventChannel);
-    }
+    return std::make_tuple(process, eventChannel);
+}
 
-    std::tuple<std::shared_ptr<Backend::NeuronUpdateProcess>,
-               std::shared_ptr<Backend::Variable>> createPost(size_t numNeurons)
-    {
-        const Shape shape{{numNeurons}};
-        const auto v = Backend::Variable::create(shape, Type::S2_13Sat);
-        const auto i = Backend::Variable::create(shape, Type::S2_13Sat);
-        const auto eventBuffer = Backend::EventSinkBuffer::create(shape);
-        const auto process = Backend::NeuronUpdateProcess::create(
-            "V = (" + std::to_string(std::exp(-1.0 / 20.0)) + " * V) + I;\n"
-            "if(V >= 1.0) {\n"
-            "   Spike();\n"
-            "   V = 0.0;\n"
-            "}\n",
-            {{"V", Sliced<Variable>(v)}, {"I", Sliced<Variable>(i)}},
-            {{"Spike", Sliced<EventSink>(eventBuffer)}},
-            Type::S2_13);
+std::tuple<std::shared_ptr<Backend::NeuronUpdateProcess>,
+           std::shared_ptr<Backend::Variable>> createPost(size_t numNeurons)
+{
+    const Shape shape{{numNeurons}};
+    const auto v = Backend::Variable::create(shape, Type::S2_13Sat);
+    const auto i = Backend::Variable::create(shape, Type::S2_13Sat);
+    const auto eventBuffer = Backend::EventSinkBuffer::create(shape);
+    const auto process = Backend::NeuronUpdateProcess::create(
+        "V = (" + std::to_string(std::exp(-1.0 / 20.0)) + " * V) + I;\n"
+        "if(V >= 1.0) {\n"
+        "   Spike();\n"
+        "   V = 0.0;\n"
+        "}\n",
+        {{"V", Sliced<Variable>(v)}, {"I", Sliced<Variable>(i)}},
+        {{"Spike", Sliced<EventSink>(eventBuffer)}},
+        Type::S2_13);
 
-        return std::make_tuple(process, i);
-    }
-};
+    return std::make_tuple(process, i);
+}
 }
 
 //--------------------------------------------------------------------------
@@ -147,7 +143,7 @@ TEST_P(EventSinkIDTest, EventSinkIDAllocation)
     EXPECT_EQ(ids.size(), std::get<1>(GetParam()));
 }
 //--------------------------------------------------------------------------
-TEST_F(EventSourceTest, MultipleEventSourceProcessGroups)
+TEST(Kernel, MultipleEventSourceProcessGroups)
 {
     // Create 2 presynaptic neuron update 
     const auto [pre1, pre1EventChannel] = createPre(64);
@@ -177,7 +173,7 @@ TEST_F(EventSourceTest, MultipleEventSourceProcessGroups)
                  std::runtime_error);
 }
 //--------------------------------------------------------------------------
-TEST_F(EventSourceTest, EventSourceMerging)
+TEST(Kernel, EventSourceMerging)
 {
     // Create 2 presynaptic neuron update 
     const auto [pre1, pre1EventChannel] = createPre(64);
@@ -249,7 +245,7 @@ TEST_F(EventSourceTest, EventSourceMerging)
     }
 }
 //--------------------------------------------------------------------------
-TEST_F(EventSourceTest, EventSourceProcesses)
+TEST(Kernel, EventSourceProcesses)
 {
     // Create 2 presynaptic neuron update 
     const auto [pre1, pre1EventChannel] = createPre(64);
@@ -302,7 +298,6 @@ TEST_F(EventSourceTest, EventSourceProcesses)
     ASSERT_NE(std::find(pre2EventChannelProcesses.cbegin(), pre2EventChannelProcesses.cend(), pre2Post2), pre2EventChannelProcesses.cend());
     ASSERT_NE(std::find(pre2EventChannelProcesses.cbegin(), pre2EventChannelProcesses.cend(), pre2Post3), pre2EventChannelProcesses.cend());
     ASSERT_NE(std::find(pre2EventChannelProcesses.cbegin(), pre2EventChannelProcesses.cend(), pre2Post4), pre2EventChannelProcesses.cend());
-
 }
 
 //--------------------------------------------------------------------------
