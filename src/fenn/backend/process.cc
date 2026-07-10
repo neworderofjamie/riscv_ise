@@ -708,9 +708,11 @@ void TimeDrivenProcessImplementation::generateCode(const Frontend::MergedProcess
     // Load fieldBase
     c.li(*SFieldBase, fieldBase);
 
-    // Calculate and load fieldEnd
+    // Calculate fieldEnd and load if required
     fieldBase += (mergedProcess.getMerged().size() * mergedFields.getSize());
-    c.li(*SFieldBaseEnd, fieldBase);
+    if(mergedProcess.getMerged().size() > 1) {
+        c.li(*SFieldBaseEnd, fieldBase);
+    }
 
     // Generate loop over merged groups
     auto groupLoop = c.L();
@@ -718,11 +720,14 @@ void TimeDrivenProcessImplementation::generateCode(const Frontend::MergedProcess
         // Insert generated code to simulate archetype
         c += archetypeCodeGenerator;
 
-        // Advance to next group's fields
-        c.addi(*SFieldBase, *SFieldBase, mergedFields.getSize());
+        // If a loop is required
+        if(mergedProcess.getMerged().size() > 1) {
+            // Advance to next group's fields
+            c.addi(*SFieldBase, *SFieldBase, mergedFields.getSize());
 
-        // Keep looping
-        c.bne(*SFieldBase, *SFieldBaseEnd, groupLoop);
+            // Keep looping
+            c.bne(*SFieldBase, *SFieldBaseEnd, groupLoop);
+        }
     }
 }
 
@@ -748,6 +753,9 @@ void EventDrivenProcessImplementation::generateCode(const Frontend::MergedProces
 
     // Load fieldBase
     c.li(*SFieldBase, fieldBase);
+
+    // Update fieldbase for next merged group
+    fieldBase += (mergedProcess.getMerged().size() * mergedFields.getSize());
 
     // Calculate offset of merged 
     {
