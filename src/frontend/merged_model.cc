@@ -50,6 +50,7 @@ MergedProcessGroup::MergedProcessGroup(const Model &model, std::shared_ptr<Proce
             }
         }
     }
+}
 
 //----------------------------------------------------------------------------
 // Frontend::MergedModel
