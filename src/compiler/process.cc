@@ -50,20 +50,32 @@ NeuronUpdateProcess::NeuronUpdateProcess(Private, const std::string &code, const
     // 
 }
 
+
+//----------------------------------------------------------------------------
+// EventPropagationProcessBase
+//----------------------------------------------------------------------------
+EventPropagationProcessBase::EventPropagationProcessBase(std::shared_ptr<const EventContainer> inputEvents, const std::string &name)
+:   Process(name), m_InputEvents(inputEvents)
+{
+    if(m_InputEvents == nullptr) {
+        throw std::runtime_error("Event propagation process requires input events");
+    }
+
+    // Get number of source neurons from input events
+    m_NumSourceNeurons = m_InputEvents->getShape().getNumNeurons();
+    
+}
+
 //----------------------------------------------------------------------------
 // EventPropagationProcess
 //----------------------------------------------------------------------------
 EventPropagationProcess::EventPropagationProcess(Private, std::shared_ptr<const EventContainer> inputEvents, 
                                                  VariablePtr weight, VariablePtr target, size_t numSparseConnectivityBits, 
                                                  size_t numDelayBits, const std::string &name)
-:   AcceptableModelComponent<EventPropagationProcess, Process>(name), m_InputEvents(inputEvents), 
+:   AcceptableModelComponent<EventPropagationProcess, EventPropagationProcessBase>(inputEvents, name),
     m_Weight(weight), m_Target(target), m_NumSparseConnectivityBits(numSparseConnectivityBits),
     m_NumDelayBits(numDelayBits)
 {
-    if(m_InputEvents == nullptr) {
-        throw std::runtime_error("Event propagation process requires input events");
-    }
-
     if(m_Weight == nullptr) {
         throw std::runtime_error("Event propagation process requires weight variable");
     }
@@ -72,9 +84,6 @@ EventPropagationProcess::EventPropagationProcess(Private, std::shared_ptr<const 
         throw std::runtime_error("Event propagation process requires target variable");
     }
 
-    // Get number of source neurons from input events
-    m_NumSourceNeurons = m_InputEvents->getShape().getNumNeurons();
-
     // Get number of target neurons from target variable
     m_NumTargetNeurons = m_Target->getShape().getNumNeurons();
 
@@ -82,10 +91,10 @@ EventPropagationProcess::EventPropagationProcess(Private, std::shared_ptr<const 
     m_MaxRowLength = m_Weight->getShape().getNumTargetNeurons();
 
     // Check weight number of source neurons matches
-    if(m_Weight->getShape().getNumSourceNeurons() != m_NumSourceNeurons) {
+    if(m_Weight->getShape().getNumSourceNeurons() != getNumSourceNeurons()) {
         throw std::runtime_error("Weight with shape: " + weight->getShape().toString() 
                                  + " is not compatible with event propagation process with " 
-                                 + std::to_string(m_NumSourceNeurons) + " source neurons");
+                                 + std::to_string(getNumSourceNeurons()) + " source neurons");
     }
 
     // Check delays and sparsity are not being combined
@@ -123,6 +132,93 @@ EventPropagationProcess::EventPropagationProcess(Private, std::shared_ptr<const 
     }
     
 }
+
+//----------------------------------------------------------------------------
+// STDPEventPropagationProcess
+//----------------------------------------------------------------------------
+STDPEventPropagationProcess::STDPEventPropagationProcess(Private, std::shared_ptr<const EventContainer> inputEvents, 
+                                                         VariablePtr x, VariablePtr preTimeSinceLastSpike,
+                                                         VariablePtr target, VariablePtr vPre, VariablePtr cPre,
+                                                         float thetaX, float a, float b, 
+                                                         float alpha, float beta, 
+                                                         float jPlus, float jMinus, 
+                                                         float thetaV,float thetaLowUp, 
+                                                         float thetaLowDown, float thetaHighUp, 
+                                                         float thetaHighDown, float xMax,
+                                                         const std::string &name)
+:   AcceptableModelComponent<STDPEventPropagationProcess, EventPropagationProcessBase>(inputEvents, name),
+    m_X(x), m_PreTimeSinceLastSpike(preTimeSinceLastSpike), m_Target(target), m_VPre(vPre), m_CPre(cPre),
+    m_ThetaX(thetaX), m_A(a),
+    m_B(b),m_Alpha(alpha),
+    m_Beta(beta), m_JPlus(jPlus), m_JMinus(jMinus),
+    m_ThetaV(thetaV), m_ThetaLowUp(thetaLowUp), m_ThetaLowDown(thetaLowDown),
+    m_ThetaHighUp(thetaHighUp), m_ThetaHighDown(thetaHighDown), m_XMax(xMax)
+{
+    if(m_X == nullptr) {
+        throw std::runtime_error("STDP Event propagation process requires X variable");
+    }
+
+    if(m_Target == nullptr) {
+        throw std::runtime_error("STDP Event propagation process requires target variable");
+    }
+
+
+    if(m_PreTimeSinceLastSpike == nullptr) {
+        throw std::runtime_error("STDP Event propagation process requires presynaptic time since last spike variable");
+    }
+
+    if(m_VPre == nullptr) {
+        throw std::runtime_error("STDP Event propagation process requires postsynaptic voltage variable");
+    }
+
+    if(m_CPre == nullptr) {
+        throw std::runtime_error("STDP Event propagation process requires postsynaptic calcium variable");
+    }
+
+    // Get number of target neurons from target variable
+    m_NumTargetNeurons = m_Target->getShape().getNumNeurons();
+
+    // Get maximum row length from weight variable shape
+    m_MaxRowLength = m_X->getShape().getNumTargetNeurons();
+
+    // Check weight number of source neurons matches
+    if(m_X->getShape().getNumSourceNeurons() != getNumSourceNeurons()) {
+        throw std::runtime_error("Weight with shape: " + m_X->getShape().toString()
+                                 + " is not compatible with stdp event propagation process with " 
+                                 + std::to_string(getNumSourceNeurons()) + " source neurons");
+    }
+
+
+
+    if (m_X->getNumBufferTimesteps() != 1) {
+        throw std::runtime_error("Weight has more than 1 buffer timestep which isn't "
+                                 "currently supported by stdp event propagation processes");
+    }
+
+    
+    // Check presynaptic time since last spike shape is compatible
+    if (getPreTimeSinceLastSpike()->getShape().getNumNeurons() != getNumSourceNeurons()) {
+        throw std::runtime_error("Presynaptic time since last spike with shape: " 
+                                 + getPreTimeSinceLastSpike()->getShape().toString() 
+                                 + " is not compatible with STDP event propagation process with " 
+                                 + std::to_string(getNumSourceNeurons()) + " source neurons");
+    }
+
+    // Check postsymaptic calcium shape is compatible
+    if (m_CPre->getShape().getNumNeurons() != getNumTargetNeurons()) {
+        throw std::runtime_error("Postsynaptic calcium with shape: " + m_CPre->getShape().toString() 
+                                 + " is not compatible with STDP event propagation process with " 
+                                 + std::to_string(getNumTargetNeurons()) + " target neurons");
+    }
+    // Check postsymaptic voltage shape is compatible
+    if (m_VPre->getShape().getNumNeurons() != getNumTargetNeurons()) {
+        throw std::runtime_error("Postsynaptic voltage with shape: " + m_VPre->getShape().toString() 
+                                 + " is not compatible with STDP event propagation process with " 
+                                 + std::to_string(getNumTargetNeurons()) + " target neurons");
+    }
+
+}
+
 
 //----------------------------------------------------------------------------
 // RNGInitProcess

@@ -1,0 +1,12 @@
+#!/bin/bash
+#
+#SBATCH --partition=sussexneuro
+#SBATCH --ntasks=1
+#SBATCH --nodes=1
+#SBATCH --begin=now
+
+#
+#################################################
+
+source /its/home/cg610/Desktop/fenn/fenn_venv/bin/activate
+python ./examples/STDP/calculate_LTP_prob.py $1

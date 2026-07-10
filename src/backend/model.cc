@@ -115,6 +115,19 @@ private:
         m_StateProcesses.get()[eventPropagationProcess->getTarget()].push_back(eventPropagationProcess);
     }
 
+    virtual void visit(std::shared_ptr<const STDPEventPropagationProcess> stdpEventPropagationProcess)
+    {
+        LOGD << "\tSTDP Event propagation process '" << stdpEventPropagationProcess->getName() << "'";
+
+        // Add back-references in state processes
+        m_StateProcesses.get()[stdpEventPropagationProcess->getInputEvents()].push_back(stdpEventPropagationProcess);
+        m_StateProcesses.get()[stdpEventPropagationProcess->getX()].push_back(stdpEventPropagationProcess);
+        m_StateProcesses.get()[stdpEventPropagationProcess->getTarget()].push_back(stdpEventPropagationProcess);
+        m_StateProcesses.get()[stdpEventPropagationProcess->getPreTimeSinceLastSpike()].push_back(stdpEventPropagationProcess);
+        m_StateProcesses.get()[stdpEventPropagationProcess->getVPre()].push_back(stdpEventPropagationProcess);
+        m_StateProcesses.get()[stdpEventPropagationProcess->getCPre()].push_back(stdpEventPropagationProcess);
+    }
+
     virtual void visit(std::shared_ptr<const RNGInitProcess> rngInitProcess)
     {
         LOGD << "\tRNG init process '" << rngInitProcess->getName() << "'";
@@ -261,6 +274,29 @@ private:
         // Add process fields
         if(!m_StatefulFields.get().try_emplace(eventPropagationProcess, m_CurrentProcessFields).second) {
             throw std::runtime_error("Event propagation process '" + eventPropagationProcess->getName() + "' encountered multiple times in model traversal");
+        }
+
+        // Clear current state fields
+        m_CurrentProcessFields.clear();
+    }
+
+    virtual void visit(std::shared_ptr<const STDPEventPropagationProcess> stdpEventPropagationProcess)
+    {
+        LOGD << "\tSTDP Event propagation process '" << stdpEventPropagationProcess->getName() << "'";
+        assert(m_CurrentProcessFields.empty());
+
+        // Visit components
+        stdpEventPropagationProcess->getInputEvents()->accept(*this);
+
+        acceptVariable(stdpEventPropagationProcess->getX());
+        acceptVariable(stdpEventPropagationProcess->getTarget());
+        acceptVariable(stdpEventPropagationProcess->getPreTimeSinceLastSpike());
+        acceptVariable(stdpEventPropagationProcess->getVPre());
+        acceptVariable(stdpEventPropagationProcess->getCPre());
+
+        // Add process fields
+        if(!m_StatefulFields.get().try_emplace(stdpEventPropagationProcess, m_CurrentProcessFields).second) {
+            throw std::runtime_error("STDP Event propagation process '" + stdpEventPropagationProcess->getName() + "' encountered multiple times in model traversal");
         }
 
         // Clear current state fields

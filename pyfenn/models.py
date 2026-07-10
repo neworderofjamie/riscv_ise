@@ -1,7 +1,7 @@
 from typing import Optional
 
 from pyfenn import (BroadcastProcess, EventContainer, EventPropagationProcess,
-                    MemsetProcess, RNGInitProcess, Variable)
+                    STDPEventPropagationProcess, MemsetProcess, RNGInitProcess, Variable)
 
 class RNGInit:
     def __init__(self):
@@ -33,3 +33,27 @@ class Linear:
                                                target_var, 
                                                num_sparse_connectivity_bits,
                                                num_delay_bits, name)
+
+class LinearWithSTDP:
+    def __init__(self, source_events: EventContainer, 
+                 pre_time_since_last_spike: Variable, target_var: Variable,
+                 v_pre:Variable, c_pre:Variable, x_dtype: str, 
+                 theta_x: float, a: float, b: float, alpha: float,
+                 beta: float, j_plus: float, j_minus: float, theta_v: float,
+                 theta_low_up: float, theta_low_down: float,
+                 theta_high_up: float, theta_high_down: float, x_max: float,
+                 name: str = ""):
+
+        self.shape = (source_events.shape.num_neurons,
+                      target_var.shape.num_neurons)
+        x_shape = (source_events.shape.num_neurons,
+                        (target_var.shape.num_neurons))
+        self.x = Variable(x_shape, x_dtype, 1, f"{name}_x")
+
+
+        self.process = STDPEventPropagationProcess(
+            source_events, self.x, pre_time_since_last_spike, target_var, 
+            v_pre, c_pre, theta_x, a,  b, alpha, beta, j_plus, j_minus, 
+            theta_v, theta_low_up, theta_low_down, theta_high_up, 
+            theta_high_down, x_max, name)
+        

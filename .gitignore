@@ -7,6 +7,7 @@
 **/x64/
 *.vcxproj.user
 *.d
+*.dylib
 *.exe
 *.pdb
 /bin/alif
@@ -16,6 +17,7 @@
 /bin/lif
 /bin/lif_debug
 /obj_debug/
+/bin/
 /**/__pycache__/
 *.coe
 /pyfenn.egg-info/dependency_links.txt

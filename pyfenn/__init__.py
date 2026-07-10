@@ -3,7 +3,7 @@ from importlib import metadata
 
 # pyfenn interface
 from ._fenn import (BackendFeNNHW, BackendFeNNSim, BroadcastProcess,  
-                    EventContainer, EventPropagationProcess, MemsetProcess,
+                    EventContainer, STDPEventPropagationProcess, EventPropagationProcess, MemsetProcess,
                     Model, ModelComponent, NeuronUpdateProcess, NumericValue,
                     Parameter, PerformanceCounter, PlogSeverity, Process,
                     ProcessGroup, RNGInitProcess, RoundingMode, Runtime, 
@@ -13,7 +13,7 @@ from ._fenn import (BackendFeNNHW, BackendFeNNSim, BroadcastProcess,
 from . import models, nir_import, utils
 
 __all__ = ["BackendFeNNHW", "BackendFeNNSim", "BroadcastProcess",
-           "EventContainer", "EventPropagationProcess", "MemsetProcess",
+           "EventContainer", "STDPEventPropagationProcess", "EventPropagationProcess", "MemsetProcess",
            "Model", "ModelComponent", "NeuronUpdateProcess", "NumericValue",
            "Parameter", "PerformanceCounter", "PlogSeverity", "Process",
            "ProcessGroup", "RNGInitProcess", "RoundingMode", "Runtime",

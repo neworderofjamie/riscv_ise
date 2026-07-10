@@ -345,6 +345,68 @@ private:
         }
     }
 
+    virtual void visit(std::shared_ptr<const STDPEventPropagationProcess> stdpEventPropagationProcess)
+    {
+        // If variable is weight, it can only be located in URAM
+        if(m_Variable == stdpEventPropagationProcess->getX()) {
+            m_LLMCompatible = false;
+            m_BRAMCompatible = false;
+            m_URAMLLMCompatible = false;
+
+            if(m_UseDRAMForWeights) {
+                m_URAMCompatible = false;
+
+                if(!m_DRAMCompatible) {
+                    throw std::runtime_error("STDP event propagation process '" + stdpEventPropagationProcess->getName() 
+                                            + "' X array '" + stdpEventPropagationProcess->getX()->getName()
+                                            + "' shared with incompatible processes");
+                }
+            }
+            else {
+                m_DRAMCompatible = false;
+
+                if(!m_URAMCompatible) {
+                    throw std::runtime_error("STDP event propagation process '" + stdpEventPropagationProcess->getName() 
+                                            + "' X array '" + stdpEventPropagationProcess->getX()->getName()
+                                            + "' shared with incompatible processes");
+                }
+            }
+        }
+        // Otherwise, if variable's postsynaptic
+        else if(m_Variable == stdpEventPropagationProcess->getTarget()
+                || m_Variable == stdpEventPropagationProcess->getVPre()
+                || m_Variable == stdpEventPropagationProcess->getCPre()) {
+            // It can't be located in BRAM or DRAM
+            m_BRAMCompatible = false;
+            m_DRAMCompatible = false;
+            m_URAMLLMCompatible = false;
+            m_LLMCompatible = false;
+
+            if(!m_URAMCompatible) {
+                throw std::runtime_error("STDP event propagation process '" + stdpEventPropagationProcess->getName() 
+                                         + "' postsynaptic array '" + m_Variable->getName()
+                                         + "' shared with incompatible processes");
+            }
+        }
+        // Otherwise, if it's a presynaptic variable, it can only be located in URAM
+        else if(m_Variable == stdpEventPropagationProcess->getPreTimeSinceLastSpike()) {
+            m_LLMCompatible = false;
+            m_BRAMCompatible = false;
+            m_URAMLLMCompatible = false;
+            m_DRAMCompatible = false;
+
+            if(!m_URAMCompatible) {
+                throw std::runtime_error("STDP event propagation process '" + stdpEventPropagationProcess->getName() 
+                                         + "' presynaptic time since last spike array '" 
+                                         + stdpEventPropagationProcess->getPreTimeSinceLastSpike()->getName()
+                                         + "' shared with incompatible processes");
+            }
+        }
+        else {
+            assert(false);
+        }
+    }
+
     virtual void visit(std::shared_ptr<const RNGInitProcess> rngInitProcess)
     {
         assert (m_Variable == rngInitProcess->getSeed());
@@ -451,6 +513,11 @@ private:
     virtual void visit(std::shared_ptr<const EventPropagationProcess> eventPropagationProcess)
     {
         m_MaxRowLength = std::max(m_MaxRowLength, eventPropagationProcess->getMaxRowLength());
+    }
+
+    virtual void visit(std::shared_ptr<const STDPEventPropagationProcess> stdpEventPropagationProcess)
+    {
+        m_MaxRowLength = std::max(m_MaxRowLength, stdpEventPropagationProcess->getMaxRowLength());
     }
 
     //------------------------------------------------------------------------
@@ -894,7 +961,7 @@ private:
     public:
         virtual ~RowGeneratorBase() = default;
 
-        RowGeneratorBase(CodeGenerator &c, std::shared_ptr<const EventPropagationProcess> process,
+        RowGeneratorBase(CodeGenerator &c, std::shared_ptr<const EventPropagationProcessBase> process,
                          const Model::StateFields &stateFields,
                          ScalarRegisterAllocator &scalarRegisterAllocator, 
                          VectorRegisterAllocator &vectorRegisterAllocator)
@@ -903,41 +970,31 @@ private:
         {
             // Allocate register for stride, calculate and load as immediate
             m_StrideReg = scalarRegisterAllocator.getRegister("SStride = X");
-            c.li(*m_StrideReg, ceilDivide(process->getMaxRowLength(), 32) * 64);
+            c.li(*m_StrideReg, ceilDivide(getProcess()->getMaxRowLength(), 32) * 64);
 
         }
-
-        //--------------------------------------------------------------------
-        // Declared virtuals
-        //--------------------------------------------------------------------
-        virtual void generateRow(CodeGenerator &cg, ScalarRegisterAllocator::RegisterPtr weightBufferReg) = 0;
-
-        //--------------------------------------------------------------------
-        // Public API
-        //--------------------------------------------------------------------
-        auto getStrideReg() const{ return m_StrideReg; }
-
-    protected:
+    
+protected:
         //--------------------------------------------------------------------
         // Protected API
         //--------------------------------------------------------------------
-        auto getProcess() const{ return m_Process; }
-  
         auto &getStateFields(){ return m_StateFields.get(); }
         auto &getScalarRegisterAllocator(){ return m_ScalarRegisterAllocator.get(); }
         auto &getVectorRegisterAllocator(){ return m_VectorRegisterAllocator.get(); }
-        
-    public:
+
+public:
         //--------------------------------------------------------------------
-        // Public API
+        // Declared virtuals
         //--------------------------------------------------------------------
-        auto loadWeightBuffer(CodeGenerator &c, ScalarRegisterAllocator::RegisterPtr idPreReg)
+        virtual void generateRow(CodeGenerator &cg, ScalarRegisterAllocator::RegisterPtr weightBufferReg, bool firstBuffer) = 0;
+
+        virtual ScalarRegisterAllocator::RegisterPtr loadWeightBuffer(CodeGenerator &c, ScalarRegisterAllocator::RegisterPtr idPreReg)
         {
             auto &scalarRegisterAllocator = getScalarRegisterAllocator();
 
             // SWeightBuffer = weightInHidStart + (numPostVecs * 64 * SN);
             ALLOCATE_SCALAR(SWeightBuffer);
-            c.lw(*SWeightBuffer, Reg::X0, getStateFields().at(getProcess()->getWeight()));
+            c.lw(*SWeightBuffer, Reg::X0, getStateFields().at(getProcess<EventPropagationProcess>()->getWeight()));
             {
                 ALLOCATE_SCALAR(STemp);
                 c.mul(*STemp, *idPreReg, *m_StrideReg);
@@ -946,16 +1003,38 @@ private:
 
             return SWeightBuffer;
         }
+
+        //! Load next vector of presynaptic state
+        virtual void loadPreStateVector(CodeGenerator &c) {}
+
+        //! Extract presynaptic state corresponding to ID pre into buffer
+        //! **NOTE** when used with double-buffered loop, two buffers may be used
+        virtual void extractPreState(CodeGenerator &c, ScalarRegisterAllocator::RegisterPtr idPreReg, 
+                                     bool firstBuffer) {}
+
+        //--------------------------------------------------------------------
+        // Public API
+        //--------------------------------------------------------------------
+        auto getStrideReg() const{ return m_StrideReg; }
+
+        // **TODO** make protected once extra loop is removed
+        template<typename T = EventPropagationProcess>
+        std::shared_ptr<const T> getProcess() const
+        {
+            return std::static_pointer_cast<const T>(m_Process);
+        }
+      
     private:
         //--------------------------------------------------------------------
         // Members
         //--------------------------------------------------------------------
-        std::shared_ptr<const EventPropagationProcess> m_Process;
+        std::shared_ptr<const EventPropagationProcessBase> m_Process;
         ScalarRegisterAllocator::RegisterPtr m_StrideReg;
         std::reference_wrapper<const Model::StateFields> m_StateFields;
         std::reference_wrapper<ScalarRegisterAllocator> m_ScalarRegisterAllocator;
         std::reference_wrapper<VectorRegisterAllocator> m_VectorRegisterAllocator;
     };
+
 
     //------------------------------------------------------------------------
     // DenseRowGenerator
@@ -968,7 +1047,7 @@ private:
         //--------------------------------------------------------------------
         // RowGeneratorBase virtuals
         //--------------------------------------------------------------------
-        virtual void generateRow(CodeGenerator &c, ScalarRegisterAllocator::RegisterPtr weightBufferReg) final override
+        virtual void generateRow(CodeGenerator &c, ScalarRegisterAllocator::RegisterPtr weightBufferReg, bool) final override
         {
             // Make some friendlier-named references
             auto &scalarRegisterAllocator = getScalarRegisterAllocator();
@@ -994,7 +1073,6 @@ private:
                 {
                     // Load vector of weights
                     c.vloadv(*VWeight, *weightBufferReg, r * 64);
-
                     // Load NEXT vector of target to avoid stall
                     // **YUCK** in last iteration, while this may not be accessed, it may be out of bounds                  
                     c.vloadv(even ? *VTarget2 : *VTarget1, *STargetBuf, (r + 1) * 64);
@@ -1021,6 +1099,296 @@ private:
         }   
     };
 
+
+    //------------------------------------------------------------------------
+    // STDPDenseRowGenerator
+    //------------------------------------------------------------------------
+    class STDPDenseRowGenerator : public RowGeneratorBase
+    {
+    public:
+        STDPDenseRowGenerator(CodeGenerator &c, std::shared_ptr<const STDPEventPropagationProcess> process,
+                              const Model::StateFields &stateFields,
+                              ScalarRegisterAllocator &scalarRegisterAllocator, 
+                              VectorRegisterAllocator &vectorRegisterAllocator,
+                              bool useDRAMForWeights)
+        :   RowGeneratorBase(c, process, stateFields, scalarRegisterAllocator, vectorRegisterAllocator)
+        {
+            // Allocate registers
+            m_TimeSinceLastSpikeVector = vectorRegisterAllocator.getRegister("VTimeSinceLastSpike");
+            m_TimeSinceLastSpikeBuf = scalarRegisterAllocator.getRegister("STimeSinceLastSpikeBuf");
+            m_TimeSinceLastSpikeA = scalarRegisterAllocator.getRegister("STimeSinceLastSpikeA");
+
+            // If we are using DRAM for weights, we need to double-buffer these values so allocate additional register
+            if(useDRAMForWeights) {
+                m_TimeSinceLastSpikeB = scalarRegisterAllocator.getRegister("STimeSinceLastSpikeB");
+            }
+            
+            // Load address of time since last spike
+            c.lw(*m_TimeSinceLastSpikeBuf, Reg::X0, getStateFields().at(process->getPreTimeSinceLastSpike()));
+        }
+
+        //--------------------------------------------------------------------
+        // RowGeneratorBase virtuals
+        //--------------------------------------------------------------------
+        //! Load next vector of presynaptic state
+        virtual void loadPreStateVector(CodeGenerator &c) override final
+        {
+            // Load vector of times since last spike and increment
+            c.vloadv(*m_TimeSinceLastSpikeVector, *m_TimeSinceLastSpikeBuf);
+            c.addi(*m_TimeSinceLastSpikeBuf, *m_TimeSinceLastSpikeBuf, 64);
+        }
+
+        //! Extract presynaptic state corresponding to ID pre into buffer
+        //! **NOTE** when used with double-buffered loop, two buffers may be used
+        virtual void extractPreState(CodeGenerator &c, ScalarRegisterAllocator::RegisterPtr idPreReg, 
+                                     bool firstBuffer)
+        {
+            auto &scalarRegisterAllocator = getScalarRegisterAllocator();
+
+            // Get index within presynaptic state vector from id-pre
+            ALLOCATE_SCALAR(STmp);
+            c.andi(*STmp, *idPreReg, 0x1f);
+            
+            // Extract time since last spike into appropriate buffer
+            c.vextract(firstBuffer ? *m_TimeSinceLastSpikeA : *m_TimeSinceLastSpikeB,
+                       *m_TimeSinceLastSpikeVector, *STmp);
+            // **TODO** multiple by dt and alpha + beta
+        }
+
+        virtual ScalarRegisterAllocator::RegisterPtr loadWeightBuffer(CodeGenerator &c, ScalarRegisterAllocator::RegisterPtr idPreReg) override final
+        {
+            auto &scalarRegisterAllocator = getScalarRegisterAllocator();
+
+            // SWeightBuffer = weightInHidStart + (numPostVecs * 64 * SN);
+            ALLOCATE_SCALAR(SWeightBuffer);
+            c.lw(*SWeightBuffer, Reg::X0, getStateFields().at(getProcess<STDPEventPropagationProcess>()->getX()));
+            {
+                ALLOCATE_SCALAR(STemp);
+                c.mul(*STemp, *idPreReg, *getStrideReg());
+                c.add(*SWeightBuffer, *SWeightBuffer, *STemp);
+            }
+
+            return SWeightBuffer;
+        }
+
+
+        // weightBufferReg contains the address of the weights from one presynaptic neuron which spiked 
+        // to its many downstream postsynaptic neurons
+        virtual void generateRow(CodeGenerator &c, ScalarRegisterAllocator::RegisterPtr weightBufferReg, bool firstBuffer) final override
+        {
+            // Make some friendlier-named references
+            auto &scalarRegisterAllocator = getScalarRegisterAllocator();
+            auto &vectorRegisterAllocator = getVectorRegisterAllocator();
+
+            ALLOCATE_VECTOR(VTarget);
+            ALLOCATE_VECTOR(X);
+            ALLOCATE_VECTOR(XAdjusted)
+            ALLOCATE_VECTOR(VTargetNew);
+            ALLOCATE_VECTOR(Target);
+            ALLOCATE_VECTOR(TargetVoltage);
+            ALLOCATE_VECTOR(TargetCalcium);   
+            
+            ALLOCATE_SCALAR(TargetBuf);
+            ALLOCATE_SCALAR(TargetVoltageBuf);
+            ALLOCATE_SCALAR(TargetCalciumBuf);
+            ALLOCATE_SCALAR(XBuf);
+
+            ALLOCATE_SCALAR(CompareScalar);
+            ALLOCATE_SCALAR(CompareScalar2);
+            ALLOCATE_SCALAR(CompareScalar3);
+            ALLOCATE_VECTOR(J);
+            ALLOCATE_VECTOR(JPlus);
+            ALLOCATE_VECTOR(JMinus);
+
+            ALLOCATE_VECTOR(Beta);
+            ALLOCATE_VECTOR(Alpha);
+            ALLOCATE_VECTOR(SummedBeta);
+            ALLOCATE_VECTOR(SummedAlpha);
+            ALLOCATE_VECTOR(ThetaXMinusBeta);
+            ALLOCATE_VECTOR(XPlusSummedAlpha);
+            ALLOCATE_VECTOR(ThetaX);
+            ALLOCATE_VECTOR(XMax);
+    
+
+            ALLOCATE_VECTOR(ThetaLowUp);
+            ALLOCATE_VECTOR(ThetaHighUp);
+            ALLOCATE_VECTOR(ThetaLowDown);
+            ALLOCATE_VECTOR(ThetaHighDown);
+
+            ALLOCATE_VECTOR(ZeroVec);
+
+            ALLOCATE_VECTOR(ThetaV);
+            ALLOCATE_VECTOR(XMinusB);
+            ALLOCATE_VECTOR(XPlusA);
+            ALLOCATE_VECTOR(B);
+            ALLOCATE_VECTOR(A);
+
+            auto process = getProcess<STDPEventPropagationProcess>();
+
+            // Get reference to scalar register containing time since presynpatic spike
+            // **CARTER** use this to calculate weight decay if no criteria met
+            auto &timeSinceLastSpike = firstBuffer ? m_TimeSinceLastSpikeA : m_TimeSinceLastSpikeB;
+
+            // Get the type of the Target, Calcium, Voltage, and X
+            const auto &numericTypeTarget = process->getTarget()->getType().getNumeric();
+            assert(numericTypeTarget.fixedPoint);
+            const auto &numericTypeCPre = process->getCPre()->getType().getNumeric();
+            assert(numericTypeCPre.fixedPoint);
+            const auto &numericTypeVPre = process->getVPre()->getType().getNumeric();
+            assert(numericTypeVPre.fixedPoint);
+            const auto &numericTypeX = process->getX()->getType().getNumeric();
+            assert(numericTypeX.fixedPoint);
+            // Assert each of the above vars uses the same number of fixed point bits
+            assert((numericTypeTarget.fixedPoint.value() == numericTypeCPre.fixedPoint.value()) && 
+                (numericTypeTarget.fixedPoint.value() == numericTypeVPre.fixedPoint.value()) &&
+                (numericTypeTarget.fixedPoint.value() == numericTypeX.fixedPoint.value()));
+
+            c.vlui(*Beta, convertFixedPoint(process->getBeta(), numericTypeTarget.fixedPoint.value()));
+            c.vlui(*Alpha, convertFixedPoint(process->getAlpha(), numericTypeTarget.fixedPoint.value()));
+            c.vlui(*ThetaV, convertFixedPoint(process->getThetaV(), numericTypeTarget.fixedPoint.value()));
+            c.vlui(*A, convertFixedPoint(process->getA(), numericTypeTarget.fixedPoint.value()));
+            c.vlui(*B, convertFixedPoint(process->getB(), numericTypeTarget.fixedPoint.value()));
+            // Load threshold variables
+            c.vlui(*ThetaLowUp, convertFixedPoint(process->getThetaLowUp(), numericTypeTarget.fixedPoint.value()));
+            c.vlui(*ThetaHighUp, convertFixedPoint(process->getThetaHighUp(), numericTypeTarget.fixedPoint.value()));
+            c.vlui(*ThetaLowDown, convertFixedPoint(process->getThetaLowDown(), numericTypeTarget.fixedPoint.value()));
+            c.vlui(*ThetaHighDown, convertFixedPoint(process->getThetaHighDown(), numericTypeTarget.fixedPoint.value()));
+            // Load the threshold: if X is above (below) threshold, synapse is J+ (J-)
+            c.vlui(*ThetaX, convertFixedPoint(process->getThetaX(), numericTypeTarget.fixedPoint.value()));
+            c.vlui(*JMinus, convertFixedPoint(process->getJMinus(), numericTypeTarget.fixedPoint.value()));
+            c.vlui(*JPlus, convertFixedPoint(process->getJPlus(), numericTypeTarget.fixedPoint.value()));
+            c.vlui(*XMax, convertFixedPoint(process->getXMax(), numericTypeTarget.fixedPoint.value()));
+            // Load vector of zeros
+            c.vfill(*ZeroVec, Reg::X0);
+            // Initialize J as JMinus
+            c.vadd_s(*J, *ZeroVec, *JMinus);
+
+            // Load target register, voltage, and calcium vars from state fields
+            // **NOTE** no point in caching this as it needs resetting every row
+            c.lw(*TargetBuf, Reg::X0, getStateFields().at(process->getTarget()));
+            c.lw(*TargetVoltageBuf, Reg::X0, getStateFields().at(process->getVPre()));
+            c.lw(*TargetCalciumBuf, Reg::X0, getStateFields().at(process->getCPre()));
+            c.lw(*XBuf, Reg::X0, getStateFields().at(process->getX()));
+            
+
+            // TODO: Confirm spiking on last trial means timeSinceLastSpike=0
+            c.vfill(*SummedBeta, *timeSinceLastSpike);
+            // Use shift of 0 because timeSinceLastSpike is an integer
+            c.vmul_s_rn(0, *SummedBeta, *Beta, *SummedBeta);
+            c.vsub_s(*ThetaXMinusBeta, *ThetaX, *SummedBeta);
+            // Use shift of 0 because timeSinceLastSpike is an integer
+            c.vfill(*SummedAlpha, *timeSinceLastSpike);
+            c.vmul_s_rn(0, *SummedAlpha, *Alpha, *SummedAlpha);
+                                            
+            AssemblerUtils::unrollVectorLoopBody(
+                c, scalarRegisterAllocator, process->getNumTargetNeurons(), 4, *TargetBuf,
+                [this, weightBufferReg, TargetBuf, X, VTarget, VTargetNew, 
+                CompareScalar, CompareScalar2, CompareScalar3, ZeroVec,
+                J, ThetaX, JPlus, TargetVoltage, TargetCalcium,
+                A, B, TargetCalciumBuf, TargetVoltageBuf, ThetaLowUp, XBuf,
+                ThetaV, XMinusB, XPlusA, SummedBeta, SummedAlpha, XPlusSummedAlpha, ThetaXMinusBeta,
+                ThetaHighUp, ThetaLowDown, ThetaHighDown, XMax, XAdjusted]
+                (CodeGenerator &c, uint32_t r, bool even, ScalarRegisterAllocator::RegisterPtr maskReg)
+                {
+                    ///////////////////////////////////////////////////////////////////////////////////////////
+                    // Update X based on time since last spike 
+                    // Load X
+                    // c.vloadv(*X, *weightBufferReg, r * 64);
+                    c.vloadv(*X, *XBuf, r * 64); 
+                    // Load target voltage since using X on next timestep; this keeps us from needing a no-op
+                    // to prevent a RAW hazard
+                    c.vloadv(*TargetVoltage, *TargetVoltageBuf, r * 64);
+                    // Might as well also load target postsynaptic input here
+                    c.vloadv(*VTarget, *TargetBuf, r * 64);
+                    // Calculate X plus summed alpha
+                    c.vadd_s(*XPlusSummedAlpha, *SummedAlpha, *X);
+                    // Subtract summed beta from X as if we knew X was less than or equal to ThetaX
+                    c.vsub_s(*XAdjusted, *X, *SummedBeta);
+                    // Determine which X are still greater than ThetaX-(timeSinceLastSpike*Beta), indicating
+                    // X was greater than ThetaX prior to the subtraction
+                    c.vtlt(*CompareScalar, *ThetaXMinusBeta, *XAdjusted);
+                    // For these X, change their values to X+(timeSinceLastSpike*Alpha)
+                    c.vsel(*XAdjusted, *CompareScalar, *XPlusSummedAlpha);
+
+                    ///////////////////////////////////////////////////////////////////////////////////////////
+                    // Adjust X following the spike 
+                    //
+                    // If (postsynaptic voltage <= voltage_thresh and ThetaLowDown <  postsynaptic calcium < ThetaHighDown )
+                    //      X = X - b
+                    // Load target calcium variables
+                    c.vloadv(*TargetCalcium, *TargetCalciumBuf, r * 64);
+                    c.vsub_s(*XMinusB, *X, *B);
+                    c.vtge(*CompareScalar, *ThetaV, *TargetVoltage);
+                    c.vtlt(*CompareScalar2, *ThetaLowDown, *TargetCalcium);
+                    c.vtlt(*CompareScalar3, *TargetCalcium, *ThetaHighDown);
+                    // Determine which neurons met all criteria for the update
+                    c.and_(*CompareScalar, *CompareScalar,*CompareScalar2);
+                    c.and_(*CompareScalar, *CompareScalar,*CompareScalar3);
+                    // Change XAdjusted for those neurons
+                    c.vsel(*XAdjusted, *CompareScalar, *XMinusB);
+                    
+                    // If (postsynaptic voltage > voltage_thresh and ThetaLowUp <  postsynaptic calcium < ThetaHighUp )
+                    //      X = X + a
+                    c.vadd_s(*XPlusA, *X, *A);
+                    c.vtlt(*CompareScalar, *ThetaV,*TargetVoltage);
+                    c.vtlt(*CompareScalar2, *ThetaLowUp, *TargetCalcium);
+                    c.vtlt(*CompareScalar3, *TargetCalcium, *ThetaHighUp);
+                    // Determine which neurons met all criteria for the update
+                    c.and_(*CompareScalar, *CompareScalar,*CompareScalar2);
+                    c.and_(*CompareScalar, *CompareScalar,*CompareScalar3);
+                    // Change XAdjusted for those neurons
+                    c.vsel(*XAdjusted, *CompareScalar, *XPlusA);
+
+                    // Ensure 0 <= X <= XMax
+                    c.vtlt(*CompareScalar, *XMax, *XAdjusted);
+                    c.vsel(*XAdjusted, *CompareScalar, *XMax);
+                    c.vtlt(*CompareScalar, *XAdjusted, *ZeroVec);
+                    c.vsel(*XAdjusted, *CompareScalar, *ZeroVec);
+                    c.vstore(*XAdjusted, *XBuf, r * 64);
+                   
+                   
+                    ///////////////////////////////////////////////////////////////////////////////////////////
+                    // Calculate input to postsynaptic target after calculating J 
+                    // X > ThetaX ? J=JPlus : J=JMinus
+                    // Remember that J was already assigned the value of JMinus
+                    c.vtlt(*CompareScalar, *ThetaX, *XAdjusted);
+                    c.vsel(*J, *CompareScalar, *JPlus);
+
+                    // Add weights to ISyn
+                    // If the number of postsynaptic neurons is not cleanly divisible by number of vector elements 
+                    // we apply a mask for the remainder
+                    if(maskReg) {
+                        c.vadd_s(*VTargetNew, *VTarget, *J);
+                        c.vsel(*VTarget, *maskReg, *VTargetNew);
+                    }
+                    else {
+                        c.vadd_s(*VTarget, *VTarget, *J);
+                    }
+                    // Write back target
+                    c.vstore(*VTarget, *TargetBuf, r * 64);
+                    
+                   
+
+                },
+                [this, weightBufferReg, TargetBuf, TargetVoltageBuf, TargetCalciumBuf, XBuf](CodeGenerator &c, uint32_t numUnrolls)
+                {
+                    // Increment pointers 
+                    c.addi(*weightBufferReg, *weightBufferReg, 64 * numUnrolls);
+                    c.addi(*TargetBuf, *TargetBuf, 64 * numUnrolls);
+                    c.addi(*TargetVoltageBuf, *TargetVoltageBuf, 64 * numUnrolls);
+                    c.addi(*TargetCalciumBuf, *TargetCalciumBuf, 64 * numUnrolls);
+                    c.addi(*XBuf, *XBuf, 64 * numUnrolls);
+
+                });
+        }
+    private:
+        VectorRegisterAllocator::RegisterPtr m_TimeSinceLastSpikeVector;
+        ScalarRegisterAllocator::RegisterPtr m_TimeSinceLastSpikeBuf;
+        ScalarRegisterAllocator::RegisterPtr m_TimeSinceLastSpikeA;
+        ScalarRegisterAllocator::RegisterPtr m_TimeSinceLastSpikeB;
+    };
+
+
     //------------------------------------------------------------------------
     // SparseRowGenerator
     //------------------------------------------------------------------------
@@ -1042,7 +1410,7 @@ private:
         //--------------------------------------------------------------------
         // RowGeneratorBase virtuals
         //--------------------------------------------------------------------
-        virtual void generateRow(CodeGenerator &c, ScalarRegisterAllocator::RegisterPtr weightBufferReg) final override
+        virtual void generateRow(CodeGenerator &c, ScalarRegisterAllocator::RegisterPtr weightBufferReg, bool) final override
         {
             // Make some friendlier-named references
             auto &scalarRegisterAllocator = getScalarRegisterAllocator();
@@ -1121,7 +1489,7 @@ private:
         //--------------------------------------------------------------------
         // RowGeneratorBase virtuals
         //--------------------------------------------------------------------
-        virtual void generateRow(CodeGenerator &c, ScalarRegisterAllocator::RegisterPtr weightBufferReg) final override
+        virtual void generateRow(CodeGenerator &c, ScalarRegisterAllocator::RegisterPtr weightBufferReg, bool) final override
         {
             // Make some friendlier-named references
             auto &scalarRegisterAllocator = getScalarRegisterAllocator();
@@ -1667,6 +2035,12 @@ private:
         m_EventPropagationProcesses[eventPropagationProcess->getInputEvents()].emplace_back(eventPropagationProcess);
     }
 
+    virtual void visit(std::shared_ptr<const STDPEventPropagationProcess> stdpEventPropagationProcess)
+    {
+        // Add event propagation process to vector of processes with same input event container
+        m_EventPropagationProcesses[stdpEventPropagationProcess->getInputEvents()].emplace_back(stdpEventPropagationProcess);
+    }
+
     //------------------------------------------------------------------------
     // Private methods
     //------------------------------------------------------------------------
@@ -1741,6 +2115,7 @@ private:
     {
         // Make some friendlier-named references
         auto &scalarRegisterAllocator = m_ScalarRegisterAllocator.get();
+
         auto &c = m_CodeGenerator.get();
 
         ALLOCATE_SCALAR(SWordNStart);
@@ -1761,6 +2136,8 @@ private:
         // SWordNStart = 31
         c.li(*SWordNStart, 31);
         
+        // This iterates through the bitfield of spikes by having an outer loop of 32-bit words
+        // and an inner loop which counts the number of leading zeros (CLZ instruction)
         // Outer word loop
         c.L(wordLoop);
         {
@@ -1770,6 +2147,11 @@ private:
             // SEventWord = *SEventBuffer++
             c.lw(*SEventWord, *eventBufferReg);
             c.addi(*eventBufferReg, *eventBufferReg, 4);
+
+            // Load any presynaptic state associated with each row generator
+            for(auto &r : rowGenerators) {
+                r->loadPreStateVector(c);
+            }
 
             // If SEventWord == 0, goto bitloop end
             c.beq(*SEventWord, Reg::X0, bitLoopEnd);
@@ -1802,8 +2184,10 @@ private:
 
                 // Loop through row generators and generate code to process rows
                 for(auto &r : rowGenerators) {
+                    // SN tells us which weights we actually want to load
                     auto weightBufferReg = r->loadWeightBuffer(c, SN);
-                    r->generateRow(c, weightBufferReg);
+                    r->extractPreState(c, SN, true);
+                    r->generateRow(c, weightBufferReg, true);
                 }
 
                 // SN --
@@ -1886,6 +2270,11 @@ private:
             c.lw(*SPrefetchEventWord, *eventBufferReg);
             c.addi(*eventBufferReg, *eventBufferReg, 4);
 
+            // Load any presynaptic state associated with each row generator
+            for(auto &r : rowGenerators) {
+                r->loadPreStateVector(c);
+            }
+            
             c.addi(*SPrefetchCurrentWordStartID, *SCurrentWordStartID, 32);
 
             // If PrefetchEventWord != 0, goto prefetchWord
@@ -1982,7 +2371,7 @@ private:
                 {
                     ALLOCATE_SCALAR(SRowBuffer);
                     c.mv(*SRowBuffer, evenRow ? *SRowBufferA : *SRowBufferB);
-                    rowGenerators[r]->generateRow(c, SRowBuffer);
+                    rowGenerators[r]->generateRow(c, SRowBuffer, evenRow);
                 }
             }    
 
@@ -2019,7 +2408,7 @@ private:
             {
                 ALLOCATE_SCALAR(SRowBuffer);
                 c.mv(*SRowBuffer, evenNumRows ? *SRowBufferB : *SRowBufferA);
-                rowGenerators.back()->generateRow(c, SRowBuffer);
+                rowGenerators.back()->generateRow(c, SRowBuffer, !evenNumRows);
             }
 
             // If we have an odd number of rows, swap buffers
@@ -2058,6 +2447,11 @@ private:
                 c.lw(*SCurrentEventWord, *eventBufferReg);
                 c.addi(*SPrevWordStartID, *SCurrentWordStartID, 32);
                 
+                // Load any presynaptic state associated with each row generator
+                for(auto &r : rowGenerators) {
+                    r->loadPreStateVector(c);
+                }
+                
                 // If nextEventWord < eventWordEnd i.e. there is a next goto nextEventWord
                 c.bgeu(*eventBufferEndReg, *SNextEventBuffer, nextEventWord);
             }
@@ -2080,21 +2474,22 @@ private:
                 {
                     ALLOCATE_SCALAR(SRowBuffer);
                     c.mv(*SRowBuffer, evenRow ? *SRowBufferA : *SRowBufferB);
-                    rowGenerators[r]->generateRow(c, SRowBuffer);
+                    rowGenerators[r]->generateRow(c, SRowBuffer, evenRow);
                 }
 
             }
 
             // Generate code to process final row
             AssemblerUtils::generateDMAWaitForWriteComplete(c, scalarRegisterAllocator);
-            rowGenerators.back()->generateRow(c, evenNumRows ? SRowBufferB : SRowBufferA);
+            rowGenerators.back()->generateRow(c, evenNumRows ? SRowBufferB : SRowBufferA, !evenNumRows);
 
         }
 
         c.L(end);
     }
 
-    void generateEventPropagationProcesses(const std::vector<std::shared_ptr<const EventPropagationProcess>> &processes)
+
+    void generateEventPropagationProcesses(const std::vector<std::shared_ptr<const EventPropagationProcessBase>> &processes)
     {
         // Make some friendlier-named references
         auto &scalarRegisterAllocator = m_ScalarRegisterAllocator.get();
@@ -2136,33 +2531,39 @@ private:
             c.add(*SEventBufferEnd, *STmp, *SEventBuffer);
         }
 
-        // If any processes have delay, load lower 16-bits of time into vector register
-        VectorRegisterAllocator::RegisterPtr vectorTimeReg;
-        if(std::any_of(processes.cbegin(), processes.cend(), 
-           [](const auto &p){ return (p->getNumDelayBits() > 0); }))
-        {
-            vectorTimeReg = vectorRegisterAllocator.getRegister("VTime V");
-            c.vfill(*vectorTimeReg, *m_TimeRegister);
-            c.vslli(1, *vectorTimeReg, *vectorTimeReg);
-        }
-
         // Loop through postsynaptic targets and create appropriate row generator objects
         std::vector<std::unique_ptr<RowGeneratorBase>> rowGenerators;
+        VectorRegisterAllocator::RegisterPtr vectorTimeReg;
         for(const auto &p : processes) {
-            if(p->getNumSparseConnectivityBits() > 0) { 
-                rowGenerators.emplace_back(
-                    std::make_unique<SparseRowGenerator>(c, p, processFields.at(p), scalarRegisterAllocator, 
-                                                         vectorRegisterAllocator));
-            }
-            else if(p->getNumDelayBits() > 0) {
-                rowGenerators.emplace_back(
-                    std::make_unique<DelayedRowGenerator>(c, p, processFields.at(p), vectorTimeReg,
-                                                          scalarRegisterAllocator, vectorRegisterAllocator));
+            const auto &stateFields = processFields.at(p);
+            auto e = std::dynamic_pointer_cast<const EventPropagationProcess>(p);
+            if(e) {
+                if(e->getNumSparseConnectivityBits() > 0) {
+                    rowGenerators.emplace_back(
+                        std::make_unique<SparseRowGenerator>(c, e, stateFields, scalarRegisterAllocator,
+                                                             vectorRegisterAllocator));
+                }
+                else if(e->getNumDelayBits() > 0) {
+                    if(!vectorTimeReg) {
+                        vectorTimeReg = vectorRegisterAllocator.getRegister("VTime V");
+                        c.vfill(*vectorTimeReg, *m_TimeRegister);
+                        c.vslli(1, *vectorTimeReg, *vectorTimeReg);
+                    }
+                    rowGenerators.emplace_back(
+                        std::make_unique<DelayedRowGenerator>(c, e, stateFields, vectorTimeReg,
+                                                              scalarRegisterAllocator, vectorRegisterAllocator));
+                }
+                else {
+                    rowGenerators.emplace_back(
+                        std::make_unique<DenseRowGenerator>(c, e, stateFields, scalarRegisterAllocator,
+                                                            vectorRegisterAllocator));
+                }
             }
             else {
                 rowGenerators.emplace_back(
-                    std::make_unique<DenseRowGenerator>(c, p, processFields.at(p), scalarRegisterAllocator, 
-                                                        vectorRegisterAllocator));
+                    std::make_unique<STDPDenseRowGenerator>(c, std::dynamic_pointer_cast<const STDPEventPropagationProcess>(p), 
+                                                            stateFields, scalarRegisterAllocator, vectorRegisterAllocator, 
+                                                            m_UseDRAMForWeights));
             }
         }
     
@@ -2179,7 +2580,7 @@ private:
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
-    std::unordered_map<std::shared_ptr<const EventContainer>, std::vector<std::shared_ptr<const EventPropagationProcess>>> m_EventPropagationProcesses;
+    std::unordered_map<std::shared_ptr<const EventContainer>, std::vector<std::shared_ptr<const EventPropagationProcessBase>>> m_EventPropagationProcesses;
     ScalarRegisterAllocator::RegisterPtr m_TimeRegister;
     std::optional<uint32_t> m_NumTimesteps;
     std::reference_wrapper<CodeGenerator> m_CodeGenerator;

@@ -431,7 +431,7 @@ int main(int argc, char** argv)
 #ifdef RECORD_HIDDEN_VAR
                             ALLOCATE_SCALAR(STmp);
                             for(int l = 0; l < 32; l++) {
-                                c.vextract(*STmp, *RECORD_HIDDEN_VAR, l);
+                                c.vextracti(*STmp, *RECORD_HIDDEN_VAR, l);
                                 c.sh(*STmp, *SHiddenVarRecordingBuffer, l * 2);
                             }
                             c.addi(*SHiddenVarRecordingBuffer, *SHiddenVarRecordingBuffer, 64);
@@ -550,7 +550,7 @@ int main(int argc, char** argv)
 #ifdef RECORD_OUTPUT_VAR
                         ALLOCATE_SCALAR(STmp);
                         for(int l = 0; l < numOutput; l++) {
-                            c.vextract(*STmp, *RECORD_OUTPUT_VAR, l);
+                            c.vextracti(*STmp, *RECORD_OUTPUT_VAR, l);
                             c.sh(*STmp, *SOutputVarRecordingBuffer, l * 2);
                         }
                         c.addi(*SOutputVarRecordingBuffer, *SOutputVarRecordingBuffer, numOutput * 2);
@@ -594,7 +594,7 @@ int main(int argc, char** argv)
                     ALLOCATE_SCALAR(SVal);
             
                     // Extract lane into scalar registers
-                    c.vextract(*SVal, *VVSum, l);
+                    c.vextracti(*SVal, *VVSum, l);
 
                     // Store halfword
                     c.sh(*SVal, *SVSumScalarBuffer, l * 2);

@@ -169,17 +169,23 @@ void disassembleVMov(std::ostream &os, uint32_t inst)
     if(type == +VMovType::VFILL) {
         os << "VFILL V" << rd << ", X" << rs1;
     }
-    else if(type == +VMovType::VEXTRACT) {
-        os << "VEXTRACT X" << rd << ", V" << rs1 << ", " << imm;
+    else if(type == +VMovType::VEXTRACTI) {
+        os << "VEXTRACTI X" << rd << ", V" << rs1 << ", " << imm;
     }
 }
 
 void disassembleVSpc(std::ostream &os, uint32_t inst)
 {
-    const auto [imm, rs1, funct3, rd] = decodeIType(inst);
+    const auto [funct7, rs2, rs1, funct3, rd] = decodeRType(inst);
     const auto type = getVSpcType(funct3);
 
     os << type._to_string() << " V" << rd;
+    if(type != +VSpcType::VRNG) {
+        os << ", V" << rs1 << ", X" << rs2;
+        if(type == +VSpcType::VANDADD) {
+            os << ", " << (funct7 & 0b1111);
+        }
+    }
 }
 
 const std::unordered_map<StandardOpCode, DisassembleFunc> standardInstructionDecoders{

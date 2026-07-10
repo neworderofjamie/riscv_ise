@@ -258,9 +258,9 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
                       (int16_t)((val & 0x80000000) >> 16 | (val & 0x7FFF)));
             writeVReg(rd, rdVec);
         }
-        // VEXTRACT
-        else if(type == +VMovType::VEXTRACT) {
-            PLOGV << "VEXTRACT " << rs1;
+        // VEXTRACTI
+        else if(type == +VMovType::VEXTRACTI) {
+            PLOGV << "VEXTRACTI " << rs1;
             PLOGV << "\t" << rd;
             if(imm < 0 || imm > 31) {
                 throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
@@ -306,6 +306,8 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
             const uint16_t mask = (1 << fixedPoint) - 1;
 
             PLOGV << "VANDADD " << rs1 << " " << rs2;
+            PLOGV << "\t" << rd;
+
             const auto &val = readVReg(rs1);
             const int16_t val2 = reg[rs2];
             writeVReg(rd, 
@@ -314,6 +316,14 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
                         { 
                             return (a & mask) + val2; 
                         }));
+        }
+        else if(type == +VSpcType::VEXTRACT) {
+            PLOGV << "VEXTRACT " << rs1 << " " << rs2;
+            PLOGV << "\t" << rd;
+
+            // Sign extend to 32-bit
+            const int32_t val = readVReg(rs1).at(reg[rs2]);
+            reg[rd] = (uint32_t)val;
         }
         else {
             throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
@@ -395,6 +405,9 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
     case VectorOpCode::VTST:
     {
         const auto [funct7, rs2, rs1, funct3, rd] = decodeRType(inst);
+        // This is smart -- it returns a single number e.g., 9 (1001) where
+        // a 1 in that position indicates if the logical operation is true. 
+        // It's a 32 bit number because there are 32 neurons in the register.
         const uint32_t val = calcTestResult(inst, rs2, rs1, funct3);
         PLOGV << "\t" << rd;
         if (rd != 0) {

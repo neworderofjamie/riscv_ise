@@ -69,10 +69,39 @@ private:
     size_t m_NumNeurons;
 };
 
+
+
+//----------------------------------------------------------------------------
+// EventPropagationProcessBase
+//----------------------------------------------------------------------------
+class COMPILER_EXPORT EventPropagationProcessBase : public Process
+{
+public:
+    //------------------------------------------------------------------------
+    // Public API
+    //------------------------------------------------------------------------
+    const auto getInputEvents() const { return m_InputEvents; }
+
+    size_t getNumSourceNeurons() const { return m_NumSourceNeurons; }
+
+protected:
+    EventPropagationProcessBase(std::shared_ptr<const EventContainer> inputEvents,
+                                const std::string &name);
+
+private:
+    //------------------------------------------------------------------------
+    // Members
+    //------------------------------------------------------------------------
+    std::shared_ptr<const EventContainer> m_InputEvents;
+
+    size_t m_NumSourceNeurons;
+};
+
+
 //----------------------------------------------------------------------------
 // EventPropagationProcess
 //----------------------------------------------------------------------------
-class COMPILER_EXPORT EventPropagationProcess : public AcceptableModelComponent<EventPropagationProcess, Process>
+class COMPILER_EXPORT EventPropagationProcess : public AcceptableModelComponent<EventPropagationProcess, EventPropagationProcessBase>
 {
 public:
     EventPropagationProcess(Private, std::shared_ptr<const EventContainer> inputEvents, 
@@ -83,11 +112,9 @@ public:
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
-    const auto getInputEvents() const{ return m_InputEvents; }
     const auto getWeight() const{ return m_Weight; }
     const auto getTarget() const{ return m_Target; }
 
-    size_t getNumSourceNeurons() const{ return m_NumSourceNeurons; }
     size_t getNumTargetNeurons() const{ return m_NumTargetNeurons; }
     size_t getMaxRowLength() const{ return m_MaxRowLength; }
 
@@ -111,17 +138,127 @@ private:
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
-    std::shared_ptr<const EventContainer> m_InputEvents;
     VariablePtr m_Weight;
     VariablePtr m_Target;
     
-    size_t m_NumSourceNeurons;
     size_t m_NumTargetNeurons;
     size_t m_MaxRowLength;
 
     size_t m_NumSparseConnectivityBits;
     size_t m_NumDelayBits;
 };
+
+
+//----------------------------------------------------------------------------
+// STDPEventPropagationProcess
+//----------------------------------------------------------------------------
+class COMPILER_EXPORT STDPEventPropagationProcess : public AcceptableModelComponent< STDPEventPropagationProcess, EventPropagationProcessBase>
+{
+public:
+    STDPEventPropagationProcess(Private, std::shared_ptr<const EventContainer> inputEvents, 
+                                VariablePtr x, VariablePtr preTimeSinceLastSpike,
+                                VariablePtr target, VariablePtr vPre, VariablePtr cPre,
+                                float thetaX, float a, float b, 
+                                float alpha, float beta, 
+                                float jPlus, float jMinus, 
+                                float thetaV,float thetaLowUp, 
+                                float thetaLowDown, float thetaHighUp, 
+                                float thetaHighDown, float xMax,
+                                const std::string &name);
+
+    //------------------------------------------------------------------------
+    // Public API
+    //------------------------------------------------------------------------
+
+    const auto getTarget() const { return m_Target; }
+    // const auto getX() const { return m_X; }
+    const auto getX() const { return m_X; }
+
+    const auto getPreTimeSinceLastSpike() const{ return m_PreTimeSinceLastSpike; }
+
+    const auto getVPre() const { return m_VPre; }
+    const auto getCPre() const { return m_CPre; }
+
+
+    float getThetaX() const {return m_ThetaX;}
+    float getA() const {return m_A;}
+    float getB() const {return m_B;}
+    float getAlpha() const {return m_Alpha;}
+    float getBeta() const {return m_Beta;}
+
+    float getJPlus() const {return m_JPlus;}
+    float getJMinus() const {return m_JMinus;}
+
+    float getThetaV() const {return m_ThetaV;}
+    float getThetaLowUp() const {return m_ThetaLowUp;}
+    float getThetaLowDown() const {return m_ThetaLowDown;}
+    float getThetaHighUp() const {return m_ThetaHighUp;}
+    float getThetaHighDown() const {return m_ThetaHighDown;}
+    float getXMax() const {return m_XMax;}
+
+    size_t getNumTargetNeurons() const{ return m_NumTargetNeurons; }
+    size_t getMaxRowLength() const{ return m_MaxRowLength; }
+
+    //------------------------------------------------------------------------
+    // Static API
+    //------------------------------------------------------------------------
+    static std::shared_ptr<STDPEventPropagationProcess> create(std::shared_ptr<const EventContainer> inputEvents,
+                                                               VariablePtr x, VariablePtr preTimeSinceLastSpike, 
+                                                               VariablePtr target, VariablePtr vPre, VariablePtr cPre,
+                                                               float thetaX, float a, float b, 
+                                                               float alpha, float beta, 
+                                                               float jPlus, float jMinus, 
+                                                               float thetaV,float thetaLowUp, 
+                                                               float thetaLowDown, float thetaHighUp, 
+                                                               float thetaHighDown, float xMax,
+                                                               const std::string &name)
+    {
+        return std::make_shared<STDPEventPropagationProcess>(Private(), inputEvents, 
+                                                            x, preTimeSinceLastSpike, target, vPre, cPre,
+                                                            thetaX, a, b, 
+                                                            alpha, beta, 
+                                                            jPlus, jMinus, 
+                                                            thetaV,thetaLowUp, 
+                                                            thetaLowDown, thetaHighUp, 
+                                                            thetaHighDown, xMax,
+                                                            name);
+    }
+
+private:
+    //------------------------------------------------------------------------
+    // Members
+    //------------------------------------------------------------------------
+    VariablePtr m_X;
+    VariablePtr m_Target;
+
+    VariablePtr m_PreTimeSinceLastSpike;
+
+    VariablePtr m_VPre;
+    VariablePtr m_CPre;
+
+    float m_ThetaX;
+    float m_A;
+    float m_B;
+    float m_Alpha;
+    float m_Beta;
+
+    float m_JPlus;
+    float m_JMinus;
+
+    float m_ThetaV;
+    float m_ThetaLowUp;
+    float m_ThetaLowDown;
+    float m_ThetaHighUp;
+    float m_ThetaHighDown;
+    float m_XMax;
+
+
+    size_t m_NumTargetNeurons;
+    size_t m_MaxRowLength;
+};
+
+
+
 
 //----------------------------------------------------------------------------
 // RNGInitProcess

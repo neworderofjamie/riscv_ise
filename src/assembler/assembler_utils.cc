@@ -128,7 +128,7 @@ void generateVectorScalarMemcpy(CodeGenerator &c, VectorRegisterAllocator &vecto
         // Unroll lane loop
         for(int l = 0; l < 32; l++) {
             // Extract lane into scalar registers
-            c.vextract(*SVal, *VData, l);
+            c.vextracti(*SVal, *VData, l);
 
             // Store halfword
             c.sh(*SVal, *SDataBuffer, l * 2);
@@ -179,7 +179,7 @@ void generateLaneLocalScalarMemcpy(CodeGenerator &c, VectorRegisterAllocator &ve
         // Unroll lane loop
         for(int l = 0; l < 32; l++) {
             // Extract lane into scalar registers
-            c.vextract(*SVal, *VData, l);
+            c.vextracti(*SVal, *VData, l);
 
             // Store halfword
             c.sh(*SVal, *SDataBuffer, l * 2);

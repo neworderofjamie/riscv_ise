@@ -72,6 +72,46 @@ class ALIF:
             {"Spike": self.out_spikes},
             name)
 
+
+class Linear_LIF_STDP:
+    def __init__(self, shape, lamb: float, tau_c:float, j_c:float,
+                 v_thresh: float, v_reset: float, fixed_point: int,
+                 record_timesteps: int = 1,
+                 dt: float = 1.0, name: str = ""):
+        self.shape = shape
+        dtype = f"s{15 - fixed_point}_{fixed_point}_sat_t"
+        self.v = Variable(self.shape, dtype, name=f"{name}_v")
+        self.i = Variable(self.shape, dtype, name=f"{name}_i")
+        self.c = Variable(self.shape, dtype, name=f"{name}_c")
+        self.out_spikes = EventContainer(self.shape, record_timesteps)
+        self.process = NeuronUpdateProcess(
+            f"""
+            C *= CTau;
+
+            if(V > VThresh) {{
+                V = VReset;
+                C += Jc;
+            }}
+            V += I-Lambda;
+            if(V >= VThresh) {{
+                Spike();
+            }} else if(V<VReset) {{
+                V = VReset;
+            }}   
+
+            I = 0.0h{fixed_point};
+            """,
+            {"Lambda": Parameter(lamb, dtype),
+             "VThresh": Parameter(v_thresh, dtype),
+             "VReset": Parameter(v_reset,dtype),
+             "CTau": Parameter(np.exp(-dt / tau_c), dtype),
+             "Jc": Parameter(j_c,dtype)},
+            {"V": self.v, "I": self.i, "C":self.c},
+            {"Spike": self.out_spikes},
+            name)   
+
+
+
 class LI:
     def __init__(self, shape, tau_m: float, num_timesteps: int,
                  fixed_point: int = 5, dt: float = 1.0, name: str = ""):
@@ -92,3 +132,61 @@ class LI:
              "VAvgScale": Parameter(1.0 / (num_timesteps / 2), dtype)},
             {"V": self.v, "VAvg": self.v_avg, "I": self.i, "Bias": self.bias},
             {}, name)
+        
+class Bernoulli:
+    def __init__(self, shape, prob_spike: float,
+                 record_timesteps: int = 1, name: str = ""):
+        self.shape = shape
+        self.out_spikes = EventContainer(self.shape, record_timesteps)
+        self.time_since_last_spike = Variable(self.shape, "int16_t",
+                                              name=f"{name}_time_since_last_spike")
+        self.next_time_since_last_spike = Variable(self.shape, "int16_t",
+                                        name=f"{name}_next_time_since_last_spike")
+        self.prob_spike = Parameter(prob_spike, "s0_15_sat_t")
+        
+        self.process = NeuronUpdateProcess(
+            f"""
+            TimeSinceLastSpike = NextTimeSinceLastSpike;
+            if(ProbSpike >= fennrand()) {{
+                Spike();
+                NextTimeSinceLastSpike= 0;
+            }}
+            else {{
+                NextTimeSinceLastSpike++;
+            }}
+            """,
+            {"ProbSpike": self.prob_spike},
+            {"TimeSinceLastSpike": self.time_since_last_spike,
+             "NextTimeSinceLastSpike": self.next_time_since_last_spike},
+            {"Spike": self.out_spikes},
+            name)
+        
+class BernoulliProbSpikeVar:
+    def __init__(self, shape,
+                 record_timesteps: int = 1, name: str = ""):
+        self.shape = shape
+        self.out_spikes = EventContainer(self.shape, record_timesteps)
+        self.time_since_last_spike = Variable(self.shape, "int16_t",
+                                              name=f"{name}_time_since_last_spike")
+        self.next_time_since_last_spike = Variable(self.shape, "int16_t",
+                                name=f"{name}_next_time_since_last_spike")
+        self.prob_spike = Variable(self.shape, "s0_15_sat_t", name="prob_spike")
+        
+        self.process = NeuronUpdateProcess(
+            f"""
+            TimeSinceLastSpike = NextTimeSinceLastSpike;
+            if(ProbSpike >= fennrand()) {{
+                Spike();
+                NextTimeSinceLastSpike= 0;
+            }}
+            else {{
+                NextTimeSinceLastSpike++;
+            }}
+            """,
+            {},
+            {"TimeSinceLastSpike": self.time_since_last_spike,
+             "ProbSpike": self.prob_spike,
+             "NextTimeSinceLastSpike": self.next_time_since_last_spike},
+
+            {"Spike": self.out_spikes},
+            name)

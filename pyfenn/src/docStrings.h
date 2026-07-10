@@ -287,17 +287,25 @@ static const char *__doc_EventPropagationProcess = R"doc()doc";
 
 static const char *__doc_EventPropagationProcess_2 = R"doc()doc";
 
+static const char *__doc_EventPropagationProcessBase = R"doc()doc";
+
+static const char *__doc_EventPropagationProcessBase_EventPropagationProcessBase = R"doc()doc";
+
+static const char *__doc_EventPropagationProcessBase_getInputEvents = R"doc()doc";
+
+static const char *__doc_EventPropagationProcessBase_getNumSourceNeurons = R"doc()doc";
+
+static const char *__doc_EventPropagationProcessBase_m_InputEvents = R"doc()doc";
+
+static const char *__doc_EventPropagationProcessBase_m_NumSourceNeurons = R"doc()doc";
+
 static const char *__doc_EventPropagationProcess_EventPropagationProcess = R"doc()doc";
 
 static const char *__doc_EventPropagationProcess_create = R"doc()doc";
 
-static const char *__doc_EventPropagationProcess_getInputEvents = R"doc()doc";
-
 static const char *__doc_EventPropagationProcess_getMaxRowLength = R"doc()doc";
 
 static const char *__doc_EventPropagationProcess_getNumDelayBits = R"doc()doc";
-
-static const char *__doc_EventPropagationProcess_getNumSourceNeurons = R"doc()doc";
 
 static const char *__doc_EventPropagationProcess_getNumSparseConnectivityBits = R"doc()doc";
 
@@ -307,13 +315,9 @@ static const char *__doc_EventPropagationProcess_getTarget = R"doc()doc";
 
 static const char *__doc_EventPropagationProcess_getWeight = R"doc()doc";
 
-static const char *__doc_EventPropagationProcess_m_InputEvents = R"doc()doc";
-
 static const char *__doc_EventPropagationProcess_m_MaxRowLength = R"doc()doc";
 
 static const char *__doc_EventPropagationProcess_m_NumDelayBits = R"doc()doc";
-
-static const char *__doc_EventPropagationProcess_m_NumSourceNeurons = R"doc()doc";
 
 static const char *__doc_EventPropagationProcess_m_NumSparseConnectivityBits = R"doc()doc";
 
@@ -404,6 +408,8 @@ static const char *__doc_ModelComponentVisitor_visit_8 = R"doc()doc";
 static const char *__doc_ModelComponentVisitor_visit_9 = R"doc()doc";
 
 static const char *__doc_ModelComponentVisitor_visit_10 = R"doc()doc";
+
+static const char *__doc_ModelComponentVisitor_visit_11 = R"doc()doc";
 
 static const char *__doc_ModelComponent_ModelComponent = R"doc()doc";
 
@@ -570,6 +576,94 @@ static const char *__doc_Runtime_setInstructions = R"doc()doc";
 static const char *__doc_Runtime_startRun = R"doc()doc";
 
 static const char *__doc_Runtime_waitRun = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_2 = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_STDPEventPropagationProcess = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_create = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_getA = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_getAlpha = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_getB = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_getBeta = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_getCPre = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_getJMinus = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_getJPlus = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_getMaxRowLength = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_getNumTargetNeurons = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_getPreTimeSinceLastSpike = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_getTarget = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_getThetaHighDown = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_getThetaHighUp = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_getThetaLowDown = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_getThetaLowUp = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_getThetaV = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_getThetaX = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_getVPre = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_getX = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_getXMax = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_m_A = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_m_Alpha = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_m_B = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_m_Beta = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_m_CPre = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_m_JMinus = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_m_JPlus = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_m_MaxRowLength = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_m_NumTargetNeurons = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_m_PreTimeSinceLastSpike = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_m_Target = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_m_ThetaHighDown = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_m_ThetaHighUp = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_m_ThetaLowDown = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_m_ThetaLowUp = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_m_ThetaV = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_m_ThetaX = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_m_VPre = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_m_X = R"doc()doc";
+
+static const char *__doc_STDPEventPropagationProcess_m_XMax = R"doc()doc";
 
 static const char *__doc_ScalarRegsiterAllocator = R"doc()doc";
 

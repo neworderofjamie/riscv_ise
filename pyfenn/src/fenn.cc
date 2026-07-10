@@ -245,11 +245,40 @@ PYBIND11_MODULE(_fenn, m)
              pybind11::arg("target"), pybind11::arg("num_sparse_connectivity_bits") = 0,
              pybind11::arg("num_delay_bits") = 0, pybind11::arg("name") = "")
 
-        WRAP_PROPERTY_RO("input_events", EventPropagationProcess, InputEvents)
+        .def_property_readonly("input_events", &EventPropagationProcess::getInputEvents)
+        //WRAP_PROPERTY_RO("input_events", EventPropagationProcess, InputEvents)
         WRAP_PROPERTY_RO("weight", EventPropagationProcess, Weight)
         WRAP_PROPERTY_RO("target", EventPropagationProcess, Target)
-        WRAP_PROPERTY_RO("num_source_neurons", EventPropagationProcess, NumSourceNeurons)
+         //WRAP_PROPERTY_RO("num_source_neurons", EventPropagationProcess, NumSourceNeurons)
+        .def_property_readonly("num_source_neurons", &EventPropagationProcess::getNumSourceNeurons)
         WRAP_PROPERTY_RO("num_target_neurons", EventPropagationProcess, NumTargetNeurons);
+
+    //------------------------------------------------------------------------
+    // fenn.STDPEventPropagationProcess
+    //------------------------------------------------------------------------
+    pybind11::class_<STDPEventPropagationProcess, Process, std::shared_ptr<STDPEventPropagationProcess>>(m, "STDPEventPropagationProcess")
+        .def(pybind11::init(&STDPEventPropagationProcess::create),
+             pybind11::arg("input_events"), pybind11::arg("x"),
+             pybind11::arg("pre_time_since_last_spike"),
+             pybind11::arg("target"), pybind11::arg("v_pre"), pybind11::arg("c_pre"), 
+             pybind11::arg("theta_x"), 
+             pybind11::arg("a"), pybind11::arg("b"), 
+             pybind11::arg("alpha"), pybind11::arg("beta"), 
+             pybind11::arg("j_plus"), pybind11::arg("j_minus"), 
+             pybind11::arg("theta_v"), pybind11::arg("theta_low_up"), 
+             pybind11::arg("theta_low_down"), pybind11::arg("theta_high_up"), 
+             pybind11::arg("theta_high_down"), pybind11::arg("x_max"), 
+             pybind11::arg("name") = "")
+
+        .def_property_readonly("input_events", &STDPEventPropagationProcess::getInputEvents)
+        WRAP_PROPERTY_RO("x", STDPEventPropagationProcess, X)
+        WRAP_PROPERTY_RO("target", STDPEventPropagationProcess, Target)
+        .def_property_readonly("num_source_neurons", &STDPEventPropagationProcess::getNumSourceNeurons)
+        .def_property_readonly("pre_time_since_last_spike", &STDPEventPropagationProcess::getPreTimeSinceLastSpike)
+		.def_property_readonly("post_syn_voltage", &STDPEventPropagationProcess::getVPre)
+		.def_property_readonly("post_syn_calcium", &STDPEventPropagationProcess::getCPre)
+        .def_property_readonly("num_source_neurons", &STDPEventPropagationProcess::getNumSourceNeurons)
+        WRAP_PROPERTY_RO("num_target_neurons", STDPEventPropagationProcess, NumTargetNeurons);
 
     //------------------------------------------------------------------------
     // fenn.RNGInitProcess
