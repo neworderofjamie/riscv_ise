@@ -210,7 +210,7 @@ TEST_F(EventSourceTest, EventSourceMerging)
                                                                         Sliced<Variable>(postTarget));
     
     // Group processes
-    const auto neuronUpdateProcesses = ProcessGroup::create({pre1, pre2});
+    const auto neuronUpdateProcesses = ProcessGroup::create({pre1, pre2, post});
     const auto eventPropagationProcesses = ProcessGroup::create({pre1Post, pre2Post, pre3Post, pre4Post});
 
     // Create kernel
@@ -247,6 +247,62 @@ TEST_F(EventSourceTest, EventSourceMerging)
         ASSERT_NE(std::find(secondMergedGroup.cbegin(), secondMergedGroup.cend(), pre1EventChannel), secondMergedGroup.cend());
         ASSERT_NE(std::find(secondMergedGroup.cbegin(), secondMergedGroup.cend(), pre2EventChannel), secondMergedGroup.cend());
     }
+}
+//--------------------------------------------------------------------------
+TEST_F(EventSourceTest, EventSourceProcesses)
+{
+    // Create 2 presynaptic neuron update 
+    const auto [pre1, pre1EventChannel] = createPre(64);
+    const auto [pre2, pre2EventChannel] = createPre(128);
+
+    // Create several postsynaptic neuron update processes
+    const auto [post1, post1Target] = createPost(64);
+    const auto [post2, post2Target] = createPost(96);
+    const auto [post3, post3Target] = createPost(128);
+    const auto [post4, post4Target] = createPost(160);
+
+    // Connect pre1 to post 1
+    const auto pre1Post1Weight = Backend::Variable::create(Frontend::Shape({64, 64}), Type::S2_13Sat);
+    const auto pre1Post1 = Backend::DenseEventPropagationProcess::create(Sliced<EventSource>(pre1EventChannel),
+                                                                         pre1Post1Weight,
+                                                                         Sliced<Variable>(post1Target));
+
+    // Connect pre2 to post 2-4
+    const auto pre2Post2Weight = Backend::Variable::create(Frontend::Shape({128, 96}), Type::S2_13Sat);
+    const auto pre2Post2 = Backend::DenseEventPropagationProcess::create(Sliced<EventSource>(pre2EventChannel),
+                                                                         pre2Post2Weight,
+                                                                         Sliced<Variable>(post2Target));
+    const auto pre2Post3Weight = Backend::Variable::create(Frontend::Shape({128, 128}), Type::S2_13Sat);
+    const auto pre2Post3 = Backend::DenseEventPropagationProcess::create(Sliced<EventSource>(pre2EventChannel),
+                                                                         pre2Post3Weight,
+                                                                         Sliced<Variable>(post3Target));
+    const auto pre2Post4Weight = Backend::Variable::create(Frontend::Shape({128, 160}), Type::S2_13Sat);
+    const auto pre2Post4 = Backend::DenseEventPropagationProcess::create(Sliced<EventSource>(pre2EventChannel),
+                                                                         pre2Post4Weight,
+                                                                         Sliced<Variable>(post4Target));
+
+    // Group processes
+    const auto neuronUpdateProcesses = ProcessGroup::create({pre1, pre2, post1, post2, post3, post4});
+    const auto eventPropagationProcesses = ProcessGroup::create({pre1Post1, pre2Post2, pre2Post3, pre2Post4});
+
+    // Create kernel
+    const auto kernel = Backend::SimpleKernel::create({neuronUpdateProcesses, eventPropagationProcesses});
+
+    // Check there are only two event sources
+    ASSERT_EQ(kernel->getEventSourceProcesses().size(), 2);
+
+    // Check pre1EventChannel is connected to one process
+    const auto &pre1EventChannelProcesses = kernel->getEventSourceProcesses().at(pre1EventChannel);
+    ASSERT_EQ(pre1EventChannelProcesses.size(), 1);
+    ASSERT_NE(std::find(pre1EventChannelProcesses.cbegin(), pre1EventChannelProcesses.cend(), pre1Post1), pre1EventChannelProcesses.cend());
+
+    // Check pre2EventChannel is connected to there processes
+    const auto &pre2EventChannelProcesses = kernel->getEventSourceProcesses().at(pre2EventChannel);
+    ASSERT_EQ(pre2EventChannelProcesses.size(), 3);
+    ASSERT_NE(std::find(pre2EventChannelProcesses.cbegin(), pre2EventChannelProcesses.cend(), pre2Post2), pre2EventChannelProcesses.cend());
+    ASSERT_NE(std::find(pre2EventChannelProcesses.cbegin(), pre2EventChannelProcesses.cend(), pre2Post3), pre2EventChannelProcesses.cend());
+    ASSERT_NE(std::find(pre2EventChannelProcesses.cbegin(), pre2EventChannelProcesses.cend(), pre2Post4), pre2EventChannelProcesses.cend());
+
 }
 
 //--------------------------------------------------------------------------
