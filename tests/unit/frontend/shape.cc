@@ -15,6 +15,13 @@ TEST(Shape, Split)
     {
         const Shape shape(180);
         
+        // Don't split
+        {
+            const auto split = shape.getSplit(0, 0, 1, 32);
+
+            EXPECT_EQ(split, Shape(180));
+        }
+
         // Splitting two ways without granularity
         {
             const auto split0 = shape.getSplit(0, 0, 2, 1);
