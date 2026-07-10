@@ -95,11 +95,16 @@ std::vector<Compiler::RegisterPtr> Variable::genPreamble(Assembler::CodeGenerato
             c.mul(*STmp, *timeReg, *numVariableBytes);
             c.add(*readBufferReg, *readBufferReg, *STmp);
 
-            // Allocate additional register for writing variable
-            // **TODO** should be lazy
-            auto writeBufferReg = scalarRegisterAllocator.getRegister((getName() + "BufferWrite X").c_str());
-            c.add(*writeBufferReg, *readBufferReg, *numVariableBytes);
-            return {readBufferReg, writeBufferReg};
+            // If variable is const, return read register
+            if (getType().isConst) {
+                return {readBufferReg};
+            }
+            // Otherwise, allocate second write register
+            else {
+                auto writeBufferReg = scalarRegisterAllocator.getRegister((getName() + "BufferWrite X").c_str());
+                c.add(*writeBufferReg, *readBufferReg, *numVariableBytes);
+                return {readBufferReg, writeBufferReg};
+            }
         }
         else {
             return {readBufferReg};
@@ -200,36 +205,38 @@ void Variable::genLoad(Compiler::EnvironmentBase &env, Assembler::VectorRegister
 void Variable::genStore(Compiler::EnvironmentBase &env, Assembler::VectorRegisterPtr reg, uint32_t r,
                         const std::vector<Compiler::RegisterPtr> &state, const Frontend::Model &model) const
 {
-    // Create array in correct memory space depending on compatibility
-    switch(getMemSpace(model))
-    {
-    case MemSpace::URAM:
-    {
-        if (state.size() == 1) {
+    if (!getType().isConst) {
+        // Create array in correct memory space depending on compatibility
+        switch(getMemSpace(model))
+        {
+        case MemSpace::URAM:
+        {
+            if (state.size() == 1) {
+                env.getCodeGenerator().vstore(*reg, *std::get<Assembler::ScalarRegisterPtr>(state[0]), 64 * r);
+            }
+            else  if (state.size() == 2) {
+                env.getCodeGenerator().vstore(*reg, *std::get<Assembler::ScalarRegisterPtr>(state[1]), 64 * r);
+            }
+            else {
+                assert(false);
+            }
+            break;
+        }
+        case MemSpace::LLM:
+        {
+            assert(state.size() == 1);
+            env.getCodeGenerator().vstorel(*reg, *std::get<Assembler::VectorRegisterPtr>(state[0]), 2 * r);  
+            break;
+        }
+        case MemSpace::URAM_LLM:
+        {
+            assert(state.size() == 2);
             env.getCodeGenerator().vstore(*reg, *std::get<Assembler::ScalarRegisterPtr>(state[0]), 64 * r);
+            break;
         }
-        else  if (state.size() == 2) {
-            env.getCodeGenerator().vstore(*reg, *std::get<Assembler::ScalarRegisterPtr>(state[1]), 64 * r);
-        }
-        else {
+        default:
             assert(false);
         }
-        break;
-    }
-    case MemSpace::LLM:
-    {
-        assert(state.size() == 1);
-        env.getCodeGenerator().vstorel(*reg, *std::get<Assembler::VectorRegisterPtr>(state[0]), 2 * r);  
-        break;
-    }
-    case MemSpace::URAM_LLM:
-    {
-        assert(state.size() == 2);
-        env.getCodeGenerator().vstore(*reg, *std::get<Assembler::ScalarRegisterPtr>(state[0]), 64 * r);
-        break;
-    }
-    default:
-        assert(false);
     }
 }
 //----------------------------------------------------------------------------
