@@ -6,6 +6,7 @@
 // Forward declarations
 namespace Frontend
 {
+class EventSource;
 class ProcessGroup;
 class State;
 }

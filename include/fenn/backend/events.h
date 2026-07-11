@@ -10,7 +10,7 @@
 
 // Frontend includes
 #include "frontend/events.h"
-#include "frontend/model.h"
+#include "frontend/runtime.h"
 
 // FeNN assembler includes
 #include "fenn/assembler/assembler.h"

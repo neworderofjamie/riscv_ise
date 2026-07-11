@@ -17,6 +17,7 @@
 // Forward declarations
 namespace Frontend
 {
+class EventSource;
 class ProcessGroup;
 }
 namespace FeNN::Backend
@@ -301,6 +302,9 @@ public:
     bool shouldKeepParamsInRegisters() const{ return m_KeepParamsInRegisters; }
     size_t getDMABufferSize() const{ return m_DMABufferSize; }
     auto getNeuronRoundingMode() const{ return m_NeuronUpdateRoundingMode; }
+    
+    //! Get merged event sources
+    const auto &getMergedEventSources() const { return m_MergedEventSources; }
 
 protected:
     //------------------------------------------------------------------------
@@ -323,6 +327,10 @@ private:
     //! Map from process groups to start addresses and merged fields 
     std::unordered_map<std::shared_ptr<const Frontend::ProcessGroup>,
                        std::vector<std::pair<uint32_t, MergedFields>>> m_MergedField;
+
+    // Map of process groups to merged process groups
+    std::unordered_map<std::shared_ptr<const Frontend::ProcessGroup>,
+                       std::vector<Frontend::Merged<Frontend::EventSource>>> m_MergedEventSources;
 
     bool m_UseDRAMForWeights;
     bool m_KeepParamsInRegisters;

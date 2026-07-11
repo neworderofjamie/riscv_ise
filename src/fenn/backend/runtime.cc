@@ -141,6 +141,47 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
     m_KeepParamsInRegisters(keepParamsInRegisters), m_NeuronUpdateRoundingMode(neuronUpdateRoundingMode), 
     m_DMABufferSize(dmaBufferSize)
 {
+    // Loop through kernels
+    for(const auto &k : getModel()->getKernels()) {
+        // Ensure kernel has proper base class
+        auto ki = std::dynamic_pointer_cast<const KernelImplementation>(k);
+        if (!ki) {
+            throw std::runtime_error("FeNN backend runtime used with incompatible kernel");
+        }
+
+        // If kernel has an event source process group
+        if(ki->getEventSourceProcessGroup()) {
+            // Create a hash map to group together processes with the same SHA1 digest
+            std::unordered_map<boost::uuids::detail::sha1::digest_type, 
+                std::vector<std::shared_ptr<Frontend::EventSource const>>, 
+                ::Common::Utils::SHA1Hash> protoMergedEventSources;
+
+            // Loop through all processes in event source process group
+            for (const auto &p : ki->getEventSourceProcessGroup()->getProcesses()) {
+                for(const auto &e : p->getAllEventSources()) {
+                    // Build hash digest
+                    boost::uuids::detail::sha1 hash;
+                    e->updateMergeHash(hash);
+                    const auto digest = hash.get_digest();
+
+                    // Add to map
+                    protoMergedEventSources[digest].push_back(e);
+                }
+            }
+
+            // Reserve final merged groups vector
+            auto &mergedEventSource = m_MergedEventSources[ki->getEventSourceProcessGroup()];
+            mergedEventSource.reserve(protoMergedEventSources.size());
+
+
+            // Construct final merged event source array
+            size_t i = 0;
+            for(auto &s : protoMergedEventSources) {
+                mergedEventSource.emplace_back(i++, s.second);
+            }
+        }
+    }
+
     //! Same ready flag is used by all kernels and located at BRAM address zero
     constexpr uint32_t readyFlagPtr = 0;
 
@@ -148,7 +189,7 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
     uint32_t fieldBase = 4;
 
     // Loop through kernels
-    for (const auto &k : getModel<>()->getKernels()) {
+    for (const auto &k : getModel()->getKernels()) {
         // Generate kernel
         auto code = Assembler::Utils::generateStandardKernel(
             generateSimulationKernels, readyFlagPtr,
@@ -245,7 +286,7 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                      }
 
                                      // Reserve merged fields for each process group
-                                     const auto &mergedProcessGroup = getModel<>()->getMergedProcessGroups().at(processGroup);
+                                     const auto &mergedProcessGroup = getMergedProcessGroups().at(processGroup);
                                      const auto &mergedProcesses = mergedProcessGroup.getMergedProcesses();
                                      mergedFields.first->second.reserve(mergedProcesses.size());
 
@@ -269,7 +310,8 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                          // Loop over merged event sources and generate event processing loops
                                          // **TODO** pass through fields so event source buffer can be implemented
                                          auto endProcessGroupLabel = Assembler::createLabel();
-                                         for (const auto &m : ki->getMergedEventSources()) {
+                                         const auto &mergedEventSourcesGroup = getMergedEventSources().at(processGroup);
+                                         for (const auto &m : mergedEventSourcesGroup) {
                                              m.getArchetype<EventSourceImplementation>()->generateEventLoop(
                                                 m, *this, *ki, SPreIndex, SSpikeReturn, jumpTable, 
                                                 c, scalarRegisterAllocator);
@@ -379,7 +421,7 @@ void Runtime::allocatePreamble()
 void Runtime::allocatePostamble()
 {
     // Loop through merged process groups
-    for(const auto &m : getModel()->getMergedProcessGroups()) {
+    for(const auto &m : getMergedProcessGroups()) {
         // Get corresponding merged fields
         const auto &f = m_MergedField.at(m.first);
         const auto &mergedProcesses = m.second.getMergedProcesses();

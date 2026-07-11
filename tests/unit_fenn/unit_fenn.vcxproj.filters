@@ -20,5 +20,8 @@
     <ClCompile Include="backend\kernel.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="backend\runtime.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

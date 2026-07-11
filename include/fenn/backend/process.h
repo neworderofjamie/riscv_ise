@@ -5,9 +5,7 @@
 
 // Frontend includes
 #include "frontend/process.h"
-
-// FeNN common includes
-#include "fenn/common/isa.h"
+#include "frontend/runtime.h"
 
 // FeNN assembler includes
 #include "fenn/assembler/register_allocator.h"

@@ -100,34 +100,3 @@ TEST(Model, StateProcess)
     EXPECT_NE(std::find(outputIStateData.processes.cbegin(), outputIStateData.processes.cend(), output), outputIStateData.processes.cend());
     EXPECT_NE(std::find(outputIStateData.processes.cbegin(), outputIStateData.processes.cend(), hiddenOutput), outputIStateData.processes.cend());
 }
-//--------------------------------------------------------------------------
-TEST(MergedModel, MergingDifferentProcessTypes)
-{
-    // Create a bunch of different processes
-    auto variable = Variable::create(20, Type::Uint32);
-    auto rngInitProcess = RNGInitProcess::create(variable);
-    auto memsetProcess = MemsetProcess::create(variable);
-    auto neuronUpdateProcess = NeuronUpdateProcess::create(
-        "V *= 0.9\n",
-        {{"V", Sliced<Variable>(variable)}}, {});
-    auto eventPropagationProcess = EventPropagationProcess::create(
-        EventSourceBuffer::create(20), variable);
-
-    // Group together
-    auto processGroup = ProcessGroup::create({rngInitProcess, memsetProcess, neuronUpdateProcess, eventPropagationProcess});
-
-    // Define kernel
-    const auto kernel = SimpleKernel::create({processGroup});
-
-    // Build model
-    Model model({kernel});
-
-    // Check merging has resulted in 4 seperate merged process groups with one process in each
-    const auto &mergedProcessGroups = model.getMergedProcessGroups().at(processGroup).getMergedProcesses();
-    EXPECT_EQ(mergedProcessGroups.size(), 4);
-    for(const auto &m : mergedProcessGroups) {
-        EXPECT_EQ(m.getMerged().size(), 1);
-    }
-
-
-}

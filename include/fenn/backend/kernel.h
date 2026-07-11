@@ -64,9 +64,6 @@ public:
 
     uint32_t getNumPopulationIDBits() const { return m_NumPopulationIDBits; }
 
-    //! Get merged event sources
-    const auto &getMergedEventSources() const { return m_MergedEventSources; }
-
 private:
     //------------------------------------------------------------------------
     // Members
@@ -77,8 +74,6 @@ private:
 
     std::unordered_map<std::shared_ptr<const Frontend::EventSource>, 
                        std::vector<std::shared_ptr<const Frontend::Process>>> m_EventSourceProcesses;
-
-    std::vector<Frontend::Merged<Frontend::EventSource>> m_MergedEventSources;
 
     uint32_t m_NumNeuronIDBits;
     uint32_t m_NumPopulationIDBits;
