@@ -14,7 +14,7 @@
 #include "common/utils.h"
 
 // Frontend includes
-#include "frontend/merged_model.h"
+#include "frontend/model.h"
 
 // FeNN common includes
 #include "fenn/common/isa.h"

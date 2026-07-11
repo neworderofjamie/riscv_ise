@@ -20,9 +20,6 @@
     <ClCompile Include="kernel.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="merged_model.cc">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="model.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -50,9 +47,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\frontend\kernel.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\include\frontend\merged_model.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\frontend\model.h">

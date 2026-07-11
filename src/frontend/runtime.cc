@@ -77,7 +77,7 @@ void Runtime::allocate()
     // **TODO** loop through all process groups and add performance counters
 
     // Loop through state objects used by model
-    for (const auto &s : m_MergedModel.getModel().getStateData()) {
+    for (const auto &s : getModel()->getStateData()) {
         // Loop through devices
         for(size_t i = 0; i < getNumDevices(); i++) {
             // Split shape and create array
@@ -147,9 +147,9 @@ std::vector<ArrayBase*> Runtime::getArrays(std::shared_ptr<const State> state) c
 }
 //----------------------------------------------------------------------------
 Runtime::Runtime(std::unique_ptr<Model> model, size_t numDevices, size_t stateSplitGranularity)
-:   m_Devices(numDevices), m_Model(std::move(model)), m_MergedModel(*m_Model), 
-    m_NumDevices(numDevices), m_StateSplitGranularity(stateSplitGranularity),
-    m_WorkerRun(true), m_Command(nullptr), m_Barrier(numDevices + 1)
+:   m_Devices(numDevices), m_Model(std::move(model)), m_NumDevices(numDevices), 
+    m_StateSplitGranularity(stateSplitGranularity), m_WorkerRun(true), 
+    m_Command(nullptr), m_Barrier(numDevices + 1)
 {
 }
 //----------------------------------------------------------------------------

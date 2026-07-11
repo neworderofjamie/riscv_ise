@@ -4,7 +4,6 @@
 #include "common/utils.h"
 
 // Frontend includes
-#include "frontend/merged_model.h"
 #include "frontend/process.h"
 
 // FeNN common includes

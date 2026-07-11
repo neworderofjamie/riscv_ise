@@ -18,7 +18,6 @@
 
 // Frontend includes
 #include "frontend/frontend_export.h"
-#include "frontend/merged_model.h"
 #include "frontend/shape.h"
 
 // Forward declarations
@@ -191,8 +190,6 @@ protected:
     //------------------------------------------------------------------------
     // Protected API
     //------------------------------------------------------------------------
-    const auto &getMergedModel() const{ return m_MergedModel; }
-
     const auto &getDevices() const{ return m_Devices; }
     auto &getDevices(){ return m_Devices; }
 
@@ -323,8 +320,6 @@ private:
 
     // Model
     std::unique_ptr<Model> m_Model;
-
-    MergedModel m_MergedModel;
 
     //! Current kernel loaded onto all devices
     std::shared_ptr<const Kernel> m_CurrentKernel;

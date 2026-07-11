@@ -7,7 +7,7 @@
 // Frontend includes
 #include "frontend/events.h"
 #include "frontend/kernel.h"
-#include "frontend/merged_model.h"
+#include "frontend/model.h"
 
 // Assembler includes
 #include "fenn/assembler/register_allocator.h"
@@ -16,6 +16,7 @@
 namespace Frontend
 {
 class EventSink;
+class Process;
 }
 namespace FeNN::Assembler
 {

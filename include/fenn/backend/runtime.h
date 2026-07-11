@@ -15,6 +15,10 @@
 #include "fenn/backend/memory_allocator.h"
 
 // Forward declarations
+namespace Frontend
+{
+class ProcessGroup;
+}
 namespace FeNN::Backend
 {
 class Runtime;

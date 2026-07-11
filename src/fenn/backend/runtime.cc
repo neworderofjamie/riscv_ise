@@ -14,7 +14,7 @@
 
 // Frontend includes
 #include "frontend/events.h"
-#include "frontend/merged_model.h"
+#include "frontend/model.h"
 #include "frontend/process_group.h"
 #include "frontend/variable.h"
 
@@ -148,12 +148,11 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
     uint32_t fieldBase = 4;
 
     // Loop through kernels
-    const auto &model = getMergedModel().getModel<Model>();
-    for (const auto &k : model.getKernels()) {
+    for (const auto &k : getModel<>()->getKernels()) {
         // Generate kernel
         auto code = Assembler::Utils::generateStandardKernel(
             generateSimulationKernels, readyFlagPtr,
-            [this, generateSimulationKernels, &fieldBase, &k, &model]
+            [this, generateSimulationKernels, &fieldBase, &k]
             (Assembler::CodeGenerator &c, Assembler::VectorRegisterAllocator &vectorRegisterAllocator, 
              Assembler::ScalarRegisterAllocator &scalarRegisterAllocator)
             {
@@ -246,7 +245,7 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                      }
 
                                      // Reserve merged fields for each process group
-                                     const auto &mergedProcessGroup = getMergedModel().getMergedProcessGroups().at(processGroup);
+                                     const auto &mergedProcessGroup = getModel<>()->getMergedProcessGroups().at(processGroup);
                                      const auto &mergedProcesses = mergedProcessGroup.getMergedProcesses();
                                      mergedFields.first->second.reserve(mergedProcesses.size());
 
@@ -380,7 +379,7 @@ void Runtime::allocatePreamble()
 void Runtime::allocatePostamble()
 {
     // Loop through merged process groups
-    for(const auto &m : getMergedModel().getMergedProcessGroups()) {
+    for(const auto &m : getModel()->getMergedProcessGroups()) {
         // Get corresponding merged fields
         const auto &f = m_MergedField.at(m.first);
         const auto &mergedProcesses = m.second.getMergedProcesses();
@@ -455,6 +454,8 @@ void Runtime::allocatePostamble()
             }
         }
     }
+
+    // **TODO** merged event sources
 
     // Loop through all devices and push field arrays to device
     for(auto &d : getDevices()) {

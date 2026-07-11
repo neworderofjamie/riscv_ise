@@ -21,7 +21,6 @@
   <ItemGroup>
     <ClCompile Include="events.cc" />
     <ClCompile Include="kernel.cc" />
-    <ClCompile Include="merged_model.cc" />
     <ClCompile Include="model.cc" />
     <ClCompile Include="process.cc" />
     <ClCompile Include="runtime.cc" />
@@ -32,7 +31,6 @@
     <ClInclude Include="..\..\include\frontend\events.h" />
     <ClInclude Include="..\..\include\frontend\frontend_export.h" />
     <ClInclude Include="..\..\include\frontend\kernel.h" />
-    <ClInclude Include="..\..\include\frontend\merged_model.h" />
     <ClInclude Include="..\..\include\frontend\model.h" />
     <ClInclude Include="..\..\include\frontend\model_component.h" />
     <ClInclude Include="..\..\include\frontend\process.h" />
