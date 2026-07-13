@@ -633,9 +633,6 @@ int main(int argc, char** argv)
     const uint32_t excVRecordingPtr = AppUtils::allocateScalarAndZero(2 * numTimesteps, scalarInitData);
 #endif
 
-    // Create spike buffer at start of spike memory
-    const uint32_t spikeBufferPtr = 32 * 4096;
-
     const auto initCode = AssemblerUtils::generateStandardKernel(
         !device, readyFlagPtr,
         [=](CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator, ScalarRegisterAllocator &scalarRegisterAllocator)
@@ -783,7 +780,6 @@ int main(int argc, char** argv)
             ALLOCATE_SCALAR(SSpike);
 
             ALLOCATE_SCALAR(SSpikeBuffer);
-            ALLOCATE_SCALAR(SSpikeBufferStart);
             ALLOCATE_SCALAR(SSpikeBufferEnd);
 #ifdef RECORD_SPIKES
             ALLOCATE_SCALAR(SExcSpikeRecordingBuffer);
@@ -851,10 +847,6 @@ int main(int argc, char** argv)
 #ifdef RECORD_V
             c.li(*SExcVRecordingBuffer, excVRecordingPtr);
 #endif
-            // Reset router slave to start writing at beginning of spike buffer
-            c.li(*SSpikeBufferStart, spikeBufferPtr);
-            c.csrw(CSR::SLAVE_EVENT_ADDRESS, *SSpikeBufferStart);
-
             // Loop over time
             c.L(timeLoop);
             {
@@ -862,9 +854,12 @@ int main(int argc, char** argv)
                     Label spikeLoop;
                     Label spikeLoopEnd;
 
-                    // Load start and end of this timestep's spike buffer
-                    c.mv(*SSpikeBuffer, *SSpikeBufferStart);
-                    c.csrr(*SSpikeBufferEnd, CSR::SLAVE_EVENT_ADDRESS);
+                    // Swap router buffers
+                    c.csrwi(CSR::SLAVE_SWAP_BUFFER, 1);
+                
+                    // Load start and end of spike read buffer
+                    c.csrr(*SSpikeBuffer, CSR::SLAVE_EVENT_START_ADDRESS);
+                    c.csrr(*SSpikeBufferEnd, CSR::SLAVE_EVENT_END_ADDRESS);
 
                     // While (spikeBuffer != spikeBufferEnd
                     c.L(spikeLoop);
@@ -890,9 +885,6 @@ int main(int argc, char** argv)
                     c.L(spikeLoopEnd);
                 }
                
-                // Reset router slave to start writing at beginning of spike buffer
-                c.csrw(CSR::SLAVE_EVENT_ADDRESS, *SSpikeBufferStart);
-
                 // Wait for all routers to be reset
                 AssemblerUtils::generateRouterBarrier(c, scalarRegisterAllocator, numCores);
 

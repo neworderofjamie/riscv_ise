@@ -22,13 +22,52 @@ constexpr uint32_t barrierEventID = 0xFFFFFFFFull;
 // RouterSim
 //----------------------------------------------------------------------------
 RouterSim::RouterSim(SharedBusSim &sharedBus, ScalarDataMemory &spikeMemory, size_t routerIndex)
-:   m_SharedBus(sharedBus), m_SpikeMemory(spikeMemory), m_RouterIndex(routerIndex), m_Registers{0},
-    m_MasterFSM(MasterFSMState::IDLE), m_CurrentSpikeBitfield(0), m_CurrentEventIDBase(0), m_CurrentSpikeID(0)
+:   m_SharedBus(sharedBus), m_SpikeMemory(spikeMemory), m_RouterIndex(routerIndex), 
+    m_MasterFSM(MasterFSMState::IDLE), m_Registers{0}, m_CurrentSpikeBitfield(0), 
+    m_SlaveWriteAddress(spikeMemory.getStartAddressBytes()), m_SlaveWriteStart(true), 
+    m_CurrentEventIDBase(0), m_CurrentSpikeID(0)
 {
+    // Put slave start and end address to end of spike memory
+    const size_t readAddress = spikeMemory.getStartAddressBytes() + spikeMemory.getSizeBytes();
+    writeRegInternal(Register::SLAVE_EVENT_START_ADDRESS, readAddress);
+    writeRegInternal(Register::SLAVE_EVENT_END_ADDRESS, readAddress);
 }
 //----------------------------------------------------------------------------
 void RouterSim::tick()
 {
+    // If we should swap slave buffers
+    if(readReg(Register::SLAVE_SWAP_BUFFER) != 0) {
+        // If we've been writing to the start of the buffer
+        const size_t spikeMemStart = m_SpikeMemory.get().getStartAddressBytes();
+        const size_t spikeMemEnd = m_SpikeMemory.get().getStartAddressBytes() + m_SpikeMemory.get().getSizeBytes();
+        if(m_SlaveWriteStart) {
+            // We want to start reading from start of the spike memory
+            writeRegInternal(Register::SLAVE_EVENT_START_ADDRESS, spikeMemStart);
+
+            // And end reading at current write address
+            writeRegInternal(Register::SLAVE_EVENT_END_ADDRESS, m_SlaveWriteAddress);
+
+            // Start writing at end of spike memory
+            m_SlaveWriteAddress = spikeMemEnd - 4;
+        }
+        // Otherwise, if we've been writing to the end of the buffer
+        else {
+            // We want to start reading at the current write address
+            writeRegInternal(Register::SLAVE_EVENT_START_ADDRESS, m_SlaveWriteAddress);
+
+            // And end reading at the end of the spike memory
+            writeRegInternal(Register::SLAVE_EVENT_END_ADDRESS, spikeMemEnd);
+
+            // Start writing at beginning of spike memory
+            m_SlaveWriteAddress = spikeMemStart;
+        }
+
+        // Swap buffers
+        m_SlaveWriteStart = !m_SlaveWriteStart;
+
+        // Zero register
+        writeRegInternal(Register::SLAVE_SWAP_BUFFER, 0);
+    }
     // Tick MM2S FSM
     m_MasterFSM.tick(
         // Enter
@@ -160,12 +199,28 @@ void RouterSim::writeReceivedEvent(std::optional<uint32_t> data)
             m_Registers[static_cast<int>(Register::SLAVE_BARRIER_COUNT)]++;
             PLOGV << "Incremented barrier " << m_Registers[static_cast<int>(Register::SLAVE_BARRIER_COUNT)];
         }
-        // Otherwise, write spike at front of queue to memory and increment address
+        // Otherwise, write spike to write address
         else {
-            uint32_t& address = m_Registers[static_cast<int>(Register::SLAVE_EVENT_ADDRESS)];
-            m_SpikeMemory.get().write32(address, data.value());
-            PLOGV << "Writing event " << data.value() << " to " << address;
-            address += 4;
+            m_SpikeMemory.get().write32(m_SlaveWriteAddress, data.value());
+            PLOGV << "Writing event " << data.value() << " to " << m_SlaveWriteAddress;
+
+            // If we're writing to the start
+            if(m_SlaveWriteStart) {
+                // Increment address
+                m_SlaveWriteAddress += 4;
+
+                if(m_SlaveWriteAddress >= readReg(Register::SLAVE_EVENT_START_ADDRESS)) {
+                    LOGW << "Slave writing over previous buffer";
+                }
+            }
+            else {
+                // Decrement address
+                m_SlaveWriteAddress -= 4;
+
+                if(m_SlaveWriteAddress < readReg(Register::SLAVE_EVENT_END_ADDRESS)) {
+                    LOGW << "Slave writing over previous buffer";
+                }
+            }
         }
     }
 }

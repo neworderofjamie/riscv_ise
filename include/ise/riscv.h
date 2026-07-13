@@ -61,7 +61,8 @@ public:
     uint8_t *getData(){ return m_Data.data(); }
     
     size_t getSizeBytes() const{ return m_Data.size(); }
-
+    size_t getStartAddressBytes() const{ return m_StartAddressBytes; }
+    
 private:
     size_t m_StartAddressBytes;
     std::vector<uint8_t> m_Data;
