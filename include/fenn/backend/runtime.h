@@ -318,15 +318,25 @@ protected:
     
 private:
     //------------------------------------------------------------------------
+    // Private methods
+    //------------------------------------------------------------------------
+    void populateFields(size_t p, const std::pair<uint32_t, MergedFields> &mergedFields,
+                        std::shared_ptr<const Frontend::ModelComponent> owner);
+
+    //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
     // Map of kernel pointers to code
     std::unordered_map<std::shared_ptr<const Frontend::Kernel>, 
                        std::vector<uint32_t>> m_KernelCode;
 
-    //! Map from process groups to start addresses and merged fields 
+    //! Map from process groups to start addresses and merged fields associated with processes
     std::unordered_map<std::shared_ptr<const Frontend::ProcessGroup>,
-                       std::vector<std::pair<uint32_t, MergedFields>>> m_MergedField;
+                       std::vector<std::pair<uint32_t, MergedFields>>> m_MergedProcessFields;
+
+    //! Map from process groups to start addresses and merged fields associated with event sources
+    std::unordered_map<std::shared_ptr<const Frontend::ProcessGroup>,
+                       std::vector<std::pair<uint32_t, MergedFields>>> m_MergedEventSourceFields;
 
     // Map of process groups to merged process groups
     std::unordered_map<std::shared_ptr<const Frontend::ProcessGroup>,

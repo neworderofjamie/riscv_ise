@@ -13,8 +13,6 @@
 #include "common/utils.h"
 
 // Frontend includes
-#include "frontend/events.h"
-#include "frontend/model.h"
 #include "frontend/process_group.h"
 #include "frontend/variable.h"
 
@@ -278,17 +276,17 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                   auto &scalarRegisterAllocator, auto &vectorRegisterAllocator)
                                  {
                                      // Create empty vector of merged fields associated with these processes
-                                     auto mergedFields = m_MergedField.emplace(std::piecewise_construct,
-                                                                               std::make_tuple(processGroup),
-                                                                               std::make_tuple());
-                                     if (!mergedFields.second) {
+                                     auto mergedProcessGroupFields = m_MergedProcessFields.emplace(std::piecewise_construct,
+                                                                                                   std::make_tuple(processGroup),
+                                                                                                   std::make_tuple());
+                                     if (!mergedProcessGroupFields.second) {
                                          throw std::runtime_error("Process groups should not be used multiple times in kernels");
                                      }
 
                                      // Reserve merged fields for each process group
                                      const auto &mergedProcessGroup = getMergedProcessGroups().at(processGroup);
                                      const auto &mergedProcesses = mergedProcessGroup.getMergedProcesses();
-                                     mergedFields.first->second.reserve(mergedProcesses.size());
+                                     mergedProcessGroupFields.first->second.reserve(mergedProcesses.size());
 
                                      // If this is the event source process group
                                      if (processGroup == ki->getEventSourceProcessGroup()) {
@@ -306,13 +304,24 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                                         {
                                                             return std::make_pair(m.getArchetype(), Assembler::createLabel());
                                                         });
+                                         
+                                         // Create empty vector of merged fields associated with these event sources
+                                         auto mergedEventSourceFields = m_MergedEventSourceFields.emplace(
+                                             std::piecewise_construct, std::make_tuple(processGroup),
+                                             std::make_tuple());
+                                
+                                         if (!mergedEventSourceFields.second) {
+                                             throw std::runtime_error("Process groups should not be used multiple times in kernels");
+                                         }
 
                                          // Loop over merged event sources and generate event processing loops
                                          // **TODO** pass through fields so event source buffer can be implemented
                                          auto endProcessGroupLabel = Assembler::createLabel();
                                          const auto &mergedEventSourcesGroup = getMergedEventSources().at(processGroup);
+                                         mergedEventSourceFields.first->second.reserve(mergedEventSourcesGroup.size());
                                          for (const auto &m : mergedEventSourcesGroup) {
-                                             m.getArchetype<EventSourceImplementation>()->generateEventLoop(
+
+                                             m.template getArchetype<EventSourceImplementation>()->generateEventLoop(
                                                 m, *this, *ki, SPreIndex, SSpikeReturn, jumpTable, 
                                                 c, scalarRegisterAllocator);
                                          }
@@ -357,12 +366,12 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
 
                                              // Add new merged field
                                              // **NOTE** these are relative to start of field array
-                                             mergedFields.first->second.emplace_back(std::piecewise_construct,
+                                             mergedProcessGroupFields.first->second.emplace_back(std::piecewise_construct,
                                                                                      std::make_tuple(fieldBase - 4),
                                                                                      std::make_tuple());
 
                                              // Generate code
-                                             pi->generateCode(m, *this, *ki, mergedFields.first->second.back().second, 
+                                             pi->generateCode(m, *this, *ki, mergedProcessGroupFields.first->second.back().second, 
                                                               timeRegister, SPreIndex, SGroupIndex, 
                                                               numTimesteps, fieldBase, c, 
                                                               scalarRegisterAllocator, vectorRegisterAllocator);
@@ -384,12 +393,12 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
 
                                             // Add new merged field
                                             // **NOTE** these are relative to start of field array
-                                            mergedFields.first->second.emplace_back(std::piecewise_construct,
+                                            mergedProcessGroupFields.first->second.emplace_back(std::piecewise_construct,
                                                                                     std::make_tuple(fieldBase - 4),
                                                                                     std::make_tuple());
 
                                             // Generate code
-                                            pi->generateCode(m, *this, *ki, mergedFields.first->second.back().second, 
+                                            pi->generateCode(m, *this, *ki, mergedProcessGroupFields.first->second.back().second, 
                                                             timeRegister, nullptr, nullptr, 
                                                             numTimesteps, fieldBase, c, 
                                                             scalarRegisterAllocator, vectorRegisterAllocator);
@@ -418,16 +427,72 @@ void Runtime::allocatePreamble()
     }
 }
 //----------------------------------------------------------------------------
+void Runtime::populateFields(size_t p, const std::pair<uint32_t, MergedFields> &mergedFields,
+                             std::shared_ptr<const Frontend::ModelComponent> owner)
+{
+    // Get base address of this process's fields
+    const uint32_t fieldBaseAddress = mergedFields.first + (p * mergedFields.second.getSize());
+
+    // Loop through the fields in this merged group
+    for(auto &f : mergedFields.second.getFields()) {
+        // If field contains a constant
+        // **TODO** CHECK THESE AREN'T OFF BY 4 AS THESE ARE OFFSETS
+        const uint32_t fieldAddress = fieldBaseAddress + f.first;
+        if(std::holds_alternative<MergedFields::GetFieldConstantFunc<>>(f.second)) {
+            auto getFieldValueFn = std::get<MergedFields::GetFieldConstantFunc<>>(f.second);
+
+            // Loop through devices
+            for(size_t d = 0; d < getNumDevices(); d++) {
+                // Get value for this device
+                auto deviceValue = getFieldValueFn(d, owner);
+                
+                // Copy value into field array
+                auto *fieldArray = static_cast<DeviceFeNN*>(getDevices()[d].get())->getFieldArray();
+                std::visit(
+                    [fieldAddress, fieldArray](auto v)
+                    { 
+                        // **TODO** CHECK FIELD SIZE AGAINST sizeof(v)
+                        LOGD_FENN_BACKEND << "\t\t\tWriting value " << v << " into field at " << fieldAddress;
+                        std::memcpy(fieldArray->getHostPointer() + fieldAddress, 
+                                    &v, sizeof(v));
+                    },
+                    deviceValue);
+            }
+        }
+        // Otherwise, it contains an array
+        else {
+            // Loop through devices
+            auto getFieldPointerFn = std::get<MergedFields::GetFieldPointerFunc<>>(f.second);
+            for(auto &d : getDevices()) {
+                // Get array allocated on this device
+                auto deviceArray = getFieldPointerFn(*d, owner);
+
+                // Serialise array's 'device object'
+                std::vector<std::byte> bytes;
+                deviceArray->serialiseDeviceObject(bytes);
+
+                LOGD_FENN_BACKEND << "\t\t\tWriting pointer into field at " << fieldAddress;
+
+                // Memcpy bytes into field offset
+                // **TODO** CHECK FIELD SIZE AGAINST BYTES
+                auto *fieldArray = static_cast<DeviceFeNN*>(d.get())->getFieldArray();
+                std::memcpy(fieldArray->getHostPointer() + fieldAddress, 
+                            bytes.data(), bytes.size());
+            }
+        }
+    }
+}
+//----------------------------------------------------------------------------
 void Runtime::allocatePostamble()
 {
     // Loop through merged process groups
     for(const auto &m : getMergedProcessGroups()) {
         // Get corresponding merged fields
-        const auto &f = m_MergedField.at(m.first);
+        const auto &f = m_MergedProcessFields.at(m.first);
         const auto &mergedProcesses = m.second.getMergedProcesses();
         assert(mergedProcesses.size() == f.size());
 
-        LOGD_FENN_BACKEND << "Populating fields for process group '" << m.first->getName() << "'";
+        LOGD_FENN_BACKEND << "Populating fields associated with processes in process group '" << m.first->getName() << "'";
 
         // Loop through the merged processes and shared fields for this merged group
         for(size_t g = 0; g < mergedProcesses.size(); g++) {
@@ -438,66 +503,39 @@ void Runtime::allocatePostamble()
 
             // Loop through processes
             for(size_t p = 0; p < mergedProcess.getMerged().size(); p++) {
-                // Get base address of this process's fields
-                const uint32_t fieldBaseAddress = mergedFields.first + (p * mergedFields.second.getSize());
-
                 auto process = mergedProcess.getMerged()[p];
                 LOGD_FENN_BACKEND << "\t\tProcess '" << process->getName() << "'";
-
-                // Loop through the fields in this merged group
-                for(auto &f : mergedFields.second.getFields()) {
-                    // If field contains a constant
-                    // **TODO** CHECK THESE AREN'T OFF BY 4 AS THESE ARE OFFSETS
-                    const uint32_t fieldAddress = fieldBaseAddress + f.first;
-                    if(std::holds_alternative<MergedFields::GetFieldConstantFunc<>>(f.second)) {
-                        auto getFieldValueFn = std::get<MergedFields::GetFieldConstantFunc<>>(f.second);
-
-                        // Loop through devices
-                        for(size_t d = 0; d < getNumDevices(); d++) {
-                            // Get value for this device
-                            auto deviceValue = getFieldValueFn(d, process);
-                            
-                            // Copy value into field array
-                            auto *fieldArray = static_cast<DeviceFeNN*>(getDevices()[d].get())->getFieldArray();
-                            std::visit(
-                                [fieldAddress, fieldArray](auto v)
-                                { 
-                                    // **TODO** CHECK FIELD SIZE AGAINST sizeof(v)
-                                    LOGD_FENN_BACKEND << "\t\t\tWriting value " << v << " into field at " << fieldAddress;
-                                    std::memcpy(fieldArray->getHostPointer() + fieldAddress, 
-                                                &v, sizeof(v));
-                                },
-                                deviceValue);
-                        }
-                    }
-                    // Otherwise, it contains an array
-                    else {
-                        // Loop through devices
-                        auto getFieldPointerFn = std::get<MergedFields::GetFieldPointerFunc<>>(f.second);
-                        for(auto &d : getDevices()) {
-                            // Get array allocated on this device
-                            auto deviceArray = getFieldPointerFn(*d, process);
-
-                            // Serialise array's 'device object'
-                            std::vector<std::byte> bytes;
-                            deviceArray->serialiseDeviceObject(bytes);
-
-                            LOGD_FENN_BACKEND << "\t\t\tWriting pointer into field at " << fieldAddress;
-
-                            // Memcpy bytes into field offset
-                            // **TODO** CHECK FIELD SIZE AGAINST BYTES
-                            auto *fieldArray = static_cast<DeviceFeNN*>(d.get())->getFieldArray();
-                            std::memcpy(fieldArray->getHostPointer() + fieldAddress, 
-                                        bytes.data(), bytes.size());
-                        }
-                    }
-                }
-
+                
+                populateFields(p, mergedFields, process);
             }
         }
     }
 
-    // **TODO** merged event sources
+    // Loop through merged event sources
+    for(const auto &m : getMergedEventSources()) {
+        // Get corresponding merged fields
+        const auto &f = m_MergedEventSourceFields.at(m.first);
+        const auto &mergedEventSources = m.second;
+        assert(mergedEventSources.size() == f.size());
+
+        LOGD_FENN_BACKEND << "Populating fields associated with event sources in process group '" << m.first->getName() << "'";
+
+        // Loop through the merged processes and shared fields for this merged group
+        for(size_t g = 0; g < mergedEventSources.size(); g++) {
+            const auto &mergedEventSource = mergedEventSources[g];
+            const auto &mergedFields = f[g];
+
+            LOGD_FENN_BACKEND << "\tMerged event source " << g;
+
+            // Loop through processes
+            for(size_t p = 0; p < mergedEventSource.getMerged().size(); p++) {
+                auto eventSource = mergedEventSource.getMerged()[p];
+                LOGD_FENN_BACKEND << "\t\tEvent source '" << eventSource->getName() << "'";
+                
+                populateFields(p, mergedFields, eventSource);
+            }
+        }
+    }
 
     // Loop through all devices and push field arrays to device
     for(auto &d : getDevices()) {
