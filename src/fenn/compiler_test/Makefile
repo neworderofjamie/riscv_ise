@@ -1,5 +1,5 @@
 # Include common makefile
-include ../MakefileCommon
+include ../../MakefileCommon
 
 # Add compiler and linker flags to link libGeNN and correct backend; and to configure generator to use backend
 CXXFLAGS 		+=-I$(RISCV_DIR)/genn/include/genn/genn -I$(RISCV_DIR)/genn/include/genn/third_party $(shell pkg-config libffi --cflags)
