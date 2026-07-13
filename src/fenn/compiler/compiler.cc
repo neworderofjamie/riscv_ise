@@ -657,6 +657,7 @@ private:
             m_Environment.get().getCodeGenerator().not_(*elseMaskRegister, *scalarConditionReg);
 
             // If we have an old mask, and it with this
+            // **TODO** I think we could use andn from Zba here and save an instruction
             if(oldMaskRegister) {
                 m_Environment.get().getCodeGenerator().and_(*elseMaskRegister, *oldMaskRegister,
                                                             *elseMaskRegister);
