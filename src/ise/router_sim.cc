@@ -41,6 +41,8 @@ void RouterSim::tick()
         const size_t spikeMemStart = m_SpikeMemory.get().getStartAddressBytes();
         const size_t spikeMemEnd = m_SpikeMemory.get().getStartAddressBytes() + m_SpikeMemory.get().getSizeBytes();
         if(m_SlaveWriteStart) {
+            assert(spikeMemStart <= m_SlaveWriteAddress);
+
             // We want to start reading from start of the spike memory
             writeRegInternal(Register::SLAVE_EVENT_START_ADDRESS, spikeMemStart);
 
@@ -52,6 +54,8 @@ void RouterSim::tick()
         }
         // Otherwise, if we've been writing to the end of the buffer
         else {
+            assert(m_SlaveWriteAddress <= spikeMemEnd);
+    
             // We want to start reading at the current write address
             writeRegInternal(Register::SLAVE_EVENT_START_ADDRESS, m_SlaveWriteAddress);
 
