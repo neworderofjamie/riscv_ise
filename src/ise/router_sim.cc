@@ -57,7 +57,7 @@ void RouterSim::tick()
             assert(m_SlaveWriteAddress <= spikeMemEnd);
     
             // We want to start reading at the current write address
-            writeRegInternal(Register::SLAVE_EVENT_START_ADDRESS, m_SlaveWriteAddress);
+            writeRegInternal(Register::SLAVE_EVENT_START_ADDRESS, m_SlaveWriteAddress + 4);
 
             // And end reading at the end of the spike memory
             writeRegInternal(Register::SLAVE_EVENT_END_ADDRESS, spikeMemEnd);

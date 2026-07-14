@@ -854,6 +854,9 @@ int main(int argc, char** argv)
                     Label spikeLoop;
                     Label spikeLoopEnd;
 
+                    // Wait for all events to be communicated
+                    AssemblerUtils::generateRouterBarrier(c, scalarRegisterAllocator, numCores);
+
                     // Swap router buffers
                     c.csrwi(CSR::SLAVE_SWAP_BUFFER, 1);
                 
@@ -884,10 +887,7 @@ int main(int argc, char** argv)
                     }
                     c.L(spikeLoopEnd);
                 }
-               
-                // Wait for all routers to be reset
-                AssemblerUtils::generateRouterBarrier(c, scalarRegisterAllocator, numCores);
-
+     
                 // ---------------------------------------------------------------
                 // Excitatory neurons
                 // ---------------------------------------------------------------
@@ -915,9 +915,6 @@ int main(int argc, char** argv)
                        ,SInhVRecordingBuffer
 #endif
                        );
-
-                // Wait for all events to be communicated
-                AssemblerUtils::generateRouterBarrier(c, scalarRegisterAllocator, numCores);
 
                 c.addi(*STime, *STime, 1);
                 c.bne(*STime, *STimeEnd, timeLoop);
