@@ -24,7 +24,10 @@
     <ClCompile Include="device_control.cc" />
     <ClCompile Include="dma_buffer.cc" />
     <ClCompile Include="dma_controller.cc" />
+    <ClCompile Include="genx_320.cc" />
+    <ClCompile Include="i2c_interface.cc" />
     <ClCompile Include="isa.cc" />
+    <ClCompile Include="mipi_csi2_receiver.cc" />
     <ClCompile Include="uio.cc" />
     <ClCompile Include="utils.cc" />
   </ItemGroup>
@@ -36,7 +39,11 @@
     <ClInclude Include="..\..\include\common\device_control.h" />
     <ClInclude Include="..\..\include\common\dma_buffer.h" />
     <ClInclude Include="..\..\include\common\dma_controller.h" />
+    <ClInclude Include="..\..\include\common\genx320_reg.h" />
+    <ClInclude Include="..\..\include\common\genx_320.h" />
+    <ClInclude Include="..\..\include\common\i2c_interface.h" />
     <ClInclude Include="..\..\include\common\isa.h" />
+    <ClInclude Include="..\..\include\common\mipi_csi2_receiver.h" />
     <ClInclude Include="..\..\include\common\utils.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">

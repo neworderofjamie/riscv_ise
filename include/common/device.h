@@ -11,6 +11,8 @@
 // Common includes
 #include "common/common_export.h"
 #include "common/dma_controller.h"
+#include "common/genx_320.h"
+#include "common/mipi_csi2_receiver.h"
 #include "common/uio.h"
 
 //----------------------------------------------------------------------------
@@ -32,6 +34,12 @@ public:
     DMAController *getDMAController(){ return m_DMAController.get(); }
     const DMAController *getDMAController() const{ return m_DMAController.get(); }
 
+    MIPICSI2Receiver *getMIPICSI2Receiver(){ return m_MIPICSI2Receiver.get(); }
+    const MIPICSI2Receiver *getMIPICSI2Receiver() const{ return m_MIPICSI2Receiver.get(); }
+
+    GenX320 *getGenX320(){ return m_GenX320.get(); }
+    const GenX320 *getGenX320() const{ return m_GenX320.get(); }
+
     void waitOnNonZero(uint32_t address) const;
 
     void uploadCode(const std::vector<uint32_t> &code);
@@ -49,4 +57,7 @@ private:
     std::unique_ptr<UIO> m_DataMemoryUIO;
 
     std::unique_ptr<DMAController> m_DMAController;
+
+    std::unique_ptr<MIPICSI2Receiver> m_MIPICSI2Receiver;
+    std::unique_ptr<GenX320> m_GenX320;
 };

@@ -35,6 +35,15 @@
     <ClCompile Include="device_control.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="genx_320.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="i2c_interface.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="mipi_csi2_receiver.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\common\isa.h">
@@ -62,6 +71,18 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\common\device_control.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\common\genx_320.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\common\genx320_reg.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\common\i2c_interface.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\common\mipi_csi2_receiver.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
