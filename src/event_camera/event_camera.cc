@@ -127,32 +127,55 @@ int main(int argc, char** argv)
     plog::ConsoleAppender<plog::TxtFormatter> consoleAppender;
     plog::init(plog::debug, &consoleAppender);
     
+    bool downsample = false;
     bool device = false;
     int clockSpeedMhz = 166;
+    unsigned int downsampleShift = 0;
 
     CLI::App app{"Blank example"};
     app.add_flag("-d,--device", device, "Should be run on device rather than simulator");
+    app.add_flag("-s,--downsample-shift", downsampleShift, "How much should resolution be shifted down?");
     app.add_option("-c,--clock-speed", clockSpeedMhz, "What clock speed is the device running at [Mhz]?");
 
     CLI11_PARSE(app, argc, argv);
     
+    // Determine resolution
+    const unsigned int downsampleResolution = 320 >> downsampleShift;
+    const uint32_t downsampleMask = (1 << (9 - downsampleShift)) - 1;
+
     // Create memory contents
     std::vector<uint8_t> scalarInitData;
     std::vector<int16_t> vectorInitData;
 
     // Allocate scalar arrays
     const uint32_t readyFlagPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
-    const uint32_t eventMemoryPtr = AppUtils::allocateScalarAndZero((4096 * 32) - scalarInitData.size(), scalarInitData);
     
+    // If downsampling, allocate downsample buffer
+    std::optional<uint32_t> downsampleIBuffer;
+    if (downsampleShift > 0) {
+        downsampleIBuffer = AppUtils::allocateScalarAndZero(downsampleResolution * downsampleResolution, scalarInitData);
+    }
+
+    // Allocate remaining scalar memory for event storage
+    const uint32_t eventMemoryPtr = AppUtils::allocateScalarAndZero((4096 * 32) - scalarInitData.size(), scalarInitData);
+
+    // If downsampling, allocate state variable for downsampling neurons
+    std::optional<uint32_t> downsampleVBuffer;
+    if (downsampleShift > 0) {
+        downsampleVBuffer = AppUtils::allocateVectorAndZero(downsampleResolution * downsampleResolution, vectorInitData);
+    }
+
     // Generate code
     const auto code = AssemblerUtils::generateStandardKernel(
         !device, readyFlagPtr,
-        [=](CodeGenerator &c, VectorRegisterAllocator&, ScalarRegisterAllocator &scalarRegisterAllocator)
+        [=](CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator, 
+            ScalarRegisterAllocator &scalarRegisterAllocator)
         {
             ALLOCATE_SCALAR(STime);
             ALLOCATE_SCALAR(STimeMarker);
-            ALLOCATE_SCALAR(SEventMemory);
-            ALLOCATE_SCALAR(SEventMemoryEnd);
+            ALLOCATE_SCALAR(SEventOutputBuffer);
+            ALLOCATE_SCALAR(SEventOutputVBufferEnd);
+            
 
             // Start time at 0
             c.li(*STime, 0);
@@ -161,16 +184,14 @@ int main(int argc, char** argv)
             c.li(*STimeMarker, 1 << 31);
 
             // Load spike memory pointers
-            c.li(*SEventMemory, eventMemoryPtr);
-            c.li(*SEventMemoryEnd, 4096 * 32);
+            c.li(*SEventOutputBuffer, eventMemoryPtr);
+            c.li(*SEventOutputVBufferEnd, 4096 * 32);
 
             Label timeLoopEnd;
             auto timeLoop = c.L();
             {
                 ALLOCATE_SCALAR(SLoopStartCycleLow);
                 ALLOCATE_SCALAR(SLoopStartCycleHigh);
-
-                
 
                 // Read cycle count at start of loop
                 c.csrr(*SLoopStartCycleLow, CSR::MCYCLE);
@@ -183,48 +204,199 @@ int main(int argc, char** argv)
                     Label eventLoopEnd;
 
                     // Get start and end of event buffer
-                    ALLOCATE_SCALAR(SEventBuffer);
-                    ALLOCATE_SCALAR(SEventBufferEnd);
-                    c.csrr(*SEventBuffer, CSR::SLAVE_EVENT_START_ADDRESS);
-                    c.csrr(*SEventBufferEnd, CSR::SLAVE_EVENT_END_ADDRESS);
+                    ALLOCATE_SCALAR(SRouterEventBuffer);
+                    ALLOCATE_SCALAR(SRouterEventBufferEnd);
+                    c.csrr(*SRouterEventBuffer, CSR::SLAVE_EVENT_START_ADDRESS);
+                    c.csrr(*SRouterEventBufferEnd, CSR::SLAVE_EVENT_END_ADDRESS);
                     
                     // If there aren't any events goto end
-                    c.beq(*SEventBuffer, *SEventBufferEnd, eventLoopEnd);
+                    c.beq(*SRouterEventBuffer, *SRouterEventBufferEnd, eventLoopEnd);
 
-                    // Write time with top bit set to spike memory
-                    {
+                    // If we're not downsampling, write time with top bit set to spike memory
+                    if(downsampleShift == 0) {
                         ALLOCATE_SCALAR(STmp);
                         c.or_(*STmp, *STime, *STimeMarker);
-                        c.sw(*STmp, *SEventMemory);
+                        c.sw(*STmp, *SEventOutputBuffer);
 
                         // Advance spike memory pointer and goto end if end of memory reached
-                        c.addi(*SEventMemory, *SEventMemory, 4);
-                        c.beq(*SEventMemory, *SEventMemoryEnd, timeLoopEnd);
+                        c.addi(*SEventOutputBuffer, *SEventOutputBuffer, 4);
+                        c.beq(*SEventOutputBuffer, *SEventOutputVBufferEnd, timeLoopEnd);
                     }
 
                     // While (spikeBuffer != spikeBufferEnd
                     auto eventLoop = c.L();
                     
-                    c.beq(*SEventBuffer, *SEventBufferEnd, eventLoopEnd);
                     {
-                        // Load spike from buffer and incrememnt pointer
-                        ALLOCATE_SCALAR(SEvent);
-                        c.lw(*SEvent, *SEventBuffer);
-                        c.addi(*SEventBuffer, *SEventBuffer, 4);
+                        ScalarRegisterAllocator::RegisterPtr SPolarityMask;
+                        ScalarRegisterAllocator::RegisterPtr SDownsampleResolution;
+                        ScalarRegisterAllocator::RegisterPtr SDownsampleBuffer;
+                        if (downsampleShift > 0) {
+                            SPolarityMask = scalarRegisterAllocator.getRegister("SPolarityMask");
+                            SDownsampleResolution = scalarRegisterAllocator.getRegister("SDownsampleResolution");
+                            SDownsampleBuffer = scalarRegisterAllocator.getRegister("SDownsampleBuffer");
 
-                        // Write event to spike memory
-                        c.sw(*SEvent, *SEventMemory);
+                            // Bit mask to extract polarity with
+                            c.li(*SPolarityMask, 1 << 18);
+                            c.li(*SDownsampleResolution, downsampleResolution);
+                            c.li(*SDownsampleBuffer, downsampleIBuffer.value());
+                        }
 
-                        // Advance spike memory pointer and goto end if end of memory reached
-                        c.addi(*SEventMemory, *SEventMemory, 4);
-                        c.beq(*SEventMemory, *SEventMemoryEnd, timeLoopEnd);
+                        c.beq(*SRouterEventBuffer, *SRouterEventBufferEnd, eventLoopEnd);
+                        {
+                            ALLOCATE_SCALAR(SEvent);
 
-                        // Next event
-                        c.j_(eventLoop);
+                            // Load spike from buffer and incrememnt pointer
+                            c.lw(*SEvent, *SRouterEventBuffer);
+                            c.addi(*SRouterEventBuffer, *SRouterEventBuffer, 4);
+
+                            // If we're downsampling
+                            if (downsampleShift > 0) {
+                                ALLOCATE_SCALAR(SX);
+                                ALLOCATE_SCALAR(SCoord);
+                                ALLOCATE_SCALAR(SP);
+                                ALLOCATE_SCALAR(SDownsampleIntegrator);
+
+                                // Extract downsampled y from bottom of event
+                                c.srli(*SCoord, *SEvent, downsampleShift);
+                                c.andi(*SCoord, *SCoord, downsampleMask);
+                            
+                                // Extract downsampled x from above
+                                c.srli(*SX, *SEvent, downsampleShift + 9);
+                                c.andi(*SX, *SX, downsampleMask);
+                            
+                                // Calculate (Y * downsampleResolution) + X
+                                c.mul(*SCoord, *SCoord, *SDownsampleResolution);
+                                c.add(*SCoord, *SCoord, *SX);
+                                c.add(*SCoord, *SCoord, *SDownsampleBuffer);
+
+                                // Extract polarity from above that
+                                c.and_(*SP, *SEvent, *SPolarityMask);
+
+                                // Load current downsampled value
+                                c.lb(*SDownsampleIntegrator, *SCoord);
+
+                                // Shift down by 17 so it's either 0 or 2
+                                c.srli(*SP, *SP, 17);
+
+                                // Subtract 1 so it's either -1  or 1
+                                c.addi(*SP, *SP, -1);
+
+                                // Add to integrator
+                                c.add(*SDownsampleIntegrator, *SDownsampleIntegrator, *SP);
+
+                                // Store
+                                c.sb(*SDownsampleIntegrator, *SCoord);
+                            }
+                            // Otherwise
+                            else {
+                                // Write event directly to spike memory
+                                c.sw(*SEvent, *SEventOutputBuffer);
+
+                                // Advance spike memory pointer and goto end if end of memory reached
+                                c.addi(*SEventOutputBuffer, *SEventOutputBuffer, 4);
+                                c.beq(*SEventOutputBuffer, *SEventOutputVBufferEnd, timeLoopEnd);
+                            }
+
+                            // Next event
+                            c.j_(eventLoop);
+                        }
+                        c.L(eventLoopEnd);
                     }
-                    c.L(eventLoopEnd);
                 }
 
+                if (downsampleShift > 0) {
+                    ALLOCATE_SCALAR(SVBuffer);
+                    ALLOCATE_SCALAR(SIBuffer);
+                    ALLOCATE_SCALAR(SOne);
+                    ALLOCATE_VECTOR(VAlpha);
+                    ALLOCATE_VECTOR(VZero);
+                    
+                    c.li(*SVBuffer, downsampleVBuffer.value());
+                    c.li(*SIBuffer, downsampleIBuffer.value());
+                    c.li(*SOne, 1);
+                    c.vlui(*VAlpha, convertFixedPoint(std::exp(-1.0 / 20.0), 12));
+                    c.vlui(*VZero, 0);
+
+                    AssemblerUtils::unrollVectorLoopBody(
+                        c, scalarRegisterAllocator, downsampleResolution * downsampleResolution, 4, *SVBuffer,
+                        [&scalarRegisterAllocator, &vectorRegisterAllocator, 
+                         SOne, SIBuffer, SVBuffer, VAlpha]
+                        (CodeGenerator &c, uint32_t r, bool, ScalarRegisterAllocator::RegisterPtr maskReg)
+                        {
+                            // Register allocation
+                            ALLOCATE_VECTOR(VV);
+                            ALLOCATE_VECTOR(VISyn);
+                            ALLOCATE_SCALAR(SSpikeOut);
+                         
+                            // Zero ISyn
+                            c.vlui(*VISyn, 0);
+                            {
+                                // Loop through bytes of downsample buffer
+                                ALLOCATE_SCALAR(SI);
+                                ALLOCATE_SCALAR(SMask);
+                                ALLOCATE_VECTOR(VTmp);
+                                for (int i = 0; i < 32; i++) {
+                                    // Load I byte
+                                    c.lb(*SI, *SIBuffer, i);
+
+                                    // Build mask
+                                    c.slli(*SMask, *SOne, i);
+                                    
+                                    // Fill vector register
+                                    c.vfill(*VTmp, *SI);
+                                    
+                                    // Fill lane of ISyn with masked value
+                                    c.vsel(*VISyn, *SMask, *VTmp);
+                                }
+
+                                // Zero buffer
+                                for (int i = 0; i < 8; i++) {
+                                    c.sw(Reg::X0, *SIBuffer, i * 4);
+                                }
+                            }
+
+                            // Load voltage and isyn
+                            c.vloadv(*VV, *SVBuffer, 64 * r);
+                            
+                            // VV *= VAlpha
+                            c.vmul(12, *VV, *VV, *VAlpha);
+
+                            // VV += VISyn
+                            c.vadd_s(*VV, *VV, *VISyn);
+#
+                            // VISyn = 0
+                            c.vlui(*VISyn, 0);
+
+                            // SSpikeOut = VV >= VThresh && !SRefractory
+                            c.vtge(*SSpikeOut, *VV, *VThresh);
+                            {
+                                // STemp = !SRefractory
+                                ALLOCATE_SCALAR(STemp);
+                                c.not_(*STemp, *SRefractory);
+                                c.and_(*SSpikeOut, *SSpikeOut, *STemp);
+                            }
+
+                            // *SSpikeBuffer = SSpikeOut
+                            c.sw(*SSpikeOut, *SSpikeBuffer, 4 * r);
+                            {
+                                // VTemp = V - VThresh
+                                ALLOCATE_VECTOR(VTemp);
+                                c.vadd(*VTemp, *VV, *VMinusThresh);
+
+                                // VV = SSpikeOut ? VReset : VV
+                                c.vsel(*VV, *SSpikeOut, *VTemp);
+                            }
+
+                            // Store V
+                            c.vstore(*VV, *SVBuffer, 64 * r);
+                        },
+                        [SIBuffer, SVBuffer]
+                        (CodeGenerator &c, uint32_t numUnrolls)
+                        {
+                            c.addi(*SIBuffer, *SIBuffer, 32 * numUnrolls);
+                            c.addi(*SVBuffer, *SVBuffer, 64 * numUnrolls);
+                        });
+                }
                 // Increment time
                 c.addi(*STime, *STime, 1);
 
