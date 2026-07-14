@@ -40,20 +40,6 @@ Device::Device(int core, int numCores)
 
     // Create DMA controller
     m_DMAController = std::make_unique<DMAController>(targetNamePrefix + "dm_cmd_and_fsm");
-
-    // Create MIPI CSI2 receiver
-    try {
-        m_MIPICSI2Receiver = std::make_unique<MIPICSI2Receiver>("mipi_csi2_rx_subsyst_0");
-    }
-    catch (const std::runtime_error &) {
-        LOGW << "MIPI CSI 2 Receiver not found - GenX320 event camera not available";
-    }
-
-    // IF MIPI CSI 2 receiver is successfully initialiser, create camera
-    if (m_MIPICSI2Receiver) {
-        m_GenX320 = std::make_unique<GenX320>(EventFormat::EVT2, "axi_gpio_0", 
-                                              m_MIPICSI2Receiver.get());
-    }
 #else
     throw std::runtime_error("Device interface only supports Linux");
 #endif  // __linux__
