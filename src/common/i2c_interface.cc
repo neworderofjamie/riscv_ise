@@ -61,8 +61,6 @@ I2CInterface::~I2CInterface()
     }
 
     LOGD << "I2C closed";
-#else
-    throw std::runtime_error("I2C interface only supports Linux");
 #endif  // __linux__
 }
 //---------------------------------------------------------------------
