@@ -37,22 +37,16 @@ namespace
 constexpr uint32_t spikeArrayPtr = 32 * 4096;
 constexpr size_t numCores = 1;
 
-using CoreData = std::vector<std::tuple<uint32_t, std::vector<uint32_t>, std::thread>>;
+using CoreData = std::vector<std::tuple<std::vector<uint32_t>, std::thread>>;
 
 void simThread(const std::vector<uint32_t> &code, const std::vector<uint8_t> &scalarInitData,
-               SharedBusSim &sharedBus, uint32_t coreID, uint32_t spikeBitfield,
-               uint32_t bitfieldPtr, uint32_t eventIDBasePtr, uint32_t outputSpikeArrayEnd, 
-               uint32_t outputSpikeArrayPtr, std::vector<uint32_t> &receivedEvents)
+               SharedBusSim &sharedBus, uint32_t coreID, uint32_t eventMemoryPtr, 
+               std::vector<uint32_t> &receivedEvents)
 {
     // Create RISC-V core with instruction and scalar data
     RISCV riscV;
     riscV.setInstructions(code);
     riscV.getScalarDataMemory().setData(scalarInitData);
-    
-    // Write bitfield and event ID base to memory
-    auto *wordData = reinterpret_cast<uint32_t*>(riscV.getScalarDataMemory().getData());
-    wordData[bitfieldPtr / 4] = spikeBitfield;
-    wordData[eventIDBasePtr / 4] = (coreID << 14);
 
     // Add vector co-processor
     riscV.addCoprocessor<VectorProcessor>(vectorQuadrant);
@@ -67,24 +61,27 @@ void simThread(const std::vector<uint32_t> &code, const std::vector<uint8_t> &sc
     }
 
     // Copy spikes received into vector
-    const uint32_t num = (wordData[outputSpikeArrayEnd / 4] - spikeArrayPtr) / 4;
-    std::copy_n(&wordData[outputSpikeArrayPtr / 4], num, std::back_inserter(receivedEvents));
+    const auto *wordData = reinterpret_cast<uint32_t*>(riscV.getScalarDataMemory().getData());
+    std::copy_n(&wordData[eventMemoryPtr / 4], ((4096 * 32) - eventMemoryPtr) / 4, std::back_inserter(receivedEvents));
 }
 
 void deviceThread(const std::vector<uint32_t> &code, const std::vector<uint8_t> &scalarInitData,
-                  uint32_t coreID, uint32_t spikeBitfield,
-                  uint32_t bitfieldPtr, uint32_t eventIDBasePtr, uint32_t outputSpikeArrayEnd, 
-                  uint32_t outputSpikeArrayPtr, uint32_t readyFlagPtr, std::vector<uint32_t> &receivedEvents,
-                  Barrier &barrier)
+                  uint32_t coreID, uint32_t eventMemoryPtr, uint32_t readyFlagPtr, 
+                  std::vector<uint32_t> &receivedEvents, Barrier &barrier)
 {
     LOGI << "Creating device (" << coreID << " / " << numCores << ")";
     Device device(coreID, numCores);
-    DeviceControl deviceControl(numCores);
+    
+    std::unique_ptr<DeviceControl> deviceControl;
+    if(coreID == 0) {
+        deviceControl = std::make_unique<DeviceControl>(numCores);
+    }
+
     LOGI << "Resetting";
     // Put core into reset state
     barrier.wait();
     if(coreID == 0) {
-        deviceControl.setEnabled(false);
+        deviceControl->setEnabled(false);
     }
     
     LOGI << "Copying instructions (" << code.size() * sizeof(uint32_t) << " bytes)";
@@ -92,16 +89,14 @@ void deviceThread(const std::vector<uint32_t> &code, const std::vector<uint8_t> 
     
     LOGI << "Copying data (" << scalarInitData.size() << " bytes);";
     device.memcpyDataToDevice(0, scalarInitData.data(), scalarInitData.size());
-            
-    // Hack with bitfield and eventID baseptr
-    volatile uint32_t *wordData = reinterpret_cast<volatile uint32_t*>(device.getDataMemory());
-    wordData[bitfieldPtr / 4] = spikeBitfield;
-    wordData[eventIDBasePtr / 4] = (coreID << 14);
+
     barrier.wait();
     LOGI << "Enabling";
-    // Put core into running state
+
+    // Put core into running state and start streaming data from camera and 
     if(coreID == 0) {
-        deviceControl.setEnabled(true);
+        deviceControl->setEnabled(true);
+        deviceControl->getGenX320()->startStreaming();
     }
     LOGI << "Running " << readyFlagPtr;
     
@@ -109,58 +104,23 @@ void deviceThread(const std::vector<uint32_t> &code, const std::vector<uint8_t> 
     device.waitOnNonZero(readyFlagPtr);
     LOGI << "Done";
     barrier.wait();
+
+    // Stop streaming data from camera and put core in disabled state
     if(coreID == 0) {
-        deviceControl.setEnabled(false);
+        deviceControl->getGenX320()->stopStreaming();
+        deviceControl->setEnabled(false);
     }
     LOGI << "Cores disabled";
 
     // Copy spikes received into vector
-    const uint32_t num = (wordData[outputSpikeArrayEnd / 4] - spikeArrayPtr) / 4;
-    for(uint32_t i = 0; i < num; i++) {
-        receivedEvents.push_back((uint32_t)wordData[i + (outputSpikeArrayPtr / 4)]);
-    }
-}
+    volatile const uint32_t *wordData = reinterpret_cast<volatile uint32_t*>(device.getDataMemory());
 
-void checkOutput(const CoreData &coreData)
-{
-    // Check all cores have received the same data
-    const auto &core0Data = std::get<1>(coreData[0]);
-    for(uint32_t i = 1; i < numCores; i++) {
-        const auto &coreIData = std::get<1>(coreData[i]);
-        assert(std::equal(core0Data.cbegin(), core0Data.cend(),
-                          coreIData.cbegin(), coreIData.cend()));
-    }
-
-    // Make a copy of each core's bitfield
-    std::vector<uint32_t> spikeBitfieldCopy;
-    std::transform(coreData.cbegin(), coreData.cend(), std::back_inserter(spikeBitfieldCopy),
-                   [](const auto &c){ return std::get<0>(c); });
-    
-    std::cout << std::get<1>(coreData[0]).size() << " spikes received" << std::endl;
-    
-    
-    // Loop through events received by one core
-    for(uint32_t s : std::get<1>(coreData[0])) {
-        // Split event into core and neuron
-        const uint32_t core = s >> 14;
-        const uint32_t neuron = s & ((1 << 14) - 1);
-        const uint32_t neuronBit = 1 << neuron;
-
-        std::cout << std::hex << "\t" << s << std::endl;
-
-        // Check bit is still set in core's bitmask
-        assert(spikeBitfieldCopy[core] & neuronBit);
-
-        // Clear BIT
-        spikeBitfieldCopy[core] &= ~neuronBit;
-    }
-
-    // Check all bits have been cleared i.e. received spikes match bitfield
-    for(uint32_t s : spikeBitfieldCopy) {
-        assert(s == 0);
+    for(uint32_t i = eventMemoryPtr; i < (4096 * 32); i++) {
+        receivedEvents.push_back((uint32_t)wordData[i / 4]);
     }
 }
 }
+
 int main(int argc, char** argv)
 {
     // Configure logging
@@ -168,9 +128,11 @@ int main(int argc, char** argv)
     plog::init(plog::debug, &consoleAppender);
     
     bool device = false;
+    int clockSpeedMhz = 166;
 
     CLI::App app{"Blank example"};
     app.add_flag("-d,--device", device, "Should be run on device rather than simulator");
+    app.add_option("-c,--clock-speed", clockSpeedMhz, "What clock speed is the device running at [Mhz]?");
 
     CLI11_PARSE(app, argc, argv);
     
@@ -180,49 +142,101 @@ int main(int argc, char** argv)
 
     // Allocate scalar arrays
     const uint32_t readyFlagPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
-    const uint32_t bitfieldPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
-    const uint32_t eventIDBasePtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
-    const uint32_t outputSpikeArrayEnd = AppUtils::allocateScalarAndZero(4, scalarInitData);
-    const uint32_t outputSpikeArrayPtr = AppUtils::allocateScalarAndZero(64 * 4, scalarInitData);
-
+    const uint32_t eventMemoryPtr = AppUtils::allocateScalarAndZero((4096 * 32) - scalarInitData.size(), scalarInitData);
+    
     // Generate code
     const auto code = AssemblerUtils::generateStandardKernel(
         !device, readyFlagPtr,
         [=](CodeGenerator &c, VectorRegisterAllocator&, ScalarRegisterAllocator &scalarRegisterAllocator)
         {
-            
-            // Build 0x1F000 immediate (address of start of spike memory)
-            ALLOCATE_SCALAR(SSpikeMemory);
-            c.li(*SSpikeMemory, spikeArrayPtr);
-            
-            // Write SLAVE_EVENT_ADDRESS
-            c.csrw(CSR::SLAVE_EVENT_ADDRESS, *SSpikeMemory);
-            
+            ALLOCATE_SCALAR(STime);
+            ALLOCATE_SCALAR(STimeMarker);
+            ALLOCATE_SCALAR(SEventMemory);
+            ALLOCATE_SCALAR(SEventMemoryEnd);
+
+            // Start time at 0
+            c.li(*STime, 0);
+
+            // Bit to mark timestamps with
+            c.li(*STimeMarker, 1 << 31);
+
+            // Load spike memory pointers
+            c.li(*SEventMemory, eventMemoryPtr);
+            c.li(*SEventMemoryEnd, 4096 * 32);
+
+            Label timeLoopEnd;
+            auto timeLoop = c.L();
             {
-                // Read SLAVE_EVENT_ADDRESS i.e. where slave FINISHED writing spikes
-                ALLOCATE_SCALAR(SSpikeMemoryEnd);
-                c.csrr(*SSpikeMemoryEnd, CSR::SLAVE_EVENT_ADDRESS);
+                ALLOCATE_SCALAR(SLoopStartCycleLow);
+                ALLOCATE_SCALAR(SLoopStartCycleHigh);
+
                 
-                // Write to memory
-                c.sw(*SSpikeMemoryEnd, Reg::X0, outputSpikeArrayEnd);
 
-                // Load address of output array in normal memory
-                ALLOCATE_SCALAR(SSpikeOut);
-                c.li(*SSpikeOut, outputSpikeArrayPtr);
+                // Read cycle count at start of loop
+                c.csrr(*SLoopStartCycleLow, CSR::MCYCLE);
+                c.csrr(*SLoopStartCycleHigh, CSR::MCYCLEH);
 
-                auto spikeLoop = c.L();
+                // Swap router buffers
+                c.csrwi(CSR::SLAVE_SWAP_BUFFER, 1);
+
                 {
-                    // Load word from spike memory and store in data memory
-                    ALLOCATE_SCALAR(STmp);
-                    c.lw(*STmp, *SSpikeMemory);
-                    c.sw(*STmp, *SSpikeOut);
+                    Label eventLoopEnd;
 
-                    // Loop until all spikes processed
-                    c.addi(*SSpikeMemory, *SSpikeMemory, 4);
-                    c.addi(*SSpikeOut, *SSpikeOut, 4);
-                    c.bne(*SSpikeMemory, *SSpikeMemoryEnd, spikeLoop);
+                    // Get start and end of event buffer
+                    ALLOCATE_SCALAR(SEventBuffer);
+                    ALLOCATE_SCALAR(SEventBufferEnd);
+                    c.csrr(*SEventBuffer, CSR::SLAVE_EVENT_START_ADDRESS);
+                    c.csrr(*SEventBufferEnd, CSR::SLAVE_EVENT_END_ADDRESS);
+                    
+                    // If there aren't any events goto end
+                    c.beq(*SEventBuffer, *SEventBufferEnd, eventLoopEnd);
+
+                    // Write time with top bit set to spike memory
+                    {
+                        ALLOCATE_SCALAR(STmp);
+                        c.or_(*STmp, *STime, *STimeMarker);
+                        c.sw(*STmp, *SEventMemory);
+
+                        // Advance spike memory pointer and goto end if end of memory reached
+                        c.addi(*SEventMemory, *SEventMemory, 4);
+                        c.beq(*SEventMemory, *SEventMemoryEnd, timeLoopEnd);
+                    }
+
+                    // While (spikeBuffer != spikeBufferEnd
+                    auto eventLoop = c.L();
+                    
+                    c.beq(*SEventBuffer, *SEventBufferEnd, eventLoopEnd);
+                    {
+                        // Load spike from buffer and incrememnt pointer
+                        ALLOCATE_SCALAR(SEvent);
+                        c.lw(*SEvent, *SEventBuffer);
+                        c.addi(*SEventBuffer, *SEventBuffer, 4);
+
+                        // Write event to spike memory
+                        c.sw(*SEvent, *SEventMemory);
+
+                        // Advance spike memory pointer and goto end if end of memory reached
+                        c.addi(*SEventMemory, *SEventMemory, 4);
+                        c.beq(*SEventMemory, *SEventMemoryEnd, timeLoopEnd);
+
+                        // Next event
+                        c.j_(eventLoop);
+                    }
+                    c.L(eventLoopEnd);
                 }
+
+                // Increment time
+                c.addi(*STime, *STime, 1);
+
+                // Wait until 1ms of clock cycles has elapsed since start of loop
+                AssemblerUtils::generateWaitElapsedCycles(c, scalarRegisterAllocator, 
+                                                          *SLoopStartCycleLow, *SLoopStartCycleHigh, 
+                                                          clockSpeedMhz * 1000);
+
+                // Loop
+                c.j_(timeLoop);
             }
+            c.L(timeLoopEnd);
         });
 
     // Dump to coe file
@@ -235,28 +249,21 @@ int main(int argc, char** argv)
         
         Barrier barrier(numCores);
         // Loop through cores
-        std::random_device d;
         for(uint32_t i = 0; i < numCores; i++) {
-            // Generate spike bitfield for this core
-            std::get<0>(coreData[i]) = d();
-			std::cout << "Core " << i << " data = " << std::hex << std::get<0>(coreData[i]) << std::endl;
-
             // Create thread
-            std::get<2>(coreData[i]) = std::thread(
+            std::get<1>(coreData[i]) = std::thread(
                 deviceThread, std::cref(code), std::cref(scalarInitData),
-                i, std::get<0>(coreData[i]), bitfieldPtr, eventIDBasePtr, outputSpikeArrayEnd, 
-                outputSpikeArrayPtr, readyFlagPtr, std::ref(std::get<1>(coreData[i])), std::ref(barrier));
+                i, eventMemoryPtr, readyFlagPtr, 
+                std::ref(std::get<0>(coreData[i])), std::ref(barrier));
             
             // Name thread
-            setThreadName(std::get<2>(coreData[i]), "Core " + std::to_string(i));
+            setThreadName(std::get<1>(coreData[i]), "Core " + std::to_string(i));
         }
 
         // Join all threads
         for(auto &c : coreData) {
-            std::get<2>(c).join();
+            std::get<1>(c).join();
         }
-        
-        checkOutput(coreData);
     }
     else {
         // Create simulated shared bus to connect the cores
@@ -266,30 +273,21 @@ int main(int argc, char** argv)
         CoreData coreData(numCores);
 
         // Loop through cores
-        std::random_device d;
         for(uint32_t i = 0; i < numCores; i++) {
-            // Generate spike bitfield for this core
-            std::get<0>(coreData[i]) = d();
-			std::cout << "Core " << i << " data = " << std::hex << std::get<0>(coreData[i]) << std::endl;
-
             // Create thread
-            std::get<2>(coreData[i]) = std::thread(
+            std::get<1>(coreData[i]) = std::thread(
                 simThread, std::cref(code), std::cref(scalarInitData),
-                std::ref(sharedBus), i, std::get<0>(coreData[i]),
-                bitfieldPtr, eventIDBasePtr, outputSpikeArrayEnd, 
-                outputSpikeArrayPtr, std::ref(std::get<1>(coreData[i])));
+                std::ref(sharedBus), i, eventMemoryPtr,
+                std::ref(std::get<0>(coreData[i])));
             
             // Name thread
-            setThreadName(std::get<2>(coreData[i]), "Core " + std::to_string(i));
+            setThreadName(std::get<1>(coreData[i]), "Core " + std::to_string(i));
         }
 
         // Join all threads
         for(auto &c : coreData) {
-            std::get<2>(c).join();
+            std::get<1>(c).join();
         }
-        
-        checkOutput(coreData);
-    
     }
     return 0;
 
