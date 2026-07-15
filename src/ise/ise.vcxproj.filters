@@ -26,6 +26,9 @@
     <ClCompile Include="shared_bus_sim.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="event_injector_sim.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\ise\riscv.h">
@@ -47,6 +50,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\ise\shared_bus_sim.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\ise\event_injector_sim.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
