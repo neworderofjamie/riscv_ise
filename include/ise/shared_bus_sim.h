@@ -30,6 +30,8 @@ public:
     //! **NOTE** blocks until all threads reach this point and read value
     std::pair<std::optional<uint32_t>, bool> synchronise(size_t routerIndex);
    
+    size_t getNumRouters() const{ return m_NumRouters; }
+
 private:
     //------------------------------------------------------------------------
     // Members

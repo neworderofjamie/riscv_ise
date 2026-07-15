@@ -71,7 +71,7 @@ bool EventInjectorSim::tick()
                     m_ReadPointer++;
                     
                     // If we're out of data or the next entry is a timestamp
-                    if (m_ReadPointer >= m_Data.size() || (m_Data[m_ReadPointer] & timestampBit) == 1) {
+                    if (m_ReadPointer >= m_Data.size() || (m_Data[m_ReadPointer] & timestampBit)) {
                         transition(FSMState::WAIT_BARRIER_SENT);
                     }
                 }
@@ -124,7 +124,7 @@ bool EventInjectorSim::areThereSpikesToSend() const
     if (m_ReadPointer < m_Data.size()) {
         // Read data and assert that it is a timestamp
         const uint32_t data = m_Data[m_ReadPointer];
-        assert((data & timestampBit) == 1);
+        assert(data & timestampBit);
 
         // If timestep matches current timestep
         const uint32_t timestep = (data & ~timestampBit);
