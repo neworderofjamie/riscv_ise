@@ -205,24 +205,30 @@ void RouterSim::writeReceivedEvent(std::optional<uint32_t> data)
         }
         // Otherwise, write spike to write address
         else {
-            m_SpikeMemory.get().write32(m_SlaveWriteAddress, data.value());
-            PLOGV << "Writing event " << data.value() << " to " << m_SlaveWriteAddress;
-
-            // If we're writing to the start
+            // If we're writing events 'up' from the start
             if(m_SlaveWriteStart) {
-                // Increment address
-                m_SlaveWriteAddress += 4;
+                if(m_SlaveWriteAddress < readReg(Register::SLAVE_EVENT_START_ADDRESS)) {
+                    m_SpikeMemory.get().write32(m_SlaveWriteAddress, data.value());
+                    PLOGV << "Writing event " << data.value() << " to " << m_SlaveWriteAddress;
 
-                if(m_SlaveWriteAddress >= readReg(Register::SLAVE_EVENT_START_ADDRESS)) {
-                    LOGW << "Slave writing over previous buffer";
+                    // Increment address
+                    m_SlaveWriteAddress += 4;
+                }
+                else {
+                    LOGW << "Event dropped: slave buffer full";
                 }
             }
+            // Otherwise, if we're writing 'down' from the end
             else {
-                // Decrement address
-                m_SlaveWriteAddress -= 4;
+                if(m_SlaveWriteAddress >= readReg(Register::SLAVE_EVENT_END_ADDRESS)) {
+                    m_SpikeMemory.get().write32(m_SlaveWriteAddress, data.value());
+                    PLOGV << "Writing event " << data.value() << " to " << m_SlaveWriteAddress;
 
-                if(m_SlaveWriteAddress < readReg(Register::SLAVE_EVENT_END_ADDRESS)) {
-                    LOGW << "Slave writing over previous buffer";
+                    // Decrement address
+                    m_SlaveWriteAddress -= 4;
+                }
+                else {
+                    LOGW << "Event dropped: slave buffer full";
                 }
             }
         }
