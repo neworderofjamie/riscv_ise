@@ -427,10 +427,11 @@ int main(int argc, char** argv)
                 c.addi(*STime, *STime, 1);
 
                 // Wait until 1ms of clock cycles has elapsed since start of loop
-                AssemblerUtils::generateWaitElapsedCycles(c, scalarRegisterAllocator, 
-                                                          *SLoopStartCycleLow, *SLoopStartCycleHigh, 
-                                                          clockSpeedMhz * 1000);
-
+                if(device) {
+                    AssemblerUtils::generateWaitElapsedCycles(c, scalarRegisterAllocator, 
+                                                              *SLoopStartCycleLow, *SLoopStartCycleHigh, 
+                                                              clockSpeedMhz * 1000);
+                }
                 // Loop
                 c.j_(timeLoop);
             }
@@ -438,7 +439,7 @@ int main(int argc, char** argv)
         });
 
     // Dump to coe file
-    //AppUtils::dumpCOE("mul.coe", code);
+    AppUtils::dumpCOE("event_camera.coe", code);
     std::vector<uint32_t> spikeInjectData;
     spikeInjectData.reserve(320 * 320 * 4);
 
