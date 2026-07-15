@@ -194,22 +194,21 @@ int main(int argc, char** argv)
             ScalarRegisterAllocator &scalarRegisterAllocator)
         {
             ALLOCATE_SCALAR(STime);
+            ALLOCATE_SCALAR(STimeEnd);
             ALLOCATE_SCALAR(STimeMarker);
             ALLOCATE_SCALAR(SEventOutputBuffer);
-            ALLOCATE_SCALAR(SEventOutputVBufferEnd);
             
 
             // Start time at 0
             c.li(*STime, 0);
+            c.li(*STimeEnd, 86);
 
             // Bit to mark timestamps with
             c.li(*STimeMarker, 1 << 31);
 
             // Load spike memory pointers
             c.li(*SEventOutputBuffer, eventMemoryPtr);
-            c.li(*SEventOutputVBufferEnd, 4096 * 32);
 
-            Label timeLoopEnd;
             auto timeLoop = c.L();
             {
                 ALLOCATE_SCALAR(SLoopStartCycleLow);
@@ -246,9 +245,8 @@ int main(int argc, char** argv)
                         c.or_(*STmp, *STime, *STimeMarker);
                         c.sw(*STmp, *SEventOutputBuffer);
 
-                        // Advance spike memory pointer and goto end if end of memory reached
+                        // Advance spike memory pointer
                         c.addi(*SEventOutputBuffer, *SEventOutputBuffer, 4);
-                        c.beq(*SEventOutputBuffer, *SEventOutputVBufferEnd, timeLoopEnd);
                     }
 
                     // While (spikeBuffer != spikeBufferEnd
@@ -322,7 +320,6 @@ int main(int argc, char** argv)
 
                                 // Advance spike memory pointer and goto end if end of memory reached
                                 c.addi(*SEventOutputBuffer, *SEventOutputBuffer, 4);
-                                c.beq(*SEventOutputBuffer, *SEventOutputVBufferEnd, timeLoopEnd);
                             }
 
                             // Next event
@@ -422,8 +419,7 @@ int main(int argc, char** argv)
                             //c.addi(*SSpikeBuffer, *SSpikeBuffer, 4 * numUnrolls); 
                         });
                 }
-                // Increment time
-                c.addi(*STime, *STime, 1);
+                
 
                 // Wait until 1ms of clock cycles has elapsed since start of loop
                 if(device) {
@@ -431,10 +427,11 @@ int main(int argc, char** argv)
                                                               *SLoopStartCycleLow, *SLoopStartCycleHigh, 
                                                               clockSpeedMhz * 1000);
                 }
-                // Loop
-                c.j_(timeLoop);
+
+                // Increment time
+                c.addi(*STime, *STime, 1);
+                c.bne(*STime, *STimeEnd, timeLoop);
             }
-            c.L(timeLoopEnd);
         });
 
     // Dump to coe file
