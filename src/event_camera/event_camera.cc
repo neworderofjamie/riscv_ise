@@ -1,6 +1,5 @@
 // Standard C++ includes
 #include <fstream>
-#include <numeric>
 #include <random>
 #include <tuple>
 #include <thread>
@@ -440,20 +439,10 @@ int main(int argc, char** argv)
 
     // Dump to coe file
     AppUtils::dumpCOE("event_camera.coe", code);
-    std::vector<uint32_t> spikeInjectData;
-    spikeInjectData.reserve(320 * 320 * 4);
-
-    // Generate test pattern
-    for (unsigned int y = 0; y < 320; y++) {
-        for (unsigned int x = 0; x < 320; x++) {
-            const unsigned int t = (y * 320 * 2) + (x * 2);
-            spikeInjectData.push_back(buildTimestep(t));
-            spikeInjectData.push_back(buildFeNNEvent(x, y, true));
-            spikeInjectData.push_back(buildTimestep(t + 1));
-            spikeInjectData.push_back(buildFeNNEvent(x, y, false));
-        }
-    }
-
+    
+    // Load input sequence
+    const auto spikeInjectData = AppUtils::loadBinaryData<uint32_t>("courtyard.bin");
+    
     if(device) {
         // Allocate vector with data for all cores
         CoreData coreData(numCores);
@@ -504,6 +493,11 @@ int main(int argc, char** argv)
             std::get<1>(c).join();
         }
         injectorThread.join();
+
+        {
+            std::ofstream output("recorded_spikes.bin", std::ios::binary);
+            output.write(reinterpret_cast<const char*>(std::get<0>(coreData[0]).data()), std::get<0>(coreData[0]).size() * 4);
+        }
     }
     return 0;
 
