@@ -1,8 +1,9 @@
 import numpy as np
 import matplotlib.animation as animation
 import matplotlib.pyplot as plt
+import sys
 
-data = np.fromfile("courtyard_walk_stereo.calib/courtyard.bin", dtype=np.uint32)
+data = np.fromfile(sys.argv[1], dtype=np.uint32)
 
 # Identify timesteps
 timesteps = np.where(data & (1<<31))[0]
@@ -14,6 +15,7 @@ last_timestep = data_timesteps[-1][0] & ((1 << 31) - 1)
 
 data_frames = np.zeros((last_timestep + 1, 320, 320), dtype=np.int8)
 
+max_spikes_per_timestep = 0
 for d in data_timesteps:
     t = d[0] & ((1 << 31) - 1)
     x = (d[1:] >> 9) & 0x1FF
@@ -21,8 +23,9 @@ for d in data_timesteps:
     p = (d[1:] >> 17).astype(int) - 1
     data_frames[t,y,x] = p
     
-    #plt.imshow(data_frames[i])
-    #plt.show()
+    max_spikes_per_timestep = max(max_spikes_per_timestep, len(d) - 1)
+
+print(f"Max spikes per timestep: {max_spikes_per_timestep}")    
   
 fig, axis = plt.subplots()
 
