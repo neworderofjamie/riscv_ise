@@ -30,15 +30,15 @@ private:
     //------------------------------------------------------------------------
     enum class FSMState
     {
-        IDLE,
-        WAIT_SPIKE_SENT,
+        WAIT_OTHER_BARRIERS,
         WAIT_BARRIER_SENT,
+        WAIT_SPIKE_SENT,
     };
 
     //------------------------------------------------------------------------
     // Private methods
     //------------------------------------------------------------------------
-    bool handleBarrier(std::optional<uint32_t> data);
+    void handleBarrier(std::optional<uint32_t> data);
 
     bool areThereSpikesToSend() const;
 
@@ -58,7 +58,7 @@ private:
 
     size_t m_ReadPointer;
     
-    uint32_t m_Timestep;
+    int m_Timestep;
 
     uint32_t m_BarrierCount;
 };
