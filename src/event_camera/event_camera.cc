@@ -27,6 +27,7 @@
 #include "assembler/register_allocator.h"
 
 // RISC-V ISE includes
+#include "ise/event_injector_sim.h"
 #include "ise/riscv.h"
 #include "ise/router_sim.h"
 #include "ise/shared_bus_sim.h"
@@ -38,6 +39,19 @@ constexpr uint32_t spikeArrayPtr = 32 * 4096;
 constexpr size_t numCores = 1;
 
 using CoreData = std::vector<std::tuple<std::vector<uint32_t>, std::thread>>;
+
+inline uint32_t buildTimestep(unsigned int t)
+{
+    assert(t < (1u << 31u));
+    return (t | (1u << 31u));
+}
+
+inline uint32_t buildFeNNEvent(unsigned int x, unsigned int y,  bool p)
+{
+    assert(x < (1 << 9));
+    assert(y < (1 << 9));
+    return  ((p ? 1 : 0) << 18) | (x << 9) | y;
+}
 
 void simThread(const std::vector<uint32_t> &code, const std::vector<uint8_t> &scalarInitData,
                SharedBusSim &sharedBus, uint32_t coreID, uint32_t eventMemoryPtr, 
@@ -63,6 +77,15 @@ void simThread(const std::vector<uint32_t> &code, const std::vector<uint8_t> &sc
     // Copy spikes received into vector
     const auto *wordData = reinterpret_cast<uint32_t*>(riscV.getScalarDataMemory().getData());
     std::copy_n(&wordData[eventMemoryPtr / 4], ((4096 * 32) - eventMemoryPtr) / 4, std::back_inserter(receivedEvents));
+}
+
+void simEventInjectorThread(SharedBusSim &sharedBus, uint32_t coreID, const std::vector<uint32_t> &data)
+{
+    // Create event injector
+    EventInjectorSim eventInjector(sharedBus, data, coreID);
+
+    // Keep ticking event injector until it runs out of data
+    while(eventInjector.tick());
 }
 
 void deviceThread(const std::vector<uint32_t> &code, const std::vector<uint8_t> &scalarInitData,
@@ -192,6 +215,12 @@ int main(int argc, char** argv)
             {
                 ALLOCATE_SCALAR(SLoopStartCycleLow);
                 ALLOCATE_SCALAR(SLoopStartCycleHigh);
+
+                // Wait for all events to be communicated
+                // **NOTE** this is only necessary in simulation to synchronise event injector
+                if(!device) {
+                    AssemblerUtils::generateRouterBarrier(c, scalarRegisterAllocator, numCores);
+                }
 
                 // Read cycle count at start of loop
                 c.csrr(*SLoopStartCycleLow, CSR::MCYCLE);
@@ -329,6 +358,8 @@ int main(int argc, char** argv)
                             ALLOCATE_SCALAR(SSpikeOut);
                          
                             // Zero ISyn
+                            // **OPTIMISE** process is very slow - 4 instructions per-neuron. If we had an instruction 
+                            // that filled all lanes with sign-extended bytes - would reduce by factor 4 without muxes
                             c.vlui(*VISyn, 0);
                             {
                                 // Loop through bytes of downsample buffer
@@ -363,18 +394,12 @@ int main(int argc, char** argv)
 
                             // VV += VISyn
                             c.vadd_s(*VV, *VV, *VISyn);
-#
+
                             // VISyn = 0
                             c.vlui(*VISyn, 0);
 
                             // SSpikeOut = VV >= VThresh && !SRefractory
-                            c.vtge(*SSpikeOut, *VV, *VThresh);
-                            {
-                                // STemp = !SRefractory
-                                ALLOCATE_SCALAR(STemp);
-                                c.not_(*STemp, *SRefractory);
-                                c.and_(*SSpikeOut, *SSpikeOut, *STemp);
-                            }
+                            /*c.vtge(*SSpikeOut, *VV, *VThresh);
 
                             // *SSpikeBuffer = SSpikeOut
                             c.sw(*SSpikeOut, *SSpikeBuffer, 4 * r);
@@ -385,16 +410,17 @@ int main(int argc, char** argv)
 
                                 // VV = SSpikeOut ? VReset : VV
                                 c.vsel(*VV, *SSpikeOut, *VTemp);
-                            }
+                            }*/
 
                             // Store V
                             c.vstore(*VV, *SVBuffer, 64 * r);
                         },
-                        [SIBuffer, SVBuffer]
+                        [SIBuffer, /*SSpikeBuffer, */SVBuffer]
                         (CodeGenerator &c, uint32_t numUnrolls)
                         {
                             c.addi(*SIBuffer, *SIBuffer, 32 * numUnrolls);
                             c.addi(*SVBuffer, *SVBuffer, 64 * numUnrolls);
+                            //c.addi(*SSpikeBuffer, *SSpikeBuffer, 4 * numUnrolls); 
                         });
                 }
                 // Increment time
@@ -413,8 +439,20 @@ int main(int argc, char** argv)
 
     // Dump to coe file
     //AppUtils::dumpCOE("mul.coe", code);
+    std::vector<uint32_t> spikeInjectData;
+    spikeInjectData.reserve(320 * 320 * 4);
 
-    
+    // Generate test pattern
+    for (unsigned int y = 0; y < 320; y++) {
+        for (unsigned int x = 0; x < 320; x++) {
+            const unsigned int t = (y * 320 * 2) + (x * 2);
+            spikeInjectData.push_back(buildTimestep(t));
+            spikeInjectData.push_back(buildFeNNEvent(x, y, true));
+            spikeInjectData.push_back(buildTimestep(t + 1));
+            spikeInjectData.push_back(buildFeNNEvent(x, y, false));
+        }
+    }
+
     if(device) {
         // Allocate vector with data for all cores
         CoreData coreData(numCores);
@@ -439,7 +477,7 @@ int main(int argc, char** argv)
     }
     else {
         // Create simulated shared bus to connect the cores
-        SharedBusSim sharedBus(numCores);
+        SharedBusSim sharedBus(numCores + 1);
     
         // Allocate vector with data for all cores
         CoreData coreData(numCores);
@@ -456,10 +494,15 @@ int main(int argc, char** argv)
             setThreadName(std::get<1>(coreData[i]), "Core " + std::to_string(i));
         }
 
+        // Create another thread to inject spikes
+        std::thread injectorThread(simEventInjectorThread, std::ref(sharedBus), numCores, spikeInjectData);
+        setThreadName(injectorThread, "Spike injector");
+
         // Join all threads
         for(auto &c : coreData) {
             std::get<1>(c).join();
         }
+        injectorThread.join();
     }
     return 0;
 
