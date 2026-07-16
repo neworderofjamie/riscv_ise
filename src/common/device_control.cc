@@ -47,7 +47,7 @@ DeviceControl::DeviceControl(int numCores)
 
     // IF MIPI CSI 2 receiver is successfully initialiser, create camera
     if (m_MIPICSI2Receiver) {
-        m_GenX320 = std::make_unique<GenX320>(EventFormat::EVT2, "axi_gpio_0", 
+        m_GenX320 = std::make_unique<GenX320>(EventFormat::EVT2, "axi_gpio_cam", 
                                               m_MIPICSI2Receiver.get());
     }
 #else

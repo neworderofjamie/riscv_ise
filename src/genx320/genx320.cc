@@ -1,29 +1,34 @@
+// Standard C++ includes
+#include <chrono>
+#include <fstream>
+#include <thread>
+
 // PLOG includes
 #include <plog/Log.h>
 #include <plog/Severity.h>
 #include <plog/Appenders/ConsoleAppender.h>
 
 // Common includes
-#include "common/axis_tkeep_handler.h"
-#include "common/event_stream_smart_tracker.h"
-#include "common/genx_320.h"
-#include "common/mipi_csi2_receiver.h"
-#include "common/uio.h"
+#include "common/device_control.h"
 
 int main()
 {
-     // Configure logging
+    using namespace std::chrono_literals;
+
+    // Configure logging
     plog::ConsoleAppender<plog::TxtFormatter> consoleAppender;
     plog::init(plog::debug, &consoleAppender);
+    
+    DeviceControl deviceControl(1);
 
-    MIPICSI2Receiver mipiReceiver("mipi_csi2_rx_subsyst_0");
-
-    GenX320 genX320(EventFormat::EVT2, "axi_gpio_0", &mipiReceiver);
-    // Create devices
-    //
-    //AxisTkeepHandler axisTkeep("axis_tkeep_handler_0");
-    //EventStreamSmartTracker eventStreamSmart("event_stream_smart_t_0");
-    //UIO lowMemoryUIO("axi_bram_ctrl_0");
-    //UIO highMemoryUIO("axi_bram_ctrl_1");
-
+    LOGI << "Starting MIPI status: activate lanes = " << deviceControl.getMIPICSI2Receiver()->getActiveLanes() << " SLB full="<< deviceControl.getMIPICSI2Receiver()->isStreamLineBufferFull() << ", SPFNF=" << deviceControl.getMIPICSI2Receiver()->isShortPacketFIFONotempty() << ", SPFF=" << deviceControl.getMIPICSI2Receiver()->isShortPacketFIFOFull();
+    LOGI << "Starting MIPI packet count: " << deviceControl.getMIPICSI2Receiver()->getPacketCount();
+    deviceControl.setEnabled(true);
+    deviceControl.getGenX320()->startStreaming();
+    
+    std::this_thread::sleep_for(2s);
+    
+    deviceControl.getGenX320()->stopStreaming();
+    LOGI << "Ending MIPI status: activate lanes = " << deviceControl.getMIPICSI2Receiver()->getActiveLanes() << " SLB full="<< deviceControl.getMIPICSI2Receiver()->isStreamLineBufferFull() << ", SPFNF=" << deviceControl.getMIPICSI2Receiver()->isShortPacketFIFONotempty() << ", SPFF=" << deviceControl.getMIPICSI2Receiver()->isShortPacketFIFOFull();
+    LOGI << "Ending MIPI packet count: " << deviceControl.getMIPICSI2Receiver()->getPacketCount();
 }
