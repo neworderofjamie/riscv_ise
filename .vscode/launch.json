@@ -43,6 +43,7 @@
         "decay",
         "dma_test_fenn",
         "dump_coe",
+        "event_camera",
         "init_vram",
         "lane_local_test",
         "lif",

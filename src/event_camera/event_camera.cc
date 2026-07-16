@@ -149,7 +149,6 @@ int main(int argc, char** argv)
     plog::ConsoleAppender<plog::TxtFormatter> consoleAppender;
     plog::init(plog::debug, &consoleAppender);
     
-    bool downsample = false;
     bool device = false;
     int clockSpeedMhz = 166;
     unsigned int downsampleShift = 0;
@@ -201,7 +200,7 @@ int main(int argc, char** argv)
 
             // Start time at 0
             c.li(*STime, 0);
-            c.li(*STimeEnd, 86);
+            c.li(*STimeEnd, 87);
 
             // Bit to mark timestamps with
             c.li(*STimeMarker, 1 << 31);
