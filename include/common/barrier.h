@@ -27,6 +27,23 @@ public:
     void wait()
     {
         std::unique_lock<std::mutex> lock(m_Mutex);
+        waitInternal(lock);
+    }
+
+    void waitAndDrop()
+    {
+        std::unique_lock<std::mutex> lock(m_Mutex);
+        assert(m_ResetCount > 0);
+        m_ResetCount--;
+        waitInternal(lock);
+    }
+
+private:
+    //------------------------------------------------------------------------
+    // Private methods
+    //------------------------------------------------------------------------
+    void waitInternal(std::unique_lock<std::mutex> &lock)
+    {
         const unsigned int gen = m_Generation;
 
         if (--m_Count == 0) {
@@ -35,11 +52,11 @@ public:
             lock.unlock();
             m_Cond.notify_all();
         }
-
-        m_Cond.wait(lock, [gen, this](){ return gen != m_Generation; });
+        else {
+            m_Cond.wait(lock, [gen, this](){ return gen != m_Generation; });
+        }
     }
 
-private:
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------

@@ -4,7 +4,7 @@
 //----------------------------------------------------------------------------
 // SharedBusSim
 //----------------------------------------------------------------------------
-std::pair<std::optional<uint32_t>, bool> SharedBusSim::synchronise(size_t routerIndex)
+std::pair<std::optional<uint32_t>, bool> SharedBusSim::synchronise(size_t routerIndex, bool lastTick)
 {
     // Wait until all threads have written data
     m_Barrier.wait();
@@ -24,7 +24,12 @@ std::pair<std::optional<uint32_t>, bool> SharedBusSim::synchronise(size_t router
     }
     
     // Wait until next router has definitely been updated
-    m_Barrier.wait();
+    if(lastTick) {
+        m_Barrier.waitAndDrop();
+    }
+    else {
+        m_Barrier.wait();
+    }
 
     // If the event that got sent was ours, update next router
     // **NOTE** this is an arbitrary choice of thread to update this
