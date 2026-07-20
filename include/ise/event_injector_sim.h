@@ -58,7 +58,7 @@ private:
 
     size_t m_ReadPointer;
     
-    int m_Timestep;
+    uint32_t m_Timestep;
 
     uint32_t m_BarrierCount;
 };

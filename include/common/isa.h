@@ -226,8 +226,7 @@ enum class CSR : uint32_t
     MASTER_EVENT_ID_BASE        = 0xBE0,
     MASTER_EVENT_BITFIELD       = 0xBE1,
     MASTER_SEND_BARRIER         = 0xBE2,
-    SLAVE_SWAP_BUFFER           = 0xBF0,
-    SLAVE_BARRIER_COUNT         = 0xBF1,
+    SLAVE_BARRIER_COUNT         = 0xBF0,
 
     SLAVE_EVENT_START_ADDRESS   = 0xFF0,  
     SLAVE_EVENT_END_ADDRESS     = 0xFF1,

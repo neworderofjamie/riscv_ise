@@ -192,11 +192,11 @@ void checkOutput(const std::vector<uint32_t> &coreOutput, const std::vector<uint
                             std::back_inserter(missingOutputEvents));
         
         if (!missingCorrectEvents.empty()) {
-            PLOGW << missingCorrectEvents.size() << " events missing from core output at time " << timestep;
+            PLOGW << missingCorrectEvents.size() << "/" << correctTimestepEvents.size() << " events missing from core output at time " << timestep;
         }
 
         if (!missingOutputEvents.empty()) {
-            PLOGE << missingOutputEvents.size() << " events in output which weren't in input at time " << timestep;
+            PLOGE << missingOutputEvents.size() << "/" << outputTimestepEvents.size() << " events in output which weren't in input at time " << timestep;
         }
 
     }
@@ -260,7 +260,7 @@ int main(int argc, char** argv)
 
             // Start time at 0
             c.li(*STime, 0);
-            c.li(*STimeEnd, 88);
+            c.li(*STimeEnd, 87);
 
             // Bit to mark timestamps with
             c.li(*STimeMarker, 1 << 31);
@@ -282,9 +282,6 @@ int main(int argc, char** argv)
                 // Read cycle count at start of loop
                 c.csrr(*SLoopStartCycleLow, CSR::MCYCLE);
                 c.csrr(*SLoopStartCycleHigh, CSR::MCYCLEH);
-
-                // Swap router buffers
-                c.csrwi(CSR::SLAVE_SWAP_BUFFER, 1);
 
                 {
                     Label eventLoopEnd;

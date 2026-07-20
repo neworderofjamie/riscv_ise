@@ -35,43 +35,6 @@ RouterSim::RouterSim(SharedBusSim &sharedBus, ScalarDataMemory &spikeMemory, siz
 //----------------------------------------------------------------------------
 void RouterSim::tick()
 {
-    // If we should swap slave buffers
-    if(readReg(Register::SLAVE_SWAP_BUFFER) != 0) {
-        // If we've been writing to the start of the buffer
-        const size_t spikeMemStart = m_SpikeMemory.get().getStartAddressBytes();
-        const size_t spikeMemEnd = m_SpikeMemory.get().getStartAddressBytes() + m_SpikeMemory.get().getSizeBytes();
-        if(m_SlaveWriteStart) {
-            assert(spikeMemStart <= m_SlaveWriteAddress);
-
-            // We want to start reading from start of the spike memory
-            writeRegInternal(Register::SLAVE_EVENT_START_ADDRESS, spikeMemStart);
-
-            // And end reading at current write address
-            writeRegInternal(Register::SLAVE_EVENT_END_ADDRESS, m_SlaveWriteAddress);
-
-            // Start writing at end of spike memory
-            m_SlaveWriteAddress = spikeMemEnd - 4;
-        }
-        // Otherwise, if we've been writing to the end of the buffer
-        else {
-            assert(m_SlaveWriteAddress <= spikeMemEnd);
-    
-            // We want to start reading at the current write address
-            writeRegInternal(Register::SLAVE_EVENT_START_ADDRESS, m_SlaveWriteAddress + 4);
-
-            // And end reading at the end of the spike memory
-            writeRegInternal(Register::SLAVE_EVENT_END_ADDRESS, spikeMemEnd);
-
-            // Start writing at beginning of spike memory
-            m_SlaveWriteAddress = spikeMemStart;
-        }
-
-        // Swap buffers
-        m_SlaveWriteStart = !m_SlaveWriteStart;
-
-        // Zero register
-        writeRegInternal(Register::SLAVE_SWAP_BUFFER, 0);
-    }
     // Tick MM2S FSM
     m_MasterFSM.tick<void>(
         // Enter
@@ -200,8 +163,44 @@ void RouterSim::writeReceivedEvent(std::optional<uint32_t> data)
     if (data) {
         // If ID is special barrier ID, increment barrier
         if (data.value() == barrierEventID) {
-            m_Registers[static_cast<int>(Register::SLAVE_BARRIER_COUNT)]++;
-            PLOGV << "Incremented barrier " << m_Registers[static_cast<int>(Register::SLAVE_BARRIER_COUNT)];
+            auto &slaveBarrierCount = m_Registers[static_cast<int>(Register::SLAVE_BARRIER_COUNT)];
+            slaveBarrierCount++;
+            PLOGV << "Incremented barrier " << slaveBarrierCount;
+
+            // If we have hit barrier count
+            if(slaveBarrierCount == m_SharedBus.get().getNumRouters()) {
+                // If we've been writing to the start of the buffer
+                const size_t spikeMemStart = m_SpikeMemory.get().getStartAddressBytes();
+                const size_t spikeMemEnd = m_SpikeMemory.get().getStartAddressBytes() + m_SpikeMemory.get().getSizeBytes();
+                if(m_SlaveWriteStart) {
+                    assert(spikeMemStart <= m_SlaveWriteAddress);
+
+                    // We want to start reading from start of the spike memory
+                    writeRegInternal(Register::SLAVE_EVENT_START_ADDRESS, spikeMemStart);
+
+                    // And end reading at current write address
+                    writeRegInternal(Register::SLAVE_EVENT_END_ADDRESS, m_SlaveWriteAddress);
+
+                    // Start writing at end of spike memory
+                    m_SlaveWriteAddress = spikeMemEnd - 4;
+                }
+                // Otherwise, if we've been writing to the end of the buffer
+                else {
+                    assert(m_SlaveWriteAddress <= spikeMemEnd);
+
+                    // We want to start reading at the current write address
+                    writeRegInternal(Register::SLAVE_EVENT_START_ADDRESS, m_SlaveWriteAddress + 4);
+
+                    // And end reading at the end of the spike memory
+                    writeRegInternal(Register::SLAVE_EVENT_END_ADDRESS, spikeMemEnd);
+
+                    // Start writing at beginning of spike memory
+                    m_SlaveWriteAddress = spikeMemStart;
+                }
+
+                // Swap buffers
+                m_SlaveWriteStart = !m_SlaveWriteStart;
+            }
         }
         // Otherwise, write spike to write address
         else {

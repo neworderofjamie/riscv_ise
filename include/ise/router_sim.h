@@ -31,7 +31,6 @@ public:
         MASTER_EVENT_ID_BASE,       // Bits to OR with bitfield to get full event IDs
         MASTER_EVENT_BITFIELD,      // Register to write event bitfields to
         MASTER_SEND_BARRIER,        // Control register to send a barrier
-        SLAVE_SWAP_BUFFER,          // Swaps buffer slave writes to
         SLAVE_EVENT_START_ADDRESS,  // Address to start reading events from
         SLAVE_EVENT_END_ADDRESS,    // Address to end reading events from        
         SLAVE_BARRIER_COUNT,        // Number of barrier events received

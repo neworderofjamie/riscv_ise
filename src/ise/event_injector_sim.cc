@@ -20,7 +20,7 @@ constexpr uint32_t timestampBit = (1u << 31u);
 //----------------------------------------------------------------------------
 EventInjectorSim::EventInjectorSim(SharedBusSim &sharedBus, const std::vector<uint32_t> &data, size_t routerIndex)
 :   m_SharedBus(sharedBus), m_FSM(FSMState::WAIT_OTHER_BARRIERS), m_Data(data), 
-    m_RouterIndex(routerIndex), m_ReadPointer(0), m_Timestep(-1), m_BarrierCount(0)
+    m_RouterIndex(routerIndex), m_ReadPointer(0), m_Timestep(0), m_BarrierCount(0)
 {
 }
 //----------------------------------------------------------------------------
