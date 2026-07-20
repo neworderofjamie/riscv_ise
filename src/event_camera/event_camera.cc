@@ -200,7 +200,7 @@ int main(int argc, char** argv)
 
             // Start time at 0
             c.li(*STime, 0);
-            c.li(*STimeEnd, 87);
+            c.li(*STimeEnd, 88);
 
             // Bit to mark timestamps with
             c.li(*STimeMarker, 1 << 31);

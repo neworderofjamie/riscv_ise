@@ -27,7 +27,7 @@ EventInjectorSim::EventInjectorSim(SharedBusSim &sharedBus, const std::vector<ui
 bool EventInjectorSim::tick()
 {
     // Tick MM2S FSM
-    m_FSM.tick(
+    return m_FSM.tick<bool>(
         // Enter
         [this](auto)
         {
@@ -40,19 +40,22 @@ bool EventInjectorSim::tick()
                 m_SharedBus.get().send(m_RouterIndex, std::nullopt);
 
                 // Synchronise with other routers and handle any barriers which are received
-                handleBarrier(m_SharedBus.get().synchronise(m_RouterIndex).first);
+                bool moreEvents = (m_ReadPointer < m_Data.size());
+                handleBarrier(m_SharedBus.get().synchronise(m_RouterIndex, !moreEvents).first);
 
                 // If all OTHER routers have entered the new timestep, send out our own barrier
                 if (m_BarrierCount == (m_SharedBus.get().getNumRouters() - 1)) {
                     transition(FSMState::WAIT_BARRIER_SENT);
                 }
+                return moreEvents;
             }
             else if (state == FSMState::WAIT_BARRIER_SENT) {
                 // Put current spike ID on the bus
                 m_SharedBus.get().send(m_RouterIndex, barrierEventID);
 
                 // Synchronise with other routers
-                const auto syncResult = m_SharedBus.get().synchronise(m_RouterIndex);
+                bool moreEvents = (m_ReadPointer < m_Data.size());
+                const auto syncResult = m_SharedBus.get().synchronise(m_RouterIndex, !moreEvents);
 
                 // Synchronise with bus and write any received events to memory
                 handleBarrier(syncResult.first);
@@ -76,6 +79,8 @@ bool EventInjectorSim::tick()
                         transition(FSMState::WAIT_OTHER_BARRIERS);
                     }
                 }
+
+                return moreEvents;
             }
             else if (state == FSMState::WAIT_SPIKE_SENT) {
                 // Put current spike data on bus
@@ -97,10 +102,9 @@ bool EventInjectorSim::tick()
                         transition(FSMState::WAIT_OTHER_BARRIERS);
                     }
                 }
+                return true;
             }
         });
-
-    return (m_ReadPointer < m_Data.size());
 }
 //----------------------------------------------------------------------------
 void EventInjectorSim::handleBarrier(std::optional<uint32_t> data)
