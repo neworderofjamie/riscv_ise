@@ -99,7 +99,7 @@ uint32_t DMAControllerSim::readReg(Register reg) const
 void DMAControllerSim::tick()
 {
     // Tick MM2S FSM
-    m_MM2SFSM.tick(
+    m_MM2SFSM.tick<void>(
         // Enter
         [this](auto state)
         {
@@ -183,7 +183,7 @@ void DMAControllerSim::tick()
         });
     
     // Tick S2MM FSM
-    m_S2MMFSM.tick(
+    m_S2MMFSM.tick<void>(
         // Enter
         [this](auto state)
         {

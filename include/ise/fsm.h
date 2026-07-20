@@ -22,7 +22,7 @@ public:
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
-    template<typename TickHandler, typename EnterHandler, typename T = void>
+    template<typename T, typename TickHandler, typename EnterHandler>
     auto tick(EnterHandler handleEnter, TickHandler handleTick)
     {
         if constexpr(std::is_void_v<T>) {

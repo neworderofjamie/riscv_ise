@@ -73,7 +73,7 @@ void RouterSim::tick()
         writeRegInternal(Register::SLAVE_SWAP_BUFFER, 0);
     }
     // Tick MM2S FSM
-    m_MasterFSM.tick(
+    m_MasterFSM.tick<void>(
         // Enter
         [this](auto)
         {
