@@ -1,5 +1,7 @@
 #include "ise/shared_bus_sim.h"
 
+// Standard C includes
+#include <cassert>
 
 //----------------------------------------------------------------------------
 // SharedBusSim
@@ -25,6 +27,8 @@ std::pair<std::optional<uint32_t>, bool> SharedBusSim::synchronise(size_t router
     
     // Wait until next router has definitely been updated
     if(lastTick) {
+        assert(routerIndex == (m_NumRouters - 1));
+        m_NumRouters--;
         m_Barrier.waitAndDrop();
     }
     else {
