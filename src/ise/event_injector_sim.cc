@@ -40,14 +40,13 @@ bool EventInjectorSim::tick()
                 m_SharedBus.get().send(m_RouterIndex, std::nullopt);
 
                 // Synchronise with other routers and handle any barriers which are received
-                bool moreEvents = (m_ReadPointer < m_Data.size());
-                handleBarrier(m_SharedBus.get().synchronise(m_RouterIndex, !moreEvents).first);
+                handleBarrier(m_SharedBus.get().synchronise(m_RouterIndex).first);
 
                 // If all OTHER routers have entered the new timestep, send out our own barrier
                 if (m_BarrierCount == (m_SharedBus.get().getNumRouters() - 1)) {
                     transition(FSMState::WAIT_BARRIER_SENT);
                 }
-                return moreEvents;
+                return true;
             }
             else if (state == FSMState::WAIT_BARRIER_SENT) {
                 // Put current spike ID on the bus
