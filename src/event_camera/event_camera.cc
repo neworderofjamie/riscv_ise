@@ -141,6 +141,66 @@ void deviceThread(const std::vector<uint32_t> &code, const std::vector<uint8_t> 
         receivedEvents.push_back((uint32_t)wordData[i / 4]);
     }
 }
+
+void checkOutput(const std::vector<uint32_t> &coreOutput, const std::vector<uint32_t> &inputEvents)
+{
+    constexpr uint32_t timestampBit = (1u << 31u);
+    auto coreOutputIter = coreOutput.cbegin();
+    auto correctIter = inputEvents.cbegin();
+
+    std::vector<uint32_t> correctTimestepEvents;
+    std::vector<uint32_t> outputTimestepEvents;
+    std::vector<uint32_t> missingCorrectEvents;
+    std::vector<uint32_t> missingOutputEvents;
+    while(coreOutputIter != coreOutput.cend() && correctIter != inputEvents.cend()) {
+        // Assert that both iterators point to timestamps
+        assert(*coreOutputIter & timestampBit);
+        assert(*correctIter & timestampBit);
+
+        // Assert they are the same
+        assert(*coreOutputIter == *correctIter);
+        const uint32_t timestep = (*correctIter & ~(1u << 31u));
+
+        // Advance
+        coreOutputIter++;
+        correctIter++;
+
+        // Find end of timestep in correct data, copy into vector and sort
+        correctTimestepEvents.clear();
+        const auto correctEndOfTimestep = std::find_if(correctIter, inputEvents.cend(),
+                                                       [](uint32_t e){ return (e & timestampBit); });
+        std::copy(correctIter, correctEndOfTimestep, std::back_inserter(correctTimestepEvents));
+        std::sort(correctTimestepEvents.begin(), correctTimestepEvents.end());
+        correctIter = correctEndOfTimestep;
+
+        // Find end of timestep in output data, copy into vector and sort
+        outputTimestepEvents.clear();
+        const auto outputEndOfTimestep = std::find_if(coreOutputIter, coreOutput.cend(),
+                                                      [](uint32_t e){ return (e & timestampBit); });
+        std::copy(coreOutputIter, outputEndOfTimestep, std::back_inserter(outputTimestepEvents));
+        std::sort(outputTimestepEvents.begin(), outputTimestepEvents.end());
+        coreOutputIter = outputEndOfTimestep;
+        
+        missingCorrectEvents.clear();
+        std::set_difference(correctTimestepEvents.cbegin(), correctTimestepEvents.cend(),
+                            outputTimestepEvents.cbegin(), outputTimestepEvents.cend(),
+                            std::back_inserter(missingCorrectEvents));
+
+        missingOutputEvents.clear();
+        std::set_difference(outputTimestepEvents.cbegin(), outputTimestepEvents.cend(),
+                            correctTimestepEvents.cbegin(), correctTimestepEvents.cend(),
+                            std::back_inserter(missingOutputEvents));
+        
+        if (!missingCorrectEvents.empty()) {
+            PLOGW << missingCorrectEvents.size() << " events missing from core output at time " << timestep;
+        }
+
+        if (!missingOutputEvents.empty()) {
+            PLOGE << missingOutputEvents.size() << " events in output which weren't in input at time " << timestep;
+        }
+
+    }
+}
 }
 
 int main(int argc, char** argv)
@@ -216,7 +276,7 @@ int main(int argc, char** argv)
                 // Wait for all events to be communicated
                 // **NOTE** this is only necessary in simulation to synchronise event injector
                 if(!device) {
-                    AssemblerUtils::generateRouterBarrier(c, scalarRegisterAllocator, numCores);
+                    AssemblerUtils::generateRouterBarrier(c, scalarRegisterAllocator, numCores + 1);
                 }
 
                 // Read cycle count at start of loop
@@ -490,6 +550,7 @@ int main(int argc, char** argv)
         }
         injectorThread.join();
 
+        checkOutput(std::get<0>(coreData[0]), spikeInjectData);
         {
             std::ofstream output("recorded_spikes.bin", std::ios::binary);
             output.write(reinterpret_cast<const char*>(std::get<0>(coreData[0]).data()), std::get<0>(coreData[0]).size() * 4);
