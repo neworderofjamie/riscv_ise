@@ -52,7 +52,7 @@ bool EventInjectorSim::tick()
                 // Put current spike ID on the bus
                 m_SharedBus.get().send(m_RouterIndex, barrierEventID);
 
-                // Synchronise with other routers
+                // Synchronise with other routers and, if there's no more events, try and leave future synchronisation
                 bool moreEvents = (m_ReadPointer < m_Data.size());
                 const auto syncResult = m_SharedBus.get().synchronise(m_RouterIndex, !moreEvents);
 

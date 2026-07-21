@@ -34,7 +34,7 @@ std::pair<std::optional<uint32_t>, bool> SharedBusSim::synchronise(size_t router
         // Decrement router count
         m_NumRouters--;
 
-        // Wait for barrier and remove ourselves from future generations
+        // Wait for barrier and remove ourselves from future synchronisation
         m_Barrier.waitAndDrop();
     }
     // Otherwise, just wait for barrier
