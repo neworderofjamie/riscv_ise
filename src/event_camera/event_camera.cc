@@ -274,10 +274,8 @@ int main(int argc, char** argv)
                 ALLOCATE_SCALAR(SLoopStartCycleHigh);
 
                 // Wait for all events to be communicated
-                // **NOTE** this is only necessary in simulation to synchronise event injector
-                if(!device) {
-                    AssemblerUtils::generateRouterBarrier(c, scalarRegisterAllocator, numCores + 1);
-                }
+                // **NOTE** this is only necessary to swap buffers and, in simulation, to synchronise event injector
+                AssemblerUtils::generateRouterBarrier(c, scalarRegisterAllocator, numCores + 1);
 
                 // Read cycle count at start of loop
                 c.csrr(*SLoopStartCycleLow, CSR::MCYCLE);
@@ -495,7 +493,7 @@ int main(int argc, char** argv)
     
     // Load input sequence
     const auto spikeInjectData = AppUtils::loadBinaryData<uint32_t>("courtyard.bin");
-    
+
     if(device) {
         // Allocate vector with data for all cores
         CoreData coreData(numCores);
