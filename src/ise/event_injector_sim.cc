@@ -77,9 +77,12 @@ bool EventInjectorSim::tick()
                     else {
                         transition(FSMState::WAIT_OTHER_BARRIERS);
                     }
-                }
 
-                return moreEvents;
+                    return moreEvents;
+                }
+                else {
+                    return true;
+                }
             }
             else if (state == FSMState::WAIT_SPIKE_SENT) {
                 // Put current spike data on bus
