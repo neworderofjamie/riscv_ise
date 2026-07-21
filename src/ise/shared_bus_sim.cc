@@ -25,12 +25,19 @@ std::pair<std::optional<uint32_t>, bool> SharedBusSim::synchronise(size_t router
         }
     }
     
-    // Wait until next router has definitely been updated
-    if(lastTick) {
+    // If this is the last tick we want to make and our router has send it's data
+    if(lastTick && readRouterIndex == routerIndex) {
+        // Check we're the last router
+        // **TODO** more flexible data structure
         assert(routerIndex == (m_NumRouters - 1));
+
+        // Decrement router count
         m_NumRouters--;
+
+        // Wait for barrier and remove ourselves from future generations
         m_Barrier.waitAndDrop();
     }
+    // Otherwise, just wait for barrier
     else {
         m_Barrier.wait();
     }
