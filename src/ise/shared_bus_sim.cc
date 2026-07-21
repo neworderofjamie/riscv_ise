@@ -31,11 +31,11 @@ std::pair<std::optional<uint32_t>, bool> SharedBusSim::synchronise(size_t router
         // **TODO** more flexible data structure
         assert(routerIndex == (m_NumRouters - 1));
 
-        // Decrement router count
-        m_NumRouters--;
-
         // Wait for barrier and remove ourselves from future synchronisation
         m_Barrier.waitAndDrop();
+
+        // Decrement router count
+        m_NumRouters--;
     }
     // Otherwise, just wait for barrier
     else {
