@@ -857,9 +857,6 @@ int main(int argc, char** argv)
                     // Wait for all events to be communicated
                     AssemblerUtils::generateRouterBarrier(c, scalarRegisterAllocator, numCores);
 
-                    // Swap router buffers
-                    c.csrwi(CSR::SLAVE_SWAP_BUFFER, 1);
-                
                     // Load start and end of spike read buffer
                     c.csrr(*SSpikeBuffer, CSR::SLAVE_EVENT_START_ADDRESS);
                     c.csrr(*SSpikeBufferEnd, CSR::SLAVE_EVENT_END_ADDRESS);
