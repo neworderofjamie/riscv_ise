@@ -230,6 +230,7 @@ enum class CSR : uint32_t
 
     SLAVE_EVENT_START_ADDRESS   = 0xFF0,  
     SLAVE_EVENT_END_ADDRESS     = 0xFF1,
+    SLAVE_BUFFER_OVERFLOW_COUNT = 0xFF2,
 };
 
 // funct7 rs2 rs1 funct3 rd

@@ -28,12 +28,13 @@ public:
     // Router registers
     enum class Register : int
     {
-        MASTER_EVENT_ID_BASE,       // Bits to OR with bitfield to get full event IDs
-        MASTER_EVENT_BITFIELD,      // Register to write event bitfields to
-        MASTER_SEND_BARRIER,        // Control register to send a barrier
-        SLAVE_EVENT_START_ADDRESS,  // Address to start reading events from
-        SLAVE_EVENT_END_ADDRESS,    // Address to end reading events from        
-        SLAVE_BARRIER_COUNT,        // Number of barrier events received
+        MASTER_EVENT_ID_BASE,           // Bits to OR with bitfield to get full event IDs
+        MASTER_EVENT_BITFIELD,          // Register to write event bitfields to
+        MASTER_SEND_BARRIER,            // Control register to send a barrier
+        SLAVE_EVENT_START_ADDRESS,      // Address to start reading events from
+        SLAVE_EVENT_END_ADDRESS,        // Address to end reading events from        
+        SLAVE_BARRIER_COUNT,            // Number of barrier events received
+        SLAVE_BUFFER_OVERFLOW_COUNT,    // Number of times buffer has overflown
         MAX,
     };
 

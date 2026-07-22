@@ -73,6 +73,10 @@ void simThread(const std::vector<uint32_t> &code, const std::vector<uint8_t> &sc
         assert(false);
     }
 
+    if(router.readReg(RouterSim::Register::SLAVE_BUFFER_OVERFLOW_COUNT) > 0) {
+        LOGW << router.readReg(RouterSim::Register::SLAVE_BUFFER_OVERFLOW_COUNT) << " events overflowed buffer";
+    }
+
     // Copy spikes received into vector
     const auto *wordData = reinterpret_cast<uint32_t*>(riscV.getScalarDataMemory().getData());
     std::copy_n(&wordData[eventMemoryPtr / 4], ((4096 * 32) - eventMemoryPtr) / 4, std::back_inserter(receivedEvents));

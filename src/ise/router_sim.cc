@@ -220,7 +220,7 @@ void RouterSim::writeReceivedEvent(std::optional<uint32_t> data)
                     m_SlaveWriteAddress += 4;
                 }
                 else {
-                    LOGW << "Event dropped: slave buffer full";
+                    m_Registers[static_cast<int>(Register::SLAVE_BUFFER_OVERFLOW_COUNT)]++;
                 }
             }
             // Otherwise, if we're writing 'down' from the end
@@ -233,7 +233,7 @@ void RouterSim::writeReceivedEvent(std::optional<uint32_t> data)
                     m_SlaveWriteAddress -= 4;
                 }
                 else {
-                    LOGW << "Event dropped: slave buffer full";
+                    m_Registers[static_cast<int>(Register::SLAVE_BUFFER_OVERFLOW_COUNT)]++;
                 }
             }
         }
