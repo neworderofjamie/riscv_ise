@@ -552,7 +552,8 @@ void generateRouterBarrier(CodeGenerator &c, ScalarRegisterAllocator &scalarRegi
         c.csrr(*SBarrierCount, CSR::SLAVE_BARRIER_COUNT);
 
         // Loop while target count isn't reached
-        c.bne(*SBarrierCount, *SNumMasters, loop);
+        // **HACK** there is a bug in the simulator where barrier count exceeds SNumMasters
+        c.blt(*SBarrierCount, *SNumMasters, loop);
     }
 
     // Clear barrier count
