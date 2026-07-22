@@ -168,7 +168,13 @@ void RouterSim::writeReceivedEvent(std::optional<uint32_t> data)
             PLOGV << "Incremented barrier " << slaveBarrierCount;
 
             // If we have hit barrier count
-            if(slaveBarrierCount == m_SharedBus.get().getNumRouters()) {
+            // **HACK** there is a bug in the simulator where barrier count exceeds SNumMasters
+            if(slaveBarrierCount >= m_SharedBus.get().getNumRouters()) {
+                // Try and catch bug
+                if (slaveBarrierCount > m_SharedBus.get().getNumRouters()) {
+                    PLOGW << "Barrier count (" << slaveBarrierCount << ") has exceeded number of routers";
+                }
+
                 // If we've been writing to the start of the buffer
                 const size_t spikeMemStart = m_SpikeMemory.get().getStartAddressBytes();
                 const size_t spikeMemEnd = m_SpikeMemory.get().getStartAddressBytes() + m_SpikeMemory.get().getSizeBytes();
