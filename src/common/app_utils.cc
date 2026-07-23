@@ -189,4 +189,13 @@ void dumpCOE(const std::string &filename, const std::vector<uint32_t> &code)
         coe << std::endl;
     }
 }
+//----------------------------------------------------------------------------
+void dumpHEX(const std::string &filename, const std::vector<uint32_t> &code)
+{
+    // Write hexadecimal COE file
+    std::ofstream hex(filename);
+    for(size_t i = 0; i < code.size(); i++) {
+        hex << std::hex << std::setfill('0') << std::setw(8) << code[i] << std::endl;
+    }
+}
 }

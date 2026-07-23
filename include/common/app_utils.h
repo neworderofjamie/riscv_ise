@@ -56,6 +56,10 @@ COMMON_EXPORT void writeSpikes(std::ofstream &os, const volatile uint32_t *data,
 // Dump word-based data to a Vivado-format COE file
 COMMON_EXPORT void dumpCOE(const std::string &filename, const std::vector<uint32_t> &code);
 
+// Dump word-based data to a Vivado-format hex file
+COMMON_EXPORT void dumpHEX(const std::string &filename, const std::vector<uint32_t> &code);
+
+
 // Load binary file into vector
 template<typename T>
 std::vector<T> loadBinaryData(const std::string &filename)
