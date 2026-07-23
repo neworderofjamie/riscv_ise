@@ -34,7 +34,6 @@
 
 namespace
 {
-constexpr uint32_t spikeArrayPtr = 32 * 4096;
 constexpr size_t numCores = 2;
 
 using CoreData = std::vector<std::tuple<uint32_t, std::vector<uint32_t>, std::thread>>;
@@ -67,7 +66,7 @@ void simThread(const std::vector<uint32_t> &code, const std::vector<uint8_t> &sc
     }
 
     // Copy spikes received into vector
-    const uint32_t num = (wordData[outputSpikeArrayEnd / 4] - spikeArrayPtr) / 4;
+    const uint32_t num = (wordData[outputSpikeArrayEnd / 4] - outputSpikeArrayPtr) / 4;
     std::copy_n(&wordData[outputSpikeArrayPtr / 4], num, std::back_inserter(receivedEvents));
 }
 
@@ -115,7 +114,7 @@ void deviceThread(const std::vector<uint32_t> &code, const std::vector<uint8_t> 
     LOGI << "Cores disabled";
 
     // Copy spikes received into vector
-    const uint32_t num = (wordData[outputSpikeArrayEnd / 4] - spikeArrayPtr) / 4;
+    const uint32_t num = (wordData[outputSpikeArrayEnd / 4] - outputSpikeArrayPtr) / 4;
     for(uint32_t i = 0; i < num; i++) {
         receivedEvents.push_back((uint32_t)wordData[i + (outputSpikeArrayPtr / 4)]);
     }
@@ -191,13 +190,6 @@ int main(int argc, char** argv)
         [=](CodeGenerator &c, VectorRegisterAllocator&, ScalarRegisterAllocator &scalarRegisterAllocator)
         {
             
-            // Build 0x1F000 immediate (address of start of spike memory)
-            ALLOCATE_SCALAR(SSpikeMemory);
-            c.li(*SSpikeMemory, spikeArrayPtr);
-            
-            // Write SLAVE_EVENT_ADDRESS
-            c.csrw(CSR::SLAVE_EVENT_ADDRESS, *SSpikeMemory);
-            
             // Write MASTER_EVENT_ID_BASE
             {
                 ALLOCATE_SCALAR(STmp);
@@ -220,34 +212,43 @@ int main(int argc, char** argv)
             AssemblerUtils::generateRouterBarrier(c, scalarRegisterAllocator, numCores);
             
             {
-                // Read SLAVE_EVENT_ADDRESS i.e. where slave FINISHED writing spikes
-                ALLOCATE_SCALAR(SSpikeMemoryEnd);
-                c.csrr(*SSpikeMemoryEnd, CSR::SLAVE_EVENT_ADDRESS);
-                
-                // Write to memory
-                c.sw(*SSpikeMemoryEnd, Reg::X0, outputSpikeArrayEnd);
+                 // Get tart and end of event buffer
+                ALLOCATE_SCALAR(SRouterEventBuffer);
+                ALLOCATE_SCALAR(SRouterEventBufferEnd);
+                c.csrr(*SRouterEventBuffer, CSR::SLAVE_EVENT_START_ADDRESS);
+                c.csrr(*SRouterEventBufferEnd, CSR::SLAVE_EVENT_END_ADDRESS);
 
                 // Load address of output array in normal memory
                 ALLOCATE_SCALAR(SSpikeOut);
                 c.li(*SSpikeOut, outputSpikeArrayPtr);
 
                 auto spikeLoop = c.L();
+                Label spikeLoopEnd;
+                c.beq(*SRouterEventBuffer, *SRouterEventBufferEnd, spikeLoopEnd);
                 {
                     // Load word from spike memory and store in data memory
                     ALLOCATE_SCALAR(STmp);
-                    c.lw(*STmp, *SSpikeMemory);
+                    c.lw(*STmp, *SRouterEventBuffer);
                     c.sw(*STmp, *SSpikeOut);
 
                     // Loop until all spikes processed
-                    c.addi(*SSpikeMemory, *SSpikeMemory, 4);
+                    c.addi(*SRouterEventBuffer, *SRouterEventBuffer, 4);
                     c.addi(*SSpikeOut, *SSpikeOut, 4);
-                    c.bne(*SSpikeMemory, *SSpikeMemoryEnd, spikeLoop);
+                    
+                    // Next event
+                    c.j_(spikeLoop);
                 }
+
+                c.L(spikeLoopEnd);
+                
+                // Write to memory
+                c.sw(*SSpikeOut, Reg::X0, outputSpikeArrayEnd);
+
             }
         });
 
     // Dump to coe file
-    //AppUtils::dumpCOE("mul.coe", code);
+    AppUtils::dumpCOE("blank.coe", code);
 
     
     if(device) {
