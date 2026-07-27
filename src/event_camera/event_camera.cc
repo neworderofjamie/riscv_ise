@@ -530,6 +530,11 @@ int main(int argc, char** argv)
         for(auto &c : coreData) {
             std::get<1>(c).join();
         }
+        
+        {
+            std::ofstream output("recorded_spikes.bin", std::ios::binary);
+            output.write(reinterpret_cast<const char*>(std::get<0>(coreData[0]).data()), std::get<0>(coreData[0]).size() * 4);
+        }
     }
     else {
         // Create simulated shared bus to connect the cores
