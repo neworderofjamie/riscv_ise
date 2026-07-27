@@ -262,6 +262,7 @@ int main(int argc, char** argv)
             ALLOCATE_SCALAR(STimeEnd);
             ALLOCATE_SCALAR(STimeMarker);
             ALLOCATE_SCALAR(SEventOutputBuffer);
+            ALLOCATE_SCALAR(SEventOutputBufferEnd);
         
             // Enable performance counters
             // **NOTE** on device, this takes a few cycles to make it through the pipeline so we do it well before we try and access counters
@@ -270,6 +271,7 @@ int main(int argc, char** argv)
             // Start time at 0
             c.li(*STime, 0);
             c.li(*STimeEnd, 87);
+            c.li(*SEventOutputBufferEnd, 4096 * 32);
 
             // Bit to mark timestamps with
             c.li(*STimeMarker, 1 << 31);
@@ -277,6 +279,7 @@ int main(int argc, char** argv)
             // Load spike memory pointers
             c.li(*SEventOutputBuffer, eventMemoryPtr);
 
+            Label timeLoopEnd;
             auto timeLoop = c.L();
             {
                 ALLOCATE_SCALAR(SLoopStartCycleLow);
@@ -311,6 +314,7 @@ int main(int argc, char** argv)
 
                         // Advance spike memory pointer
                         c.addi(*SEventOutputBuffer, *SEventOutputBuffer, 4);
+                        c.beq(*SEventOutputBuffer, *SEventOutputBufferEnd, timeLoopEnd);
                     }
 
                     // While (spikeBuffer != spikeBufferEnd
@@ -384,6 +388,7 @@ int main(int argc, char** argv)
 
                                 // Advance spike memory pointer and goto end if end of memory reached
                                 c.addi(*SEventOutputBuffer, *SEventOutputBuffer, 4);
+                                c.beq(*SEventOutputBuffer, *SEventOutputBufferEnd, timeLoopEnd);
                             }
 
                             // Next event
@@ -492,10 +497,18 @@ int main(int argc, char** argv)
                                                               clockSpeedMhz * 1000);
                 }
 
-                // Increment time
-                c.addi(*STime, *STime, 1);
-                c.bne(*STime, *STimeEnd, timeLoop);
+                // If we're on device, keep looping
+                if(device) {
+                    c.j_(timeLoop);
+                }
+                // Otherwise, increment time
+                else {
+                    c.addi(*STime, *STime, 1);
+                    c.bne(*STime, *STimeEnd, timeLoop);
+                }
             }
+
+            c.L(timeLoopEnd);
 
             // Store event end pointer
             if(downsampleShift == 0) {
