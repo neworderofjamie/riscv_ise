@@ -260,7 +260,10 @@ int main(int argc, char** argv)
             ALLOCATE_SCALAR(STimeEnd);
             ALLOCATE_SCALAR(STimeMarker);
             ALLOCATE_SCALAR(SEventOutputBuffer);
-            
+        
+            // Enable performance counters
+            // **NOTE** on device, this takes a few cycles to make it through the pipeline so we do it well before we try and access counters
+            c.csrw(CSR::MCOUNTINHIBIT, Reg::X0);
 
             // Start time at 0
             c.li(*STime, 0);
