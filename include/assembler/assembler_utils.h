@@ -74,13 +74,7 @@ ASSEMBLER_EXPORT void generateAddUint64(CodeGenerator &c, ScalarRegisterAllocato
 
 //! Generate code to wait until target cycles has elapsed since cycle count stored in registers
 ASSEMBLER_EXPORT void generateWaitElapsedCycles(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator,
-                                                Reg lowStartCycles, Reg highStartCycles, uint32-------+-++++++++++++++++++++
-                                                
-                                                
-                                                
-                                                
-                                                
-                                                ++++++_t targetCycles);
+                                                Reg lowStartCycles, Reg highStartCycles, uint32_t targetCycles);
 
 //! Generate code to initiate a DMA write
 ASSEMBLER_EXPORT void generateDMAStartWrite(CodeGenerator &c, Reg destination, Reg source, Reg size);
