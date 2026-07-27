@@ -53,7 +53,7 @@ inline uint32_t buildFeNNEvent(unsigned int x, unsigned int y,  bool p)
 }
 
 void simThread(const std::vector<uint32_t> &code, const std::vector<uint8_t> &scalarInitData,
-               SharedBusSim &sharedBus, uint32_t coreID, uint32_t eventMemoryPtr, 
+               SharedBusSim &sharedBus, uint32_t coreID, uint32_t eventMemoryPtr, uint32_t eventEndPtr,
                std::vector<uint32_t> &receivedEvents)
 {
     // Create RISC-V core with instruction and scalar data
@@ -79,7 +79,8 @@ void simThread(const std::vector<uint32_t> &code, const std::vector<uint8_t> &sc
 
     // Copy spikes received into vector
     const auto *wordData = reinterpret_cast<uint32_t*>(riscV.getScalarDataMemory().getData());
-    std::copy_n(&wordData[eventMemoryPtr / 4], ((4096 * 32) - eventMemoryPtr) / 4, std::back_inserter(receivedEvents));
+    const uint32_t eventEnd = wordData[eventEndPtr / 4];
+    std::copy(&wordData[eventMemoryPtr / 4], &wordData[eventEnd / 4], std::back_inserter(receivedEvents));
 }
 
 void simEventInjectorThread(SharedBusSim &sharedBus, uint32_t coreID, const std::vector<uint32_t> &data)
@@ -92,7 +93,7 @@ void simEventInjectorThread(SharedBusSim &sharedBus, uint32_t coreID, const std:
 }
 
 void deviceThread(const std::vector<uint32_t> &code, const std::vector<uint8_t> &scalarInitData,
-                  uint32_t coreID, uint32_t eventMemoryPtr, uint32_t readyFlagPtr, 
+                  uint32_t coreID, uint32_t eventMemoryPtr, uint32_t eventEndPtr, uint32_t readyFlagPtr, 
                   std::vector<uint32_t> &receivedEvents, Barrier &barrier)
 {
     LOGI << "Creating device (" << coreID << " / " << numCores << ")";
@@ -140,8 +141,8 @@ void deviceThread(const std::vector<uint32_t> &code, const std::vector<uint8_t> 
 
     // Copy spikes received into vector
     volatile const uint32_t *wordData = reinterpret_cast<volatile uint32_t*>(device.getDataMemory());
-
-    for(uint32_t i = eventMemoryPtr; i < (4096 * 32); i++) {
+    const uint32_t eventEnd = wordData[eventEndPtr / 4];
+    for(uint32_t i = eventMemoryPtr; eventEnd; i++) {
         receivedEvents.push_back((uint32_t)wordData[i / 4]);
     }
 }
@@ -234,7 +235,8 @@ int main(int argc, char** argv)
 
     // Allocate scalar arrays
     const uint32_t readyFlagPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
-    
+    const uint32_t eventEndPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
+
     // If downsampling, allocate downsample buffer
     std::optional<uint32_t> downsampleIBuffer;
     if (downsampleShift > 0) {
@@ -494,6 +496,11 @@ int main(int argc, char** argv)
                 c.addi(*STime, *STime, 1);
                 c.bne(*STime, *STimeEnd, timeLoop);
             }
+
+            // Store event end pointer
+            if(downsampleShift == 0) {
+                c.sw(*SEventOutputBuffer, Reg::X0, eventEndPtr);
+            }
         });
 
     // Dump to coe file
@@ -512,7 +519,7 @@ int main(int argc, char** argv)
             // Create thread
             std::get<1>(coreData[i]) = std::thread(
                 deviceThread, std::cref(code), std::cref(scalarInitData),
-                i, eventMemoryPtr, readyFlagPtr, 
+                i, eventMemoryPtr, eventEndPtr, readyFlagPtr, 
                 std::ref(std::get<0>(coreData[i])), std::ref(barrier));
             
             // Name thread
@@ -536,7 +543,7 @@ int main(int argc, char** argv)
             // Create thread
             std::get<1>(coreData[i]) = std::thread(
                 simThread, std::cref(code), std::cref(scalarInitData),
-                std::ref(sharedBus), i, eventMemoryPtr,
+                std::ref(sharedBus), i, eventMemoryPtr, eventEndPtr,
                 std::ref(std::get<0>(coreData[i])));
             
             // Name thread
