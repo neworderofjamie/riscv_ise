@@ -422,45 +422,34 @@ void generateAddUint64(CodeGenerator &c, ScalarRegisterAllocator &scalarRegister
 }
 //----------------------------------------------------------------------------
 void generateWaitElapsedCycles(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator,
-                               Reg lowStartCycles, Reg highStartCycles, uint64_t targetCycles)
+                               Reg lowStartCycles, Reg highStartCycles, uint32_t targetCycles)
 {
-    ALLOCATE_SCALAR(SLowTarget);
-    ALLOCATE_SCALAR(SHighTarget);
+    ALLOCATE_SCALAR(STarget);
+    c.li(*STarget, targetCycles);
 
-    // Load 64-bit target cycle into registers
-    union
-    {
-        uint32_t words[2];
-        uint64_t doubleWord;
-    } swizzle;
-
-    swizzle.doubleWord = targetCycles;
-    c.li(*SLowTarget, swizzle.words[0]);
-    c.li(*SHighTarget, swizzle.words[1]);
-
-    auto endLabel = Label();
-    auto loopLabel = c.L();
+    auto loopStart = c.L();
+    Label loopEnd;
     {
         ALLOCATE_SCALAR(SLowCycle);
         ALLOCATE_SCALAR(SHighCycle);
         ALLOCATE_SCALAR(SLowDiff);
         ALLOCATE_SCALAR(SHighDiff);
         ALLOCATE_SCALAR(STmp);
+    
 
         // Read cycle count
         c.csrr(*SLowCycle, CSR::MCYCLE);
         c.csrr(*SHighCycle, CSR::MCYCLEH);
 
         c.sub(*SLowDiff, *SLowCycle, lowStartCycles);
-        c.sub(*SHighDiff, *SHighCycle, highStartCycles);
-
         c.sltu(*STmp, *SLowCycle, *SLowDiff);
-        c.sub(*STmp, *SHighDiff, *STmp);
-        c.bgtu(*SHighTarget, *STmp, loopLabel);
-        c.bne(*SHighTarget, *STmp, endLabel);
-        c.bgtu(*SLowTarget, *SLowDiff, loopLabel);
+        c.sub(*SHighDiff, *SHighCycle, highStartCycles);
+        
+        c.bne(*SHighDiff, *STmp, loopEnd);
+        c.bleu(*SLowDiff, *STarget, loopStart);
     }
-    c.L(endLabel);
+    
+    c.L(loopEnd);
 }
 //----------------------------------------------------------------------------
 void generateDMAStartWrite(CodeGenerator &c, Reg destination, Reg source, Reg size)
