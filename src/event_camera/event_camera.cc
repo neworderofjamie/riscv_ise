@@ -148,6 +148,7 @@ void deviceThread(const std::vector<uint32_t> &code, const std::vector<uint8_t> 
 
     // Copy spikes received into vector
     const uint32_t eventEnd = wordData[eventEndPtr / 4];
+    LOGI << eventMemoryPtr << ", " << eventEnd;
     for(uint32_t i = eventMemoryPtr; i < eventEnd; i++) {
         receivedEvents.push_back((uint32_t)wordData[i / 4]);
     }
@@ -504,13 +505,15 @@ int main(int argc, char** argv)
                                                               clockSpeedMhz * 1000);
                 }
 
-                // If we're on device, keep looping
+                // Increment time
+                c.addi(*STime, *STime, 1);
+                
+                // If we're on device, loop
                 if(device) {
                     c.j_(timeLoop);
                 }
-                // Otherwise, increment time
+                // Otherwise, loop if we haven't reached last timestep
                 else {
-                    c.addi(*STime, *STime, 1);
                     c.bne(*STime, *STimeEnd, timeLoop);
                 }
             }
