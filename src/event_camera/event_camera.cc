@@ -142,7 +142,7 @@ void deviceThread(const std::vector<uint32_t> &code, const std::vector<uint8_t> 
     // Copy spikes received into vector
     volatile const uint32_t *wordData = reinterpret_cast<volatile uint32_t*>(device.getDataMemory());
     const uint32_t eventEnd = wordData[eventEndPtr / 4];
-    for(uint32_t i = eventMemoryPtr; eventEnd; i++) {
+    for(uint32_t i = eventMemoryPtr; i < eventEnd; i++) {
         receivedEvents.push_back((uint32_t)wordData[i / 4]);
     }
 }
