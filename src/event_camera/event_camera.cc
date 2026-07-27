@@ -148,9 +148,8 @@ void deviceThread(const std::vector<uint32_t> &code, const std::vector<uint8_t> 
 
     // Copy spikes received into vector
     const uint32_t eventEnd = wordData[eventEndPtr / 4];
-    LOGI << eventMemoryPtr << ", " << eventEnd;
-    for(uint32_t i = eventMemoryPtr; i < eventEnd; i++) {
-        receivedEvents.push_back((uint32_t)wordData[i / 4]);
+    for(uint32_t i = (eventMemoryPtr / 4); i < (eventEnd / 4); i++) {
+        receivedEvents.push_back((uint32_t)wordData[i]);
     }
 }
 
