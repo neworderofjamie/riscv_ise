@@ -279,7 +279,8 @@ int main(int argc, char** argv)
 
                 // Wait for all events to be communicated
                 // **NOTE** this is only necessary to swap buffers and, in simulation, to synchronise event injector
-                AssemblerUtils::generateRouterBarrier(c, scalarRegisterAllocator, numCores + 1);
+                AssemblerUtils::generateRouterBarrier(c, scalarRegisterAllocator, 
+                                                      device ? numCores : (numCores + 1));
 
                 // Read cycle count at start of loop
                 c.csrr(*SLoopStartCycleLow, CSR::MCYCLE);
