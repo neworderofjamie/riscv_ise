@@ -301,10 +301,65 @@ void GenX320::stopStreaming()
     writeRegFields<Readout::TimeBaseCtrl>([](auto &s){ s.time_base_enable = 0; });
 
     // Disable MIPI
-    writeRegFields<MipiCsi::Ctrl>([](auto &s){ s. enable = 0; });
+    writeRegFields<MipiCsi::Ctrl>([](auto &s){ s.enable = 0; });
 
     LOGI << "Streaming stopped";
     m_Streaming = false;
+}
+//----------------------------------------------------------------------------
+void GenX320::enableERC(double eventsPerSecond)
+{
+    // Caclulate count per reference period
+    const uint32_t count = std::min(static_cast<uint32_t>((eventsPerSecond * ERCRefPeriodDefault) / 1000000.0),
+                                    20000u);
+    
+    writeRegFields<ERC::AhvtDroppingControl>([](auto &s){ s.t_dropping_en = 1; });
+    
+    // Set event count target
+    writeReg<ERC::TdTargetEventCount>(count);
+
+    // Disable pipeline, then bypass mode
+    writeRegFields<ERC::PipelineControl>([](auto &s)
+                                         {
+                                             s.enable = 0;
+                                             s.drop_nbackpressure = 0;
+                                             s.bypass = 0;
+                                         });
+    writeRegFields<ERC::PipelineControl>([](auto &s)
+                                         {
+                                             s.enable = 1;
+                                             s.bypass = 1;
+                                         });
+    
+    // Power up SRAM
+    writeRegFields<SRAM::InitN>([](auto &s){ s.erc_dl_initn = 1; });
+    writeRegFields<SRAM::Pd1>([](auto &s){ s.erc_dl_pd = 0; });
+    
+    // Ref period
+    writeReg<ERC::RefPeriodFlavor>((1 << 16) | (ERCRefPeriodDefault & 0x3FF));
+    
+    // Flush bypass disable
+    writeRegFields<ERC::DelayFifoFlushAndBypass>([](auto &s){ s.en = 0; });
+    
+    // Monitoring - avg_drop_rate | in_td_cnt | erc_td_evt_cnt
+    writeReg<ERC::MonitoringEventControl>((1 << 1) | (1 << 2) | (1 << 9));
+    
+    // Dropping control - t_dropping_en + drop_all threshold
+    writeReg<ERC::AhvtDroppingControl>((1 << 2) | (512 << 4));
+    
+    // No reset of tdrop counter
+    writeRegFields<ERC::ResetTdropCounterOnMtagFirst>([](auto &s){ s.en = 0; });
+    
+    // Disable bypass
+    writeRegFields<ERC::PipelineControl>([](auto &s){ s.bypass = 0; });
+
+    LOGI << "ERC enabled (target count=" << count << ")";
+}
+//----------------------------------------------------------------------------
+void GenX320::disableERC()
+{
+    writeRegFields<ERC::AhvtDroppingControl>([](auto &s){ s.t_dropping_en = 0; });
+    LOGI << "ERC disabled";
 }
 //----------------------------------------------------------------------------
 void GenX320::resetROI()

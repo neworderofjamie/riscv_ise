@@ -104,12 +104,17 @@ void deviceThread(const std::vector<uint32_t> &code, const std::vector<uint8_t> 
     std::unique_ptr<DeviceControl> deviceControl;
     if(coreID == 0) {
         deviceControl = std::make_unique<DeviceControl>(numCores);
+
+        // Set GenX320 bias to 'low'
         deviceControl->getGenX320()->setBias<Bias::Diff>(41);
         deviceControl->getGenX320()->setBias<Bias::DiffOff>(19);
         deviceControl->getGenX320()->setBias<Bias::DiffOn>(24);
         deviceControl->getGenX320()->setBias<Bias::FO>(19);
         deviceControl->getGenX320()->setBias<Bias::HPF>(0);
         deviceControl->getGenX320()->setBias<Bias::Refr>(0);
+
+        // Most we can handle is 500KEvents/sec
+        deviceControl->getGenX320()->enableERC(500000);
     }
 
     LOGI << "Resetting";

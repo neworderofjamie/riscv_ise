@@ -52,6 +52,9 @@ public:
         setBias(B::address, B::def, B::min, B::max);
     }
 
+    void enableERC(double eventsPerSecond);
+    void disableERC();
+    
     //! Reset ROI to full frame
     void resetROI();
 
@@ -63,6 +66,7 @@ private:
     //------------------------------------------------------------------------
     static inline const uint32_t bootMagic = 0xCAFEBABE;
     static inline const uint32_t chipIDExpected = 0xB0602003;
+    static inline const uint16_t ERCRefPeriodDefault = 100;
 
     //------------------------------------------------------------------------
     // Private API
