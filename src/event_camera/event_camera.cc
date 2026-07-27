@@ -53,7 +53,7 @@ inline uint32_t buildFeNNEvent(unsigned int x, unsigned int y,  bool p)
 }
 
 void simThread(const std::vector<uint32_t> &code, const std::vector<uint8_t> &scalarInitData,
-               SharedBusSim &sharedBus, uint32_t coreID, uint32_t eventMemoryPtr, uint32_t eventEndPtr,
+               SharedBusSim &sharedBus, uint32_t coreID, uint32_t eventMemoryPtr, uint32_t eventEndPtr, uint32_t bufferOverflowCountPtr,
                std::vector<uint32_t> &receivedEvents)
 {
     // Create RISC-V core with instruction and scalar data
@@ -73,12 +73,13 @@ void simThread(const std::vector<uint32_t> &code, const std::vector<uint8_t> &sc
         assert(false);
     }
 
-    if(router.readReg(RouterSim::Register::SLAVE_BUFFER_OVERFLOW_COUNT) > 0) {
-        LOGW << router.readReg(RouterSim::Register::SLAVE_BUFFER_OVERFLOW_COUNT) << " events overflowed buffer";
+    const auto *wordData = reinterpret_cast<uint32_t*>(riscV.getScalarDataMemory().getData());
+    const uint32_t bufferOverflowCount = wordData[bufferOverflowCountPtr / 4];
+    if(bufferOverflowCount > 0) {
+        LOGW << bufferOverflowCount << " events overflowed buffer";
     }
 
     // Copy spikes received into vector
-    const auto *wordData = reinterpret_cast<uint32_t*>(riscV.getScalarDataMemory().getData());
     const uint32_t eventEnd = wordData[eventEndPtr / 4];
     std::copy(&wordData[eventMemoryPtr / 4], &wordData[eventEnd / 4], std::back_inserter(receivedEvents));
 }
@@ -93,7 +94,7 @@ void simEventInjectorThread(SharedBusSim &sharedBus, uint32_t coreID, const std:
 }
 
 void deviceThread(const std::vector<uint32_t> &code, const std::vector<uint8_t> &scalarInitData,
-                  uint32_t coreID, uint32_t eventMemoryPtr, uint32_t eventEndPtr, uint32_t readyFlagPtr, 
+                  uint32_t coreID, uint32_t eventMemoryPtr, uint32_t eventEndPtr, uint32_t bufferOverflowCountPtr, uint32_t readyFlagPtr, 
                   std::vector<uint32_t> &receivedEvents, Barrier &barrier)
 {
     LOGI << "Creating device (" << coreID << " / " << numCores << ")";
@@ -139,8 +140,13 @@ void deviceThread(const std::vector<uint32_t> &code, const std::vector<uint8_t> 
     }
     LOGI << "Cores disabled";
 
-    // Copy spikes received into vector
     volatile const uint32_t *wordData = reinterpret_cast<volatile uint32_t*>(device.getDataMemory());
+    const uint32_t bufferOverflowCount = wordData[bufferOverflowCountPtr / 4];
+    if(bufferOverflowCount > 0) {
+        LOGW << bufferOverflowCount << " events overflowed buffer";
+    }
+
+    // Copy spikes received into vector
     const uint32_t eventEnd = wordData[eventEndPtr / 4];
     for(uint32_t i = eventMemoryPtr; i < eventEnd; i++) {
         receivedEvents.push_back((uint32_t)wordData[i / 4]);
@@ -236,6 +242,7 @@ int main(int argc, char** argv)
     // Allocate scalar arrays
     const uint32_t readyFlagPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
     const uint32_t eventEndPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
+    const uint32_t bufferOverflowCountPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
 
     // If downsampling, allocate downsample buffer
     std::optional<uint32_t> downsampleIBuffer;
@@ -510,6 +517,12 @@ int main(int argc, char** argv)
 
             c.L(timeLoopEnd);
 
+            // Store buffer overflow count
+            {
+                ALLOCATE_SCALAR(STmp);
+                c.csrr(*STmp, CSR::SLAVE_BUFFER_OVERFLOW_COUNT);
+                c.sw(*STmp, Reg::X0, bufferOverflowCountPtr);
+            }
             // Store event end pointer
             if(downsampleShift == 0) {
                 c.sw(*SEventOutputBuffer, Reg::X0, eventEndPtr);
@@ -532,7 +545,7 @@ int main(int argc, char** argv)
             // Create thread
             std::get<1>(coreData[i]) = std::thread(
                 deviceThread, std::cref(code), std::cref(scalarInitData),
-                i, eventMemoryPtr, eventEndPtr, readyFlagPtr, 
+                i, eventMemoryPtr, eventEndPtr, bufferOverflowCountPtr, readyFlagPtr, 
                 std::ref(std::get<0>(coreData[i])), std::ref(barrier));
             
             // Name thread
@@ -561,7 +574,7 @@ int main(int argc, char** argv)
             // Create thread
             std::get<1>(coreData[i]) = std::thread(
                 simThread, std::cref(code), std::cref(scalarInitData),
-                std::ref(sharedBus), i, eventMemoryPtr, eventEndPtr,
+                std::ref(sharedBus), i, eventMemoryPtr, eventEndPtr, bufferOverflowCountPtr,
                 std::ref(std::get<0>(coreData[i])));
             
             // Name thread
