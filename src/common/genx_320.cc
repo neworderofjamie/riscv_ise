@@ -409,6 +409,19 @@ void GenX320::applyROI(uint32_t numROI, ROIMode roiMode)
     throw std::runtime_error("ROI apply timed out");
 }
 //----------------------------------------------------------------------------
+void GenX320::setBias(uint16_t address, uint8_t value, uint8_t min, uint8_t max)
+{
+    // Check range
+    if(value < min || value > max) {
+        throw std::runtime_error("Bias " + std::to_string(address) + " value " + std::to_string(value) + " out of range");
+    }
+
+    uint32_t raw = readReg(address);
+    raw = (raw & ~0x7F) | (value & 0x7F);   // ctl field = bits [6:0]
+    raw |= (1 << 28);                       // single = bit 28
+    writeReg(address, raw);
+}
+//----------------------------------------------------------------------------
 uint32_t GenX320::readReg(uint16_t address)
 {
     // Make combined transaction, writing 2-byte (big-endian) address and reading 4-byte payload

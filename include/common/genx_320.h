@@ -40,6 +40,18 @@ public:
     void startStreaming(StreamingSource source = StreamingSource::PIXEL_ARRAY);
     void stopStreaming();
 
+    template<typename B>
+    void setBias(uint8_t value)
+    {
+        setBias(B::address, value, B::min, B::max);
+    }
+
+    template<typename B>
+    void resetBias()
+    {
+        setBias(B::address, B::def, B::min, B::max);
+    }
+
     //! Reset ROI to full frame
     void resetROI();
 
@@ -63,6 +75,8 @@ private:
 
     //! Apply the configured ROI windows
     void applyROI(uint32_t numROI, ROIMode roiMode);
+
+    void setBias(uint16_t address, uint8_t value, uint8_t min, uint8_t max);
 
     //! Read the 32-bit camera register specified by address
     uint32_t readReg(uint16_t address);

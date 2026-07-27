@@ -18,6 +18,7 @@
 #include "common/barrier.h"
 #include "common/device.h"
 #include "common/device_control.h"
+#include "common/genx320_bias.h"
 #include "common/utils.h"
 
 // RISC-V assembler includes
@@ -103,6 +104,12 @@ void deviceThread(const std::vector<uint32_t> &code, const std::vector<uint8_t> 
     std::unique_ptr<DeviceControl> deviceControl;
     if(coreID == 0) {
         deviceControl = std::make_unique<DeviceControl>(numCores);
+        deviceControl->getGenX320()->setBias<Bias::Diff>(41);
+        deviceControl->getGenX320()->setBias<Bias::DiffOff>(19);
+        deviceControl->getGenX320()->setBias<Bias::DiffOn>(24);
+        deviceControl->getGenX320()->setBias<Bias::FO>(19);
+        deviceControl->getGenX320()->setBias<Bias::HPF>(0);
+        deviceControl->getGenX320()->setBias<Bias::Refr>(0);
     }
 
     LOGI << "Resetting";

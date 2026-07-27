@@ -402,3 +402,5 @@ PSEE_REGISTER_DEF(Misc, 0xF010, {
 	uint32_t misc;
 });
 }
+
+#undef PSEE_REGISTER_DEF
