@@ -751,22 +751,31 @@ void EventDrivenProcessImplementation::generateCode(const Frontend::MergedProces
                           SFieldBase, timeReg,  preIndReg, numTimesteps, archetypeCodeGenerator,
                           scalarRegisterAllocator, vectorRegisterAllocator);
 
-    // Load fieldBase
-    c.li(*SFieldBase, fieldBase);
-
-    // Update fieldbase for next merged group
-    fieldBase += (mergedProcess.getMerged().size() * mergedFields.getSize());
+    // If fieldBase can't fit in an immediate, load it
+    if(!Common::inSBit(fieldBase, 12)) {
+        c.li(*SFieldBase, fieldBase);
+    }
 
     // Calculate offset of merged 
     {
         ALLOCATE_SCALAR(STmp);
         c.li(*STmp, mergedFields.getSize());
         c.mul(*STmp, *STmp, *groupIndReg);
-        c.add(*SFieldBase, *SFieldBase, *STmp);
+
+        // Either add fieldbase as an immediate or register
+        if(Common::inSBit(fieldBase, 12)) {
+            c.addi(*SFieldBase, *STmp, fieldBase);
+        }
+        else {
+            c.add(*SFieldBase, *SFieldBase, *STmp);
+        }
     }
 
     // Insert generated code to simulate archetype
     c += archetypeCodeGenerator;
+
+    // Update fieldbase for next merged group
+    fieldBase += (mergedProcess.getMerged().size() * mergedFields.getSize());
 }
 
 //----------------------------------------------------------------------------
@@ -1040,16 +1049,32 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
                     *model, kernel, processCodeGenerator, scalarRegisterAllocator, 
                      numTimesteps, e.second.hasTime(), runtime.getNumDevices(),
                     timeReg, numEventBytes,
-                    [&fieldBaseReg, &mergedFields, &mergedProcess, &processCodeGenerator, &runtime, 
-                    &scalarRegisterAllocator, &sharedCodeGenerator, &sharedRegisters]
+                    // **YUCK** we don't use addScalarConstant here as doing anything with shared registers is pretty unsafe
+                    [&fieldBaseReg, &mergedFields, &mergedProcess, &runtime, &scalarRegisterAllocator]
                     (Assembler::CodeGenerator &c, auto func)
                     {
-                        // **NOTE** we always want value in a register so maxBits = 0
-                        return std::get<Assembler::ScalarRegisterPtr>(
-                            addScalarValue<NeuronUpdateProcess>(
-                                0, mergedProcess, runtime.getNumDevices(), mergedFields, fieldBaseReg, 
-                                c, sharedCodeGenerator, scalarRegisterAllocator, sharedRegisters,
-                                func));
+                        // Allocate register
+                        ALLOCATE_SCALAR(SReg);
+
+                        // If value is heterogeneous
+                        if(isHeterogeneous(mergedProcess, runtime.getNumDevices(), func)) {
+                            // Add field
+                            const uint32_t fieldOffset = mergedFields.addField<NeuronUpdateProcess>(func, 4);
+                            
+                            // Load value into register
+                            c.lw(*SReg, *fieldBaseReg, fieldOffset);
+                        }
+                        // Otherwise
+                        else {
+                            // Convert homogeneous value to int
+                            const int value = std::visit([](auto v){ return static_cast<int>(v); },
+                                                         func(0, mergedProcess.getArchetype<NeuronUpdateProcess>()));
+
+                            // Load immediate
+                            c.li(*SReg, value);
+                        }
+
+                        return SReg;
                     },
                     [&e, &fieldBaseReg, &mergedFields, &scalarRegisterAllocator](Assembler::CodeGenerator &c)
                     {
