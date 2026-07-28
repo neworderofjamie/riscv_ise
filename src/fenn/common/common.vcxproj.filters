@@ -41,6 +41,9 @@
     <ClCompile Include="i2c_interface.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="device_control.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\include\fenn\common\app_utils.h">
@@ -83,6 +86,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\include\fenn\common\i2c_interface.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\fenn\common\device_control.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

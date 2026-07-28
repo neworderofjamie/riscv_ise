@@ -7,15 +7,18 @@
 #include <cstdint>
 
 // Common includes
-#include "common/common_export.h"
-#include "common/genx_320.h"
-#include "common/mipi_csi2_receiver.h"
-#include "common/uio.h"
+#include "fenn/common/fenn_common_export.h"
+#include "fenn/common/genx_320.h"
+#include "fenn/common/mipi_csi2_receiver.h"
+#include "fenn/common/uio.h"
+
 
 //----------------------------------------------------------------------------
-// DeviceControl
+// FeNN::Common::DeviceControl
 //----------------------------------------------------------------------------
-class COMMON_EXPORT DeviceControl
+namespace FeNN::Common
+{
+class FENN_COMMON_EXPORT DeviceControl
 {
 public:
     DeviceControl(int numCores);
@@ -43,3 +46,4 @@ private:
     std::unique_ptr<MIPICSI2Receiver> m_MIPICSI2Receiver;
     std::unique_ptr<GenX320> m_GenX320;
 };
+}

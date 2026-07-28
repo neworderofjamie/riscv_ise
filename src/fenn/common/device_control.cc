@@ -1,38 +1,22 @@
-#include "common/device_control.h"
+#include "fenn/common/device_control.h"
 
 // Standard C++ includes
-#include <chrono>
-#include <fstream>
 #include <stdexcept>
-#include <string>
 
-// Standard C includes
-#include <cassert>
-#include <cstring>
-
-// POSIX includes
-#ifdef __linux__ 
-    #include <fcntl.h>
-    #include <unistd.h>
-    #include <errno.h>
-    #include <sys/mman.h>
-#endif
-
-// PLOG includes
-#include <plog/Log.h>
-
-// RISC-V common includes
-#include "common/utils.h"
+// FeNN common includes
+#include "fenn/common/logging.h"
 
 //----------------------------------------------------------------------------
-// DeviceControl
+// FeNN::Common::DeviceControl
 //----------------------------------------------------------------------------
+namespace FeNN::Common
+{
 DeviceControl::DeviceControl(int numCores)
 {
 #ifdef __linux__ 
     // **TODO** fix names
     const std::string targetNamePrefix = (numCores == 1) ? "" : "core_0_";
-    LOGI << "Creating DeviceControl for " << numCores << " system";
+    LOGI_FENN_COMMON << "Creating DeviceControl for " << numCores << " system";
     
     // Create UIO
     m_GPIOUIO = std::make_unique<UIO>(targetNamePrefix + "axi_gpio");
@@ -42,7 +26,7 @@ DeviceControl::DeviceControl(int numCores)
         m_MIPICSI2Receiver = std::make_unique<MIPICSI2Receiver>("mipi_csi2_rx_subsyst_0");
     }
     catch (const std::runtime_error &) {
-        LOGW << "MIPI CSI 2 Receiver not found - GenX320 event camera not available";
+        LOGW_FENN_COMMON << "MIPI CSI 2 Receiver not found - GenX320 event camera not available";
     }
 
     // IF MIPI CSI 2 receiver is successfully initialiser, create camera
@@ -68,4 +52,4 @@ void DeviceControl::setILATrigger(bool enabled)
     volatile uint32_t *gpio = getGPIO();
     gpio[2] = enabled ? 0xFFFFFFFF : 0x0;
 }
-
+}

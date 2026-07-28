@@ -21,6 +21,7 @@
   <ItemGroup>
     <ClCompile Include="app_utils.cc" />
     <ClCompile Include="device.cc" />
+    <ClCompile Include="device_control.cc" />
     <ClCompile Include="dma_buffer.cc" />
     <ClCompile Include="dma_controller.cc" />
     <ClCompile Include="genx_320.cc" />
@@ -33,6 +34,7 @@
   <ItemGroup>
     <ClInclude Include="..\..\..\include\fenn\common\app_utils.h" />
     <ClInclude Include="..\..\..\include\fenn\common\device.h" />
+    <ClInclude Include="..\..\..\include\fenn\common\device_control.h" />
     <ClInclude Include="..\..\..\include\fenn\common\dma_buffer.h" />
     <ClInclude Include="..\..\..\include\fenn\common\dma_controller.h" />
     <ClInclude Include="..\..\..\include\fenn\common\fenn_common_export.h" />
