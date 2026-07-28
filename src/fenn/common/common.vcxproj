@@ -23,8 +23,11 @@
     <ClCompile Include="device.cc" />
     <ClCompile Include="dma_buffer.cc" />
     <ClCompile Include="dma_controller.cc" />
+    <ClCompile Include="genx_320.cc" />
+    <ClCompile Include="i2c_interface.cc" />
     <ClCompile Include="isa.cc" />
     <ClCompile Include="logging.cc" />
+    <ClCompile Include="mipi_csi2_receiver.cc" />
     <ClCompile Include="uio.cc" />
   </ItemGroup>
   <ItemGroup>
@@ -33,8 +36,13 @@
     <ClInclude Include="..\..\..\include\fenn\common\dma_buffer.h" />
     <ClInclude Include="..\..\..\include\fenn\common\dma_controller.h" />
     <ClInclude Include="..\..\..\include\fenn\common\fenn_common_export.h" />
+    <ClInclude Include="..\..\..\include\fenn\common\genx320_bias.h" />
+    <ClInclude Include="..\..\..\include\fenn\common\genx320_reg.h" />
+    <ClInclude Include="..\..\..\include\fenn\common\genx_320.h" />
+    <ClInclude Include="..\..\..\include\fenn\common\i2c_interface.h" />
     <ClInclude Include="..\..\..\include\fenn\common\isa.h" />
     <ClInclude Include="..\..\..\include\fenn\common\logging.h" />
+    <ClInclude Include="..\..\..\include\fenn\common\mipi_csi2_receiver.h" />
     <ClInclude Include="..\..\..\include\fenn\common\u-dma-buf-ioctl.h" />
     <ClInclude Include="..\..\..\include\fenn\common\uio.h" />
   </ItemGroup>

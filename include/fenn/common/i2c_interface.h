@@ -7,13 +7,15 @@
 #include <stdexcept>
 
 // Common includes
-#include "common/common_export.h"
+#include "fenn/common/fenn_common_export.h"
 
 //----------------------------------------------------------------------------
-// I2CInterface
+// FeNN::Common::I2CInterface
 //----------------------------------------------------------------------------
 //! Class for communicating over I2C
-class COMMON_EXPORT I2CInterface
+namespace FeNN::Common
+{
+class FENN_COMMON_EXPORT I2CInterface
 {
 public:
     I2CInterface(const std::string &path, int slaveAddress);
@@ -79,3 +81,4 @@ private:
     int m_SlaveAddress;
     int m_I2C; // i2c file
 };
+}

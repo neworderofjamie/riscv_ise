@@ -5,6 +5,8 @@
 
 #define PSEE_REGISTER_DEF(NAME, ADDRESS, STRUCT) struct NAME : RegBase<ADDRESS> STRUCT
 
+namespace FeNN::Common
+{
 template<uint32_t A>
 struct RegBase
 {
@@ -402,5 +404,5 @@ PSEE_REGISTER_DEF(Misc, 0xF010, {
 	uint32_t misc;
 });
 }
-
+}
 #undef PSEE_REGISTER_DEF

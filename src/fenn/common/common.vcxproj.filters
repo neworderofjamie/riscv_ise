@@ -32,6 +32,15 @@
     <ClCompile Include="logging.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="mipi_csi2_receiver.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="genx_320.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="i2c_interface.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\include\fenn\common\app_utils.h">
@@ -59,6 +68,21 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\include\fenn\common\logging.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\fenn\common\mipi_csi2_receiver.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\fenn\common\genx_320.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\fenn\common\genx320_bias.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\fenn\common\genx320_reg.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\fenn\common\i2c_interface.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

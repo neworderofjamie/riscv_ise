@@ -12,7 +12,7 @@
 		static inline const uint8_t def = DEFAULT;	\
 	}
 
-namespace Bias
+namespace FeNN::Common::Bias
 {
 BIAS_REGISTER_DEF(FO, 		0x1004, 19, 50, 	34);
 BIAS_REGISTER_DEF(HPF, 		0x1100, 0, 	127, 	40);

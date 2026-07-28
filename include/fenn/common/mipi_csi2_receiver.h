@@ -4,15 +4,17 @@
 #include <cstddef>
 #include <cstdint>
 
-// Common includes
-#include "common/common_export.h"
-#include "common/uio.h"
+// FeNN common includes
+#include "fenn/common/fenn_common_export.h"
+#include "fenn/common/uio.h"
 
 
 //----------------------------------------------------------------------------
-// MIPICSI2Receiver
+// FeNN::Common::MIPICSI2Receiver
 //----------------------------------------------------------------------------
-class COMMON_EXPORT MIPICSI2Receiver
+namespace FeNN::Common
+{
+class FENN_COMMON_EXPORT MIPICSI2Receiver
 {
     //------------------------------------------------------------------------
     // Enumerations
@@ -103,3 +105,4 @@ private:
     //------------------------------------------------------------------------
     UIO m_RegisterUIO;
 };
+}

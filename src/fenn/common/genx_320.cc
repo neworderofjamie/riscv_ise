@@ -1,15 +1,13 @@
-#include "common/genx_320.h"
+#include "fenn/common/genx_320.h"
 
 // Standard C++ includes
 #include <chrono>
 #include <thread>
 
-// PLOG includes
-#include <plog/Log.h>
-
 // Common includes
-#include "common/genx320_reg.h"
-#include "common/mipi_csi2_receiver.h"
+#include "fenn/common/genx320_reg.h"
+#include "fenn/common/logging.h"
+#include "fenn/common/mipi_csi2_receiver.h"
 
 namespace
 {
@@ -34,8 +32,10 @@ BiasDefault factoryBiasDefaults[] = {
     {0x1120, 0x010000A4}}; // BIAS_SM_PDY_LV0
 }
 //----------------------------------------------------------------------------
-// GenX320
+// FeNN::Common::GenX320
 //----------------------------------------------------------------------------
+namespace FeNN::Common
+{
 GenX320::GenX320(EventFormat eventFormat, const std::string &gpioUIOName, 
                  MIPICSI2Receiver *mipiCSI2Receiver, const std::string &i2cPath, int muxSlaveAddress, int camSlaveAddress)
 :   m_EventFormat(eventFormat), m_MuxI2C(i2cPath, muxSlaveAddress), 
@@ -43,7 +43,7 @@ GenX320::GenX320(EventFormat eventFormat, const std::string &gpioUIOName,
     m_MIPICSI2Receiver(mipiCSI2Receiver), m_Streaming(false)
 {
     using namespace std::chrono_literals;
-    LOGI << "Power-on sequence startin";
+    LOGI_FENN_COMMON << "Power-on sequence startin";
 
     // Assert enable low
     m_GPIUIO.getData<uint32_t>()[0] = 0b00;
@@ -56,7 +56,7 @@ GenX320::GenX320(EventFormat eventFormat, const std::string &gpioUIOName,
     // Setup the I2C multiplexer to allow all channels to be reached
     m_MuxI2C.write(uint8_t{0xFF});
 
-    LOGD << "Pulsing Digital and CPU resets...";
+    LOGD_FENN_COMMON << "Pulsing Digital and CPU resets...";
 
     // Assert
     writeReg<DigSoftReset>(0x05);
@@ -77,7 +77,7 @@ GenX320::GenX320(EventFormat eventFormat, const std::string &gpioUIOName,
         throw std::runtime_error("GenX320 chip ID mismatch: got 0x" + std::to_string(cid) +
                                  ", expected 0x" + std::to_string(chipIDExpected));
     }
-    LOGI << std::hex << "Chip ID OK: 0x" << cid;
+    LOGI_FENN_COMMON << std::hex << "Chip ID OK: 0x" << cid;
 
     //------------------------------------------------------------------
     // Configure MIPI CSI-2 for 1-lane, 800 Mbps, variable-size packets
@@ -125,7 +125,7 @@ GenX320::GenX320(EventFormat eventFormat, const std::string &gpioUIOName,
     
     // Configure FPGA-side MIPI RX if provided
     if(m_MIPICSI2Receiver) {
-        LOGI << "Configuring FPGA-side MIPI CSI-2 RX Subsystem...";
+        LOGI_FENN_COMMON << "Configuring FPGA-side MIPI CSI-2 RX Subsystem...";
         
         // 1. Enable Core
         m_MIPICSI2Receiver->setCoreEnabled(true);
@@ -137,13 +137,13 @@ GenX320::GenX320(EventFormat eventFormat, const std::string &gpioUIOName,
         // 3. Clear interrupts
         m_MIPICSI2Receiver->setInterruptStatus(0xFFFFFFFF);
         
-        LOGI << "FPGA-side MIPI RX configured and enabled";
+        LOGI_FENN_COMMON << "FPGA-side MIPI RX configured and enabled";
     }
     else {
-        LOGD << "No FPGA MIPI RX instance provided; skipping FGPA-side config.";
+        LOGD_FENN_COMMON << "No FPGA MIPI RX instance provided; skipping FGPA-side config.";
     }
 
-    LOGD << "MIPI CSI-2 configured (1 lane, 800 Mbps, variable-size)";
+    LOGD_FENN_COMMON << "MIPI CSI-2 configured (1 lane, 800 Mbps, variable-size)";
     
     setEventFormat(m_EventFormat);
     
@@ -184,7 +184,7 @@ GenX320::GenX320(EventFormat eventFormat, const std::string &gpioUIOName,
                                  s.bias_rstn_lv = 1;
                              });
     
-    LOGD << "Analog bias tuning complete";
+    LOGD_FENN_COMMON << "Analog bias tuning complete";
     
     //------------------------------------------------------------------------
     // Set default ROI
@@ -222,7 +222,7 @@ GenX320::~GenX320()
     m_GPIUIO.getData<uint32_t>()[0] = 0b00;
     std::this_thread::sleep_for(1ms);
 
-    LOGI << "GenX320 powered off";
+    LOGI_FENN_COMMON << "GenX320 powered off";
 }
 //----------------------------------------------------------------------------
 void GenX320::startStreaming(StreamingSource source)
@@ -269,7 +269,7 @@ void GenX320::startStreaming(StreamingSource source)
         writeReg<Readout::ReadoutCtrl>(0);
     }
     
-    LOGI << "Streaming started (source="<< source._to_string() << ")";
+    LOGI_FENN_COMMON << "Streaming started (source="<< source._to_string() << ")";
     m_Streaming = true;
 }
 //----------------------------------------------------------------------------
@@ -303,7 +303,7 @@ void GenX320::stopStreaming()
     // Disable MIPI
     writeRegFields<MipiCsi::Ctrl>([](auto &s){ s.enable = 0; });
 
-    LOGI << "Streaming stopped";
+    LOGI_FENN_COMMON << "Streaming stopped";
     m_Streaming = false;
 }
 //----------------------------------------------------------------------------
@@ -353,13 +353,13 @@ void GenX320::enableERC(double eventsPerSecond)
     // Disable bypass
     writeRegFields<ERC::PipelineControl>([](auto &s){ s.bypass = 0; });
 
-    LOGI << "ERC enabled (target count=" << count << ")";
+    LOGI_FENN_COMMON << "ERC enabled (target count=" << count << ")";
 }
 //----------------------------------------------------------------------------
 void GenX320::disableERC()
 {
     writeRegFields<ERC::AhvtDroppingControl>([](auto &s){ s.t_dropping_en = 0; });
-    LOGI << "ERC disabled";
+    LOGI_FENN_COMMON << "ERC disabled";
 }
 //----------------------------------------------------------------------------
 void GenX320::resetROI()
@@ -387,17 +387,17 @@ void GenX320::setEventFormat(EventFormat eventFormat)
                                              s.enable = 1;
                                          });
     
-    LOGI << "Event format set to " << m_EventFormat._to_string();
+    LOGI_FENN_COMMON << "Event format set to " << m_EventFormat._to_string();
 }
 //----------------------------------------------------------------------------
 void GenX320::waitBoot(int numRetries)
 {
     using namespace std::chrono_literals;
-    LOGI << "Waiting for sensor boot magic...";
+    LOGI_FENN_COMMON << "Waiting for sensor boot magic...";
     for(int i = 0; i < numRetries; i++) {
         const uint32_t magic = readReg<Mbx::Misc>();
         if(magic == bootMagic) {
-            LOGI << std::hex << "Boot magic OK (0x" << magic << ") after " << std::dec << i << " retries";
+            LOGI_FENN_COMMON << std::hex << "Boot magic OK (0x" << magic << ") after " << std::dec << i << " retries";
             return;
         }
         else if(magic == 0xBAADF00D) {
@@ -415,12 +415,12 @@ void GenX320::waitBoot(int numRetries)
         const uint32_t dsr = readReg<DigSoftReset>();
         const uint32_t scc = readReg<SysClkCtrl>();
         
-        LOGE << std::hex << "GenX320 boot magic mismatch: got 0x" << magic << ", expected 0x" << bootMagic << ".";
-        LOGE << std::hex << "Diagnostics: ChipID=" << cid << ", DigReset=0x" << dsr << ", SysClk=0x" << scc;
+        LOGE_FENN_COMMON << std::hex << "GenX320 boot magic mismatch: got 0x" << magic << ", expected 0x" << bootMagic << ".";
+        LOGE_FENN_COMMON << std::hex << "Diagnostics: ChipID=" << cid << ", DigReset=0x" << dsr << ", SysClk=0x" << scc;
         throw std::runtime_error("Unable to boot camera");
     }
 
-    LOGI << std::hex << "Boot magic OK (0x" << magic << ")";
+    LOGI_FENN_COMMON << std::hex << "Boot magic OK (0x" << magic << ")";
 }
 //----------------------------------------------------------------------------
 void GenX320::setROIWindow(uint16_t x, uint16_t y, uint16_t w, uint16_t h, int index)
@@ -491,7 +491,7 @@ uint32_t GenX320::readReg(uint16_t address)
                           (dataBuffer[2] << 8) |
                           dataBuffer[3]);
     if(val == 0xBAADF00D) {
-        LOGE << std::hex << "Bus Error: I2C read at 0x" << address << " returned 0xBAADF00D. This usually means the sensor is not responding or the IIC bridge failed.";
+        LOGE_FENN_COMMON << std::hex << "Bus Error: I2C read at 0x" << address << " returned 0xBAADF00D. This usually means the sensor is not responding or the IIC bridge failed.";
     }
 
     return val;
@@ -530,4 +530,4 @@ void GenX320::clearRegBits(uint16_t address, uint32_t mask, int numRetries)
     const uint32_t val = readReg(address);
     writeReg(address, val & ~mask, numRetries);
 }
-
+}

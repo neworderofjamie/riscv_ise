@@ -4,12 +4,17 @@
 #include <cstddef>
 #include <cstdint>
 
-// Common includes
-#include "common/common_export.h"
-#include "common/enum.h"
-#include "common/i2c_interface.h"
-#include "common/uio.h"
+// Third-party includes
+#include "enum.h"
 
+
+// FeNN common includes
+#include "fenn/common/fenn_common_export.h"
+#include "fenn/common/i2c_interface.h"
+#include "fenn/common/uio.h"
+
+namespace FeNN::Common
+{
 BETTER_ENUM(EventFormat, uint32_t, EVT2 = 0, EVT3 = 1, EVT21 = 2)
 BETTER_ENUM(StreamingSource, uint32_t, PIXEL_ARRAY, RO_PATTERN, TS_PATTERN)
 BETTER_ENUM(ROIMode, uint32_t, ROI=0, RONI=1)
@@ -18,9 +23,9 @@ BETTER_ENUM(ROIMode, uint32_t, ROI=0, RONI=1)
 class MIPICSI2Receiver;
 
 //----------------------------------------------------------------------------
-// GenX320
+// FeNN::Common::GenX320
 //----------------------------------------------------------------------------
-class COMMON_EXPORT GenX320
+class FENN_COMMON_EXPORT GenX320
 {
 public:
     //------------------------------------------------------------------------
@@ -170,3 +175,4 @@ private:
     MIPICSI2Receiver *m_MIPICSI2Receiver;
     bool m_Streaming;
 };
+}

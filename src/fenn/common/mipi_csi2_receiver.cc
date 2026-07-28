@@ -1,18 +1,20 @@
-#include "common/mipi_csi2_receiver.h"
+#include "fenn/common/mipi_csi2_receiver.h"
 
 // Standard C includes
 #include <cassert>
 
-// PLOG includes
-#include <plog/Log.h>
+// FeNN common includes
+#include "fenn/common/logging.h"
 
 //----------------------------------------------------------------------------
 // MIPICSI2Receiver
 //----------------------------------------------------------------------------
+namespace FeNN::Common
+{
 MIPICSI2Receiver::MIPICSI2Receiver(const std::string &uioName)
 :   m_RegisterUIO(uioName)
 {
-    LOGI << "MIPI CSI-2 Receiver  using UIO '" << uioName << "'";
+    LOGI_FENN_COMMON << "MIPI CSI-2 Receiver  using UIO '" << uioName << "'";
 }
 //----------------------------------------------------------------------------
 void MIPICSI2Receiver::setLanes(uint32_t activeLanes, uint32_t maxLanes)
@@ -58,4 +60,5 @@ uint32_t MIPICSI2Receiver::readReg(Register reg) const
 { 
     volatile const uint32_t *registers = m_RegisterUIO.getData<uint32_t>();
     return registers[static_cast<int>(reg) / 4]; 
+}
 }

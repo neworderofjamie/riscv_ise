@@ -1,4 +1,4 @@
-#include "common/i2c_interface.h"
+#include "fenn/common/i2c_interface.h"
 
 // Standard C++ includes
 #include <string>
@@ -24,12 +24,14 @@ extern "C"
 }
 #endif  // __linux__
 
-// PLOG includes
-#include <plog/Log.h>
+// FeNN common includes
+#include "fenn/common/logging.h"
 
 //----------------------------------------------------------------------------
 // I2CInterface
 //----------------------------------------------------------------------------
+namespace FeNN::Common
+{
 I2CInterface::I2CInterface(const std::string &path, int slaveAddress)
 :   m_SlaveAddress(slaveAddress)
 {
@@ -45,7 +47,7 @@ I2CInterface::I2CInterface(const std::string &path, int slaveAddress)
     if (ioctl(m_I2C, I2C_SLAVE, slaveAddress) < 0) {
         throw std::runtime_error("Cannot connect to I2C slave");
     } else {
-        LOGI << "I2C successfully initialized";
+        LOGI_FENN_COMMON << "I2C successfully initialized";
     }
 #else
     throw std::runtime_error("I2C interface only supports Linux");
@@ -60,7 +62,7 @@ I2CInterface::~I2CInterface()
         close(m_I2C);
     }
 
-    LOGD << "I2C closed";
+    LOGD_FENN_COMMON << "I2C closed";
 #endif  // __linux__
 }
 //---------------------------------------------------------------------
@@ -117,4 +119,5 @@ void I2CInterface::writeRead(const uint8_t *writeData, size_t writeSize,
 #else
     throw std::runtime_error("I2C interface only supports Linux");
 #endif  // __linux__
+}
 }
