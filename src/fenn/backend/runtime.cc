@@ -308,13 +308,19 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                              throw std::runtime_error("Process groups should not be used multiple times in kernels");
                                          }
 
-                                         // Loop over merged event sources and generate event processing loops
-                                         // **TODO** pass through fields so event source buffer can be implemented
+                                         // Loop over merged event sources
                                          auto endProcessGroupLabel = Assembler::createLabel();
                                          const auto &mergedEventSourcesGroup = getMergedEventSources().at(processGroup);
                                          mergedEventSourceFields.first->second.reserve(mergedEventSourcesGroup.size());
                                          for (const auto &m : mergedEventSourcesGroup) {
+                                             // Add new merged field
+                                             // **NOTE** these are relative to start of field array
+                                             // **TODO** pass through fields so event source buffer can be implemented
+                                             mergedEventSourceFields.first->second.emplace_back(std::piecewise_construct,
+                                                                                                std::make_tuple(fieldBase - 4),
+                                                                                                std::make_tuple());
 
+                                             // Generate event processing loops
                                              m.template getArchetype<EventSourceImplementation>()->generateEventLoop(
                                                 m, *this, *ki, SPreIndex, SSpikeReturn, jumpTable, 
                                                 c, scalarRegisterAllocator);
