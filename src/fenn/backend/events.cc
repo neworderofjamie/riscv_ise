@@ -190,6 +190,7 @@ std::unique_ptr<Frontend::ArrayBase> EventChannel::createArray(const Frontend::S
         return createBitArray(deviceShape, device);
     }
     else {
+        // **TODO** check doesn't have time - that would be weird!
         return nullptr;
     }
 }

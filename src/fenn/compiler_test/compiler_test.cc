@@ -161,15 +161,16 @@ int main(int argc, char** argv)
     // Input neurons
     const auto inputV = Backend::Variable::create(inputShapeTime, Type::S2_13Sat, "inputV");
     const auto inputI = Backend::Variable::create(inputShape, Type::S2_13Sat, "inputI");
-    const auto inputSpikes = Backend::EventChannel::create(inputShapeTime, false, "inputSpikes");
+    const auto inputSpikes = Backend::EventChannel::create(inputShape, false, "inputSpikes");
     const auto input = Backend::NeuronUpdateProcess::create(
         "V = (" + std::to_string(std::exp(-1.0 / 20.0)) + " * V) + I;\n"
+        "I = 0.0;\n"
         "if(V >= 1.0) {\n"
         "   Spike();\n"
         "   V = 0.0;\n"
         "}\n",
         {{"V", Sliced<Variable>(inputV, true)}, {"I", Sliced<Variable>(inputI)}}, 
-        {{"Spike", Sliced<EventSink>(inputSpikes, true)}},
+        {{"Spike", Sliced<EventSink>(inputSpikes)}},
         Type::S2_13, "input");
 
     // Hidden neurons
@@ -178,6 +179,7 @@ int main(int argc, char** argv)
     const auto hiddenSpikes = Backend::EventSinkBuffer::create(hiddenShapeTime, "hiddenSpikes");
     const auto hidden = Backend::NeuronUpdateProcess::create(
         "V = (" + std::to_string(std::exp(-1.0 / 20.0)) + " * V) + I;\n"
+        "I = 0.0;\n"
         "if(V >= 0.8) {\n"
         "   Spike();\n"
         "   V = 0.0;\n"
@@ -188,7 +190,7 @@ int main(int argc, char** argv)
 
     // Connect pre1 to post 1
     const auto inputHiddenWeight = Backend::Variable::create(Frontend::Shape({32, 32}), Type::S2_13Sat, "inputHiddenWeight");
-    const auto inputHidden = Backend::DenseEventPropagationProcess::create(Sliced<EventSource>(inputSpikes, true),
+    const auto inputHidden = Backend::DenseEventPropagationProcess::create(Sliced<EventSource>(inputSpikes),
                                                                            inputHiddenWeight,
                                                                            Sliced<Variable>(hiddenI),
                                                                            "inputHidden");
