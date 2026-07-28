@@ -51,7 +51,7 @@ public:
                               [getFieldConstantFn]
                               (size_t d, std::shared_ptr<const Frontend::ModelComponent> m)
                               {
-                                  return getFieldConstantFn(d, std::static_pointer_cast<const M>(m));
+                                  return getFieldConstantFn(d, std::dynamic_pointer_cast<const M>(m));
                               });
 
         // Update next field offset
@@ -69,7 +69,7 @@ public:
                               [getFieldPointerFn]
                               (const Frontend::DeviceBase &d, std::shared_ptr<const Frontend::ModelComponent> m)
                               {
-                                  return getFieldPointerFn(d, std::static_pointer_cast<const M>(m));
+                                  return getFieldPointerFn(d, std::dynamic_pointer_cast<const M>(m));
                               });
 
         // Update next field offset
