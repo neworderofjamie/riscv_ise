@@ -272,7 +272,9 @@ void unrollLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAll
     ALLOCATE_SCALAR(SNumIterations);
     if(numUnrolls.quot != 0) {
         // Load number of unrolled iterations
-        c.li(*SNumIterations, numUnrolls.quot);
+        if(numUnrolls.quot > 1) {
+            c.li(*SNumIterations, numUnrolls.quot);
+        }
 
         auto unrolledLoop = c.L();
         {
@@ -298,7 +300,9 @@ void unrollLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAll
     // If there is a remainder
     if(numUnrolls.rem != 0) {
         // Load number of iterations
-        c.li(*SNumIterations, numUnrolls.rem);
+        if(numUnrolls.quot > 1) {
+            c.li(*SNumIterations, numUnrolls.rem);
+        }
 
         auto loop = c.L();
         {
