@@ -41,8 +41,8 @@ protected:
 class EventSourceBuffer : public EventSource
 {
 public:
-    EventSourceBuffer(Private, const Shape &shape, const std::string &name)
-    :   State(name), EventSource(name), m_Shape(shape)
+    EventSourceBuffer(Private, const Shape &shape, size_t maxEvents, const std::string &name)
+    :   State(name), EventSource(name), m_Shape(shape), m_MaxEvents(maxEvents)
     {}
 
     //------------------------------------------------------------------------
@@ -56,11 +56,16 @@ public:
 
  
     //------------------------------------------------------------------------
+    // Public API
+    //------------------------------------------------------------------------
+    size_t getMaxEvents() const{ return m_MaxEvents; }
+
+    //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------
-    static std::shared_ptr<EventSourceBuffer> create(const Shape &shape, const std::string &name = "")
+    static std::shared_ptr<EventSourceBuffer> create(const Shape &shape, size_t maxEvents, const std::string &name = "")
     {
-        return std::make_shared<EventSourceBuffer>(Private(), shape, name);
+        return std::make_shared<EventSourceBuffer>(Private(), shape, maxEvents, name);
     }
 
 private:
@@ -68,6 +73,7 @@ private:
     // Members
     //------------------------------------------------------------------------
     Shape m_Shape;
+    size_t m_MaxEvents;
 };
 
 //----------------------------------------------------------------------------

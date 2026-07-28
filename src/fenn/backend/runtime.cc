@@ -213,10 +213,15 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                     }
                 }
 
+                // Assign a label to each event source
+                std::unordered_map<std::shared_ptr<const Frontend::EventSource>, Assembler::Label> eventSourceLabels;
+                std::transform(ki->getEventSourceProcesses().cbegin(), ki->getEventSourceProcesses().cend(),
+                               std::inserter(eventSourceLabels, eventSourceLabels.begin()),
+                               [](const auto &e){ return std::make_pair(e.first, Assembler::createLabel()); });
+
                 // Define jump table for routing events
                 // **NOTE** this is at the top of the kernel so it can be easily addressed
                 auto jumpTable = c.L();
-                std::unordered_map<std::shared_ptr<const Frontend::EventSource>, Assembler::Label> eventSourceLabels;
                 if(!ki->getEventSinkIDs().empty()) {
                     // Jump over jump table
                     auto endOfJumpTable = Assembler::createLabel();
@@ -234,16 +239,10 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                         // **YUCK** if event sink is also an event source i.e. it's a channel
                         auto eventSource = std::dynamic_pointer_cast<const Frontend::EventSource>(e.first);
                         if(eventSource) {
-                            // Create new label to jump to
-                            auto label = Assembler::createLabel();
-
                             // Insert label at correct index in vector
                             auto &l = labels.at(e.second / 4);
                             assert(!l);
-                            l = label;
-
-                            // Add mapping between event source and label
-                            eventSourceLabels.try_emplace(eventSource, label);
+                            l = eventSourceLabels.at(eventSource);
                         }
                     }
 
@@ -308,25 +307,8 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                              throw std::runtime_error("Process groups should not be used multiple times in kernels");
                                          }
 
-                                         // Loop over merged event sources
-                                         auto endProcessGroupLabel = Assembler::createLabel();
-                                         const auto &mergedEventSourcesGroup = getMergedEventSources().at(processGroup);
-                                         mergedEventSourceFields.first->second.reserve(mergedEventSourcesGroup.size());
-                                         for (const auto &m : mergedEventSourcesGroup) {
-                                             // Add new merged field
-                                             // **NOTE** these are relative to start of field array
-                                             // **TODO** pass through fields so event source buffer can be implemented
-                                             mergedEventSourceFields.first->second.emplace_back(std::piecewise_construct,
-                                                                                                std::make_tuple(fieldBase - 4),
-                                                                                                std::make_tuple());
-
-                                             // Generate event processing loops
-                                             m.template getArchetype<EventSourceImplementation>()->generateEventLoop(
-                                                m, *this, *ki, SPreIndex, SSpikeReturn, jumpTable, 
-                                                c, scalarRegisterAllocator);
-                                         }
-
                                          // Jump over event handlers
+                                         auto endProcessGroupLabel = Assembler::createLabel();
                                          c.j_(endProcessGroupLabel);
 
                                          // Loop through event sources and their proceses
@@ -367,8 +349,8 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                              // Add new merged field
                                              // **NOTE** these are relative to start of field array
                                              mergedProcessGroupFields.first->second.emplace_back(std::piecewise_construct,
-                                                                                     std::make_tuple(fieldBase - 4),
-                                                                                     std::make_tuple());
+                                                                                                 std::make_tuple(fieldBase - 4),
+                                                                                                 std::make_tuple());
 
                                              // Generate code
                                              pi->generateCode(m, *this, *ki, mergedProcessGroupFields.first->second.back().second, 
@@ -381,6 +363,24 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
 
                                          // End of kernel
                                          c.L(endProcessGroupLabel);
+
+                                         // Loop over merged event sources
+                                         const auto &mergedEventSourcesGroup = getMergedEventSources().at(processGroup);
+                                         mergedEventSourceFields.first->second.reserve(mergedEventSourcesGroup.size());
+                                         for (const auto &m : mergedEventSourcesGroup) {
+                                             // Add new merged field
+                                             // **NOTE** these are relative to start of field array
+                                             // **TODO** pass through fields so event source buffer can be implemented
+                                             mergedEventSourceFields.first->second.emplace_back(std::piecewise_construct,
+                                                                                                std::make_tuple(fieldBase - 4),
+                                                                                                std::make_tuple());
+
+                                             // Generate event processing loops
+                                             m.template getArchetype<EventSourceImplementation>()->generateEventLoop(
+                                                 m, *this, *ki, mergedEventSourceFields.first->second.back().second,
+                                                 timeRegister, SPreIndex, SSpikeReturn, jumpTable, eventSourceLabels,
+                                                 fieldBase, c, scalarRegisterAllocator);
+                                         }
                                      }
                                      // Otherwise
                                      else {
@@ -399,9 +399,9 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
 
                                             // Generate code
                                             pi->generateCode(m, *this, *ki, mergedProcessGroupFields.first->second.back().second, 
-                                                            timeRegister, nullptr, nullptr, 
-                                                            numTimesteps, fieldBase, c, 
-                                                            scalarRegisterAllocator, vectorRegisterAllocator);
+                                                             timeRegister, nullptr, nullptr, 
+                                                             numTimesteps, fieldBase, c, 
+                                                             scalarRegisterAllocator, vectorRegisterAllocator);
                                         }
                                      }
                                  });

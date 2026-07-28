@@ -81,62 +81,162 @@ void EventSinkImplementation::genBitArrayIncrement(Assembler::CodeGenerator &c, 
 std::unique_ptr<Frontend::ArrayBase> EventSourceBuffer::createArray(const Frontend::Shape &deviceShape, const Frontend::Model&,
                                                                     Frontend::DeviceBase &device) const
 {
-    assert(false);
-    return nullptr;
+    // Check we have enough bits to encode events from all device
+    if (deviceShape.getFlattenedSize() >= 32768) {
+        throw std::runtime_error("EventSourceBuffer can only deliver events from less than 32768 sources per-device");
+    }
+
+    // Create BRAM array with one 16 bit word per-event
+    return static_cast<DeviceFeNN&>(device).createBRAMArray(CompilerFrontend::Type::Uint16, getMaxEvents());
 }
 //----------------------------------------------------------------------------
-void EventSourceBuffer::generateEventLoop(const Frontend::Merged<Frontend::EventSource> &mergedEventSource, const Runtime &runtime, const KernelImplementation &kernel, 
-                                          Assembler::ScalarRegisterPtr preIndReg, Assembler::ScalarRegisterPtr spikeReturnReg, Assembler::Label jumpTable,
-                                          Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator) const
+void EventSourceBuffer::generateEventLoop(const Frontend::Merged<Frontend::EventSource> &mergedEventSource, const Runtime &runtime, 
+                                          const KernelImplementation &kernel, MergedFields &mergedFields, 
+                                          Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr preIndReg, 
+                                          Assembler::ScalarRegisterPtr spikeReturnReg, Assembler::Label,
+                                          const std::unordered_map<std::shared_ptr<const Frontend::EventSource>, Assembler::Label> &eventSourceLabels,
+                                          uint32_t &fieldBase, Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator) const
 {
-    // **TODO** loop through merged processes, get their buffers etc etc
-    assert(false);
-    /*// Generate archetype code and populate merged fields
+    // Build a vector of the labels corresponding to the event sources which have been merged together
+    std::vector<uint32_t> mergedLabelAddresses;
+    std::transform(mergedEventSource.getMerged().cbegin(), mergedEventSource.getMerged().cend(), std::back_inserter(mergedLabelAddresses),
+                   [&c, &eventSourceLabels](const auto &e){ return c.getAddress(eventSourceLabels.at(e)).value(); });
+
+    // Allocate base register
+    ALLOCATE_SCALAR(SFieldBase);
+    ALLOCATE_SCALAR(SFieldBaseEnd);
+
+    // Generate archetype code and populate merged fields
     Assembler::CodeGenerator archetypeCodeGenerator;
-    const auto sharedRegisters = generateArchetypeCode(mergedProcess, runtime, kernel, mergedFields,
-                                                       SFieldBase, timeReg, numTimesteps, archetypeCodeGenerator,
-                                                       c, scalarRegisterAllocator, vectorRegisterAllocator);
+    generateArchetypeEventLoop(mergedFields, SFieldBase, timeReg, preIndReg, spikeReturnReg, mergedLabelAddresses, 
+                               archetypeCodeGenerator, scalarRegisterAllocator);
 
     // Load fieldBase
     c.li(*SFieldBase, fieldBase);
 
-    // Calculate and load fieldEnd
-    fieldBase += (mergedProcess.getMerged().size() * mergedFields.getSize());
-    c.li(*SFieldBaseEnd, fieldBase);
+    // Calculate fieldEnd and load if required
+    fieldBase += (mergedEventSource.getMerged().size() * mergedFields.getSize());
+    if(mergedEventSource.getMerged().size() > 1) {
+        c.li(*SFieldBaseEnd, fieldBase);
+    }
 
-    // Generate loop over merged groups
+    // Generate loop over merged event sources
     auto groupLoop = c.L();
     {
         // Insert generated code to simulate archetype
         c += archetypeCodeGenerator;
 
-        // Advance to next group's fields
-        c.addi(*SFieldBase, *SFieldBase, mergedFields.getSize());
+        // If a loop is required
+        if(mergedEventSource.getMerged().size() > 1) {
+            // Advance to next group's fields
+            c.addi(*SFieldBase, *SFieldBase, mergedFields.getSize());
 
-        // Keep looping
-        c.bne(*SFieldBase, *SFieldBaseEnd, groupLoop);
+            // Keep looping
+            c.bne(*SFieldBase, *SFieldBaseEnd, groupLoop);
+        }
     }
-    */
 }
 //----------------------------------------------------------------------------
-void EventSourceBuffer::generateArchetypeEventLoop() const
+void EventSourceBuffer::generateArchetypeEventLoop(MergedFields &mergedFields, 
+                                                   Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg,
+                                                   Assembler::ScalarRegisterPtr preIndReg, Assembler::ScalarRegisterPtr spikeReturnReg, 
+                                                   const std::vector<uint32_t> &mergedLabelAddresses, Assembler::CodeGenerator &c, 
+                                                   Assembler::ScalarRegisterAllocator &scalarRegisterAllocator) const
 {
-    // **NOTE** this prototol assumes there is a timestamp at the indexed position in the merged field
+    // Add field to hold buffer
+    const uint32_t bufferFieldOffset = mergedFields.addField<EventSourceBuffer>(
+        [](const Frontend::DeviceBase &d, auto e)
+        { 
+            return d.getArray(e); 
+        });
 
-    // Read timestamp from start of buffer
-    // If time == timestamp
-    //     while true
-    //         Increment index
-    //         Load index
-    //         if top bit == 1 // timestamp
-    //             return  
-    //         else
-    //             set spike register to 1st
-    //             jalr to handler
-    //             if 2nd top bit == 1
-    //                 set spike register to 2nd
-    //                 jalr to handler
-    //             
+    // Add field, initialised to zero, to hold offset into buffer
+    const uint32_t offsetFieldOffset = mergedFields.addField<EventSourceBuffer>(
+        [](size_t, auto) { return 0; }, 4);
+
+    // Add field containing address to jump to 
+    const uint32_t labelFieldOffset = mergedFields.addField<EventSourceBuffer>(
+        [mergedLabelAddresses](size_t i, auto)
+        {
+            return mergedLabelAddresses.at(i);
+        });
+
+    ALLOCATE_SCALAR(SBufferStart);
+    ALLOCATE_SCALAR(SBuffer);
+    ALLOCATE_SCALAR(SEventSourceHandler)
+
+    // Load buffer start address and handler address
+    c.lw(*SBufferStart, *fieldBaseReg, bufferFieldOffset);
+    c.lw(*SEventSourceHandler, *fieldBaseReg, labelFieldOffset);
+    
+    {
+        ALLOCATE_SCALAR(STmp);
+
+        // Load offset from fields
+        c.lw(*STmp, *fieldBaseReg, offsetFieldOffset);
+
+        // Add offset to buffer start
+        c.add(*SBuffer, *SBufferStart, *STmp);
+    }
+
+    // Load first half-word from buffer
+    c.lh(*preIndReg, *SBuffer);
+
+    // Extract time from lower 31 bits of event
+    // **NOTE** we assume this is a time
+    {
+        ALLOCATE_SCALAR(STmp);
+        c.li(*STmp, 0x7FFF);
+        c.and_(*preIndReg, *preIndReg, *STmp);
+    }
+
+    // If word doesn't match current timestep, goto end
+    auto noSpikes = Assembler::createLabel();
+    c.bne(*preIndReg, *timeReg, noSpikes);
+
+    {
+        // Build time mask
+        ALLOCATE_SCALAR(STimeMask);
+        c.li(*STimeMask, 1 << 15);
+        
+        // Advance buffer pointer
+        c.addi(*SBuffer, *SBuffer, 2);
+
+        auto spikeLoopStart = c.L();
+        auto spikeLoopEnd = Assembler::createLabel();
+        {
+            // Load next word from buffer and increment pointer
+            c.lh(*preIndReg, *SBuffer);
+            c.addi(*SBuffer, *SBuffer, 2);
+
+            // If we have hit the next timestamp, goto spikeLoopEnd
+            {
+                ALLOCATE_SCALAR(STmp);
+                c.and_(*STmp, *preIndReg, *STimeMask);
+                c.bne(*STmp, Common::Reg::X0, spikeLoopEnd);
+            }
+
+            // Jump to event source handler, storing return address in register provides
+            c.jalr(*spikeReturnReg, *SEventSourceHandler);
+
+            // Goto spike loop start
+            c.j_(spikeLoopStart);
+        }
+
+        c.L(spikeLoopEnd);
+
+        {
+            ALLOCATE_SCALAR(STmp);
+            
+            // Get updated offset
+            c.sub(*STmp, *SBuffer, *SBufferStart);
+
+            // Store it back to offset field
+            c.sw(*STmp, *fieldBaseReg, offsetFieldOffset);
+        }
+    }
+
+    c.L(noSpikes);
 }
 
 //----------------------------------------------------------------------------
@@ -195,9 +295,12 @@ std::unique_ptr<Frontend::ArrayBase> EventChannel::createArray(const Frontend::S
     }
 }
 //----------------------------------------------------------------------------
-void EventChannel::generateEventLoop(const Frontend::Merged<Frontend::EventSource>&, const Runtime &runtime, const KernelImplementation &kernel, 
-                                     Assembler::ScalarRegisterPtr preIndReg, Assembler::ScalarRegisterPtr spikeReturnReg, Assembler::Label jumpTable,
-                                     Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator) const
+void EventChannel::generateEventLoop(const Frontend::Merged<Frontend::EventSource>&, const Runtime &runtime, 
+                                     const KernelImplementation &kernel, MergedFields&, 
+                                     Assembler::ScalarRegisterPtr, Assembler::ScalarRegisterPtr preIndReg, 
+                                     Assembler::ScalarRegisterPtr spikeReturnReg, Assembler::Label jumpTable, 
+                                     const std::unordered_map<std::shared_ptr<const Frontend::EventSource>, Assembler::Label>&,
+                                     uint32_t&, Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator) const
 {
     // Wait for all events from last timestep to be communicated
     Assembler::Utils::generateRouterBarrier(c, scalarRegisterAllocator, runtime.getNumDevices());
@@ -297,7 +400,6 @@ void EventChannel::genEmit(Compiler::EnvironmentBase &env, Assembler::ScalarRegi
     env.getCodeGenerator().csrw(Common::CSR::MASTER_EVENT_ID_BASE, *state[0]);
     env.getCodeGenerator().csrw(Common::CSR::MASTER_EVENT_BITFIELD, *spikeMaskReg);
     env.getCodeGenerator().addi(*state[0], *state[0], 32);
-
 }
 //----------------------------------------------------------------------------
 void EventChannel::genIncrement(Assembler::CodeGenerator &c, uint32_t numUnrolls,

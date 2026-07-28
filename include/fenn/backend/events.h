@@ -51,9 +51,12 @@ public:
     // Declared virtuals
     //----------------------------------------------------------------------------
     //! Generate code to implement event loop
-    virtual void generateEventLoop(const Frontend::Merged<Frontend::EventSource> &mergedEventSource, const Runtime &runtime, const KernelImplementation &kernel, 
-                                   Assembler::ScalarRegisterPtr preIndReg, Assembler::ScalarRegisterPtr spikeReturnReg, Assembler::Label jumpTable,
-                                   Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator) const = 0;
+    virtual void generateEventLoop(const Frontend::Merged<Frontend::EventSource> &mergedEventSource, const Runtime &runtime, 
+                                   const KernelImplementation &kernel, MergedFields &mergedFields, 
+                                   Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr preIndReg, 
+                                   Assembler::ScalarRegisterPtr spikeReturnReg, Assembler::Label jumpTable, 
+                                   const std::unordered_map<std::shared_ptr<const Frontend::EventSource>, Assembler::Label> &eventSourceLabels,
+                                   uint32_t &fieldBase, Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator) const = 0;
 };
 
 //----------------------------------------------------------------------------
@@ -109,8 +112,8 @@ protected:
 class FENN_BACKEND_EXPORT EventSourceBuffer : public Frontend::EventSourceBuffer, public EventSourceImplementation
 {
 public:
-    EventSourceBuffer(Private, const Frontend::Shape &shape, const std::string &name)
-    :   State(name), Frontend::EventSourceBuffer(Private(), shape, name)
+    EventSourceBuffer(Private, const Frontend::Shape &shape, size_t maxEvents, const std::string &name)
+    :   State(name), Frontend::EventSourceBuffer(Private(), shape, maxEvents, name)
     {}
 
     //------------------------------------------------------------------------
@@ -123,20 +126,27 @@ public:
     // EventSourceImplementation virtuals
     //----------------------------------------------------------------------------
     //! Generate code to implement event loop
-    virtual void generateEventLoop(const Frontend::Merged<Frontend::EventSource> &mergedEventSource, const Runtime &runtime, const KernelImplementation &kernel, 
-                                   Assembler::ScalarRegisterPtr preIndReg, Assembler::ScalarRegisterPtr spikeReturnReg, Assembler::Label jumpTable,
-                                   Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator) const override final;
+    virtual void generateEventLoop(const Frontend::Merged<Frontend::EventSource> &mergedEventSource, const Runtime &runtime, 
+                                   const KernelImplementation &kernel, MergedFields &mergedFields, 
+                                   Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr preIndReg, 
+                                   Assembler::ScalarRegisterPtr spikeReturnReg, Assembler::Label jumpTable, 
+                                   const std::unordered_map<std::shared_ptr<const Frontend::EventSource>, Assembler::Label> &eventSourceLabels,
+                                   uint32_t &fieldBase, Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator) const override final;
 
     //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------
-    static std::shared_ptr<EventSourceBuffer> create(const Frontend::Shape &shape, const std::string &name = "")
+    static std::shared_ptr<EventSourceBuffer> create(const Frontend::Shape &shape, size_t maxEvents, const std::string &name = "")
     {
-        return std::make_shared<EventSourceBuffer>(Private(), shape, name);
+        return std::make_shared<EventSourceBuffer>(Private(), shape, maxEvents, name);
     }
 
 private:
-    void generateArchetypeEventLoop() const;
+    void generateArchetypeEventLoop(MergedFields &mergedFields, 
+                                    Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg,
+                                    Assembler::ScalarRegisterPtr preIndReg, Assembler::ScalarRegisterPtr spikeReturnReg, 
+                                    const std::vector<uint32_t> &mergedLabelAddresses, Assembler::CodeGenerator &c, 
+                                    Assembler::ScalarRegisterAllocator &scalarRegisterAllocator) const;
 };
 
 //----------------------------------------------------------------------------
@@ -201,9 +211,12 @@ public:
     // EventSourceImplementation virtuals
     //----------------------------------------------------------------------------
     //! Generate code to implement event loop
-    virtual void generateEventLoop(const Frontend::Merged<Frontend::EventSource> &mergedEventSource, const Runtime &runtime, const KernelImplementation &kernel, 
-                                   Assembler::ScalarRegisterPtr preIndReg, Assembler::ScalarRegisterPtr spikeReturnReg, Assembler::Label jumpTable,
-                                   Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator) const override final;
+    virtual void generateEventLoop(const Frontend::Merged<Frontend::EventSource> &mergedEventSource, const Runtime &runtime, 
+                                   const KernelImplementation &kernel, MergedFields &mergedFields, 
+                                   Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr preIndReg, 
+                                   Assembler::ScalarRegisterPtr spikeReturnReg, Assembler::Label jumpTable, 
+                                   const std::unordered_map<std::shared_ptr<const Frontend::EventSource>, Assembler::Label> &eventSourceLabels,
+                                   uint32_t &fieldBase, Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator) const override final;
 
     //------------------------------------------------------------------------
     // EventSinkImplementation virtuals
