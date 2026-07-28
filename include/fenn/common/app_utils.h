@@ -60,7 +60,7 @@ FENN_COMMON_EXPORT void writeSpikes(std::ofstream &os, const volatile uint32_t *
 FENN_COMMON_EXPORT void dumpCOE(const std::string &filename, const std::vector<uint32_t> &code);
 
 // Dump word-based data to a Vivado-format hex file
-COMMON_EXPORT void dumpHEX(const std::string &filename, const std::vector<uint32_t> &code);
+FENN_COMMON_EXPORT void dumpHEX(const std::string &filename, const std::vector<uint32_t> &code);
 
 
 // Load binary file into vector
