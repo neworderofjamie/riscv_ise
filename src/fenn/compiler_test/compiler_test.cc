@@ -142,72 +142,65 @@ int main(int argc, char** argv)
                                 &consoleAppender, &consoleAppender, &consoleAppender, &consoleAppender, &consoleAppender);
 
     constexpr size_t numTimesteps = 79;
-    //const Shape inputShape{{28 * 28}};
-    const Shape inputShape{{32}};
-    const Shape inputShapeTime{{numTimesteps + 1, 32}};
-    const Shape hiddenShape{{30}};
-    const Shape hiddenShapeTime{{numTimesteps + 1, 30}};
+    const Shape inputShape{{28 * 28}};
+    const Shape hiddenShape{{128}};
+    const Shape hiddenShapeTime{{numTimesteps + 1, hiddenShape[0]}};
+    const Shape outputShape{{10}};
+    const Shape outputShapeTime{{numTimesteps + 1, outputShape[0]}};
 
-    //const Shape outputShape{{10}};
-    //const Shape inputHiddenShape{{28 * 28, 128}};
-    //const Shape hiddenOutputShape{{128, 10}};
-
-    //const size_t numInputSpikeWords = ceilDivide(inputShape.getNumNeurons(), 32);
-    //const size_t numInputSpikeArrayWords = numInputSpikeWords * numTimesteps;
-    // 
+    
     // Input spikes
-    //const auto inputSpikes = EventContainer::create(inputShape, numTimesteps);
-
-    // Input neurons
-    const auto inputV = Backend::Variable::create(inputShapeTime, Type::S2_13Sat, "inputV");
-    const auto inputI = Backend::Variable::create(inputShape, Type::S2_13Sat, "inputI");
-    const auto inputSpikes = Backend::EventChannel::create(inputShape, false, "inputSpikes");
-    const auto input = Backend::NeuronUpdateProcess::create(
-        "V = (" + std::to_string(std::exp(-1.0 / 20.0)) + " * V) + I;\n"
-        "I = 0.0;\n"
-        "if(V >= 1.0) {\n"
-        "   Spike();\n"
-        "   V = 0.0;\n"
-        "}\n",
-        {{"V", Sliced<Variable>(inputV, true)}, {"I", Sliced<Variable>(inputI)}}, 
-        {{"Spike", Sliced<EventSink>(inputSpikes)}},
-        Type::S2_13, "input");
+    const auto inputSpikes = Backend::EventSourceBuffer::create(inputShape, 28 * 28, "inputSpikes");
 
     // Hidden neurons
-    const auto hiddenV = Backend::Variable::create(hiddenShapeTime, Type::S2_13Sat, "hiddenV");
-    const auto hiddenI = Backend::Variable::create(hiddenShape, Type::S2_13Sat, "hiddenI");
-    const auto hiddenSpikes = Backend::EventSinkBuffer::create(hiddenShapeTime, "hiddenSpikes");
+    const auto hiddenV = Backend::Variable::create(hiddenShapeTime, Type::S10_5Sat, "hiddenV");
+    const auto hiddenI = Backend::Variable::create(hiddenShape, Type::S10_5Sat, "hiddenI");
+    const auto hiddenRefracTime = Backend::Variable::create(hiddenShape, Type::Int16, "hiddenRefracTime");
+    const auto hiddenSpikes = Backend::EventChannel::create(hiddenShape, "hiddenSpikes");
     const auto hidden = Backend::NeuronUpdateProcess::create(
         "V = (" + std::to_string(std::exp(-1.0 / 20.0)) + " * V) + I;\n"
         "I = 0.0;\n"
-        "if(V >= 0.8) {\n"
+        "if (RefracTime > 0) {\n"
+        "   RefracTime -= 1;\n"
+        "}\n"
+        "else if(V >= 0.61) {\n"
         "   Spike();\n"
-        "   V = 0.0;\n"
+        "   V -= 0.61;\n"
+        "   RefracTime = 5;\n"
         "}\n",
-        {{"V", Sliced<Variable>(hiddenV, true)}, {"I", Sliced<Variable>(hiddenI)}}, 
-        {{"Spike", Sliced<EventSink>(hiddenSpikes, true)}},
-        Type::S2_13, "hidden");
+        {{"V", Sliced<Variable>(hiddenV, true)}, {"I", Sliced<Variable>(hiddenI)}, {"RefracTime", Sliced<Variable>(hiddenRefracTime)}},
+        {{"Spike", Sliced<EventSink>(hiddenSpikes)}},
+        Type::S10_5Sat, "hidden");
 
-    // Connect pre1 to post 1
-    const auto inputHiddenWeight = Backend::Variable::create(Frontend::Shape({32, 32}), Type::S2_13Sat, "inputHiddenWeight");
+    // Output neurons
+    const auto outputV = Backend::Variable::create(outputShape, Type::S9_6Sat, "outputV");
+    const auto outputI = Backend::Variable::create(outputShape, Type::S9_6Sat, "outputI");
+    const auto outputVAvg = Backend::Variable::create(outputShape, Type::S9_6Sat, "outputVAvg");
+    const auto outputBias = Backend::Variable::create(outputShape, Type::S9_6Sat, "outputBias");
+    const auto output = Backend::NeuronUpdateProcess::create(
+        "V = (" + std::to_string(std::exp(-1.0 / 20.0)) + " * V) + I + Bias;\n"
+        "I = 0.0h6;\n"
+        "VAvg += (" + std::to_string(1.0 / (numTimesteps / 2)) + " * V);\n",
+        {{"V", Sliced<Variable>(outputV)}, {"VAvg", Sliced<Variable>(outputVAvg)}, 
+         {"I", Sliced<Variable>(outputI)}, {"Bias", Sliced<Variable>(outputBias)}},
+        {}, Type::S9_6Sat, "output");
+
+
+    // Connect input spikes to hidden
+    const auto inputHiddenWeight = Backend::Variable::create(Frontend::Shape({inputShape[0], hiddenShape[0]}), Type::S10_5Sat, "inputHiddenWeight");
     const auto inputHidden = Backend::DenseEventPropagationProcess::create(Sliced<EventSource>(inputSpikes),
                                                                            inputHiddenWeight,
                                                                            Sliced<Variable>(hiddenI),
                                                                            "inputHidden");
 
-    // Output neurons
-    //const auto outputV = Variable::create(outputShape, GeNN::Type::S9_6Sat);
-    //const auto outputI = Variable::create(outputShape, GeNN::Type::S9_6Sat);
-    //const auto outputVAvg = Variable::create(outputShape, GeNN::Type::S9_6Sat, 1, "output v avg");
-    //const auto outputBias = Variable::create(outputShape, GeNN::Type::S9_6Sat);
-    //const auto output = NeuronUpdateProcess::create(
-    //    "V = (Alpha * V) + I + Bias;\n"
-    //    "I = 0.0h6;\n"
-    //    "VAvg += (VAvgScale * V);\n",
-    //    {{"Alpha", Parameter::create(std::exp(-1.0 / 20.0), GeNN::Type::S9_6)}, 
-    //     {"VAvgScale", Parameter::create(1.0 / (numTimesteps / 2), GeNN::Type::S9_6)}},
-    //    {{"V", outputV}, {"VAvg", outputVAvg}, {"I", outputI}, {"Bias", outputBias}});
+    // Connect hidden spikes to output
+    const auto hiddenOutputWeight = Backend::Variable::create(Frontend::Shape({hiddenShape[0], 32}), Type::S10_5Sat, "hiddenOutputWeight");
+    const auto hiddenOutput = Backend::DenseEventPropagationProcess::create(Sliced<EventSource>(hiddenSpikes),
+                                                                            hiddenOutputWeight,
+                                                                            Sliced<Variable>(outputI),
+                                                                            "hiddenOutput");
 
+    
     // Input->Hidden event propagation
     //const auto inputHiddenWeight = Variable::create(inputHiddenShape, GeNN::Type::S10_5);
     //const auto inputHidden = EventPropagationProcess::create(inputSpikes, inputHiddenWeight, hiddenI);
@@ -225,8 +218,8 @@ int main(int argc, char** argv)
     //const auto zeroPerfCounter = PerformanceCounter::create();
 
     // Group processes
-    const auto neuronUpdateProcesses = ProcessGroup::create({input, hidden,/*, output*/}, time, "neuronUpdateProcesses");
-    const auto synapseUpdateProcesses = ProcessGroup::create({inputHidden}, time, "synapseUpdateProcesses");
+    const auto neuronUpdateProcesses = ProcessGroup::create({hidden, output}, time, "neuronUpdateProcesses");
+    const auto synapseUpdateProcesses = ProcessGroup::create({inputHidden, hiddenOutput}, time, "synapseUpdateProcesses");
     //const auto zeroProcesses = ProcessGroup::create({zeroOutputSum}, time);
 
     const auto kernel = Backend::SimulationLoopKernel::create(numTimesteps, {synapseUpdateProcesses, neuronUpdateProcesses}/*,
@@ -267,10 +260,12 @@ int main(int argc, char** argv)
     loadAndPush("mnist_bias.bin", outputBias, runtime);*/
 
     // Zero remaining state
-    zeroAndPush(inputV, runtime.get());
-    zeroAndPush(inputI, runtime.get());
     zeroAndPush(hiddenV, runtime.get());
     zeroAndPush(hiddenI, runtime.get());
+    zeroAndPush(hiddenRefracTime, runtime.get());
+    zeroAndPush(outputV, runtime.get());
+    zeroAndPush(outputV, runtime.get());
+    zeroAndPush(outputVAvg, runtime.get());
 
     /*std::vector<int16_t> test{0, 26, 53, 79, 106, 132, 159, 185, 211, 238, 264, 291, 317, 344, 370, 396, 423, 449,
                               476, 502, 529, 555, 581, 608, 634, 661, 687, 713, 740, 766, 793, 819};
