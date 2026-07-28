@@ -203,14 +203,12 @@ void EventChannel::generateEventLoop(const Frontend::Merged<Frontend::EventSourc
 
     // **TODO** these can't be allocated here - they need to be scoped around whole nightmare
     ALLOCATE_SCALAR(SSpikeBuffer);
-    ALLOCATE_SCALAR(SSpikeBufferStart);
     ALLOCATE_SCALAR(SSpikeBufferEnd);
 
     // Load start and end of this timestep's spike buffer
     // **NOTE** because all event channels will be merged together, we ignore the merged event sources here
-    c.csrr(*SSpikeBufferEnd, Common::CSR::SLAVE_EVENT_ADDRESS);
-    c.li(*SSpikeBufferStart, 32 * 4096);
-    c.mv(*SSpikeBuffer, *SSpikeBufferStart);
+    c.csrr(*SSpikeBuffer, Common::CSR::SLAVE_EVENT_START_ADDRESS);
+    c.csrr(*SSpikeBufferEnd, Common::CSR::SLAVE_EVENT_END_ADDRESS);
 
     // While (spikeBuffer != spikeBufferEnd
     auto spikeLoopEnd = Assembler::createLabel();
@@ -235,12 +233,6 @@ void EventChannel::generateEventLoop(const Frontend::Merged<Frontend::EventSourc
         c.j_(spikeLoop);
     }
     c.L(spikeLoopEnd);
-
-    // Reset router slave to start writing at beginning of spike buffer
-    c.csrw(Common::CSR::SLAVE_EVENT_ADDRESS, *SSpikeBufferStart);
-
-    // Wait for all routers to be reset so it's safe for other process groups to start SENDING new events
-    Assembler::Utils::generateRouterBarrier(c, scalarRegisterAllocator, runtime.getNumDevices());
 }
 //----------------------------------------------------------------------------
 std::vector<Assembler::ScalarRegisterPtr> EventChannel::genPreamble(

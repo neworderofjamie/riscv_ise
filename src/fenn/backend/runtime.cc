@@ -203,6 +203,7 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
 
                 // If performance counters are enabled, disinhibit them
                 // **NOTE** on device, this takes a few cycles to make it through the pipeline so we do it well before we try and access counters
+                // **TODO** also any real-time kernels that use perforamnce counters
                 {
                     const auto processGroups = k->getAllProcessGroups();
                     if (std::any_of(processGroups.cbegin(), processGroups.cend(),
@@ -210,13 +211,6 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                     {
                         c.csrw(Common::CSR::MCOUNTINHIBIT, Common::Reg::X0);
                     }
-                }
-                
-                // Reset router slave address
-                {
-                    ALLOCATE_SCALAR(STmp);
-                    c.li(*STmp, 32 * 4096);
-                    c.csrw(Common::CSR::SLAVE_EVENT_ADDRESS, *STmp);
                 }
 
                 // Define jump table for routing events
