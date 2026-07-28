@@ -25,7 +25,7 @@ namespace FeNN::Backend
 class FENN_BACKEND_EXPORT DeviceFeNNSim : public DeviceFeNN
 {
 public:
-    DeviceFeNNSim(size_t deviceIndex, const Runtime &runtime, 
+    DeviceFeNNSim(size_t deviceIndex, Runtime &runtime, 
                   ISE::SharedBusSim &sharedBus);
     
     //------------------------------------------------------------------------

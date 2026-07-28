@@ -105,7 +105,7 @@ void URAMLLMArrayBase::serialiseDeviceObject(std::vector<std::byte> &bytes) cons
 //----------------------------------------------------------------------------
 // FeNN::Backend::DeviceFeNN
 //----------------------------------------------------------------------------
-DeviceFeNN::DeviceFeNN(size_t deviceIndex, const Runtime &runtime)
+DeviceFeNN::DeviceFeNN(size_t deviceIndex, Runtime &runtime)
 :   Frontend::DeviceBase(deviceIndex), m_Runtime(runtime)
 {
 }

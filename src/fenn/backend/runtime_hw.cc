@@ -317,7 +317,7 @@ private:
 //----------------------------------------------------------------------------
 namespace FeNN::Backend
 {
-DeviceFeNNHW::DeviceFeNNHW(size_t deviceIndex, const Runtime &runtime, 
+DeviceFeNNHW::DeviceFeNNHW(size_t deviceIndex, Runtime &runtime, 
                            Common::DMABuffer &parentDMABuffer)
 :   DeviceFeNN(deviceIndex, runtime), m_Device(deviceIndex, runtime.getNumDevices()),
     m_DMABuffer(parentDMABuffer, 
@@ -327,7 +327,7 @@ DeviceFeNNHW::DeviceFeNNHW(size_t deviceIndex, const Runtime &runtime,
 {
     if(m_DMABuffer.getSize() < runtime.getDMABufferSize()) {
         LOGW_FENN_BACKEND << "DMA buffer created by UDMABuf driver not as large as requested buffer size";
-    }   
+    }
 }
 //----------------------------------------------------------------------------
 void DeviceFeNNHW::loadKernel(std::shared_ptr<const Frontend::Kernel> kernel)
@@ -338,7 +338,10 @@ void DeviceFeNNHW::loadKernel(std::shared_ptr<const Frontend::Kernel> kernel)
 //----------------------------------------------------------------------------
 void DeviceFeNNHW::runCurrentKernel()
 {
-    m_Device.setEnabled(true);
+    if (getDeviceIndex() == 0) {
+        static_cast<RuntimeHW&>(getRuntime()).getDeviceControl().setEnabled(true);
+    }
+
     LOGD_FENN_BACKEND << "Running";
 
      // Wait until ready flag
@@ -346,7 +349,9 @@ void DeviceFeNNHW::runCurrentKernel()
     LOGD_FENN_BACKEND << "Done";
 
     // Disable core
-    m_Device.setEnabled(false);
+    if (getDeviceIndex() == 0) {
+        static_cast<RuntimeHW&>(getRuntime()).getDeviceControl().setEnabled(false);
+    }
 }
 //----------------------------------------------------------------------------
 std::unique_ptr<URAMArrayBase> DeviceFeNNHW::createURAMArray(const Type::ResolvedType &type, 
@@ -386,7 +391,8 @@ std::unique_ptr<URAMLLMArrayBase> DeviceFeNNHW::createURAMLLMArray(const Type::R
 RuntimeHW::RuntimeHW(const std::vector<std::shared_ptr<const Frontend::Kernel>> &kernels,
                      size_t numDevices, bool useDRAMForWeights, bool keepParamsInRegisters, 
                      Compiler::RoundingMode neuronUpdateRoundingMode, size_t dmaBufferSize)
-:   Runtime(kernels, numDevices, false, useDRAMForWeights, keepParamsInRegisters, neuronUpdateRoundingMode, dmaBufferSize)
+:   Runtime(kernels, numDevices, false, useDRAMForWeights, keepParamsInRegisters, neuronUpdateRoundingMode, dmaBufferSize),
+    m_DeviceControl(numDevices)
 {
 }
 //------------------------------------------------------------------------

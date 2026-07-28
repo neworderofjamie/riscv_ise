@@ -2,6 +2,7 @@
 
 // FeNN common includes
 #include "fenn/common/device.h"
+#include "fenn/common/device_control.h"
 #include "fenn/common/dma_buffer.h"
 #include "fenn/common/dma_controller.h"
 
@@ -24,7 +25,7 @@ namespace FeNN::Backend
 class FENN_BACKEND_EXPORT DeviceFeNNHW : public DeviceFeNN
 {
 public:
-    DeviceFeNNHW(size_t deviceIndex, const Runtime &runtime, 
+    DeviceFeNNHW(size_t deviceIndex, Runtime &runtime, 
                  Common::DMABuffer &parentDMABuffer);
     
     //------------------------------------------------------------------------
@@ -80,6 +81,13 @@ public:
               Compiler::RoundingMode neuronUpdateRoundingMode = Compiler::RoundingMode::NEAREST,
               size_t dmaBufferSize = 512 * 1024);
     
+    //------------------------------------------------------------------------
+    // Public API
+    //------------------------------------------------------------------------
+    const auto &getDeviceControl() const{ return m_DeviceControl; }
+    auto &getDeviceControl(){ return m_DeviceControl; }
+
+
 private:
     //------------------------------------------------------------------------
     // Runtime virtuals
@@ -91,5 +99,6 @@ private:
     //------------------------------------------------------------------------
     size_t m_DMABufferSize;
     Common::DMABuffer m_ParentDMABuffer;
+    Common::DeviceControl m_DeviceControl;
 };
 }

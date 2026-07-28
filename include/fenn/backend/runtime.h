@@ -227,7 +227,7 @@ private:
 class FENN_BACKEND_EXPORT DeviceFeNN : public Frontend::DeviceBase
 {
 public:
-    DeviceFeNN(size_t deviceIndex, const Runtime &runtime);
+    DeviceFeNN(size_t deviceIndex, Runtime &runtime);
 
     //------------------------------------------------------------------------
     // Declared virtuals
@@ -268,6 +268,7 @@ protected:
     // Protected API
     //------------------------------------------------------------------------
     const auto &getRuntime() const{ return m_Runtime.get(); }
+    auto &getRuntime(){ return m_Runtime.get(); }
 
 private:
     //------------------------------------------------------------------------
@@ -280,7 +281,7 @@ private:
 
     std::unique_ptr<BRAMArrayBase> m_FieldArray;
 
-    std::reference_wrapper<const Runtime> m_Runtime;
+    std::reference_wrapper<Runtime> m_Runtime;
 };
 
 //----------------------------------------------------------------------------

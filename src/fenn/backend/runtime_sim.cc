@@ -324,7 +324,7 @@ private:
 //----------------------------------------------------------------------------
 namespace FeNN::Backend
 {
-DeviceFeNNSim::DeviceFeNNSim(size_t deviceIndex, const Runtime &runtime, 
+DeviceFeNNSim::DeviceFeNNSim(size_t deviceIndex, Runtime &runtime, 
                              ISE::SharedBusSim &sharedBus)
 :   DeviceFeNN(deviceIndex, runtime), m_DMABufferAllocator(runtime.getDMABufferSize())
 {
