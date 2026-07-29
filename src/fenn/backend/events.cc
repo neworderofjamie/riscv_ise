@@ -90,8 +90,8 @@ std::unique_ptr<Frontend::ArrayBase> EventSourceBuffer::createArray(const Fronte
     return static_cast<DeviceFeNN&>(device).createBRAMArray(CompilerFrontend::Type::Uint16, getMaxEvents());
 }
 //----------------------------------------------------------------------------
-void EventSourceBuffer::generateEventLoop(const Frontend::Merged<Frontend::EventSource> &mergedEventSource, const Runtime &runtime, 
-                                          const KernelImplementation &kernel, MergedFields &mergedFields, 
+void EventSourceBuffer::generateEventLoop(const Frontend::Merged<Frontend::EventSource> &mergedEventSource, const Runtime&, 
+                                          const KernelImplementation&, MergedFields &mergedFields, 
                                           Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr preIndReg, 
                                           Assembler::ScalarRegisterPtr spikeReturnReg, Assembler::Label,
                                           const std::unordered_map<std::shared_ptr<const Frontend::EventSource>, Assembler::Label> &eventSourceLabels,

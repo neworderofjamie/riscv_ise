@@ -1348,8 +1348,8 @@ void DenseEventPropagationProcess::updateMaxDMABufferSize(size_t &size) const
 //------------------------------------------------------------------------
 void DenseEventPropagationProcess::generateArchetypeCode(const Frontend::MergedProcess &mergedProcess, const Runtime &runtime, 
                                                          const KernelImplementation&, MergedFields &mergedFields, 
-                                                         Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg, 
-                                                         Assembler::ScalarRegisterPtr preIndReg, std::optional<uint32_t> numTimesteps, 
+                                                         Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr, 
+                                                         Assembler::ScalarRegisterPtr preIndReg, std::optional<uint32_t>, 
                                                          Assembler::CodeGenerator &processCodeGenerator, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                                          Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
