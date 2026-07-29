@@ -7,14 +7,18 @@
 #include <cstdint>
 
 // ISE includes
-#include "ise/fsm.h"
-#include "ise/ise_export.h"
+#include "fenn/ise/fsm.h"
+#include "fenn/ise/ise_export.h"
 
+
+
+namespace FeNN::ISE
+{
 // Forward declarations
 class SharedBusSim;
 
 //----------------------------------------------------------------------------
-// RouterSim
+// FeNN::ISE::RouterSim
 //----------------------------------------------------------------------------
 class ISE_EXPORT EventInjectorSim
 {
@@ -62,3 +66,4 @@ private:
 
     uint32_t m_BarrierCount;
 };
+}

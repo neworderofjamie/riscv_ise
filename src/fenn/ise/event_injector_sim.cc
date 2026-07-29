@@ -1,10 +1,10 @@
-#include "ise/event_injector_sim.h"
+#include "fenn/ise/event_injector_sim.h"
 
-// PLOG includes
-#include <plog/Log.h>
+// FeNN common includes
+#include "fenn/common/logging.h"
 
 // ISE includes
-#include "ise/shared_bus_sim.h"
+#include "fenn/ise/shared_bus_sim.h"
 
 //----------------------------------------------------------------------------
 // Anonymous namespace
@@ -16,8 +16,10 @@ constexpr uint32_t timestampBit = (1u << 31u);
 }
 
 //----------------------------------------------------------------------------
-// RouterSim
+// FeNN::ISE::RouterSim
 //----------------------------------------------------------------------------
+namespace FeNN::ISE
+{
 EventInjectorSim::EventInjectorSim(SharedBusSim &sharedBus, const std::vector<uint32_t> &data, size_t routerIndex)
 :   m_SharedBus(sharedBus), m_FSM(FSMState::WAIT_OTHER_BARRIERS), m_Data(data), 
     m_RouterIndex(routerIndex), m_ReadPointer(0), m_Timestep(0), m_BarrierCount(0)
@@ -116,7 +118,7 @@ void EventInjectorSim::handleBarrier(std::optional<uint32_t> data)
         if (data.value() == barrierEventID) {
             // Increment barrier
             m_BarrierCount++;
-            PLOGV << "Incremented barrier: " << m_BarrierCount;
+            LOGV_FENN_ISE << "Incremented barrier: " << m_BarrierCount;
         }
     }
 }
@@ -137,4 +139,5 @@ bool EventInjectorSim::areThereSpikesToSend() const
     }
 
     return false;
+}
 }

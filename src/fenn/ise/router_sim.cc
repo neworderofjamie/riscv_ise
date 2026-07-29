@@ -55,7 +55,7 @@ void RouterSim::tick()
 
                 // If a event bitfield has been written to the register
                 if (readReg(Register::MASTER_EVENT_BITFIELD) != 0) {
-                    LOGV_FENN_COMMON << "Serialising bitfield " << readReg(Register::MASTER_EVENT_BITFIELD);
+                    LOGV_FENN_ISE << "Serialising bitfield " << readReg(Register::MASTER_EVENT_BITFIELD);
 
                     // Copy bitfield and event ID base from CSRs; and reset spike ID
                     m_CurrentSpikeBitfield = readReg(Register::MASTER_EVENT_BITFIELD);
@@ -71,7 +71,7 @@ void RouterSim::tick()
                 // Otherwise, if a barrier should be triggered
                 // **NOTE** events have higher priority as barrier should come after all pending events
                 else if (readReg(Register::MASTER_SEND_BARRIER) != 0) {
-                    LOGV_FENN_COMMON << "Sending barrier";
+                    LOGV_FENN_ISE << "Sending barrier";
 
                     // Start trying to send barrier
                     transition(MasterFSMState::WAIT_BARRIER_SENT);
@@ -147,10 +147,10 @@ void RouterSim::writeReg(Register reg, uint32_t val)
 {
     // Check for event and barrier dropping
     if (reg == Register::MASTER_EVENT_BITFIELD && readReg(Register::MASTER_EVENT_BITFIELD) != 0) {
-        LOGW_FENN_COMMON << "Writing bitfield when previous bitfield not processed - events will be dropped!";
+        LOGW_FENN_ISE << "Writing bitfield when previous bitfield not processed - events will be dropped!";
     }
     else if (reg == Register::MASTER_SEND_BARRIER && readReg(Register::MASTER_SEND_BARRIER) != 0) {
-        LOGW_FENN_COMMON << "Writing barrier when previous barrier not processed - deadlock immiment";
+        LOGW_FENN_ISE << "Writing barrier when previous barrier not processed - deadlock immiment";
     }
     writeRegInternal(reg, val);
 }
