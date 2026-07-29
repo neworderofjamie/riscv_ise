@@ -323,6 +323,7 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                                  const auto &destination = mergedProcessGroup.getDestination(p);
                                                  
                                                  // Set group index
+                                                 // **OPTIMISE** if there is only 1 merged process, no need for this!
                                                  c.li(*SGroupIndex, destination.second);
 
                                                  // Jump to merged process handler, storing return address

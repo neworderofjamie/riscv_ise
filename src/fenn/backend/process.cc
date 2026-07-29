@@ -752,6 +752,7 @@ void EventDrivenProcessImplementation::generateCode(const Frontend::MergedProces
                           scalarRegisterAllocator, vectorRegisterAllocator);
 
     // If fieldBase can't fit in an immediate, load it
+    // **OPTIMISE** if there is only 1 merged process, no need for this!
     if(!Common::inSBit(fieldBase, 12)) {
         c.li(*SFieldBase, fieldBase);
     }
@@ -1485,6 +1486,7 @@ void DenseEventPropagationProcess::updateMergeHash(boost::uuids::detail::sha1 &h
     // event sources are handled seperately in FeNN backend
 
     // Targets
+    // **OPTIMISE** generated code does not depend on target type - only care about timedimensionness
     getTarget().updateMergeHash(hash);
 
     // Include hash of target memory space
@@ -1492,6 +1494,7 @@ void DenseEventPropagationProcess::updateMergeHash(boost::uuids::detail::sha1 &h
         static_cast<const Model&>(model).getStateMemSpace(getTarget().getUnderlying(), 
                                                           true/*getRuntime().shouldUseDRAMForWeights()*/), hash);
     // Weights
+    // **OPTIMISE** generated code does not depend on target type
     getWeight()->updateMergeHash(hash);
 
     // Include hash of weight memory space
