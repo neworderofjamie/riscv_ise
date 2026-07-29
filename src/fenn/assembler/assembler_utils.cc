@@ -455,7 +455,8 @@ void unrollOddEvenLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegi
     assert((maxUnroll % 2) == 0);
 
     // Determine number of unrolled iterations and remainder
-    const auto numUnrolls = std::div(static_cast<int64_t>(numIterations), maxUnroll);
+    const auto numUnrolls = std::div(static_cast<long>(numIterations), 
+                                     static_cast<long>(maxUnroll));
 
     // If there are are complete unrolls
     ALLOCATE_SCALAR(SNumIterations);
@@ -487,7 +488,7 @@ void unrollOddEvenLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegi
     // If all iterations weren't handled by unrolling
     if(numUnrolls.rem != 0) {
         // Determine number of pairs in remainder
-        const auto numPairs = std::div(numUnrolls.rem, 2ll);
+        const auto numPairs = std::div(numUnrolls.rem, 2l);
 
         // If there are any pairs
         if(numPairs.quot != 0) {
