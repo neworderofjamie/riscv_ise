@@ -195,7 +195,7 @@ int main(int argc, char** argv)
                                                                            "inputHidden");
 
     // Connect hidden spikes to output
-    const auto hiddenOutputWeight = Backend::Variable::create(Frontend::Shape({hiddenShape[0], 32}), Type::S10_5Sat, "hiddenOutputWeight");
+    const auto hiddenOutputWeight = Backend::Variable::create(Frontend::Shape({hiddenShape[0], 32}), Type::S9_6Sat, "hiddenOutputWeight");
     const auto hiddenOutput = Backend::DenseEventPropagationProcess::create(Sliced<EventSource>(hiddenSpikes),
                                                                             hiddenOutputWeight,
                                                                             Sliced<Variable>(outputI),

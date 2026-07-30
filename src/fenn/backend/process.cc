@@ -1329,6 +1329,13 @@ DenseEventPropagationProcess::DenseEventPropagationProcess(Private, Frontend::Sl
                                  + " is not compatible with target variable with shape: " 
                                  + getTarget().getShape().toString());
     }
+
+    // Check weight and target have same types
+    if(getWeight()->getType() != getTarget().getUnderlying()->getType()) {
+        throw std::runtime_error("Weight with type: " + getWeight()->getType().getName() 
+                                 + " is not compatible with target variable with type: " 
+                                 + getTarget().getUnderlying()->getType().getName());
+    }
 }
 //------------------------------------------------------------------------
 void DenseEventPropagationProcess::updateMaxDMABufferSize(size_t &size) const
