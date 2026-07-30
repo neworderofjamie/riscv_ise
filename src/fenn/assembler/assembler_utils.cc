@@ -106,7 +106,7 @@ void generateVectorScalarMemcpy(CodeGenerator &c, VectorRegisterAllocator &vecto
 {
     // Register allocation
     ALLOCATE_SCALAR(SDataBuffer);
-    ALLOCATE_SCALAR(SVectorBuffer)
+    ALLOCATE_SCALAR(SVectorBuffer);
     ALLOCATE_SCALAR(SVectorBufferEnd);
 
     // Labels
@@ -158,7 +158,7 @@ void generateLaneLocalScalarMemcpy(CodeGenerator &c, VectorRegisterAllocator &ve
     // Register allocation
     ALLOCATE_SCALAR(SDataBuffer);
     ALLOCATE_SCALAR(SDataBufferEnd);
-    ALLOCATE_VECTOR(VAddress)
+    ALLOCATE_VECTOR(VAddress);
     ALLOCATE_VECTOR(VTwo);
 
     // Labels
@@ -208,7 +208,7 @@ void generateScalarLaneLocalBroadcast(CodeGenerator &c, VectorRegisterAllocator 
     // Register allocation
     ALLOCATE_SCALAR(SDataBuffer);
     ALLOCATE_SCALAR(SDataBufferEnd);
-    ALLOCATE_VECTOR(VAddress)
+    ALLOCATE_VECTOR(VAddress);
     ALLOCATE_VECTOR(VTwo);
 
     // Labels

@@ -2440,7 +2440,7 @@ std::vector<Compiler::RegisterPtr> BroadcastProcess::generateArchetypeCode(
                                 
     // Register allocation
     ALLOCATE_SCALAR(SDataBuffer);
-    ALLOCATE_VECTOR(VAddress)
+    ALLOCATE_VECTOR(VAddress);
     ALLOCATE_VECTOR(VTwo);
 
 
@@ -2462,7 +2462,7 @@ std::vector<Compiler::RegisterPtr> BroadcastProcess::generateArchetypeCode(
     auto &c = processCodeGenerator;
     
     {
-        ALLOCATE_SCALAR(SLLMAddress)
+        ALLOCATE_SCALAR(SLLMAddress);
     
         // Load target address into scalar register
         c.lw(*SLLMAddress, *fieldBaseReg, targetFieldOffset);
