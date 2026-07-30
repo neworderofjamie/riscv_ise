@@ -760,14 +760,14 @@ void EventDrivenProcessImplementation::generateCode(const Frontend::MergedProces
                           SFieldBase, timeReg,  preIndReg, numTimesteps, archetypeCodeGenerator,
                           scalarRegisterAllocator, vectorRegisterAllocator);
 
-    // If fieldBase can't fit in an immediate, load it
-    // **OPTIMISE** if there is only 1 merged process, no need for this!
-    if(!Common::inSBit(fieldBase, 12)) {
+    // If there is only one merged group so fieldbase is used  
+    // directly or fieldBase can't fit in an immediate, load it
+    if(mergedProcess.getMerged().size() == 1 || !Common::inSBit(fieldBase, 12)) {
         c.li(*SFieldBase, fieldBase);
     }
 
-    // Calculate offset of merged 
-    {
+    // If there is more than one merged group, calculate offset
+    if(mergedProcess.getMerged().size() > 1) {
         ALLOCATE_SCALAR(STmp);
         c.li(*STmp, mergedFields.getSize());
         c.mul(*STmp, *STmp, *groupIndReg);
