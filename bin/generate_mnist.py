@@ -24,7 +24,7 @@ for t in test_images:
     times = times[neuron_ids]
     order = np.argsort(times)
     times = times[order]
-    neuron_ids = neuron_ids[order].astype(np.uint16)
+    neuron_ids = neuron_ids[order]
     
     # Count number of spikes in each timestep and use this to split neuron ids
     num_spikes_per_time = np.cumsum(np.bincount(times))
@@ -48,7 +48,7 @@ print(f"Maximum spikes per-image = {max_spikes_per_image}")
 spikes = [np.pad(s, (0, max_spikes_per_image - len(s)), constant_values=0xFFFF) for s in spikes]
 
 # Concatenate and write to file
-spikes = np.concatenate(spikes)
+spikes = np.concatenate(spikes).astype(np.uint16)
 spikes.tofile("mnist_spikes.bin")
 
 test_labels_int = np.round(test_labels).astype(np.int16)
