@@ -221,12 +221,13 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
 
                 // Define jump table for routing events
                 // **NOTE** this is at the top of the kernel so it can be easily addressed
-                auto jumpTable = c.L();
+                auto jumpTable = Assembler::createLabel();
                 if(!ki->getEventSinkIDs().empty()) {
                     // Jump over jump table
                     auto endOfJumpTable = Assembler::createLabel();
                     c.j_(endOfJumpTable);
 
+                    c.L(jumpTable);
                     // **HACK**
                     if(!generateSimulationKernels) {
                         c.nop();
