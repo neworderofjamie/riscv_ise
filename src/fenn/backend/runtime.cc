@@ -328,7 +328,7 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                                  c.li(*SGroupIndex, destination.second);
 
                                                  // Jump to merged process handler, storing return address
-                                                 c.jal(*SMergedGroupReturn, mergedProcessLabels.at(p));
+                                                 c.jal(*SMergedGroupReturn, mergedProcessLabels.at(destination.first));
                                              }
 
                                              // Return to spike loop to process next spike
