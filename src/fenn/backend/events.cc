@@ -335,8 +335,9 @@ uint32_t EventChannel::generateEventLoop(const Frontend::Merged<Frontend::EventS
     
     c.beq(*SSpikeBuffer, *SSpikeBufferEnd, spikeLoopEnd);
     {
-        // Load spike from buffer
+        // Load spike from buffer and advance
         c.lw(*preIndReg, *SSpikeBuffer);
+        c.addi(*SSpikeBuffer, *SSpikeBuffer, 4);
 
         {
             // Extract event sink ID
@@ -357,7 +358,6 @@ uint32_t EventChannel::generateEventLoop(const Frontend::Merged<Frontend::EventS
         }
 
         // Loop until spikes are processed
-        c.addi(*SSpikeBuffer, *SSpikeBuffer, 4);
         c.j_(spikeLoop);
     }
     c.L(spikeLoopEnd);
