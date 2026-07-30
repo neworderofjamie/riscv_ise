@@ -115,7 +115,7 @@ int main(int argc, char** argv)
 {
     bool device = false;
     bool shouldDisassemble = true;
-    bool record = true;
+    bool record = false;
     bool time = false;
     plog::Severity logSeverity = plog::debug;
     size_t numExamples = 10000;
@@ -271,7 +271,7 @@ int main(int argc, char** argv)
     auto outputVAvgHostPtr = outputVAvgArrays[0]->getHostPointer<int16_t>();
 
     size_t numCorrect = 0;
-    for (size_t i = 0; i < 1; i++) {
+    for (size_t i = 0; i < numExamples; i++) {
         // Copy data to array host pointer
         std::copy_n(mnistSpikes.data() + (maxSpikesPerExample * i),
                     maxSpikesPerExample,
