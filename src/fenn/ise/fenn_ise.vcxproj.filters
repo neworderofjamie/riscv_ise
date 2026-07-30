@@ -52,7 +52,7 @@
     <ClInclude Include="..\..\..\include\fenn\ise\vector_processor.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\include\ise\event_injector_sim.h">
+    <ClInclude Include="..\..\..\include\fenn\ise\event_injector_sim.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
