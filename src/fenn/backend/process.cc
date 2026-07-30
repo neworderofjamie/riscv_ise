@@ -311,10 +311,8 @@ ScalarConstant addScalarValue(int maxBits, const Frontend::MergedProcess &merged
     const int archetypeValue = std::visit([](auto v){ return static_cast<int>(v); },
                                           getFieldValueFn(0, mergedProcess.getArchetype<P>()));
 
-    // If value is heterogeneous or it doesn't fit into intermediate bits
-    if(isHeterogeneous(mergedProcess, numDevices, getFieldValueFn) 
-       || !FeNN::Common::inSBit(archetypeValue, maxBits)) 
-    {
+    // If value is heterogeneous
+    if(isHeterogeneous(mergedProcess, numDevices, getFieldValueFn)) {
         // Add field
         const uint32_t fieldOffset = mergedFields.addField<P>(getFieldValueFn, 4);
 
@@ -326,9 +324,20 @@ ScalarConstant addScalarValue(int maxBits, const Frontend::MergedProcess &merged
 
         return SReg;
     }
+    // Otherwise, if it fits in max bits, return value
+    else if (FeNN::Common::inSBit(archetypeValue, maxBits)) {
+        return archetypeValue;
+    }
     // Otherwise
     else {
-        return archetypeValue;
+        // Allocate register
+        ALLOCATE_SCALAR(SReg);
+
+        // Load immediate
+        processCodeGenerator.li(*SReg, archetypeValue);
+
+        // Return
+        return SReg;
     }
 }
 
@@ -1050,32 +1059,12 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
                     *model, kernel, processCodeGenerator, scalarRegisterAllocator, 
                      numTimesteps, e.second.hasTime(), runtime.getNumDevices(),
                     timeReg, numEventBytes,
-                    // **YUCK** we don't use addScalarConstant here as doing anything with shared registers is pretty unsafe
                     [&fieldBaseReg, &mergedFields, &mergedProcess, &runtime, &scalarRegisterAllocator]
                     (Assembler::CodeGenerator &c, auto func)
                     {
-                        // Allocate register
-                        ALLOCATE_SCALAR(SReg);
-
-                        // If value is heterogeneous
-                        if(isHeterogeneous(mergedProcess, runtime.getNumDevices(), func)) {
-                            // Add field
-                            const uint32_t fieldOffset = mergedFields.addField<NeuronUpdateProcess>(func, 4);
-                            
-                            // Load value into register
-                            c.lw(*SReg, *fieldBaseReg, fieldOffset);
-                        }
-                        // Otherwise
-                        else {
-                            // Convert homogeneous value to int
-                            const int value = std::visit([](auto v){ return static_cast<int>(v); },
-                                                         func(0, mergedProcess.getArchetype<NeuronUpdateProcess>()));
-
-                            // Load immediate
-                            c.li(*SReg, value);
-                        }
-
-                        return SReg;
+                        return std::get<Assembler::ScalarRegisterPtr>(
+                            addScalarValue<NeuronUpdateProcess>(0, mergedProcess, runtime.getNumDevices(), mergedFields,
+                                                                fieldBaseReg, c, scalarRegisterAllocator, func));
                     },
                     [&e, &fieldBaseReg, &mergedFields, &scalarRegisterAllocator](Assembler::CodeGenerator &c)
                     {
@@ -1375,7 +1364,7 @@ void DenseEventPropagationProcess::generateArchetypeCode(const Frontend::MergedP
     auto getStride =
         [&runtime](size_t d, auto p)
         { 
-            return static_cast<uint32_t>(p->getWeight()->getShape().getSplitDimension(
+            return static_cast<uint32_t>(2 * p->getWeight()->getShape().getSplitDimension(
                                          d, 1, runtime.getNumDevices(), 32));
         };
     
@@ -1393,7 +1382,7 @@ void DenseEventPropagationProcess::generateArchetypeCode(const Frontend::MergedP
         mergedProcess, runtime.getNumDevices(), getStride,
         [this](const MergedFields::FieldValue &num)
         {
-            return (std::get<uint32_t>(num) < (getMaxUnroll() * 32));
+            return (std::get<uint32_t>(num) < (getMaxUnroll() * 64));
         });
 
     // No need to unroll pairs if all strides have 
@@ -1403,8 +1392,8 @@ void DenseEventPropagationProcess::generateArchetypeCode(const Frontend::MergedP
         [this](const MergedFields::FieldValue &num)
         {
             // Calculate how much remains after unrolled iterations
-            const uint32_t unrollRemainder = (std::get<uint32_t>(num) % (getMaxUnroll() * 32));
-            return (unrollRemainder < 64);
+            const uint32_t unrollRemainder = (std::get<uint32_t>(num) % (getMaxUnroll() * 64));
+            return (unrollRemainder < 128);
         });
 
     // No need to add final iteration if all strides
@@ -1413,15 +1402,15 @@ void DenseEventPropagationProcess::generateArchetypeCode(const Frontend::MergedP
         mergedProcess, runtime.getNumDevices(), getStride,
         [this](const MergedFields::FieldValue &num)
         {
-            const uint32_t unrollRemainder = (std::get<uint32_t>(num) % (getMaxUnroll() * 32));
-            return (unrollRemainder % 64) == 0;
+            const uint32_t unrollRemainder = (std::get<uint32_t>(num) % (getMaxUnroll() * 64));
+            return (unrollRemainder % 128) == 0;
         });
 
     // Load target register from state fields
     ALLOCATE_SCALAR(STargetBuf);
     c.lw(*STargetBuf, *fieldBaseReg, targetFieldOffset);
 
-    // SWeightBuffer = weightInHidStart + (numPostVecs * 64 * SN);
+    // Calculate row start address
     ALLOCATE_SCALAR(SWeightBuffer);
     c.lw(*SWeightBuffer, *fieldBaseReg, weightFieldOffset);
     {
@@ -1444,7 +1433,7 @@ void DenseEventPropagationProcess::generateArchetypeCode(const Frontend::MergedP
     // Unroll loop over row
     Assembler::Utils::unrollOddEvenLoopBody(
         c, scalarRegisterAllocator,
-        *strideReg, getMaxUnroll(), 32,
+        *strideReg, getMaxUnroll(), 64,
         strideNoUnroll, strideNoPairs, strideNoFinal,
         [this, SWeightBuffer, STargetBuf, VWeight, VTarget1, VTarget2, VTargetNew]
         (Assembler::CodeGenerator &c, uint32_t r, bool even)
