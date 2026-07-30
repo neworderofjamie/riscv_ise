@@ -589,7 +589,14 @@ void unrollOddEvenLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegi
 
     // Tail
     if(!noFinal) {
+        // If count has been processed, skip tail
+        auto tailEnd = createLabel();
+        c.beq(countReg, Common::Reg::X0, tailEnd);
+
+        // Generate body
         genBodyFn(c, 0, true);
+
+        c.L(tailEnd);
     }
 }
 //----------------------------------------------------------------------------
