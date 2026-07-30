@@ -40,13 +40,15 @@ for t in test_images:
     
     spikes.append(neuron_ids_per_time)
 
-# Calculate maximum spikes per-image
+# Calculate maximum spikes per-image and round to multiple of w
 max_spikes_per_image = max(len(s) for s in spikes)
+max_spikes_per_image = 2 * (max_spikes_per_image + 1) // 2
 print(f"Maximum spikes per-image = {max_spikes_per_image}")
 
-# Pad all spike arrays to this length with uint16_max
-spikes = [np.pad(s, (0, max_spikes_per_image - len(s)), constant_values=0xFFFF) for s in spikes]
-
+# Pad all spike arrays with 2 halfwords at beginning to hold offset and to fixed length with uint16_max
+spikes = [np.pad(s, (2, max_spikes_per_image - len(s)), 
+                 constant_values=(0, 0xFFFF)) for s in spikes]
+print(spikes[0])
 # Concatenate and write to file
 spikes = np.concatenate(spikes).astype(np.uint16)
 spikes.tofile("mnist_spikes.bin")

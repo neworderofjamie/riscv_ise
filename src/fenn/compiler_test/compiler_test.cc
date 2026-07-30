@@ -142,7 +142,7 @@ int main(int argc, char** argv)
                                 &consoleAppender, &consoleAppender, &consoleAppender, &consoleAppender, &consoleAppender);
 
     constexpr size_t numTimesteps = 79;
-    constexpr size_t maxSpikesPerExample = 301;
+    constexpr size_t maxSpikesPerExample = 304;
     const Shape inputShape{{28 * 28}};
     const Shape hiddenShape{{128}};
     const Shape hiddenShapeTime{{numTimesteps + 1, hiddenShape[0]}};
@@ -202,15 +202,15 @@ int main(int argc, char** argv)
                                                                             "hiddenOutput");
 
     // Output zero
-    //const auto zeroOutputSum = MemsetProcess::create(outputVAvg);
+    const auto zeroOutputSum = Backend::MemsetProcess::create(outputVAvg);
 
     // Group processes
     const auto neuronUpdateProcesses = ProcessGroup::create({hidden, output}, time, "neuronUpdateProcesses");
     const auto synapseUpdateProcesses = ProcessGroup::create({inputHidden, hiddenOutput}, time, "synapseUpdateProcesses");
-    //const auto zeroProcesses = ProcessGroup::create({zeroOutputSum}, time);
+    const auto zeroProcesses = ProcessGroup::create({zeroOutputSum}, time, "zeroProcesses");
 
-    const auto kernel = Backend::SimulationLoopKernel::create(numTimesteps, {synapseUpdateProcesses, neuronUpdateProcesses}/*,
-                                                              {zeroProcesses}*/);
+    const auto kernel = Backend::SimulationLoopKernel::create(numTimesteps, {synapseUpdateProcesses, neuronUpdateProcesses},
+                                                              {zeroProcesses});
     
     std::vector<std::shared_ptr<const Frontend::Kernel>> kernels{kernel};
     std::unique_ptr<Backend::Runtime> runtime;
@@ -271,7 +271,7 @@ int main(int argc, char** argv)
     auto outputVAvgHostPtr = outputVAvgArrays[0]->getHostPointer<int16_t>();
 
     size_t numCorrect = 0;
-    for (size_t i = 0; i < 1; i++) {
+    for (size_t i = 0; i < numExamples; i++) {
         // Copy data to array host pointer
         std::copy_n(mnistSpikes.data() + (maxSpikesPerExample * i),
                     maxSpikesPerExample,

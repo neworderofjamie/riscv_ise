@@ -155,11 +155,6 @@ void EventSourceBuffer::generateArchetypeEventLoop(MergedFields &mergedFields,
             return d.getArray(e); 
         });
 
-    // Add field, initialised to zero, to hold offset into buffer
-    // **TODO** maybe this should just live in the buffer
-    const uint32_t offsetFieldOffset = mergedFields.addField<EventSourceBuffer>(
-        [](size_t, auto) { return 0; }, 4);
-
     // Add field containing address to jump to 
     // **OPTIMISE** if all labels are the same (/there is only one) no need for a label
     const uint32_t labelFieldOffset = mergedFields.addField<EventSourceBuffer>(
@@ -180,15 +175,16 @@ void EventSourceBuffer::generateArchetypeEventLoop(MergedFields &mergedFields,
     {
         ALLOCATE_SCALAR(STmp);
 
-        // Load offset from fields
-        c.lw(*STmp, *fieldBaseReg, offsetFieldOffset);
+        // Load offset from start of buffer
+        c.lw(*STmp, *SBufferStart);
 
         // Add offset to buffer start
         c.add(*SBuffer, *SBufferStart, *STmp);
     }
 
     // Load first half-word from buffer
-    c.lhu(*preIndReg, *SBuffer);
+    // **NOTE** add 4 to skip 4 bytes holding offset
+    c.lhu(*preIndReg, *SBuffer, 4);
 
     // Extract time from lower 31 bits of event
     // **NOTE** we assume this is a time
@@ -214,7 +210,8 @@ void EventSourceBuffer::generateArchetypeEventLoop(MergedFields &mergedFields,
         auto spikeLoopEnd = Assembler::createLabel();
         {
             // Load next word from buffer and increment pointer
-            c.lhu(*preIndReg, *SBuffer);
+            // **NOTE** add 4 to skip 4 bytes holding offset
+            c.lhu(*preIndReg, *SBuffer, 4);
             c.addi(*SBuffer, *SBuffer, 2);
 
             // If we have hit the next timestamp, goto spikeLoopEnd
@@ -239,8 +236,8 @@ void EventSourceBuffer::generateArchetypeEventLoop(MergedFields &mergedFields,
             // Get updated offset
             c.sub(*STmp, *SBuffer, *SBufferStart);
 
-            // Store it back to offset field
-            c.sw(*STmp, *fieldBaseReg, offsetFieldOffset);
+            // Store it back to start of buffer
+            c.sw(*STmp, *SBufferStart);
         }
     }
 
