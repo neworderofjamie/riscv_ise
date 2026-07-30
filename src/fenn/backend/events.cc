@@ -156,10 +156,12 @@ void EventSourceBuffer::generateArchetypeEventLoop(MergedFields &mergedFields,
         });
 
     // Add field, initialised to zero, to hold offset into buffer
+    // **TODO** maybe this should just live in the buffer
     const uint32_t offsetFieldOffset = mergedFields.addField<EventSourceBuffer>(
         [](size_t, auto) { return 0; }, 4);
 
     // Add field containing address to jump to 
+    // **OPTIMISE** if all labels are the same (/there is only one) no need for a label
     const uint32_t labelFieldOffset = mergedFields.addField<EventSourceBuffer>(
         [mergedLabelAddresses](size_t i, auto)
         {
@@ -186,7 +188,7 @@ void EventSourceBuffer::generateArchetypeEventLoop(MergedFields &mergedFields,
     }
 
     // Load first half-word from buffer
-    c.lh(*preIndReg, *SBuffer);
+    c.lhu(*preIndReg, *SBuffer);
 
     // Extract time from lower 31 bits of event
     // **NOTE** we assume this is a time
@@ -212,7 +214,7 @@ void EventSourceBuffer::generateArchetypeEventLoop(MergedFields &mergedFields,
         auto spikeLoopEnd = Assembler::createLabel();
         {
             // Load next word from buffer and increment pointer
-            c.lh(*preIndReg, *SBuffer);
+            c.lhu(*preIndReg, *SBuffer);
             c.addi(*SBuffer, *SBuffer, 2);
 
             // If we have hit the next timestamp, goto spikeLoopEnd
