@@ -45,18 +45,16 @@ Assembler::ScalarRegisterPtr EventSinkImplementation::genBitArrayPreamble(
 
     // If there are multiple timesteps, multiply timestep by stride and add to register
     // **TODO** currently this just handles providing entire simulation kernel worth of event data or
-    // recording variables for entire simulation - extend to support axonal delays and ring-buffer recording
+    // recording variables for entire simulation - extend to ring-buffer recording
     if (hasTime) {
-        // Check there is a buffer entry for each timestep with one extra
-        // **NOTE** variables get read from timestep and written to timestep + 1 so extra buf
-        if(shape.getFirst() < (numTimesteps.value() + 1)) {
+        // Check there is a buffer entry for each timestep
+        if(shape.getFirst() < numTimesteps.value()) {
             throw std::runtime_error("Events need to be buffered for " + std::to_string(numTimesteps.value() + 1u) + " timesteps");
         }
 
-        // reg = stride * (time + 1)
+        // reg = stride * time 
         ALLOCATE_SCALAR(STmp);
-        c.addi(*STmp, *timeReg, 1);
-        c.mul(*STmp, *STmp, *numEventBytes);
+        c.mul(*STmp, *timeReg, *numEventBytes);
         c.add(*reg, *reg, *STmp);
     }
 
