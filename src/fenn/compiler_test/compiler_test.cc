@@ -142,6 +142,7 @@ int main(int argc, char** argv)
                                 &consoleAppender, &consoleAppender, &consoleAppender, &consoleAppender, &consoleAppender);
 
     constexpr size_t numTimesteps = 79;
+    constexpr size_t maxSpikesPerExample = 301;
     const Shape inputShape{{28 * 28}};
     const Shape hiddenShape{{128}};
     const Shape hiddenShapeTime{{numTimesteps + 1, hiddenShape[0]}};
@@ -150,7 +151,7 @@ int main(int argc, char** argv)
 
     
     // Input spikes
-    const auto inputSpikes = Backend::EventSourceBuffer::create(inputShape, 28 * 28, "inputSpikes");
+    const auto inputSpikes = Backend::EventSourceBuffer::create(inputShape, maxSpikesPerExample, "inputSpikes");
 
     // Hidden neurons
     const auto hiddenV = Backend::Variable::create(hiddenShapeTime, Type::S10_5Sat, "hiddenV");
@@ -200,22 +201,8 @@ int main(int argc, char** argv)
                                                                             Sliced<Variable>(outputI),
                                                                             "hiddenOutput");
 
-    
-    // Input->Hidden event propagation
-    //const auto inputHiddenWeight = Variable::create(inputHiddenShape, GeNN::Type::S10_5);
-    //const auto inputHidden = EventPropagationProcess::create(inputSpikes, inputHiddenWeight, hiddenI);
-
-    // Hidden->Output event propagation
-    //const auto hiddenOutputWeight = Variable::create(hiddenOutputShape, GeNN::Type::S9_6);
-    //const auto hiddenOutput = EventPropagationProcess::create(hiddenSpikes, hiddenOutputWeight, outputI);
-
     // Output zero
     //const auto zeroOutputSum = MemsetProcess::create(outputVAvg);
-
-    // Performance counters
-    //const auto neuronUpdatePerfCounter = PerformanceCounter::create();
-    //const auto synapseUpdatePerfCounter = PerformanceCounter::create();
-    //const auto zeroPerfCounter = PerformanceCounter::create();
 
     // Group processes
     const auto neuronUpdateProcesses = ProcessGroup::create({hidden, output}, time, "neuronUpdateProcesses");
@@ -255,9 +242,9 @@ int main(int argc, char** argv)
 
     // Load weights
     // **TODO** AppUtils
-    /*loadAndPush("mnist_in_hid.bin", inputHiddenWeight, runtime);
-    loadAndPush("mnist_hid_out.bin", hiddenOutputWeight, runtime);
-    loadAndPush("mnist_bias.bin", outputBias, runtime);*/
+    loadAndPush("mnist_in_hid.bin", inputHiddenWeight, runtime.get());
+    loadAndPush("mnist_hid_out.bin", hiddenOutputWeight, runtime.get());
+    loadAndPush("mnist_bias.bin", outputBias, runtime.get());
 
     // Zero remaining state
     zeroAndPush(hiddenV, runtime.get());
@@ -267,14 +254,6 @@ int main(int argc, char** argv)
     zeroAndPush(outputV, runtime.get());
     zeroAndPush(outputVAvg, runtime.get());
 
-    /*std::vector<int16_t> test{0, 26, 53, 79, 106, 132, 159, 185, 211, 238, 264, 291, 317, 344, 370, 396, 423, 449,
-                              476, 502, 529, 555, 581, 608, 634, 661, 687, 713, 740, 766, 793, 819};
-    copyAndPush(test, hidden1I, runtime.get());
-    copyAndPush(test, hidden2I, runtime.get());*/
-    //zeroAndPush(outputV, runtime.get());
-    //zeroAndPush(outputI, runtime.get());
-    //zeroAndPush(outputVAvg, runtime.get());
-
     /*if(time) {
         zeroAndPush(neuronUpdatePerfCounter, runtime);
         zeroAndPush(synapseUpdatePerfCounter, runtime);
@@ -282,21 +261,22 @@ int main(int argc, char** argv)
     }*/
 
     // Load data
-    //const auto mnistSpikes = AppUtils::loadBinaryData<uint32_t>("mnist_spikes.bin");
-    //const auto mnistLabels = AppUtils::loadBinaryData<int16_t>("mnist_labels.bin");
+    const auto mnistSpikes = FeNN::Common::AppUtils::loadBinaryData<uint16_t>("mnist_spikes.bin");
+    const auto mnistLabels = FeNN::Common::AppUtils::loadBinaryData<int16_t>("mnist_labels.bin");
 
     // Loop through examples
-    //auto *inputSpikeArray = runtime.getArray(inputSpikes);
-    //auto *hiddenSpikeArray = runtime.getArray(hiddenSpikes);
-    //auto *outputVAvgArray = runtime.getArray(outputVAvg);
-    //auto *outputVAvgHostPtr = outputVAvgArray->getHostPointer<int16_t>();
-    //size_t numCorrect = 0;
-    //for (size_t i = 0; i < numExamples; i++) {
+    auto inputSpikeArrays = runtime->getArrays(inputSpikes);
+    auto hiddenSpikeArrays = runtime->getArrays(hiddenSpikes);
+    auto outputVAvgArrays = runtime->getArrays(outputVAvg);
+    auto outputVAvgHostPtr = outputVAvgArrays[0]->getHostPointer<int16_t>();
+
+    size_t numCorrect = 0;
+    for (size_t i = 0; i < 1; i++) {
         // Copy data to array host pointer
-        //std::copy_n(mnistSpikes.data() + (numInputSpikeArrayWords * i),
-        //            numInputSpikeArrayWords,
-        //            inputSpikeArray->getHostPointer<uint32_t>());
-        //inputSpikeArray->pushToDevice();
+        std::copy_n(mnistSpikes.data() + (maxSpikesPerExample * i),
+                    maxSpikesPerExample,
+                    inputSpikeArrays[0]->getHostPointer<uint16_t>());
+        inputSpikeArrays[0]->pushToDevice();
 
         // Classify
         runtime->run(kernel);
@@ -310,14 +290,14 @@ int main(int argc, char** argv)
         //}
 
         // Copy copy of output V sum from device
-        //outputVAvgArray->pullFromDevice();
+        outputVAvgArrays[0]->pullFromDevice();
 
         // Determine if output is correct
-        //const auto classification = std::distance(outputVAvgHostPtr, std::max_element(outputVAvgHostPtr, outputVAvgHostPtr + 10));
-        //if (classification == mnistLabels[i]) {
-        //    numCorrect++;
-        //}
-    //}
+        const auto classification = std::distance(outputVAvgHostPtr, std::max_element(outputVAvgHostPtr, outputVAvgHostPtr + 10));
+        if (classification == mnistLabels[i]) {
+            numCorrect++;
+        }
+    }
 
     // Pull recorded spikes and voltages from device
     /*runtime->pullStateFromDevice(hiddenSpikes);
@@ -345,7 +325,7 @@ int main(int argc, char** argv)
         }
         voltages << std::endl;
     }*/
-    //std::cout << numCorrect << " / " << numExamples << " correct (" << 100.0 * (numCorrect / double(numExamples)) << "%)" << std::endl;
+    std::cout << numCorrect << " / " << numExamples << " correct (" << 100.0 * (numCorrect / double(numExamples)) << "%)" << std::endl;
 
     // If timing is enabled
     //if(time) {
