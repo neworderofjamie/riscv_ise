@@ -14,8 +14,16 @@
 #include "fenn/common/isa.h"
 #include "fenn/common/logging.h"
 
-#define ALLOCATE_SCALAR(NAME) const auto NAME = scalarRegisterAllocator.getRegister(#NAME" = X");
-#define ALLOCATE_VECTOR(NAME) const auto NAME = vectorRegisterAllocator.getRegister(#NAME" = V");
+#define ALLOCATE_SCALAR(NAME) const auto NAME = scalarRegisterAllocator.getRegister(#NAME" = X")
+#define ALLOCATE_VECTOR(NAME) const auto NAME = vectorRegisterAllocator.getRegister(#NAME" = V")
+
+#define ALLOCATE_SCALAR_AND_MASK(NAME)                                              \
+    const auto NAME = scalarRegisterAllocator.getRegister(#NAME" = X");             \
+    FeNN::Assembler::ScalarRegisterAllocator::updateMask(*NAME, scalarRegisterMask)
+#define ALLOCATE_VECTOR_AND_MASK(NAME)                                              \
+    const auto NAME = vectorRegisterAllocator.getRegister(#NAME" = V")              \
+    FeNN::Assembler::VectorRegisterAllocator::updateMask(*NAME, scalarRegisterMask)
+
 
 //----------------------------------------------------------------------------
 // FeNN::Assembler::RegisterAllocator
@@ -95,6 +103,30 @@ public:
     }
 
     int getMaxUsedRegisters() const { return m_MaxUsedRegisters; }
+    
+    void maskRegisters(uint32_t mask) 
+    {
+        // Give error if all masked registers aren't already free
+        if ((m_FreeRegisters & mask) != mask) {
+            throw std::runtime_error("Masking register which is already in use");
+        }
+
+        // Mark all masked registers as not free
+        m_FreeRegisters &= ~mask; 
+    }
+
+    void unmaskRegisters(uint32_t mask)
+    {
+        // Mark all masked registers as free
+        m_FreeRegisters |= mask;
+    }
+
+    //------------------------------------------------------------------------
+    // Static API
+    //------------------------------------------------------------------------
+    static void updateMask(T r, uint32_t &mask) {
+        mask |= (0x80000000 >> static_cast<uint32_t>(r));
+    }
 
 private:
     //------------------------------------------------------------------------
@@ -120,4 +152,4 @@ public:
 
 using VectorRegisterPtr = VectorRegisterAllocator::RegisterPtr;
 using ScalarRegisterPtr = ScalarRegisterAllocator::RegisterPtr;
-}   // namespace FeNN::Assembler
+}   // namespace FeNN::Assembler 

@@ -51,12 +51,12 @@ public:
     // Declared virtuals
     //----------------------------------------------------------------------------
     //! Generate code to implement event loop
-    virtual void generateEventLoop(const Frontend::Merged<Frontend::EventSource> &mergedEventSource, const Runtime &runtime, 
-                                   const KernelImplementation &kernel, MergedFields &mergedFields, 
-                                   Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr preIndReg, 
-                                   Assembler::ScalarRegisterPtr spikeReturnReg, Assembler::Label jumpTable, 
-                                   const std::unordered_map<std::shared_ptr<const Frontend::EventSource>, Assembler::Label> &eventSourceLabels,
-                                   uint32_t &fieldBase, Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator) const = 0;
+    virtual uint32_t generateEventLoop(const Frontend::Merged<Frontend::EventSource> &mergedEventSource, const Runtime &runtime, 
+                                       const KernelImplementation &kernel, MergedFields &mergedFields, 
+                                       Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr preIndReg, 
+                                       Assembler::ScalarRegisterPtr spikeReturnReg, uint32_t jumpTableAddress, 
+                                       const std::unordered_map<std::shared_ptr<const Frontend::EventSource>, uint32_t> &eventSourceAddresses,
+                                       uint32_t &fieldBase, Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator) const = 0;
 };
 
 //----------------------------------------------------------------------------
@@ -126,12 +126,12 @@ public:
     // EventSourceImplementation virtuals
     //----------------------------------------------------------------------------
     //! Generate code to implement event loop
-    virtual void generateEventLoop(const Frontend::Merged<Frontend::EventSource> &mergedEventSource, const Runtime &runtime, 
-                                   const KernelImplementation &kernel, MergedFields &mergedFields, 
-                                   Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr preIndReg, 
-                                   Assembler::ScalarRegisterPtr spikeReturnReg, Assembler::Label jumpTable, 
-                                   const std::unordered_map<std::shared_ptr<const Frontend::EventSource>, Assembler::Label> &eventSourceLabels,
-                                   uint32_t &fieldBase, Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator) const override final;
+    virtual uint32_t generateEventLoop(const Frontend::Merged<Frontend::EventSource> &mergedEventSource, const Runtime &runtime, 
+                                       const KernelImplementation &kernel, MergedFields &mergedFields, 
+                                       Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr preIndReg, 
+                                       Assembler::ScalarRegisterPtr spikeReturnReg, uint32_t jumpTableAddress, 
+                                       const std::unordered_map<std::shared_ptr<const Frontend::EventSource>, uint32_t> &eventSourceAddresses,
+                                       uint32_t &fieldBase, Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator) const override final;
 
     //------------------------------------------------------------------------
     // Static API
@@ -142,11 +142,14 @@ public:
     }
 
 private:
+    //------------------------------------------------------------------------
+    // Private methods
+    //------------------------------------------------------------------------
     void generateArchetypeEventLoop(MergedFields &mergedFields, 
                                     Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg,
                                     Assembler::ScalarRegisterPtr preIndReg, Assembler::ScalarRegisterPtr spikeReturnReg, 
                                     const std::vector<uint32_t> &mergedLabelAddresses, Assembler::CodeGenerator &c, 
-                                    Assembler::ScalarRegisterAllocator &scalarRegisterAllocator) const;
+                                    Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, uint32_t &scalarRegisterMask) const;
 };
 
 //----------------------------------------------------------------------------
@@ -211,12 +214,12 @@ public:
     // EventSourceImplementation virtuals
     //----------------------------------------------------------------------------
     //! Generate code to implement event loop
-    virtual void generateEventLoop(const Frontend::Merged<Frontend::EventSource> &mergedEventSource, const Runtime &runtime, 
-                                   const KernelImplementation &kernel, MergedFields &mergedFields, 
-                                   Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr preIndReg, 
-                                   Assembler::ScalarRegisterPtr spikeReturnReg, Assembler::Label jumpTable, 
-                                   const std::unordered_map<std::shared_ptr<const Frontend::EventSource>, Assembler::Label> &eventSourceLabels,
-                                   uint32_t &fieldBase, Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator) const override final;
+    virtual uint32_t generateEventLoop(const Frontend::Merged<Frontend::EventSource> &mergedEventSource, const Runtime &runtime, 
+                                       const KernelImplementation &kernel, MergedFields &mergedFields, 
+                                       Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr preIndReg, 
+                                       Assembler::ScalarRegisterPtr spikeReturnReg, uint32_t jumpTableAddress, 
+                                       const std::unordered_map<std::shared_ptr<const Frontend::EventSource>, uint32_t> &eventSourceAddresses,
+                                       uint32_t &fieldBase, Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator) const override final;
 
     //------------------------------------------------------------------------
     // EventSinkImplementation virtuals

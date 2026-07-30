@@ -203,7 +203,7 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
 
                 // If performance counters are enabled, disinhibit them
                 // **NOTE** on device, this takes a few cycles to make it through the pipeline so we do it well before we try and access counters
-                // **TODO** also any real-time kernels that use perforamnce counters
+                // **TODO** also any real-time kernels that use performance counters
                 {
                     const auto processGroups = k->getAllProcessGroups();
                     if (std::any_of(processGroups.cbegin(), processGroups.cend(),
@@ -334,6 +334,39 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                              c.jr(*SSpikeReturn);
                                          }
 
+                                         // Resolve addresses of event source labels
+                                         // **THINK** this is required because we are generating event loop using a different code generator
+                                         // Alternatively, could chain code generators together for label resolution but not clear  if that's any les gross
+                                         std::unordered_map<std::shared_ptr<const Frontend::EventSource>, uint32_t> eventSourceAddresses;
+                                         std::transform(eventSourceLabels.cbegin(), eventSourceLabels.cend(),
+                                                        std::inserter(eventSourceAddresses, eventSourceAddresses.begin()),
+                                                        [&c](const auto &e){ return std::make_pair(e.first, c.getAddress(e.second).value()); });
+
+                                         // Loop over merged event sources
+                                         Assembler::CodeGenerator eventLoopCodeGenerator;
+                                         const auto &mergedEventSourcesGroup = getMergedEventSources().at(processGroup);
+                                         mergedEventSourceFields.first->second.reserve(mergedEventSourcesGroup.size());
+                                         uint32_t eventLoopScalarRegisterMask = 0;
+                                         for (const auto &m : mergedEventSourcesGroup) {
+                                             // Add new merged field
+                                             // **NOTE** these are relative to start of field array
+                                             // **TODO** pass through fields so event source buffer can be implemented
+                                             mergedEventSourceFields.first->second.emplace_back(std::piecewise_construct,
+                                                                                                std::make_tuple(fieldBase - 4),
+                                                                                                std::make_tuple());
+
+                                             // Generate event processing loops
+                                             eventLoopScalarRegisterMask |= m.template getArchetype<EventSourceImplementation>()->generateEventLoop(
+                                                 m, *this, *ki, mergedEventSourceFields.first->second.back().second,
+                                                 timeRegister, SPreIndex, SSpikeReturn, c.getAddress(jumpTable).value(), eventSourceAddresses,
+                                                 fieldBase, eventLoopCodeGenerator, scalarRegisterAllocator);
+                                         }
+
+                                         LOGD_FENN_BACKEND << "Event loops require " << ::Common::Utils::popCount(eventLoopScalarRegisterMask) << " scalar registers";
+
+                                         // Mask registers required for event loops
+                                         scalarRegisterAllocator.maskRegisters(eventLoopScalarRegisterMask);
+
                                          // Generate blocks of code to update each merged event propagation process
                                          // These code blocks are event driven so expect SPreIndex, SGroupIndex 
                                          // and SMergedGroupReturn to be populated before jumping to them
@@ -362,26 +395,16 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                              c.jr(*SMergedGroupReturn);
                                          }
 
+                                         // Unmask event loop registers
+                                         scalarRegisterAllocator.unmaskRegisters(eventLoopScalarRegisterMask);
+
                                          // End of kernel
                                          c.L(endProcessGroupLabel);
 
-                                         // Loop over merged event sources
-                                         const auto &mergedEventSourcesGroup = getMergedEventSources().at(processGroup);
-                                         mergedEventSourceFields.first->second.reserve(mergedEventSourcesGroup.size());
-                                         for (const auto &m : mergedEventSourcesGroup) {
-                                             // Add new merged field
-                                             // **NOTE** these are relative to start of field array
-                                             // **TODO** pass through fields so event source buffer can be implemented
-                                             mergedEventSourceFields.first->second.emplace_back(std::piecewise_construct,
-                                                                                                std::make_tuple(fieldBase - 4),
-                                                                                                std::make_tuple());
+                                         // Add generted event loop code
+                                         c += eventLoopCodeGenerator;
 
-                                             // Generate event processing loops
-                                             m.template getArchetype<EventSourceImplementation>()->generateEventLoop(
-                                                 m, *this, *ki, mergedEventSourceFields.first->second.back().second,
-                                                 timeRegister, SPreIndex, SSpikeReturn, jumpTable, eventSourceLabels,
-                                                 fieldBase, c, scalarRegisterAllocator);
-                                         }
+                                         
                                      }
                                      // Otherwise
                                      else {
