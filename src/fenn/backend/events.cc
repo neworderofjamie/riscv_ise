@@ -231,6 +231,10 @@ void EventSourceBuffer::generateArchetypeEventLoop(MergedFields &mergedFields,
         {
             ALLOCATE_SCALAR(STmp);
             
+            // Subtract 2 from buffer to counteract
+            // **NOTE** this is better than adding 2 AFTER branch as it hides stall EVERY spike
+            c.addi(*SBuffer, *SBuffer, -2);
+
             // Get updated offset
             c.sub(*STmp, *SBuffer, *SBufferStart);
 
