@@ -115,9 +115,9 @@ int main(int argc, char** argv)
 {
     bool device = false;
     bool shouldDisassemble = true;
-    // record = false;
+    bool record = true;
     bool time = false;
-    plog::Severity logSeverity = plog::info;
+    plog::Severity logSeverity = plog::debug;
     size_t numExamples = 10000;
 
     CLI::App app{"Latency MNIST inference"};
@@ -130,7 +130,7 @@ int main(int argc, char** argv)
     app.add_flag("-d,--device", device, "Whether model is run on device rather than simulator");
     app.add_flag("-a,--disassemble", shouldDisassemble, "Whether model disassembled code is printed");
     app.add_flag("-t,--time", time, "Whether performance counters are inserted");
-    //app.add_flag("-r,--record", record, "Whether spikes should be recorded?");
+    app.add_flag("-r,--record", record, "Whether spikes should be recorded?");
 
     CLI11_PARSE(app, argc, argv);
 
@@ -157,7 +157,7 @@ int main(int argc, char** argv)
     const auto hiddenV = Backend::Variable::create(hiddenShapeTime, Type::S10_5Sat, "hiddenV");
     const auto hiddenI = Backend::Variable::create(hiddenShape, Type::S10_5Sat, "hiddenI");
     const auto hiddenRefracTime = Backend::Variable::create(hiddenShape, Type::Int16, "hiddenRefracTime");
-    const auto hiddenSpikes = Backend::EventChannel::create(hiddenShape, "hiddenSpikes");
+    const auto hiddenSpikes = Backend::EventChannel::create(record ? hiddenShapeTime : hiddenShape, record, "hiddenSpikes");
     const auto hidden = Backend::NeuronUpdateProcess::create(
         "V = (" + std::to_string(std::exp(-1.0 / 20.0)) + " * V) + I;\n"
         "I = 0.0;\n"
@@ -170,7 +170,7 @@ int main(int argc, char** argv)
         "   RefracTime = 5;\n"
         "}\n",
         {{"V", Sliced<Variable>(hiddenV, true)}, {"I", Sliced<Variable>(hiddenI)}, {"RefracTime", Sliced<Variable>(hiddenRefracTime)}},
-        {{"Spike", Sliced<EventSink>(hiddenSpikes)}},
+        {{"Spike", Sliced<EventSink>(hiddenSpikes, record)}},
         Type::S10_5Sat, "hidden");
 
     // Output neurons
@@ -196,7 +196,7 @@ int main(int argc, char** argv)
 
     // Connect hidden spikes to output
     const auto hiddenOutputWeight = Backend::Variable::create(Frontend::Shape({hiddenShape[0], 32}), Type::S9_6Sat, "hiddenOutputWeight");
-    const auto hiddenOutput = Backend::DenseEventPropagationProcess::create(Sliced<EventSource>(hiddenSpikes),
+    const auto hiddenOutput = Backend::DenseEventPropagationProcess::create(Sliced<EventSource>(hiddenSpikes, record),
                                                                             hiddenOutputWeight,
                                                                             Sliced<Variable>(outputI),
                                                                             "hiddenOutput");
@@ -271,7 +271,7 @@ int main(int argc, char** argv)
     auto outputVAvgHostPtr = outputVAvgArrays[0]->getHostPointer<int16_t>();
 
     size_t numCorrect = 0;
-    for (size_t i = 0; i < numExamples; i++) {
+    for (size_t i = 0; i < 1; i++) {
         // Copy data to array host pointer
         std::copy_n(mnistSpikes.data() + (maxSpikesPerExample * i),
                     maxSpikesPerExample,
@@ -282,12 +282,12 @@ int main(int argc, char** argv)
         runtime->run(kernel);
 
         // If we're recording, write input and hidden spikes to file
-        //if(record) {
-        //    recordSpikes("mnist_input_spikes_" + std::to_string(i) + ".csv", inputSpikeArray,
-        //                 inputShape.getNumNeurons(), numTimesteps);
-        //    recordSpikes("mnist_hidden_spikes_" + std::to_string(i) + ".csv", hiddenSpikeArray,
-        //                 hiddenShape.getNumNeurons(), numTimesteps);
-        //}
+        if(record) {
+            hiddenSpikeArrays[0]->pullFromDevice();
+            
+            recordSpikes("mnist_hidden_spikes_" + std::to_string(i) + ".csv", hiddenSpikeArrays[0],
+                         hiddenShape[0], numTimesteps);
+        }
 
         // Copy copy of output V sum from device
         outputVAvgArrays[0]->pullFromDevice();
