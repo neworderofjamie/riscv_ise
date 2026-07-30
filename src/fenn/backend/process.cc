@@ -1475,16 +1475,15 @@ void DenseEventPropagationProcess::updateMergeHash(boost::uuids::detail::sha1 &h
     // event sources are handled seperately in FeNN backend
 
     // Targets
-    // **OPTIMISE** generated code does not depend on target type - only care about timedimensionness
-    getTarget().updateMergeHash(hash);
+    // **NOTE** generated code doesn't depend on underlying target type so do not include in hash
+    getTarget().updateMergeHash(hash, false);
 
     // Include hash of target memory space
     ::Common::Utils::updateHash(
         static_cast<const Model&>(model).getStateMemSpace(getTarget().getUnderlying(), 
                                                           true/*getRuntime().shouldUseDRAMForWeights()*/), hash);
-    // Weights
-    // **OPTIMISE** generated code does not depend on target type
-    getWeight()->updateMergeHash(hash);
+    
+    // **NOTE** we don't need to hash the weights as the generated code doesn't depend on their type
 
     // Include hash of weight memory space
     ::Common::Utils::updateHash(
