@@ -1,35 +1,31 @@
-from typing import Optional
+from typing import ModuleType, Optional
 
-from pyfenn import (BroadcastProcess, EventContainer, EventPropagationProcess,
-                    MemsetProcess, RNGInitProcess, Variable)
+from pyfenn._frontend import EventSource
 
 class RNGInit:
-    def __init__(self):
-        self.seed = Variable(64, "int16_t")
-        self.process = RNGInitProcess(self.seed)
+    def __init__(self, backend: ModuleType):
+        self.seed = backend.Variable(64, "int16_t")
+        self.process = backend.RNGInitProcess(self.seed)
 
 class Memset:
-    def __init__(self, target: Variable, name: str = ""):
-        self.process = MemsetProcess(target, name)
-
+    def __init__(self, backend: ModuleType, target: Variable, name: str = ""):
+        self.process = backend.MemsetProcess(target, name)
+"""
 class ExpLUTBroadcast:
-    def __init__(self):
+    def __init__(self, backend: ModuleType):
         self.lut = Variable(65, "int16_t", name="exp_lut_source")
-        self.process = BroadcastProcess(self.lut, 2, "exp_lut_broadcast")
-
-class Linear:
-    def __init__(self, source_events: EventContainer, target_var: Variable,
-                 weight_dtype: str, max_row_length: Optional[int] = None, 
-                 num_sparse_connectivity_bits: int = 0, 
-                 num_delay_bits: int = 0, name: str = ""):
+        self.process = backend.BroadcastProcess(self.lut, 2, "exp_lut_broadcast")
+"""
+class DenseLinear:
+    def __init__(self, backend: ModuleType, source_events: EventSource, 
+                 target_var: Variable, weight_dtype: str, name: str = ""):
         self.shape = (source_events.shape.num_neurons,
                       target_var.shape.num_neurons)
         weight_shape = (source_events.shape.num_neurons,
                         (target_var.shape.num_neurons 
                          if num_sparse_connectivity_bits == 0 
                          else max_row_length))
-        self.weight = Variable(weight_shape, weight_dtype, 1, f"{name}_weight")
-        self.process = EventPropagationProcess(source_events, self.weight,
-                                               target_var, 
-                                               num_sparse_connectivity_bits,
-                                               num_delay_bits, name)
+        self.weight = backend.Variable(weight_shape, weight_dtype, 1, f"{name}_weight")
+        self.process = backend.DenseEventPropagationProcess(source_events, 
+                                                            self.weight, 
+                                                            target_var, name)

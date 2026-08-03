@@ -50,6 +50,8 @@ namespace
 class PyAppender : public plog::IAppender
 {   
 public: 
+    using plog::IAppender::IAppender;
+
 	virtual void write(const plog::Record& record) override { PYBIND11_OVERRIDE_PURE(void, plog::IAppender, write, record); }
 };
 }
@@ -92,6 +94,7 @@ PYBIND11_MODULE(_frontend, m)
     // frontend.IAppender
     //------------------------------------------------------------------------
     pybind11::class_<plog::IAppender, PyAppender>(m, "IAppender")
+        .def(pybind11::init<>())
         .def("write", &plog::IAppender::write);
 
     //------------------------------------------------------------------------

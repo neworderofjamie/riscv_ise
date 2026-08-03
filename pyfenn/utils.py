@@ -1,11 +1,40 @@
+import logging
 import numpy as np
 
 from numbers import Number
-from pyfenn import Runtime
+from pyfenn._frontend import IAppender, PlogSeverity, Runtime
 from typing import Sequence, Union
 
 from platform import system
 
+
+class PythonLogAppender(IAppender):
+    _log_level_map = {PlogSeverity.FATAL: logging.FATAL,
+                      PlogSeverity.ERROR: logging.ERROR,
+                      PlogSeverity.WARNING: logging.WARNING,
+                      PlogSeverity.INFO: logging.INFO,
+                      PlogSeverity.DEBUG: logging.DEBUG,
+                      PlogSeverity.VERBOSE: logging.DEBUG}
+
+    def __init__(self):
+        super().__init__(self)
+
+        # Create Python logger
+        self.logger = logging.getLogger("FeNN")
+        
+    def write(self, record):
+        # Translate severity
+        level = PythonLogAppender._log_level_map.get(record.severity,
+                                                     logging.INFO)
+    
+        # Create Python logging record and handle
+        record = self.logger.makeRecord(name=self.logger.name, level=level,
+                                        fn=record.file, lno=record.line,
+                                        msg=record.message, args=[],
+                                        func=record.func)
+        self.logger.handle(record)
+    
+    
 def is_kria() -> bool:
     # If we're on Linux (otherwise, uname is not available)
     if system() == "Linux":
