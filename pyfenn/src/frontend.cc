@@ -155,6 +155,33 @@ PYBIND11_MODULE(_frontend, m)
         WRAP_PROPERTY_RO("type", Frontend, Variable, Type);
     
     //------------------------------------------------------------------------
+    // frontend.EventSink
+    //------------------------------------------------------------------------
+    pybind11::class_<Frontend::EventSink, Frontend::State, std::shared_ptr<Frontend::EventSink>>(m, "EventSink");
+    
+    //------------------------------------------------------------------------
+    // frontend.EventSource
+    //------------------------------------------------------------------------
+    pybind11::class_<Frontend::EventSource, Frontend::State, std::shared_ptr<Frontend::EventSource>>(m, "EventSource");
+    
+    //------------------------------------------------------------------------
+    // frontend.EventSourceBuffer
+    //------------------------------------------------------------------------
+    pybind11::class_<Frontend::EventSourceBuffer, Frontend::EventSource, std::shared_ptr<Frontend::EventSourceBuffer>>(m, "EventSourceBuffer")
+        WRAP_PROPERTY_RO("max_events", Frontend, EventSourceBuffer, MaxEvents);
+
+    //------------------------------------------------------------------------
+    // frontend.EventSinkBuffer
+    //------------------------------------------------------------------------
+    pybind11::class_<Frontend::EventSinkBuffer, Frontend::EventSink, std::shared_ptr<Frontend::EventSinkBuffer>>(m, "EventSinkBuffer");
+
+    //------------------------------------------------------------------------
+    // frontend.EventChannel
+    //------------------------------------------------------------------------
+    pybind11::class_<Frontend::EventChannel, Frontend::EventSource, Frontend::EventSink, std::shared_ptr<Frontend::EventChannel>>(m, "EventChannel")
+        WRAP_PROPERTY_RO_SHOULD("record", Frontend, EventChannel, Record);
+
+    //------------------------------------------------------------------------
     // frontend.Process
     //------------------------------------------------------------------------
     pybind11::class_<Frontend::Process, Frontend::ModelComponent, std::shared_ptr<Frontend::Process>>(m, "Process");

@@ -33,6 +33,8 @@ static const char *__doc_FeNN_Assembler_CodeGenerator_4 = R"doc()doc";
 
 static const char *__doc_FeNN_Assembler_CodeGenerator_5 = R"doc()doc";
 
+static const char *__doc_FeNN_Assembler_CodeGenerator_6 = R"doc()doc";
+
 static const char *__doc_FeNN_Assembler_ScalarRegisterAllocator = R"doc()doc";
 
 static const char *__doc_FeNN_Assembler_ScalarRegisterAllocator_2 = R"doc()doc";
@@ -710,6 +712,52 @@ static const char *__doc_FeNN_Backend_operator_band = R"doc()doc";
 static const char *__doc_FeNN_Backend_operator_bor = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_operator_iand = R"doc()doc";
+
+static const char *__doc_FeNN_Compiler_EnvironmentBase = R"doc()doc";
+
+static const char *__doc_FeNN_Compiler_EnvironmentBase_2 = R"doc()doc";
+
+static const char *__doc_FeNN_Compiler_EnvironmentBase_define = R"doc(Define identifier as corresponding register)doc";
+
+static const char *__doc_FeNN_Compiler_EnvironmentBase_getCodeGenerator = R"doc(Get stream to write code within this environment to)doc";
+
+static const char *__doc_FeNN_Compiler_EnvironmentBase_getFunctionGenerator = R"doc()doc";
+
+static const char *__doc_FeNN_Compiler_EnvironmentBase_getItem = R"doc(Get the register to use for the named identifier)doc";
+
+static const char *__doc_FeNN_Compiler_EnvironmentBase_getLiteral = R"doc()doc";
+
+static const char *__doc_FeNN_Compiler_EnvironmentBase_getRegister = R"doc()doc";
+
+static const char *__doc_FeNN_Compiler_EnvironmentBase_getScalarRegister = R"doc()doc";
+
+static const char *__doc_FeNN_Compiler_EnvironmentBase_getVectorRegister = R"doc()doc";
+
+static const char *__doc_FeNN_Compiler_EnvironmentBase_operator_array = R"doc()doc";
+
+static const char *__doc_FeNN_Compiler_EnvironmentInternal = R"doc()doc";
+
+static const char *__doc_FeNN_Compiler_EnvironmentInternal_EnvironmentInternal = R"doc()doc";
+
+static const char *__doc_FeNN_Compiler_EnvironmentInternal_define = R"doc()doc";
+
+static const char *__doc_FeNN_Compiler_EnvironmentInternal_getCodeGenerator = R"doc()doc";
+
+static const char *__doc_FeNN_Compiler_EnvironmentInternal_getItem = R"doc()doc";
+
+static const char *__doc_FeNN_Compiler_EnvironmentInternal_m_Enclosing = R"doc()doc";
+
+static const char *__doc_FeNN_Compiler_EnvironmentInternal_m_LocalVariables = R"doc()doc";
+
+static const char *__doc_FeNN_Compiler_RoundingMode = R"doc()doc";
+
+static const char *__doc_FeNN_Compiler_RoundingMode_NEAREST = R"doc()doc";
+
+static const char *__doc_FeNN_Compiler_RoundingMode_STOCHASTIC = R"doc()doc";
+
+static const char *__doc_FeNN_Compiler_RoundingMode_TO_ZERO = R"doc()doc";
+
+static const char *__doc_FeNN_Compiler_compile = R"doc()doc";
 
 static const char *__doc_FeNN_Disassembler_disassemble = R"doc()doc";
 

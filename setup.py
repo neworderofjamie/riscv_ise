@@ -128,7 +128,7 @@ for module_stem, sub_modules, kwargs in backends:
     for s in sub_modules:
         # Add macro to correctly link
         backend_extension_kwargs["define_macros"].append((f"LINKING_{module_stem.upper()}_{s.upper()}", 1))
-        backend_extension_kwargs["libraries"].append(f"{module_stem}_{s}")
+        backend_extension_kwargs["libraries"].append(f"{module_stem}_{s}{lib_suffix}")
         if WIN:
             package_data.append(f"{module_stem}_{s}{lib_suffix}.dll")
             backend_extension_kwargs["depends"].append(
@@ -158,7 +158,7 @@ for module_stem, sub_modules, kwargs in backends:
     #backend_extension_kwargs["libraries"].insert(0, "genn_" + module_stem + "_backend" + genn_lib_suffix)
     print(backend_extension_kwargs)
     # Add extension to list
-    ext_modules.append(Pybind11Extension(module_stem + "_backend", 
+    ext_modules.append(Pybind11Extension("_" + module_stem + "_backend", 
                                          [os.path.join(pyfenn_src, module_stem + "_backend.cc")],
                                          **backend_extension_kwargs))
 

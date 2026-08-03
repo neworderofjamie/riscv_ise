@@ -7,9 +7,26 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
+// Frontend includes
+#include "frontend/process_group.h"
+
 // FeNN disassembler includes
 #include "fenn/disassembler/disassembler.h"
 
+// FeNN compiler includes
+#include "fenn/compiler/compiler.h"
+
+// FeNN backend includes
+#include "fenn/backend/events.h"
+#include "fenn/backend/kernel.h"
+#include "fenn/backend/process.h"
+#include "fenn/backend/runtime.h"
+#include "fenn/backend/runtime_hw.h"
+#include "fenn/backend/runtime_sim.h"
+#include "fenn/backend/variable.h"
+
+// Doc strings
+#include "fenn_backend_doc_strings.h"
 
 using namespace pybind11::literals;
 using namespace FeNN;
@@ -18,18 +35,27 @@ using namespace FeNN;
 //----------------------------------------------------------------------------
 // Macros
 //----------------------------------------------------------------------------
-#define WRAP_ENUM(ENUM, VAL) .value(#VAL, ENUM::VAL, DOC(ENUM, VAL))
-#define WRAP_METHOD(NAME, CLASS, METH) .def(NAME, &CLASS::METH, DOC(CLASS, METH))
-#define WRAP_METHOD_REF(NAME, CLASS, METH) .def(NAME, &CLASS::METH, pybind11::return_value_policy::reference, DOC(CLASS, METH))
-#define WRAP_PROPERTY_RO(NAME, CLASS, METH_STEM) .def_property_readonly(NAME, &CLASS::get##METH_STEM, DOC(CLASS, m_##METH_STEM))
-#define WRAP_PROPERTY_GETTER(NAME, CLASS, METH_STEM) .def_property_readonly(NAME, &CLASS::get##METH_STEM, DOC(CLASS, get##METH_STEM))
-#define WRAP_PROPERTY_RO_REF(NAME, CLASS, METH_STEM) .def_property_readonly(NAME, &CLASS::get##METH_STEM, pybind11::return_value_policy::reference, DOC(CLASS, m_##METH_STEM))*/
+#define WRAP_ENUM(NS, ENUM, VAL) .value(#VAL, NS::ENUM::VAL, DOC(FeNN, NS, ENUM, VAL))
+#define WRAP_METHOD(NAME, NS, CLASS, METH) .def(NAME, &NS::CLASS::METH, DOC(FeNN, NS, CLASS, METH))
+#define WRAP_PROPERTY_GETTER(NAME, NS, CLASS, METH_STEM) .def_property_readonly(FeNN, NAME, &NS::CLASS::get##METH_STEM, DOC(NS, CLASS, get##METH_STEM))
+#define WRAP_PROPERTY_RO(NAME, NS, CLASS, METH_STEM) .def_property_readonly(FeNN, NAME, &NS::CLASS::get##METH_STEM, DOC(NS, CLASS, m_##METH_STEM))
+#define WRAP_PROPERTY_RO_SHOULD(NAME, NS, CLASS, METH_STEM) .def_property_readonly(FeNN, NAME, &NS::CLASS::should##METH_STEM, DOC(NS, CLASS, m_##METH_STEM))
 
 //----------------------------------------------------------------------------
-// _backend_fenn
+// _fenn_backend
 //----------------------------------------------------------------------------
-PYBIND11_MODULE(_backend_fenn, m) 
+PYBIND11_MODULE(_fenn_backend, m) 
 {
+    pybind11::module_::import("pyfenn._frontend");
+
+    //------------------------------------------------------------------------
+    // Enumerations
+    //------------------------------------------------------------------------	
+    pybind11::enum_<Compiler::RoundingMode>(m, "RoundingMode")
+        WRAP_ENUM(Compiler, RoundingMode, TO_ZERO)
+        WRAP_ENUM(Compiler, RoundingMode, NEAREST)
+        WRAP_ENUM(Compiler, RoundingMode, STOCHASTIC);
+
 	//------------------------------------------------------------------------
     // Free functions
     //------------------------------------------------------------------------
@@ -46,4 +72,121 @@ PYBIND11_MODULE(_backend_fenn, m)
             }
         });
     
+    //------------------------------------------------------------------------
+    // fenn_backend.EventSourceBuffer
+    //------------------------------------------------------------------------
+    pybind11::class_<Backend::EventSourceBuffer, Frontend::EventSourceBuffer, std::shared_ptr<Backend::EventSourceBuffer>>(m, "EventSourceBuffer")
+        .def(pybind11::init(&Backend::EventSourceBuffer::create),
+             pybind11::arg("shape"), pybind11::arg("max_events"),
+             pybind11::arg("name") = "");
+        
+    //------------------------------------------------------------------------
+    // fenn_backend.EventSinkBuffer
+    //------------------------------------------------------------------------
+    pybind11::class_<Backend::EventSinkBuffer, Frontend::EventSinkBuffer, std::shared_ptr<Backend::EventSinkBuffer>>(m, "EventSinkBuffer")
+        .def(pybind11::init(&Backend::EventSinkBuffer::create),
+             pybind11::arg("shape"), pybind11::arg("name") = "");
+
+    //------------------------------------------------------------------------
+    // fenn_backend.EventChannel
+    //------------------------------------------------------------------------
+    pybind11::class_<Backend::EventChannel, Frontend::EventChannel, std::shared_ptr<Backend::EventChannel>>(m, "EventChannel")
+        .def(pybind11::init(&Backend::EventChannel::create),
+             pybind11::arg("shape"), pybind11::arg("record") = false,
+             pybind11::arg("name") = "");
+    
+    //------------------------------------------------------------------------
+    // fenn_backend.Variable
+    //------------------------------------------------------------------------
+    pybind11::class_<Backend::Variable, Frontend::Variable, std::shared_ptr<Backend::Variable>>(m, "Variable")
+        .def(pybind11::init(&Backend::Variable::create),
+             pybind11::arg("shape"), pybind11::arg("type"), pybind11::arg("name") = "");
+
+    //------------------------------------------------------------------------
+    // fenn_backend.NeuronUpdateProcess
+    //------------------------------------------------------------------------
+    pybind11::class_<Backend::NeuronUpdateProcess, Frontend::NeuronUpdateProcess, std::shared_ptr<Backend::NeuronUpdateProcess>>(m, "NeuronUpdateProcess")
+        .def(pybind11::init(&Backend::NeuronUpdateProcess::create),
+             pybind11::arg("code"), pybind11::arg("variables"), 
+             pybind11::arg("output_event_sinks") /*= {}*/,
+             pybind11::arg("default_scalar_literal_type") = CompilerFrontend::Type::S8_7,
+             pybind11::arg("name") = "");
+
+
+    //------------------------------------------------------------------------
+    // fenn_backend.DenseEventPropagationProcess
+    //------------------------------------------------------------------------
+    pybind11::class_<Backend::DenseEventPropagationProcess, Frontend::EventPropagationProcess, std::shared_ptr<Backend::DenseEventPropagationProcess>>(m, "DenseEventPropagationProcess")
+        .def(pybind11::init(&Backend::DenseEventPropagationProcess::create),
+             pybind11::arg("input_event_source"), 
+             pybind11::arg("weight"), pybind11::arg("target"),
+             pybind11::arg("name") = "");
+
+    //------------------------------------------------------------------------
+    // fenn_backend.RNGInitProcess
+    //------------------------------------------------------------------------
+    pybind11::class_<Backend::RNGInitProcess, Frontend::RNGInitProcess, std::shared_ptr<Backend::RNGInitProcess>>(m, "RNGInitProcess")
+        .def(pybind11::init(&Backend::RNGInitProcess::create),
+             pybind11::arg("seed"), pybind11::arg("name") = "");
+    
+    //------------------------------------------------------------------------
+    // fenn_backend.RNGInitProcess
+    //------------------------------------------------------------------------
+    pybind11::class_<Backend::MemsetProcess, Frontend::MemsetProcess, std::shared_ptr<Backend::MemsetProcess>>(m, "MemsetProcess")
+        .def(pybind11::init(&Backend::MemsetProcess::create),
+             pybind11::arg("target"), pybind11::arg("name") = "");
+    
+    //------------------------------------------------------------------------
+    // fenn_backend.BroadcastProcess
+    //------------------------------------------------------------------------
+    pybind11::class_<Backend::BroadcastProcess, Frontend::Process, std::shared_ptr<Backend::BroadcastProcess>>(m, "BroadcastProcess")
+        .def(pybind11::init(&Backend::BroadcastProcess::create),
+             pybind11::arg("source"), pybind11::arg("target"), pybind11::arg("name") = "");
+    
+    //------------------------------------------------------------------------
+    // fenn_backend.SimpleKernel
+    //------------------------------------------------------------------------
+    pybind11::class_<Backend::SimpleKernel, Frontend::SimpleKernel, std::shared_ptr<Backend::SimpleKernel>>(m, "SimpleKernel")
+        .def(pybind11::init(&Backend::SimpleKernel::create),
+             pybind11::arg("process_groups"), pybind11::arg("name") = "");
+    
+    //------------------------------------------------------------------------
+    // fenn_backend.SimpleKernel
+    //------------------------------------------------------------------------
+    pybind11::class_<Backend::SimulationLoopKernel, Frontend::SimulationLoopKernel, std::shared_ptr<Backend::SimulationLoopKernel>>(m, "SimulationLoopKernel")
+        .def(pybind11::init(&Backend::SimulationLoopKernel::create),
+             pybind11::arg("num_timesteps"), pybind11::arg("timestep_process_groups"), 
+             pybind11::arg("begin_process_groups"), pybind11::arg("end_process_groups"), 
+             pybind11::arg("name") = "");
+
+    //------------------------------------------------------------------------
+    // fenn_backend.Runtime
+    //------------------------------------------------------------------------
+    pybind11::class_<Backend::Runtime, Frontend::Runtime>(m, "Runtime");
+
+    //------------------------------------------------------------------------
+    // fenn_backend.RuntimeHW
+    //------------------------------------------------------------------------
+    pybind11::class_<Backend::RuntimeHW, Backend::Runtime>(m, "RuntimeHW")
+        .def(pybind11::init<const std::vector<std::shared_ptr<const Frontend::Kernel>>&, 
+             size_t, bool, bool, Compiler::RoundingMode, size_t>(),
+             pybind11::arg("kernels"), pybind11::arg("num_devices"),
+             pybind11::arg("use_dram_for_weights") = false, 
+             pybind11::arg("keep_params_in_registers") = true,
+             pybind11::arg("neuron_update_rounding_model") = Compiler::RoundingMode::NEAREST,
+             pybind11::arg("dma_buffer_size") = 512 * 1024);
+    
+
+    //------------------------------------------------------------------------
+    // fenn_backend.RuntimeSim
+    //------------------------------------------------------------------------
+    pybind11::class_<Backend::RuntimeSim, Backend::Runtime>(m, "RuntimeSim")
+        .def(pybind11::init<const std::vector<std::shared_ptr<const Frontend::Kernel>>&, 
+             size_t, bool, bool, Compiler::RoundingMode, size_t>(),
+             pybind11::arg("kernels"), pybind11::arg("num_devices"),
+             pybind11::arg("use_dram_for_weights") = false, 
+             pybind11::arg("keep_params_in_registers") = true,
+             pybind11::arg("neuron_update_rounding_model") = Compiler::RoundingMode::NEAREST,
+             pybind11::arg("dma_buffer_size") = 512 * 1024);
+
 }
