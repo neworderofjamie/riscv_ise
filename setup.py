@@ -46,34 +46,28 @@ fenn_path = os.path.dirname(os.path.abspath(__file__))
 pyfenn_path = os.path.join(".", "pyfenn")
 pyfenn_src = os.path.join(pyfenn_path, "src")
 fenn_include = os.path.join(".", "include")
+fenn_third_party_include = os.path.join(fenn_include, "third_party")
 
-genn_path = os.path.join(".", "genn")
-genn_include = os.path.join(genn_path, "include", "genn", "genn")
-genn_third_party_include = os.path.join(genn_path, "include", "genn", "third_party")
+frontend_libraries = ["common", "compiler_frontend", "frontend"]
 
-fenn_libraries = ["backend", "ise", "compiler", "disassembler", "assembler", "common"]
-
-# Always package LibGeNN
+# Package frontend libraries and libffi on Windows
 if WIN:
-    package_data = [f"genn{lib_suffix}.dll",
-                    f"libffi{lib_suffix}.dll"]
-    package_data += [f"{l}{lib_suffix}.dll" for l in fenn_libraries]
+    package_data = [f"libffi{lib_suffix}.dll"]
+    package_data += [f"{l}{lib_suffix}.dll" for l in frontend_libraries]
 else:
-    package_data = [f"libgenn{lib_suffix}.so"]
-    package_data += [f"lib{l}{lib_suffix}.so" for l in fenn_libraries]
+    package_data = [f"lib{l}{lib_suffix}.so" for l in frontend_libraries]
 
 # Define standard kwargs for building all extensions
 fenn_extension_kwargs = {
-    "include_dirs": [fenn_include, genn_third_party_include, genn_include],
+    "include_dirs": [fenn_include, fenn_third_party_include],
     "library_dirs": [pyfenn_path],
-    "libraries": [f"genn{lib_suffix}"] + [f"{l}{lib_suffix}" for l in fenn_libraries],
+    "libraries": [f"{l}{lib_suffix}" for l in frontend_libraries],
     "cxx_std": 17,
     "extra_compile_args": [],
     "extra_link_args": [],
-    "define_macros": [("LINKING_ASSEMBLER_DLL", 1), ("LINKING_BACKEND_DLL", 1),
-                      ("LINKING_COMMON_DLL", 1), ("LINKING_COMPILER_DLL", 1), 
-                      ("LINKING_ISE_DLL", 1), ("LINKING_COMPILER_DLL", 1),
-                      ("LINKING_GENN_DLL", 1), ("LINKING_DISASSEMBLER_DLL", 1)]}
+    "define_macros": [("LINKING_COMMON_DLL", 1), 
+                      ("LINKING_COMPILER_FRONTEND_DLL", 1), 
+                      ("LINKING_FRONTEND_DLL", 1)]}
 
 # If this is Windows
 if WIN:
@@ -94,7 +88,7 @@ if WIN:
     # Add FeNN libraries to extension
     fenn_extension_kwargs["depends"].extend(
         os.path.join(pyfenn_path, f"{l}{lib_suffix}.dll") 
-        for l in fenn_libraries)
+        for l in frontend_libraries)
 # Otherwise
 else:
     # Add whatever configuration libffi requires
@@ -109,18 +103,79 @@ else:
     # Add FeNN libraries to extension
     fenn_extension_kwargs["depends"].extend(
         os.path.join(pyfenn_path, f"lib{l}{lib_suffix}.so") 
-        for l in fenn_libraries)
+        for l in frontend_libraries)
 
     # If this is Linux, we want to add extension directory i.e. $ORIGIN to runtime
     # directories so libGeNN and backends can be found wherever package is installed
     if LINUX:
         fenn_extension_kwargs["runtime_library_dirs"] = ["$ORIGIN"]
 
+backends = [("fenn", {})]
+
 ext_modules = [
-    Pybind11Extension("_fenn",
-                      [os.path.join(pyfenn_src, "fenn.cc")],
+    Pybind11Extension("_frontend",
+                      [os.path.join(pyfenn_src, "frontend.cc")],
                       **fenn_extension_kwargs)]
 
+
+# Loop through namespaces of supported backends
+for module_stem, kwargs in backends:
+    # Take a copy of the standard extension kwargs
+    backend_extension_kwargs = deepcopy(fenn_extension_kwargs)
+
+    # Extend any settings specified by backend
+    for n, v in kwargs.items():
+        backend_extension_kwargs[n].extend(v)
+
+    # Add relocatable version of backend library to libraries
+    # **NOTE** this is added BEFORE libGeNN as this library needs symbols FROM libGeNN
+    if WIN:
+        backend_extension_kwargs["depends"].append(
+            os.path.join(pyfenn_path, module_stem + "_backend" + lib_suffix + ".dll"))
+
+        package_data.append(module_stem + "_backend" + lib_suffix + ".dll")
+    elif MACOS:
+        backend_extension_kwargs["depends"].append(
+            os.path.join(pyfenn_path, module_stem + "_backend" + lib_suffix + ".dylib"))
+        package_data.append(module_stem + "_backend" + lib_suffix + ".dylib")    
+    else:
+        backend_extension_kwargs["depends"].append(
+            os.path.join(pyfenn_path, module_stem + "_backend" + lib_suffix + ".so"))
+
+        package_data.append("backend_" + module_stem + lib_suffix + ".so")
+
+    # Add backend include directory to both SWIG and C++ compiler options
+    #backend_extension_kwargs["libraries"].insert(0, "genn_" + module_stem + "_backend" + genn_lib_suffix)
+    
+    # Add extension to list
+    ext_modules.append(Pybind11Extension(module_stem + "_backend", 
+                                         [os.path.join(pyfenn_src, module_stem + "_backend.cc")],
+                                         **backend_extension_kwargs))
+
+    # If we should build required libraries
+    if build_fenn_libs:
+        # If compiler is MSVC
+        if WIN:
+            # **NOTE** ensure pygenn_path has trailing slash to make MSVC happy
+            out_dir = os.path.join(abs_fenn_path, "pyfenn", "")
+            check_call(["msbuild", "fenn.sln", f"/t:{module_stem}_backend",
+                        f"/p:Configuration={lib_suffix[1:]}",
+                        "/m", "/verbosity:quiet",
+                        f"/p:OutDir={out_dir}"],
+                        cwd=abs_fenn_path)
+        else:
+            # Define make arguments
+            make_arguments = ["make", f"{module_stem}_backend", "DYNAMIC=1",
+                              f"LIBRARY_DIRECTORY={os.path.join(abs_fenn_path, 'pyfenn')}",
+                              f"--jobs={cpu_count(logical=False)}"]
+            if debug_build:
+                make_arguments.append("DEBUG=1")
+
+            if coverage_build:
+                make_arguments.append("COVERAGE=1")
+
+            # Build
+            check_call(make_arguments, cwd=abs_fenn_path)
 # If we should build required FeNN libraries
 if build_fenn_libs:
     # If compiler is MSVC
