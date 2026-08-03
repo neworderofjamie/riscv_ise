@@ -107,7 +107,7 @@ else:
     if LINUX:
         fenn_extension_kwargs["runtime_library_dirs"] = ["$ORIGIN"]
 
-backends = [("fenn", ["assembler", "backend", "common", "compiler", "disassembler"], {})]
+backends = [("fenn", "FeNN", ["assembler", "backend", "common", "compiler", "disassembler"], {})]
 
 ext_modules = [
     Pybind11Extension("_frontend",
@@ -116,7 +116,7 @@ ext_modules = [
 
 
 # Loop through supported backends
-for module_stem, sub_modules, kwargs in backends:
+for module_stem, msbuild_sln_folder, libraries, kwargs in backends:
     # Take a copy of the standard extension kwargs
     backend_extension_kwargs = deepcopy(fenn_extension_kwargs)
 
@@ -124,19 +124,19 @@ for module_stem, sub_modules, kwargs in backends:
     for n, v in kwargs.items():
         backend_extension_kwargs[n].extend(v)
 
-    # Loop through sub-modules
-    for s in sub_modules:
+    # Loop through libraries
+    for l in libraries:
         # Add macro to correctly link
-        backend_extension_kwargs["define_macros"].append((f"LINKING_{module_stem.upper()}_{s.upper()}", 1))
-        backend_extension_kwargs["libraries"].append(f"{module_stem}_{s}{lib_suffix}")
+        backend_extension_kwargs["define_macros"].append((f"LINKING_{module_stem.upper()}_{l.upper()}", 1))
+        backend_extension_kwargs["libraries"].append(f"{module_stem}_{l}{lib_suffix}")
         if WIN:
-            package_data.append(f"{module_stem}_{s}{lib_suffix}.dll")
+            package_data.append(f"{module_stem}_{l}{lib_suffix}.dll")
             backend_extension_kwargs["depends"].append(
-                os.path.join(pyfenn_path, f"{module_stem}_{s}{lib_suffix}.dll"))
+                os.path.join(pyfenn_path, f"{module_stem}_{l}{lib_suffix}.dll"))
         else:
-            package_data.append(f"lib{module_stem}_{s}{lib_suffix}.so")
+            package_data.append(f"lib{module_stem}_{l}{lib_suffix}.so")
             backend_extension_kwargs["depends"].append(
-                os.path.join(pyfenn_path, f"lib{module_stem}_{s}{lib_suffix}.so"))
+                os.path.join(pyfenn_path, f"lib{module_stem}_{l}{lib_suffix}.so"))
 
     # Add extension to list
     ext_modules.append(Pybind11Extension("_" + module_stem + "_backend", 
@@ -149,7 +149,7 @@ for module_stem, sub_modules, kwargs in backends:
         if WIN:
             # **NOTE** ensure pygenn_path has trailing slash to make MSVC happy
             out_dir = os.path.join(abs_fenn_path, "pyfenn", "")
-            check_call(["msbuild", "fenn.sln", f"/t:{module_stem}_backend",
+            check_call(["msbuild", "riscv_ise.sln", f"/t:{msbuild_sln_folder}\\{module_stem}_backend",
                         f"/p:Configuration={lib_suffix[1:]}",
                         "/m", "/verbosity:quiet",
                         f"/p:OutDir={out_dir}"],
