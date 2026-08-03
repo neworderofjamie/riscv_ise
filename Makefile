@@ -1,40 +1,17 @@
-# Include common makefile
-include src/MakefileCommon
 
-.PHONY: all assembler common compiler disassembler genn ise backend assembly_examples
 
-all: backend
+.PHONY: all common compiler_frontend frontend fenn_backend
 
-assembler:
-	$(MAKE) -C src/assembler
+all: common compiler_frontend frontend
 
 common:
 	$(MAKE) -C src/common
 
-compiler: common assembler
-	$(MAKE) -C src/compiler
+compiler_frontend:
+	$(MAKE) -C src/compiler_frontend
 
-disassembler: common 
-	$(MAKE) -C src/disassembler
+frontend:
+	$(MAKE) -C src/frontend
 
-genn: 
-	$(MAKE) -C genn/src/genn/genn
-
-ise: common
-	$(MAKE) -C src/ise
-
-backend: assembler common compiler disassembler genn ise
-	$(MAKE) -C src/backend
-
-assembly_examples:
-	$(MAKE) -C src/alif
-	$(MAKE) -C src/lif
-	$(MAKE) -C src/mnist
-	$(MAKE) -C src/poisson
-	$(MAKE) -C src/shd
-	$(MAKE) -C src/sparse_spike
-	$(MAKE) -C src/spike_dma
-	$(MAKE) -C src/special_function_test
-	$(MAKE) -C src/spike
-	$(MAKE) -C src/dma
-	$(MAKE) -C src/va_benchmark
+fenn_backend:
+	$(MAKE) -C src/fenn all

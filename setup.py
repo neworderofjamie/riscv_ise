@@ -31,6 +31,7 @@ sys.argv = filtered_args
 # **NOTE** Pybind11Extension provides WIN and MAC
 LINUX = system() == "Linux"
 
+
 # Determine correct suffix for FeNN libraries
 if WIN:
     lib_suffix = "_Debug_DLL" if debug_build else "_Release_DLL"
@@ -82,9 +83,9 @@ if WIN:
     # **TODO** just call this ffi
     fenn_extension_kwargs["libraries"].append("libffi" + lib_suffix)
 
-    # Add GeNN and FFI libraries to dependencies
-    fenn_extension_kwargs["depends"] = [os.path.join(pyfenn_path, "genn" + lib_suffix + ".dll"),
-                                        os.path.join(pyfenn_path, "libffi" + lib_suffix + ".dll")]
+    # Add FFI libraries to dependencies
+    fenn_extension_kwargs["depends"] = [os.path.join(pyfenn_path, "libffi" + lib_suffix + ".dll")]
+
     # Add FeNN libraries to extension
     fenn_extension_kwargs["depends"].extend(
         os.path.join(pyfenn_path, f"{l}{lib_suffix}.dll") 
@@ -96,21 +97,17 @@ else:
     for k, v in ffi_config.items():
         fenn_extension_kwargs[k].extend(v)
 
-    # Add GeNN library to dependencies
-    fenn_extension_kwargs["depends"] = [os.path.join(pyfenn_path, "libgenn" + lib_suffix + ".so"),
-                                        os.path.join(pyfenn_path, "docStrings.h")]
-    
     # Add FeNN libraries to extension
-    fenn_extension_kwargs["depends"].extend(
+    fenn_extension_kwargs["depends"] = [
         os.path.join(pyfenn_path, f"lib{l}{lib_suffix}.so") 
-        for l in frontend_libraries)
+        for l in frontend_libraries]
 
     # If this is Linux, we want to add extension directory i.e. $ORIGIN to runtime
     # directories so libGeNN and backends can be found wherever package is installed
     if LINUX:
         fenn_extension_kwargs["runtime_library_dirs"] = ["$ORIGIN"]
 
-backends = [("fenn", {})]
+backends = [("fenn", ["assembler", "backend", "common", "compiler", "disassembler"], {})]
 
 ext_modules = [
     Pybind11Extension("_frontend",
@@ -119,7 +116,7 @@ ext_modules = [
 
 
 # Loop through namespaces of supported backends
-for module_stem, kwargs in backends:
+for module_stem, sub_modules, kwargs in backends:
     # Take a copy of the standard extension kwargs
     backend_extension_kwargs = deepcopy(fenn_extension_kwargs)
 
@@ -127,8 +124,21 @@ for module_stem, kwargs in backends:
     for n, v in kwargs.items():
         backend_extension_kwargs[n].extend(v)
 
+    # Loop through sub-modules
+    for s in sub_modules:
+        # Add macro to correctly link
+        backend_extension_kwargs["define_macros"].append((f"LINKING_{module_stem.upper()}_{s.upper()}", 1))
+        backend_extension_kwargs["libraries"].append(f"{module_stem}_{s}")
+        if WIN:
+            package_data.append(f"{module_stem}_{s}{lib_suffix}.dll")
+            backend_extension_kwargs["depends"].append(
+                os.path.join(pyfenn_path, f"{module_stem}_{s}{lib_suffix}.dll"))
+        else:
+            package_data.append(f"lib{module_stem}_{s}{lib_suffix}.so")
+            backend_extension_kwargs["depends"].append(
+                os.path.join(pyfenn_path, f"lib{module_stem}_{s}{lib_suffix}.so"))
+
     # Add relocatable version of backend library to libraries
-    # **NOTE** this is added BEFORE libGeNN as this library needs symbols FROM libGeNN
     if WIN:
         backend_extension_kwargs["depends"].append(
             os.path.join(pyfenn_path, module_stem + "_backend" + lib_suffix + ".dll"))
@@ -146,7 +156,7 @@ for module_stem, kwargs in backends:
 
     # Add backend include directory to both SWIG and C++ compiler options
     #backend_extension_kwargs["libraries"].insert(0, "genn_" + module_stem + "_backend" + genn_lib_suffix)
-    
+    print(backend_extension_kwargs)
     # Add extension to list
     ext_modules.append(Pybind11Extension(module_stem + "_backend", 
                                          [os.path.join(pyfenn_src, module_stem + "_backend.cc")],
@@ -176,32 +186,7 @@ for module_stem, kwargs in backends:
 
             # Build
             check_call(make_arguments, cwd=abs_fenn_path)
-# If we should build required FeNN libraries
-if build_fenn_libs:
-    # If compiler is MSVC
-    if WIN:
-        # **NOTE** ensure pygenn_path has trailing slash to make MSVC happy
-        out_dir = os.path.join(abs_fenn_path, "pyfenn", "")
 
-        # Build all dependencies for FeNN backend
-        check_call(["msbuild", "riscv_ise.sln", f"/t:backend",
-                    f"/p:Configuration={lib_suffix[1:]}",
-                    "/m", "/verbosity:quiet",
-                    f"/p:OutDir={out_dir}"],
-                    cwd=abs_fenn_path)
-    else:
-        # Define make arguments
-        make_arguments = ["make", "backend", "DYNAMIC=1",
-                          f"LIBRARY_DIRECTORY={os.path.join(abs_fenn_path, 'pyfenn')}",
-                          f"--jobs={cpu_count(logical=False)}"]
-        if debug_build:
-            make_arguments.append("DEBUG=1")
-
-        if coverage_build:
-            make_arguments.append("COVERAGE=1")
-
-        # Build
-        check_call(make_arguments, cwd=abs_fenn_path)
 # Read version from txt file
 with open(os.path.join(abs_fenn_path, "version.txt")) as version_file:
     version = version_file.read().strip()
