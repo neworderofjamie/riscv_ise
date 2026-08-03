@@ -1,3 +1,7 @@
+# Detect OSX
+OS_UPPER			:=$(shell uname -s 2>/dev/null | tr [:lower:] [:upper:])
+DARWIN				:=$(strip $(findstring DARWIN,$(OS_UPPER)))
+
 # Get directory of this makefile (means make can be invoked else where)
 RISCV_DIR:=$(abspath $(dir $(lastword $(MAKEFILE_LIST)))../)
 
