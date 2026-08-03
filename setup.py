@@ -77,7 +77,7 @@ if WIN:
     fenn_extension_kwargs["extra_compile_args"].extend(["/wd4251", "/wd4275", "-DWIN32_LEAN_AND_MEAN", "-DNOMINMAX"])
 
     # Add include directory for FFI as it's built from source
-    fenn_extension_kwargs["include_dirs"].append(os.path.join(genn_third_party_include, "libffi"))
+    fenn_extension_kwargs["include_dirs"].append(os.path.join(fenn_third_party_include, "libffi"))
 
     # Add FFI library with correct suffix
     # **TODO** just call this ffi
@@ -115,7 +115,7 @@ ext_modules = [
                       **fenn_extension_kwargs)]
 
 
-# Loop through namespaces of supported backends
+# Loop through supported backends
 for module_stem, sub_modules, kwargs in backends:
     # Take a copy of the standard extension kwargs
     backend_extension_kwargs = deepcopy(fenn_extension_kwargs)
@@ -138,25 +138,6 @@ for module_stem, sub_modules, kwargs in backends:
             backend_extension_kwargs["depends"].append(
                 os.path.join(pyfenn_path, f"lib{module_stem}_{s}{lib_suffix}.so"))
 
-    # Add relocatable version of backend library to libraries
-    if WIN:
-        backend_extension_kwargs["depends"].append(
-            os.path.join(pyfenn_path, module_stem + "_backend" + lib_suffix + ".dll"))
-
-        package_data.append(module_stem + "_backend" + lib_suffix + ".dll")
-    elif MACOS:
-        backend_extension_kwargs["depends"].append(
-            os.path.join(pyfenn_path, module_stem + "_backend" + lib_suffix + ".dylib"))
-        package_data.append(module_stem + "_backend" + lib_suffix + ".dylib")    
-    else:
-        backend_extension_kwargs["depends"].append(
-            os.path.join(pyfenn_path, module_stem + "_backend" + lib_suffix + ".so"))
-
-        package_data.append("backend_" + module_stem + lib_suffix + ".so")
-
-    # Add backend include directory to both SWIG and C++ compiler options
-    #backend_extension_kwargs["libraries"].insert(0, "genn_" + module_stem + "_backend" + genn_lib_suffix)
-    print(backend_extension_kwargs)
     # Add extension to list
     ext_modules.append(Pybind11Extension("_" + module_stem + "_backend", 
                                          [os.path.join(pyfenn_src, module_stem + "_backend.cc")],
