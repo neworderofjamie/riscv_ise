@@ -22,12 +22,12 @@ ifdef DYNAMIC
 ifeq ($(DARWIN),DARWIN)
 $(LIBRARY): $(OBJECTS)
 	mkdir -p $(@D)
-	$(CXX) -dynamiclib -undefined dynamic_lookup $(CXXFLAGS) -o $@ $(OBJECTS)
+	$(CXX) -dynamiclib -undefined dynamic_lookup $(CXXFLAGS) -o $@ $(OBJECTS) $(LDFLAGS)
 	install_name_tool -id "@loader_path/$(@F)" $@
 else
 $(LIBRARY): $(OBJECTS)
 	mkdir -p $(@D)
-	$(CXX) -shared $(CXXFLAGS) -o $@ $(OBJECTS)
+	$(CXX) -shared $(CXXFLAGS) -o $@ $(OBJECTS) -Wl,-rpath='$$ORIGIN' $(LDFLAGS)
 endif
 else
 $(LIBRARY): $(OBJECTS)

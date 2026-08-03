@@ -7,6 +7,7 @@ RISCV_DIR:=$(abspath $(dir $(lastword $(MAKEFILE_LIST)))../)
 
 # Set standard compiler and archiver flags
 CXXFLAGS+=-std=c++17 -march=native -Wall -Wpedantic -Wextra -MMD -MP -I$(RISCV_DIR)/include -I$(RISCV_DIR)/include/third_party
+LDFLAGS+=-L$(LIBRARY_DIRECTORY)
 ARFLAGS:=-rcs
 
 ifdef DYNAMIC
