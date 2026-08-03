@@ -93,7 +93,7 @@
       <GenerateDebugInformation Condition=" $(Configuration.Contains('Release')) ">true</GenerateDebugInformation>
       <EnableCOMDATFolding Condition=" $(Configuration.Contains('Release')) ">true</EnableCOMDATFolding>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>assembler_$(Configuration).lib;common_$(Configuration).lib;compiler_$(Configuration).lib;common_$(Configuration).lib;ise_$(Configuration).lib;compiler_frontend_$(Configuration).lib;libffi_$(Configuration).lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>common_$(Configuration).lib;compiler_frontend_$(Configuration).lib;libffi_$(Configuration).lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(OutDir);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
