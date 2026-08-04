@@ -85,11 +85,11 @@ private:
 //----------------------------------------------------------------------------
 // FeNN::Backend::SimpleKernel
 //----------------------------------------------------------------------------
-class FENN_BACKEND_EXPORT SimpleKernel : public KernelImplementation, public Frontend::SimpleKernel
+class FENN_BACKEND_EXPORT SimpleKernel : public Frontend::SimpleKernel, public KernelImplementation
 {
 public:
     SimpleKernel(Private, const Frontend::ProcessGroupVector &processGroups, const std::string &name)
-    :   KernelImplementation(processGroups), Frontend::SimpleKernel(Private(), processGroups, name)
+    :   Frontend::SimpleKernel(Private(), processGroups, name), KernelImplementation(processGroups)
     {}
 
     //------------------------------------------------------------------------
@@ -114,7 +114,7 @@ public:
 //----------------------------------------------------------------------------
 // FeNN::Backend::SimulationLoopKernel
 //----------------------------------------------------------------------------
-class FENN_BACKEND_EXPORT SimulationLoopKernel : public KernelImplementation, public Frontend::SimulationLoopKernel
+class FENN_BACKEND_EXPORT SimulationLoopKernel : public Frontend::SimulationLoopKernel, public KernelImplementation
 {
 public:
     // **YUCK** this is really bad - getAllProcessGroups should really be passed through here but it breaks stuff
@@ -122,9 +122,9 @@ public:
                          const Frontend::ProcessGroupVector &timestepProcessGroups, 
                          const Frontend::ProcessGroupVector &beginProcessGroups,
                          const Frontend::ProcessGroupVector &endProcessGroups, const std::string &name)
-    :   KernelImplementation(timestepProcessGroups), 
-        Frontend::SimulationLoopKernel(Private(), numTimesteps, timestepProcessGroups, 
-                                       beginProcessGroups, endProcessGroups, name)
+    :   Frontend::SimulationLoopKernel(Private(), numTimesteps, timestepProcessGroups, 
+                                       beginProcessGroups, endProcessGroups, name),
+        KernelImplementation(timestepProcessGroups)
     {}
 
     //------------------------------------------------------------------------

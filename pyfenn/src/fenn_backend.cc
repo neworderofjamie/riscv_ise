@@ -86,7 +86,7 @@ PYBIND11_MODULE(_fenn_backend, m)
     //------------------------------------------------------------------------
     // fenn_backend.EventSourceBuffer
     //------------------------------------------------------------------------
-    pybind11::class_<Backend::EventSourceBuffer, Frontend::EventSourceBuffer, std::shared_ptr<Backend::EventSourceBuffer>>(m, "EventSourceBuffer")
+    pybind11::class_<Backend::EventSourceBuffer, Frontend::EventSourceBuffer, std::shared_ptr<Backend::EventSourceBuffer>>(m, "EventSourceBuffer", pybind11::multiple_inheritance())
         .def(pybind11::init(&Backend::EventSourceBuffer::create),
              pybind11::arg("shape"), pybind11::arg("max_events"),
              pybind11::arg("name") = "");
@@ -94,14 +94,14 @@ PYBIND11_MODULE(_fenn_backend, m)
     //------------------------------------------------------------------------
     // fenn_backend.EventSinkBuffer
     //------------------------------------------------------------------------
-    pybind11::class_<Backend::EventSinkBuffer, Frontend::EventSinkBuffer, std::shared_ptr<Backend::EventSinkBuffer>>(m, "EventSinkBuffer")
+    pybind11::class_<Backend::EventSinkBuffer, Frontend::EventSinkBuffer, std::shared_ptr<Backend::EventSinkBuffer>>(m, "EventSinkBuffer", pybind11::multiple_inheritance())
         .def(pybind11::init(&Backend::EventSinkBuffer::create),
              pybind11::arg("shape"), pybind11::arg("name") = "");
 
     //------------------------------------------------------------------------
     // fenn_backend.EventChannel
     //------------------------------------------------------------------------
-    pybind11::class_<Backend::EventChannel, Frontend::EventChannel, std::shared_ptr<Backend::EventChannel>>(m, "EventChannel")
+    pybind11::class_<Backend::EventChannel, Frontend::EventChannel, std::shared_ptr<Backend::EventChannel>>(m, "EventChannel", pybind11::multiple_inheritance())
         .def(pybind11::init(&Backend::EventChannel::create),
              pybind11::arg("shape"), pybind11::arg("record") = false,
              pybind11::arg("name") = "");
@@ -116,7 +116,7 @@ PYBIND11_MODULE(_fenn_backend, m)
     //------------------------------------------------------------------------
     // fenn_backend.NeuronUpdateProcess
     //------------------------------------------------------------------------
-    pybind11::class_<Backend::NeuronUpdateProcess, Frontend::NeuronUpdateProcess, std::shared_ptr<Backend::NeuronUpdateProcess>>(m, "NeuronUpdateProcess")
+    pybind11::class_<Backend::NeuronUpdateProcess, Frontend::NeuronUpdateProcess, std::shared_ptr<Backend::NeuronUpdateProcess>>(m, "NeuronUpdateProcess", pybind11::multiple_inheritance())
         .def(pybind11::init(&Backend::NeuronUpdateProcess::create),
              pybind11::arg("code"), pybind11::arg("variables"), 
              pybind11::arg("output_event_sinks") /*= {}*/,
@@ -127,7 +127,7 @@ PYBIND11_MODULE(_fenn_backend, m)
     //------------------------------------------------------------------------
     // fenn_backend.DenseEventPropagationProcess
     //------------------------------------------------------------------------
-    pybind11::class_<Backend::DenseEventPropagationProcess, Frontend::EventPropagationProcess, std::shared_ptr<Backend::DenseEventPropagationProcess>>(m, "DenseEventPropagationProcess")
+    pybind11::class_<Backend::DenseEventPropagationProcess, Frontend::EventPropagationProcess, std::shared_ptr<Backend::DenseEventPropagationProcess>>(m, "DenseEventPropagationProcess", pybind11::multiple_inheritance())
         .def(pybind11::init(&Backend::DenseEventPropagationProcess::create),
              pybind11::arg("input_event_source"), 
              pybind11::arg("weight"), pybind11::arg("target"),
@@ -136,35 +136,35 @@ PYBIND11_MODULE(_fenn_backend, m)
     //------------------------------------------------------------------------
     // fenn_backend.RNGInitProcess
     //------------------------------------------------------------------------
-    pybind11::class_<Backend::RNGInitProcess, Frontend::RNGInitProcess, std::shared_ptr<Backend::RNGInitProcess>>(m, "RNGInitProcess")
+    pybind11::class_<Backend::RNGInitProcess, Frontend::RNGInitProcess, std::shared_ptr<Backend::RNGInitProcess>>(m, "RNGInitProcess", pybind11::multiple_inheritance())
         .def(pybind11::init(&Backend::RNGInitProcess::create),
              pybind11::arg("seed"), pybind11::arg("name") = "");
     
     //------------------------------------------------------------------------
     // fenn_backend.RNGInitProcess
     //------------------------------------------------------------------------
-    pybind11::class_<Backend::MemsetProcess, Frontend::MemsetProcess, std::shared_ptr<Backend::MemsetProcess>>(m, "MemsetProcess")
+    pybind11::class_<Backend::MemsetProcess, Frontend::MemsetProcess, std::shared_ptr<Backend::MemsetProcess>>(m, "MemsetProcess", pybind11::multiple_inheritance())
         .def(pybind11::init(&Backend::MemsetProcess::create),
              pybind11::arg("target"), pybind11::arg("name") = "");
     
     //------------------------------------------------------------------------
     // fenn_backend.BroadcastProcess
     //------------------------------------------------------------------------
-    pybind11::class_<Backend::BroadcastProcess, Frontend::Process, std::shared_ptr<Backend::BroadcastProcess>>(m, "BroadcastProcess")
+    pybind11::class_<Backend::BroadcastProcess, Frontend::Process, std::shared_ptr<Backend::BroadcastProcess>>(m, "BroadcastProcess", pybind11::multiple_inheritance())
         .def(pybind11::init(&Backend::BroadcastProcess::create),
              pybind11::arg("source"), pybind11::arg("target"), pybind11::arg("name") = "");
     
     //------------------------------------------------------------------------
     // fenn_backend.SimpleKernel
     //------------------------------------------------------------------------
-    pybind11::class_<Backend::SimpleKernel, Frontend::SimpleKernel, std::shared_ptr<Backend::SimpleKernel>>(m, "SimpleKernel")
+    pybind11::class_<Backend::SimpleKernel, Frontend::SimpleKernel, std::shared_ptr<Backend::SimpleKernel>>(m, "SimpleKernel", pybind11::multiple_inheritance())
         .def(pybind11::init(&Backend::SimpleKernel::create),
              pybind11::arg("process_groups"), pybind11::arg("name") = "");
     
     //------------------------------------------------------------------------
     // fenn_backend.SimpleKernel
     //------------------------------------------------------------------------
-    pybind11::class_<Backend::SimulationLoopKernel, Frontend::SimulationLoopKernel, std::shared_ptr<Backend::SimulationLoopKernel>>(m, "SimulationLoopKernel")
+    pybind11::class_<Backend::SimulationLoopKernel, Frontend::SimulationLoopKernel, std::shared_ptr<Backend::SimulationLoopKernel>>(m, "SimulationLoopKernel", pybind11::multiple_inheritance())
         .def(pybind11::init(&Backend::SimulationLoopKernel::create),
              pybind11::arg("num_timesteps"), pybind11::arg("timestep_process_groups"), 
              pybind11::arg("begin_process_groups"), pybind11::arg("end_process_groups"), 
