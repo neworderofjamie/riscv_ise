@@ -2,12 +2,16 @@ import numpy as np
 import mnist
 
 from argparse import ArgumentParser
-from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer, Model, 
-                    PerformanceCounter, ProcessGroup, Runtime, Shape)
-from pyfenn.models import Linear, Memset
+import pyfenn.fenn_backend as backend
+
+from pyfenn.fenn_backend import (EventSourceBuffer, PlogSeverity, 
+                                 ProcessGroup, RuntimeHW, RuntimeSim, 
+                                 SimulationLoopKernel)
+from pyfenn.models import DenseLinear, Memset
+from pyfenn.utils import PythonLogAppender
 from models import LI, LIF
 
-from pyfenn import disassemble, init_logging
+from pyfenn.fenn_backend import disassemble, init_logging
 from pyfenn.utils import (get_array_view, get_latency_spikes, load_and_push,
                           read_perf_counter, zero_and_push)
 from tqdm.auto import tqdm
@@ -27,46 +31,40 @@ args = parser.parse_args()
 
 # Load and preprocess MNIST
 mnist.datasets_url = "https://storage.googleapis.com/cvdf-datasets/mnist/"
-mnist_spikes = get_latency_spikes(mnist.test_images())
+mnist_spikes, max_spikes_per_image = get_latency_spikes(mnist.test_images())
 mnist_labels = mnist.test_labels().astype(np.int16)
 
-init_logging()
+log_appender = PythonLogAppender()
+init_logging(log_appender, PlogSeverity.DEBUG)
 
 # Input spikes
-input_spikes = EventContainer(Shape(input_shape), num_timesteps)
+input_spikes = backend.EventSourceBuffer(input_shape, num_timesteps)
 
 # Model
-hidden = LIF(hidden_shape, 20.0, 5, 0.61, 1, 5, name="hidden")
-output = LI(output_shape, 20.0, num_timesteps, 6, name="output")
-input_hidden = Linear(input_spikes, hidden.i, "s10_5_sat_t", name="input_hidden")
-hidden_output = Linear(hidden.out_spikes, output.i, "s9_6_sat_t", name="hidden_output")
+hidden = LIF(backend, hidden_shape, 20.0, 5, 0.61, 1, 5, name="hidden")
+output = LI(backend, output_shape, 20.0, num_timesteps, 6, name="output")
+input_hidden = DenseLinear(backend, input_spikes, hidden.i, "s10_5_sat_t", name="input_hidden")
+hidden_output = DenseLinear(backend, hidden.out_spikes, output.i, "s9_6_sat_t", name="hidden_output")
 
-avg_zero = Memset(output.v_avg)
+avg_zero = Memset(backend, output.v_avg)
 
 # Group processes
-neuron_update_processes = ProcessGroup([hidden.process, output.process], PerformanceCounter() if args.time else None)
-synapse_update_processes = ProcessGroup([input_hidden.process, hidden_output.process], PerformanceCounter() if args.time else None)
-zero_processes = ProcessGroup([avg_zero.process], PerformanceCounter() if args.time else None)
+neuron_update_processes = ProcessGroup([hidden.process, output.process])
+synapse_update_processes = ProcessGroup([input_hidden.process, hidden_output.process])
+zero_processes = ProcessGroup([avg_zero.process])
+
+kernel = SimulationLoopKernel(
+    num_timesteps, [synapse_update_processes, neuron_update_processes],
+    [zero_processes], [])
 
 # Create backend
-backend = BackendFeNNHW() if args.device else BackendFeNNSim()
-
-# Create model
-model = Model([neuron_update_processes, synapse_update_processes, zero_processes],
-              backend)
-
-# Generate sim code
-code = backend.generate_simulation_kernel([synapse_update_processes, neuron_update_processes],  # Update synapses and then neurons every timestep
-                                          [zero_processes], [],
-                                          num_timesteps, model)
+runtime = RuntimeHW([kernel], 1) if args.device else RuntimeSim([kernel], 1)
 
 # Disassemble if required
 if args.disassemble:
+    code = runtime.get_kernel_code(kernel)
     for i, c in enumerate(code):
         print(f"{i * 4} : {disassemble(c)}")
-
-# Create runtime
-runtime = Runtime(model, backend)
 
 # Allocate memory for model
 runtime.allocate()

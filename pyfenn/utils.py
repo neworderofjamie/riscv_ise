@@ -55,6 +55,9 @@ def get_array_view(runtime: Runtime, state, dtype, shape=None):
 def ceil_divide(numerator, denominator):
     return (numerator + denominator - 1) // denominator
 
+def pad(numerator, denominator):
+    return denominator * ceil_divide(numerator, denominator)
+
 def quantise(data, fractional_bits: int, num_pre: int = None,
              pad_post: bool = False, percentile: float = 99.0):
     # Split data into positive and negative
@@ -74,7 +77,7 @@ def quantise(data, fractional_bits: int, num_pre: int = None,
         assert num_pre is not None
         
         data = np.reshape(data, (num_pre, -1))
-        pad_num_post = ceil_divide(data.shape[1], 32) * 32
+        pad_num_post = pad(data.shape[1], 32)
         data = np.pad(data, ((0, 0), (0, pad_num_post - data.shape[1])))  
 
     # Scale, round and convert to int16

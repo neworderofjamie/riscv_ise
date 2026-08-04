@@ -1,6 +1,8 @@
-from typing import ModuleType, Optional
+from types import ModuleType
+from typing import Optional
 
-from pyfenn._frontend import EventSource
+from pyfenn._frontend import EventSource, Variable
+from pyfenn.utils import pad
 
 class RNGInit:
     def __init__(self, backend: ModuleType):
@@ -19,13 +21,13 @@ class ExpLUTBroadcast:
 class DenseLinear:
     def __init__(self, backend: ModuleType, source_events: EventSource, 
                  target_var: Variable, weight_dtype: str, name: str = ""):
-        self.shape = (source_events.shape.num_neurons,
-                      target_var.shape.num_neurons)
-        weight_shape = (source_events.shape.num_neurons,
-                        (target_var.shape.num_neurons 
-                         if num_sparse_connectivity_bits == 0 
-                         else max_row_length))
-        self.weight = backend.Variable(weight_shape, weight_dtype, 1, f"{name}_weight")
+        assert len(source_events.shape.dims) == 1
+        assert len(target_var.shape.dims) == 1
+        self.shape = (source_events.shape.dims[0], target_var.shape.dims[0])
+        
+        # **YUCK** pad weight shape
+        weight_shape = (source_events.shape.dims[0], pad(target_var.shape.dims[0], 32))
+        self.weight = backend.Variable(weight_shape, weight_dtype, f"{name}_weight")
         self.process = backend.DenseEventPropagationProcess(source_events, 
                                                             self.weight, 
                                                             target_var, name)
