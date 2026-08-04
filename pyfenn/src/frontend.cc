@@ -157,6 +157,18 @@ PYBIND11_MODULE(_frontend, m)
     pybind11::class_<Frontend::Variable, Frontend::State, std::shared_ptr<Frontend::Variable>>(m, "Variable")
         WRAP_PROPERTY_RO("type", Frontend, Variable, Type);
     
+	//------------------------------------------------------------------------
+    // frontend.SlicedVariable
+    //------------------------------------------------------------------------
+	pybind11::class_<Frontend::Sliced<Frontend::Variable>>(m, "SlicedVariable")
+        .def(pybind11::init<std::shared_ptr<const Frontend::Variable>, bool>(),
+             pybind11::arg("underlying"), pybind11::arg("timeSlice") = false)
+		 
+		.def_property_readonly("underlying", &Frontend::Sliced<Frontend::Variable>::getUnderlying, DOC(Frontend, Sliced, m_Underlying))
+		.def_property_readonly("shape", &Frontend::Sliced<Frontend::Variable>::getShape, DOC(Frontend, Sliced, m_Shape));
+	
+	pybind11::implicitly_convertible<std::shared_ptr<const Frontend::Variable>, Frontend::Sliced<Frontend::Variable>>();
+	
     //------------------------------------------------------------------------
     // frontend.EventSink
     //------------------------------------------------------------------------
@@ -183,6 +195,18 @@ PYBIND11_MODULE(_frontend, m)
     //------------------------------------------------------------------------
     pybind11::class_<Frontend::EventChannel, Frontend::EventSource, Frontend::EventSink, std::shared_ptr<Frontend::EventChannel>>(m, "EventChannel")
         WRAP_PROPERTY_RO_SHOULD("record", Frontend, EventChannel, Record);
+	
+	//------------------------------------------------------------------------
+    // frontend.SlicedEventSink
+    //------------------------------------------------------------------------
+	pybind11::class_<Frontend::Sliced<Frontend::EventSink>>(m, "SlicedEventSink")
+        .def(pybind11::init<std::shared_ptr<const Frontend::EventSink>, bool>(),
+             pybind11::arg("underlying"), pybind11::arg("timeSlice") = false)
+		 
+		.def_property_readonly("underlying", &Frontend::Sliced<Frontend::EventSink>::getUnderlying, DOC(Frontend, Sliced, m_Underlying))
+		.def_property_readonly("shape", &Frontend::Sliced<Frontend::EventSink>::getShape, DOC(Frontend, Sliced, m_Shape));
+	
+	pybind11::implicitly_convertible<std::shared_ptr<const Frontend::EventSink>, Frontend::Sliced<Frontend::EventSink>>();
 
     //------------------------------------------------------------------------
     // frontend.Process

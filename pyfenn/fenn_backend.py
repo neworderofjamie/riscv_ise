@@ -5,4 +5,5 @@ from ._fenn_backend import (BroadcastProcess, DenseEventPropagationProcess,
                             RuntimeSim, Variable, disassemble)
                             
 from ._frontend import (NumericValue, PlogSeverity, ProcessGroup, 
-                        ResolvedType, Shape, UnresolvedType, init_logging)
+                        ResolvedType, Shape, SlicedEventSink, SlicedVariable,
+                        UnresolvedType, init_logging)
