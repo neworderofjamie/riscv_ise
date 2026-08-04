@@ -4,6 +4,9 @@
 #include <memory>
 #include <string>
 
+// Frontend includes
+#include "frontend/frontend_export.h"
+
 // Forward declarations
 namespace Frontend
 {
@@ -27,7 +30,7 @@ class sha1;
 namespace Frontend
 {
 //! Base class for things that can be added to models
-class ModelComponent : public std::enable_shared_from_this<ModelComponent>
+class FRONTEND_EXPORT ModelComponent : public std::enable_shared_from_this<ModelComponent>
 {
 public:
     ModelComponent(const ModelComponent&) = delete;
@@ -54,7 +57,7 @@ private:
 //----------------------------------------------------------------------------
 // Frontend::State
 //----------------------------------------------------------------------------
-class State : public ModelComponent
+class FRONTEND_EXPORT State : public ModelComponent
 {
 public:
     //------------------------------------------------------------------------

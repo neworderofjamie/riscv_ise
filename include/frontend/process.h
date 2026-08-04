@@ -81,7 +81,7 @@ using Literals = std::vector<std::tuple<CompilerFrontend::Type::ResolvedType,
 //----------------------------------------------------------------------------
 // Frontend::Process
 //----------------------------------------------------------------------------
-class Process : public ModelComponent
+class FRONTEND_EXPORT Process : public ModelComponent
 {
 public:
     //------------------------------------------------------------------------

@@ -191,6 +191,9 @@ public:
     DeviceBase(size_t deviceIndex)
     :   m_DeviceIndex(deviceIndex)
     {}
+    
+    DeviceBase(const DeviceBase&) = delete;
+    DeviceBase(DeviceBase&&) = delete;
 
     virtual ~DeviceBase() = default;
 
