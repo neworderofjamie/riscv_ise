@@ -210,6 +210,18 @@ PYBIND11_MODULE(_frontend, m)
 	
 	pybind11::implicitly_convertible<std::shared_ptr<const Frontend::EventSink>, Frontend::Sliced<Frontend::EventSink>>();
 
+	//------------------------------------------------------------------------
+    // frontend.SlicedEventSource
+    //------------------------------------------------------------------------
+	pybind11::class_<Frontend::Sliced<Frontend::EventSource>>(m, "SlicedEventSource")
+        .def(pybind11::init<std::shared_ptr<const Frontend::EventSource>, bool>(),
+             pybind11::arg("underlying"), pybind11::arg("timeSlice") = false)
+		 
+		.def_property_readonly("underlying", &Frontend::Sliced<Frontend::EventSource>::getUnderlying, DOC(Frontend, Sliced, m_Underlying))
+		.def_property_readonly("shape", &Frontend::Sliced<Frontend::EventSource>::getShape, DOC(Frontend, Sliced, m_Shape));
+	
+	pybind11::implicitly_convertible<std::shared_ptr<const Frontend::EventSource>, Frontend::Sliced<Frontend::EventSource>>();
+	
     //------------------------------------------------------------------------
     // frontend.Process
     //------------------------------------------------------------------------
