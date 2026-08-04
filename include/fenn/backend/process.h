@@ -37,7 +37,7 @@ class Runtime;
 //----------------------------------------------------------------------------
 namespace FeNN::Backend
 {
-class ProcessImplementation
+class FENN_BACKEND_EXPORT ProcessImplementation
 {
 public:
     //------------------------------------------------------------------------

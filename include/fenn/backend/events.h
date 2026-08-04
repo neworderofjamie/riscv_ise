@@ -44,7 +44,7 @@ class Runtime;
 //----------------------------------------------------------------------------
 namespace FeNN::Backend
 {
-class EventSourceImplementation
+class FENN_BACKEND_EXPORT EventSourceImplementation
 {
 public:
     //----------------------------------------------------------------------------
@@ -62,7 +62,7 @@ public:
 //----------------------------------------------------------------------------
 // FeNN::Backend::EventSourceImplementation
 //----------------------------------------------------------------------------
-class EventSinkImplementation
+class FENN_BACKEND_EXPORT EventSinkImplementation
 {
 protected:
     using AddScalarConstantFn = std::function<Assembler::ScalarRegisterPtr(Assembler::CodeGenerator&, MergedFields::GetFieldConstantFunc<NeuronUpdateProcess>)>;

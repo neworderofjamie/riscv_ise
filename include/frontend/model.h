@@ -6,6 +6,9 @@
 #include <unordered_map>
 #include <vector>
 
+// Frontend includes
+#include "frontend/frontend_export.h"
+
 // Forward declarations
 namespace Frontend
 {
@@ -28,7 +31,7 @@ namespace Frontend
 //! It also contains any additional data structures required BEFORE merging.
 //! If a backend requires additional data to calculate mergibility, 
 //! it needs to be added to a class derived from Model
-class Model
+class FRONTEND_EXPORT Model
 {
 public:
     struct StateData

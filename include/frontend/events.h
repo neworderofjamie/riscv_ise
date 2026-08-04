@@ -16,7 +16,7 @@ namespace Frontend
 //! Event sinks take events from model components 
 //! which emit them e.g. NeuronUpdateProcess
 //! **NOTE** inherits State virtually to avoid diamond problem when EventSink AND EventSource are inherited
-class EventSink : virtual public State
+class FRONTEND_EXPORT EventSink : virtual public State
 {
 protected:
     using State::State;
@@ -28,7 +28,7 @@ protected:
 //! Event sources produce events for model components
 //! which require them e.g. EventPropagationProcess
 //! **NOTE** inherits State virtually to avoid diamond problem when EventSink AND EventSource are inherited
-class EventSource : virtual public State
+class FRONTEND_EXPORT EventSource : virtual public State
 {
 protected:
     using State::State;
@@ -38,7 +38,7 @@ protected:
 // Frontend::EventSourceBuffer
 //----------------------------------------------------------------------------
 //! A buffer which provides a source of events
-class EventSourceBuffer : public EventSource
+class FRONTEND_EXPORT EventSourceBuffer : public EventSource
 {
 public:
     EventSourceBuffer(Private, const Shape &shape, size_t maxEvents, const std::string &name)
@@ -80,7 +80,7 @@ private:
 // Frontend::EventSinkBuffer
 //----------------------------------------------------------------------------
 //! A buffer for recording events
-class EventSinkBuffer : public EventSink
+class FRONTEND_EXPORT EventSinkBuffer : public EventSink
 {
 public:
     EventSinkBuffer(Private, const Shape &shape, const std::string &name)
@@ -115,7 +115,7 @@ private:
 //----------------------------------------------------------------------------
 // Frontend::EventChannel
 //----------------------------------------------------------------------------
-class EventChannel : public EventSource, public EventSink
+class FRONTEND_EXPORT EventChannel : public EventSource, public EventSink
 {
 public:
     EventChannel(Private, const Shape &shape, bool record, const std::string &name)
