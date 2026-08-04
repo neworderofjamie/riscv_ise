@@ -10,6 +10,9 @@
 // Frontend includes
 #include "frontend/process_group.h"
 
+// FeNN common includes
+#include "fenn/common/logging.h"
+
 // FeNN disassembler includes
 #include "fenn/disassembler/disassembler.h"
 
@@ -59,7 +62,15 @@ PYBIND11_MODULE(_fenn_backend, m)
 	//------------------------------------------------------------------------
     // Free functions
     //------------------------------------------------------------------------
-    m.def("disassemble", 
+	m.def("init_logging", &FeNN::Common::Logging::init,
+		  pybind11::arg("common_level"), pybind11::arg("assembler_level"), 
+          pybind11::arg("backend_level"), pybind11::arg("compiler_level"),
+		  pybind11::arg("ise_level"), pybind11::arg("common_appender"), 
+		  pybind11::arg("assembler_appender"), 
+		  pybind11::arg("backend_appender"), 
+		  pybind11::arg("compiler_appender"), pybind11::arg("ise_appender"));
+	
+	m.def("disassemble", 
         [](uint32_t instruction) -> std::optional<std::string> 
         {
             try {
@@ -162,7 +173,8 @@ PYBIND11_MODULE(_fenn_backend, m)
     //------------------------------------------------------------------------
     // fenn_backend.Runtime
     //------------------------------------------------------------------------
-    pybind11::class_<Backend::Runtime, Frontend::Runtime>(m, "Runtime");
+    pybind11::class_<Backend::Runtime, Frontend::Runtime>(m, "Runtime")
+		WRAP_METHOD("get_kernel_code", Backend, Runtime, getKernelCode);
 
     //------------------------------------------------------------------------
     // fenn_backend.RuntimeHW

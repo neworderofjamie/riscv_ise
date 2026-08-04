@@ -76,7 +76,9 @@ PYBIND11_MODULE(_frontend, m)
     //------------------------------------------------------------------------
     // Free functions
     //------------------------------------------------------------------------
-    m.def("init_logging", &Common::Logging::init);
+    m.def("init_logging", &Common::Logging::init,
+		  pybind11::arg("frontend_level"), pybind11::arg("compiler_frontend_level"), 
+          pybind11::arg("frontend_appender"), pybind11::arg("compiler_frontend_appender"));
     
 	//------------------------------------------------------------------------
 	// frontend.Record
