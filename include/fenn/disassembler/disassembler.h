@@ -14,5 +14,5 @@
 //----------------------------------------------------------------------------
 namespace FeNN::Disassembler
 {
-DISASSEMBLER_EXPORT void disassemble(std::ostream& os, uint32_t inst);
+FENN_DISASSEMBLER_EXPORT void disassemble(std::ostream& os, uint32_t inst);
 }
