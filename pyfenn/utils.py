@@ -17,7 +17,7 @@ class PythonLogAppender(IAppender):
                       PlogSeverity.VERBOSE: logging.DEBUG}
 
     def __init__(self):
-        super().__init__(self)
+        super().__init__()
 
         # Create Python logger
         self.logger = logging.getLogger("FeNN")
