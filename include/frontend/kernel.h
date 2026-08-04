@@ -5,6 +5,7 @@
 #include <vector>
 
 // Frontend includes
+#include "frontend/frontend_export.h"
 #include "frontend/model_component.h"
 
 // Forward declarations
@@ -21,7 +22,7 @@ using ProcessGroupVector = std::vector<std::shared_ptr<const ProcessGroup>>;
 //----------------------------------------------------------------------------
 // Frontend::Kernel
 //----------------------------------------------------------------------------
-class Kernel : public ModelComponent
+class FRONTEND_EXPORT Kernel : public ModelComponent
 {
 public:
     //----------------------------------------------------------------------------
@@ -37,7 +38,7 @@ protected:
 //----------------------------------------------------------------------------
 // Frontend::StandardKernel
 //----------------------------------------------------------------------------
-class SimpleKernel : public Kernel
+class FRONTEND_EXPORT SimpleKernel : public Kernel
 {
 public:
     SimpleKernel(Private, const ProcessGroupVector &processGroups, const std::string &name)
@@ -73,7 +74,7 @@ private:
 //----------------------------------------------------------------------------
 // Frontend::SimulationLoopKernel
 //----------------------------------------------------------------------------
-class SimulationLoopKernel : public Kernel
+class FRONTEND_EXPORT SimulationLoopKernel : public Kernel
 {
 public:
     SimulationLoopKernel(Private, unsigned int numTimesteps, 

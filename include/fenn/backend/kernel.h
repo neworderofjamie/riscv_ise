@@ -12,6 +12,9 @@
 // Assembler includes
 #include "fenn/assembler/register_allocator.h"
 
+// FeNN backend includes
+#include "fenn/backend/backend_export.h"
+
 // Forward declarations
 namespace Frontend
 {
@@ -28,7 +31,7 @@ class CodeGenerator;
 //----------------------------------------------------------------------------
 namespace FeNN::Backend
 {
-class KernelImplementation
+class FENN_BACKEND_EXPORT KernelImplementation
 {
 public:
     using GenerateProcessGroupFn = std::function<void(std::shared_ptr<const Frontend::ProcessGroup>,
@@ -82,7 +85,7 @@ private:
 //----------------------------------------------------------------------------
 // FeNN::Backend::SimpleKernel
 //----------------------------------------------------------------------------
-class SimpleKernel : public KernelImplementation, public Frontend::SimpleKernel
+class FENN_BACKEND_EXPORT SimpleKernel : public KernelImplementation, public Frontend::SimpleKernel
 {
 public:
     SimpleKernel(Private, const Frontend::ProcessGroupVector &processGroups, const std::string &name)
@@ -111,7 +114,7 @@ public:
 //----------------------------------------------------------------------------
 // FeNN::Backend::SimulationLoopKernel
 //----------------------------------------------------------------------------
-class SimulationLoopKernel : public KernelImplementation, public Frontend::SimulationLoopKernel
+class FENN_BACKEND_EXPORT SimulationLoopKernel : public KernelImplementation, public Frontend::SimulationLoopKernel
 {
 public:
     // **YUCK** this is really bad - getAllProcessGroups should really be passed through here but it breaks stuff
