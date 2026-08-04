@@ -17,7 +17,9 @@ class PythonLogAppender(IAppender):
                       PlogSeverity.VERBOSE: logging.DEBUG}
 
     def __init__(self):
-        super().__init__()
+        # **NOTE** direct __init__ constructor should 
+        # be called, and super() should not be use
+        IAppender.__init__(self)
 
         # Create Python logger
         self.logger = logging.getLogger("FeNN")
