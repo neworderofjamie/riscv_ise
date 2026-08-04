@@ -177,7 +177,7 @@ def get_latency_spikes(images, tau=20.0, num_timesteps=79, threshold=51):
         times = np.round(tau * np.log(i / (i - threshold))).astype(int)
         
         # Get IDs of neurons which should spike
-        neuron_ids = np.where((t > threshold) & (times < num_timesteps))[0]
+        neuron_ids = np.where((i > threshold) & (times < num_timesteps))[0]
         
         # Order by time
         times = times[neuron_ids]
