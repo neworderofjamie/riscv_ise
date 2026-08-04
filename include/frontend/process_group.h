@@ -5,6 +5,7 @@
 #include <vector>
 
 // Compiler includes
+#include "frontend/frontend_export.h"
 #include "frontend/model_component.h"
 
 // Forward declarations
@@ -18,7 +19,7 @@ class Process;
 //----------------------------------------------------------------------------
 namespace Frontend
 {
-class ProcessGroup : public ModelComponent
+class FRONTEND_EXPORT ProcessGroup : public ModelComponent
 {
 public:
     ProcessGroup(Private, const std::vector<std::shared_ptr<const Process>> &processes, 
