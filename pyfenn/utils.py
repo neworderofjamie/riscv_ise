@@ -175,15 +175,43 @@ def get_latency_spikes(images, tau=20.0, num_timesteps=79, threshold=51):
     spikes = []
     for i in images:
         times = np.round(tau * np.log(i / (i - threshold))).astype(int)
-        times_in_range = (i > threshold) & (times < num_timesteps)
+        
+        # Get IDs of neurons which should spike
+        neuron_ids = np.where((t > threshold) & (times < num_timesteps))[0]
+        
+        # Order by time
+        times = times[neuron_ids]
+        order = np.argsort(times)
+        times = times[order]
+        neuron_ids = neuron_ids[order]
+        
+        # Count number of spikes in each timestep and use to split neuron ids
+        num_spikes_per_time = np.cumsum(np.bincount(times))
+        neuron_ids_per_time = np.split(neuron_ids, num_spikes_per_time)
+        
+        # Concatenate timestamps onto each non-empty group of neuron ids
+        neuron_ids_per_time = [np.concatenate(((t | 1 << 15,), n))
+                               for t, n in enumerate(neuron_ids_per_time)
+                               if len(n) > 0]
 
-        spike_event_histogram = np.zeros((num_timesteps, images.shape[1]), dtype=bool)
-        spike_event_histogram[times[times_in_range], times_in_range] = 1
-        spike_event_histogram = np.pad(spike_event_histogram, ((0, 0), (0, (padded_size - images.shape[1]))))
-        spikes.append(np.packbits(spike_event_histogram, axis=1, bitorder="little").flatten())
+        # Rejoin into single array
+        neuron_ids_per_time = np.concatenate(neuron_ids_per_time)
+        
+        spikes.append(neuron_ids_per_time)
 
-    # Stack spikes and view as uint32
-    return np.stack(spikes).view(np.uint32)
+    # Calculate maximum spikes per-image and round to multiple of word-size
+    max_spikes_per_image = max(len(s) for s in spikes)
+    max_spikes_per_image = 2 * (max_spikes_per_image + 1) // 2
+    
+    # Pad all spike arrays with 2 halfwords at beginning to 
+    # hold offset and to fixed length with uint16_max
+    spikes = [np.pad(s, (2, max_spikes_per_image - len(s)), 
+                     constant_values=(0, 0xFFFF)) for s in spikes]
+
+    # Concatenate and write to file
+    spikes = np.concatenate(spikes).astype(np.uint16)
+    
+    return spikes, max_spikes_per_image
 
 def build_delay_weights(weights: np.ndarray, delays: np.ndarray,
                         delay_bits: int) -> np.ndarray:
