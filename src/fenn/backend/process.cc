@@ -1324,10 +1324,12 @@ DenseEventPropagationProcess::DenseEventPropagationProcess(Private, Frontend::Sl
     }
 
     // Check weight shape matches padded target shape
-    if(getWeight()->getShape()[1] != ::Common::Utils::padSize(getTarget().getShape()[0], 32)) {
+    // **YUCK** padding should not occur at this point as it is device shape which needs padding
+    const auto paddedTargetShape = getTarget().getShape().pad(0, 32);
+    if(getWeight()->getShape()[1] != paddedTargetShape[0]) {
         throw std::runtime_error("Weight with shape: " + getWeight()->getShape().toString() 
-                                 + " is not compatible with target variable with shape: " 
-                                 + getTarget().getShape().toString());
+                                 + " is not compatible with target variable with padded shape: " 
+                                 + paddedTargetShape.toString());
     }
 
     // Check weight and target have same types

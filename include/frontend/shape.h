@@ -48,8 +48,11 @@ public:
     Shape getSplit(size_t split, std::optional<size_t> splitDimension, 
                    size_t numSplits, size_t splitGranularity) const;
 
+    //! Pad dimension of shape to multiple of padding
+    Shape pad(size_t dimension, size_t multiple) const;
+
     //! Return shape with last dimension padded
-    Shape padLast(size_t multiple) const;
+    Shape padLast(size_t multiple) const{ return pad(getNumDims() - 1, multiple); }
 
     //! Return slice of shape dimensions
     Shape slice(size_t start, ptrdiff_t stop = 0) const;

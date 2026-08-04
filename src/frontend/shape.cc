@@ -91,12 +91,14 @@ Shape Shape::getSplit(size_t split, std::optional<size_t> splitDimension, size_t
     }
 }
 //----------------------------------------------------------------------------
-Shape Shape::padLast(size_t multiple) const
+Shape Shape::pad(size_t dimension, size_t multiple) const
 {
     Shape paddedShape(*this);
 
-    // Pad last dimension to multiplies of 32
-    paddedShape.getLast() = ::Common::Utils::padSize(paddedShape.getLast(), multiple);
+    // Pad dimension
+    auto &padDim = paddedShape[dimension];
+    padDim = ::Common::Utils::padSize(padDim, multiple);
+
     return paddedShape;
 }
 //----------------------------------------------------------------------------
