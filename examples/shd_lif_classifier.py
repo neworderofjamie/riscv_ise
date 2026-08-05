@@ -2,81 +2,77 @@ import numpy as np
 import mnist
 
 from argparse import ArgumentParser
-from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer, Model,
-                    NeuronUpdateProcess, PlogSeverity, ProcessGroup,
-                    Parameter, PerformanceCounter, RoundingMode, Runtime,
-                    Variable)
-from pyfenn.models import Linear, Memset
+import pyfenn.fenn_backend as backend
+
+from pyfenn.models import DenseLinear, Memset
+from pyfenn.utils import PythonLogAppender
 
 from tonic.datasets import SHD
 
-from pyfenn import disassemble, init_logging
-from pyfenn.utils import (build_delay_weights, ceil_divide, copy_and_push, 
-                          get_array_view, load_quantise_and_push, pull_spikes,
+from pyfenn.utils import (ceil_divide, copy_and_push, convert_tonic_spikes,
+                          get_views, load_quantise_and_push, pull_spikes,
                           read_perf_counter, quantise, zero_and_push)
 from tqdm.auto import tqdm
 
 class LIF:
-    def __init__(self, shape, tau_m: float, tau_syn: float, v_thresh: float,
-                 fixed_point: int = 5, spike_record_timesteps: int = 1,
-                 name: str = ""):
+    def __init__(self, backend, shape, tau_m: float, tau_syn: float,
+                 v_thresh: float, fixed_point: int = 5, 
+                 spike_record_timesteps: int = 1, name: str = ""):
         self.shape = shape
         decay_dtype = "s0_15_sat_t"
         dtype = f"s{15 - fixed_point}_{fixed_point}_sat_t"
-
-        self.v = Variable(self.shape, dtype, name=f"{name}_v")
-        self.i = Variable(self.shape, dtype, name=f"{name}_i")
-        self.out_spikes = EventContainer(self.shape, spike_record_timesteps)
-        self.process = NeuronUpdateProcess(
+        
+        i_scale = tau_syn * (1.0 - np.exp(-1.0 / tau_syn))
+        alpha = np.exp(-1.0 / tau_m)
+        beta = np.exp(-1.0 / tau_syn)
+        self.v = backend.Variable(self.shape, dtype, name=f"{name}_v")
+        self.i = backend.Variable(self.shape, dtype, name=f"{name}_i")
+        self.out_spikes = backend.EventChannel(self.shape)
+        self.process = backend.NeuronUpdateProcess(
             f"""
             // Synapse
-            s{15 - fixed_point}_{fixed_point}_sat_t inSyn = I * IScale;
-            I *= Beta;
+            s{15 - fixed_point}_{fixed_point}_sat_t inSyn = I * {i_scale}h15;
+            I *= {beta}h15;
 
             // Neuron
-            V = (Alpha * V) + (OneMinusAlpha * inSyn);
+            V = ({alpha}h15 * V) + ({1.0 - alpha}h15 * inSyn);
             
-            if(V >= VThresh) {{
+            if(V >= {v_thresh}h{fixed_point}) {{
                Spike();
                V = 0.0h{fixed_point};
             }}
             """,
-            {"Alpha": Parameter(np.exp(-1.0 / tau_m), decay_dtype),
-             "OneMinusAlpha": Parameter(1.0 - np.exp(-1.0 / tau_m), decay_dtype),
-             "Beta": Parameter(np.exp(-1.0 / tau_syn), decay_dtype),
-             "IScale": Parameter(tau_syn * (1.0 - np.exp(-1.0 / tau_syn)), decay_dtype),
-             "VThresh": Parameter(v_thresh, dtype)},
             {"V": self.v, "I": self.i},
             {"Spike": self.out_spikes},
-            name)
+            name=name)
 
 class LI:
-    def __init__(self, shape, tau_m: float, tau_syn: float, num_timesteps: int,
-                 fixed_point: int = 5, name: str = ""):
+    def __init__(self, backend, shape, tau_m: float, tau_syn: float,
+                 num_timesteps: int, fixed_point: int = 5, name: str = ""):
         self.shape = shape
         decay_dtype = "s0_15_sat_t"
         dtype = f"s{15 - fixed_point}_{fixed_point}_sat_t"
-
-        self.v = Variable(self.shape, dtype, name=f"{name}_v")
-        self.v_avg = Variable(self.shape, dtype, name=f"{name}_v_avg")
-        self.i = Variable(self.shape, dtype, name=f"{name}_i")
-        self.process = NeuronUpdateProcess(
+        
+        i_scale = tau_syn * (1.0 - np.exp(-1.0 / tau_syn))
+        v_avg_scale = 1.0 / (num_timesteps / 2)
+        alpha = np.exp(-1.0 / tau_m)
+        beta = np.exp(-1.0 / tau_syn)
+        
+        self.v = backend.Variable(self.shape, dtype, name=f"{name}_v")
+        self.v_avg = backend.Variable(self.shape, dtype, name=f"{name}_v_avg")
+        self.i = backend.Variable(self.shape, dtype, name=f"{name}_i")
+        self.process = backend.NeuronUpdateProcess(
             f"""
             // Synapse
-            s{15 - fixed_point}_{fixed_point}_sat_t inSyn = I * IScale;
-            I *= Beta;
+            s{15 - fixed_point}_{fixed_point}_sat_t inSyn = I * {i_scale}h15;
+            I *= {beta}h15;
 
             // Neuron
-            V = (Alpha * V) + (OneMinusAlpha * inSyn);
-            VAvg += (VAvgScale * V);
+            V = ({alpha}h15 * V) + ({1.0 - alpha}h15 * inSyn);
+            VAvg += ({v_avg_scale}h15 * V);
             """,
-            {"Alpha": Parameter(np.exp(-1.0 / tau_m), decay_dtype), 
-             "OneMinusAlpha": Parameter(1.0 - np.exp(-1.0 / tau_m), decay_dtype),
-             "Beta": Parameter(np.exp(-1.0 / tau_syn), decay_dtype),
-             "IScale": Parameter(tau_syn * (1.0 - np.exp(-1.0 / tau_syn)), decay_dtype),
-             "VAvgScale": Parameter(1.0 / (num_timesteps / 2), decay_dtype)},
-            {"V": self.v, "VAvg": self.v_avg, "I": self.i},
-            {}, name)
+            {"V": self.v, "VAvg": self.v_avg, "I": self.i}, {},
+            name=name)
         
 num_timesteps = 1170
 input_shape = 700
@@ -98,73 +94,70 @@ dataset = SHD(save_to="data", train=False)
 # Loop through dataset
 shd_spikes = []
 shd_labels = []
-timestep_range = np.arange(num_timesteps + 1)
-neuron_range = np.arange((ceil_divide(input_shape, 32) * 32) + 1)
 for events, label in tqdm(dataset, "Preprocessing dataset"):
-    # Build histogram
-    spike_event_histogram = np.histogram2d(events["t"] / 1000.0, events["x"], (timestep_range, neuron_range))[0]
-    spike_event_histogram = np.minimum(spike_event_histogram, 1).astype(bool)
-    spike_event_bits = np.packbits(spike_event_histogram, axis=1, bitorder="little")
-    shd_spikes.append(spike_event_bits.view(np.uint32).flatten())
+    # Convert events into a spike array
+    spike_array = convert_tonic_spikes(events, dataset.ordering,
+                                       dataset.sensor_size, 
+                                       max_time=num_timesteps)
+    shd_spikes.append(spike_array)
     shd_labels.append(label)
 
-init_logging(PlogSeverity.INFO)
+# Pad all SHD data
+max_spike_array_size =  2 * (max(len(s) for s in shd_spikes) + 1) // 2
+print(f"Max spike array size: {max_spike_array_size}")
+shd_spikes = [np.pad(s, (0, max_spike_array_size - len(s)), 
+                     constant_values=0xFFFF) for s in shd_spikes]
+
+log_appender = PythonLogAppender()
+backend.init_logging(log_appender, backend.PlogSeverity.DEBUG)
 
 # Input spikes
-input_spikes = EventContainer(input_shape, num_timesteps)
+input_spikes = backend.EventSourceBuffer(input_shape, max_spike_array_size)
 
 # Model
-hidden = LIF(hidden_shape, 20.0, 5.0, 1.0,
+hidden = LIF(backend, hidden_shape, 20.0, 5.0, 1.0,
              8, 1, name="hidden")
-output = LI(output_shape, 20.0, 5.0, num_timesteps, 8, name="output")
+output = LI(backend, output_shape, 20.0, 5.0, num_timesteps, 8, name="output")
 
-input_hidden = Linear(input_spikes, hidden.i, "s7_8_sat_t", name="input_hidden")
-hidden_hidden = Linear(hidden.out_spikes, hidden.i, "s7_8_sat_t", name="hidden_hidden")
-hidden_output = Linear(hidden.out_spikes, output.i, "s7_8_sat_t", name="hidden_output")
+input_hidden = DenseLinear(backend, input_spikes, hidden.i, "s7_8_sat_t", name="input_hidden")
+hidden_hidden = DenseLinear(backend, hidden.out_spikes, hidden.i, "s7_8_sat_t", name="hidden_hidden")
+hidden_output = DenseLinear(backend, hidden.out_spikes, output.i, "s7_8_sat_t", name="hidden_output")
 
 # Zero remaining state
-hidden_i_zero = Memset(hidden.i)
-hidden_v_zero = Memset(hidden.v)
-output_i_zero = Memset(output.i)
-output_v_zero = Memset(output.v)
-output_v_avg_zero = Memset(output.v_avg)
+hidden_i_zero = Memset(backend, hidden.i)
+hidden_v_zero = Memset(backend, hidden.v)
+output_i_zero = Memset(backend, output.i)
+output_v_zero = Memset(backend, output.v)
+output_v_avg_zero = Memset(backend, output.v_avg)
 
 # Group processes
-neuron_update_processes = ProcessGroup([hidden.process, output.process],
-                                       PerformanceCounter() if args.time else None)
-synapse_update_processes = ProcessGroup([input_hidden.process, hidden_hidden.process, 
-                                         hidden_output.process],
-                                        PerformanceCounter() if args.time else None)
-reset_processes = ProcessGroup([hidden_i_zero.process, hidden_v_zero.process,
-                                output_i_zero.process, output_v_zero.process,
-                                output_v_avg_zero.process],
-                               PerformanceCounter() if args.time else None)
+neuron_update_processes = backend.ProcessGroup([hidden.process, output.process])
+synapse_update_processes = backend.ProcessGroup([input_hidden.process, hidden_hidden.process, 
+                                                 hidden_output.process])
+reset_processes = backend.ProcessGroup([hidden_i_zero.process, hidden_v_zero.process,
+                                        output_i_zero.process, output_v_zero.process,
+                                        output_v_avg_zero.process])
 
-# Create backend
-backend_params = {"rounding_mode": RoundingMode.STOCHASTIC}
-backend = BackendFeNNHW(**backend_params) if args.device else BackendFeNNSim(**backend_params)
+# Create kernel
+kernel = backend.SimulationLoopKernel(
+    num_timesteps, [synapse_update_processes, neuron_update_processes],
+    [reset_processes], [])
+    
+# Create runtime
+runtime_params = {"neuron_update_rounding_mode": backend.RoundingMode.STOCHASTIC}
+runtime = (backend.RuntimeHW([kernel], 1, **runtime_params) if args.device 
+           else backend.RuntimeSim([kernel], 1, **runtime_params))
 
-# Create model
-model = Model([neuron_update_processes, synapse_update_processes, reset_processes],
-              backend)
-
-# Generate code
-sim_code = backend.generate_simulation_kernel([synapse_update_processes, neuron_update_processes],  # Update synapses and then neurons every timestep
-                                              [reset_processes], [],
-                                              num_timesteps, model)
 
 # Disassemble if required
 if args.disassemble:
     print("Simulation:")
-    for i, c in enumerate(sim_code):
-        print(f"{i * 4} : {disassemble(c)}")
-
-# Create runtime
-runtime = Runtime(model, backend)
+    code = runtime.get_kernel_code(kernel)
+    for i, c in enumerate(code):
+        print(f"{i * 4} : {backend.disassemble(c)}")
 
 # Allocate memory for model
 runtime.allocate()
-
 
 # Load and quantise output weights
 load_quantise_and_push("0/108-Conn_Pop0_Pop1-g.npy",    #+- 1
@@ -179,28 +172,28 @@ if args.time:
     zero_and_push(synapse_update_processes.performance_counter, runtime)
     zero_and_push(reset_processes.performance_counter, runtime)
 
-# Set sim instructions
-runtime.set_instructions(sim_code)
-
 # Loop through examples
-input_spike_array, input_spike_view = get_array_view(runtime, input_spikes,
-                                                     np.uint32)
-output_v_avg_array, output_v_avg_view = get_array_view(runtime, output.v_avg, np.int16)
+input_spike_views = get_views(runtime, input_spikes, np.uint16)
+assert len(input_spike_views) == 1
+
+output_v_avg_views = get_views(runtime, output.v_avg, np.int16)
+assert len(output_v_avg_views) == 1
+
 num_correct = 0
 for spikes, label in tqdm(zip(shd_spikes, shd_labels),
                           total=len(shd_labels), desc="Simulating"):
     # Copy data to array host pointe
-    input_spike_view[:] = spikes
-    input_spike_array.push_to_device()
+    input_spike_views[0][:] = spikes
+    runtime.push_state_to_device(input_spikes)
 
     # Classify
-    runtime.run()
+    runtime.run(kernel)
 
     # Copy output V sum from device
-    output_v_avg_array.pull_from_device()
+    runtime.pull_state_from_device(output.v_avg)
 
     # Determine if output is correct
-    classification = np.argmax(output_v_avg_view)
+    classification = np.argmax(output_v_avg_views[0])
     if classification == label:
         num_correct += 1
 

@@ -4,14 +4,10 @@ import mnist
 from argparse import ArgumentParser
 import pyfenn.fenn_backend as backend
 
-from pyfenn.fenn_backend import (EventSourceBuffer, PlogSeverity, 
-                                 ProcessGroup, RuntimeHW, RuntimeSim, 
-                                 SimulationLoopKernel)
 from pyfenn.models import DenseLinear, Memset
 from pyfenn.utils import PythonLogAppender
 from models import LI, LIF
 
-from pyfenn.fenn_backend import disassemble, init_logging
 from pyfenn.utils import (get_views, get_latency_spikes, load_and_push,
                           read_perf_counter, zero_and_push)
 from tqdm.auto import tqdm
@@ -35,7 +31,7 @@ mnist_spikes, max_spikes_per_image = get_latency_spikes(mnist.test_images())
 mnist_labels = mnist.test_labels().astype(np.int16)
 
 log_appender = PythonLogAppender()
-init_logging(log_appender, PlogSeverity.DEBUG)
+backend.init_logging(log_appender, backend.PlogSeverity.DEBUG)
 
 # Input spikes
 input_spikes = backend.EventSourceBuffer(input_shape, max_spikes_per_image)
@@ -49,16 +45,17 @@ hidden_output = DenseLinear(backend, hidden.out_spikes, output.i, "s9_6_sat_t", 
 avg_zero = Memset(backend, output.v_avg)
 
 # Group processes
-neuron_update_processes = ProcessGroup([hidden.process, output.process])
-synapse_update_processes = ProcessGroup([input_hidden.process, hidden_output.process])
-zero_processes = ProcessGroup([avg_zero.process])
+neuron_update_processes = backend.ProcessGroup([hidden.process, output.process])
+synapse_update_processes = backend.ProcessGroup([input_hidden.process, hidden_output.process])
+zero_processes = backend.ProcessGroup([avg_zero.process])
 
-kernel = SimulationLoopKernel(
+kernel = backend.SimulationLoopKernel(
     num_timesteps, [synapse_update_processes, neuron_update_processes],
     [zero_processes], [])
 
 # Create backend
-runtime = RuntimeHW([kernel], 1) if args.device else RuntimeSim([kernel], 1)
+runtime = (backend.RuntimeHW([kernel], 1) if args.device 
+           else backend.RuntimeSim([kernel], 1))
 
 # Disassemble if required
 if args.disassemble:

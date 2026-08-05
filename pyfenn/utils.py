@@ -3,7 +3,7 @@ import numpy as np
 
 from numbers import Number
 from pyfenn._frontend import IAppender, PlogSeverity, Runtime
-from typing import Sequence, Union
+from typing import Optional, Sequence, Tuple, Union
 
 from platform import system
 
@@ -183,6 +183,84 @@ def generate_exp_lut_and_push(state, runtime: Runtime):
     # Push to device
     runtime.push_state_to_device(state)
 
+def build_spike_array(timesteps, neuron_ids):
+    # Check timesteps and neuron ids can be 16-bit encoded
+    assert np.all(neuron_ids < (1 << 15))
+    assert np.all(timesteps < (1 << 15))
+
+    # Order by time
+    order = np.argsort(timesteps)
+    timesteps = timesteps[order]
+    neuron_ids = neuron_ids[order]
+    
+    # Count number of spikes in each timestep and use to split neuron ids
+    num_spikes_per_time = np.cumsum(np.bincount(timesteps))
+    neuron_ids_per_timestep = np.split(neuron_ids, num_spikes_per_time)
+    
+    # Concatenate timestamps onto each non-empty group of neuron ids
+    neuron_ids_per_timestep = [np.concatenate(((t | 1 << 15,), n))
+                               for t, n in enumerate(neuron_ids_per_timestep)
+                               if len(n) > 0]
+
+    # Rejoin into single array
+    neuron_ids_per_timestep = np.concatenate(neuron_ids_per_timestep)
+    
+    # Convert to uint16 and return
+    return neuron_ids_per_timestep.astype(np.uint16)
+
+def convert_tonic_spikes(events: np.ndarray, ordering: Sequence[str],
+                         shape: Tuple, time_scale=1.0 / 1000.0,
+                         dt: float = 1.0, max_time: Optional[float] = None,
+                         histogram_thresh: Optional[int] = 1):
+    # Calculate cumulative sum of each neuron's spike count
+    num_neurons = np.prod(shape) 
+
+    # Check dataset datatype includes time and polarity
+    if "t" not in ordering or "p" not in ordering:
+        raise RuntimeError("Only tonic datasets with time (t) and "
+                           "polarity (p) in ordering are supported")
+
+    # If sensor has single polarity
+    if shape[2] == 1:
+        # If sensor is 2D, flatten x and y into event IDs
+        if ("x" in ordering) and ("y" in ordering):
+            spike_event_ids = events["x"] + (events["y"] * shape[0])
+        # Otherwise, if it's 1D, simply use X
+        elif "x" in ordering:
+            spike_event_ids = events["x"]
+        else:
+            raise RuntimeError("Only 1D and 2D sensors supported")
+    # Otherwise
+    else:
+        # If sensor is 2D, flatten x, y and p into event IDs
+        if ("x" in ordering) and ("y" in ordering):
+            spike_event_ids = (events["p"] +
+                               (events["x"] * shape[2]) + 
+                               (events["y"] * shape[0] * shape[2]))
+        # Otherwise, if it's 1D, flatten x and p into event IDs
+        elif "x" in ordering:
+            spike_event_ids = events["p"] + (events["x"] * shape[2])
+        else:
+            raise RuntimeError("Only 1D and 2D sensors supported")
+    
+    scaled_t = events["t"] * time_scale
+    
+    # Build ranges for neuron ids and timesteps
+    neuron_range = np.arange(num_neurons + 1)
+    max_time = max_time or np.amax(scaled_t) + dt
+    timestep_range = np.arange(0.0, max_time, dt)
+
+    # Compute histogram
+    spike_event_hist = np.histogram2d(spike_event_ids, scaled_t,
+                                      (neuron_range, timestep_range))[0]
+
+    # Find indices of bins where there are enough events
+    thresh_id, thresh_t = np.where(spike_event_hist >= histogram_thresh)
+    
+    # Build spike arrays and pad 2 halfwords at beginning to hold offset 
+    return np.pad(build_spike_array(thresh_t, thresh_id), 
+                  (2, 0), constant_values=0)
+                     
 def get_latency_spikes(images, tau=20.0, num_timesteps=79, threshold=51):
     # Flatten images and convert intensity to time
     images = np.reshape(images, (images.shape[0], -1))
@@ -194,26 +272,8 @@ def get_latency_spikes(images, tau=20.0, num_timesteps=79, threshold=51):
         # Get IDs of neurons which should spike
         neuron_ids = np.where((i > threshold) & (times < num_timesteps))[0]
         
-        # Order by time
-        times = times[neuron_ids]
-        order = np.argsort(times)
-        times = times[order]
-        neuron_ids = neuron_ids[order]
-        
-        # Count number of spikes in each timestep and use to split neuron ids
-        num_spikes_per_time = np.cumsum(np.bincount(times))
-        neuron_ids_per_time = np.split(neuron_ids, num_spikes_per_time)
-        
-        # Concatenate timestamps onto each non-empty group of neuron ids
-        neuron_ids_per_time = [np.concatenate(((t | 1 << 15,), n))
-                               for t, n in enumerate(neuron_ids_per_time)
-                               if len(n) > 0]
-
-        # Rejoin into single array
-        neuron_ids_per_time = np.concatenate(neuron_ids_per_time)
-        
-        # Convert to uint16 and add to list
-        spikes.append(neuron_ids_per_time.astype(np.uint16))
+        # Build spike array and add to list
+        spikes.append(build_spike_array(times[neuron_ids], neuron_ids))
 
     # Calculate maximum spikes per-image and round to multiple of word-size
     max_spikes_per_image = max(len(s) for s in spikes)
