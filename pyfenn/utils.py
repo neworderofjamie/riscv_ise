@@ -29,12 +29,12 @@ class PythonLogAppender(IAppender):
         # Translate severity
         level = PythonLogAppender._log_level_map.get(record.severity,
                                                      logging.INFO)
-    
+
         # Create Python logging record and handle
         record = self.logger.makeRecord(name=self.logger.name, level=level,
                                         fn=record.file, lno=record.line,
                                         msg=record.message, args=[],
-                                        func=record.func)
+                                        exc_info=None, func=record.func)
         self.logger.handle(record)
     
     
