@@ -1,13 +1,11 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import pyfenn.fenn_backend as backend
 
 from argparse import ArgumentParser
-from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer,
-                    Model, NeuronUpdateProcess, Parameter, PerformanceCounter,
-                    PlogSeverity, ProcessGroup, Runtime, Variable)
-from pyfenn.models import Linear, Memset
+from pyfenn.models import SparseLinear, Memset
+from pyfenn.utils import PythonLogAppender
 
-from pyfenn import disassemble, init_logging
 from pyfenn.utils import (build_sparse_connectivity, ceil_divide,
                           copy_and_push, generate_fixed_prob, pull_spikes,
                           read_perf_counter, zero_and_push)
@@ -16,59 +14,56 @@ from tqdm.auto import tqdm
 from time import perf_counter
 
 class CUBALIF:
-    def __init__(self, shape, tau_m: float, tau_syn_exc: float, tau_syn_inh, 
+    def __init__(self, backend, shape, tau_m: float, tau_syn_exc: float, tau_syn_inh, 
                  tau_refrac: int, v_thresh: float, i_offset: float = 0.0,
                  num_timesteps: int = 1, name: str = ""):
         self.shape = shape
         dtype = "s5_10_sat_t"
         decay_dtype = "s0_15_sat_t"
-        self.v = Variable(self.shape, dtype, name=f"{name}_V")
-        self.i_exc = Variable(self.shape, "s2_13_sat_t", name=f"{name}_IExc")
-        self.i_inh = Variable(self.shape, "s2_13_sat_t", name=f"{name}_IInh")
-        self.refrac_time = Variable(self.shape, "int16_t", 
-                                    name=f"{name}_RefracTime")
-        self.out_spikes = EventContainer(self.shape, num_timesteps + 1)
-        self.process = NeuronUpdateProcess(
+
+        exc_scale = tau_syn_exc * (1.0 - np.exp(-1.0 / tau_syn_exc))
+        inh_scale = tau_syn_inh * (1.0 - np.exp(-1.0 / tau_syn_inh))
+        beta_exc = np.exp(-1.0 / tau_syn_exc)
+        beta_inh = np.exp(-1.0 / tau_syn_inh)
+        alpha = np.exp(-1.0 / tau_m)
+
+        self.v = backend.Variable(self.shape, dtype, name=f"{name}_V")
+        self.i_exc = backend.Variable(self.shape, "s2_13_sat_t", name=f"{name}_IExc")
+        self.i_inh = backend.Variable(self.shape, "s2_13_sat_t", name=f"{name}_IInh")
+        self.refrac_time = backend.Variable(self.shape, "int16_t", name=f"{name}_RefracTime")
+        self.out_spikes = backend.EventChannel((num_timesteps + 1, self.shape), True)
+        self.process = backend.NeuronUpdateProcess(
             """
             s5_10_sat_t inSyn;
             // Excitatory
             {
-                inSyn = (IExc * ExcScale);
-                IExc *= BetaExc;
+                inSyn = (IExc * {exc_scale}h10);
+                IExc *= {beta_exc}h15;
             }
             
             // Inhibitory
             {
-                inSyn += (IInh * InhScale);
-                IInh *= BetaInh;
+                inSyn += (IInh * {inh_scale}h10);
+                IInh *= {beta_inh}h15;
             }
             
             if (RefracTime > 0) {
                RefracTime -= 1;
             }
             else {
-                const s5_10_sat_t VAlpha = RMembrane * (inSyn + IOffset);
-                V = VAlpha - (Alpha * (VAlpha - V));
+                const s5_10_sat_t VAlpha = {tau_m / 1.0}h10 * (inSyn + {i_offset}h10);
+                V = VAlpha - ({alpha}h15 * (VAlpha - V));
             }
             
-            if(V >= VThresh) {
+            if(V >= {v_thresh}h10) {
                Spike();
                V = 0.0h10;
-               RefracTime = TauRefrac;
+               RefracTime = {tau_refrac};
             }
             """,
-            {"Alpha": Parameter(np.exp(-1.0 / tau_m), decay_dtype),
-             "BetaExc": Parameter(np.exp(-1.0 / tau_syn_exc), decay_dtype),
-             "BetaInh": Parameter(np.exp(-1.0 / tau_syn_inh), decay_dtype),
-             "ExcScale": Parameter(tau_syn_exc * (1.0 - np.exp(-1.0 / tau_syn_exc)), dtype),
-             "InhScale": Parameter(tau_syn_inh * (1.0 - np.exp(-1.0 / tau_syn_inh)), dtype),
-             "IOffset": Parameter(i_offset, dtype),
-             "RMembrane": Parameter(tau_m / 1.0, dtype),
-             "VThresh": Parameter(v_thresh, dtype),
-             "TauRefrac": Parameter(tau_refrac, "int16_t")},
             {"V": self.v, "IExc": self.i_exc, "IInh": self.i_inh, "RefracTime": self.refrac_time},
-            {"Spike": self.out_spikes},
-            name)
+            {"Spike": backend.SlicedEventSink(self.out_spikes, True)},
+            name=name)
 
 parser = ArgumentParser("VA benchmark")
 parser.add_argument("--device", action="store_true", help="Run model on FeNN hardware")
@@ -95,7 +90,9 @@ num_timesteps_per_block = int(round(args.num_timesteps / num_blocks))
 
 
 print(f"{args.num_excitatory} excitatory neurons, {num_inhibitory} inhibitory neurons")
-init_logging(PlogSeverity.INFO)
+
+log_appender = PythonLogAppender()
+backend.init_logging(log_appender, backend.PlogSeverity.DEBUG)
 
 # Generate connectivity matrices
 ie_conn = generate_fixed_prob(num_inhibitory, args.num_excitatory, args.probability_connection)
@@ -114,73 +111,69 @@ print(f"Num sparse connectivity bits excitatory: {num_exc_sparse_connectivity_bi
 print(f"Stride ee:{ee_conn.shape[1]} ei:{ei_conn.shape[1]} ii:{ii_conn.shape[1]} ie:{ie_conn.shape[1]}")
 print(f"Mean row length ee:{np.average(ee_conn[:,0]) * 32} ei:{np.average(ei_conn[:,0]) * 32} ii:{np.average(ii_conn[:,0]) * 32} ie:{np.average(ie_conn[:,0]) * 32}")
 # Neurons
-e_pop = CUBALIF(args.num_excitatory, tau_m=20.0, tau_syn_exc=5.0, tau_syn_inh=10.0,
+e_pop = CUBALIF(backend, args.num_excitatory, tau_m=20.0, tau_syn_exc=5.0, tau_syn_inh=10.0,
                 tau_refrac=5, v_thresh=10, i_offset=0.55,
                 num_timesteps=num_timesteps_per_block, name="E")
 
-i_pop = CUBALIF(num_inhibitory, tau_m=20.0, tau_syn_exc=5.0, tau_syn_inh=10.0,
+i_pop = CUBALIF(backend, num_inhibitory, tau_m=20.0, tau_syn_exc=5.0, tau_syn_inh=10.0,
                 tau_refrac=5, v_thresh=10, i_offset=0.55,
                 num_timesteps=num_timesteps_per_block, name="I")
 
 # Synapses
-ee_pop = Linear(e_pop.out_spikes, e_pop.i_exc,
-                weight_dtype="s2_13_sat_t", max_row_length=ee_conn.shape[1],
-                num_sparse_connectivity_bits=num_exc_sparse_connectivity_bits, 
-                name="EE")
-ei_pop = Linear(e_pop.out_spikes, i_pop.i_exc,
-                weight_dtype="s2_13_sat_t", max_row_length=ei_conn.shape[1],
-                num_sparse_connectivity_bits=num_inh_sparse_connectivity_bits, 
-                name="EI")
-ii_pop = Linear(i_pop.out_spikes, i_pop.i_inh,
-                weight_dtype="s2_13_sat_t", max_row_length=ii_conn.shape[1],
-                num_sparse_connectivity_bits=num_inh_sparse_connectivity_bits, 
-                name="II")
-ie_pop = Linear(i_pop.out_spikes, e_pop.i_inh,
-                weight_dtype="s2_13_sat_t", max_row_length=ie_conn.shape[1],
-                num_sparse_connectivity_bits=num_exc_sparse_connectivity_bits, 
-                name="IE")
+ee_pop = SparseLinear(backend, backend.SlicedEventSource(e_pop.out_spikes, True), 
+                      e_pop.i_exc, weight_dtype="s2_13_sat_t", max_row_length=ee_conn.shape[1],
+                      num_sparse_connectivity_bits=num_exc_sparse_connectivity_bits, 
+                      name="EE")
+ei_pop = SparseLinear(backend, backend.SlicedEventSource(e_pop.out_spikes, True), 
+                      i_pop.i_exc, weight_dtype="s2_13_sat_t", max_row_length=ei_conn.shape[1],
+                      num_sparse_connectivity_bits=num_inh_sparse_connectivity_bits, 
+                      name="EI")
+ii_pop = SparseLinear(backend, backend.SlicedEventSource(i_pop.out_spikes, True), 
+                      i_pop.i_inh, weight_dtype="s2_13_sat_t", max_row_length=ii_conn.shape[1],
+                      num_sparse_connectivity_bits=num_inh_sparse_connectivity_bits, 
+                      name="II")
+ie_pop = SparseLinear(backend, backend.SlicedEventSource(i_pop.out_spikes, True), 
+                      e_pop.i_inh, weight_dtype="s2_13_sat_t", max_row_length=ie_conn.shape[1],
+                      num_sparse_connectivity_bits=num_exc_sparse_connectivity_bits, 
+                      name="IE")
 
 # Initialisation
-ee_zero = Memset(e_pop.i_exc)
-ei_zero = Memset(e_pop.i_inh)
-ie_zero = Memset(i_pop.i_exc)
-ii_zero = Memset(i_pop.i_inh)
+ee_zero = Memset(backend, e_pop.i_exc)
+ei_zero = Memset(backend, e_pop.i_inh)
+ie_zero = Memset(backend, i_pop.i_exc)
+ii_zero = Memset(backend, i_pop.i_inh)
 
 # Group processes
-i_zero_processes = ProcessGroup([ee_zero.process, ei_zero.process,
-                                 ie_zero.process, ii_zero.process])
-neuron_update_processes = ProcessGroup([e_pop.process, i_pop.process],
-                                       PerformanceCounter() if args.time else None)
-synapse_update_processes = ProcessGroup([ee_pop.process, ei_pop.process,
-                                         ii_pop.process, ie_pop.process],
-                                        PerformanceCounter() if args.time else None)
+i_zero_processes = backend.ProcessGroup([ee_zero.process, ei_zero.process,
+                                         ie_zero.process, ii_zero.process])
+neuron_update_processes = backend.ProcessGroup([e_pop.process, i_pop.process])
+synapse_update_processes = backend.ProcessGroup([ee_pop.process, ei_pop.process,
+                                                 ii_pop.process, ie_pop.process])
 
-# Create backend
-backend_kwargs = {"use_dram_for_weights": not args.uram, "dma_buffer_size": 64 * 1024 * 1024}
-backend = BackendFeNNHW(**backend_kwargs) if args.device else BackendFeNNSim(**backend_kwargs)
+# Create init kernel
+init_kernel = backend.SimpleKernel([i_zero_processes])
 
-# Create model
-model = Model([i_zero_processes, neuron_update_processes, synapse_update_processes],
-              backend)
-
-# Generate init and sim code
-init_code = backend.generate_kernel([i_zero_processes], model)
-code = backend.generate_simulation_kernel([synapse_update_processes, neuron_update_processes],
-                                          [], [],
-                                          num_timesteps_per_block, model)
+# Create simulation kernel
+sim_kernel = backend.SimulationLoopKernel(
+    num_timesteps_per_block, [synapse_update_processes, neuron_update_processes],
+    [], [])
+    
+# Create runtime
+runtime_params = {"use_dram_for_weights": not args.uram, "dma_buffer_size": 64 * 1024 * 1024}
+runtime = (backend.RuntimeHW([init_kernel, sim_kernel], 1, **runtime_params) if args.device 
+           else backend.RuntimeSim([init_kernel, sim_kernel], 1, **runtime_params))
 
 # Disassemble if required
 if args.disassemble:
     print("Init:")
-    for i, c in enumerate(init_code):
-        print(f"{i * 4} : {disassemble(c)}")
+    code = runtime.get_kernel_code(init_kernel)
+    for i, c in enumerate(code):
+        print(f"{i * 4} : {backend.disassemble(c)}")
 
     print("Simulation:")
+    code = runtime.get_kernel_code(sim_kernel)
     for i, c in enumerate(code):
-        print(f"{i * 4} : {disassemble(c)}")
-
-# Create runtime
-runtime = Runtime(model, backend)
+        print(f"{i * 4} : {backend.disassemble(c)}")
 
 # Allocate memory for model
 runtime.allocate()
@@ -214,18 +207,12 @@ if args.time:
     zero_and_push(neuron_update_processes.performance_counter, runtime)
     zero_and_push(synapse_update_processes.performance_counter, runtime)
 
-# Set init instructions
-print("Initialising")
-runtime.set_instructions(init_code)
-
 # Initialise
-runtime.run()
-
-# Set sim instructions
-print(f"Simulating {num_blocks} block of {num_timesteps_per_block} timesteps")
-runtime.set_instructions(code)
+print("Initialising")
+runtime.run(init_kernel)
 
 # Loop through simulation blocks
+print(f"Simulating {num_blocks} block of {num_timesteps_per_block} timesteps")
 sim_time = 0.0
 e_spike_times = []
 e_spike_ids = []
@@ -235,7 +222,7 @@ block_start_timestep = 0
 for b in range(num_blocks):
     # Simulate block
     start_time = perf_counter()
-    runtime.run()
+    runtime.run(sim_kernel)
     sim_time += (perf_counter() - start_time)
 
     # Pull excitatory spikes and add to lists

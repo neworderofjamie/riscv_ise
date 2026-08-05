@@ -1,9 +1,8 @@
 import numpy as np
 import mnist
-
-from argparse import ArgumentParser
 import pyfenn.fenn_backend as backend
 
+from argparse import ArgumentParser
 from pyfenn.models import DenseLinear, Memset
 from pyfenn.utils import PythonLogAppender
 

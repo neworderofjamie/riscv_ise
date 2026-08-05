@@ -2,17 +2,17 @@ import numpy as np
 import mnist
 
 from argparse import ArgumentParser
-from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer, Model, ProcessGroup,
-                    RoundingMode, Runtime)
-from pyfenn.models import Linear, Memset, RNGInit
+import pyfenn.fenn_backend as backend
+
 from models import LIF, LI
+from pyfenn.models import SparseLinear, Memset
+from pyfenn.utils import PythonLogAppender
 from tonic.datasets import NMNIST
-from tonic.transforms import Compose, Downsample
 
 from pyfenn import disassemble, init_logging
 from pyfenn.utils import (build_sparse_connectivity, ceil_divide,
-                          copy_and_push, get_array_view,
-                          load_quantise_and_push, quantise,
+                          convert_tonic_spikes, copy_and_push,
+                          get_views, load_quantise_and_push, quantise,
                           seed_and_push, zero_and_push)
 from tqdm.auto import tqdm
 
@@ -58,23 +58,20 @@ args = parser.parse_args()
 
 # Load N-MNIST
 dataset = NMNIST(save_to="data", train=False)
-sensor_size = (34, 34, 2)
 
 # Loop through dataset
 n_mnist_spikes = []
 n_mnist_labels = []
-timestep_range = np.arange(0, (num_timesteps + 1) * dt, dt)
-neuron_range = np.arange((ceil_divide(input_shape, 32) * 32) + 1)
 for events, label in tqdm(dataset, "Preprocessing dataset"):
-    # Build histogram
-    neuron_id = (events["p"] + (events["x"] * sensor_size[2]) + 
-                 (events["y"] * sensor_size[0] * sensor_size[2]))
-    spike_event_histogram = np.histogram2d(events["t"] / 1000.0, neuron_id, 
-                                           (timestep_range, neuron_range))[0]
-    spike_event_histogram = np.minimum(spike_event_histogram, 1).astype(bool)
-    spike_event_bits = np.packbits(spike_event_histogram, axis=1, bitorder="little")
-    n_mnist_spikes.append(spike_event_bits.view(np.uint32).flatten())
+    # Convert events into a spike array
+    spike_array = convert_tonic_spikes(events, dataset.ordering,
+                                       dataset.sensor_size, 
+                                       max_time=num_timesteps)
+    n_mnist_spikes.append(spike_array)
     n_mnist_labels.append(label)
+
+# Calculate maximum spike array length
+max_spike_array_length = max(len(s) for s in shd_spikes)
 
 # Build connectivity
 in_hid_conn = build_sparse_conn("n_mnist_checkpoints/98-Conn_Pop0_Pop2",
@@ -83,32 +80,34 @@ in_hid_conn = build_sparse_conn("n_mnist_checkpoints/98-Conn_Pop0_Pop2",
 hid_hid_conn = build_sparse_conn("n_mnist_checkpoints/98-Conn_Pop2_Pop2",
                                  hidden_shape, num_sparse_connectivity_bits, fractional_bits=8,
                                  percentile=100.0)
-init_logging()
+
+log_appender = PythonLogAppender()
+backend.init_logging(log_appender, backend.PlogSeverity.DEBUG)
 
 # Input spikes
-input_spikes = EventContainer(input_shape, num_timesteps)
+input_spikes = backend.EventSourceBuffer(input_shape, max_spike_array_length)
 
 # Model
-rng_init = RNGInit()
-hidden = LIF(hidden_shape, 20.0, 4, 0.61,
+rng_init = backend.RNGInit()
+hidden = LIF(backend, hidden_shape, 20.0, 4, 0.61,
              1, 8, dt=dt, name="hidden")
-output = LI(output_shape, 20.0, num_timesteps, 9, dt=dt, name="output")
+output = LI(backend, output_shape, 20.0, num_timesteps, 9, dt=dt, name="output")
 
-input_hidden = Linear(input_spikes, hidden.i, "s7_8_sat_t", max_row_length=in_hid_conn.shape[1],
-                      num_sparse_connectivity_bits=num_sparse_connectivity_bits, name="input_hidden")
-hidden_hidden = Linear(hidden.out_spikes, hidden.i, "s7_8_sat_t", max_row_length=hid_hid_conn.shape[1],
-                       num_sparse_connectivity_bits=num_sparse_connectivity_bits, name="hidden_hidden")
-hidden_output = Linear(hidden.out_spikes, output.i, "s6_9_sat_t", name="hidden_output")
+input_hidden = SparseLinear(backend, input_spikes, hidden.i, "s7_8_sat_t", max_row_length=in_hid_conn.shape[1],
+                            num_sparse_connectivity_bits=num_sparse_connectivity_bits, name="input_hidden")
+hidden_hidden = SparseLinear(backend, hidden.out_spikes, hidden.i, "s7_8_sat_t", max_row_length=hid_hid_conn.shape[1],
+                             num_sparse_connectivity_bits=num_sparse_connectivity_bits, name="hidden_hidden")
+hidden_output = SparseLinear(backend, hidden.out_spikes, output.i, "s6_9_sat_t", name="hidden_output")
 
-output_zero = Memset(output.v_avg)
-hidden_zero = Memset(hidden.i)
+output_zero = Memset(backend, output.v_avg)
+hidden_zero = Memset(backend, hidden.i)
 
 # Group processes
-init_processes = ProcessGroup([rng_init.process, hidden_zero.process])
-neuron_update_processes = ProcessGroup([hidden.process, output.process])
-synapse_update_processes = ProcessGroup([input_hidden.process, hidden_hidden.process, 
-                                         hidden_output.process])
-zero_processes = ProcessGroup([output_zero.process])
+init_processes = backend.ProcessGroup([rng_init.process, hidden_zero.process])
+neuron_update_processes = backend.ProcessGroup([hidden.process, output.process])
+synapse_update_processes = backend, .ProcessGroup([input_hidden.process, hidden_hidden.process, 
+                                                   hidden_output.process])
+zero_processes = backend.ProcessGroup([output_zero.process])
 
 # Create backend
 backend_kwargs = {"use_dram_for_weights": True, "rounding_mode": RoundingMode.STOCHASTIC, 

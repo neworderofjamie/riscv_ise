@@ -23,6 +23,7 @@ class PythonLogAppender(IAppender):
 
         # Create Python logger
         self.logger = logging.getLogger("FeNN")
+        self.logger.setLevel(logging.DEBUG)
         
     def write(self, record):
         # Translate severity
