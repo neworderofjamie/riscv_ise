@@ -25,8 +25,7 @@ Model::Model(const KernelVector &kernels)
     // **YUCK** we really only want to do this for variables
     for (const auto &s : getStateData()) {
         // Start with all memory spaces being compatible
-        MemSpace compatibleMemSpaces = (MemSpace::LLM | MemSpace::URAM | MemSpace::BRAM
-                                        | MemSpace::DRAM | MemSpace::URAM_LLM);
+        MemSpace compatibleMemSpaces = (MemSpace::LLM | MemSpace::URAM | MemSpace::BRAM | MemSpace::DRAM);
 
         // Loop through all processes using this state
         for (const auto &p : s.second.processes) {

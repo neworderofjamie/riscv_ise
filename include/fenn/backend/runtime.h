@@ -173,55 +173,6 @@ private:
 };
 
 //----------------------------------------------------------------------------
-// FeNN::Backend::URAMLLMArrayBase
-//----------------------------------------------------------------------------
-//! Base class for arrays which are allocated in URAM but also have a delayed input in LLM
-//! Typically used for implementing neuron variables with dendritically-delayed input
-class FENN_BACKEND_EXPORT URAMLLMArrayBase : public Frontend::ArrayBase
-{
-public:
-    //------------------------------------------------------------------------
-    // ArrayBase virtuals
-    //------------------------------------------------------------------------
-    //! Serialise backend-specific device object to uint32_t
-    virtual void serialiseDeviceObject(std::vector<std::byte> &bytes) const override final;
-
-    //------------------------------------------------------------------------
-    // Public API
-    //------------------------------------------------------------------------
-    uint32_t getURAMPointer() const{ return m_URAMPointer.value(); }
-    uint32_t getLLMPointer() const{ return m_LLMPointer.value(); }
-
-    const auto &getLLMShape() const{ return m_LLMShape; }
-    size_t getLLMCount() const{ return m_LLMShape.getFlattenedSize(); };
-    size_t getLLMSizeBytes() const{ return getLLMCount() * getType().getValue().size; };
-
-protected:
-    URAMLLMArrayBase(const CompilerFrontend::Type::ResolvedType &type, const Frontend::Shape &uramShape, 
-                     const Frontend::Shape &llmShape)
-    :   ArrayBase(type, uramShape), m_LLMShape(llmShape)
-    {
-        if(type.getSize(0) != 2) {
-            throw std::runtime_error("Only 16-bit types can be stored in URAM/LLM arrays");
-        }
-    }
-
-    //------------------------------------------------------------------------
-    // Protected API
-    //------------------------------------------------------------------------
-    void setURAMPointer(std::optional<uint32_t> uramPointer){ m_URAMPointer = uramPointer; }
-    void setLLMPointer(std::optional<uint32_t> llmPointer){ m_LLMPointer = llmPointer; }
-
-private:
-    //------------------------------------------------------------------------
-    // Members
-    //------------------------------------------------------------------------
-    std::optional<uint32_t> m_URAMPointer;
-    std::optional<uint32_t> m_LLMPointer;
-    Frontend::Shape m_LLMShape;
-};
-
-//----------------------------------------------------------------------------
 // FeNN::Backend::DeviceFeNN
 //----------------------------------------------------------------------------
 class FENN_BACKEND_EXPORT DeviceFeNN : public Frontend::DeviceBase
@@ -236,9 +187,6 @@ public:
     virtual std::unique_ptr<BRAMArrayBase> createBRAMArray(const CompilerFrontend::Type::ResolvedType &type, const Frontend::Shape &shape) = 0;
     virtual std::unique_ptr<LLMArrayBase> createLLMArray(const CompilerFrontend::Type::ResolvedType &type, const Frontend::Shape &shape) = 0;
     virtual std::unique_ptr<DRAMArrayBase> createDRAMArray(const CompilerFrontend::Type::ResolvedType &type, const Frontend::Shape &shape) = 0;
-    virtual std::unique_ptr<URAMLLMArrayBase> createURAMLLMArray(const CompilerFrontend::Type::ResolvedType &type,
-                                                                 const Frontend::Shape &uramShape, 
-                                                                 const Frontend::Shape &llmShape) = 0;
 
     //------------------------------------------------------------------------
     // DeviceBase virtuals

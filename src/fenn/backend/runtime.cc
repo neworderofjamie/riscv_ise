@@ -84,25 +84,6 @@ void DRAMArrayBase::serialiseDeviceObject(std::vector<std::byte> &bytes) const
 }
 
 //----------------------------------------------------------------------------
-// FeNN::Backend::URAMLLMArrayBase
-//----------------------------------------------------------------------------
-void URAMLLMArrayBase::serialiseDeviceObject(std::vector<std::byte> &bytes) const
-{
-    // Allocate 8 bytes of space
-    bytes.resize(8);
-
-    // Memcpy URAM pointer into bytes
-    const uint32_t uramPointer = getURAMPointer();
-    std::memcpy(bytes.data(), &uramPointer, 4);
-
-    // Memcpy LLM pointer into bytes
-    // **NOTE** the code wants lane addresses not array addresses
-    // **THINK** would it be better to allocate 2 byte aligned?
-    const uint32_t llmPointer = getLLMPointer() / 32;
-    std::memcpy(bytes.data() + 4, &llmPointer, 4);
-}
-
-//----------------------------------------------------------------------------
 // FeNN::Backend::DeviceFeNN
 //----------------------------------------------------------------------------
 DeviceFeNN::DeviceFeNN(size_t deviceIndex, Runtime &runtime)

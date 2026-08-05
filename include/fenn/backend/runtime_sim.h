@@ -44,10 +44,7 @@ public:
     virtual std::unique_ptr<BRAMArrayBase> createBRAMArray(const CompilerFrontend::Type::ResolvedType &type, const Frontend::Shape &shape) override final;
     virtual std::unique_ptr<LLMArrayBase> createLLMArray(const CompilerFrontend::Type::ResolvedType &type, const Frontend::Shape &shape) override final;
     virtual std::unique_ptr<DRAMArrayBase> createDRAMArray(const CompilerFrontend::Type::ResolvedType &type, const Frontend::Shape &shape) override final;
-    virtual std::unique_ptr<URAMLLMArrayBase> createURAMLLMArray(const CompilerFrontend::Type::ResolvedType &type,
-                                                                 const Frontend::Shape &uramShape, 
-                                                                 const Frontend::Shape &llmShape) override final;
-    
+ 
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------

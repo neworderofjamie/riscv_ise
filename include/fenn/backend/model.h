@@ -29,7 +29,6 @@ enum class MemSpace : uint32_t
     URAM        = (1 << 1),
     BRAM        = (1 << 2),
     LLM         = (1 << 3),
-    URAM_LLM    = (1 << 4)
 };
 
 

@@ -235,81 +235,6 @@ public:
 private:
     std::reference_wrapper<DeviceFeNNHW> m_Device;
 };
-
-//------------------------------------------------------------------------
-// URAMLLMArray
-//------------------------------------------------------------------------
-//! class for arrays which are allocated in URAM but also have a delayed input in LLM
-//! Typically used for implementing neuron variables with dendritically-delayed input 
-class URAMLLMArray : public URAMLLMArrayBase
-{
-public:
-    URAMLLMArray(const Type::ResolvedType &type, const Frontend::Shape &uramShape, 
-                 const Frontend::Shape &llmShape, DeviceFeNNHW &device)
-    :   URAMLLMArrayBase(type, uramShape, llmShape), m_Device(device)
-    {
-        if(getCount() > 0) {
-            // Allocate block of DMA buffer and set host pointer
-            m_DMABufferOffset = m_Device.get().getDMABufferAllocator().allocate(getSizeBytes());
-            setHostPointer(m_Device.get().getDMABuffer().getData() + m_DMABufferOffset.value());
-
-            // Allocate URAM
-            setURAMPointer(m_Device.get().getURAMAllocator().allocate(getSizeBytes()));
-        }
-
-        // Allocate LLM
-        if(getLLMCount() > 0) {
-            setLLMPointer(m_Device.get().getLLMAllocator().allocate(getSizeBytes()));
-        }
-    }
-
-    virtual ~URAMLLMArray()
-    {
-        if(getCount() > 0) {
-            setHostPointer(nullptr);
-            setURAMPointer(std::nullopt);
-            m_DMABufferOffset.reset();
-        }
-
-        if(getLLMCount() > 0) {
-            setLLMPointer(std::nullopt);
-        }
-    }
-    //------------------------------------------------------------------------
-    // ArrayBase virtuals
-    //------------------------------------------------------------------------
-    //! Copy entire array to device
-    virtual void pushToDevice() final override
-    {
-        // Start DMA write and wait for completion
-        auto *dmaController = m_Device.get().getDevice().getDMAController();
-        dmaController->startWrite(getURAMPointer(), m_Device.get().getDMABuffer(),
-                                    m_DMABufferOffset.value(), getSizeBytes());
-        dmaController->waitForWriteComplete();
-    }
-    
-    virtual void memsetHostPointer(int value) final override
-    {
-        // **YUCK** memset seems to do something that doens't play
-        // nicely with mmap'd memory and causes bus error
-        for (size_t i = 0; i < getSizeBytes(); i++) {
-            getHostPointer()[i] = value;
-        }
-    }
-
-    //! Copy entire array from device
-    virtual void pullFromDevice() final override
-    {
-        // Start DMA read and wait for completion
-        auto *dmaController = m_Device.get().getDevice().getDMAController();
-        dmaController->startRead(m_Device.get().getDMABuffer(), m_DMABufferOffset.value(), 
-                                getURAMPointer(), getSizeBytes());
-        dmaController->waitForReadComplete();
-    }
-private:
-    std::optional<size_t> m_DMABufferOffset;
-    std::reference_wrapper<DeviceFeNNHW> m_Device;
-};
 }
 
 //----------------------------------------------------------------------------
@@ -376,13 +301,6 @@ std::unique_ptr<DRAMArrayBase> DeviceFeNNHW::createDRAMArray(const Type::Resolve
                                                              const Frontend::Shape &shape)
 {
     return std::make_unique<::DRAMArray>(type, shape, *this);
-}
-//----------------------------------------------------------------------------
-std::unique_ptr<URAMLLMArrayBase> DeviceFeNNHW::createURAMLLMArray(const Type::ResolvedType &type,
-                                                                   const Frontend::Shape &uramShape, 
-                                                                   const Frontend::Shape &llmShape)
-{
-    return std::make_unique<::URAMLLMArray>(type, uramShape, llmShape, *this);
 }
 
 //----------------------------------------------------------------------------

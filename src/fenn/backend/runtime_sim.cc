@@ -253,70 +253,6 @@ public:
 private:
     std::reference_wrapper<DeviceFeNNSim> m_Device;
 };
-
-//------------------------------------------------------------------------
-// URAMLLMArray
-//------------------------------------------------------------------------
-//! class for arrays which are allocated in URAM but also have a delayed input in LLM
-//! Typically used for implementing neuron variables with dendritically-delayed input 
-class URAMLLMArray : public URAMLLMArrayBase
-{
-public:
-    URAMLLMArray(const Type::ResolvedType &type, const Frontend::Shape &uramShape, 
-                 const Frontend::Shape &llmShape, DeviceFeNNSim &device)
-    :   URAMLLMArrayBase(type, uramShape, llmShape), m_Device(device)
-    {
-        if(getCount() > 0) {
-            // Allocate memory for host pointer
-            setHostPointer(new uint8_t[getSizeBytes()]);
-
-            // Allocate URAM
-            setURAMPointer(m_Device.get().getURAMAllocator().allocate(getSizeBytes()));
-        }
-
-        // Allocate LLM
-        if(getLLMCount() > 0) {
-            setLLMPointer(m_Device.get().getLLMAllocator().allocate(getLLMSizeBytes()));
-        }
-    }
-
-    virtual ~URAMLLMArray()
-    {
-        if(getCount() > 0) {
-            delete [] getHostPointer();
-            setHostPointer(nullptr);
-            setURAMPointer(std::nullopt);
-        }
-
-        if(getLLMCount() > 0) {
-            setLLMPointer(std::nullopt);
-        }
-    }
-
-    //------------------------------------------------------------------------
-    // ArrayBase virtuals
-    //------------------------------------------------------------------------
-    //! Copy entire array to device
-    virtual void pushToDevice() final override
-    {
-        // Copy correct number of int16_t from host pointer to vector data memory
-        auto &vectorDataMemory = m_Device.get().getRISCV().getCoprocessor<ISE::VectorProcessor>(FeNN::Common::vectorQuadrant)->getVectorDataMemory();
-        std::copy_n(getHostPointer<int16_t>(), getCount(), 
-                    vectorDataMemory.getData() + (getURAMPointer() / 2));
-    }
-
-    //! Copy entire array from device
-    virtual void pullFromDevice() final override
-    {
-        // Copy correct number of int16_t from vector data memory to host pointer
-        const auto &vectorDataMemory = m_Device.get().getRISCV().getCoprocessor<ISE::VectorProcessor>(FeNN::Common::vectorQuadrant)->getVectorDataMemory();
-        std::copy_n(vectorDataMemory.getData() + (getURAMPointer() / 2), getCount(), 
-                    getHostPointer<int16_t>());
-    }
-
-private:
-    std::reference_wrapper<DeviceFeNNSim> m_Device;
-};
 }
 
 //----------------------------------------------------------------------------
@@ -376,13 +312,6 @@ std::unique_ptr<DRAMArrayBase> DeviceFeNNSim::createDRAMArray(const Type::Resolv
                                                               const Frontend::Shape &shape)
 {
     return std::make_unique<::DRAMArray>(type, shape, *this);
-}
-//----------------------------------------------------------------------------
-std::unique_ptr<URAMLLMArrayBase> DeviceFeNNSim::createURAMLLMArray(const Type::ResolvedType &type,
-                                                                    const Frontend::Shape &uramShape, 
-                                                                    const Frontend::Shape &llmShape)
-{
-    return std::make_unique<::URAMLLMArray>(type, uramShape, llmShape, *this);
 }
 
 //----------------------------------------------------------------------------

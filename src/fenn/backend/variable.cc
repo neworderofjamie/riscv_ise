@@ -228,12 +228,12 @@ void Variable::genStore(Compiler::EnvironmentBase &env, Assembler::VectorRegiste
             env.getCodeGenerator().vstorel(*reg, *std::get<Assembler::VectorRegisterPtr>(state[0]), 2 * r);  
             break;
         }
-        case MemSpace::URAM_LLM:
+        /*case MemSpace::URAM_LLM:
         {
             assert(state.size() == 2);
             env.getCodeGenerator().vstore(*reg, *std::get<Assembler::ScalarRegisterPtr>(state[0]), 64 * r);
             break;
-        }
+        }*/
         default:
             assert(false);
         }
