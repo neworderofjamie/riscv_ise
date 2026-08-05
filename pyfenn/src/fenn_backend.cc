@@ -185,7 +185,7 @@ PYBIND11_MODULE(_fenn_backend, m)
              pybind11::arg("kernels"), pybind11::arg("num_devices"),
              pybind11::arg("use_dram_for_weights") = false, 
              pybind11::arg("keep_params_in_registers") = true,
-             pybind11::arg("neuron_update_rounding_model") = Compiler::RoundingMode::NEAREST,
+             pybind11::arg("neuron_update_rounding_mode") = Compiler::RoundingMode::NEAREST,
              pybind11::arg("dma_buffer_size") = 512 * 1024);
     
 
@@ -198,7 +198,7 @@ PYBIND11_MODULE(_fenn_backend, m)
              pybind11::arg("kernels"), pybind11::arg("num_devices"),
              pybind11::arg("use_dram_for_weights") = false, 
              pybind11::arg("keep_params_in_registers") = true,
-             pybind11::arg("neuron_update_rounding_model") = Compiler::RoundingMode::NEAREST,
+             pybind11::arg("neuron_update_rounding_mode") = Compiler::RoundingMode::NEAREST,
              pybind11::arg("dma_buffer_size") = 512 * 1024);
 
 }
