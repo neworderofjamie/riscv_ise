@@ -3,7 +3,8 @@ from ._fenn_backend import (BroadcastProcess, DenseEventPropagationProcess,
                             MemsetProcess, NeuronUpdateProcess, 
                             RNGInitProcess, RoundingMode, RuntimeHW, 
                             RuntimeSim, SimpleKernel, SimulationLoopKernel,
-                            Variable, disassemble)
+                            SparseEventPropagationProcess, Variable, 
+                            disassemble)
                             
 from ._frontend import (NumericValue, PlogSeverity, ProcessGroup, 
                         ResolvedType, Shape, SlicedEventSink, 

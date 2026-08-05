@@ -457,146 +457,6 @@ private:
 };
 
 //------------------------------------------------------------------------
-// DenseRowGenerator
-//------------------------------------------------------------------------
-class DenseRowGenerator : public RowGeneratorBase
-{
-public:
-    using RowGeneratorBase::RowGeneratorBase;
-
-    //--------------------------------------------------------------------
-    // RowGeneratorBase virtuals
-    //--------------------------------------------------------------------
-    virtual void generateRow(CodeGenerator &c, ScalarRegisterPtr weightBufferReg) final override
-    {
-        // Make some friendlier-named references
-        auto &scalarRegisterAllocator = getScalarRegisterAllocator();
-        auto &vectorRegisterAllocator = getVectorRegisterAllocator();
-
-        ALLOCATE_VECTOR(VWeight);
-        ALLOCATE_VECTOR(VTarget1);
-        ALLOCATE_VECTOR(VTarget2);
-        ALLOCATE_VECTOR(VTargetNew);
-        ALLOCATE_SCALAR(STargetBuf);
-
-        // Load target register from state fields
-        // **NOTE** no point in caching this as it needs resetting every row
-        c.lw(*STargetBuf, Reg::X0, getStateFields().at(getProcess()->getTarget()));
-
-        // Preload first ISyn to avoid stall
-        c.vloadv(*VTarget1, *STargetBuf, 0);
-
-        Utils::unrollVectorLoopBody(
-            c, scalarRegisterAllocator, getProcess()->getNumTargetNeurons(), 4, *STargetBuf,
-            [this, weightBufferReg, STargetBuf, VWeight, VTarget1, VTarget2, VTargetNew]
-            (CodeGenerator &c, uint32_t r, bool even, ScalarRegisterPtr maskReg)
-            {
-                // Load vector of weights
-                c.vloadv(*VWeight, *weightBufferReg, r * 64);
-
-                // Load NEXT vector of target to avoid stall
-                // **YUCK** in last iteration, while this may not be accessed, it may be out of bounds                  
-                c.vloadv(even ? *VTarget2 : *VTarget1, *STargetBuf, (r + 1) * 64);
-
-                // Add weights to ISyn
-                auto VTarget = even ? VTarget1 : VTarget2;
-                if(maskReg) {
-                    c.vadd_s(*VTargetNew, *VTarget, *VWeight);
-                    c.vsel(*VTarget, *maskReg, *VTargetNew);
-                }
-                else {
-                    c.vadd_s(*VTarget, *VTarget, *VWeight);
-                }
-
-                // Write back target
-                c.vstore(*VTarget, *STargetBuf, r * 64);
-            },
-            [this, weightBufferReg, STargetBuf](CodeGenerator &c, uint32_t numUnrolls)
-            {
-                // Increment pointers 
-                c.addi(*STargetBuf, *STargetBuf, 64 * numUnrolls);
-                c.addi(*weightBufferReg, *weightBufferReg, 64 * numUnrolls);
-            });
-    }   
-};
-
-//------------------------------------------------------------------------
-// SparseRowGenerator
-//------------------------------------------------------------------------
-class SparseRowGenerator : public RowGeneratorBase
-{
-public:
-    SparseRowGenerator(CodeGenerator &c, std::shared_ptr<const Model::EventPropagationProcess> process,
-                       const Model::StateFields &stateFields,
-                       ScalarRegisterAllocator &scalarRegisterAllocator, 
-                       VectorRegisterAllocator &vectorRegisterAllocator)
-        :   RowGeneratorBase(c, process, stateFields, scalarRegisterAllocator, vectorRegisterAllocator)
-    {
-
-        // Allocate register for target address and load address
-        m_TargetAddrReg = getScalarRegisterAllocator().getRegister("STargetAddr X");
-        c.lw(*m_TargetAddrReg, Reg::X0, stateFields.at(process->getTarget()));
-    }
-
-    //--------------------------------------------------------------------
-    // RowGeneratorBase virtuals
-    //--------------------------------------------------------------------
-    virtual void generateRow(CodeGenerator &c, ScalarRegisterPtr weightBufferReg) final override
-    {
-        // Make some friendlier-named references
-        auto &scalarRegisterAllocator = getScalarRegisterAllocator();
-        auto &vectorRegisterAllocator = getVectorRegisterAllocator();
-
-        // Loop over postsynaptic neurons
-        ALLOCATE_VECTOR(VAccum)
-            ALLOCATE_VECTOR(VWeightInd1);
-        ALLOCATE_VECTOR(VWeightInd2);
-        ALLOCATE_VECTOR(VPostAddr);
-        ALLOCATE_VECTOR(VWeight);
-
-        // Preload first weights and indices to avoid stall
-        c.vloadv(*VWeightInd1, *weightBufferReg, 0);
-
-        Utils::unrollVectorLoopBody(
-            c, scalarRegisterAllocator, getProcess()->getMaxRowLength(), 4, *weightBufferReg,
-            [this, weightBufferReg,
-            VAccum, VPostAddr, VWeight, VWeightInd1, VWeightInd2]
-            (CodeGenerator &c, uint32_t r, bool even, ScalarRegisterPtr)
-            {
-                // Load NEXT vector of weights and indices
-                c.vloadv(even ? *VWeightInd2 : *VWeightInd1, *weightBufferReg, (r + 1) * 64);
-
-                // Extract postsynaptic index and add base address
-                auto VWeightInd = even ? VWeightInd1 : VWeightInd2;
-                c.vandadd(getProcess()->getNumSparseConnectivityBits(), *VPostAddr, *VWeightInd,
-                          *m_TargetAddrReg);
-
-                // Load accumulator
-                c.vloadl(*VAccum, *VPostAddr);
-
-                // Extract weight
-                c.vsrai(getProcess()->getNumSparseConnectivityBits(), *VWeight, *VWeightInd);
-
-                // Add weights to accumulator loaded in previous iteration
-                c.vadd_s(*VAccum, *VAccum, *VWeight);
-
-                // Write back accumulator
-                c.vstorel(*VAccum, *VPostAddr);
-            },
-            [this, weightBufferReg]
-            (CodeGenerator &c, uint32_t numUnrolls)
-            {
-                // Increment pointers 
-                c.addi(*weightBufferReg, *weightBufferReg, 64 * numUnrolls);
-            });
-    }
-
-private:
-    ScalarRegisterPtr m_TargetAddrReg;
-};
-
-
-//------------------------------------------------------------------------
 // DelayedRowGenerator
 //------------------------------------------------------------------------
 class DelayedRowGenerator : public RowGeneratorBase
@@ -811,7 +671,7 @@ void NeuronUpdateProcess::updateCompatibleMemSpace(std::shared_ptr<const Fronten
     const auto var = std::find_if(getVariables().cbegin(), getVariables().cend(),
                                   [&state](const auto &v){ return v.second.getUnderlying() == state; });
     if (var != getVariables().cend()) {
-        compatibleMemSpaces &= (MemSpace::URAM | MemSpace::LLM | MemSpace::URAM_LLM);
+        compatibleMemSpaces &= (MemSpace::URAM | MemSpace::LLM);
     }
     // Otherwise
     else {
@@ -1488,16 +1348,14 @@ void DenseEventPropagationProcess::updateMergeHash(boost::uuids::detail::sha1 &h
     getTarget().updateMergeHash(hash, false);
 
     // Include hash of target memory space
-    ::Common::Utils::updateHash(
-        static_cast<const Model&>(model).getStateMemSpace(getTarget().getUnderlying(), 
-                                                          true/*getRuntime().shouldUseDRAMForWeights()*/), hash);
+    updateHash(static_cast<const Model&>(model).getStateMemSpace(getTarget().getUnderlying(), 
+                                                                 true/*getRuntime().shouldUseDRAMForWeights()*/), hash);
     
     // **NOTE** we don't need to hash the weights as the generated code doesn't depend on their type
 
     // Include hash of weight memory space
-    ::Common::Utils::updateHash(
-        static_cast<const Model&>(model).getStateMemSpace(getTarget().getUnderlying(), 
-                                                          true/*getRuntime().shouldUseDRAMForWeights()*/), hash);
+    updateHash(static_cast<const Model&>(model).getStateMemSpace(getTarget().getUnderlying(), 
+                                                                 true/*getRuntime().shouldUseDRAMForWeights()*/), hash);
 }
 //----------------------------------------------------------------------------
 void DenseEventPropagationProcess::updateCompatibleSplitDimensions(std::shared_ptr<const Frontend::State> state, 
@@ -1522,7 +1380,254 @@ void DenseEventPropagationProcess::updateCompatibleMemSpace(std::shared_ptr<cons
     }
     // Otherwise, if variable's target, it can be in URAM or LLM 
     else if(state == getTarget().getUnderlying()) {
-        compatibleMemSpaces &= (MemSpace::LLM | MemSpace::URAM_LLM | MemSpace::URAM);
+        compatibleMemSpaces &= (MemSpace::LLM | MemSpace::URAM);
+    }
+    else {
+        assert(state == getInputEventSource().getUnderlying());
+    }
+}
+
+//----------------------------------------------------------------------------
+// FeNN::Backend::DenseEventPropagationProcess
+//----------------------------------------------------------------------------
+SparseEventPropagationProcess::SparseEventPropagationProcess(Private, Frontend::Sliced<Frontend::EventSource> inputEventSource, 
+                                                             Frontend::VariablePtr weight, Frontend::Sliced<Frontend::Variable> target, 
+                                                             size_t numSparseConnectivityBits, const std::string &name)
+:   EventPropagationProcess(Private(), inputEventSource, target, name), m_Weight(weight), m_NumSparseConnectivityBits(numSparseConnectivityBits)
+{
+    if(m_Weight == nullptr) {
+        throw std::runtime_error("Sparse event propagation process requires weight variable");
+    }
+
+    if (getWeight()->getShape().getNumDims() != 2) {
+        throw std::runtime_error("Sparse event propagation process requires weight variable with a 2D shape");
+    }
+
+    if (getInputEventSource().getShape().getNumDims() != 1) {
+        throw std::runtime_error("Sparse event propagation process requires source events with a 1D shape");
+    }  
+
+    if (getTarget().getShape().getNumDims() != 1) {
+        throw std::runtime_error("Sparse propagation process requires target variable with a 1D shape");
+    } 
+
+    // Check weight shape matches input event shape
+    if(getWeight()->getShape()[0] != getInputEventSource().getShape()[0]) {
+        throw std::runtime_error("Weight with shape: " + getWeight()->getShape().toString() 
+                                 + " is not compatible with event source with shape: " 
+                                 + getInputEventSource().getShape().toString());
+    }
+
+    // Check weight shape is less than padded target shape
+
+    // **YUCK** padding should not occur at this point as it is device shape which needs padding
+    const auto paddedTargetShape = getTarget().getShape().pad(0, 32);
+    if(getWeight()->getShape()[1] < paddedTargetShape[0]) {
+        throw std::runtime_error("Weight with shape: " + getWeight()->getShape().toString() 
+                                 + " is not compatible with target variable with padded shape: " 
+                                 + paddedTargetShape.toString());
+    }
+
+    // Check weight and target have same types
+    if(getWeight()->getType() != getTarget().getUnderlying()->getType()) {
+        throw std::runtime_error("Weight with type: " + getWeight()->getType().getName() 
+                                 + " is not compatible with target variable with type: " 
+                                 + getTarget().getUnderlying()->getType().getName());
+    }
+}
+//------------------------------------------------------------------------
+void SparseEventPropagationProcess::updateMaxDMABufferSize(size_t &size) const
+{
+    size = std::max(size, getWeight()->getShape()[1]);
+}
+//------------------------------------------------------------------------
+void SparseEventPropagationProcess::generateArchetypeCode(const Frontend::MergedProcess &mergedProcess, const Runtime &runtime, 
+                                                          const KernelImplementation&, MergedFields &mergedFields, 
+                                                          Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr, 
+                                                          Assembler::ScalarRegisterPtr preIndReg, std::optional<uint32_t>, 
+                                                          Assembler::CodeGenerator &processCodeGenerator, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
+                                                          Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
+{
+    // Make some friendlier-named references
+    auto &c = processCodeGenerator;
+
+    // Add fields for weight and target
+    const uint32_t weightFieldOffset = mergedFields.addField<DenseEventPropagationProcess>(
+        [](const Frontend::DeviceBase &d, auto p)
+        { 
+            return d.getArray(p->getWeight()); 
+        });
+
+    const uint32_t targetFieldOffset = mergedFields.addField<DenseEventPropagationProcess>(
+        [](const Frontend::DeviceBase &d, auto p)
+        { 
+            return d.getArray(p->getTarget().getUnderlying()); 
+        });
+
+    // Define lambda function to get stride
+    // **NOTE** we look at weight because it is padded
+    auto getStride =
+        [&runtime](size_t d, auto p)
+        { 
+            return static_cast<uint32_t>(2 * p->getWeight()->getShape().getSplitDimension(
+                d, 1, runtime.getNumDevices(), 32));
+        };
+
+    // Get stride
+    // **NOTE** this is going into a multiply so always needs to be in a register
+    const auto strideReg = std::get<Assembler::ScalarRegisterPtr>(
+        addScalarValue<DenseEventPropagationProcess>(
+            0, mergedProcess, runtime.getNumDevices(), mergedFields, fieldBaseReg, 
+            processCodeGenerator, scalarRegisterAllocator, getStride));
+
+    // No need for unrolling if all strides are 
+    // less than the size of a single unrolled iteration
+    // **THINK** this could also trigger a reduction in maxUnroll
+    const bool strideNoUnroll = allOf<DenseEventPropagationProcess>(
+        mergedProcess, runtime.getNumDevices(), getStride,
+        [this](const MergedFields::FieldValue &num)
+        {
+            return (std::get<uint32_t>(num) < (getMaxUnroll() * 64));
+        });
+
+    // No need to unroll pairs if all strides have 
+    // less than 2 vector remaining after unrolling
+    const bool strideNoPairs = allOf<DenseEventPropagationProcess>(
+        mergedProcess, runtime.getNumDevices(), getStride,
+        [this](const MergedFields::FieldValue &num)
+        {
+            // Calculate how much remains after unrolled iterations
+            const uint32_t unrollRemainder = (std::get<uint32_t>(num) % (getMaxUnroll() * 64));
+            return (unrollRemainder < 128);
+        });
+
+    // No need to add final iteration if all strides
+    // are a multiple of two after unrolling
+    const bool strideNoFinal = allOf<DenseEventPropagationProcess>(
+        mergedProcess, runtime.getNumDevices(), getStride,
+        [this](const MergedFields::FieldValue &num)
+        {
+            const uint32_t unrollRemainder = (std::get<uint32_t>(num) % (getMaxUnroll() * 64));
+            return (unrollRemainder % 128) == 0;
+        });
+
+    // Load target register from state fields
+    ALLOCATE_SCALAR(STargetBuf);
+    c.lw(*STargetBuf, *fieldBaseReg, targetFieldOffset);
+
+    // Calculate row start address
+    ALLOCATE_SCALAR(SWeightBuffer);
+    c.lw(*SWeightBuffer, *fieldBaseReg, weightFieldOffset);
+    {
+        ALLOCATE_SCALAR(STemp);
+        c.mul(*STemp, *preIndReg, *strideReg);
+        c.add(*SWeightBuffer, *SWeightBuffer, *STemp);
+    }
+
+    // **TODO** this should be fine, just need to index target correctly
+    assert(!getTarget().hasTime());
+
+    // Loop over postsynaptic neurons
+    ALLOCATE_VECTOR(VAccum);
+    ALLOCATE_VECTOR(VWeightInd1);
+    ALLOCATE_VECTOR(VWeightInd2);
+    ALLOCATE_VECTOR(VPostAddr);
+    ALLOCATE_VECTOR(VWeight);
+
+    // Preload first weights and indices to avoid stall
+    c.vloadv(*VWeightInd1, *SWeightBuffer, 0);
+
+    Assembler::Utils::unrollOddEvenLoopBody(
+        c, scalarRegisterAllocator,
+        *strideReg, getMaxUnroll(), 64,
+        strideNoUnroll, strideNoPairs, strideNoFinal,
+        [this, SWeightBuffer, STargetBuf, VAccum, VPostAddr, VWeight, VWeightInd1, VWeightInd2]
+        (Assembler::CodeGenerator &c, uint32_t r, bool even)
+        {
+            // Load NEXT vector of weights and indices
+            c.vloadv(even ? *VWeightInd2 : *VWeightInd1, *SWeightBuffer, (r + 1) * 64);
+
+            // Extract postsynaptic index and add base address
+            auto VWeightInd = even ? VWeightInd1 : VWeightInd2;
+            c.vandadd(getNumSparseConnectivityBits(), *VPostAddr, *VWeightInd,
+                      *STargetBuf);
+
+            // Load accumulator
+            c.vloadl(*VAccum, *VPostAddr);
+
+            // Extract weight
+            c.vsrai(getNumSparseConnectivityBits(), *VWeight, *VWeightInd);
+
+            // Add weights to accumulator loaded in previous iteration
+            c.vadd_s(*VAccum, *VAccum, *VWeight);
+
+            // Write back accumulator
+            c.vstorel(*VAccum, *VPostAddr);
+        },
+        [this, SWeightBuffer]
+        (Assembler::CodeGenerator &c, uint32_t numUnrolls)
+        {
+            // Increment pointers 
+            c.addi(*SWeightBuffer, *SWeightBuffer, 64 * numUnrolls);
+        });
+
+}
+//----------------------------------------------------------------------------
+std::vector<std::shared_ptr<const Frontend::State>> SparseEventPropagationProcess::getAllState() const
+{
+    return {getInputEventSource().getUnderlying(), getWeight(), getTarget().getUnderlying()};
+}
+//----------------------------------------------------------------------------
+void SparseEventPropagationProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Frontend::Model &model) const
+{
+    using namespace ::Common::Utils;
+    UPDATE_HASH_CLASS_NAME(SparseEventPropagationProcess);
+
+    // **NOTE** we do NOT call the superclass here because we want to set our 
+    // own name and do not want to include input event source in hash as 
+    // event sources are handled seperately in FeNN backend
+
+    // Include number of sparse connectivity bits in hash
+    updateHash(getNumSparseConnectivityBits(), hash);
+
+    // Targets
+    // **NOTE** generated code doesn't depend on underlying target type so do not include in hash
+    getTarget().updateMergeHash(hash, false);
+
+    // Include hash of target memory space
+    updateHash(static_cast<const Model&>(model).getStateMemSpace(getTarget().getUnderlying(), 
+                                                                 true/*getRuntime().shouldUseDRAMForWeights()*/), hash);
+
+    // **NOTE** we don't need to hash the weights as the generated code doesn't depend on their type
+
+    // Include hash of weight memory space
+    updateHash(static_cast<const Model&>(model).getStateMemSpace(getTarget().getUnderlying(), 
+                                                                 true/*getRuntime().shouldUseDRAMForWeights()*/), hash);
+}
+//----------------------------------------------------------------------------
+void SparseEventPropagationProcess::updateCompatibleSplitDimensions(std::shared_ptr<const Frontend::State> state, 
+                                                                   uint32_t &compatibleSplitDimensions) const 
+{
+    // If variable is weight, it can only be split in 2nd (postsynaptic) dimension
+    if(state == getWeight()) {
+        compatibleSplitDimensions &= (1 << 1);
+    }
+    // Otherwise, superclass
+    else {
+        Frontend::EventPropagationProcess::updateCompatibleSplitDimensions(state, compatibleSplitDimensions);
+    }
+}
+//----------------------------------------------------------------------------
+void SparseEventPropagationProcess::updateCompatibleMemSpace(std::shared_ptr<const Frontend::State> state, 
+                                                             MemSpace &compatibleMemSpaces) const
+{
+    // If variable is weight, it can  be located in URAM or DRAM
+    if(state == getWeight()) {
+        compatibleMemSpaces &= (MemSpace::DRAM | MemSpace::URAM);
+    }
+    // Otherwise, if variable's target, it can be in URAM or LLM 
+    else if(state == getTarget().getUnderlying()) {
+        compatibleMemSpaces &= (MemSpace::LLM | MemSpace::URAM);
     }
     else {
         assert(state == getInputEventSource().getUnderlying());
@@ -1532,306 +1637,7 @@ void DenseEventPropagationProcess::updateCompatibleMemSpace(std::shared_ptr<cons
 //----------------------------------------------------------------------------
 // FeNN::Backend::EventPropagationProcess
 //----------------------------------------------------------------------------
-/*EventPropagationProcess::EventPropagationProcess(Private, Sliced<EventContainer> inputEvents, 
-                            VariablePtr weight, Sliced<Variable> target,
-                            size_t numSparseConnectivityBits, size_t numDelayBits,
-                            const std::string &name)
-:   Frontend::EventPropagationProcess(Private, inputEvents, target, name), m_Weight(weight),
-    m_NumSparseConnectivityBits(numSparseConnectivityBits), m_NumDelayBits(numDelayBits)
-{
-    if(m_Weight == nullptr) {
-        throw std::runtime_error("Event propagation process requires weight variable");
-    }
-
-    if (getWeight()->getShape().getNumDims() != 2) {
-        throw std::runtime_error("Event propagation process requires weight variable with a 2D shape");
-    }
-
-    // Get maximum row length from weight variable shape
-    const auto &weightDims = m_Weight->getShape().getDims();
-    m_MaxRowLength = weightDims[1];
-
-    // Check weight number of source neurons matches
-    if(weightDims[0] != getSourceShape().getLast()) {
-        throw std::runtime_error("Weight with shape: " + weight->getShape().toString() 
-                                 + " is not compatible with event propagation process with " 
-                                 + std::to_string(getSourceShape().getLast()) + " source neurons");
-    }
-
-    // Check delays and sparsity are not being combined
-    if(getNumDelayBits() > 0 && getNumSparseConnectivityBits() > 0) {
-        throw std::runtime_error("Event propagation processes with both events "
-                                 "and delays are not currently supported");
-    }
-
-    // Check weight number of target neurons matches if no sparsity
-    if(getNumSparseConnectivityBits() == 0 && getMaxRowLength() != getTargetShape().getLast()) {
-        throw std::runtime_error("Weight with shape: " + weight->getShape().toString() 
-                                 + " is not compatible with dense event propagation process with " 
-                                 + std::to_string(getTargetShape().getLast()) + " target neurons");
-    }
-
-    // If there are no delays, check time 
-    if (getNumDelayBits() == 0) {
-        if (getTargetShape().getNumDims() != 1) {
-            throw std::runtime_error("Non-delayed event propagation process "
-                                     "requires target variable with a 1D shape");
-        }
-    }
-    // Otherwise, check buffer size matches
-    else {
-        if (getTargetShape().getNumDims() != 2 || m_Target.hasTimeSlice()) {
-            throw std::runtime_error("Delayed event propagation process "
-                                     "requires target variable with a 2D shape");
-        }
-
-        if(getTargetShape().getFirst() != (1 << (getNumDelayBits() - 1))) {
-            throw std::runtime_error("Shape of target buffer does not "
-                                     "match specified number of delay bits");
-        }
-    }
-}
-//----------------------------------------------------------------------------
-std::vector<std::shared_ptr<const State>> EventPropagationProcess::getAllState() const
-{
-    return {getInputEvents().getUnderlying(), getWeight(), getTarget().getUnderlying()};
-}
-//----------------------------------------------------------------------------
-void EventPropagationProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Model &model) const
-{
-    // Superclass
-    Frontend::EventPropagationProcess::updateMergedHash(hash, model);
-
-    // Weights
-    getWeight()->updateMergeHash(hash);
-    
-    // Formats
-    updateHash(getNumDelayBits(), hash);
-    updateHash(getNumSparseConnectivityBits(), hash);
-}
-//----------------------------------------------------------------------------
-void EventPropagationProcess::updateCompatibleSplitDimensions(std::shared_ptr<const State> state, 
-                                                              uint32_t &compatibleSplitDimensions) const 
-{
-    // If variable is weight, it can only be split in 2nd (postsynaptic) dimension
-    if(state == getWeight()) {
-        compatibleSplitDimensions &= (1 << 1);
-    }
-    // Otherwise, superclass
-    else {
-        Frontend::EventPropagationProcess(state, compatibleSplitDimensions);
-    }
-}
-//----------------------------------------------------------------------------
-void EventPropagationProcess::updateCompatibleMemSpace(std::shared_ptr<const Frontend::State> state, 
-                                                       MemSpace &compatibleMemSpaces) const
-{
-    // If variable is weight, it can  be located in URAM or DRAM
-    if(state == getWeight()) {
-        compatibleMemSpaces &= (MemSpace::DRAM | MemSpace::URAM);
-    }
-    // Otherwise, if variable's target
-    else if(state == getTarget().getUnderlying()) {
-        // If it's sparse, it must be located in LLM
-        if(getNumSparseConnectivityBits() > 0) {
-            compatibleMemSpaces &= (MemSpace::LLM | MemSpace::URAM_LLM);
-        }
-        // Otherwise, if it's delayed, it must be located in URAMLLM
-        else if(getNumDelayBits() > 0) {
-            compatibleMemSpaces &= MemSpace::URAM_LLM;
-        }
-        else {
-            compatibleMemSpaces &= (MemSpace::LLM | MemSpace::URAM);
-        }
-    }
-    else {
-        assert(false);
-    }
-}
-//----------------------------------------------------------------------------
-void EventPropagationProcess::updateMaxDMABufferSize(size_t &maxRowLength) const
-{
-    maxRowLength = std::max(maxRowLength, getMaxRowLength());
-}
-//----------------------------------------------------------------------------
-void EventPropagationProcess::generateCode(const Frontend::MergedProcess &mergedProcess, 
-                                           const Runtime &runtime, Assembler::CodeGenerator &c,
-                                           Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
-                                           Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
-{
-    // Register allocation
-    ALLOCATE_SCALAR(SEventBuffer);
-    ALLOCATE_SCALAR(SEventBufferEnd);
-
-    // Generate code to load address of input event buffer
-    const auto &processFields = m_Model.get().getStatefulFields();
-    c.lw(*SEventBuffer, Reg::X0, processFields.at(processes.front()).at(processes.front()->getInputEvents()));
-
-    {
-        // Load immediate with number of words required to represent one timestep of input spikes
-        ALLOCATE_SCALAR(STmp);
-        c.li(*STmp, ceilDivide(processes.front()->getNumSourceNeurons(), 32) * 4);
-
-        // If there are multiple timesteps, multiply timestep by stride and add to event start pointer
-        // **TODO** currently this just handles providing entire simulation kernel worth of event data or
-        // recording events for entire simulation - extend to support axonal delays and ring-buffer recording
-        const size_t numBufferTimesteps = processes.front()->getInputEvents()->getNumBufferTimesteps();
-        if (numBufferTimesteps != 1) {
-            // Check there is a buffer entry for each timestep
-            // **NOTE** because event propagation processes only READ 
-            // events, there's no need for extra buffer entry to write into this timestep
-            if(numBufferTimesteps < m_NumTimesteps.value()) {
-                throw std::runtime_error("Events need to be buffered for " + std::to_string(m_NumTimesteps.value()) + " timesteps");
-            }
-
-            // Multiply time by stride and add to address
-            ALLOCATE_SCALAR(STmp2);
-            c.mul(*STmp2, *m_TimeRegister, *STmp);
-            c.add(*SEventBuffer, *SEventBuffer, *STmp2);
-        }
-
-        // Get address of end of input event buffer        
-        c.add(*SEventBufferEnd, *STmp, *SEventBuffer);
-    }
-
-    // If any processes have delay, load lower 16-bits of time into vector register
-    VectorRegisterPtr vectorTimeReg;
-    if(std::any_of(processes.cbegin(), processes.cend(), 
-        [](const auto &p){ return (p->getNumDelayBits() > 0); }))
-    {
-        vectorTimeReg = vectorRegisterAllocator.getRegister("VTime V");
-        c.vfill(*vectorTimeReg, *m_TimeRegister);
-        c.vslli(1, *vectorTimeReg, *vectorTimeReg);
-    }
-
-    // Loop through postsynaptic targets and create appropriate row generator objects
-    std::vector<std::unique_ptr<RowGeneratorBase>> rowGenerators;
-    for(const auto &p : processes) {
-        if(p->getNumSparseConnectivityBits() > 0) { 
-            rowGenerators.emplace_back(
-                std::make_unique<SparseRowGenerator>(c, p, processFields.at(p), scalarRegisterAllocator, 
-                                                        vectorRegisterAllocator));
-        }
-        else if(p->getNumDelayBits() > 0) {
-            rowGenerators.emplace_back(
-                std::make_unique<DelayedRowGenerator>(c, p, processFields.at(p), vectorTimeReg,
-                                                        scalarRegisterAllocator, vectorRegisterAllocator));
-        }
-        else {
-            rowGenerators.emplace_back(
-                std::make_unique<DenseRowGenerator>(c, p, processFields.at(p), scalarRegisterAllocator, 
-                                                    vectorRegisterAllocator));
-        }
-    }
-    
-    // Generate correct loop depending on whether weights are in DRAM or URAM
-    if(m_UseDRAMForWeights) {
-        generateDRAMWordLoop(rowGenerators, SEventBuffer, SEventBufferEnd);
-    }
-    else {
-        generateURAMWordLoop(rowGenerators, SEventBuffer, SEventBufferEnd);
-    }
-}
-void generateURAMWordLoop(const std::vector<std::unique_ptr<RowGeneratorBase>> &rowGenerators, 
-                              ScalarRegisterPtr eventBufferReg, 
-                              ScalarRegisterPtr eventBufferEndReg)
-{
-    // Make some friendlier-named references
-    auto &scalarRegisterAllocator = m_ScalarRegisterAllocator.get();
-    auto &c = m_CodeGenerator.get();
-
-    ALLOCATE_SCALAR(SWordNStart);
-    ALLOCATE_SCALAR(SConst1);
-    ALLOCATE_SCALAR(SEventWord);
-
-    // Labels
-    auto wordLoop = createLabel();
-    auto bitLoopStart = createLabel();
-    auto bitLoopBody = createLabel();
-    auto bitLoopEnd = createLabel();
-    auto zeroSpikeWord = createLabel();
-    auto wordEnd = createLabel();
-
-    // Load some useful constants
-    c.li(*SConst1, 1);
-
-    // SWordNStart = 31
-    c.li(*SWordNStart, 31);
-        
-    // Outer word loop
-    c.L(wordLoop);
-    {
-        // Register allocation
-        ALLOCATE_SCALAR(SN);
-
-        // SEventWord = *SEventBuffer++
-        c.lw(*SEventWord, *eventBufferReg);
-        c.addi(*eventBufferReg, *eventBufferReg, 4);
-
-        // If SEventWord == 0, goto bitloop end
-        c.beq(*SEventWord, Reg::X0, bitLoopEnd);
-
-        // SN = SWordNStart
-        c.mv(*SN, *SWordNStart);
-
-        // Inner bit loop
-        c.L(bitLoopStart);
-        {
-            // Register allocation
-            ALLOCATE_SCALAR(SNumLZ);
-            ALLOCATE_SCALAR(SNumLZPlusOne);
-
-            // CNumLZ = clz(SEventWord);
-            c.clz(*SNumLZ, *SEventWord);
-
-            // If SEventWord == 1  i.e. CNumLZ == 31, goto zeroSpikeWord
-            c.beq(*SEventWord, *SConst1, zeroSpikeWord);
-            
-            // CNumLZPlusOne = CNumLZ + 1
-            c.addi(*SNumLZPlusOne, *SNumLZ, 1);
-
-            // SEventWord <<= CNumLZPlusOne
-            c.sll(*SEventWord, *SEventWord, *SNumLZPlusOne);
-
-            // SN -= SNumLZ
-            c.L(bitLoopBody);
-            c.sub(*SN, *SN, *SNumLZ);
-
-            // Loop through row generators and generate code to process rows
-            for(auto &r : rowGenerators) {
-                auto weightBufferReg = r->loadWeightBuffer(c, SN);
-                r->generateRow(c, weightBufferReg);
-            }
-
-            // SN --
-            c.addi(*SN, *SN, -1);
-            
-            // If SEventWord != 0, goto bitLoopStart
-            c.bne(*SEventWord, Reg::X0, bitLoopStart);
-        }
-
-        // SWordNStart += 32
-        c.L(bitLoopEnd);
-        c.addi(*SWordNStart, *SWordNStart, 32);
-            
-        // If SEventBuffer != SEventBufferEnd, goto wordloop
-        c.bne(*eventBufferReg, *eventBufferEndReg, wordLoop);
-
-        // Goto wordEnd
-        //c.j_(wordEnd);
-        c.beq(Reg::X0, Reg::X0, wordEnd);
-    }
-
-    // Zero event word
-    {
-        c.L(zeroSpikeWord);
-        c.li(*SEventWord, 0);
-        //c.j_(bitLoopBody);
-        c.beq(Reg::X0, Reg::X0, bitLoopBody);
-    }
-    
-    c.L(wordEnd);
-}
+/*
 
 void generateDRAMWordLoop(const std::vector<std::unique_ptr<RowGeneratorBase>> &rowGenerators, 
                           ScalarRegisterPtr eventBufferReg, 
@@ -2179,7 +1985,7 @@ void MemsetProcess::updateCompatibleMemSpace(std::shared_ptr<const Frontend::Sta
     assert(state == getTarget().getUnderlying());
 
     // **TODO** memset could handle anything
-    compatibleMemSpaces &= (MemSpace::LLM | MemSpace::URAM | MemSpace::URAM_LLM);
+    compatibleMemSpaces &= (MemSpace::LLM | MemSpace::URAM);
 }
 //----------------------------------------------------------------------------
 std::vector<Compiler::RegisterPtr> MemsetProcess::generateArchetypeCode(
@@ -2215,44 +2021,20 @@ std::vector<Compiler::RegisterPtr> MemsetProcess::generateArchetypeCode(
 
 
     auto &c = processCodeGenerator;
+    c.lw(*STargetBuffer, *fieldBaseReg, targetFieldOffset);
 
     switch(runtime.getModel<Model>()->getStateMemSpace(getTarget().getUnderlying(), 
                                                        runtime.shouldUseDRAMForWeights()))
     {
     case MemSpace::URAM:
     {
-        c.lw(*STargetBuffer, *fieldBaseReg, targetFieldOffset);
-
         generateURAMMemset(c, scalarRegisterAllocator, vectorRegisterAllocator,
                            STargetBuffer, numElements);
         break;
     }
     case MemSpace::LLM: 
     {
-        c.lw(*STargetBuffer, *fieldBaseReg, targetFieldOffset);
         generateLLMMemset(c, scalarRegisterAllocator, vectorRegisterAllocator,
-                          STargetBuffer, numElements);
-        break;
-    }
-    case MemSpace::URAM_LLM:
-    {
-        // Figure out best way to represent number of elements per timestep
-        auto numElementsOneTimestep = addScalarValue<MemsetProcess>(
-            12, mergedProcess, runtime.getNumDevices(), mergedFields, fieldBaseReg,
-            processCodeGenerator, sharedCodeGenerator, scalarRegisterAllocator, sharedRegisters,
-            [&runtime](size_t d, auto p)
-            { 
-                const auto splitDimension = runtime.getModel()->getStateData(p->getTarget().getUnderlying()).splitDimension;
-                const auto splitShape = p->getTarget().getShape().getSplit(d, splitDimension, runtime.getNumDevices(), 32);
-                return static_cast<uint32_t>(::Common::Utils::padSize(splitShape.getFlattenedSize(), 32));
-            });
-            
-        c.lw(*STargetBuffer, *fieldBaseReg, targetFieldOffset);
-        generateURAMMemset(c, scalarRegisterAllocator, vectorRegisterAllocator, 
-                           STargetBuffer, numElementsOneTimestep);
-
-        c.lw(*STargetBuffer, *fieldBaseReg, targetFieldOffset + 4);
-        generateLLMMemset(c, scalarRegisterAllocator, vectorRegisterAllocator, 
                           STargetBuffer, numElements);
         break;
     }
@@ -2412,8 +2194,7 @@ void BroadcastProcess::updateCompatibleMemSpace(std::shared_ptr<const Frontend::
     else {
         // Otherwise, if variable's target, it can only located in LLM or URAMLLM
         assert(state == getTarget());
-
-        compatibleMemSpaces &= (MemSpace::LLM | MemSpace::URAM_LLM);
+        compatibleMemSpaces &= MemSpace::LLM;
     }
 }
 //----------------------------------------------------------------------------

@@ -123,7 +123,6 @@ PYBIND11_MODULE(_fenn_backend, m)
              pybind11::arg("default_scalar_literal_type") = CompilerFrontend::Type::S8_7,
              pybind11::arg("name") = "");
 
-
     //------------------------------------------------------------------------
     // fenn_backend.DenseEventPropagationProcess
     //------------------------------------------------------------------------
@@ -131,6 +130,16 @@ PYBIND11_MODULE(_fenn_backend, m)
         .def(pybind11::init(&Backend::DenseEventPropagationProcess::create),
              pybind11::arg("input_event_source"), 
              pybind11::arg("weight"), pybind11::arg("target"),
+             pybind11::arg("name") = "");
+    
+	//------------------------------------------------------------------------
+    // fenn_backend.SparseEventPropagationProcess
+    //------------------------------------------------------------------------
+    pybind11::class_<Backend::SparseEventPropagationProcess, Frontend::EventPropagationProcess, std::shared_ptr<Backend::SparseEventPropagationProcess>>(m, "SparseEventPropagationProcess", pybind11::multiple_inheritance())
+        .def(pybind11::init(&Backend::SparseEventPropagationProcess::create),
+             pybind11::arg("input_event_source"), 
+             pybind11::arg("weight"), pybind11::arg("target"),
+			 pybind11::arg("num_sparse_connectivity_bits"),
              pybind11::arg("name") = "");
 
     //------------------------------------------------------------------------

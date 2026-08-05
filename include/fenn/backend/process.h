@@ -246,6 +246,74 @@ private:
 };
 
 //----------------------------------------------------------------------------
+// FeNN::Backend::SparseEventPropagationProcess
+//----------------------------------------------------------------------------
+class FENN_BACKEND_EXPORT SparseEventPropagationProcess : public Frontend::EventPropagationProcess, public EventDrivenProcessImplementation
+{
+public:
+    SparseEventPropagationProcess(Private, Frontend::Sliced<Frontend::EventSource> inputEventSource, 
+                                  Frontend::VariablePtr weight, Frontend::Sliced<Frontend::Variable> target, 
+                                  size_t numSparseConnectivityBits, const std::string &name);
+
+    //------------------------------------------------------------------------
+    // Process virtuals
+    //------------------------------------------------------------------------
+    //! Get vector of state objects used by this process
+    virtual std::vector<std::shared_ptr<const Frontend::State>> getAllState() const override final;
+
+    //! Update the provided hash with the properties of this process which determine whether it can be merged
+    virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const Frontend::Model &model) const override final;
+
+    //! Update the compatible split dimensions of a state object (which should be
+    //! one used by this process) with any constraints imposed by this process)
+    virtual void updateCompatibleSplitDimensions(std::shared_ptr<const Frontend::State> state, 
+                                                 uint32_t &compatibleSplitDimensions) const override final;
+
+    //------------------------------------------------------------------------
+    // ProcessImplementation virtuals
+    //------------------------------------------------------------------------
+    //! Update the memory compatibility of a variable associated with this process
+    virtual void updateCompatibleMemSpace(std::shared_ptr<const Frontend::State> state, 
+                                          MemSpace &compatibleMemSpaces) const override final;
+
+    //! Update the max-row length to support this process
+    virtual void updateMaxDMABufferSize(size_t&) const override final;
+
+    //------------------------------------------------------------------------
+    // EventDrivenProcessImplementation virtuals
+    //------------------------------------------------------------------------
+    virtual void generateArchetypeCode(const Frontend::MergedProcess &mergedProcess, const Runtime &runtime, 
+                                       const KernelImplementation &kernel, MergedFields &mergedFields,
+                                       Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg,
+                                       Assembler::ScalarRegisterPtr preIndReg, std::optional<uint32_t> numTimesteps, 
+                                       Assembler::CodeGenerator &processCodeGenerator, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
+                                       Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;
+
+    //------------------------------------------------------------------------
+    // Public API
+    //------------------------------------------------------------------------
+    const auto getWeight() const{ return m_Weight; }
+    size_t getNumSparseConnectivityBits() const{ return m_NumSparseConnectivityBits; }
+
+    //------------------------------------------------------------------------
+    // Static API
+    //------------------------------------------------------------------------
+    static std::shared_ptr<SparseEventPropagationProcess> create(Frontend::Sliced<Frontend::EventSource> inputEventSource, 
+                                                                Frontend::VariablePtr weight, Frontend::Sliced<Frontend::Variable> target, 
+                                                                 size_t numSparseConnectivityBits, const std::string &name = "")
+    {
+        return std::make_shared<SparseEventPropagationProcess>(Private(), inputEventSource, weight, target, numSparseConnectivityBits, name);
+    }
+
+private:
+    //------------------------------------------------------------------------
+    // Members
+    //------------------------------------------------------------------------
+    Frontend::VariablePtr m_Weight;
+    size_t m_NumSparseConnectivityBits;
+};
+
+//----------------------------------------------------------------------------
 // FeNN::Backend::RNGInitProcess
 //----------------------------------------------------------------------------
 class FENN_BACKEND_EXPORT RNGInitProcess : public Frontend::RNGInitProcess, public TimeDrivenProcessImplementation
