@@ -53,7 +53,10 @@ class PyAppender : public plog::IAppender
 public: 
     using plog::IAppender::IAppender;
 
-	virtual void write(const plog::Record& record) override { PYBIND11_OVERRIDE_PURE(void, plog::IAppender, write, record); }
+	virtual void write(const plog::Record& record) override 
+	{ 
+		PYBIND11_OVERRIDE_PURE(void, plog::IAppender, write, std::cref(record)); 
+	}
 };
 }
 
