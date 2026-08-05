@@ -70,8 +70,8 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">_DEBUG;WIN32_LEAN_AND_MEAN;NOMINMAX;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NDEBUG;WIN32_LEAN_AND_MEAN;NOMINMAX;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug_DLL|x64'">_DEBUG;WIN32_LEAN_AND_MEAN;NOMINMAX;_CONSOLE;BUILDING_ASSEMBLER_DLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release_DLL|x64'">NDEBUG;WIN32_LEAN_AND_MEAN;NOMINMAX;_CONSOLE;BUILDING_ASSEMBLER_DLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug_DLL|x64'">_DEBUG;WIN32_LEAN_AND_MEAN;NOMINMAX;_CONSOLE;PLOG_IMPORT;BUILDING_ASSEMBLER_DLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release_DLL|x64'">NDEBUG;WIN32_LEAN_AND_MEAN;NOMINMAX;_CONSOLE;PLOG_IMPORT;BUILDING_ASSEMBLER_DLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <DisableSpecificWarnings Condition=" $(Configuration.Contains('DLL')) ">4251</DisableSpecificWarnings>
       <LanguageStandard>stdcpp17</LanguageStandard>
