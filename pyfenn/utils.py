@@ -187,8 +187,6 @@ def get_latency_spikes(images, tau=20.0, num_timesteps=79, threshold=51):
     # Flatten images and convert intensity to time
     images = np.reshape(images, (images.shape[0], -1))
 
-    padded_size = int(np.ceil(images.shape[1] / 32)) * 32
-
     spikes = []
     for i in images:
         times = np.round(tau * np.log(i / (i - threshold))).astype(int)
@@ -214,7 +212,8 @@ def get_latency_spikes(images, tau=20.0, num_timesteps=79, threshold=51):
         # Rejoin into single array
         neuron_ids_per_time = np.concatenate(neuron_ids_per_time)
         
-        spikes.append(neuron_ids_per_time)
+        # Convert to uint16 and add to list
+        spikes.append(neuron_ids_per_time.astype(np.uint16))
 
     # Calculate maximum spikes per-image and round to multiple of word-size
     max_spikes_per_image = max(len(s) for s in spikes)
@@ -225,10 +224,7 @@ def get_latency_spikes(images, tau=20.0, num_timesteps=79, threshold=51):
     spikes = [np.pad(s, (2, max_spikes_per_image - len(s)), 
                      constant_values=(0, 0xFFFF)) for s in spikes]
 
-    # Concatenate and write to file
-    spikes = np.concatenate(spikes).astype(np.uint16)
-    
-    return spikes, max_spikes_per_image
+    return spikes, max_spikes_per_image + 2
 
 def build_delay_weights(weights: np.ndarray, delays: np.ndarray,
                         delay_bits: int) -> np.ndarray:

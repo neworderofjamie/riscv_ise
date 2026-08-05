@@ -38,7 +38,7 @@ log_appender = PythonLogAppender()
 init_logging(log_appender, PlogSeverity.DEBUG)
 
 # Input spikes
-input_spikes = backend.EventSourceBuffer(input_shape, num_timesteps)
+input_spikes = backend.EventSourceBuffer(input_shape, max_spikes_per_image)
 
 # Model
 hidden = LIF(backend, hidden_shape, 20.0, 5, 0.61, 1, 5, name="hidden")
@@ -95,7 +95,7 @@ output_v_avg_views = get_views(runtime, output.v_avg, np.int16)
 assert len(output_v_avg_views) == 1
 num_correct = 0
 for i in tqdm(range(len(mnist_labels))):
-    # Copy data to array host pointe
+    # Copy data to array host pointer
     input_spike_views[0][:] = mnist_spikes[i]
     runtime.push_state_to_device(input_spikes)
 
