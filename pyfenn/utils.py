@@ -195,18 +195,28 @@ def build_spike_array(timesteps, neuron_ids):
     
     # Count number of spikes in each timestep and use to split neuron ids
     num_spikes_per_time = np.cumsum(np.bincount(timesteps))
-    neuron_ids_per_timestep = np.split(neuron_ids, num_spikes_per_time)
+    timestep_spikes = np.split(neuron_ids, num_spikes_per_time)
     
     # Concatenate timestamps onto each non-empty group of neuron ids
-    neuron_ids_per_timestep = [np.concatenate(((t | 1 << 15,), n))
-                               for t, n in enumerate(neuron_ids_per_timestep)
-                               if len(n) > 0]
+    timestep_spikes = [np.concatenate(((t | 1 << 15,), n))
+                       for t, n in enumerate(timestep_spikes)
+                       if len(n) > 0]
 
     # Rejoin into single array
-    neuron_ids_per_timestep = np.concatenate(neuron_ids_per_timestep)
+    timestep_spikes = np.concatenate(timestep_spikes)
+
+    # We need a minimum of a single padding value at the end of each 
+    # spike array and total length to be a multiple of 2
+    padded_length = pad(1 + len(timestep_spikes), 2)
     
+    # Pad 
+    timestep_spikes = np.pad(timestep_spikes, 
+                             (2, padded_length - len(timestep_spikes)), 
+                             constant_values=(0, 0xFFFF))
+
     # Convert to uint16 and return
-    return neuron_ids_per_timestep.astype(np.uint16)
+    return timestep_spikes.astype(np.uint16)
+
 
 def convert_tonic_spikes(events: np.ndarray, ordering: Sequence[str],
                          shape: Tuple, time_scale=1.0 / 1000.0,
@@ -257,9 +267,8 @@ def convert_tonic_spikes(events: np.ndarray, ordering: Sequence[str],
     # Find indices of bins where there are enough events
     thresh_id, thresh_t = np.where(spike_event_hist >= histogram_thresh)
     
-    # Build spike arrays and pad 2 halfwords at beginning to hold offset 
-    return np.pad(build_spike_array(thresh_t, thresh_id), 
-                  (2, 0), constant_values=0)
+    # Build spike arrays and return
+    return build_spike_array(thresh_t, thresh_id)
                      
 def get_latency_spikes(images, tau=20.0, num_timesteps=79, threshold=51):
     # Flatten images and convert intensity to time
@@ -275,16 +284,10 @@ def get_latency_spikes(images, tau=20.0, num_timesteps=79, threshold=51):
         # Build spike array and add to list
         spikes.append(build_spike_array(times[neuron_ids], neuron_ids))
 
-    # Calculate maximum spikes per-image and round to multiple of word-size
-    max_spikes_per_image = max(len(s) for s in spikes)
-    max_spikes_per_image = 2 * (max_spikes_per_image + 1) // 2
+    # Calculate maximum spike array length
+    max_spike_array_length = max(len(s) for s in spikes)
     
-    # Pad all spike arrays with 2 halfwords at beginning to 
-    # hold offset and to fixed length with uint16_max
-    spikes = [np.pad(s, (2, max_spikes_per_image - len(s)), 
-                     constant_values=(0, 0xFFFF)) for s in spikes]
-
-    return spikes, max_spikes_per_image + 2
+    return spikes, max_spike_array_length
 
 def build_delay_weights(weights: np.ndarray, delays: np.ndarray,
                         delay_bits: int) -> np.ndarray:

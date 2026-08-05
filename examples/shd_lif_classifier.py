@@ -102,17 +102,14 @@ for events, label in tqdm(dataset, "Preprocessing dataset"):
     shd_spikes.append(spike_array)
     shd_labels.append(label)
 
-# Pad all SHD data
-max_spike_array_size =  2 * (max(len(s) for s in shd_spikes) + 1) // 2
-print(f"Max spike array size: {max_spike_array_size}")
-shd_spikes = [np.pad(s, (0, max_spike_array_size - len(s)), 
-                     constant_values=0xFFFF) for s in shd_spikes]
+# Calculate maximum spike array length
+max_spike_array_length = max(len(s) for s in shd_spikes)
 
 log_appender = PythonLogAppender()
 backend.init_logging(log_appender, backend.PlogSeverity.DEBUG)
 
 # Input spikes
-input_spikes = backend.EventSourceBuffer(input_shape, max_spike_array_size)
+input_spikes = backend.EventSourceBuffer(input_shape, max_spike_array_length)
 
 # Model
 hidden = LIF(backend, hidden_shape, 20.0, 5.0, 1.0,
@@ -183,7 +180,7 @@ num_correct = 0
 for spikes, label in tqdm(zip(shd_spikes, shd_labels),
                           total=len(shd_labels), desc="Simulating"):
     # Copy data to array host pointe
-    input_spike_views[0][:] = spikes
+    input_spike_views[0][:len(spikes)] = spikes
     runtime.push_state_to_device(input_spikes)
 
     # Classify
