@@ -1388,7 +1388,7 @@ void DenseEventPropagationProcess::updateCompatibleMemSpace(std::shared_ptr<cons
 }
 
 //----------------------------------------------------------------------------
-// FeNN::Backend::DenseEventPropagationProcess
+// FeNN::Backend::SparseEventPropagationProcess
 //----------------------------------------------------------------------------
 SparseEventPropagationProcess::SparseEventPropagationProcess(Private, Frontend::Sliced<Frontend::EventSource> inputEventSource, 
                                                              Frontend::VariablePtr weight, Frontend::Sliced<Frontend::Variable> target, 
@@ -1456,13 +1456,13 @@ void SparseEventPropagationProcess::generateArchetypeCode(const Frontend::Merged
     auto &c = processCodeGenerator;
 
     // Add fields for weight and target
-    const uint32_t weightFieldOffset = mergedFields.addField<DenseEventPropagationProcess>(
+    const uint32_t weightFieldOffset = mergedFields.addField<SparseEventPropagationProcess>(
         [](const Frontend::DeviceBase &d, auto p)
         { 
             return d.getArray(p->getWeight()); 
         });
 
-    const uint32_t targetFieldOffset = mergedFields.addField<DenseEventPropagationProcess>(
+    const uint32_t targetFieldOffset = mergedFields.addField<SparseEventPropagationProcess>(
         [](const Frontend::DeviceBase &d, auto p)
         { 
             return d.getArray(p->getTarget().getUnderlying()); 
@@ -1480,14 +1480,14 @@ void SparseEventPropagationProcess::generateArchetypeCode(const Frontend::Merged
     // Get stride
     // **NOTE** this is going into a multiply so always needs to be in a register
     const auto strideReg = std::get<Assembler::ScalarRegisterPtr>(
-        addScalarValue<DenseEventPropagationProcess>(
+        addScalarValue<SparseEventPropagationProcess>(
             0, mergedProcess, runtime.getNumDevices(), mergedFields, fieldBaseReg, 
             processCodeGenerator, scalarRegisterAllocator, getStride));
 
     // No need for unrolling if all strides are 
     // less than the size of a single unrolled iteration
     // **THINK** this could also trigger a reduction in maxUnroll
-    const bool strideNoUnroll = allOf<DenseEventPropagationProcess>(
+    const bool strideNoUnroll = allOf<SparseEventPropagationProcess>(
         mergedProcess, runtime.getNumDevices(), getStride,
         [this](const MergedFields::FieldValue &num)
         {
@@ -1496,7 +1496,7 @@ void SparseEventPropagationProcess::generateArchetypeCode(const Frontend::Merged
 
     // No need to unroll pairs if all strides have 
     // less than 2 vector remaining after unrolling
-    const bool strideNoPairs = allOf<DenseEventPropagationProcess>(
+    const bool strideNoPairs = allOf<SparseEventPropagationProcess>(
         mergedProcess, runtime.getNumDevices(), getStride,
         [this](const MergedFields::FieldValue &num)
         {
@@ -1507,7 +1507,7 @@ void SparseEventPropagationProcess::generateArchetypeCode(const Frontend::Merged
 
     // No need to add final iteration if all strides
     // are a multiple of two after unrolling
-    const bool strideNoFinal = allOf<DenseEventPropagationProcess>(
+    const bool strideNoFinal = allOf<SparseEventPropagationProcess>(
         mergedProcess, runtime.getNumDevices(), getStride,
         [this](const MergedFields::FieldValue &num)
         {
