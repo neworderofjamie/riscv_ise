@@ -87,11 +87,8 @@ if args.time:
     zero_and_push(synapse_update_processes.performance_counter, runtime)
     zero_and_push(zero_processes.performance_counter, runtime)
 
-# Set instructions
-runtime.set_instructions(code)
-
 # Loop through examples
-input_spike_views = get_views(runtime, input_spikes, np.uint32)
+input_spike_views = get_views(runtime, input_spikes, np.uint16)
 assert len(input_spike_views) == 1
 
 output_v_avg_views = get_views(runtime, output.v_avg, np.int16)
@@ -103,7 +100,7 @@ for i in tqdm(range(len(mnist_labels))):
     runtime.push_state_to_device(input_spikes)
 
     # Classify
-    runtime.run()
+    runtime.run(kernel)
 
     # Copy output V sum from device
     runtime.pull_state_from_device(output.v_avg)
