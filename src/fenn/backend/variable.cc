@@ -40,18 +40,6 @@ std::unique_ptr<Frontend::ArrayBase> Variable::createArray(const Frontend::Shape
         LOGI_FENN_BACKEND << "Creating variable '" << getName() << "' array in LLM";
         return static_cast<DeviceFeNN&>(device).createLLMArray(getType(), paddedShape);
     }
-    case MemSpace::URAM_LLM:
-    {
-        LOGI_FENN_BACKEND << "Creating variable '" << getName() << "' array in URAM and LLM";
-        if (paddedShape.getNumDims() < 2) {
-            throw std::runtime_error("Arrays allocated in URAM and LLM are expected to have time dimension");
-        }
-
-        // Slice off time dimension from shape
-        const auto oneTimestepShape = paddedShape.slice(1);
-
-        return static_cast<DeviceFeNN&>(device).createURAMLLMArray(getType(), oneTimestepShape, paddedShape);
-    }
     case MemSpace::BRAM:
     {
         LOGI_FENN_BACKEND << "Creating variable '" << getName() << "' array in BRAM";
