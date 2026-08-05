@@ -45,13 +45,17 @@ def is_kria() -> bool:
     else:
         return False
 
-def get_array_view(runtime: Runtime, state, dtype, shape=None):
-    array = runtime.get_array(state)
-    view = np.asarray(array.host_view).view(dtype)
+def get_views(runtime: Runtime, state, dtype, shape=None):
+    # Get views
+    views = [np.asarray(a.host_view).view(dtype) 
+             for a in runtime.get_arrays(state)]
+    
+    # **TODO** stack, handle stride etc
     if shape is not None:
-        view = np.reshape(view, shape)
-    assert not view.flags["OWNDATA"]
-    return array, view
+        views = [np.reshape(v, shape) for v in views]
+    
+    assert not any(v.flags["OWNDATA"] for v in views)
+    return views
 
 # Divide two integers, rounding up i.e. effectively taking ceil
 def ceil_divide(numerator, denominator):
@@ -89,27 +93,31 @@ def quantise(data, fractional_bits: int, num_pre: int = None,
     return np.round(data * fp_one).astype(np.int16).flatten()
 
 def zero_and_push(state, runtime: Runtime):
-    # Get array and view
-    array, view = get_array_view(runtime, state, np.uint8)
+    # Get array views
+    views = get_views(runtime, state, np.uint8)
 
     # Zero
     # **HACK** assigning to the slice causes bus errors with DMA buffer
-    for i in range(len(view)):
-        view[i] = 0
+    for v in views:
+        for i in range(len(v)):
+            v[i] = 0
     #view[:] = 0
 
     # Push to device
-    array.push_to_device()
+    runtime.push_state_to_device(state)
 
 def copy_and_push(data: np.ndarray, state, runtime: Runtime, shape=None):
     # Get array and view
-    array, view = get_array_view(runtime, state, data.dtype, shape)
+    views = get_views(runtime, state, data.dtype, shape)
 
     # Copy data to array host pointer
-    view[:] = data
+    # **TODO** handle stride etc
+    assert len(views) == 1
+    for v in views:
+        v[:] = data
 
     # Push to device
-    array.push_to_device()
+    runtime.push_state_to_device(state)
 
 def load_and_push(filename: str, state, runtime: Runtime):
     copy_and_push(np.fromfile(filename, dtype=np.uint8), state, runtime)
@@ -125,15 +133,17 @@ def load_quantise_and_push(filename: str, fractional_bits: int,
     copy_and_push(data, state, runtime)
 
 def pull_spikes(num_timesteps: int, state, runtime: Runtime):
-    spike_array, spike_view = get_array_view(runtime,
-                                             state,
-                                             np.uint8)
-    spike_array.pull_from_device()
-    spike_view = np.reshape(spike_view, (num_timesteps, -1))
+    runtime.pull_state_from_device(state)
+    spike_views = get_views(runtime, state, np.uint8)
+    
+    spike_views = [np.reshape(v, (num_timesteps, -1)) for v in spike_views]
 
-    return np.where(np.unpackbits(spike_view, axis=1, bitorder="little"))
+    return [np.where(np.unpackbits(v, axis=1, bitorder="little"))
+            for v in spike_views]
+
 
 def read_perf_counter(perf_counter, runtime: Runtime):
+    assert False
     # Get array and view
     array, view = get_array_view(runtime, perf_counter, np.uint64)
 
@@ -144,17 +154,18 @@ def read_perf_counter(perf_counter, runtime: Runtime):
 
 def seed_and_push(state, runtime: Runtime):
     # Get array and view
-    array, view = get_array_view(runtime, state, np.int16)
+    views = get_views(runtime, state, np.int16)
 
-    # Zero
+    # Generate different seeds for each view
     int16_info = np.iinfo(np.int16)
-    view[:] = np.random.randint(int16_info.min, int16_info.max, 64, dtype=np.int16)
+    for v in views:
+        v[:] = np.random.randint(int16_info.min, int16_info.max, 64, dtype=np.int16)
 
     # Push to device
-    array.push_to_device()
+    runtime.push_state_to_device(state)
 
 def generate_exp_lut_and_push(state, runtime: Runtime):
-    array, view = get_array_view(runtime, state, np.int16)
+    views = get_views(runtime, state, np.int16)
     
     num_bits = 15
     table_bits = (num_bits - 3) // 2
@@ -164,12 +175,13 @@ def generate_exp_lut_and_push(state, runtime: Runtime):
     exp_max = 0.5 * log2
     step = (2.0 * exp_max) / (2 ** table_bits)
 
-    # Generate LUT and copy into view
+    # Generate LUT and copy into all views
     lut = np.round(np.exp(np.arange(-exp_max, exp_max + step, step)) * (2 ** 14)).astype(np.int16)
-    view[:lut_size] = lut
+    for v in views:
+        v[:lut_size] = lut
     
     # Push to device
-    array.push_to_device()
+    runtime.push_state_to_device(state)
 
 def get_latency_spikes(images, tau=20.0, num_timesteps=79, threshold=51):
     # Flatten images and convert intensity to time

@@ -12,7 +12,7 @@ from pyfenn.utils import PythonLogAppender
 from models import LI, LIF
 
 from pyfenn.fenn_backend import disassemble, init_logging
-from pyfenn.utils import (get_array_view, get_latency_spikes, load_and_push,
+from pyfenn.utils import (get_views, get_latency_spikes, load_and_push,
                           read_perf_counter, zero_and_push)
 from tqdm.auto import tqdm
 
@@ -91,25 +91,25 @@ if args.time:
 runtime.set_instructions(code)
 
 # Loop through examples
-input_spike_array, input_spike_view = get_array_view(runtime, input_spikes,
-                                                     np.uint32)
-hidden_spike_array = runtime.get_array(hidden.out_spikes)
+input_spike_views = get_views(runtime, input_spikes, np.uint32)
+assert len(input_spike_views) == 1
 
-output_v_avg_array, output_v_avg_view = get_array_view(runtime, output.v_avg, np.int16)
+output_v_avg_views = get_views(runtime, output.v_avg, np.int16)
+assert len(output_v_avg_views) == 1
 num_correct = 0
 for i in tqdm(range(len(mnist_labels))):
     # Copy data to array host pointe
-    input_spike_view[:] = mnist_spikes[i]
-    input_spike_array.push_to_device()
+    input_spike_views[0][:] = mnist_spikes[i]
+    runtime.push_state_to_device(input_spikes)
 
     # Classify
     runtime.run()
 
     # Copy output V sum from device
-    output_v_avg_array.pull_from_device()
+    runtime.pull_state_from_device(output.v_avg)
 
     # Determine if output is correct
-    classification = np.argmax(output_v_avg_view)
+    classification = np.argmax(output_v_avg_views[0])
     if classification == mnist_labels[i]:
         num_correct += 1
 
