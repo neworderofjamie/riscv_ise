@@ -299,7 +299,7 @@ public:
     // Static API
     //------------------------------------------------------------------------
     static std::shared_ptr<SparseEventPropagationProcess> create(Frontend::Sliced<Frontend::EventSource> inputEventSource, 
-                                                                Frontend::VariablePtr weight, Frontend::Sliced<Frontend::Variable> target, 
+                                                                 Frontend::VariablePtr weight, Frontend::Sliced<Frontend::Variable> target, 
                                                                  size_t numSparseConnectivityBits, const std::string &name = "")
     {
         return std::make_shared<SparseEventPropagationProcess>(Private(), inputEventSource, weight, target, numSparseConnectivityBits, name);
