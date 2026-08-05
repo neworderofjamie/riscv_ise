@@ -1418,11 +1418,15 @@ SparseEventPropagationProcess::SparseEventPropagationProcess(Private, Frontend::
                                  + getInputEventSource().getShape().toString());
     }
 
-    // Check weight shape is less than padded target shape
-
     // **YUCK** padding should not occur at this point as it is device shape which needs padding
+    if((getWeight()->getShape()[1] % 32) != 0) {
+        throw std::runtime_error("Weight with shape: " + getWeight()->getShape().toString() 
+                                 + " requires padding");
+    }
+
+    // Check weight shape is less than or equal to padded target shape
     const auto paddedTargetShape = getTarget().getShape().pad(0, 32);
-    if(getWeight()->getShape()[1] < paddedTargetShape[0]) {
+    if(getWeight()->getShape()[1] > paddedTargetShape[0]) {
         throw std::runtime_error("Weight with shape: " + getWeight()->getShape().toString() 
                                  + " is not compatible with target variable with padded shape: " 
                                  + paddedTargetShape.toString());
