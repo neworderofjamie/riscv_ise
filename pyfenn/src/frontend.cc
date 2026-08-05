@@ -34,6 +34,7 @@ using namespace pybind11::literals;
 //----------------------------------------------------------------------------
 #define WRAP_ENUM(ENUM, VAL) .value(#VAL, ENUM::VAL, DOC(ENUM, VAL))
 #define WRAP_METHOD(NAME, NS, CLASS, METH) .def(NAME, &NS::CLASS::METH, DOC(NS, CLASS, METH))
+#define WRAP_METHOD_REF(NAME, NS, CLASS, METH) .def(NAME, &NS::CLASS::METH, pybind11::return_value_policy::reference, DOC(NS, CLASS, METH))
 #define WRAP_PROPERTY_GETTER(NAME, NS, CLASS, METH_STEM) .def_property_readonly(NAME, &NS::CLASS::get##METH_STEM, DOC(NS, CLASS, get##METH_STEM))
 #define WRAP_PROPERTY_RO(NAME, NS, CLASS, METH_STEM) .def_property_readonly(NAME, &NS::CLASS::get##METH_STEM, DOC(NS, CLASS, m_##METH_STEM))
 #define WRAP_PROPERTY_RO_SHOULD(NAME, NS, CLASS, METH_STEM) .def_property_readonly(NAME, &NS::CLASS::should##METH_STEM, DOC(NS, CLASS, m_##METH_STEM))
@@ -285,7 +286,7 @@ PYBIND11_MODULE(_frontend, m)
         WRAP_PROPERTY_RO("begin_process_groups", Frontend, SimulationLoopKernel, BeginProcessGroups)
         WRAP_PROPERTY_RO("end_process_groups", Frontend, SimulationLoopKernel, EndProcessGroups);
     
-        //------------------------------------------------------------------------
+    //------------------------------------------------------------------------
     // frontend.ArrayBase
     //------------------------------------------------------------------------
     pybind11::class_<Frontend::ArrayBase>(m, "ArrayBase")
@@ -309,6 +310,6 @@ PYBIND11_MODULE(_frontend, m)
         WRAP_METHOD("run", Frontend, Runtime, run)
         WRAP_METHOD("push_state_to_device", Frontend, Runtime, pushStateToDevice)
         WRAP_METHOD("pull_state_from_device", Frontend, Runtime, pullStateFromDevice)
-		WRAP_METHOD("get_arrays", Frontend, Runtime, getArrays)
+		WRAP_METHOD_REF("get_arrays", Frontend, Runtime, getArrays)
         WRAP_PROPERTY_RO("num_devices", Frontend, Runtime, NumDevices);    
 }
