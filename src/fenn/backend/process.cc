@@ -386,166 +386,6 @@ ScalarConstant addScalarValue(int maxBits, const Frontend::MergedProcess &merged
         }
     }
 }
-
-//------------------------------------------------------------------------
-// RowGeneratorBase
-//------------------------------------------------------------------------
-/*class RowGeneratorBase
-{
-public:
-    RowGeneratorBase(CodeGenerator &c, std::shared_ptr<const Model::EventPropagationProcess> process,
-                     const Model::StateFields &stateFields,
-                     ScalarRegisterAllocator &scalarRegisterAllocator, 
-                     VectorRegisterAllocator &vectorRegisterAllocator)
-        :   m_Process(process), m_StateFields(stateFields), m_ScalarRegisterAllocator(scalarRegisterAllocator), 
-        m_VectorRegisterAllocator(vectorRegisterAllocator)
-    {
-        // Allocate register for stride, calculate and load as immediate
-        m_StrideReg = scalarRegisterAllocator.getRegister("SStride = X");
-        c.li(*m_StrideReg, ceilDivide(process->getMaxRowLength(), 32) * 64);
-
-    }
-
-    //--------------------------------------------------------------------
-    // Declared virtuals
-    //--------------------------------------------------------------------
-    virtual void generateRow(CodeGenerator &cg, ScalarRegisterPtr weightBufferReg) = 0;
-
-    //--------------------------------------------------------------------
-    // Public API
-    //--------------------------------------------------------------------
-    auto getStrideReg() const{ return m_StrideReg; }
-
-protected:
-    //--------------------------------------------------------------------
-    // Protected API
-    //--------------------------------------------------------------------
-    auto getProcess() const{ return m_Process; }
-
-    auto &getStateFields(){ return m_StateFields.get(); }
-    auto &getScalarRegisterAllocator(){ return m_ScalarRegisterAllocator.get(); }
-    auto &getVectorRegisterAllocator(){ return m_VectorRegisterAllocator.get(); }
-
-public:
-    //--------------------------------------------------------------------
-    // Public API
-    //--------------------------------------------------------------------
-    auto loadWeightBuffer(CodeGenerator &c, ScalarRegisterPtr idPreReg)
-    {
-        auto &scalarRegisterAllocator = getScalarRegisterAllocator();
-
-        // SWeightBuffer = weightInHidStart + (numPostVecs * 64 * SN);
-        ALLOCATE_SCALAR(SWeightBuffer);
-        c.lw(*SWeightBuffer, Reg::X0, getStateFields().at(getProcess()->getWeight()));
-        {
-            ALLOCATE_SCALAR(STemp);
-            c.mul(*STemp, *idPreReg, *m_StrideReg);
-            c.add(*SWeightBuffer, *SWeightBuffer, *STemp);
-        }
-
-        return SWeightBuffer;
-    }
-private:
-    //--------------------------------------------------------------------
-    // Members
-    //--------------------------------------------------------------------
-    std::shared_ptr<const Model::EventPropagationProcess> m_Process;
-    ScalarRegisterPtr m_StrideReg;
-    std::reference_wrapper<const Model::StateFields> m_StateFields;
-    std::reference_wrapper<ScalarRegisterAllocator> m_ScalarRegisterAllocator;
-    std::reference_wrapper<VectorRegisterAllocator> m_VectorRegisterAllocator;
-};
-
-//------------------------------------------------------------------------
-// DelayedRowGenerator
-//------------------------------------------------------------------------
-class DelayedRowGenerator : public RowGeneratorBase
-{
-public:
-    DelayedRowGenerator(CodeGenerator &c, std::shared_ptr<const Model::EventPropagationProcess> process,
-                        const Model::StateFields &stateFields, VectorRegisterPtr vectorTimeReg,
-                        ScalarRegisterAllocator &scalarRegisterAllocator, 
-                        VectorRegisterAllocator &vectorRegisterAllocator)
-        :   RowGeneratorBase(c, process, stateFields, scalarRegisterAllocator, vectorRegisterAllocator),
-        m_DelayStride(2 * process->getTarget()->getNumBufferTimesteps()), 
-        m_TargetAddress(stateFields.at(process->getTarget()) + 4), m_VectorTimeReg(vectorTimeReg)
-    {
-        // Check number of buffer timesteps is P.O.T.
-        if(!isPOT(process->getTarget()->getNumBufferTimesteps())) {
-            throw std::runtime_error("When used as delayed event propagation targets, variables "
-                                     "need to have a power-of-two number of buffer timesteps");
-        }
-    }
-
-    //--------------------------------------------------------------------
-    // RowGeneratorBase virtuals
-    //--------------------------------------------------------------------
-    virtual void generateRow(CodeGenerator &c, ScalarRegisterPtr weightBufferReg) final override
-    {
-        // Make some friendlier-named references
-        auto &scalarRegisterAllocator = getScalarRegisterAllocator();
-        auto &vectorRegisterAllocator = getVectorRegisterAllocator();
-
-        // Loop over postsynaptic neurons
-        ALLOCATE_SCALAR(STargetReg);
-        ALLOCATE_VECTOR(VAccum)
-            ALLOCATE_VECTOR(VWeightInd1);
-        ALLOCATE_VECTOR(VWeightInd2);
-        ALLOCATE_VECTOR(VPostAddr);
-        ALLOCATE_VECTOR(VWeight);
-
-        // Reload target register from scalar register
-        // **NOTE** LLM address is offset by 4 bytes in field
-        c.lw(*STargetReg, Reg::X0, m_TargetAddress);
-
-        // Preload first weights and indices to avoid stall
-        c.vloadv(*VWeightInd1, *weightBufferReg, 0);
-
-        Utils::unrollVectorLoopBody(
-            c, scalarRegisterAllocator, getProcess()->getMaxRowLength(), 4, *weightBufferReg,
-            [this, weightBufferReg,
-            STargetReg, VAccum, VPostAddr, VWeight, VWeightInd1, VWeightInd2]
-            (CodeGenerator &c, uint32_t r, bool even, ScalarRegisterPtr)
-            {
-                // Load NEXT vector of weights and indices
-                c.vloadv(even ? *VWeightInd2 : *VWeightInd1, *weightBufferReg, (r + 1) * 64);
-
-                // Add time to delay
-                auto VWeightInd = even ? VWeightInd1 : VWeightInd2;
-                c.vadd(*VPostAddr, *VWeightInd, *m_VectorTimeReg);
-
-                // Extract delay and add base address
-                c.vandadd(getProcess()->getNumDelayBits(), *VPostAddr, *VPostAddr, *STargetReg);
-
-                // Load accumulator
-                c.vloadl(*VAccum, *VPostAddr, m_DelayStride * r);
-
-                // Extract weight
-                c.vsrai(getProcess()->getNumDelayBits(), *VWeight, *VWeightInd);
-
-                // Add weights to accumulator loaded in previous iteration
-                c.vadd_s(*VAccum, *VAccum, *VWeight);
-
-                // Write back accumulator
-                c.vstorel(*VAccum, *VPostAddr, m_DelayStride * r);
-            },
-            [this, STargetReg, weightBufferReg, &vectorRegisterAllocator]
-            (CodeGenerator &c, uint32_t numUnrolls)
-            {
-                // Increment pointers 
-                c.addi(*weightBufferReg, *weightBufferReg, 64 * numUnrolls);
-                c.addi(*STargetReg, *STargetReg, numUnrolls * m_DelayStride);
-            });
-    }
-
-private:
-    //--------------------------------------------------------------------
-    // Members
-    //--------------------------------------------------------------------
-    size_t m_DelayStride;
-    uint32_t m_TargetAddress;
-    VectorRegisterPtr m_VectorTimeReg;
-};*/
 }
 //----------------------------------------------------------------------------
 // FeNN::Backend::TimeDrivenProcessImplementation
@@ -1640,6 +1480,273 @@ void SparseEventPropagationProcess::updateCompatibleMemSpace(std::shared_ptr<con
     }
 }
 
+
+//----------------------------------------------------------------------------
+// FeNN::Backend::DelayEventPropagationProcess
+//----------------------------------------------------------------------------
+DelayEventPropagationProcess::DelayEventPropagationProcess(Private, Frontend::Sliced<Frontend::EventSource> inputEventSource, 
+                                                           Frontend::VariablePtr weight, Frontend::Sliced<Frontend::Variable> target, 
+                                                           size_t numDelayBits, const std::string &name)
+:   EventPropagationProcess(Private(), inputEventSource, target, name), m_Weight(weight), m_NumDelayBits(numDelayBits)
+{
+    if(m_Weight == nullptr) {
+        throw std::runtime_error("Delayed event propagation process requires weight variable");
+    }
+
+    if (getWeight()->getShape().getNumDims() != 2) {
+        throw std::runtime_error("Delayed event propagation process requires weight variable with a 2D shape");
+    }
+
+    if (getInputEventSource().getShape().getNumDims() != 1) {
+        throw std::runtime_error("Delayed event propagation process requires source events with a 1D shape");
+    }  
+
+    if (getTarget().hasTimeSlice()) {
+        throw std::runtime_error("Delayed propagation process requires target whose time dimension hasn't been sliced away");
+    }
+    
+    if (getTarget().getShape().getNumDims() != 2) {
+        throw std::runtime_error("Delayed propagation process requires target variable with a 2D shape");
+    } 
+
+    if(getTarget().getNumTimesteps() != (1 << (getNumDelayBits()- 1))) {
+        throw std::runtime_error("Time dimension of delayed propagation process target buffer "
+                                 " does not match specified number of delay bits");
+    }
+
+    // Check weight shape matches input event shape
+    if(getWeight()->getShape()[0] != getInputEventSource().getShape()[0]) {
+        throw std::runtime_error("Weight with shape: " + getWeight()->getShape().toString() 
+                                 + " is not compatible with event source with shape: " 
+                                 + getInputEventSource().getShape().toString());
+    }
+
+    // Check weight shape is less than or equal to padded target shape
+    const auto paddedTargetShape = getTarget().getShape().pad(1, 32);
+    if(getWeight()->getShape()[1] != paddedTargetShape[1]) {
+        throw std::runtime_error("Weight with shape: " + getWeight()->getShape().toString() 
+                                 + " is not compatible with target variable with padded shape: " 
+                                 + paddedTargetShape.toString());
+    }
+
+    // Check weight and target have same types
+    if(getWeight()->getType() != getTarget().getUnderlying()->getType()) {
+        throw std::runtime_error("Weight with type: " + getWeight()->getType().getName() 
+                                 + " is not compatible with target variable with type: " 
+                                 + getTarget().getUnderlying()->getType().getName());
+    }
+}
+//------------------------------------------------------------------------
+void DelayEventPropagationProcess::updateMaxDMABufferSize(size_t &size) const
+{
+    size = std::max(size, getWeight()->getShape()[1]);
+}
+//------------------------------------------------------------------------
+void DelayEventPropagationProcess::generateArchetypeCode(const Frontend::MergedProcess &mergedProcess, const Runtime &runtime, 
+                                                         const KernelImplementation&, MergedFields &mergedFields, 
+                                                         Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg, 
+                                                         Assembler::ScalarRegisterPtr preIndReg, std::optional<uint32_t>, 
+                                                         Assembler::CodeGenerator &processCodeGenerator, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
+                                                         Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
+{
+    // Make some friendlier-named references
+    auto &c = processCodeGenerator;
+
+    // Add fields for weight and target
+    const uint32_t weightFieldOffset = mergedFields.addField<DelayEventPropagationProcess>(
+        [](const Frontend::DeviceBase &d, auto p)
+        { 
+            return d.getArray(p->getWeight()); 
+        });
+
+    const uint32_t targetFieldOffset = mergedFields.addField<DelayEventPropagationProcess>(
+        [](const Frontend::DeviceBase &d, auto p)
+        { 
+            return d.getArray(p->getTarget().getUnderlying()); 
+        });
+
+    // Define lambda function to get stride
+    // **NOTE** we look at weight because it is padded
+    auto getStride =
+        [&runtime](size_t d, auto p)
+        { 
+            return static_cast<uint32_t>(
+                2 * p->getWeight()->getShape().getSplitDimension(d, 1, runtime.getNumDevices(), 32));
+        };
+
+    // Get stride
+    // **NOTE** this is going into a multiply so always needs to be in a register
+    // **OPTIMISE** immediate loop count saves much more than a single li!
+    const auto strideReg = std::get<Assembler::ScalarRegisterPtr>(
+        addScalarValue<DelayEventPropagationProcess>(
+            0, mergedProcess, runtime.getNumDevices(), mergedFields, fieldBaseReg, 
+            processCodeGenerator, scalarRegisterAllocator, getStride));
+
+    // No need for unrolling if all strides are 
+    // less than the size of a single unrolled iteration
+    // **THINK** this could also trigger a reduction in maxUnroll
+    const bool strideNoUnroll = allOf<DelayEventPropagationProcess>(
+        mergedProcess, runtime.getNumDevices(), getStride,
+        [this](const MergedFields::FieldValue &num)
+        {
+            return (std::get<uint32_t>(num) < (getMaxUnroll() * 64));
+        });
+
+    // No need to unroll pairs if all strides have 
+    // less than 2 vector remaining after unrolling
+    const bool strideNoPairs = allOf<DelayEventPropagationProcess>(
+        mergedProcess, runtime.getNumDevices(), getStride,
+        [this](const MergedFields::FieldValue &num)
+        {
+            // Calculate how much remains after unrolled iterations
+            const uint32_t unrollRemainder = (std::get<uint32_t>(num) % (getMaxUnroll() * 64));
+            return (unrollRemainder < 128);
+        });
+
+    // No need to add final iteration if all strides
+    // are a multiple of two after unrolling
+    const bool strideNoFinal = allOf<DelayEventPropagationProcess>(
+        mergedProcess, runtime.getNumDevices(), getStride,
+        [this](const MergedFields::FieldValue &num)
+        {
+            const uint32_t unrollRemainder = (std::get<uint32_t>(num) % (getMaxUnroll() * 64));
+            return (unrollRemainder % 128) == 0;
+        });
+
+    // Load target register from state fields
+    ALLOCATE_SCALAR(STargetBuf);
+    c.lw(*STargetBuf, *fieldBaseReg, targetFieldOffset);
+
+    // Calculate row start address
+    ALLOCATE_SCALAR(SWeightBuffer);
+    c.lw(*SWeightBuffer, *fieldBaseReg, weightFieldOffset);
+    {
+        ALLOCATE_SCALAR(STemp);
+        c.mul(*STemp, *preIndReg, *strideReg);
+        c.add(*SWeightBuffer, *SWeightBuffer, *STemp);
+    }
+
+    // Loop over postsynaptic neurons
+    ALLOCATE_SCALAR(STargetReg);
+    ALLOCATE_VECTOR(VAccum);
+    ALLOCATE_VECTOR(VWeightInd1);
+    ALLOCATE_VECTOR(VWeightInd2);
+    ALLOCATE_VECTOR(VPostAddr);
+    ALLOCATE_VECTOR(VWeight);
+    ALLOCATE_VECTOR(VTime);
+
+    // **OPTIMISE** this could be done in the runtime 
+    // at the  top of the event source process group
+    c.vfill(*VTime, *timeReg);
+    c.vslli(1, *VTime, *VTime);
+
+    // Preload first weights and indices to avoid stall
+    c.vloadv(*VWeightInd1, *SWeightBuffer, 0);
+
+    // Stride of each neuron's delay buffer in LLM
+    const uint32_t delayStride = 2 * getTarget().getNumTimesteps();
+
+    Assembler::Utils::unrollOddEvenLoopBody(
+        c, scalarRegisterAllocator,
+        *strideReg, getMaxUnroll(), 64,
+        strideNoUnroll, strideNoPairs, strideNoFinal,
+        [this, delayStride, SWeightBuffer, STargetBuf, VAccum, VPostAddr, VTime, VWeight, VWeightInd1, VWeightInd2]
+        (Assembler::CodeGenerator &c, uint32_t r, bool even)
+        {
+            // Load NEXT vector of weights and indices
+            c.vloadv(even ? *VWeightInd2 : *VWeightInd1, *SWeightBuffer, (r + 1) * 64);
+
+            // Add time to delay
+            auto VWeightInd = even ? VWeightInd1 : VWeightInd2;
+            c.vadd(*VPostAddr, *VWeightInd, *VTime);
+
+            // Extract delay and add base address
+            c.vandadd(getNumDelayBits(), *VPostAddr, *VPostAddr, *STargetBuf);
+
+            // Load accumulator
+            c.vloadl(*VAccum, *VPostAddr, delayStride * r);
+
+            // Extract weight
+            c.vsrai(getNumDelayBits(), *VWeight, *VWeightInd);
+
+            // Add weights to accumulator loaded in previous iteration
+            c.vadd_s(*VAccum, *VAccum, *VWeight);
+
+            // Write back accumulator
+            c.vstorel(*VAccum, *VPostAddr, delayStride * r);
+        },
+        [this, delayStride, STargetReg, SWeightBuffer, &vectorRegisterAllocator]
+        (Assembler::CodeGenerator &c, uint32_t numUnrolls)
+        {
+            // Increment pointers 
+            c.addi(*SWeightBuffer, *SWeightBuffer, 64 * numUnrolls);
+            c.addi(*STargetReg, *STargetReg, numUnrolls * delayStride);
+        });
+}
+//----------------------------------------------------------------------------
+std::vector<std::shared_ptr<const Frontend::State>> DelayEventPropagationProcess::getAllState() const
+{
+    return {getInputEventSource().getUnderlying(), getWeight(), getTarget().getUnderlying()};
+}
+//----------------------------------------------------------------------------
+void DelayEventPropagationProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Frontend::Model &model) const
+{
+    using namespace ::Common::Utils;
+    UPDATE_HASH_CLASS_NAME(DelayEventPropagationProcess);
+
+    // **NOTE** we do NOT call the superclass here because we want to set our 
+    // own name and do not want to include input event source in hash as 
+    // event sources are handled seperately in FeNN backend
+
+    // Include number of delay bits in hash
+    updateHash(getNumDelayBits(), hash);
+
+    // Targets
+    // **NOTE** generated code doesn't depend on underlying target type so do not include in hash
+    getTarget().updateMergeHash(hash, false);
+
+    // **YUCK** include number of timesteps in hash
+    updateHash(getTarget().getNumTimesteps(), hash);
+
+    // Include hash of target memory space
+    updateHash(static_cast<const Model&>(model).getStateMemSpace(getTarget().getUnderlying(), 
+                                                                 true/*getRuntime().shouldUseDRAMForWeights()*/), hash);
+
+    // **NOTE** we don't need to hash the weights as the generated code doesn't depend on their type
+
+    // Include hash of weight memory space
+    updateHash(static_cast<const Model&>(model).getStateMemSpace(getTarget().getUnderlying(), 
+                                                                 true/*getRuntime().shouldUseDRAMForWeights()*/), hash);
+}
+//----------------------------------------------------------------------------
+void DelayEventPropagationProcess::updateCompatibleSplitDimensions(std::shared_ptr<const Frontend::State> state, 
+                                                                   uint32_t &compatibleSplitDimensions) const 
+{
+    // If variable is weight, it can only be split in 2nd (postsynaptic) dimension
+    if(state == getWeight()) {
+        compatibleSplitDimensions &= (1 << 1);
+    }
+    // Otherwise, superclass
+    else {
+        Frontend::EventPropagationProcess::updateCompatibleSplitDimensions(state, compatibleSplitDimensions);
+    }
+}
+//----------------------------------------------------------------------------
+void DelayEventPropagationProcess::updateCompatibleMemSpace(std::shared_ptr<const Frontend::State> state, 
+                                                            MemSpace &compatibleMemSpaces) const
+{
+    // If variable is weight, it can  be located in URAM or DRAM
+    if(state == getWeight()) {
+        compatibleMemSpaces &= (MemSpace::DRAM | MemSpace::URAM);
+    }
+    // Otherwise, if variable's target, it can only be in LLM 
+    else if(state == getTarget().getUnderlying()) {
+        compatibleMemSpaces &= MemSpace::LLM;
+    }
+    else {
+        assert(state == getInputEventSource().getUnderlying());
+    }
+}
 //----------------------------------------------------------------------------
 // FeNN::Backend::EventPropagationProcess
 //----------------------------------------------------------------------------
