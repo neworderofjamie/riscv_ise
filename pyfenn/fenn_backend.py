@@ -16,8 +16,13 @@ def init_logging(appender, level=PlogSeverity.INFO,
                  fenn_backend_level=None, fenn_compiler_level=None,
                  fenn_ise_level=None):
 
+    import logging
     from ._frontend import init_logging as init_frontend_logging
     from  ._fenn_backend import init_logging as init_fenn_logging
+    
+    # Set root logger level
+    # **THINK** better logger config
+    logging.basicConfig(level=logging.DEBUG)
     
     # Initialise frontend logging
     init_frontend_logging(frontend_level or level,
