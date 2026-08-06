@@ -1629,9 +1629,9 @@ void SparseEventPropagationProcess::updateCompatibleMemSpace(std::shared_ptr<con
     if(state == getWeight()) {
         compatibleMemSpaces &= (MemSpace::DRAM | MemSpace::URAM);
     }
-    // Otherwise, if variable's target, it can be in URAM or LLM 
+    // Otherwise, if variable's target, it can only be in LLM 
     else if(state == getTarget().getUnderlying()) {
-        compatibleMemSpaces &= (MemSpace::LLM | MemSpace::URAM);
+        compatibleMemSpaces &= MemSpace::LLM;
     }
     else {
         assert(state == getInputEventSource().getUnderlying());
