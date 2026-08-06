@@ -258,8 +258,8 @@ std::unique_ptr<Frontend::ArrayBase> EventSinkBuffer::createArray(const Frontend
 }
 //----------------------------------------------------------------------------
 std::vector<Assembler::ScalarRegisterPtr> EventSinkBuffer::genPreamble(
-    const Model&, const KernelImplementation&,
-    Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
+    const Model&, const KernelImplementation&, Assembler::CodeGenerator &c, 
+    Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, const std::string&,
     std::optional<uint32_t> numTimesteps, bool hasTime, size_t,
     Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr numEventBytes,
     AddScalarConstantFn, AddFieldFn addField) const
@@ -366,21 +366,21 @@ uint32_t EventChannel::generateEventLoop(const Frontend::Merged<Frontend::EventS
 }
 //----------------------------------------------------------------------------
 std::vector<Assembler::ScalarRegisterPtr> EventChannel::genPreamble(
-    const Model &model, const KernelImplementation &kernel,
-    Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
+    const Model &model, const KernelImplementation &kernel, Assembler::CodeGenerator &c,
+    Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, const std::string &name,
     std::optional<uint32_t> numTimesteps, bool hasTime, size_t numDevices,
     Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr numEventBytes,
     AddScalarConstantFn addScalarConstant, AddFieldFn addField) const
 {
-    auto sharedThis = std::dynamic_pointer_cast<const Frontend::EventSink>(shared_from_this());
-    const uint32_t eventSinkID = kernel.getEventSinkIDBase(sharedThis);
 
     // Add scalar constant to hold start ID of event channel
     auto neuronStartIDReg = addScalarConstant(
         c,
-        [&model, &sharedThis, eventSinkID, numDevices](size_t d, auto p)
+        [&kernel, &model, &name, numDevices](size_t d, auto p)
         {
-            const auto splitDimension = model.getStateData(sharedThis).splitDimension;
+            const auto &state = p->getOutputEventSinks().at(name).getUnderlying();
+            const uint32_t eventSinkID = kernel.getEventSinkIDBase(state);
+            const auto splitDimension = model.getStateData(state).splitDimension;
 
             // Sum up size of this process across all previous devices
             uint32_t startID = 0;

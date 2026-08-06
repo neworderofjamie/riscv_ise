@@ -73,8 +73,8 @@ public:
     // Declared virtuals
     //----------------------------------------------------------------------------
     virtual std::vector<Assembler::ScalarRegisterPtr> genPreamble(
-        const Model &model, const KernelImplementation &kernel,
-        Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
+        const Model &model, const KernelImplementation &kernel, Assembler::CodeGenerator &c,
+        Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, const std::string &name,
         std::optional<uint32_t> numTimesteps, bool hasTime, size_t numDevices,
         Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr numEventBytes,
         AddScalarConstantFn addScalarConstant, AddFieldFn addField) const = 0;
@@ -172,8 +172,8 @@ public:
     // EventSinkImplementation virtuals
     //------------------------------------------------------------------------
     virtual std::vector<Assembler::ScalarRegisterPtr> genPreamble(
-        const Model &model, const KernelImplementation &kernel,
-        Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
+        const Model &model, const KernelImplementation &kernel, Assembler::CodeGenerator &c, 
+        Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, const std::string &name,
         std::optional<uint32_t> numTimesteps, bool hasTime, size_t numDevices,
         Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr numEventBytes, 
         AddScalarConstantFn addScalarConstant, AddFieldFn addField) const override final;
@@ -225,8 +225,8 @@ public:
     // EventSinkImplementation virtuals
     //------------------------------------------------------------------------
     virtual std::vector<Assembler::ScalarRegisterPtr> genPreamble(
-        const Model &model, const KernelImplementation &kernel,
-        Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
+        const Model &model, const KernelImplementation &kernel, Assembler::CodeGenerator &c,
+        Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, const std::string &name,
         std::optional<uint32_t> numTimesteps, bool hasTime, size_t numDevices,
         Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr numEventBytes, 
         AddScalarConstantFn addScalarConstant, AddFieldFn addField) const override final;

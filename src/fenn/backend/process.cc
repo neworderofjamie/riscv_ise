@@ -917,7 +917,7 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
                 e.second.getUnderlying(), 
                 fennEventSink->genPreamble(
                     *model, kernel, processCodeGenerator, scalarRegisterAllocator, 
-                     numTimesteps, e.second.hasTime(), runtime.getNumDevices(),
+                    e.first, numTimesteps, e.second.hasTime(), runtime.getNumDevices(),
                     timeReg, numEventBytes,
                     [&fieldBaseReg, &mergedFields, &mergedProcess, &runtime, &scalarRegisterAllocator]
                     (Assembler::CodeGenerator &c, auto func)
@@ -1233,12 +1233,13 @@ void DenseEventPropagationProcess::generateArchetypeCode(const Frontend::MergedP
     auto getStride =
         [&runtime](size_t d, auto p)
         { 
-            return static_cast<uint32_t>(2 * p->getWeight()->getShape().getSplitDimension(
-                                         d, 1, runtime.getNumDevices(), 32));
+            return static_cast<uint32_t>(
+                2 * p->getWeight()->getShape().getSplitDimension(d, 1, runtime.getNumDevices(), 32));
         };
     
     // Get stride
     // **NOTE** this is going into a multiply so always needs to be in a register
+    // **OPTIMISE** immediate loop count saves much more than a single li!
     const auto strideReg = std::get<Assembler::ScalarRegisterPtr>(
         addScalarValue<DenseEventPropagationProcess>(
             0, mergedProcess, runtime.getNumDevices(), mergedFields, fieldBaseReg, 
@@ -1473,12 +1474,13 @@ void SparseEventPropagationProcess::generateArchetypeCode(const Frontend::Merged
     auto getStride =
         [&runtime](size_t d, auto p)
         { 
-            return static_cast<uint32_t>(2 * p->getWeight()->getShape().getSplitDimension(
-                d, 1, runtime.getNumDevices(), 32));
+            return static_cast<uint32_t>(
+                2 * p->getWeight()->getShape().getSplitDimension(d, 1, runtime.getNumDevices(), 32));
         };
 
     // Get stride
     // **NOTE** this is going into a multiply so always needs to be in a register
+    // **OPTIMISE** immediate loop count saves much more than a single li!
     const auto strideReg = std::get<Assembler::ScalarRegisterPtr>(
         addScalarValue<SparseEventPropagationProcess>(
             0, mergedProcess, runtime.getNumDevices(), mergedFields, fieldBaseReg, 
