@@ -33,33 +33,33 @@ class CUBALIF:
         self.refrac_time = backend.Variable(self.shape, "int16_t", name=f"{name}_RefracTime")
         self.out_spikes = backend.EventChannel((num_timesteps + 1, self.shape), True)
         self.process = backend.NeuronUpdateProcess(
-            """
+            f"""
             s5_10_sat_t inSyn;
             // Excitatory
-            {
+            {{
                 inSyn = (IExc * {exc_scale}h10);
                 IExc *= {beta_exc}h15;
-            }
+            }}
             
             // Inhibitory
-            {
+            {{
                 inSyn += (IInh * {inh_scale}h10);
                 IInh *= {beta_inh}h15;
-            }
+            }}
             
-            if (RefracTime > 0) {
+            if (RefracTime > 0) {{
                RefracTime -= 1;
-            }
-            else {
+            }}
+            else {{
                 const s5_10_sat_t VAlpha = {tau_m / 1.0}h10 * (inSyn + {i_offset}h10);
                 V = VAlpha - ({alpha}h15 * (VAlpha - V));
-            }
+            }}
             
-            if(V >= {v_thresh}h10) {
+            if(V >= {float(v_thresh)}h10) {{
                Spike();
                V = 0.0h10;
                RefracTime = {tau_refrac};
-            }
+            }}
             """,
             {"V": self.v, "IExc": self.i_exc, "IInh": self.i_inh, "RefracTime": self.refrac_time},
             {"Spike": backend.SlicedEventSink(self.out_spikes, True)},
@@ -92,7 +92,7 @@ num_timesteps_per_block = int(round(args.num_timesteps / num_blocks))
 print(f"{args.num_excitatory} excitatory neurons, {num_inhibitory} inhibitory neurons")
 
 log_appender = PythonLogAppender()
-backend.init_logging(log_appender, backend.PlogSeverity.DEBUG)
+backend.init_logging(log_appender, backend.PlogSeverity.INFO)
 
 # Generate connectivity matrices
 ie_conn = generate_fixed_prob(num_inhibitory, args.num_excitatory, args.probability_connection)
