@@ -227,13 +227,15 @@ for b in range(num_blocks):
 
     # Pull excitatory spikes and add to lists
     block_e_spikes = pull_spikes(num_timesteps_per_block + 1, e_pop.out_spikes, runtime)
-    e_spike_times.append(block_e_spikes[0] + block_start_timestep)
-    e_spike_ids.append(block_e_spikes[1])
+    assert len(block_e_spikes) == 1
+    e_spike_times.append(block_e_spikes[0][0] + block_start_timestep)
+    e_spike_ids.append(block_e_spikes[0][1])
 
     # Pull inhibitory spikes and add to lists
     block_i_spikes = pull_spikes(num_timesteps_per_block + 1, i_pop.out_spikes, runtime)
-    i_spike_times.append(block_i_spikes[0] + block_start_timestep)
-    i_spike_ids.append(block_i_spikes[1])
+    assert len(block_i_spikes) == 1
+    i_spike_times.append(block_i_spikes[0][0] + block_start_timestep)
+    i_spike_ids.append(block_i_spikes[0][1])
     
     # Update start time of next timestep
     block_start_timestep += num_timesteps_per_block
