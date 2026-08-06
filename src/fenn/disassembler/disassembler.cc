@@ -191,10 +191,13 @@ void disassembleVMov(std::ostream &os, uint32_t inst)
 
 void disassembleVSpc(std::ostream &os, uint32_t inst)
 {
-    const auto [imm, rs1, funct3, rd] = decodeIType(inst);
+    const auto [funct7, rs2, rs1, funct3, rd] = decodeRType(inst);
     const auto type = getVSpcType(funct3);
 
     os << type._to_string() << " V" << rd;
+    if(type == +VSpcType::VANDADD) {
+        os << ", V" << rs1 << ", X" << rs2 << ", " << (funct7 & 0b1111);
+    }
 }
 
 const std::unordered_map<StandardOpCode, DisassembleFunc> standardInstructionDecoders{
