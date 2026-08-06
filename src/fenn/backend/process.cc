@@ -266,7 +266,7 @@ Assembler::VectorRegisterPtr addVectorConstant(const Frontend::MergedProcess &me
     // If value is heterogeneous, add field
     if(isHeterogeneous(mergedProcess, numDevices, getFieldValueFn)) {
         // Add field
-        const uint32_t fieldOffset = mergedFields.addField<P>(getFieldValueFn, 4);
+        const uint32_t fieldOffset = mergedFields.addField<P>(getFieldValueFn);
 
         // Allocate register
         ALLOCATE_SCALAR(SReg);
@@ -314,7 +314,7 @@ ScalarConstant addScalarValue(int maxBits, const Frontend::MergedProcess &merged
     // If value is heterogeneous
     if(isHeterogeneous(mergedProcess, numDevices, getFieldValueFn)) {
         // Add field
-        const uint32_t fieldOffset = mergedFields.addField<P>(getFieldValueFn, 4);
+        const uint32_t fieldOffset = mergedFields.addField<P>(getFieldValueFn);
 
         // Allocate register
         ALLOCATE_SCALAR(SReg);
@@ -351,7 +351,7 @@ ScalarConstant addScalarValue(int maxBits, const Frontend::MergedProcess &merged
     // If value is heterogeneous
     if(isHeterogeneous(mergedProcess, numDevices, getFieldValueFn)) {
         // Add field
-        const uint32_t fieldOffset = mergedFields.addField<P>(getFieldValueFn, 4);
+        const uint32_t fieldOffset = mergedFields.addField<P>(getFieldValueFn);
 
         // Allocate register
         ALLOCATE_SCALAR(SReg);

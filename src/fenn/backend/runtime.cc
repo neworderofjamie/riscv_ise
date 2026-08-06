@@ -457,9 +457,9 @@ void Runtime::populateFields(size_t p, const std::pair<uint32_t, MergedFields> &
                 auto *fieldArray = static_cast<DeviceFeNN*>(getDevices()[d].get())->getFieldArray();
                 std::visit(
                     [fieldAddress, fieldArray](auto v)
-                    { 
-                        // **TODO** CHECK FIELD SIZE AGAINST sizeof(v)
+                    {
                         LOGD_FENN_BACKEND << "\t\t\tWriting value " << v << " into field at " << fieldAddress;
+                        static_assert(sizeof(v) <= 4, "In FeNN backend, fields are always 4 bytes");
                         std::memcpy(fieldArray->getHostPointer() + fieldAddress, 
                                     &v, sizeof(v));
                     },
@@ -477,11 +477,10 @@ void Runtime::populateFields(size_t p, const std::pair<uint32_t, MergedFields> &
                 // Serialise array's 'device object'
                 std::vector<std::byte> bytes;
                 deviceArray->serialiseDeviceObject(bytes);
-
+                assert(bytes.size() <= 4);
                 LOGD_FENN_BACKEND << "\t\t\tWriting pointer into field at " << fieldAddress;
 
                 // Memcpy bytes into field offset
-                // **TODO** CHECK FIELD SIZE AGAINST BYTES
                 auto *fieldArray = static_cast<DeviceFeNN*>(d.get())->getFieldArray();
                 std::memcpy(fieldArray->getHostPointer() + fieldAddress, 
                             bytes.data(), bytes.size());

@@ -44,7 +44,7 @@ public:
     // Public API
     //----------------------------------------------------------------------------
     template<typename M>
-    uint32_t addField(GetFieldConstantFunc<M> getFieldConstantFn, uint32_t fieldSize = 4)
+    uint32_t addField(GetFieldConstantFunc<M> getFieldConstantFn)
     {
         // Gather state from all merged processes and assign to field
         m_Fields.emplace_back(m_NextFieldOffset, 
@@ -55,14 +55,14 @@ public:
                               });
 
         // Update next field offset
-        m_NextFieldOffset += fieldSize;
+        m_NextFieldOffset += 4;
 
         // Return offset of new fiel,d
         return m_Fields.back().first;
     }
 
     template<typename M>
-    uint32_t addField(GetFieldPointerFunc<M> getFieldPointerFn, uint32_t fieldSize = 4)
+    uint32_t addField(GetFieldPointerFunc<M> getFieldPointerFn)
     {
         // Gather state from all merged processes and assign to field
         m_Fields.emplace_back(m_NextFieldOffset, 
@@ -73,7 +73,7 @@ public:
                               });
 
         // Update next field offset
-        m_NextFieldOffset += fieldSize;
+        m_NextFieldOffset += 4;
 
         // Return offset of new fiel,d
         return m_Fields.back().first;
