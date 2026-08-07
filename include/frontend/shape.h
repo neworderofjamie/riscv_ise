@@ -11,71 +11,9 @@
 //----------------------------------------------------------------------------
 // Frontend::Shape
 //----------------------------------------------------------------------------
-namespace Frontend
+namespace Frontend::Shape
 {
-class FRONTEND_EXPORT Shape
-{
-public:
-    Shape() = default;
-    Shape(const Shape &shape) = default;
-
-    Shape(const std::vector<size_t> &dims) : m_Dims(dims)
-    {}
-    Shape(size_t dims) : m_Dims{{dims}}
-    {}
-
-    //------------------------------------------------------------------------
-    // Public API
-    //------------------------------------------------------------------------
-    const auto &getDims() const{ return m_Dims; }
-    size_t getNumDims() const{ return m_Dims.size(); }
-    std::string toString() const;
-
-    bool isScalar() const;
-    size_t getFlattenedSize() const;
-    size_t getFirst() const{ return m_Dims.front(); }
-    size_t &getFirst() { return m_Dims.front(); }
-    size_t getLast() const{ return m_Dims.back(); }
-    size_t &getLast(){ return m_Dims.back(); }
-
-    //! Return the shape obtained by taking the splitnth split when 
-    //! the shape is split numSplits ways along the specified dimensions
-    size_t getSplitDimension(size_t split, size_t splitDimension, 
-                             size_t numSplits, size_t splitGranularity) const;
-
-    //! Return the shape obtained by taking the splitnth split when 
-    //! the shape is split numSplits ways along the specified dimensions
-    Shape getSplit(size_t split, std::optional<size_t> splitDimension, 
-                   size_t numSplits, size_t splitGranularity) const;
-
-    //! Pad dimension of shape to multiple of padding
-    Shape pad(size_t dimension, size_t multiple) const;
-
-    //! Return shape with last dimension padded
-    Shape padLast(size_t multiple) const{ return pad(getNumDims() - 1, multiple); }
-
-    //! Return slice of shape dimensions
-    Shape slice(size_t start, ptrdiff_t stop = 0) const;
-
-    //------------------------------------------------------------------------
-    // Operators
-    //------------------------------------------------------------------------
-    bool operator == (const Shape &other) const{ return (other.getDims() == getDims()); }
-    bool operator != (const Shape &other) const{ return (other.getDims() != getDims()); }
-
-    size_t operator[](size_t i) const{ return m_Dims.at(i); }
-    size_t &operator[](size_t i) { return m_Dims.at(i); }
-
-    //------------------------------------------------------------------------
-    // Constants
-    //------------------------------------------------------------------------
-    static const Shape one;
-    static const Shape zero;
-
-private:
-    //------------------------------------------------------------------------
-    // Members
-    //------------------------------------------------------------------------
-    std::vector<size_t> m_Dims;
-};
+FRONTEND_EXPORT std::string toString(const std::vector<size_t> &shape);
+FRONTEND_EXPORT size_t getFlattenedSize(const std::vector<size_t> &shape);
+FRONTEND_EXPORT bool isScalar(const std::vector<size_t> &shape);
 }

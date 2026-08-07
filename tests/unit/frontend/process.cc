@@ -7,7 +7,6 @@
 // Model includes
 #include "frontend/events.h"
 #include "frontend/process.h"
-#include "frontend/shape.h"
 
 using namespace CompilerFrontend;
 using namespace Frontend;
@@ -28,9 +27,9 @@ TEST(NeuronProcess, HasVariablesOrOutputEvents)
 
 TEST(NeuronProcess, VarOutputEventShapesMatch)
 {
-    const Shape shape(50);
-    const Shape diffShape({30, 12});
-    const Shape sliceShape({10, 50});
+    const std::vector<size_t> shape(50);
+    const std::vector<size_t> diffShape({30, 12});
+    const std::vector<size_t> sliceShape({10, 50});
     
     // Create some variables
     const auto var = Variable::create(shape, Type::S10_5Sat);
@@ -79,7 +78,7 @@ TEST(NeuronProcess, VarOutputEventShapesMatch)
         {{"A", Sliced<Variable>(var)}, {"V", Sliced<Variable>(varSliceShape, true)}}, 
         {{"Spike", Sliced<EventSink>(eventChannel)}});
     
-    EXPECT_EQ(slicedVarProcess->getShape(), Shape(50));
+    EXPECT_EQ(slicedVarProcess->getShape(), std::vector<size_t>{50});
 
     // Sliced output event
     auto slicedOutputProcess = NeuronUpdateProcess::create(
@@ -88,7 +87,7 @@ TEST(NeuronProcess, VarOutputEventShapesMatch)
         {{"A", Sliced<Variable>(var)}, {"V", Sliced<Variable>(varSameShape)}}, 
         {{"Spike", Sliced<EventSink>(eventChannelSliceShape, true)}});
 
-    EXPECT_EQ(slicedOutputProcess->getShape(), Shape(50));
+    EXPECT_EQ(slicedOutputProcess->getShape(), std::vector<size_t>{50});
 }
 
 TEST(NeuronProcess, LiteralExtract)
@@ -101,7 +100,7 @@ TEST(NeuronProcess, LiteralExtract)
         "x += (int)5.2f;\n"
         "x += (int)12.0d;\n"
         "V = x;\n",
-        {{"V", Sliced<Variable>(Variable::create(Shape{50}, Type::Int32))}});
+        {{"V", Sliced<Variable>(Variable::create({50}, Type::Int32))}});
 
     const auto &literals = process->getLiterals();
     ASSERT_EQ(literals.size(), 5);

@@ -12,6 +12,8 @@
 
 // Compiler includes
 #include "frontend/events.h"
+#include "frontend/model.h"
+#include "frontend/shape.h"
 #include "frontend/variable.h"
 
 //----------------------------------------------------------------------------
@@ -31,7 +33,7 @@ NeuronUpdateProcess::NeuronUpdateProcess(Private, const std::string &code, const
 
     // If one of the variables has a non-scalar shape, use that
     auto firstNonScalarVar = std::find_if(getVariables().cbegin(), getVariables().cend(),
-                                          [](const auto &v){ return !v.second.getShape().isScalar(); });
+                                          [](const auto &v){ return !Shape::isScalar(v.second.getShape()); });
     if(firstNonScalarVar != getVariables().cend()) {
         m_Shape = firstNonScalarVar->second.getShape();
     }
@@ -39,13 +41,13 @@ NeuronUpdateProcess::NeuronUpdateProcess(Private, const std::string &code, const
     else {
         // If one of the output event containers has a non-scalar shape, use that
         auto firstNonScalarEvent = std::find_if(getOutputEventSinks().cbegin(), getOutputEventSinks().cend(),
-                                                [](const auto &e){ return !e.second.getShape().isScalar(); });
+                                                [](const auto &e){ return !Shape::isScalar(e.second.getShape()); });
         if(firstNonScalarEvent != getOutputEventSinks().cend()) {
             m_Shape = firstNonScalarEvent->second.getShape();
         }
         // Otherwise, shape really must be scalar!
         else {
-            m_Shape = Shape(1);
+            m_Shape = {1};
         }
     }
    
@@ -53,16 +55,16 @@ NeuronUpdateProcess::NeuronUpdateProcess(Private, const std::string &code, const
     // Check all variables have same number of neurons
     for(const auto &v : m_Variables) {
         if(v.second.getShape() != m_Shape) {
-            throw std::runtime_error("Variable '" + v.first + "' with shape: " + v.second.getShape().toString() 
-                                     + " is not compatible with neuron update process with shape: " + m_Shape.toString());
+            throw std::runtime_error("Variable '" + v.first + "' with shape: " + Shape::toString(v.second.getShape()) 
+                                     + " is not compatible with neuron update process with shape: " + Shape::toString(m_Shape));
         }
     }
 
     // Check all output have same number of neurons
     for(const auto &o : m_OutputEventSinks) {
         if(o.second.getShape() != m_Shape) {
-            throw std::runtime_error("Output events '" + o.first + "' with shape: " + o.second.getShape().toString()
-                                     + " is not compatible with neuron update process with shape: " + m_Shape.toString());
+            throw std::runtime_error("Output events '" + o.first + "' with shape: " + Shape::toString(o.second.getShape())
+                                     + " is not compatible with neuron update process with shape: " + Shape::toString(m_Shape));
         }
     }
     
@@ -184,7 +186,8 @@ void NeuronUpdateProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, cons
 }
 //----------------------------------------------------------------------------
 void NeuronUpdateProcess::updateCompatibleSplitDimensions(std::shared_ptr<const State> state, 
-                                                          uint32_t &compatibleSplitDimensions) const 
+                                                          uint32_t &compatibleSplitDimensions,
+                                                          Padding &stateCompatiblePadding) const 
 {
     // If state is a variable
     const auto var = std::find_if(getVariables().cbegin(), getVariables().cend(),
@@ -192,7 +195,7 @@ void NeuronUpdateProcess::updateCompatibleSplitDimensions(std::shared_ptr<const 
     if (var != getVariables().cend()) {
         // Ensure that we only split along the dimensions of the slice  
         // exposed to the neuron update process i.e. not the time dimension
-        compatibleSplitDimensions &= ((1 << var->second.getShape().getNumDims()) - 1);
+        compatibleSplitDimensions &= ((1 << var->second.getShape().size()) - 1);
     }
     // Otherwise
     else {
@@ -202,7 +205,7 @@ void NeuronUpdateProcess::updateCompatibleSplitDimensions(std::shared_ptr<const 
         if (outEvent != getOutputEventSinks().cend()) {
             // Ensure that we only split along the dimensions of the slice  
             // exposed to the neuron update process i.e. not the time dimension
-            compatibleSplitDimensions &= ((1 << outEvent->second.getShape().getNumDims()) - 1);
+            compatibleSplitDimensions &= ((1 << outEvent->second.getShape().size()) - 1);
         }
         else {
             assert(false);
@@ -234,6 +237,7 @@ void NeuronUpdateProcess::constrainSplitDimensions(std::unordered_map<std::share
         compatibleSplitDimensions.at(o.second.getUnderlying()) = combinedSplitDimensions;
     }
 }
+
 //----------------------------------------------------------------------------
 // EventPropagationProcess
 //----------------------------------------------------------------------------
@@ -278,12 +282,13 @@ void EventPropagationProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, 
 }
 //----------------------------------------------------------------------------
 void EventPropagationProcess::updateCompatibleSplitDimensions(std::shared_ptr<const State> state, 
-                                                              uint32_t &compatibleSplitDimensions) const 
+                                                              uint32_t &compatibleSplitDimensions,
+                                                              Padding &stateCompatiblePadding) const 
 {
     // If variable's target
     if(state == getTarget().getUnderlying()) {
         // If there are no delays, it can only be split on 1st (postsynaptic) dimension
-        if (getTarget().getShape().getNumDims() == 1) {
+        if (getTarget().getShape().size() == 1) {
             compatibleSplitDimensions &= (1 << 0);
         }
         // Otherwise, it can only be split on 2nd (postsynaptic) dimension
@@ -331,7 +336,8 @@ void RNGInitProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Mod
 }
 //----------------------------------------------------------------------------
 void RNGInitProcess::updateCompatibleSplitDimensions(std::shared_ptr<const State> state, 
-                                                     uint32_t &compatibleSplitDimensions) const
+                                                     uint32_t &compatibleSplitDimensions,
+                                                     Padding &stateCompatiblePadding) const
 {
     assert(state == getSeed());
 
@@ -373,12 +379,13 @@ void MemsetProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Mode
 }
 //----------------------------------------------------------------------------
 void MemsetProcess::updateCompatibleSplitDimensions(std::shared_ptr<const State> state, 
-                                                    uint32_t &compatibleSplitDimensions) const
+                                                    uint32_t &compatibleSplitDimensions,
+                                                    Padding &stateCompatiblePadding) const
 {
     assert(state == getTarget().getUnderlying());
     
     // Ensure that we only split along the dimensions of the slice  
     // exposed to the memset process i.e. not the time dimension
-    compatibleSplitDimensions &= ((1 << getTarget().getShape().getNumDims()) - 1);
+    compatibleSplitDimensions &= ((1 << getTarget().getShape().size()) - 1);
 }
 }

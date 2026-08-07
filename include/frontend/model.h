@@ -24,6 +24,20 @@ class ProcessGroup;
 //----------------------------------------------------------------------------
 namespace Frontend
 {
+class FRONTEND_EXPORT Padding
+{
+public:
+    explicit Padding(size_t numAxes)
+    :   m_PadMultiples(numAxes, 1)
+    {}
+
+    void update(size_t axis, std::optional<size_t> padMultiple);
+    const auto &getPadMultiples() const{ return m_PadMultiples; }
+
+private:
+    std::vector<std::optional<size_t>> m_PadMultiples;
+};
+
 //----------------------------------------------------------------------------
 // Frontend::Model
 //----------------------------------------------------------------------------
@@ -37,6 +51,8 @@ public:
     struct StateData
     {
         std::optional<size_t> splitDimension;
+        std::vector<std::optional<size_t>> padMultiples;
+
         std::vector<std::shared_ptr<const Process>> processes;
     };
 

@@ -17,13 +17,13 @@
 #include "frontend/events.h"
 #include "frontend/frontend_export.h"
 #include "frontend/model_component.h"
-#include "frontend/shape.h"
 #include "frontend/variable.h"
 
 // Forward declarations
 namespace Frontend
 {
 class Model;
+class Padding;
 class Parameter;
 }
 
@@ -41,7 +41,7 @@ public:
     {
         auto &shape = m_Underlying->getShape();
         if (m_TimeSlice) {
-            m_Shape = shape.slice(1);
+            m_Shape.assign(shape.cbegin() + 1, shape.cend());
         }
         else {
             m_Shape = shape;
@@ -49,10 +49,10 @@ public:
     }
 
     auto getUnderlying() const{ return m_Underlying; }
-    const Shape &getShape() const{ return m_Shape; }
+    const auto &getShape() const{ return m_Shape; }
     bool hasTimeSlice() const{ return m_TimeSlice; }
     bool hasTime() const{ return (hasTimeSlice() && (getNumTimesteps() > 1)); }
-    size_t getNumTimesteps() const{ return getUnderlying()->getShape().getFirst(); }
+    size_t getNumTimesteps() const{ return getUnderlying()->getShape().front(); }
 
     void updateMergeHash(boost::uuids::detail::sha1 &hash, bool underlying = true) const
     {
@@ -67,7 +67,7 @@ public:
     }
 private:
     std::shared_ptr<const T> m_Underlying;
-    Shape m_Shape;
+    std::vector<size_t> m_Shape;
     bool m_TimeSlice;
 };
 
@@ -102,7 +102,8 @@ public:
     //! Update the compatible split dimensions of a state object (which should be
     //! one used by this process) with any constraints imposed by this process)
     virtual void updateCompatibleSplitDimensions(std::shared_ptr<const Frontend::State> state, 
-                                                 uint32_t &compatibleSplitDimensions) const = 0;
+                                                 uint32_t &compatibleSplitDimensions,
+                                                 Padding &compatiblePadding) const = 0;
 
     //! Once compatible split dimensions have been obtained for each state object, they might need 
     //! 'constraining' e.g. to ensure all variables associated with a neuron update process get split the same
@@ -143,7 +144,8 @@ public:
     //! Update the compatible split dimensions of a state object (which should be
     //! one used by this process) with any constraints imposed by this process)
     virtual void updateCompatibleSplitDimensions(std::shared_ptr<const State> state, 
-                                                 uint32_t &compatibleSplitDimensions) const override;
+                                                 uint32_t &compatibleSplitDimensions,
+                                                 Padding &compatiblePadding) const override;
 
     //! Once compatible split dimensions have been obtained for each state object, they might need 
     //! 'constraining' e.g. to ensure all variables associated with a neuron update process get split the same
@@ -187,7 +189,7 @@ private:
     //! Tokens built from code
     std::vector<CompilerFrontend::Token> m_Tokens;
     
-    Shape m_Shape;
+    std::vector<size_t> m_Shape;
 };
 
 //----------------------------------------------------------------------------
@@ -217,7 +219,8 @@ public:
     //! Update the compatible split dimensions of a state object (which should be
     //! one used by this process) with any constraints imposed by this process)
     virtual void updateCompatibleSplitDimensions(std::shared_ptr<const State> state, 
-                                                 uint32_t &compatibleSplitDimensions) const override;
+                                                 uint32_t &compatibleSplitDimensions,
+                                                 Padding &compatiblePadding) const override;
 
     //------------------------------------------------------------------------
     // Public API
@@ -270,7 +273,8 @@ public:
     //! Update the compatible split dimensions of a state object (which should be
     //! one used by this process) with any constraints imposed by this process)
     virtual void updateCompatibleSplitDimensions(std::shared_ptr<const State> state, 
-                                                 uint32_t &compatibleSplitDimensions) const override;
+                                                 uint32_t &compatibleSplitDimensions,
+                                                 Padding &compatiblePadding) const override;
 
     //------------------------------------------------------------------------
     // Public API
@@ -318,7 +322,8 @@ public:
     //! Update the compatible split dimensions of a state object (which should be
     //! one used by this process) with any constraints imposed by this process)
     virtual void updateCompatibleSplitDimensions(std::shared_ptr<const State> state, 
-                                                 uint32_t &compatibleSplitDimensions) const override;
+                                                 uint32_t &compatibleSplitDimensions,
+                                                 Padding &compatiblePadding) const override;
 
     //------------------------------------------------------------------------
     // Public API

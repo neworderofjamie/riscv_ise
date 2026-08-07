@@ -16,7 +16,6 @@
 #include "frontend/model_component.h"
 #include "frontend/process.h"
 #include "frontend/process_group.h"
-#include "frontend/shape.h"
 
 using namespace Frontend;
 
@@ -74,10 +73,12 @@ void ArrayBase::memsetHostPointer(int value)
 //----------------------------------------------------------------------------
 // Frontend::DeviceBase
 //----------------------------------------------------------------------------
-void DeviceBase::createArray(std::shared_ptr<const State> state, const Shape &deviceShape, const Model &model)
+void DeviceBase::createArray(std::shared_ptr<const State> state, const std::vector<size_t> &shape, 
+                             const std::vector<size_t> &strides, const Model &model)
 {
     // Take ownership of array and add to arrays map
-    if (!m_Arrays.try_emplace(state, std::move(state->createArray(deviceShape, model, *this))).second) {
+    assert(shape.size() == strides.size());
+    if (!m_Arrays.try_emplace(state, std::move(state->createArray(shape, strides, model, *this))).second) {
         throw std::runtime_error("Duplicate array found for state '" + state->getName() + "'");
     }
 }
@@ -126,10 +127,11 @@ void Runtime::allocate()
     for (const auto &s : getModel()->getStateData()) {
         // Loop through devices
         for(size_t i = 0; i < getNumDevices(); i++) {
-            // Split shape and create array
-            const auto deviceShape = s.first->getShape().getSplit(i, s.second.splitDimension, 
-                                                               getNumDevices(), m_StateSplitGranularity);
-            getDevices()[i]->createArray(s.first, deviceShape, *getModel());
+            // Get shapes and s
+            auto [shape, strides] = getDeviceShapeStride(i, s.first->getShape(), s.second.splitDimension, s.second.padMultiples);
+            
+            // Craete array
+            getDevices()[i]->createArray(s.first, shape, strides, *getModel());
         }
     }
 
@@ -192,10 +194,9 @@ std::vector<ArrayBase*> Runtime::getArrays(std::shared_ptr<const State> state) c
     return arrays;
 }
 //----------------------------------------------------------------------------
-Runtime::Runtime(std::unique_ptr<Model> model, size_t numDevices, size_t stateSplitGranularity)
+Runtime::Runtime(std::unique_ptr<Model> model, size_t numDevices)
 :   m_Devices(numDevices), m_Model(std::move(model)), m_NumDevices(numDevices), 
-    m_StateSplitGranularity(stateSplitGranularity), m_WorkerRun(true), 
-    m_Command(nullptr), m_Barrier(numDevices + 1)
+    m_WorkerRun(true), m_Command(nullptr), m_Barrier(numDevices + 1)
 {
     // Loop through kernels
     for(const auto &k : getModel()->getKernels()) {

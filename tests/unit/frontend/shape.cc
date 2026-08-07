@@ -1,10 +1,8 @@
+// Standard C++ includes
+#include <vector>
+
 // Google test includes
 #include "gtest/gtest.h"
-
-// Frontend includes
-#include "frontend/shape.h"
-
-using namespace Frontend;
 
 //--------------------------------------------------------------------------
 // Tests
@@ -13,7 +11,7 @@ TEST(Shape, Split)
 {
     // 1D
     {
-        const Shape shape(180);
+        const std::vector<size_t> shape(180);
         
         // Don't split
         {
@@ -43,7 +41,7 @@ TEST(Shape, Split)
 
     // 2D highest dimension
     {
-        const Shape shape({5, 272});
+        const std::vector<size_t> shape({5, 272});
 
         // Splitting two ways without granularity
         {

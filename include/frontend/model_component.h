@@ -13,7 +13,6 @@ namespace Frontend
 class ArrayBase;
 class DeviceBase;
 class Model;
-class Shape;
 }
 
 namespace boost::uuids::detail
@@ -63,11 +62,11 @@ public:
     //------------------------------------------------------------------------
     // Declared virtuals
     //------------------------------------------------------------------------
-    virtual const Shape &getShape() const = 0;
+    virtual const std::vector<size_t> &getShape() const = 0;
     virtual void updateMergeHash(boost::uuids::detail::sha1 &hash) const = 0;
 
-    virtual std::unique_ptr<ArrayBase> createArray(const Shape &deviceShape, const Model &model, 
-                                                   DeviceBase &device) const = 0;
+    virtual std::unique_ptr<ArrayBase> createArray(const std::vector<size_t> &shape, const std::vector<size_t> &stride,
+                                                   const Model &model, DeviceBase &device) const = 0;
 
 protected:
     using ModelComponent::ModelComponent;

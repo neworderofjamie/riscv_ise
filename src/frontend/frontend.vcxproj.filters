@@ -11,9 +11,6 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="shape.cc">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="variable.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -32,12 +29,12 @@
     <ClCompile Include="events.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="shape.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\frontend\runtime.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\include\frontend\shape.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\frontend\variable.h">
@@ -62,6 +59,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\frontend\events.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\frontend\shape.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

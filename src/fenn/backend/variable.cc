@@ -13,37 +13,31 @@
 //----------------------------------------------------------------------------
 namespace FeNN::Backend
 {
-std::unique_ptr<Frontend::ArrayBase> Variable::createArray(const Frontend::Shape &deviceShape, const Frontend::Model &model,
-                                                           Frontend::DeviceBase &device) const
+std::unique_ptr<Frontend::ArrayBase> Variable::createArray(const std::vector<size_t> &shape, const std::vector<size_t> &strides, 
+                                                           const Frontend::Model &model, Frontend::DeviceBase &device) const
 {
-    // Pad last dimension to multiplies of 32
-    // **THINK** this is not correct 
-    // - for neurons we just want to pad total
-    // - for weighs we want to pad rows
-    const auto paddedShape = deviceShape.padLast(32);
-
     // Create array in correct memory space depending on compatibility
     switch(getMemSpace(model))
     {
     case MemSpace::DRAM:
     {
         LOGI_FENN_BACKEND << "Creating variable '" << getName() << "' array in DRAM";
-        return static_cast<DeviceFeNN&>(device).createDRAMArray(getType(), paddedShape);
+        return static_cast<DeviceFeNN&>(device).createDRAMArray(getType(), shape, strides);
     }
     case MemSpace::URAM:
     {
         LOGI_FENN_BACKEND << "Creating variable '" << getName() << "' array in URAM";
-        return static_cast<DeviceFeNN&>(device).createURAMArray(getType(), paddedShape);
+        return static_cast<DeviceFeNN&>(device).createURAMArray(getType(), shape, strides);
     }
     case MemSpace::LLM:
     {
         LOGI_FENN_BACKEND << "Creating variable '" << getName() << "' array in LLM";
-        return static_cast<DeviceFeNN&>(device).createLLMArray(getType(), paddedShape);
+        return static_cast<DeviceFeNN&>(device).createLLMArray(getType(), shape, strides);
     }
     case MemSpace::BRAM:
     {
         LOGI_FENN_BACKEND << "Creating variable '" << getName() << "' array in BRAM";
-        return static_cast<DeviceFeNN&>(device).createBRAMArray(getType(), paddedShape);
+        return static_cast<DeviceFeNN&>(device).createBRAMArray(getType(), shape, strides);
     }
     default:
         assert(false);

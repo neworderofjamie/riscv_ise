@@ -4,6 +4,7 @@
 #include <atomic>
 #include <memory>
 #include <thread>
+#include <tuple>
 #include <unordered_map>
 #include <vector>
 
@@ -128,7 +129,6 @@ class FRONTEND_EXPORT ArrayBase
 public:
     virtual ~ArrayBase()
     {
-        m_Shape = Shape::zero;
     }
 
     //------------------------------------------------------------------------
@@ -150,8 +150,9 @@ public:
     // Public API
     //------------------------------------------------------------------------
     const CompilerFrontend::Type::ResolvedType &getType() const{ return m_Type; }
-    const Shape &getShape() const{ return m_Shape; }
-    size_t getCount() const{ return m_Shape.getFlattenedSize(); };
+    const auto &getShape() const{ return m_Shape; }
+    const auto &getStrides() const{ return m_Strides; }
+    size_t getCount() const{ return Shape::getFlattenedSize(m_Shape); };
     size_t getSizeBytes() const{ return getCount() * m_Type.getValue().size; };
 
     //! Get array host pointer
@@ -161,8 +162,9 @@ public:
     T *getHostPointer() const{ return reinterpret_cast<T*>(m_HostPointer); }
 
 protected:
-    ArrayBase(const CompilerFrontend::Type::ResolvedType &type, const Shape &shape)
-    :   m_Type(type), m_Shape(shape), m_HostPointer(nullptr)
+    ArrayBase(const CompilerFrontend::Type::ResolvedType &type, 
+              const std::vector<size_t> &shape, const std::vector<size_t> &strides)
+    :   m_Type(type), m_Shape(shape), m_Strides(strides), m_HostPointer(nullptr)
     {
     }
 
@@ -176,7 +178,8 @@ private:
     // Members
     //------------------------------------------------------------------------
     CompilerFrontend::Type::ResolvedType m_Type;
-    Shape m_Shape;
+    std::vector<size_t> m_Shape;
+    std::vector<size_t> m_Strides;
 
     uint8_t *m_HostPointer;
 };
@@ -213,8 +216,8 @@ public:
     // Public API
     //------------------------------------------------------------------------
     //! Create array to provide storage for model state
-    void createArray(std::shared_ptr<const State> state, const Shape &deviceShape, 
-                     const Model &model);
+    void createArray(std::shared_ptr<const State> state, const std::vector<size_t> &shape, 
+                     const std::vector<size_t> &strides, const Model &model);
 
     //! Get array associated with model state
     ArrayBase *getArray(std::shared_ptr<const State> state) const;
@@ -267,7 +270,7 @@ public:
     }
 
 protected:
-    Runtime(std::unique_ptr<Model> model, size_t numDevices, size_t stateSplitGranularity);
+    Runtime(std::unique_ptr<Model> model, size_t numDevices);
     
     //------------------------------------------------------------------------
     // Declared virtuals
@@ -280,6 +283,11 @@ protected:
 
     //! Create suitable device
     virtual std::unique_ptr<DeviceBase> createDevice(size_t deviceIndex) = 0;
+
+    //! Determine the shape and strides of sub-arrays that should be allocated on each device
+    virtual std::tuple<std::vector<size_t>, std::vector<size_t>> getDeviceShapeStride(
+        size_t device, const std::vector<size_t> &shape, std::optional<size_t> splitDimension,
+        const std::vector<std::optional<size_t>> &padMultiples) const = 0;
 
     //------------------------------------------------------------------------
     // Protected API
@@ -419,8 +427,6 @@ private:
     std::shared_ptr<const Kernel> m_CurrentKernel;
 
     size_t m_NumDevices;
-
-    size_t m_StateSplitGranularity;
 
     std::atomic<bool> m_WorkerRun;
 

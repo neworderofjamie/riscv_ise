@@ -41,8 +41,8 @@ public:
     //------------------------------------------------------------------------
     // State virtuals
     //------------------------------------------------------------------------
-    virtual std::unique_ptr<Frontend::ArrayBase> createArray(const Frontend::Shape &deviceShape, const Frontend::Model &model,
-                                                             Frontend::DeviceBase &device) const override final;
+    virtual std::unique_ptr<Frontend::ArrayBase> createArray(const std::vector<size_t> &shape, const std::vector<size_t> &strides,
+                                                             const Frontend::Model &model, Frontend::DeviceBase &device) const override final;
 
     //------------------------------------------------------------------------
     // Public API

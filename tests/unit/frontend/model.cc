@@ -10,7 +10,6 @@
 #include "frontend/kernel.h"
 #include "frontend/process.h"
 #include "frontend/process_group.h"
-#include "frontend/shape.h"
 
 using namespace CompilerFrontend;
 using namespace Frontend;
@@ -20,9 +19,9 @@ using namespace Frontend;
 //--------------------------------------------------------------------------
 TEST(Model, StateProcess)
 {
-    const Shape inputShape(28 * 28);
-    const Shape hiddenShape(128);
-    const Shape outputShape(10);
+    const std::vector<size_t> inputShape(28 * 28);
+    const std::vector<size_t> hiddenShape(128);
+    const std::vector<size_t> outputShape(10);
 
     // Input spikes
     const auto inputSpikes = EventSourceBuffer::create(inputShape);
