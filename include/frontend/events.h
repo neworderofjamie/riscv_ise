@@ -51,7 +51,7 @@ public:
     virtual const std::vector<size_t> &getShape() const override final{ return m_Shape; }
     virtual void updateMergeHash(boost::uuids::detail::sha1 &hash) const override;
 
-    virtual std::unique_ptr<ArrayBase> createArray(const std::vector<size_t> &shape, const std::vector<size_t> &stride,
+    virtual std::unique_ptr<ArrayBase> createArray(const std::vector<size_t> &shape, const std::vector<std::optional<size_t>> &padMultiples,
                                                    const Model &model, DeviceBase &device) const override;
 
  
@@ -93,7 +93,7 @@ public:
     virtual const std::vector<size_t> &getShape() const override final{ return m_Shape; }
     virtual void updateMergeHash(boost::uuids::detail::sha1 &hash) const override;
 
-    virtual std::unique_ptr<ArrayBase> createArray(const std::vector<size_t> &shape, const std::vector<size_t> &stride,
+    virtual std::unique_ptr<ArrayBase> createArray(const std::vector<size_t> &shape, const std::vector<std::optional<size_t>> &padMultiples,
                                                    const Model &model, DeviceBase &device) const override;
 
 
@@ -129,7 +129,7 @@ public:
 
     virtual void updateMergeHash(boost::uuids::detail::sha1 &hash) const override;
 
-    virtual std::unique_ptr<ArrayBase> createArray(const std::vector<size_t> &shape, const std::vector<size_t> &stride,
+    virtual std::unique_ptr<ArrayBase> createArray(const std::vector<size_t> &shape, const std::vector<std::optional<size_t>> &padMultiples,
                                                    const Model &model, DeviceBase &device) const override;
     
     //------------------------------------------------------------------------

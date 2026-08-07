@@ -160,7 +160,7 @@ std::string ResolvedType::getName() const
         detail);
 }
 //----------------------------------------------------------------------------
-size_t ResolvedType::getSize(size_t pointerBytes) const
+size_t ResolvedType::getSize(std::optional<size_t> pointerBytes) const
 {
     return std::visit(
         Utils::Overload{
@@ -170,7 +170,7 @@ size_t ResolvedType::getSize(size_t pointerBytes) const
             },
             [pointerBytes](const Type::ResolvedType::Pointer&)
             {
-                return pointerBytes;
+                return pointerBytes.value();
             },
             [](const Type::ResolvedType::Function&)->size_t
             {

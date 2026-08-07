@@ -15,6 +15,7 @@
 
 // Frontend includes
 #include "frontend/model.h"
+#include "frontend/shape.h"
 
 // FeNN common includes
 #include "fenn/common/isa.h"
@@ -1004,32 +1005,30 @@ DenseEventPropagationProcess::DenseEventPropagationProcess(Private, Frontend::Sl
         throw std::runtime_error("Dense event propagation process requires weight variable");
     }
 
-    if (getWeight()->getShape().getNumDims() != 2) {
+    if (getWeight()->getShape().size() != 2) {
         throw std::runtime_error("Dense event propagation process requires weight variable with a 2D shape");
     }
 
-    if (getInputEventSource().getShape().getNumDims() != 1) {
+    if (getInputEventSource().getShape().size() != 1) {
         throw std::runtime_error("Dense event propagation process requires source events with a 1D shape");
     }  
 
-    if (getTarget().getShape().getNumDims() != 1) {
+    if (getTarget().getShape().size() != 1) {
         throw std::runtime_error("Event propagation process requires target variable with a 1D shape");
     } 
 
     // Check weight shape matches input event shape
     if(getWeight()->getShape()[0] != getInputEventSource().getShape()[0]) {
-        throw std::runtime_error("Weight with shape: " + getWeight()->getShape().toString() 
+        throw std::runtime_error("Weight with shape: " + Frontend::Shape::toString(getWeight()->getShape())
                                  + " is not compatible with event source with shape: " 
-                                 + getInputEventSource().getShape().toString());
+                                 + Frontend::Shape::toString(getInputEventSource().getShape()));
     }
 
     // Check weight shape matches padded target shape
-    // **YUCK** padding should not occur at this point as it is device shape which needs padding
-    const auto paddedTargetShape = getTarget().getShape().pad(0, 32);
-    if(getWeight()->getShape()[1] != paddedTargetShape[0]) {
-        throw std::runtime_error("Weight with shape: " + getWeight()->getShape().toString() 
+    if(getWeight()->getShape()[1] != getTarget().getShape()[0]) {
+        throw std::runtime_error("Weight with shape: " + Frontend::Shape::toString(getWeight()->getShape())
                                  + " is not compatible with target variable with padded shape: " 
-                                 + paddedTargetShape.toString());
+                                 + Frontend::Shape::toString(getTarget().getShape()));
     }
 
     // Check weight and target have same types
@@ -1200,15 +1199,19 @@ void DenseEventPropagationProcess::updateMergeHash(boost::uuids::detail::sha1 &h
 }
 //----------------------------------------------------------------------------
 void DenseEventPropagationProcess::updateCompatibleSplitDimensions(std::shared_ptr<const Frontend::State> state, 
-                                                                   uint32_t &compatibleSplitDimensions) const 
+                                                                   uint32_t &compatibleSplitDimensions,
+                                                                   Frontend::Padding &compatiblePadding) const 
 {
-    // If variable is weight, it can only be split in 2nd (postsynaptic) dimension
+    // If variable is weight, it can only be split in 2nd (postsynaptic) axis
+    // and postsynaptic axis also needs padding to vector width
     if(state == getWeight()) {
         compatibleSplitDimensions &= (1 << 1);
+        compatiblePadding.update(1, 32);
     }
     // Otherwise, superclass
     else {
-        Frontend::EventPropagationProcess::updateCompatibleSplitDimensions(state, compatibleSplitDimensions);
+        Frontend::EventPropagationProcess::updateCompatibleSplitDimensions(state, compatibleSplitDimensions, 
+                                                                           compatiblePadding);
     }
 }
 //----------------------------------------------------------------------------
@@ -1240,37 +1243,30 @@ SparseEventPropagationProcess::SparseEventPropagationProcess(Private, Frontend::
         throw std::runtime_error("Sparse event propagation process requires weight variable");
     }
 
-    if (getWeight()->getShape().getNumDims() != 2) {
+    if (getWeight()->getShape().size() != 2) {
         throw std::runtime_error("Sparse event propagation process requires weight variable with a 2D shape");
     }
 
-    if (getInputEventSource().getShape().getNumDims() != 1) {
+    if (getInputEventSource().getShape().size() != 1) {
         throw std::runtime_error("Sparse event propagation process requires source events with a 1D shape");
     }  
 
-    if (getTarget().getShape().getNumDims() != 1) {
+    if (getTarget().getShape().size() != 1) {
         throw std::runtime_error("Sparse propagation process requires target variable with a 1D shape");
     } 
 
     // Check weight shape matches input event shape
     if(getWeight()->getShape()[0] != getInputEventSource().getShape()[0]) {
-        throw std::runtime_error("Weight with shape: " + getWeight()->getShape().toString() 
+        throw std::runtime_error("Weight with shape: " + Frontend::Shape::toString(getWeight()->getShape()) 
                                  + " is not compatible with event source with shape: " 
-                                 + getInputEventSource().getShape().toString());
-    }
-
-    // **YUCK** padding should not occur at this point as it is device shape which needs padding
-    if((getWeight()->getShape()[1] % 32) != 0) {
-        throw std::runtime_error("Weight with shape: " + getWeight()->getShape().toString() 
-                                 + " requires padding");
+                                 + Frontend::Shape::toString(getInputEventSource().getShape()));
     }
 
     // Check weight shape is less than or equal to padded target shape
-    const auto paddedTargetShape = getTarget().getShape().pad(0, 32);
-    if(getWeight()->getShape()[1] > paddedTargetShape[0]) {
-        throw std::runtime_error("Weight with shape: " + getWeight()->getShape().toString() 
+    if(getWeight()->getShape()[1] > getTarget().getShape()[0]) {
+        throw std::runtime_error("Weight with shape: " + Frontend::Shape::toString(getWeight()->getShape()) 
                                  + " is not compatible with target variable with padded shape: " 
-                                 + paddedTargetShape.toString());
+                                 + Frontend::Shape::toString(getTarget().getShape()));
     }
 
     // Check weight and target have same types
@@ -1452,7 +1448,8 @@ void SparseEventPropagationProcess::updateMergeHash(boost::uuids::detail::sha1 &
 }
 //----------------------------------------------------------------------------
 void SparseEventPropagationProcess::updateCompatibleSplitDimensions(std::shared_ptr<const Frontend::State> state, 
-                                                                   uint32_t &compatibleSplitDimensions) const 
+                                                                   uint32_t &compatibleSplitDimensions,
+                                                                   Frontend::Padding &compatiblePadding) const 
 {
     // If variable is weight, it can only be split in 2nd (postsynaptic) dimension
     if(state == getWeight()) {
@@ -1460,7 +1457,8 @@ void SparseEventPropagationProcess::updateCompatibleSplitDimensions(std::shared_
     }
     // Otherwise, superclass
     else {
-        Frontend::EventPropagationProcess::updateCompatibleSplitDimensions(state, compatibleSplitDimensions);
+        Frontend::EventPropagationProcess::updateCompatibleSplitDimensions(state, compatibleSplitDimensions, 
+                                                                           compatiblePadding);
     }
 }
 //----------------------------------------------------------------------------
@@ -1493,11 +1491,11 @@ DelayEventPropagationProcess::DelayEventPropagationProcess(Private, Frontend::Sl
         throw std::runtime_error("Delayed event propagation process requires weight variable");
     }
 
-    if (getWeight()->getShape().getNumDims() != 2) {
+    if (getWeight()->getShape().size() != 2) {
         throw std::runtime_error("Delayed event propagation process requires weight variable with a 2D shape");
     }
 
-    if (getInputEventSource().getShape().getNumDims() != 1) {
+    if (getInputEventSource().getShape().size() != 1) {
         throw std::runtime_error("Delayed event propagation process requires source events with a 1D shape");
     }  
 
@@ -1505,7 +1503,7 @@ DelayEventPropagationProcess::DelayEventPropagationProcess(Private, Frontend::Sl
         throw std::runtime_error("Delayed propagation process requires target whose time dimension hasn't been sliced away");
     }
     
-    if (getTarget().getShape().getNumDims() != 2) {
+    if (getTarget().getShape().size() != 2) {
         throw std::runtime_error("Delayed propagation process requires target variable with a 2D shape");
     } 
 
@@ -1516,17 +1514,16 @@ DelayEventPropagationProcess::DelayEventPropagationProcess(Private, Frontend::Sl
 
     // Check weight shape matches input event shape
     if(getWeight()->getShape()[0] != getInputEventSource().getShape()[0]) {
-        throw std::runtime_error("Weight with shape: " + getWeight()->getShape().toString() 
+        throw std::runtime_error("Weight with shape: " + Frontend::Shape::toString(getWeight()->getShape()) 
                                  + " is not compatible with event source with shape: " 
-                                 + getInputEventSource().getShape().toString());
+                                 + Frontend::Shape::toString(getInputEventSource().getShape()));
     }
 
-    // Check weight shape is less than or equal to padded target shape
-    const auto paddedTargetShape = getTarget().getShape().pad(1, 32);
-    if(getWeight()->getShape()[1] != paddedTargetShape[1]) {
-        throw std::runtime_error("Weight with shape: " + getWeight()->getShape().toString() 
+    // Check weight shape is less than or equal to padded target 
+    if(getWeight()->getShape()[1] != getTarget().getShape()[1]) {
+        throw std::runtime_error("Weight with shape: " + Frontend::Shape::toString(getWeight()->getShape()) 
                                  + " is not compatible with target variable with padded shape: " 
-                                 + paddedTargetShape.toString());
+                                 + Frontend::Shape::toString(paddedTargetShape));
     }
 
     // Check weight and target have same types
@@ -1720,7 +1717,8 @@ void DelayEventPropagationProcess::updateMergeHash(boost::uuids::detail::sha1 &h
 }
 //----------------------------------------------------------------------------
 void DelayEventPropagationProcess::updateCompatibleSplitDimensions(std::shared_ptr<const Frontend::State> state, 
-                                                                   uint32_t &compatibleSplitDimensions) const 
+                                                                   uint32_t &compatibleSplitDimensions,
+                                                                   Frontend::Padding &compatiblePadding) const 
 {
     // If variable is weight, it can only be split in 2nd (postsynaptic) dimension
     if(state == getWeight()) {
@@ -1728,7 +1726,8 @@ void DelayEventPropagationProcess::updateCompatibleSplitDimensions(std::shared_p
     }
     // Otherwise, superclass
     else {
-        Frontend::EventPropagationProcess::updateCompatibleSplitDimensions(state, compatibleSplitDimensions);
+        Frontend::EventPropagationProcess::updateCompatibleSplitDimensions(state, compatibleSplitDimensions,
+                                                                           compatiblePadding);
     }
 }
 //----------------------------------------------------------------------------
@@ -2017,15 +2016,15 @@ void generateDRAMWordLoop(const std::vector<std::unique_ptr<RowGeneratorBase>> &
 RNGInitProcess::RNGInitProcess(Private, Frontend::VariablePtr seed, const std::string &name)
 :   Frontend::RNGInitProcess(Private(), seed, name)
 {
-    if(getSeed()->getShape().getNumDims() != 2) {
+    if(getSeed()->getShape().size() != 2) {
         throw std::runtime_error("RNG init process requires two dimensional seed");
     }
 
-    if(getSeed()->getType().getSize(4) != 2) {
+    if(getSeed()->getType().getSize() != 2) {
         throw std::runtime_error("On FeNN, RNG init process seed values must be 16-bit");
     }
 
-    if(getSeed()->getShape().getLast() != 64) {
+    if(getSeed()->getShape().back() != 64) {
         throw std::runtime_error("On FeNN, each RNG init process requires 64 seed values for each device");
     }
 }
@@ -2234,7 +2233,7 @@ BroadcastProcess::BroadcastProcess(Private, Frontend::VariablePtr source, Fronte
         throw std::runtime_error("Broadcast process requires source");
     }
 
-    if(m_Source->getShape().getNumDims() != 1) {
+    if(m_Source->getShape().size() != 1) {
         throw std::runtime_error("Multi-dimensional sources aren't currently "
                                  "supported by broadcast processes");
     }
@@ -2244,12 +2243,16 @@ BroadcastProcess::BroadcastProcess(Private, Frontend::VariablePtr source, Fronte
         throw std::runtime_error("Broadcast process requires target");
     }
 
-    if(m_Target->getShape().getNumDims() != 2) {
+    if(m_Target->getShape().size() != 2) {
         throw std::runtime_error("Broadcast process currently required 2 dimensional target");
     }
 
-    if(m_Target->getShape().getFirst() != m_Source->getShape().getFirst()) {
+    if(m_Target->getShape()[0] != m_Source->getShape()[0]) {
         throw std::runtime_error("Broadcast process requires first dimension of source and target to match");
+    }
+
+    if(m_Target->getShape()[1] != 32) {
+        throw std::runtime_error("Broadcast process can currnetly only broadcast over 32 elements");
     }
 
     if (m_Source->getType() != m_Target->getType()) {
@@ -2289,7 +2292,8 @@ void BroadcastProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const F
 }
 //----------------------------------------------------------------------------
 void BroadcastProcess::updateCompatibleSplitDimensions(std::shared_ptr<const Frontend::State> state, 
-                                                       uint32_t &compatibleSplitDimensions) const
+                                                       uint32_t &compatibleSplitDimensions,
+                                                       Frontend::Padding &compatiblePadding) const
 {
     assert(state == getTarget() || state == getSource());
     

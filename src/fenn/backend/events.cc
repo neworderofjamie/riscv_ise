@@ -24,11 +24,11 @@ using namespace FeNN::Backend;
 //----------------------------------------------------------------------------
 namespace FeNN::Backend
 {
-std::unique_ptr<Frontend::ArrayBase> EventSinkImplementation::createBitArray(const Frontend::Shape &deviceShape, Frontend::DeviceBase &device) const
+std::unique_ptr<Frontend::ArrayBase> EventSinkImplementation::createBitArray(const std::vector<size_t> &shape, Frontend::DeviceBase &device) const
 {
     // Event containers are implemented as word-aligned bitfields so divide and pad last axis
-    auto wordAlignedShape = deviceShape;
-    wordAlignedShape.getLast() = ::Common::Utils::ceilDivide(wordAlignedShape.getLast(), 32);
+    auto wordAlignedShape = shape;
+    wordAlignedShape.back() = ::Common::Utils::ceilDivide(wordAlignedShape.back(), 32);
 
     // Create BRAM array
     return static_cast<DeviceFeNN&>(device).createBRAMArray(CompilerFrontend::Type::Uint32, wordAlignedShape);
@@ -36,7 +36,7 @@ std::unique_ptr<Frontend::ArrayBase> EventSinkImplementation::createBitArray(con
 //----------------------------------------------------------------------------
 Assembler::ScalarRegisterPtr EventSinkImplementation::genBitArrayPreamble(
     Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
-    std::optional<uint32_t> numTimesteps, bool hasTime, const Frontend::Shape &shape,
+    std::optional<uint32_t> numTimesteps, bool hasTime, const std::vector<size_t> &shape,
     Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr numEventBytes, 
     AddFieldFn addField) const
 {
@@ -48,7 +48,7 @@ Assembler::ScalarRegisterPtr EventSinkImplementation::genBitArrayPreamble(
     // recording variables for entire simulation - extend to ring-buffer recording
     if (hasTime) {
         // Check there is a buffer entry for each timestep
-        if(shape.getFirst() < numTimesteps.value()) {
+        if(shape.front() < numTimesteps.value()) {
             throw std::runtime_error("Events need to be buffered for " + std::to_string(numTimesteps.value() + 1u) + " timesteps");
         }
 
@@ -76,16 +76,17 @@ void EventSinkImplementation::genBitArrayIncrement(Assembler::CodeGenerator &c, 
 //----------------------------------------------------------------------------
 // FeNN::Backend::EventSourceBuffer
 //----------------------------------------------------------------------------
-std::unique_ptr<Frontend::ArrayBase> EventSourceBuffer::createArray(const Frontend::Shape &deviceShape, const Frontend::Model&,
-                                                                    Frontend::DeviceBase &device) const
+std::unique_ptr<Frontend::ArrayBase> EventSourceBuffer::createArray(const std::vector<size_t> &shape, const std::vector<size_t> &stride,
+                                                                    const Frontend::Model&, Frontend::DeviceBase &device) const
 {
     // Check we have enough bits to encode events from all device
-    if (deviceShape.getFlattenedSize() >= 32768) {
+    if (Frontend::Shape::getFlattenedSize(shape) >= 32768) {
         throw std::runtime_error("EventSourceBuffer can only deliver events from less than 32768 sources per-device");
     }
 
     // Create BRAM array with one 16 bit word per-event
-    return static_cast<DeviceFeNN&>(device).createBRAMArray(CompilerFrontend::Type::Uint16, getMaxEvents());
+    return static_cast<DeviceFeNN&>(device).createBRAMArray(CompilerFrontend::Type::Uint16, {getMaxEvents()}, 
+                                                            {CompilerFrontend::Type::Uint16.getSize()});
 }
 //----------------------------------------------------------------------------
 uint32_t EventSourceBuffer::generateEventLoop(const Frontend::Merged<Frontend::EventSource> &mergedEventSource, const Runtime&, 
@@ -249,12 +250,12 @@ void EventSourceBuffer::generateArchetypeEventLoop(MergedFields &mergedFields,
 //----------------------------------------------------------------------------
 // FeNN::Backend::EventSinkBuffer
 //----------------------------------------------------------------------------
-std::unique_ptr<Frontend::ArrayBase> EventSinkBuffer::createArray(const Frontend::Shape &deviceShape, const Frontend::Model&,
-                                                                  Frontend::DeviceBase &device) const
+std::unique_ptr<Frontend::ArrayBase> EventSinkBuffer::createArray(const std::vector<size_t> &shape, const std::vector<size_t> &stride,
+                                                                  const Frontend::Model&, Frontend::DeviceBase &device) const
 {
     LOGI_FENN_BACKEND << "Creating event sink buffer '" << getName() << "' array in BRAM";
 
-    return createBitArray(deviceShape, device);
+    return createBitArray(shape, device);
 }
 //----------------------------------------------------------------------------
 std::vector<Assembler::ScalarRegisterPtr> EventSinkBuffer::genPreamble(
@@ -288,13 +289,13 @@ void EventSinkBuffer::genIncrement(Assembler::CodeGenerator &c, uint32_t numUnro
 //----------------------------------------------------------------------------
 // FeNN::Backend::EventChannel
 //----------------------------------------------------------------------------
-std::unique_ptr<Frontend::ArrayBase> EventChannel::createArray(const Frontend::Shape &deviceShape, const Frontend::Model&,
-                                                               Frontend::DeviceBase &device) const
+std::unique_ptr<Frontend::ArrayBase> EventChannel::createArray(const std::vector<size_t> &shape, const std::vector<size_t>&,
+                                                               const Frontend::Model&, Frontend::DeviceBase &device) const
 {
     if(shouldRecord()) {
         LOGI_FENN_BACKEND << "Creating event channel buffer '" << getName() << "' array in BRAM";
 
-        return createBitArray(deviceShape, device);
+        return createBitArray(shape, device);
     }
     else {
         // **TODO** check doesn't have time - that would be weird!

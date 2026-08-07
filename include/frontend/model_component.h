@@ -2,6 +2,7 @@
 
 // Standard C++ includes
 #include <memory>
+#include <optional>
 #include <string>
 
 // Frontend includes
@@ -65,7 +66,7 @@ public:
     virtual const std::vector<size_t> &getShape() const = 0;
     virtual void updateMergeHash(boost::uuids::detail::sha1 &hash) const = 0;
 
-    virtual std::unique_ptr<ArrayBase> createArray(const std::vector<size_t> &shape, const std::vector<size_t> &stride,
+    virtual std::unique_ptr<ArrayBase> createArray(const std::vector<size_t> &shape, const std::vector<std::optional<size_t>> &padMultiples,
                                                    const Model &model, DeviceBase &device) const = 0;
 
 protected:

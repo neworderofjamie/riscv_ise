@@ -304,7 +304,7 @@ struct COMPILER_FRONTEND_EXPORT ResolvedType
     ResolvedType addWriteOnly() const;
 
     std::string getName() const;
-    size_t getSize(size_t pointerBytes) const;
+    size_t getSize(std::optional<size_t> pointerBytes = std::nullopt) const;
 
     ffi_type *getFFIType() const;
 

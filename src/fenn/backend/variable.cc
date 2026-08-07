@@ -1,5 +1,9 @@
 #include "fenn/backend/variable.h"
 
+// Standard C++ includes
+#include <algorithm>
+#include <numeric>
+
 // Compiler frontend includes
 #include "compiler_frontend/type.h"
 
@@ -13,9 +17,30 @@
 //----------------------------------------------------------------------------
 namespace FeNN::Backend
 {
-std::unique_ptr<Frontend::ArrayBase> Variable::createArray(const std::vector<size_t> &shape, const std::vector<size_t> &strides, 
+std::unique_ptr<Frontend::ArrayBase> Variable::createArray(const std::vector<size_t> &shape, const std::vector<std::optional<size_t>> &padMultiples, 
                                                            const Frontend::Model &model, Frontend::DeviceBase &device) const
 {
+    // Pad shape
+    // **THINK** this is backend-agnostic
+    assert(padMultiples.size() == shape.size());
+    std::vector<size_t> paddedShape;
+    paddedShape.reserve(shape.size());
+    std::transform(shape.cbegin(), shape.cend(), paddedShape.cbegin(), std::back_inserter(paddedShape),
+                   [](size_t s, std::optional<size_t> p)
+                   {
+                       return p.has_value() ? ::Common::Utils::padSize(s, p.value()) : s;
+                   });
+    
+    // Calculate strides
+    // **THINK** this is also backend-agnostic
+    std::vector<size_t> strides;
+    strides.reserve(shape.size());
+    size_t stride = getType().getSize();
+    for(size_t i = paddedShape.size(); i-- > 0;) {
+        strides.push_back(stride);
+        stride *= paddedShape[i];
+    }
+
     // Create array in correct memory space depending on compatibility
     switch(getMemSpace(model))
     {

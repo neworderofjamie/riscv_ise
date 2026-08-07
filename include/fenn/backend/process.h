@@ -201,7 +201,8 @@ public:
     //! Update the compatible split dimensions of a state object (which should be
     //! one used by this process) with any constraints imposed by this process)
     virtual void updateCompatibleSplitDimensions(std::shared_ptr<const Frontend::State> state, 
-                                                 uint32_t &compatibleSplitDimensions) const override final;
+                                                 uint32_t &compatibleSplitDimensions,
+                                                 Frontend::Padding &compatiblePadding) const override final;
 
     //------------------------------------------------------------------------
     // ProcessImplementation virtuals
@@ -267,7 +268,8 @@ public:
     //! Update the compatible split dimensions of a state object (which should be
     //! one used by this process) with any constraints imposed by this process)
     virtual void updateCompatibleSplitDimensions(std::shared_ptr<const Frontend::State> state, 
-                                                 uint32_t &compatibleSplitDimensions) const override final;
+                                                 uint32_t &compatibleSplitDimensions,
+                                                 Frontend::Padding &compatiblePadding) const override final;
 
     //------------------------------------------------------------------------
     // ProcessImplementation virtuals
@@ -335,7 +337,8 @@ public:
     //! Update the compatible split dimensions of a state object (which should be
     //! one used by this process) with any constraints imposed by this process)
     virtual void updateCompatibleSplitDimensions(std::shared_ptr<const Frontend::State> state, 
-                                                 uint32_t &compatibleSplitDimensions) const override final;
+                                                 uint32_t &compatibleSplitDimensions,
+                                                 Frontend::Padding &compatiblePadding) const override final;
 
     //------------------------------------------------------------------------
     // ProcessImplementation virtuals
@@ -503,7 +506,8 @@ public:
     //------------------------------------------------------------------------
     virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const Frontend::Model &model) const override final;
     virtual void updateCompatibleSplitDimensions(std::shared_ptr<const Frontend::State> state, 
-                                                 uint32_t &compatibleSplitDimensions) const override;
+                                                 uint32_t &compatibleSplitDimensions,
+                                                 Frontend::Padding &compatiblePadding) const override;
 
 
     //------------------------------------------------------------------------

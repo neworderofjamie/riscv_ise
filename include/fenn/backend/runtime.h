@@ -46,10 +46,11 @@ public:
     uint32_t getURAMPointer() const{ return m_URAMPointer.value(); }
 
 protected:
-    URAMArrayBase(const CompilerFrontend::Type::ResolvedType &type, const Frontend::Shape &shape)
-    :   ArrayBase(type, shape)
+    URAMArrayBase(const CompilerFrontend::Type::ResolvedType &type, 
+                  const std::vector<size_t> &shape, const std::vector<size_t> &strides)
+    :   ArrayBase(type, shape, strides)
     {
-        if(type.getSize(0) != 2) {
+        if(type.getSize() != 2) {
             throw std::runtime_error("Only 16-bit types can be stored in URAM arrays");
         }
     }
@@ -119,10 +120,11 @@ public:
     uint32_t getLLMPointer() const{ return m_LLMPointer.value(); }
 
 protected:
-    LLMArrayBase(const CompilerFrontend::Type::ResolvedType &type, const Frontend::Shape &shape)
-    :   ArrayBase(type, shape)
+    LLMArrayBase(const CompilerFrontend::Type::ResolvedType &type, 
+                 const std::vector<size_t> &shape, const std::vector<size_t> &strides)
+    :   ArrayBase(type, shape, strides)
     {
-        if(type.getSize(0) != 2) {
+        if(type.getSize() != 2) {
             throw std::runtime_error("Only 16-bit types can be stored in LLM arrays");
         }
     }
@@ -183,10 +185,14 @@ public:
     //------------------------------------------------------------------------
     // Declared virtuals
     //------------------------------------------------------------------------
-    virtual std::unique_ptr<URAMArrayBase> createURAMArray(const CompilerFrontend::Type::ResolvedType &type, const Frontend::Shape &shape) = 0;
-    virtual std::unique_ptr<BRAMArrayBase> createBRAMArray(const CompilerFrontend::Type::ResolvedType &type, const Frontend::Shape &shape) = 0;
-    virtual std::unique_ptr<LLMArrayBase> createLLMArray(const CompilerFrontend::Type::ResolvedType &type, const Frontend::Shape &shape) = 0;
-    virtual std::unique_ptr<DRAMArrayBase> createDRAMArray(const CompilerFrontend::Type::ResolvedType &type, const Frontend::Shape &shape) = 0;
+    virtual std::unique_ptr<URAMArrayBase> createURAMArray(const CompilerFrontend::Type::ResolvedType &type,
+                                                           const std::vector<size_t> &shape, const std::vector<size_t> &strides) = 0;
+    virtual std::unique_ptr<BRAMArrayBase> createBRAMArray(const CompilerFrontend::Type::ResolvedType &type,
+                                                           const std::vector<size_t> &shape, const std::vector<size_t> &strides) = 0;
+    virtual std::unique_ptr<LLMArrayBase> createLLMArray(const CompilerFrontend::Type::ResolvedType &type,
+                                                         const std::vector<size_t> &shape, const std::vector<size_t> &strides) = 0;
+    virtual std::unique_ptr<DRAMArrayBase> createDRAMArray(const CompilerFrontend::Type::ResolvedType &type,
+                                                           const std::vector<size_t> &shape, const std::vector<size_t> &strides) = 0;
 
     //------------------------------------------------------------------------
     // DeviceBase virtuals
@@ -264,6 +270,11 @@ protected:
 
     //! Backend-specific logic to run at end of allocate function
     virtual void allocatePostamble() override final;
+
+    //! Determine the shape of sub-arrays that should be allocated on each device
+    virtual std::vector<size_t> getDeviceShape(size_t device, const std::vector<size_t> &shape, 
+                                               std::optional<size_t> splitDimension,
+                                               const std::vector<std::optional<size_t>> &padMultiples) const override final;
     
 private:
     //------------------------------------------------------------------------

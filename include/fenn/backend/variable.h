@@ -41,7 +41,7 @@ public:
     //------------------------------------------------------------------------
     // State virtuals
     //------------------------------------------------------------------------
-    virtual std::unique_ptr<Frontend::ArrayBase> createArray(const std::vector<size_t> &shape, const std::vector<size_t> &strides,
+    virtual std::unique_ptr<Frontend::ArrayBase> createArray(const std::vector<size_t> &shape, const std::vector<std::optional<size_t>> &padMultiples,
                                                              const Frontend::Model &model, Frontend::DeviceBase &device) const override final;
 
     //------------------------------------------------------------------------
@@ -74,7 +74,7 @@ public:
     //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------
-    static std::shared_ptr<Variable> create(const Frontend::Shape &shape, const CompilerFrontend::Type::UnresolvedType &type, 
+    static std::shared_ptr<Variable> create(const std::vector<size_t> &shape, const CompilerFrontend::Type::UnresolvedType &type, 
                                             const std::string &name = "")
     {
         return std::make_shared<Variable>(Private(), shape, type, name);

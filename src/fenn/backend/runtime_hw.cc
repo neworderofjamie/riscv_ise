@@ -35,8 +35,9 @@ namespace
 class URAMArray : public URAMArrayBase
 {
 public:
-    URAMArray(const Type::ResolvedType &type, const Frontend::Shape &shape, DeviceFeNNHW &device)
-    :   URAMArrayBase(type, shape), m_Device(device)
+    URAMArray(const Type::ResolvedType &type, const std::vector<size_t> &shape,
+              const std::vector<size_t> &strides, DeviceFeNNHW &device)
+    :   URAMArrayBase(type, shape, strides), m_Device(device)
     {
         // Allocate if count is specified
         if(getCount() > 0) {
@@ -102,8 +103,9 @@ private:
 class BRAMArray : public BRAMArrayBase
 {
 public:
-    BRAMArray(const Type::ResolvedType &type, const Frontend::Shape &shape, DeviceFeNNHW &device)
-    :   BRAMArrayBase(type, shape), m_Device(device)
+    BRAMArray(const Type::ResolvedType &type, const std::vector<size_t> &shape,
+              const std::vector<size_t> &strides, DeviceFeNNHW &device)
+    :   BRAMArrayBase(type, shape, strides), m_Device(device)
     {
         // Allocate if count is specified
         if(getCount() > 0) {
@@ -151,8 +153,9 @@ private:
 class LLMArray : public LLMArrayBase
 {
 public:
-    LLMArray(const Type::ResolvedType &type, const Frontend::Shape &shape, DeviceFeNNHW &device)
-    :   LLMArrayBase(type, shape), m_Device(device)
+    LLMArray(const Type::ResolvedType &type, const std::vector<size_t> &shape,
+             const std::vector<size_t> &strides, DeviceFeNNHW &device)
+    :   LLMArrayBase(type, shape, strides), m_Device(device)
     {
         // Allocate if count is specified
         if(getCount() > 0) {
@@ -195,8 +198,9 @@ private:
 class DRAMArray : public DRAMArrayBase
 {
 public:
-    DRAMArray(const Type::ResolvedType &type, const Frontend::Shape &shape, DeviceFeNNHW &device)
-    :   DRAMArrayBase(type, shape), m_Device(device)
+    DRAMArray(const Type::ResolvedType &type, const std::vector<size_t> &shape,
+              const std::vector<size_t> &strides, DeviceFeNNHW &device)
+    :   DRAMArrayBase(type, shape, strides), m_Device(device)
     {
         // Allocate if count is specified
         if(getCount() > 0) {
@@ -280,27 +284,31 @@ void DeviceFeNNHW::runCurrentKernel()
 }
 //----------------------------------------------------------------------------
 std::unique_ptr<URAMArrayBase> DeviceFeNNHW::createURAMArray(const Type::ResolvedType &type, 
-                                                             const Frontend::Shape &shape)
+                                                             const std::vector<size_t> &shape,
+                                                             const std::vector<size_t> &strides)
 {
-    return std::make_unique<::URAMArray>(type, shape, *this);
+    return std::make_unique<::URAMArray>(type, shape, strides, *this);
 }
 //----------------------------------------------------------------------------
 std::unique_ptr<BRAMArrayBase> DeviceFeNNHW::createBRAMArray(const Type::ResolvedType &type,
-                                                             const Frontend::Shape &shape)
+                                                             const std::vector<size_t> &shape,
+                                                             const std::vector<size_t> &strides)
 {
-    return std::make_unique<::BRAMArray>(type, shape, *this);
+    return std::make_unique<::BRAMArray>(type, shape, strides, *this);
 }
 //----------------------------------------------------------------------------
 std::unique_ptr<LLMArrayBase> DeviceFeNNHW::createLLMArray(const Type::ResolvedType &type,
-                                                           const Frontend::Shape &shape)
+                                                           const std::vector<size_t> &shape,
+                                                           const std::vector<size_t> &strides)
 {
-    return std::make_unique<::LLMArray>(type, shape, *this);
+    return std::make_unique<::LLMArray>(type, shape, strides, *this);
 }
 //----------------------------------------------------------------------------
 std::unique_ptr<DRAMArrayBase> DeviceFeNNHW::createDRAMArray(const Type::ResolvedType &type,
-                                                             const Frontend::Shape &shape)
+                                                             const std::vector<size_t> &shape,
+                                                             const std::vector<size_t> &strides)
 {
-    return std::make_unique<::DRAMArray>(type, shape, *this);
+    return std::make_unique<::DRAMArray>(type, shape, strides, *this);
 }
 
 //----------------------------------------------------------------------------

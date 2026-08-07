@@ -40,10 +40,14 @@ public:
     //------------------------------------------------------------------------
     // DeviceFeNN virtuals
     //------------------------------------------------------------------------
-    virtual std::unique_ptr<URAMArrayBase> createURAMArray(const CompilerFrontend::Type::ResolvedType &type, const Frontend::Shape &shape) override final;
-    virtual std::unique_ptr<BRAMArrayBase> createBRAMArray(const CompilerFrontend::Type::ResolvedType &type, const Frontend::Shape &shape) override final;
-    virtual std::unique_ptr<LLMArrayBase> createLLMArray(const CompilerFrontend::Type::ResolvedType &type, const Frontend::Shape &shape) override final;
-    virtual std::unique_ptr<DRAMArrayBase> createDRAMArray(const CompilerFrontend::Type::ResolvedType &type, const Frontend::Shape &shape) override final;
+    virtual std::unique_ptr<URAMArrayBase> createURAMArray(const CompilerFrontend::Type::ResolvedType &type,
+                                                           const std::vector<size_t> &shape, const std::vector<size_t> &strides) override final;
+    virtual std::unique_ptr<BRAMArrayBase> createBRAMArray(const CompilerFrontend::Type::ResolvedType &type,
+                                                           const std::vector<size_t> &shape, const std::vector<size_t> &strides) override final;
+    virtual std::unique_ptr<LLMArrayBase> createLLMArray(const CompilerFrontend::Type::ResolvedType &type,
+                                                         const std::vector<size_t> &shape, const std::vector<size_t> &strides) override final;
+    virtual std::unique_ptr<DRAMArrayBase> createDRAMArray(const CompilerFrontend::Type::ResolvedType &type,
+                                                           const std::vector<size_t> &shape, const std::vector<size_t> &strides) override final;
  
     //------------------------------------------------------------------------
     // Public API

@@ -91,11 +91,11 @@ protected:
     //----------------------------------------------------------------------------
     // Protected API
     //----------------------------------------------------------------------------
-    std::unique_ptr<Frontend::ArrayBase> createBitArray(const Frontend::Shape &deviceShape, Frontend::DeviceBase &device) const;
+    std::unique_ptr<Frontend::ArrayBase> createBitArray(const std::vector<size_t> &shape, Frontend::DeviceBase &device) const;
 
     Assembler::ScalarRegisterPtr genBitArrayPreamble(
         Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
-        std::optional<uint32_t> numTimesteps, bool hasTime, const Frontend::Shape &shape,
+        std::optional<uint32_t> numTimesteps, bool hasTime, const std::vector<size_t> &shape,
         Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr numEventBytes, 
         AddFieldFn addField) const;
     
@@ -112,15 +112,15 @@ protected:
 class FENN_BACKEND_EXPORT EventSourceBuffer : public Frontend::EventSourceBuffer, public EventSourceImplementation
 {
 public:
-    EventSourceBuffer(Private, const Frontend::Shape &shape, size_t maxEvents, const std::string &name)
+    EventSourceBuffer(Private, const std::vector<size_t> &shape, size_t maxEvents, const std::string &name)
     :   State(name), Frontend::EventSourceBuffer(Private(), shape, maxEvents, name)
     {}
 
     //------------------------------------------------------------------------
     // State virtuals
     //------------------------------------------------------------------------
-    virtual std::unique_ptr<Frontend::ArrayBase> createArray(const Frontend::Shape &deviceShape, const Frontend::Model &model,
-                                                             Frontend::DeviceBase &device) const override final;
+    virtual std::unique_ptr<Frontend::ArrayBase> createArray(const std::vector<size_t> &shape, const std::vector<size_t> &strides,
+                                                             const Frontend::Model &model, Frontend::DeviceBase &device) const override final;
 
     //----------------------------------------------------------------------------
     // EventSourceImplementation virtuals
@@ -136,7 +136,7 @@ public:
     //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------
-    static std::shared_ptr<EventSourceBuffer> create(const Frontend::Shape &shape, size_t maxEvents, const std::string &name = "")
+    static std::shared_ptr<EventSourceBuffer> create(const std::vector<size_t> &shape, size_t maxEvents, const std::string &name = "")
     {
         return std::make_shared<EventSourceBuffer>(Private(), shape, maxEvents, name);
     }
@@ -158,15 +158,15 @@ private:
 class FENN_BACKEND_EXPORT EventSinkBuffer : public Frontend::EventSinkBuffer, public EventSinkImplementation
 {
 public:
-    EventSinkBuffer(Private, const Frontend::Shape &shape, const std::string &name)
+    EventSinkBuffer(Private, const std::vector<size_t> &shape, const std::string &name)
     :   State(name), Frontend::EventSinkBuffer(Private(), shape, name)
     {}
 
     //------------------------------------------------------------------------
     // State virtuals
     //------------------------------------------------------------------------
-    virtual std::unique_ptr<Frontend::ArrayBase> createArray(const Frontend::Shape &deviceShape, const Frontend::Model &model,
-                                                             Frontend::DeviceBase &device) const override final;
+    virtual std::unique_ptr<Frontend::ArrayBase> createArray(const std::vector<size_t> &shape, const std::vector<size_t> &strides,
+                                                             const Frontend::Model &model, Frontend::DeviceBase &device) const override final;
 
     //------------------------------------------------------------------------
     // EventSinkImplementation virtuals
@@ -188,7 +188,7 @@ public:
     //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------
-    static std::shared_ptr<EventSinkBuffer> create(const Frontend::Shape &shape, const std::string &name = "")
+    static std::shared_ptr<EventSinkBuffer> create(const std::vector<size_t> &shape, const std::string &name = "")
     {
         return std::make_shared<EventSinkBuffer>(Private(), shape, name);
     }
@@ -200,15 +200,15 @@ public:
 class FENN_BACKEND_EXPORT EventChannel : public Frontend::EventChannel, public EventSourceImplementation, public EventSinkImplementation
 {
 public:
-    EventChannel(Private, const Frontend::Shape &shape, bool record, const std::string &name)
+    EventChannel(Private, const std::vector<size_t> &shape, bool record, const std::string &name)
     :   State(name), Frontend::EventChannel(Private(), shape, record, name)
     {}
 
     //------------------------------------------------------------------------
     // State virtuals
     //------------------------------------------------------------------------
-    virtual std::unique_ptr<Frontend::ArrayBase> createArray(const Frontend::Shape &deviceShape, const Frontend::Model &model,
-                                                             Frontend::DeviceBase &device) const override final;
+    virtual std::unique_ptr<Frontend::ArrayBase> createArray(const std::vector<size_t> &shape, const std::vector<size_t> &strides,
+                                                             const Frontend::Model &model, Frontend::DeviceBase &device) const override final;
 
     //----------------------------------------------------------------------------
     // EventSourceImplementation virtuals
@@ -241,7 +241,7 @@ public:
     //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------
-    static std::shared_ptr<EventChannel> create(const Frontend::Shape &shape, bool record = false, 
+    static std::shared_ptr<EventChannel> create(const std::vector<size_t> &shape, bool record = false, 
                                                 const std::string &name = "")
     {
         return std::make_shared<EventChannel>(Private(), shape, record, name);

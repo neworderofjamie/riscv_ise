@@ -38,8 +38,9 @@ namespace
 class URAMArray : public URAMArrayBase
 {
 public:
-    URAMArray(const Type::ResolvedType &type, const Frontend::Shape &shape, DeviceFeNNSim &device)
-    :   URAMArrayBase(type, shape), m_Device(device)
+    URAMArray(const Type::ResolvedType &type, const std::vector<size_t> &shape,
+              const std::vector<size_t> &strides, DeviceFeNNSim &device)
+    :   URAMArrayBase(type, shape, strides), m_Device(device)
     {
         // Allocate if count is specified
         if(getCount() > 0) {
@@ -92,8 +93,9 @@ private:
 class BRAMArray : public FeNN::Backend::BRAMArrayBase
 {
 public:
-    BRAMArray(const Type::ResolvedType &type, const Frontend::Shape &shape, DeviceFeNNSim &device)
-    :   BRAMArrayBase(type, shape), m_Device(device)
+    BRAMArray(const Type::ResolvedType &type, const std::vector<size_t> &shape,
+              const std::vector<size_t> &strides, DeviceFeNNSim &device)
+    :   BRAMArrayBase(type, shape, strides), m_Device(device)
     {
         // Allocate if count is specified
         if(getCount() > 0) {
@@ -146,8 +148,9 @@ private:
 class LLMArray : public FeNN::Backend::LLMArrayBase
 {
 public:
-    LLMArray(const Type::ResolvedType &type, const Frontend::Shape &shape, DeviceFeNNSim &device)
-    :   LLMArrayBase(type, shape), m_Device(device)
+    LLMArray(const Type::ResolvedType &type, const std::vector<size_t> &shape,
+             const std::vector<size_t> &strides, DeviceFeNNSim &device)
+    :   LLMArrayBase(type, shape, strides), m_Device(device)
     {
         // Allocate if count is specified
         if(getCount() > 0) {
@@ -211,8 +214,9 @@ private:
 class DRAMArray : public DRAMArrayBase
 {
 public:
-    DRAMArray(const Type::ResolvedType &type, const Frontend::Shape &shape, DeviceFeNNSim &device)
-    :   DRAMArrayBase(type, shape), m_Device(device)
+    DRAMArray(const Type::ResolvedType &type, const std::vector<size_t> &shape,
+              const std::vector<size_t> &strides, DeviceFeNNSim &device)
+    :   DRAMArrayBase(type, shape, strides), m_Device(device)
     {
         // Allocate if count is specified
         if(getCount() > 0) {
@@ -291,27 +295,31 @@ void DeviceFeNNSim::runCurrentKernel()
 }
 //----------------------------------------------------------------------------
 std::unique_ptr<URAMArrayBase> DeviceFeNNSim::createURAMArray(const Type::ResolvedType &type, 
-                                                              const Frontend::Shape &shape)
+                                                              const std::vector<size_t> &shape,
+                                                              const std::vector<size_t> &strides)
 {
-    return std::make_unique<::URAMArray>(type, shape, *this);
+    return std::make_unique<::URAMArray>(type, shape, strides, *this);
 }
 //----------------------------------------------------------------------------
 std::unique_ptr<BRAMArrayBase> DeviceFeNNSim::createBRAMArray(const Type::ResolvedType &type,
-                                                              const Frontend::Shape &shape)
+                                                              const std::vector<size_t> &shape,
+                                                              const std::vector<size_t> &strides)
 {
-    return std::make_unique<::BRAMArray>(type, shape, *this);
+    return std::make_unique<::BRAMArray>(type, shape, strides, *this);
 }
 //----------------------------------------------------------------------------
 std::unique_ptr<LLMArrayBase> DeviceFeNNSim::createLLMArray(const Type::ResolvedType &type,
-                                                            const Frontend::Shape &shape)
+                                                            const std::vector<size_t> &shape,
+                                                            const std::vector<size_t> &strides)
 {
-    return std::make_unique<::LLMArray>(type, shape, *this);
+    return std::make_unique<::LLMArray>(type, shape, strides, *this);
 }
 //----------------------------------------------------------------------------
 std::unique_ptr<DRAMArrayBase> DeviceFeNNSim::createDRAMArray(const Type::ResolvedType &type,
-                                                              const Frontend::Shape &shape)
+                                                              const std::vector<size_t> &shape,
+                                                              const std::vector<size_t> &strides)
 {
-    return std::make_unique<::DRAMArray>(type, shape, *this);
+    return std::make_unique<::DRAMArray>(type, shape, strides, *this);
 }
 
 //----------------------------------------------------------------------------
