@@ -16,6 +16,31 @@
 #include "frontend/shape.h"
 #include "frontend/variable.h"
 
+namespace
+{
+template<typename T>
+void updateSlicedCompatibleSplit(const Frontend::Sliced<T> &sliced, uint32_t &compatibleSplitDimensions,
+                                 uint32_t &compatibleIndexDimensions)
+{
+    // If sliced state has a time dimension
+    const uint32_t allAxes = (1 << sliced.getShape().size()) - 1;
+    if(sliced.hasTime()) {
+        // Can split along any axis 'below' time
+        compatibleSplitDimensions &= (allAxes << 1);
+
+        // Can only index along time dimension
+        compatibleIndexDimensions &= (1 << 0);
+    }
+    // Otherwise
+    else {
+        // Can split along any axis
+        compatibleSplitDimensions &= allAxes;
+
+        // No indexing is possible
+        compatibleIndexDimensions = 0;
+    }
+}
+}
 //----------------------------------------------------------------------------
 // Frontend::NeuronUpdateProcess
 //----------------------------------------------------------------------------
@@ -187,15 +212,14 @@ void NeuronUpdateProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, cons
 //----------------------------------------------------------------------------
 void NeuronUpdateProcess::updateCompatibleSplitDimensions(std::shared_ptr<const State> state, 
                                                           uint32_t &compatibleSplitDimensions,
-                                                          Padding &stateCompatiblePadding) const 
+                                                          uint32_t &compatibleIndexDimensions) const 
 {
     // If state is a variable
     const auto var = std::find_if(getVariables().cbegin(), getVariables().cend(),
                                   [&state](const auto &v){ return v.second.getUnderlying() == state; });
     if (var != getVariables().cend()) {
-        // Ensure that we only split along the dimensions of the slice  
-        // exposed to the neuron update process i.e. not the time dimension
-        compatibleSplitDimensions &= ((1 << var->second.getShape().size()) - 1);
+        updateSlicedCompatibleSplit(var->second, compatibleSplitDimensions,
+                                    compatibleIndexDimensions);
     }
     // Otherwise
     else {
@@ -203,9 +227,8 @@ void NeuronUpdateProcess::updateCompatibleSplitDimensions(std::shared_ptr<const 
         const auto outEvent = std::find_if(getOutputEventSinks().cbegin(), getOutputEventSinks().cend(),
                                            [&state](const auto &o){ return o.second.getUnderlying() == state; });
         if (outEvent != getOutputEventSinks().cend()) {
-            // Ensure that we only split along the dimensions of the slice  
-            // exposed to the neuron update process i.e. not the time dimension
-            compatibleSplitDimensions &= ((1 << outEvent->second.getShape().size()) - 1);
+            updateSlicedCompatibleSplit(outEvent->second, compatibleSplitDimensions,
+                                        compatibleIndexDimensions);
         }
         else {
             assert(false);
@@ -283,7 +306,7 @@ void EventPropagationProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, 
 //----------------------------------------------------------------------------
 void EventPropagationProcess::updateCompatibleSplitDimensions(std::shared_ptr<const State> state, 
                                                               uint32_t &compatibleSplitDimensions,
-                                                              Padding &stateCompatiblePadding) const 
+                                                              uint32_t &compatibleIndexDimensions) const 
 {
     // If variable's target
     if(state == getTarget().getUnderlying()) {
@@ -296,9 +319,10 @@ void EventPropagationProcess::updateCompatibleSplitDimensions(std::shared_ptr<co
             compatibleSplitDimensions &= (1 << 1);
         }
     }
-    // Otherwise, if it's input event container, we should receive all splits
+    // Otherwise, if it's input event source, we should receive all splits
     else {
         assert(state == getInputEventSource().getUnderlying());
+        compatibleSplitDimensions = 0;
     }
 }
 
@@ -337,12 +361,15 @@ void RNGInitProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Mod
 //----------------------------------------------------------------------------
 void RNGInitProcess::updateCompatibleSplitDimensions(std::shared_ptr<const State> state, 
                                                      uint32_t &compatibleSplitDimensions,
-                                                     Padding &stateCompatiblePadding) const
+                                                     uint32_t &compatibleIndexDimensions) const
 {
     assert(state == getSeed());
 
     // Seed should be split along device axis
     compatibleSplitDimensions &= (1 << 1);
+
+    // No need to index - seed is backend-specific size
+    compatibleIndexDimensions = 0;
 }
 
 //----------------------------------------------------------------------------
@@ -380,12 +407,11 @@ void MemsetProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Mode
 //----------------------------------------------------------------------------
 void MemsetProcess::updateCompatibleSplitDimensions(std::shared_ptr<const State> state, 
                                                     uint32_t &compatibleSplitDimensions,
-                                                    Padding &stateCompatiblePadding) const
+                                                    uint32_t &compatibleIndexDimensions) const
 {
     assert(state == getTarget().getUnderlying());
-    
-    // Ensure that we only split along the dimensions of the slice  
-    // exposed to the memset process i.e. not the time dimension
-    compatibleSplitDimensions &= ((1 << getTarget().getShape().size()) - 1);
+
+    updateSlicedCompatibleSplit(getTarget(), compatibleSplitDimensions,
+                                compatibleIndexDimensions);
 }
 }

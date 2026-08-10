@@ -202,7 +202,7 @@ public:
     //! one used by this process) with any constraints imposed by this process)
     virtual void updateCompatibleSplitDimensions(std::shared_ptr<const Frontend::State> state, 
                                                  uint32_t &compatibleSplitDimensions,
-                                                 Frontend::Padding &compatiblePadding) const override final;
+                                                 uint32_t &compatibleIndexDimensions) const override final;
 
     //------------------------------------------------------------------------
     // ProcessImplementation virtuals
@@ -269,7 +269,7 @@ public:
     //! one used by this process) with any constraints imposed by this process)
     virtual void updateCompatibleSplitDimensions(std::shared_ptr<const Frontend::State> state, 
                                                  uint32_t &compatibleSplitDimensions,
-                                                 Frontend::Padding &compatiblePadding) const override final;
+                                                 uint32_t &compatibleIndexDimensions) const override final;
 
     //------------------------------------------------------------------------
     // ProcessImplementation virtuals
@@ -338,7 +338,7 @@ public:
     //! one used by this process) with any constraints imposed by this process)
     virtual void updateCompatibleSplitDimensions(std::shared_ptr<const Frontend::State> state, 
                                                  uint32_t &compatibleSplitDimensions,
-                                                 Frontend::Padding &compatiblePadding) const override final;
+                                                 uint32_t &compatibleIndexDimensions) const override final;
 
     //------------------------------------------------------------------------
     // ProcessImplementation virtuals
@@ -452,7 +452,7 @@ public:
         const Frontend::MergedProcess &mergedProcess, const Runtime &runtime, 
         const KernelImplementation &kernel, MergedFields &mergedFields,
         Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg,
-       std::optional<uint32_t> numTimesteps, Assembler::CodeGenerator &processCodeGenerator, 
+        std::optional<uint32_t> numTimesteps, Assembler::CodeGenerator &processCodeGenerator, 
         Assembler::CodeGenerator &sharedCodeGenerator, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
         Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;
     
@@ -507,7 +507,7 @@ public:
     virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const Frontend::Model &model) const override final;
     virtual void updateCompatibleSplitDimensions(std::shared_ptr<const Frontend::State> state, 
                                                  uint32_t &compatibleSplitDimensions,
-                                                 Frontend::Padding &compatiblePadding) const override;
+                                                 uint32_t &compatibleIndexDimensions) const override;
 
 
     //------------------------------------------------------------------------

@@ -16,33 +16,6 @@
 //----------------------------------------------------------------------------
 namespace Frontend
 {
-void Padding::update(size_t axis, std::optional<size_t> padMultiple)
-{
-    // If axis currently has a padding value
-    auto &currentPad = m_PadMultiples.at(axis);
-    if (currentPad.has_value()) {
-        // If we are providing a new one, padding needs to be lowest common multiple of pad values
-        if(padMultiple.has_value()) {
-            currentPad = std::lcm(currentPad.value(), padMultiple.value());
-        }
-        // Otherwise, if we are blocking padding
-        else {
-            // If current padding is don't care, block
-            if(currentPad.value() == 1) {
-                currentPad = std::nullopt;
-            }
-            else {
-                throw std::runtime_error("Incompatible padding requirements");
-            }
-        }
-    }
-    // Otherwise, if padding is currently blocked on this axis
-    // and padding other thand on't care is being requested, give error
-    else if(padMultiple.has_value() && padMultiple.value() != 1) {
-        throw std::runtime_error("Incompatible padding requirements");
-    }
-}
-//----------------------------------------------------------------------------
 Model::Model(const KernelVector &kernels)
 :   m_Kernels(kernels)
 {
@@ -72,16 +45,16 @@ Model::Model(const KernelVector &kernels)
 
         // Start with all memory spaces being compatible
         uint32_t stateCompatibleSplitDimensions = (1 << numDims) - 1;
-        Padding stateCompatiblePadding(numDims);
+        uint32_t stateCompatibleIndexDimesnions = (1 << numDims) - 1;
 
         // Loop through all processes using this state and update this compatibility
         for (const auto &p : s.second.processes) {
             p->updateCompatibleSplitDimensions(s.first, stateCompatibleSplitDimensions,
-                                               stateCompatiblePadding);
+                                               stateCompatibleIndexDimesnions);
         }
         
-        // Store pad multiples in state data
-        s.second.padMultiples = stateCompatiblePadding.getPadMultiples();
+        // Store compatible index dimensions in state
+        s.second.indexDimensions = stateCompatibleIndexDimesnions;
 
         // Add to map
         compatibleSplitDimensions.try_emplace(s.first, stateCompatibleSplitDimensions);

@@ -1200,18 +1200,18 @@ void DenseEventPropagationProcess::updateMergeHash(boost::uuids::detail::sha1 &h
 //----------------------------------------------------------------------------
 void DenseEventPropagationProcess::updateCompatibleSplitDimensions(std::shared_ptr<const Frontend::State> state, 
                                                                    uint32_t &compatibleSplitDimensions,
-                                                                   Frontend::Padding &compatiblePadding) const 
+                                                                   uint32_t &compatibleIndexDimensions) const 
 {
     // If variable is weight, it can only be split in 2nd (postsynaptic) axis
-    // and postsynaptic axis also needs padding to vector width
+    // and it can only be indexed along 1st (presynaptic) axis
     if(state == getWeight()) {
         compatibleSplitDimensions &= (1 << 1);
-        compatiblePadding.update(1, 32);
+        compatibleIndexDimensions &= (1 << 0);
     }
     // Otherwise, superclass
     else {
         Frontend::EventPropagationProcess::updateCompatibleSplitDimensions(state, compatibleSplitDimensions, 
-                                                                           compatiblePadding);
+                                                                           compatibleIndexDimensions);
     }
 }
 //----------------------------------------------------------------------------
@@ -1449,16 +1449,18 @@ void SparseEventPropagationProcess::updateMergeHash(boost::uuids::detail::sha1 &
 //----------------------------------------------------------------------------
 void SparseEventPropagationProcess::updateCompatibleSplitDimensions(std::shared_ptr<const Frontend::State> state, 
                                                                    uint32_t &compatibleSplitDimensions,
-                                                                   Frontend::Padding &compatiblePadding) const 
+                                                                   uint32_t &compatibleIndexDimensions) const 
 {
     // If variable is weight, it can only be split in 2nd (postsynaptic) dimension
+    // and it can only be indexed along 1st (presynaptic) axis
     if(state == getWeight()) {
         compatibleSplitDimensions &= (1 << 1);
+        compatibleIndexDimensions &= (1 << 0);
     }
     // Otherwise, superclass
     else {
         Frontend::EventPropagationProcess::updateCompatibleSplitDimensions(state, compatibleSplitDimensions, 
-                                                                           compatiblePadding);
+                                                                           compatibleIndexDimensions);
     }
 }
 //----------------------------------------------------------------------------
@@ -1718,16 +1720,18 @@ void DelayEventPropagationProcess::updateMergeHash(boost::uuids::detail::sha1 &h
 //----------------------------------------------------------------------------
 void DelayEventPropagationProcess::updateCompatibleSplitDimensions(std::shared_ptr<const Frontend::State> state, 
                                                                    uint32_t &compatibleSplitDimensions,
-                                                                   Frontend::Padding &compatiblePadding) const 
+                                                                   uint32_t &compatibleIndexDimensions) const 
 {
     // If variable is weight, it can only be split in 2nd (postsynaptic) dimension
+    // and it can only be indexed along 1st (presynaptic) axis
     if(state == getWeight()) {
         compatibleSplitDimensions &= (1 << 1);
+        compatibleIndexDimensions &= (1 << 0);
     }
     // Otherwise, superclass
     else {
         Frontend::EventPropagationProcess::updateCompatibleSplitDimensions(state, compatibleSplitDimensions,
-                                                                           compatiblePadding);
+                                                                           compatibleIndexDimensions);
     }
 }
 //----------------------------------------------------------------------------
@@ -2293,12 +2297,15 @@ void BroadcastProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const F
 //----------------------------------------------------------------------------
 void BroadcastProcess::updateCompatibleSplitDimensions(std::shared_ptr<const Frontend::State> state, 
                                                        uint32_t &compatibleSplitDimensions,
-                                                       Frontend::Padding &compatiblePadding) const
+                                                       uint32_t &compatibleIndexDimensions) const
 {
     assert(state == getTarget() || state == getSource());
     
     // Broadcast process is used for populating LUTs - can't be split
     compatibleSplitDimensions = 0;
+
+    // Nothing needs to be padded to support indexing
+    compatibleIndexDimensions = 0;
 }
 //----------------------------------------------------------------------------
 void BroadcastProcess::updateCompatibleMemSpace(std::shared_ptr<const Frontend::State> state, 

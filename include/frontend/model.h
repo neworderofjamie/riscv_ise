@@ -20,27 +20,10 @@ class ProcessGroup;
 }
 
 //----------------------------------------------------------------------------
-// Frontend::MergedProcess
+// Frontend::Model
 //----------------------------------------------------------------------------
 namespace Frontend
 {
-class FRONTEND_EXPORT Padding
-{
-public:
-    explicit Padding(size_t numAxes)
-    :   m_PadMultiples(numAxes, 1)
-    {}
-
-    void update(size_t axis, std::optional<size_t> padMultiple);
-    const auto &getPadMultiples() const{ return m_PadMultiples; }
-
-private:
-    std::vector<std::optional<size_t>> m_PadMultiples;
-};
-
-//----------------------------------------------------------------------------
-// Frontend::Model
-//----------------------------------------------------------------------------
 //! A model encompasses of a number of graphs which share the same state.
 //! It also contains any additional data structures required BEFORE merging.
 //! If a backend requires additional data to calculate mergibility, 
@@ -51,7 +34,7 @@ public:
     struct StateData
     {
         std::optional<size_t> splitDimension;
-        std::vector<std::optional<size_t>> padMultiples;
+        uint32_t indexDimensions;
 
         std::vector<std::shared_ptr<const Process>> processes;
     };
