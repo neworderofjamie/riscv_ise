@@ -119,8 +119,8 @@ public:
     //------------------------------------------------------------------------
     // State virtuals
     //------------------------------------------------------------------------
-    virtual std::unique_ptr<Frontend::ArrayBase> createArray(const std::vector<size_t> &shape, const std::vector<size_t> &strides,
-                                                             const Frontend::Model &model, Frontend::DeviceBase &device) const override final;
+    virtual std::unique_ptr<Frontend::ArrayBase> createArray(std::optional<size_t> splitDimension, uint32_t indexDimensions,
+                                                             size_t numDevices, const Frontend::Model &model, Frontend::DeviceBase &device) const override final;
 
     //----------------------------------------------------------------------------
     // EventSourceImplementation virtuals
@@ -165,8 +165,8 @@ public:
     //------------------------------------------------------------------------
     // State virtuals
     //------------------------------------------------------------------------
-    virtual std::unique_ptr<Frontend::ArrayBase> createArray(const std::vector<size_t> &shape, const std::vector<size_t> &strides,
-                                                             const Frontend::Model &model, Frontend::DeviceBase &device) const override final;
+    virtual std::unique_ptr<Frontend::ArrayBase> createArray(std::optional<size_t> splitDimension, uint32_t indexDimensions,
+                                                             size_t numDevices, const Frontend::Model &model, Frontend::DeviceBase &device) const override final;
 
     //------------------------------------------------------------------------
     // EventSinkImplementation virtuals
@@ -207,8 +207,8 @@ public:
     //------------------------------------------------------------------------
     // State virtuals
     //------------------------------------------------------------------------
-    virtual std::unique_ptr<Frontend::ArrayBase> createArray(const std::vector<size_t> &shape, const std::vector<size_t> &strides,
-                                                             const Frontend::Model &model, Frontend::DeviceBase &device) const override final;
+    virtual std::unique_ptr<Frontend::ArrayBase> createArray(std::optional<size_t> splitDimension, uint32_t indexDimensions,
+                                                             size_t numDevices, const Frontend::Model &model, Frontend::DeviceBase &device) const override final;
 
     //----------------------------------------------------------------------------
     // EventSourceImplementation virtuals

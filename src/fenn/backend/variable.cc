@@ -18,9 +18,9 @@
 namespace FeNN::Backend
 {
 std::unique_ptr<Frontend::ArrayBase> Variable::createArray(std::optional<size_t> splitDimension, uint32_t indexDimensions, 
-                                                           const Frontend::Model &model, Frontend::DeviceBase &device) const
+                                                           size_t numDevices, const Frontend::Model &model, Frontend::DeviceBase &device) const
 {
-    // 1) Split getShape() based on device->getDeviceIndex(), applying FeNN constraints
+    // 1) Split getShape() based on device->getDeviceIndex(), applying FeNN constraints - assert that nothing is indexible 'below' split
     // 2) Calculate strides
     // 3) Pad index dimensions as required - this is memory-space specific
 

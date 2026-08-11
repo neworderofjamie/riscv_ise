@@ -76,8 +76,8 @@ void EventSinkImplementation::genBitArrayIncrement(Assembler::CodeGenerator &c, 
 //----------------------------------------------------------------------------
 // FeNN::Backend::EventSourceBuffer
 //----------------------------------------------------------------------------
-std::unique_ptr<Frontend::ArrayBase> EventSourceBuffer::createArray(const std::vector<size_t> &shape, const std::vector<size_t> &stride,
-                                                                    const Frontend::Model&, Frontend::DeviceBase &device) const
+std::unique_ptr<Frontend::ArrayBase> EventSourceBuffer::createArray(std::optional<size_t> splitDimension, uint32_t indexDimensions,
+                                                                    size_t numDevices, const Frontend::Model&, Frontend::DeviceBase &device) const
 {
     // Check we have enough bits to encode events from all device
     if (Frontend::Shape::getFlattenedSize(shape) >= 32768) {
@@ -250,8 +250,8 @@ void EventSourceBuffer::generateArchetypeEventLoop(MergedFields &mergedFields,
 //----------------------------------------------------------------------------
 // FeNN::Backend::EventSinkBuffer
 //----------------------------------------------------------------------------
-std::unique_ptr<Frontend::ArrayBase> EventSinkBuffer::createArray(const std::vector<size_t> &shape, const std::vector<size_t> &stride,
-                                                                  const Frontend::Model&, Frontend::DeviceBase &device) const
+std::unique_ptr<Frontend::ArrayBase> EventSinkBuffer::createArray(std::optional<size_t> splitDimension, uint32_t indexDimensions,
+                                                                  size_t numDevices, const Frontend::Model&, Frontend::DeviceBase &device) const
 {
     LOGI_FENN_BACKEND << "Creating event sink buffer '" << getName() << "' array in BRAM";
 
@@ -289,8 +289,8 @@ void EventSinkBuffer::genIncrement(Assembler::CodeGenerator &c, uint32_t numUnro
 //----------------------------------------------------------------------------
 // FeNN::Backend::EventChannel
 //----------------------------------------------------------------------------
-std::unique_ptr<Frontend::ArrayBase> EventChannel::createArray(const std::vector<size_t> &shape, const std::vector<size_t>&,
-                                                               const Frontend::Model&, Frontend::DeviceBase &device) const
+std::unique_ptr<Frontend::ArrayBase> EventChannel::createArray(std::optional<size_t> splitDimension, uint32_t indexDimensions,
+                                                               size_t numDevices, const Frontend::Model&, Frontend::DeviceBase &device) const
 {
     if(shouldRecord()) {
         LOGI_FENN_BACKEND << "Creating event channel buffer '" << getName() << "' array in BRAM";
