@@ -73,12 +73,11 @@ void ArrayBase::memsetHostPointer(int value)
 //----------------------------------------------------------------------------
 // Frontend::DeviceBase
 //----------------------------------------------------------------------------
-void DeviceBase::createArray(std::shared_ptr<const State> state, const std::vector<size_t> &shape, 
-                             const std::vector<std::optional<size_t>> &padMultiples, const Model &model)
+void DeviceBase::createArray(std::shared_ptr<const State> state, std::optional<size_t> splitDimension,
+                             uint32_t indexDimensions, const Model &model)
 {
     // Take ownership of array and add to arrays map
-    assert(shape.size() == padMultiples.size());
-    if (!m_Arrays.try_emplace(state, std::move(state->createArray(shape, padMultiples, model, *this))).second) {
+    if (!m_Arrays.try_emplace(state, std::move(state->createArray(splitDimension, indexDimensions, model, *this))).second) {
         throw std::runtime_error("Duplicate array found for state '" + state->getName() + "'");
     }
 }
@@ -125,13 +124,10 @@ void Runtime::allocate()
 
     // Loop through state objects used by model
     for (const auto &s : getModel()->getStateData()) {
-        // Loop through devices
+        // Loop through devices and create arrays
         for(size_t i = 0; i < getNumDevices(); i++) {
-            // Split shape
-            auto shape = getDeviceShape(i, s.first->getShape(), s.second.splitDimension, s.second.padMultiples);
-            
-            // Craete array
-            getDevices()[i]->createArray(s.first, shape, s.second.padMultiples, *getModel());
+            getDevices()[i]->createArray(s.first, s.second.splitDimension, 
+                                         s.second.indexDimensions, *getModel());
         }
     }
 

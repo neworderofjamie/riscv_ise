@@ -29,7 +29,7 @@ public:
     virtual const std::vector<size_t> &getShape() const override final{ return m_Shape; }
     virtual void updateMergeHash(boost::uuids::detail::sha1 &hash) const override;
 
-    virtual std::unique_ptr<ArrayBase> createArray(const std::vector<size_t> &shape, const std::vector<std::optional<size_t>> &padMultiples,
+    virtual std::unique_ptr<ArrayBase> createArray(std::optional<size_t> splitDimension, uint32_t indexDimensions,
                                                    const Model &model, DeviceBase &device) const override;
 
     //------------------------------------------------------------------------

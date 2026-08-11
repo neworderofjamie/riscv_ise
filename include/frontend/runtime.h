@@ -216,8 +216,8 @@ public:
     // Public API
     //------------------------------------------------------------------------
     //! Create array to provide storage for model state
-    void createArray(std::shared_ptr<const State> state, const std::vector<size_t> &shape, 
-                     const std::vector<std::optional<size_t>> &padMultiples, const Model &model);
+    void createArray(std::shared_ptr<const State> state, std::optional<size_t> splitDimension,
+                     uint32_t indexDimensions, const Model &model);
 
     //! Get array associated with model state
     ArrayBase *getArray(std::shared_ptr<const State> state) const;
@@ -283,11 +283,6 @@ protected:
 
     //! Create suitable device
     virtual std::unique_ptr<DeviceBase> createDevice(size_t deviceIndex) = 0;
-
-    //! Determine the shape of sub-arrays that should be allocated on each device
-    virtual std::vector<size_t> getDeviceShape(size_t device, const std::vector<size_t> &shape, 
-                                               std::optional<size_t> splitDimension,
-                                               const std::vector<std::optional<size_t>> &padMultiples) const = 0;
 
     //------------------------------------------------------------------------
     // Protected API
