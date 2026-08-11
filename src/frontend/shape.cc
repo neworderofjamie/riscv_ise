@@ -24,6 +24,8 @@ std::string toString(const std::vector<size_t> &shape)
 //----------------------------------------------------------------------------
 size_t getFlattenedSize(const std::vector<size_t> &shape)
 {
+    // I am fairly certain that this is a bad code smell! anything that does this should be operating on stride
+    assert(false);
     return std::accumulate(shape.cbegin(), shape.cend(), 1, std::multiplies<size_t>());
 }
 //----------------------------------------------------------------------------
