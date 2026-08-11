@@ -17,10 +17,13 @@
 //----------------------------------------------------------------------------
 namespace FeNN::Backend
 {
-std::unique_ptr<Frontend::ArrayBase> Variable::createArray(const std::vector<size_t> &shape, const std::vector<std::optional<size_t>> &padMultiples, 
+std::unique_ptr<Frontend::ArrayBase> Variable::createArray(std::optional<size_t> splitDimension, uint32_t indexDimensions, 
                                                            const Frontend::Model &model, Frontend::DeviceBase &device) const
 {
-    // Pad shape
+    // 1) Split getShape() based on device->getDeviceIndex(), applying FeNN constraints
+    // 2) Calculate strides
+    // 3) Pad index dimensions as required - this is memory-space specific
+
     // **THINK** this is backend-agnostic
     assert(padMultiples.size() == shape.size());
     std::vector<size_t> paddedShape;

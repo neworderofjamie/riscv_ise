@@ -52,7 +52,7 @@ public:
     virtual void updateMergeHash(boost::uuids::detail::sha1 &hash) const override;
 
     virtual std::unique_ptr<ArrayBase> createArray(std::optional<size_t> splitDimension, uint32_t indexDimensions,
-                                                   const Model &model, DeviceBase &device) const override;
+                                                   size_t numDevices, const Model &model, DeviceBase &device) const override;
 
  
     //------------------------------------------------------------------------
@@ -94,7 +94,7 @@ public:
     virtual void updateMergeHash(boost::uuids::detail::sha1 &hash) const override;
 
     virtual std::unique_ptr<ArrayBase> createArray(std::optional<size_t> splitDimension, uint32_t indexDimensions,
-                                                   const Model &model, DeviceBase &device) const override;
+                                                   size_t numDevices, const Model &model, DeviceBase &device) const override;
 
 
     //------------------------------------------------------------------------
@@ -130,7 +130,7 @@ public:
     virtual void updateMergeHash(boost::uuids::detail::sha1 &hash) const override;
 
     virtual std::unique_ptr<ArrayBase> createArray(std::optional<size_t> splitDimension, uint32_t indexDimensions,
-                                                   const Model &model, DeviceBase &device) const override;
+                                                   size_t numDevices, const Model &model, DeviceBase &device) const override;
     
     //------------------------------------------------------------------------
     // Public API

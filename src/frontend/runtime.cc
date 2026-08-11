@@ -74,10 +74,10 @@ void ArrayBase::memsetHostPointer(int value)
 // Frontend::DeviceBase
 //----------------------------------------------------------------------------
 void DeviceBase::createArray(std::shared_ptr<const State> state, std::optional<size_t> splitDimension,
-                             uint32_t indexDimensions, const Model &model)
+                             uint32_t indexDimensions, size_t numDevices, const Model &model)
 {
     // Take ownership of array and add to arrays map
-    if (!m_Arrays.try_emplace(state, std::move(state->createArray(splitDimension, indexDimensions, model, *this))).second) {
+    if (!m_Arrays.try_emplace(state, std::move(state->createArray(splitDimension, indexDimensions, numDevices, model, *this))).second) {
         throw std::runtime_error("Duplicate array found for state '" + state->getName() + "'");
     }
 }
@@ -127,7 +127,8 @@ void Runtime::allocate()
         // Loop through devices and create arrays
         for(size_t i = 0; i < getNumDevices(); i++) {
             getDevices()[i]->createArray(s.first, s.second.splitDimension, 
-                                         s.second.indexDimensions, *getModel());
+                                         s.second.indexDimensions, 
+                                         getNumDevices(), *getModel());
         }
     }
 

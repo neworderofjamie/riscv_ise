@@ -217,7 +217,7 @@ public:
     //------------------------------------------------------------------------
     //! Create array to provide storage for model state
     void createArray(std::shared_ptr<const State> state, std::optional<size_t> splitDimension,
-                     uint32_t indexDimensions, const Model &model);
+                     uint32_t indexDimensions, size_t numDevices, const Model &model);
 
     //! Get array associated with model state
     ArrayBase *getArray(std::shared_ptr<const State> state) const;

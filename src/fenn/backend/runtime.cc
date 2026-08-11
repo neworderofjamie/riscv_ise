@@ -587,21 +587,4 @@ void Runtime::allocatePostamble()
         static_cast<DeviceFeNN*>(d.get())->getFieldArray()->pushToDevice();
     }
 }
-//----------------------------------------------------------------------------
-std::vector<size_t> Runtime::getDeviceShape(size_t device, const std::vector<size_t> &shape, 
-                                            std::optional<size_t> splitDimension,
-                                            const std::vector<std::optional<size_t>> &padMultiples) const
-{
-    if(splitDimension.has_value()) {
-        std::vector<size_t> splitShape(shape.cbegin(), shape.cend());
-
-        splitShape[splitDimension.value()] = getSplitDimension(split, splitDimension.value(), 
-                                                               numSplits, splitGranularity);
-        return splitShape;
-    }
-    // Otherwise, return copy
-    else {
-        return shape;
-    }
-}
 }

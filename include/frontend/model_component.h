@@ -67,7 +67,7 @@ public:
     virtual void updateMergeHash(boost::uuids::detail::sha1 &hash) const = 0;
 
     virtual std::unique_ptr<ArrayBase> createArray(std::optional<size_t> splitDimension, uint32_t indexDimensions,
-                                                   const Model &model, DeviceBase &device) const = 0;
+                                                   size_t numDevices, const Model &model, DeviceBase &device) const = 0;
 
 protected:
     using ModelComponent::ModelComponent;

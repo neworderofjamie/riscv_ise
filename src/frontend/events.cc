@@ -13,7 +13,8 @@ void EventSourceBuffer::updateMergeHash(boost::uuids::detail::sha1 &hash) const
     UPDATE_HASH_CLASS_NAME(EventSourceBuffer);
 }
 //----------------------------------------------------------------------------
-std::unique_ptr<ArrayBase> EventSourceBuffer::createArray(std::optional<size_t>, uint32_t, const Model&, DeviceBase&) const
+std::unique_ptr<ArrayBase> EventSourceBuffer::createArray(std::optional<size_t>, uint32_t, 
+                                                          size_t, const Model&, DeviceBase&) const
 {
     throw std::runtime_error("Backend missing EventSourceBuffer::createArray implementation");
 }
@@ -26,7 +27,8 @@ void EventSinkBuffer::updateMergeHash(boost::uuids::detail::sha1 &hash) const
     UPDATE_HASH_CLASS_NAME(EventSinkBuffer);
 }
 //----------------------------------------------------------------------------
-std::unique_ptr<ArrayBase> EventSinkBuffer::createArray(std::optional<size_t>, uint32_t, const Model&, DeviceBase&) const
+std::unique_ptr<ArrayBase> EventSinkBuffer::createArray(std::optional<size_t>, uint32_t, 
+                                                        size_t, const Model&, DeviceBase&) const
 {
     throw std::runtime_error("Backend missing EventSinkBuffer::createArray implementation");
 }
@@ -39,7 +41,8 @@ void EventChannel::updateMergeHash(boost::uuids::detail::sha1 &hash) const
     UPDATE_HASH_CLASS_NAME(EventChannel);
 }
 //----------------------------------------------------------------------------
-std::unique_ptr<ArrayBase> EventChannel::createArray(std::optional<size_t>, uint32_t, const Model&, DeviceBase&) const
+std::unique_ptr<ArrayBase> EventChannel::createArray(std::optional<size_t>, uint32_t, 
+                                                     size_t, const Model&, DeviceBase&) const
 {
     throw std::runtime_error("Backend missing EventChannel::createArray implementation");
 }
