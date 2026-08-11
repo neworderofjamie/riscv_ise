@@ -43,7 +43,7 @@ public:
     :   URAMArrayBase(type, shape, strides), m_Device(device)
     {
         // Allocate if count is specified
-        if(getCount() > 0) {
+        if(getSizeBytes() > 0) {
             // Allocate memory for host pointer
             setHostPointer(new uint8_t[getSizeBytes()]);
 
@@ -53,7 +53,7 @@ public:
     }
     virtual ~URAMArray()
     {
-        if(getCount() > 0) {
+        if(getSizeBytes() > 0) {
             delete [] getHostPointer();
             setHostPointer(nullptr);
             setURAMPointer(std::nullopt);
@@ -98,7 +98,7 @@ public:
     :   BRAMArrayBase(type, shape, strides), m_Device(device)
     {
         // Allocate if count is specified
-        if(getCount() > 0) {
+        if(getSizeBytes() > 0) {
             // Allocate memory for host pointer
             setHostPointer(new uint8_t[getSizeBytes()]);
 
@@ -109,7 +109,7 @@ public:
 
     virtual ~BRAMArray()
     {
-        if(getCount() > 0) {
+        if(getSizeBytes() > 0) {
             delete [] getHostPointer();
             setHostPointer(nullptr);
             setBRAMPointer(std::nullopt);
@@ -153,7 +153,7 @@ public:
     :   LLMArrayBase(type, shape, strides), m_Device(device)
     {
         // Allocate if count is specified
-        if(getCount() > 0) {
+        if(getSizeBytes() > 0) {
             // Allocate memory for host pointer
             setHostPointer(nullptr);
 
@@ -164,7 +164,7 @@ public:
 
     ~LLMArray()
     {
-        if(getCount() > 0) {
+        if(getSizeBytes() > 0) {
             delete [] getHostPointer();
             setHostPointer(nullptr);
             setLLMPointer(std::nullopt);
@@ -178,7 +178,7 @@ public:
     virtual void pushToDevice() final override
     {
         LOGW_FENN_BACKEND << "Copying LLM buffers is implemented in simulation for convenience but is not possible on device";
-        const size_t numRows = ::Common::Utils::ceilDivide(getCount(), 32);
+        const size_t numRows = ::Common::Utils::ceilDivide(getSizeBytes(), 64);
         for(size_t l = 0; l < 32; l++) {
             auto &laneLocalMemory = m_Device.get().getRISCV().getCoprocessor<ISE::VectorProcessor>(FeNN::Common::vectorQuadrant)->getLaneLocalMemory(l);    
             int16_t *llmPointer = laneLocalMemory.getData() + (getLLMPointer() / 2);
@@ -193,7 +193,7 @@ public:
     {
         LOGW_FENN_BACKEND << "Copying LLM buffers is implemented in simulation for convenience but is not possible on device";
             
-        const size_t numRows = ::Common::Utils::ceilDivide(getCount(), 32);
+        const size_t numRows = ::Common::Utils::ceilDivide(getSizeBytes(), 64);
         for(size_t l = 0; l < 32; l++) {
             const auto &laneLocalMemory = m_Device.get().getRISCV().getCoprocessor<ISE::VectorProcessor>(FeNN::Common::vectorQuadrant)->getLaneLocalMemory(l);    
             const int16_t *llmPointer = laneLocalMemory.getData() + (getLLMPointer() / 2);
@@ -219,7 +219,7 @@ public:
     :   DRAMArrayBase(type, shape, strides), m_Device(device)
     {
         // Allocate if count is specified
-        if(getCount() > 0) {
+        if(getSizeBytes() > 0) {
             // Allocate block of DMA buffer
             const size_t offset = m_Device.get().getDMABufferAllocator().allocate(getSizeBytes());
 
@@ -234,7 +234,7 @@ public:
     
     virtual ~DRAMArray()
     {
-        if(getCount() > 0) {
+        if(getSizeBytes() > 0) {
             // **NOTE** no memory is owned by array so just invalidate
             setHostPointer(nullptr);
             setDRAMPointer(std::nullopt);

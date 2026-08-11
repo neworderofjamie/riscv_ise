@@ -152,8 +152,7 @@ public:
     const CompilerFrontend::Type::ResolvedType &getType() const{ return m_Type; }
     const auto &getShape() const{ return m_Shape; }
     const auto &getStrides() const{ return m_Strides; }
-    size_t getCount() const{ return Shape::getFlattenedSize(m_Shape); };
-    size_t getSizeBytes() const{ return getCount() * m_Type.getValue().size; };
+    size_t getSizeBytes() const{ return m_SizeBytes; };
 
     //! Get array host pointer
     uint8_t *getHostPointer() const{ return m_HostPointer; }
@@ -162,9 +161,10 @@ public:
     T *getHostPointer() const{ return reinterpret_cast<T*>(m_HostPointer); }
 
 protected:
-    ArrayBase(const CompilerFrontend::Type::ResolvedType &type, 
+    ArrayBase(const CompilerFrontend::Type::ResolvedType &type,
               const std::vector<size_t> &shape, const std::vector<size_t> &strides)
-    :   m_Type(type), m_Shape(shape), m_Strides(strides), m_HostPointer(nullptr)
+    :   m_Type(type), m_SizeBytes(shape.front() * strides.front()), m_Shape(shape), 
+        m_Strides(strides), m_HostPointer(nullptr)
     {
     }
 
@@ -178,6 +178,7 @@ private:
     // Members
     //------------------------------------------------------------------------
     CompilerFrontend::Type::ResolvedType m_Type;
+    size_t m_SizeBytes;
     std::vector<size_t> m_Shape;
     std::vector<size_t> m_Strides;
 

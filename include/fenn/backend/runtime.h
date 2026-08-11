@@ -271,11 +271,6 @@ protected:
     //! Backend-specific logic to run at end of allocate function
     virtual void allocatePostamble() override final;
 
-    //! Determine the shape of sub-arrays that should be allocated on each device
-    virtual std::vector<size_t> getDeviceShape(size_t device, const std::vector<size_t> &shape, 
-                                               std::optional<size_t> splitDimension,
-                                               const std::vector<std::optional<size_t>> &padMultiples) const override final;
-    
 private:
     //------------------------------------------------------------------------
     // Private methods
