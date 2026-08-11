@@ -20,30 +20,9 @@ namespace FeNN::Backend
 std::unique_ptr<Frontend::ArrayBase> Variable::createArray(std::optional<size_t> splitDimension, uint32_t indexDimensions, 
                                                            size_t numDevices, const Frontend::Model &model, Frontend::DeviceBase &device) const
 {
-    // 1) Split getShape() based on device->getDeviceIndex(), applying FeNN constraints - assert that nothing is indexible 'below' split
-    // 2) Calculate strides
-    // 3) Pad index dimensions as required - this is memory-space specific
-
-    // **THINK** this is backend-agnostic
-    assert(padMultiples.size() == shape.size());
-    std::vector<size_t> paddedShape;
-    paddedShape.reserve(shape.size());
-    std::transform(shape.cbegin(), shape.cend(), paddedShape.cbegin(), std::back_inserter(paddedShape),
-                   [](size_t s, std::optional<size_t> p)
-                   {
-                       return p.has_value() ? ::Common::Utils::padSize(s, p.value()) : s;
-                   });
+    // Get array shape and stride 
+    auto [shape, strides] = getArrayShapeStride(splitDimension, indexDimensions, numDevices, model, device);
     
-    // Calculate strides
-    // **THINK** this is also backend-agnostic
-    std::vector<size_t> strides;
-    strides.reserve(shape.size());
-    size_t stride = getType().getSize();
-    for(size_t i = paddedShape.size(); i-- > 0;) {
-        strides.push_back(stride);
-        stride *= paddedShape[i];
-    }
-
     // Create array in correct memory space depending on compatibility
     switch(getMemSpace(model))
     {
@@ -70,6 +49,39 @@ std::unique_ptr<Frontend::ArrayBase> Variable::createArray(std::optional<size_t>
     default:
         assert(false);
     }
+}
+//----------------------------------------------------------------------------
+std::tuple<std::vector<size_t>, std::vector<size_t>> Variable::getArrayShapeStride(std::optional<size_t> splitDimension,
+                                                                                   uint32_t indexDimensions, size_t numDevices,
+                                                                                   const Frontend::Model &model, const Frontend::DeviceBase &device) const
+{
+    // 1) Split getShape() based on device->getDeviceIndex(), applying FeNN constraints - assert that nothing is indexible 'below' split
+    // If a split dimension is specified
+    std::vector<size_t> shape;
+    if (splitDimension.has_value()) {
+
+    }
+    // Otherwise, use variable shape
+    else {
+        shape = getShape();
+    }
+    
+    // Calculate strides
+    std::vector<size_t> strides = Frontend::Shape::getStride(shape, getType().getSize());
+
+    // If this variable is destined for a memory space with alignment constraints
+    if (getMemSpace(model) != MemSpace::BRAM) {
+        // Loop through stride dimensions
+        for(size_t i = 0; i < strides.size(); i++) {
+            // If this dimension is indexable, pad to 64 bytes
+            if (indexDimensions & (1 << i)) {
+                strides[i] = ::Common::Utils::padSize(strides[i], 64);
+            }
+        }
+    }
+
+    // Return tuple of shape and strides
+    return std::make_tuple(shape, strides);
 }
 //----------------------------------------------------------------------------
 std::vector<Compiler::RegisterPtr> Variable::genPreamble(Assembler::CodeGenerator &c,

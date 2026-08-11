@@ -54,7 +54,10 @@ public:
     virtual std::unique_ptr<ArrayBase> createArray(std::optional<size_t> splitDimension, uint32_t indexDimensions,
                                                    size_t numDevices, const Model &model, DeviceBase &device) const override;
 
- 
+    virtual std::tuple<std::vector<size_t>, std::vector<size_t>> getArrayShapeStride(std::optional<size_t> splitDimension,
+                                                                                     uint32_t indexDimensions, size_t numDevices, 
+                                                                                     const Model &model, const DeviceBase &device) const override;
+
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
@@ -96,7 +99,9 @@ public:
     virtual std::unique_ptr<ArrayBase> createArray(std::optional<size_t> splitDimension, uint32_t indexDimensions,
                                                    size_t numDevices, const Model &model, DeviceBase &device) const override;
 
-
+    virtual std::tuple<std::vector<size_t>, std::vector<size_t>> getArrayShapeStride(std::optional<size_t> splitDimension,
+                                                                                     uint32_t indexDimensions, size_t numDevices, 
+                                                                                     const Model &model, const DeviceBase &device) const override;
     //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------
@@ -132,6 +137,10 @@ public:
     virtual std::unique_ptr<ArrayBase> createArray(std::optional<size_t> splitDimension, uint32_t indexDimensions,
                                                    size_t numDevices, const Model &model, DeviceBase &device) const override;
     
+    virtual std::tuple<std::vector<size_t>, std::vector<size_t>> getArrayShapeStride(std::optional<size_t> splitDimension,
+                                                                                     uint32_t indexDimensions, size_t numDevices, 
+                                                                                     const Model &model, const DeviceBase &device) const override;
+
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------

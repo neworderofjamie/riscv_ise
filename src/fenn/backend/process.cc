@@ -617,15 +617,21 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
     const auto emitEventFunctionType = Type::ResolvedType::createFunction(Type::Void, {});
 
     // Define lambda function to get number of neurons
+    // **NOTE** this shouldn't include time dimension
     auto getNumNeurons =
         [&runtime](size_t d, auto p)
         {
+            // Pick state object from process
             const auto state = (p->getVariables().empty()
                                 ? std::static_pointer_cast<const Frontend::State>(p->getOutputEventSinks().begin()->second.getUnderlying())
                                 : std::static_pointer_cast<const Frontend::State>(p->getVariables().begin()->second.getUnderlying()));
-            const auto splitDimension = runtime.getModel<Model>()->getStateData(state).splitDimension;
-            const auto splitShape = p->getShape().getSplit(d, splitDimension, runtime.getNumDevices(), 32);
-            return static_cast<uint32_t>(splitShape.getFlattenedSize());
+
+            // Get shape of array storing this state on device
+            const auto shape = std::get<0>(runtime.getDeviceArrayShapeStrides(state, d));
+
+            // Multiply together last dimensions of shape (determined based on sliced shape)
+            return static_cast<uint32_t>(std::accumulate(shape.rbegin(), shape.rbegin() + p->getShape().size(), 
+                                                         1, std::multiplies<size_t>()));
         };
 
     // Add number of neurons
@@ -1024,10 +1030,10 @@ DenseEventPropagationProcess::DenseEventPropagationProcess(Private, Frontend::Sl
                                  + Frontend::Shape::toString(getInputEventSource().getShape()));
     }
 
-    // Check weight shape matches padded target shape
+    // Check weight shape matches target shape
     if(getWeight()->getShape()[1] != getTarget().getShape()[0]) {
         throw std::runtime_error("Weight with shape: " + Frontend::Shape::toString(getWeight()->getShape())
-                                 + " is not compatible with target variable with padded shape: " 
+                                 + " is not compatible with target variable with shape: " 
                                  + Frontend::Shape::toString(getTarget().getShape()));
     }
 
@@ -1067,13 +1073,11 @@ void DenseEventPropagationProcess::generateArchetypeCode(const Frontend::MergedP
             return d.getArray(p->getTarget().getUnderlying()); 
         });
 
-    // Define lambda function to get stride
-    // **NOTE** we look at weight because it is padded
+    // Define lambda function to get presynaptic stride of weight
     auto getStride =
         [&runtime](size_t d, auto p)
-        { 
-            return static_cast<uint32_t>(
-                2 * p->getWeight()->getShape().getSplitDimension(d, 1, runtime.getNumDevices(), 32));
+        {
+            return static_cast<uint32_t>(std::get<1>(runtime.getDeviceArrayShapeStrides(p->getWeight(), d))[0]);
         };
     
     // Get stride
@@ -1262,10 +1266,10 @@ SparseEventPropagationProcess::SparseEventPropagationProcess(Private, Frontend::
                                  + Frontend::Shape::toString(getInputEventSource().getShape()));
     }
 
-    // Check weight shape is less than or equal to padded target shape
+    // Check weight shape is less than or equal to target shape
     if(getWeight()->getShape()[1] > getTarget().getShape()[0]) {
         throw std::runtime_error("Weight with shape: " + Frontend::Shape::toString(getWeight()->getShape()) 
-                                 + " is not compatible with target variable with padded shape: " 
+                                 + " is not compatible with target variable with shape: " 
                                  + Frontend::Shape::toString(getTarget().getShape()));
     }
 
@@ -1305,13 +1309,11 @@ void SparseEventPropagationProcess::generateArchetypeCode(const Frontend::Merged
             return d.getArray(p->getTarget().getUnderlying()); 
         });
 
-    // Define lambda function to get stride
-    // **NOTE** we look at weight because it is padded
+    // Define lambda function to get presynaptic stride of weight
     auto getStride =
         [&runtime](size_t d, auto p)
-        { 
-            return static_cast<uint32_t>(
-                2 * p->getWeight()->getShape().getSplitDimension(d, 1, runtime.getNumDevices(), 32));
+        {
+            return static_cast<uint32_t>(std::get<1>(runtime.getDeviceArrayShapeStrides(p->getWeight(), d))[0]);
         };
 
     // Get stride
@@ -1521,11 +1523,11 @@ DelayEventPropagationProcess::DelayEventPropagationProcess(Private, Frontend::Sl
                                  + Frontend::Shape::toString(getInputEventSource().getShape()));
     }
 
-    // Check weight shape is less than or equal to padded target 
+    // Check weight shape is less than or equal to target 
     if(getWeight()->getShape()[1] != getTarget().getShape()[1]) {
         throw std::runtime_error("Weight with shape: " + Frontend::Shape::toString(getWeight()->getShape()) 
-                                 + " is not compatible with target variable with padded shape: " 
-                                 + Frontend::Shape::toString(paddedTargetShape));
+                                 + " is not compatible with target variable with shape: " 
+                                 + Frontend::Shape::toString(getTarget().getShape()));
     }
 
     // Check weight and target have same types
@@ -1564,13 +1566,11 @@ void DelayEventPropagationProcess::generateArchetypeCode(const Frontend::MergedP
             return d.getArray(p->getTarget().getUnderlying()); 
         });
 
-    // Define lambda function to get stride
-    // **NOTE** we look at weight because it is padded
+    // Define lambda function to get presynaptic stride of weight
     auto getStride =
         [&runtime](size_t d, auto p)
-        { 
-            return static_cast<uint32_t>(
-                2 * p->getWeight()->getShape().getSplitDimension(d, 1, runtime.getNumDevices(), 32));
+        {
+            return static_cast<uint32_t>(std::get<1>(runtime.getDeviceArrayShapeStrides(p->getWeight(), d))[0]);
         };
 
     // Get stride
@@ -2125,19 +2125,24 @@ std::vector<Compiler::RegisterPtr> MemsetProcess::generateArchetypeCode(
     
     // Figure out best way to represent number of 
     std::vector<Compiler::RegisterPtr> sharedRegisters;
-    auto numElements = addScalarValue<MemsetProcess>(
+    auto stride = addScalarValue<MemsetProcess>(
         12, mergedProcess, runtime.getNumDevices(), mergedFields, fieldBaseReg,
         processCodeGenerator, sharedCodeGenerator, scalarRegisterAllocator, sharedRegisters,
         [&runtime](size_t d, auto p)
         { 
-            const auto splitDimension = runtime.getModel()->getStateData(p->getTarget().getUnderlying()).splitDimension;
-            const auto splitShape = p->getTarget().getShape().getSplit(d, splitDimension, runtime.getNumDevices(), 32);
-            return static_cast<uint32_t>(::Common::Utils::padSize(splitShape.getFlattenedSize(), 32));
+            // Get stride of target
+            const auto stride = std::get<1>(runtime.getDeviceArrayShapeStrides(p->getTarget().getUnderlying(), d));
+
+            // Return stride of axes at top of slice
+            return static_cast<uint32_t>(stride.at(stride.size() - p->getTarget().getShape().size()));
         });
 
-
+    
     auto &c = processCodeGenerator;
     c.lw(*STargetBuffer, *fieldBaseReg, targetFieldOffset);
+
+    // **TODO** add stride * current time
+    assert(!getTarget().hasTime());
 
     switch(runtime.getModel<Model>()->getStateMemSpace(getTarget().getUnderlying(), 
                                                        runtime.shouldUseDRAMForWeights()))
@@ -2145,13 +2150,13 @@ std::vector<Compiler::RegisterPtr> MemsetProcess::generateArchetypeCode(
     case MemSpace::URAM:
     {
         generateURAMMemset(c, scalarRegisterAllocator, vectorRegisterAllocator,
-                           STargetBuffer, numElements);
+                           STargetBuffer, stride);
         break;
     }
     case MemSpace::LLM: 
     {
         generateLLMMemset(c, scalarRegisterAllocator, vectorRegisterAllocator,
-                          STargetBuffer, numElements);
+                          STargetBuffer, stride);
         break;
     }
     default:
@@ -2165,7 +2170,7 @@ void MemsetProcess::generateLLMMemset(Assembler::CodeGenerator &c,
                                       Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                       Assembler::VectorRegisterAllocator &vectorRegisterAllocator,
                                       Assembler::ScalarRegisterPtr targetReg,
-                                      ScalarConstant numElements) const
+                                      ScalarConstant stride) const
 {
     ALLOCATE_VECTOR(VValue);
     ALLOCATE_VECTOR(VLLMAddress);
@@ -2180,7 +2185,7 @@ void MemsetProcess::generateLLMMemset(Assembler::CodeGenerator &c,
     // Generate unrolled loop 
     // **TODO** figure out unrolledness
     unrollVectorLoopBody(
-        c, scalarRegisterAllocator, numElements, getMaxUnroll(), true, false,
+        c, scalarRegisterAllocator, stride, getMaxUnroll(), true, false,
         [VLLMAddress, VValue]
         (auto &c, uint32_t r, auto)
         {
@@ -2203,7 +2208,7 @@ void MemsetProcess::generateURAMMemset(Assembler::CodeGenerator &c,
                                        Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                        Assembler::VectorRegisterAllocator &vectorRegisterAllocator,
                                        Assembler::ScalarRegisterPtr targetReg,
-                                       ScalarConstant numElements) const
+                                       ScalarConstant stride) const
 {
     ALLOCATE_VECTOR(VValue);
 
@@ -2214,7 +2219,7 @@ void MemsetProcess::generateURAMMemset(Assembler::CodeGenerator &c,
     // Generate unrolled loop 
     // **TODO** figure out unrolled
     unrollVectorLoopBody(
-        c, scalarRegisterAllocator, numElements, getMaxUnroll(), true, false,
+        c, scalarRegisterAllocator, stride, getMaxUnroll(), true, false,
         [targetReg, VValue]
         (auto &c, uint32_t r, auto)
         {
@@ -2352,12 +2357,15 @@ std::vector<Compiler::RegisterPtr> BroadcastProcess::generateArchetypeCode(
     sharedRegisters.push_back(VTwo);
     
     // Figure out best way to represent number of bytes
+    // **NOTE** we don't want stride here as 
+    // **TODO** support more advanced broadcasting
     auto numBytes = addScalarValue<BroadcastProcess>(
         12, mergedProcess, runtime.getNumDevices(), mergedFields, fieldBaseReg,
         processCodeGenerator, sharedCodeGenerator, scalarRegisterAllocator, sharedRegisters,
-        [](size_t, auto p)
+        [&runtime](size_t, auto p)
         { 
-            return static_cast<uint32_t>(p->getSource()->getShape().getFlattenedSize() * 2); 
+            assert(p->getSource()->getShape().size() == 1);
+            return static_cast<uint32_t>(p->getSource()->getShape()[0] * 2); 
         });
 
 

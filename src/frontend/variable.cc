@@ -21,4 +21,10 @@ std::unique_ptr<ArrayBase> Variable::createArray(std::optional<size_t>, uint32_t
 {
     throw std::runtime_error("Backend missing Variable::createArray implementation");
 }
+//----------------------------------------------------------------------------
+std::tuple<std::vector<size_t>, std::vector<size_t>> Variable::getArrayShapeStride(std::optional<size_t>, uint32_t, 
+                                                                                   size_t, const Model&, const DeviceBase&) const
+{
+    throw std::runtime_error("Backend missing Variable::getArrayShapeStride implementation");
+}
 }

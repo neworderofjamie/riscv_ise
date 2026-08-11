@@ -14,6 +14,6 @@
 namespace Frontend::Shape
 {
 FRONTEND_EXPORT std::string toString(const std::vector<size_t> &shape);
-FRONTEND_EXPORT size_t getFlattenedSize(const std::vector<size_t> &shape);
 FRONTEND_EXPORT bool isScalar(const std::vector<size_t> &shape);
+FRONTEND_EXPORT std::vector<size_t> getStride(const std::vector<size_t> &shape, size_t elementSize);
 }

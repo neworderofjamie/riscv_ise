@@ -18,6 +18,12 @@ std::unique_ptr<ArrayBase> EventSourceBuffer::createArray(std::optional<size_t>,
 {
     throw std::runtime_error("Backend missing EventSourceBuffer::createArray implementation");
 }
+//----------------------------------------------------------------------------
+std::tuple<std::vector<size_t>, std::vector<size_t>> EventSourceBuffer::getArrayShapeStride(std::optional<size_t>, uint32_t, 
+                                                                                            size_t, const Model&, const DeviceBase&) const
+{
+    throw std::runtime_error("Backend missing Variable::EventSourceBuffer implementation");
+}
 
 //----------------------------------------------------------------------------
 // Frontend::EventSinkBuffer
@@ -32,6 +38,12 @@ std::unique_ptr<ArrayBase> EventSinkBuffer::createArray(std::optional<size_t>, u
 {
     throw std::runtime_error("Backend missing EventSinkBuffer::createArray implementation");
 }
+//----------------------------------------------------------------------------
+std::tuple<std::vector<size_t>, std::vector<size_t>> EventSinkBuffer::getArrayShapeStride(std::optional<size_t>, uint32_t, 
+                                                                                          size_t, const Model&, const DeviceBase&) const
+{
+    throw std::runtime_error("Backend missing Variable::EventSinkBuffer implementation");
+}
 
 //----------------------------------------------------------------------------
 // Frontend::EventChannel
@@ -45,5 +57,11 @@ std::unique_ptr<ArrayBase> EventChannel::createArray(std::optional<size_t>, uint
                                                      size_t, const Model&, DeviceBase&) const
 {
     throw std::runtime_error("Backend missing EventChannel::createArray implementation");
+}
+//----------------------------------------------------------------------------
+std::tuple<std::vector<size_t>, std::vector<size_t>> EventChannel::getArrayShapeStride(std::optional<size_t>, uint32_t, 
+                                                                                          size_t, const Model&, const DeviceBase&) const
+{
+    throw std::runtime_error("Backend missing Variable::EventChannel implementation");
 }
 }

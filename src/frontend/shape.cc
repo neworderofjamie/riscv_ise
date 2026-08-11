@@ -22,15 +22,24 @@ std::string toString(const std::vector<size_t> &shape)
     return shapeStream.str();
 }
 //----------------------------------------------------------------------------
-size_t getFlattenedSize(const std::vector<size_t> &shape)
-{
-    // I am fairly certain that this is a bad code smell! anything that does this should be operating on stride
-    assert(false);
-    return std::accumulate(shape.cbegin(), shape.cend(), 1, std::multiplies<size_t>());
-}
-//----------------------------------------------------------------------------
 bool isScalar(const std::vector<size_t> &shape)
 {
  return std::all_of(shape.cbegin(), shape.cend(), [](size_t i){ return i == 1; });
+}
+//----------------------------------------------------------------------------
+std::vector<size_t> getStride(const std::vector<size_t> &shape, size_t elementSize)
+{
+    // Reserve stride to match shape
+    std::vector<size_t> strides;
+    strides.reserve(shape.size());
+
+    // Loop through axes
+    size_t stride = elementSize;
+    for(size_t i = shape.size(); i-- > 0;) {
+        strides.push_back(stride);
+        stride *= shape[i];
+    }
+
+    return strides;
 }
 }

@@ -78,6 +78,7 @@ NeuronUpdateProcess::NeuronUpdateProcess(Private, const std::string &code, const
    
 
     // Check all variables have same number of neurons
+    // **TODO** handle scalar variables
     for(const auto &v : m_Variables) {
         if(v.second.getShape() != m_Shape) {
             throw std::runtime_error("Variable '" + v.first + "' with shape: " + Shape::toString(v.second.getShape()) 
@@ -85,7 +86,8 @@ NeuronUpdateProcess::NeuronUpdateProcess(Private, const std::string &code, const
         }
     }
 
-    // Check all output have same number of neurons
+    // Check all output event sinks have same number of neurons
+    // **TODO** handle scalar variables
     for(const auto &o : m_OutputEventSinks) {
         if(o.second.getShape() != m_Shape) {
             throw std::runtime_error("Output events '" + o.first + "' with shape: " + Shape::toString(o.second.getShape())

@@ -473,12 +473,12 @@ private:
                             Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                             Assembler::VectorRegisterAllocator &vectorRegisterAllocator,
                             Assembler::ScalarRegisterPtr targetReg,
-                            std::variant<Assembler::ScalarRegisterPtr, int, std::monostate> numElements) const;
+                            std::variant<Assembler::ScalarRegisterPtr, int, std::monostate> stride) const;
     void generateLLMMemset(Assembler::CodeGenerator &c,
                            Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                            Assembler::VectorRegisterAllocator &vectorRegisterAllocator,
                            Assembler::ScalarRegisterPtr targetReg,
-                           std::variant<Assembler::ScalarRegisterPtr, int, std::monostate> numElements) const;
+                           std::variant<Assembler::ScalarRegisterPtr, int, std::monostate> stride) const;
 };
 
 //----------------------------------------------------------------------------

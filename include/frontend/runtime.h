@@ -220,6 +220,11 @@ public:
     void createArray(std::shared_ptr<const State> state, std::optional<size_t> splitDimension,
                      uint32_t indexDimensions, size_t numDevices, const Model &model);
 
+    //! Get the shape and stride of array to create on this device for state
+    std::tuple<std::vector<size_t>, std::vector<size_t>> getArrayShapeStride(
+        std::shared_ptr<const State> state, std::optional<size_t> splitDimension,
+        uint32_t indexDimensions, size_t numDevices, const Model &model) const;
+
     //! Get array associated with model state
     ArrayBase *getArray(std::shared_ptr<const State> state) const;
     
@@ -259,6 +264,10 @@ public:
     //! Get array(s) associated with state
     std::vector<ArrayBase*> getArrays(std::shared_ptr<const State> state) const;
     
+    //! Get size and shape of array state will map to on given device
+    std::tuple<std::vector<size_t>, std::vector<size_t>> getDeviceArrayShapeStrides(std::shared_ptr<const State> state, 
+                                                                                    size_t device) const;
+
     size_t getNumDevices() const{ return m_NumDevices; }
 
     //! Get map of process groups to merged processes
