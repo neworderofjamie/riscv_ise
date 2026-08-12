@@ -23,7 +23,7 @@ std::unique_ptr<ArrayBase> Variable::createArray(std::optional<size_t>, uint32_t
 }
 //----------------------------------------------------------------------------
 State::ShapeStride Variable::getArrayShapeStride(std::optional<size_t>, uint32_t, 
-                                                 size_t, const Model&, const DeviceBase&) const
+                                                 size_t, size_t, const Model&) const
 {
     throw std::runtime_error("Backend missing Variable::getArrayShapeStride implementation");
 }

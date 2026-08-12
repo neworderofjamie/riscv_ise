@@ -91,7 +91,7 @@ protected:
     // Protected API
     //----------------------------------------------------------------------------
     Frontend::State::ShapeStride getBitArrayShapeStride(const std::vector<size_t> &shape, std::optional<size_t> splitDimension,
-                                                        uint32_t indexDimensions, size_t numDevices, const Frontend::DeviceBase &device) const;
+                                                        uint32_t indexDimensions, size_t deviceIndex, size_t numDevices) const;
 
     std::unique_ptr<Frontend::ArrayBase> createBitArray(const std::vector<size_t> &shape, std::optional<size_t> splitDimension,
                                                         uint32_t indexDimensions, size_t numDevices, Frontend::DeviceBase &device) const;
@@ -125,8 +125,8 @@ public:
     virtual std::unique_ptr<Frontend::ArrayBase> createArray(std::optional<size_t> splitDimension, uint32_t indexDimensions, size_t numDevices,
                                                              const Frontend::Model &model, Frontend::DeviceBase &device) const override final;
 
-    virtual ShapeStride getArrayShapeStride(std::optional<size_t> splitDimension, uint32_t indexDimensions, size_t numDevices, 
-                                           const Frontend::Model &model, const Frontend::DeviceBase &device) const override final;
+    virtual ShapeStride getArrayShapeStride(std::optional<size_t> splitDimension, uint32_t indexDimensions,
+                                            size_t deviceIndex, size_t numDevices, const Frontend::Model &model) const override final;
 
     //----------------------------------------------------------------------------
     // EventSourceImplementation virtuals
@@ -174,7 +174,7 @@ public:
     virtual std::unique_ptr<Frontend::ArrayBase> createArray(std::optional<size_t> splitDimension, uint32_t indexDimensions,
                                                              size_t numDevices, const Frontend::Model &model, Frontend::DeviceBase &device) const override final;
     virtual ShapeStride getArrayShapeStride(std::optional<size_t> splitDimension, uint32_t indexDimensions, 
-                                            size_t numDevices, const Frontend::Model &model, const Frontend::DeviceBase &device) const override;
+                                            size_t deviceIndex, size_t numDevices, const Frontend::Model &model) const override;
 
     //------------------------------------------------------------------------
     // EventSinkImplementation virtuals
@@ -218,7 +218,7 @@ public:
                                                              size_t numDevices, const Frontend::Model &model, Frontend::DeviceBase &device) const override final;
 
     virtual ShapeStride getArrayShapeStride(std::optional<size_t> splitDimension, uint32_t indexDimensions, 
-                                            size_t numDevices, const Frontend::Model &model, const Frontend::DeviceBase &device) const override;
+                                            size_t deviceIndex, size_t numDevices, const Frontend::Model &model) const override;
 
 
     //----------------------------------------------------------------------------

@@ -22,7 +22,8 @@ std::unique_ptr<Frontend::ArrayBase> Variable::createArray(std::optional<size_t>
                                                            size_t numDevices, const Frontend::Model &model, Frontend::DeviceBase &device) const
 {
     // Get array shape and stride 
-    auto [shape, strides] = getArrayShapeStride(splitDimension, indexDimensions, numDevices, model, device);
+    auto [shape, strides] = getArrayShapeStride(splitDimension, indexDimensions, 
+                                                device.getDeviceIndex(), numDevices, model);
     
     // Create array in correct memory space depending on compatibility
     switch(getMemSpace(model))
@@ -53,7 +54,7 @@ std::unique_ptr<Frontend::ArrayBase> Variable::createArray(std::optional<size_t>
 }
 //----------------------------------------------------------------------------
 Frontend::State::ShapeStride Variable::getArrayShapeStride(std::optional<size_t> splitDimension, uint32_t indexDimensions, 
-                                                           size_t numDevices, const Frontend::Model &model, const Frontend::DeviceBase &device) const
+                                                           size_t deviceIndex, size_t numDevices, const Frontend::Model &model) const
 {
     // Get memory space this variable is destined for
     const auto memorySpace = getMemSpace(model);
@@ -63,7 +64,7 @@ Frontend::State::ShapeStride Variable::getArrayShapeStride(std::optional<size_t>
 
     // If a split dimension is specified, split this dimension appropriately
     if (splitDimension.has_value()) {
-        shape[splitDimension.value()] = Utils::getSplitDimension(shape, device.getDeviceIndex(), splitDimension.value(),
+        shape[splitDimension.value()] = Utils::getSplitDimension(shape, deviceIndex, splitDimension.value(),
                                                                  numDevices, (memorySpace == MemSpace::BRAM) ? 1 : 32);
     }
     

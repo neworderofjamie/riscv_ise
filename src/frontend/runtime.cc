@@ -82,13 +82,6 @@ void DeviceBase::createArray(std::shared_ptr<const State> state, std::optional<s
     }
 }
 //----------------------------------------------------------------------------
-std::tuple<std::vector<size_t>, std::vector<size_t>> DeviceBase::getArrayShapeStride(
-    std::shared_ptr<const State> state, std::optional<size_t> splitDimension,
-    uint32_t indexDimensions, size_t numDevices, const Model &model) const
-{
-    return state->getArrayShapeStride(splitDimension, indexDimensions, numDevices, model, *this);
-}
-//----------------------------------------------------------------------------
 ArrayBase *DeviceBase::getArray(std::shared_ptr<const State> state) const
 {
     return m_Arrays.at(state).get();
@@ -198,15 +191,14 @@ std::vector<ArrayBase*> Runtime::getArrays(std::shared_ptr<const State> state) c
     return arrays;
 }
 //----------------------------------------------------------------------------
-State::ShapeStride Runtime::getDeviceArrayShapeStrides(std::shared_ptr<const State> state, size_t device) const
+State::ShapeStride Runtime::getDeviceArrayShapeStrides(std::shared_ptr<const State> state, size_t deviceIndex) const
 {
     // Get data associated with state
     const auto &stateData = getModel()->getStateData(state);
 
     // Return array shape and sttide
-    return getDevices().at(device)->getArrayShapeStride(state, stateData.splitDimension, 
-                                                        stateData.indexDimensions, 
-                                                        getNumDevices(), *getModel());
+    return state->getArrayShapeStride(stateData.splitDimension, stateData.indexDimensions, 
+                                      deviceIndex, getNumDevices(), *getModel());
 }
 //----------------------------------------------------------------------------
 Runtime::Runtime(std::unique_ptr<Model> model, size_t numDevices)

@@ -29,7 +29,7 @@ using namespace FeNN::Backend;
 namespace FeNN::Backend
 {
 Frontend::State::ShapeStride EventSinkImplementation::getBitArrayShapeStride(const std::vector<size_t> &shape, std::optional<size_t> splitDimension, 
-                                                                             uint32_t indexDimensions, size_t numDevices,  const Frontend::DeviceBase &device) const
+                                                                             uint32_t indexDimensions, size_t deviceIndex, size_t numDevices) const
 {
     // Event containers are implemented as word-aligned bitfields so divide and pad last axis
     // **TODO** this is only true with 1D shape. With multi-dimensional shape, padding needs to be applied 
@@ -39,7 +39,7 @@ Frontend::State::ShapeStride EventSinkImplementation::getBitArrayShapeStride(con
 
     // If a split dimension is specified, split this dimension of word-aligned shape appropriately
     if (splitDimension.has_value()) {
-        wordAlignedShape[splitDimension.value()] = Utils::getSplitDimension(wordAlignedShape, device.getDeviceIndex(),
+        wordAlignedShape[splitDimension.value()] = Utils::getSplitDimension(wordAlignedShape, deviceIndex,
                                                                             splitDimension.value(), numDevices, 1);
     }
 
@@ -55,7 +55,8 @@ std::unique_ptr<Frontend::ArrayBase> EventSinkImplementation::createBitArray(con
                                                                              uint32_t indexDimensions, size_t numDevices, Frontend::DeviceBase &device) const
 {
     // Get shape and stride 
-    auto [deviceShape, strides] = getBitArrayShapeStride(shape, splitDimension, indexDimensions, numDevices, device);
+    auto [deviceShape, strides] = getBitArrayShapeStride(shape, splitDimension, indexDimensions, 
+                                                         device.getDeviceIndex(), numDevices);
 
     // Create BRAM array
     return static_cast<DeviceFeNN&>(device).createBRAMArray(CompilerFrontend::Type::Uint32, deviceShape, strides);
@@ -107,13 +108,12 @@ std::unique_ptr<Frontend::ArrayBase> EventSourceBuffer::createArray(std::optiona
                                                                     size_t numDevices, const Frontend::Model &model, Frontend::DeviceBase &device) const
 {
     // Get array shape and strides and create BRAM array with this shape and stride
-    auto [shape, strides] = getArrayShapeStride(splitDimension, indexDimensions, numDevices, model, device);
+    auto [shape, strides] = getArrayShapeStride(splitDimension, indexDimensions, device.getDeviceIndex(), numDevices, model);
     return static_cast<DeviceFeNN&>(device).createBRAMArray(CompilerFrontend::Type::Uint16, shape, strides);
 }
 //----------------------------------------------------------------------------
-Frontend::State::ShapeStride EventSourceBuffer::getArrayShapeStride(std::optional<size_t>, uint32_t, size_t, 
-                                                                    const Frontend::Model&, const Frontend::DeviceBase&) const
-{
+Frontend::State::ShapeStride EventSourceBuffer::getArrayShapeStride(std::optional<size_t>, uint32_t,
+                                                                    size_t, size_t, const Frontend::Model&) const{
     // Check we have enough bits to encode events from all device
     // **NOTE** because event sources are never sliced this is correct
     if (std::accumulate(getShape().cbegin(), getShape().cend(), 1, std::multiplies<size_t>()) >= 32768) {
@@ -339,10 +339,10 @@ std::unique_ptr<Frontend::ArrayBase> EventChannel::createArray(std::optional<siz
 }
 //----------------------------------------------------------------------------
 Frontend::State::ShapeStride EventChannel::getArrayShapeStride(std::optional<size_t> splitDimension, uint32_t indexDimensions,
-                                                               size_t numDevices, const Frontend::Model &model, const Frontend::DeviceBase &device) const
+                                                               size_t deviceIndex, size_t numDevices, const Frontend::Model &model) const
 {
     if(shouldRecord()) {
-        return getBitArrayShapeStride(getShape(), splitDimension, indexDimensions, numDevices, device);
+        return getBitArrayShapeStride(getShape(), splitDimension, indexDimensions, numDevices, deviceIndex);
     }
     else {
         return std::make_tuple(std::vector<size_t>{}, std::vector<size_t>{});

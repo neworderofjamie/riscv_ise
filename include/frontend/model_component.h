@@ -72,7 +72,7 @@ public:
                                                    size_t numDevices, const Model &model, DeviceBase &device) const = 0;
 
     virtual ShapeStride getArrayShapeStride(std::optional<size_t> splitDimension, uint32_t indexDimensions, 
-                                            size_t numDevices, const Model &model, const DeviceBase &device) const = 0;
+                                            size_t deviceIndex, size_t numDevices, const Model &model) const = 0;
 protected:
     using ModelComponent::ModelComponent;
 };
