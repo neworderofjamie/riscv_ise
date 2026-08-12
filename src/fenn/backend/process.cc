@@ -763,9 +763,8 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
             eventSinkState.try_emplace(
                 e.second.getUnderlying(), 
                 fennEventSink->genPreamble(
-                    *model, kernel, processCodeGenerator, scalarRegisterAllocator, 
-                    e.first, numTimesteps, e.second.hasTime(), runtime.getNumDevices(),
-                    timeReg, numEventBytes,
+                    runtime, kernel, processCodeGenerator, scalarRegisterAllocator, 
+                    e.first, numTimesteps, e.second.hasTime(), timeReg, numEventBytes,
                     [&fieldBaseReg, &mergedFields, &mergedProcess, &runtime, &scalarRegisterAllocator]
                     (Assembler::CodeGenerator &c, auto func)
                     {

@@ -73,11 +73,10 @@ public:
     // Declared virtuals
     //----------------------------------------------------------------------------
     virtual std::vector<Assembler::ScalarRegisterPtr> genPreamble(
-        const Model &model, const KernelImplementation &kernel, Assembler::CodeGenerator &c,
+        const Runtime &runtime, const KernelImplementation &kernel, Assembler::CodeGenerator &c,
         Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, const std::string &name,
-        std::optional<uint32_t> numTimesteps, bool hasTime, size_t numDevices,
-        Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr numEventBytes,
-        AddScalarConstantFn addScalarConstant, AddFieldFn addField) const = 0;
+        std::optional<uint32_t> numTimesteps, bool hasTime, Assembler::ScalarRegisterPtr timeReg, 
+        Assembler::ScalarRegisterPtr numEventBytes, AddScalarConstantFn addScalarConstant, AddFieldFn addField) const = 0;
     
     virtual void genEmit(Compiler::EnvironmentBase &env, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
                          Assembler::ScalarRegisterPtr spikeMaskReg, uint32_t r, 
@@ -181,11 +180,10 @@ public:
     // EventSinkImplementation virtuals
     //------------------------------------------------------------------------
     virtual std::vector<Assembler::ScalarRegisterPtr> genPreamble(
-        const Model &model, const KernelImplementation &kernel, Assembler::CodeGenerator &c, 
+        const Runtime &runtime, const KernelImplementation &kernel, Assembler::CodeGenerator &c, 
         Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, const std::string &name,
-        std::optional<uint32_t> numTimesteps, bool hasTime, size_t numDevices,
-        Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr numEventBytes, 
-        AddScalarConstantFn addScalarConstant, AddFieldFn addField) const override final;
+        std::optional<uint32_t> numTimesteps, bool hasTime, Assembler::ScalarRegisterPtr timeReg,
+        Assembler::ScalarRegisterPtr numEventBytes, AddScalarConstantFn addScalarConstant, AddFieldFn addField) const override final;
 
     virtual void genEmit(Compiler::EnvironmentBase &env, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
                          Assembler::ScalarRegisterPtr spikeMaskReg, uint32_t r, 
@@ -238,11 +236,10 @@ public:
     // EventSinkImplementation virtuals
     //------------------------------------------------------------------------
     virtual std::vector<Assembler::ScalarRegisterPtr> genPreamble(
-        const Model &model, const KernelImplementation &kernel, Assembler::CodeGenerator &c,
+        const Runtime &runtime, const KernelImplementation &kernel, Assembler::CodeGenerator &c,
         Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, const std::string &name,
-        std::optional<uint32_t> numTimesteps, bool hasTime, size_t numDevices,
-        Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr numEventBytes, 
-        AddScalarConstantFn addScalarConstant, AddFieldFn addField) const override final;
+        std::optional<uint32_t> numTimesteps, bool hasTime, Assembler::ScalarRegisterPtr timeReg, 
+        Assembler::ScalarRegisterPtr numEventBytes, AddScalarConstantFn addScalarConstant, AddFieldFn addField) const override final;
 
     virtual void genEmit(Compiler::EnvironmentBase &env, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
                          Assembler::ScalarRegisterPtr spikeMaskReg, uint32_t r, 

@@ -295,11 +295,10 @@ std::unique_ptr<Frontend::ArrayBase> EventSinkBuffer::createArray(std::optional<
 }
 //----------------------------------------------------------------------------
 std::vector<Assembler::ScalarRegisterPtr> EventSinkBuffer::genPreamble(
-    const Model&, const KernelImplementation&, Assembler::CodeGenerator &c, 
+    const Runtime&, const KernelImplementation&, Assembler::CodeGenerator &c, 
     Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, const std::string&,
-    std::optional<uint32_t> numTimesteps, bool hasTime, size_t,
-    Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr numEventBytes,
-    AddScalarConstantFn, AddFieldFn addField) const
+    std::optional<uint32_t> numTimesteps, bool hasTime, Assembler::ScalarRegisterPtr timeReg, 
+    Assembler::ScalarRegisterPtr numEventBytes, AddScalarConstantFn, AddFieldFn addField) const
 {
     // Generate preamble required for bitarray storage and add register to state
     return {genBitArrayPreamble(c, scalarRegisterAllocator, numTimesteps, hasTime, getShape(),
@@ -414,28 +413,31 @@ uint32_t EventChannel::generateEventLoop(const Frontend::Merged<Frontend::EventS
 }
 //----------------------------------------------------------------------------
 std::vector<Assembler::ScalarRegisterPtr> EventChannel::genPreamble(
-    const Model &model, const KernelImplementation &kernel, Assembler::CodeGenerator &c,
+    const Runtime &runtime, const KernelImplementation &kernel, Assembler::CodeGenerator &c,
     Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, const std::string &name,
-    std::optional<uint32_t> numTimesteps, bool hasTime, size_t numDevices,
-    Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr numEventBytes,
-    AddScalarConstantFn addScalarConstant, AddFieldFn addField) const
+    std::optional<uint32_t> numTimesteps, bool hasTime, Assembler::ScalarRegisterPtr timeReg, 
+    Assembler::ScalarRegisterPtr numEventBytes, AddScalarConstantFn addScalarConstant, AddFieldFn addField) const
 {
 
     // Add scalar constant to hold start ID of event channel
     auto neuronStartIDReg = addScalarConstant(
         c,
-        [&kernel, &model, &name, numDevices](size_t d, auto p)
+        [&kernel, &runtime, &name](size_t d, auto p)
         {
-            const auto &state = p->getOutputEventSinks().at(name).getUnderlying();
+            const auto &eventSink = p->getOutputEventSinks().at(name);
+            const auto state = eventSink.getUnderlying();
             const uint32_t eventSinkID = kernel.getEventSinkIDBase(state);
-            const auto splitDimension = model.getStateData(state).splitDimension;
+            const size_t numSlicedDimensions = eventSink.getShape().size();
 
             // Sum up size of this process across all previous devices
-            // **TODO** we need to ignore time dimension here
             uint32_t startID = 0;
             for(size_t i = 0; i < d; i++) {
-                const auto splitShape = p->getShape().getSplit(d, splitDimension, numDevices, 32);
-                startID += static_cast<uint32_t>(splitShape.getFlattenedSize());
+                // Get shape of array storing this state on device
+                const auto shape = std::get<0>(runtime.getDeviceArrayShapeStrides(state, d));
+
+                // Multiply together last dimensions of shape (determined based on sliced shape)
+                startID += static_cast<uint32_t>(std::accumulate(shape.rbegin(), shape.rbegin() + numSlicedDimensions, 
+                                                                 1, std::multiplies<size_t>()));
             }
 
             // Mask with event sink ID
