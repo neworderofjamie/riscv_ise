@@ -6,7 +6,7 @@ from ._fenn_backend import (BroadcastProcess, DenseEventPropagationProcess,
                             SparseEventPropagationProcess, Variable, 
                             disassemble)
                             
-from ._frontend import (NumericValue, PlogSeverity, ProcessGroup,
+from ._frontend import (ConsoleAppender, NumericValue, PlogSeverity, ProcessGroup,
                         ResolvedType, SlicedEventSink, SlicedVariable, UnresolvedType)
 
 def init_logging(appender, level=PlogSeverity.INFO, 

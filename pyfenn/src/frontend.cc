@@ -103,6 +103,12 @@ PYBIND11_MODULE(_frontend, m)
         .def("write", &plog::IAppender::write);
 
     //------------------------------------------------------------------------
+    // frontend.ConsoleAppender
+    //------------------------------------------------------------------------
+    pybind11::class_<plog::ConsoleAppender<plog::TxtFormatter>, plog::IAppender>(m, "ConsoleAppender")
+        .def(pybind11::init<>());
+
+    //------------------------------------------------------------------------
     // frontend.NumericValue
     //------------------------------------------------------------------------
     pybind11::class_<CompilerFrontend::Type::NumericValue>(m, "NumericValue")
