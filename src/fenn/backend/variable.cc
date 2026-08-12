@@ -109,7 +109,7 @@ std::vector<Compiler::RegisterPtr> Variable::genPreamble(Assembler::CodeGenerato
         if (hasTime) {
             // Check there is a buffer entry for each timestep with one extra
             // **NOTE** variables get read from timestep and written to timestep + 1 hence extra buf
-            if(getShape().getFirst() < (numTimesteps.value() + 1)) {
+            if(getShape().front() < (numTimesteps.value() + 1)) {
                 throw std::runtime_error("Variables need to be buffered for " + std::to_string(numTimesteps.value() + 1u) + " timesteps");
             }
 

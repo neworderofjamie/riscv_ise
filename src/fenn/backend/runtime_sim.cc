@@ -68,7 +68,7 @@ public:
     {
         // Copy correct number of int16_t from host pointer to vector data memory
         auto &vectorDataMemory = m_Device.get().getRISCV().getCoprocessor<ISE::VectorProcessor>(FeNN::Common::vectorQuadrant)->getVectorDataMemory();
-        std::copy_n(getHostPointer<int16_t>(), getCount(), 
+        std::copy_n(getHostPointer<int16_t>(), getSizeBytes() / 2, 
                     vectorDataMemory.getData() + (getURAMPointer() / 2));
     }
 
@@ -77,7 +77,7 @@ public:
     {
         // Copy correct number of int16_t from vector data memory to host pointer
         const auto &vectorDataMemory = m_Device.get().getRISCV().getCoprocessor<ISE::VectorProcessor>(FeNN::Common::vectorQuadrant)->getVectorDataMemory();
-        std::copy_n(vectorDataMemory.getData() + (getURAMPointer() / 2), getCount(), 
+        std::copy_n(vectorDataMemory.getData() + (getURAMPointer() / 2), getSizeBytes() / 2, 
                     getHostPointer<int16_t>());
     }
 

@@ -80,6 +80,7 @@ std::unique_ptr<Frontend::ArrayBase> EventSourceBuffer::createArray(std::optiona
                                                                     size_t numDevices, const Frontend::Model&, Frontend::DeviceBase &device) const
 {
     // Check we have enough bits to encode events from all device
+    // **THINK** there is a weird issue here as timeslicing these is meaningless but 
     if (Frontend::Shape::getFlattenedSize(shape) >= 32768) {
         throw std::runtime_error("EventSourceBuffer can only deliver events from less than 32768 sources per-device");
     }
