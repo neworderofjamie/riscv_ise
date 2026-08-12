@@ -33,7 +33,7 @@ log_appender = backend.ConsoleAppender()#PythonLogAppender()
 backend.init_logging(log_appender, backend.PlogSeverity.DEBUG)
 
 # Input spikes
-input_spikes = backend.EventSourceBuffer(input_shape, max_spike_array_length)
+input_spikes = backend.EventSourceBuffer(input_shape, max_spike_array_length, name="input_events")
 
 # Model
 hidden = LIF(backend, hidden_shape, 20.0, 5, 0.61, 1, 5, name="hidden")
