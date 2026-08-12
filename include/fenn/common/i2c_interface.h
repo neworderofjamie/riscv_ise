@@ -34,7 +34,7 @@ public:
     }
 
     template<typename T,
-             typename std::enable_if<std::is_pod<T>::value, T>::type* = nullptr>
+             typename std::enable_if<std::is_pod_v<T>, T>::type* = nullptr>
     void read(T &data)
     {
         read(&data, sizeof(T));
@@ -48,7 +48,7 @@ public:
     }
 
     template<typename T,
-             typename std::enable_if<std::is_pod<T>::value, T>::type* = nullptr>
+             typename std::enable_if<std::is_pod_v<T>, T>::type* = nullptr>
     void write(const T &data)
     {
         write(&data, sizeof(T));

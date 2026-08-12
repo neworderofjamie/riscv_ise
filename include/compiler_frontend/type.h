@@ -23,6 +23,7 @@
 
 // Compiler frontend includes
 #include "compiler_frontend/compiler_frontend_export.h"
+#include "compiler_frontend/python_type.h"
 
 //----------------------------------------------------------------------------
 // Macros
@@ -121,6 +122,7 @@ struct COMPILER_FRONTEND_EXPORT ResolvedType
         std::optional<int> fixedPoint;
 
         std::string literalSuffix;
+        std::string pythonFormat;
 
         //------------------------------------------------------------------------
         // Operators
@@ -342,7 +344,7 @@ struct COMPILER_FRONTEND_EXPORT ResolvedType
                                   Numeric{rank, std::numeric_limits<T>::min(), std::numeric_limits<T>::max(),
                                           std::numeric_limits<T>::lowest(), std::numeric_limits<T>::max_digits10,
                                           std::is_signed<T>::value, std::is_integral<T>::value, false, std::nullopt,
-                                          literalSuffix}},
+                                          literalSuffix, PythonType::getPythonTypeString<T>()}},
                             isConst};
     }
 
@@ -355,7 +357,8 @@ struct COMPILER_FRONTEND_EXPORT ResolvedType
                                   Numeric{rank, std::numeric_limits<T>::min() * scale, std::numeric_limits<T>::max() * scale,
                                           std::numeric_limits<T>::lowest() * scale, 
                                           (int)std::ceil(std::numeric_limits<T>::digits * std::log10(2) + 1),
-                                          std::is_signed<T>::value, false, saturating, fixedPoint, literalSuffix}},
+                                          std::is_signed<T>::value, false, saturating, fixedPoint, 
+                                          literalSuffix, PythonType::getPythonTypeString<T>()}},
                             isConst};
     }
 

@@ -21,7 +21,6 @@
 #include "frontend/process.h"
 #include "frontend/process_group.h"
 #include "frontend/runtime.h"
-#include "frontend/shape.h"
 #include "frontend/variable.h"
 
 // Doc strings
@@ -130,21 +129,6 @@ PYBIND11_MODULE(_frontend, m)
     pybind11::implicitly_convertible<const std::string&, CompilerFrontend::Type::UnresolvedType>();
     pybind11::implicitly_convertible<const CompilerFrontend::Type::ResolvedType&, CompilerFrontend::Type::UnresolvedType>();
 
-    //------------------------------------------------------------------------
-    // frontend.Shape
-    //------------------------------------------------------------------------
-    pybind11::class_<Frontend::Shape>(m, "Shape")
-         .def(pybind11::init<const std::vector<size_t>&>())
-         .def(pybind11::init<size_t>())
-
-         WRAP_PROPERTY_RO("dims", Frontend, Shape, Dims)
-         WRAP_PROPERTY_GETTER("flattened_size", Frontend, Shape, FlattenedSize)
-         
-         .def("__repr__", &Frontend::Shape::toString);
-
-    pybind11::implicitly_convertible<const std::vector<size_t>&, Frontend::Shape>();
-    pybind11::implicitly_convertible<size_t, Frontend::Shape>();
-	
 	//------------------------------------------------------------------------
     // frontend.ModelComponent
     //------------------------------------------------------------------------
@@ -280,15 +264,18 @@ PYBIND11_MODULE(_frontend, m)
     //------------------------------------------------------------------------
     // frontend.ArrayBase
     //------------------------------------------------------------------------
-    pybind11::class_<Frontend::ArrayBase>(m, "ArrayBase")
-        .def_property_readonly("host_view",
-            [](Frontend::ArrayBase &a)
-            {
-               return pybind11::memoryview::from_memory(a.getHostPointer(),
-                                                        a.getSizeBytes());
-            })
-        WRAP_PROPERTY_RO("type", Frontend, ArrayBase, Type)
-		WRAP_PROPERTY_RO("shape", Frontend, ArrayBase, Shape)
+    pybind11::class_<Frontend::ArrayBase>(m, "ArrayBase", pybind11::buffer_protocol())
+		.def_buffer(
+			[](Frontend::ArrayBase &m)
+			{
+				return py::buffer_info(
+					m.getHostPointer(),                     // Pointer to buffer
+					m.getType().getSize(),					// Size of one scalar
+					py::format_descriptor<float>::format(), /* Python struct-style format descriptor */
+					m.getShape().size(),                    // Number of dimensions
+					m.getShape(),							// Buffer dimensions */
+					m.getStride());             			// Strides (in bytes) for each index
+			})
 
         WRAP_METHOD("push_to_device", Frontend, ArrayBase, pushToDevice)
         WRAP_METHOD("pull_from_device", Frontend, ArrayBase, pullFromDevice);

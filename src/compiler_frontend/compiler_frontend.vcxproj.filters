@@ -55,5 +55,8 @@
     <ClInclude Include="..\..\include\compiler_frontend\type.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\include\compiler_frontend\python_type.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

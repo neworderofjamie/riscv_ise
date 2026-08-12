@@ -30,6 +30,7 @@
     <ClInclude Include="..\..\include\compiler_frontend\error_handler.h" />
     <ClInclude Include="..\..\include\compiler_frontend\expression.h" />
     <ClInclude Include="..\..\include\compiler_frontend\parser.h" />
+    <ClInclude Include="..\..\include\compiler_frontend\python_type.h" />
     <ClInclude Include="..\..\include\compiler_frontend\scanner.h" />
     <ClInclude Include="..\..\include\compiler_frontend\statement.h" />
     <ClInclude Include="..\..\include\compiler_frontend\token.h" />
@@ -90,7 +91,7 @@
       <GenerateDebugInformation Condition=" $(Configuration.Contains('Release')) ">true</GenerateDebugInformation>
       <EnableCOMDATFolding Condition=" $(Configuration.Contains('Release')) ">true</EnableCOMDATFolding>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-	  <AdditionalDependencies>common_$(Configuration).lib;libffi_$(Configuration).lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>common_$(Configuration).lib;libffi_$(Configuration).lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(OutDir);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
