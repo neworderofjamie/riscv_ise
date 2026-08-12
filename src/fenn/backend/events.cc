@@ -294,6 +294,12 @@ std::unique_ptr<Frontend::ArrayBase> EventSinkBuffer::createArray(std::optional<
     return createBitArray(getShape(), splitDimension, indexDimensions, numDevices, device);
 }
 //----------------------------------------------------------------------------
+Frontend::State::ShapeStride EventSinkBuffer::getArrayShapeStride(std::optional<size_t> splitDimension, uint32_t indexDimensions,
+                                                                  size_t deviceIndex, size_t numDevices, const Frontend::Model &model) const
+{
+    return getBitArrayShapeStride(getShape(), splitDimension, indexDimensions, numDevices, deviceIndex);
+}
+//----------------------------------------------------------------------------
 std::vector<Assembler::ScalarRegisterPtr> EventSinkBuffer::genPreamble(
     const Runtime&, const KernelImplementation&, Assembler::CodeGenerator &c, 
     Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, const std::string&,
