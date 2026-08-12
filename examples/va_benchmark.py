@@ -31,7 +31,7 @@ class CUBALIF:
         self.i_exc = backend.Variable(self.shape, "s2_13_sat_t", name=f"{name}_IExc")
         self.i_inh = backend.Variable(self.shape, "s2_13_sat_t", name=f"{name}_IInh")
         self.refrac_time = backend.Variable(self.shape, "int16_t", name=f"{name}_RefracTime")
-        self.out_spikes = backend.EventChannel((num_timesteps + 1, self.shape), True)
+        self.out_spikes = backend.EventChannel((num_timesteps + 1,) + self.shape, True)
         self.process = backend.NeuronUpdateProcess(
             f"""
             s5_10_sat_t inSyn;
@@ -111,28 +111,28 @@ print(f"Num sparse connectivity bits excitatory: {num_exc_sparse_connectivity_bi
 print(f"Stride ee:{ee_conn.shape[1]} ei:{ei_conn.shape[1]} ii:{ii_conn.shape[1]} ie:{ie_conn.shape[1]}")
 print(f"Mean row length ee:{np.average(ee_conn[:,0]) * 32} ei:{np.average(ei_conn[:,0]) * 32} ii:{np.average(ii_conn[:,0]) * 32} ie:{np.average(ie_conn[:,0]) * 32}")
 # Neurons
-e_pop = CUBALIF(backend, args.num_excitatory, tau_m=20.0, tau_syn_exc=5.0, tau_syn_inh=10.0,
+e_pop = CUBALIF(backend, (args.num_excitatory,), tau_m=20.0, tau_syn_exc=5.0, tau_syn_inh=10.0,
                 tau_refrac=5, v_thresh=10, i_offset=0.55,
                 num_timesteps=num_timesteps_per_block, name="E")
 
-i_pop = CUBALIF(backend, num_inhibitory, tau_m=20.0, tau_syn_exc=5.0, tau_syn_inh=10.0,
+i_pop = CUBALIF(backend, (num_inhibitory,), tau_m=20.0, tau_syn_exc=5.0, tau_syn_inh=10.0,
                 tau_refrac=5, v_thresh=10, i_offset=0.55,
                 num_timesteps=num_timesteps_per_block, name="I")
 
 # Synapses
-ee_pop = SparseLinear(backend, backend.SlicedEventSource(e_pop.out_spikes, True), 
+ee_pop = SparseLinear(backend, e_pop.out_spikes, 
                       e_pop.i_exc, weight_dtype="s2_13_sat_t", max_row_length=ee_conn.shape[1],
                       num_sparse_connectivity_bits=num_exc_sparse_connectivity_bits, 
                       name="EE")
-ei_pop = SparseLinear(backend, backend.SlicedEventSource(e_pop.out_spikes, True), 
+ei_pop = SparseLinear(backend, e_pop.out_spikes, 
                       i_pop.i_exc, weight_dtype="s2_13_sat_t", max_row_length=ei_conn.shape[1],
                       num_sparse_connectivity_bits=num_inh_sparse_connectivity_bits, 
                       name="EI")
-ii_pop = SparseLinear(backend, backend.SlicedEventSource(i_pop.out_spikes, True), 
+ii_pop = SparseLinear(backend, i_pop.out_spikes, 
                       i_pop.i_inh, weight_dtype="s2_13_sat_t", max_row_length=ii_conn.shape[1],
                       num_sparse_connectivity_bits=num_inh_sparse_connectivity_bits, 
                       name="II")
-ie_pop = SparseLinear(backend, backend.SlicedEventSource(i_pop.out_spikes, True), 
+ie_pop = SparseLinear(backend, i_pop.out_spikes, 
                       e_pop.i_inh, weight_dtype="s2_13_sat_t", max_row_length=ie_conn.shape[1],
                       num_sparse_connectivity_bits=num_exc_sparse_connectivity_bits, 
                       name="IE")
