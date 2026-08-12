@@ -102,7 +102,7 @@
       <GenerateDebugInformation Condition=" $(Configuration.Contains('Release')) ">true</GenerateDebugInformation>
       <EnableCOMDATFolding Condition=" $(Configuration.Contains('Release')) ">true</EnableCOMDATFolding>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-	  <AdditionalDependencies>common_$(Configuration).lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>common_$(Configuration).lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(OutDir);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
