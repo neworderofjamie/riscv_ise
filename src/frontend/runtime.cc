@@ -198,8 +198,7 @@ std::vector<ArrayBase*> Runtime::getArrays(std::shared_ptr<const State> state) c
     return arrays;
 }
 //----------------------------------------------------------------------------
-std::tuple<std::vector<size_t>, std::vector<size_t>> Runtime::getDeviceArrayShapeStrides(
-    std::shared_ptr<const State> state, size_t device) const
+State::ShapeStride Runtime::getDeviceArrayShapeStrides(std::shared_ptr<const State> state, size_t device) const
 {
     // Get data associated with state
     const auto &stateData = getModel()->getStateData(state);

@@ -31,6 +31,7 @@
     <ClInclude Include="..\..\..\include\fenn\backend\runtime_hw.h" />
     <ClInclude Include="..\..\..\include\fenn\backend\runtime_sim.h" />
     <ClInclude Include="..\..\..\include\fenn\backend\special_function.h" />
+    <ClInclude Include="..\..\..\include\fenn\backend\utils.h" />
     <ClInclude Include="..\..\..\include\fenn\backend\variable.h" />
   </ItemGroup>
   <ItemGroup>
@@ -44,6 +45,7 @@
     <ClCompile Include="runtime_hw.cc" />
     <ClCompile Include="runtime_sim.cc" />
     <ClCompile Include="special_functions.cc" />
+    <ClCompile Include="utils.cc" />
     <ClCompile Include="variable.cc" />
   </ItemGroup>
   <PropertyGroup Label="Globals">

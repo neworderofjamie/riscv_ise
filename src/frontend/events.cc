@@ -19,8 +19,8 @@ std::unique_ptr<ArrayBase> EventSourceBuffer::createArray(std::optional<size_t>,
     throw std::runtime_error("Backend missing EventSourceBuffer::createArray implementation");
 }
 //----------------------------------------------------------------------------
-std::tuple<std::vector<size_t>, std::vector<size_t>> EventSourceBuffer::getArrayShapeStride(std::optional<size_t>, uint32_t, 
-                                                                                            size_t, const Model&, const DeviceBase&) const
+State::ShapeStride EventSourceBuffer::getArrayShapeStride(std::optional<size_t>, uint32_t, 
+                                                          size_t, const Model&, const DeviceBase&) const
 {
     throw std::runtime_error("Backend missing Variable::EventSourceBuffer implementation");
 }
@@ -39,8 +39,8 @@ std::unique_ptr<ArrayBase> EventSinkBuffer::createArray(std::optional<size_t>, u
     throw std::runtime_error("Backend missing EventSinkBuffer::createArray implementation");
 }
 //----------------------------------------------------------------------------
-std::tuple<std::vector<size_t>, std::vector<size_t>> EventSinkBuffer::getArrayShapeStride(std::optional<size_t>, uint32_t, 
-                                                                                          size_t, const Model&, const DeviceBase&) const
+State::ShapeStride EventSinkBuffer::getArrayShapeStride(std::optional<size_t>, uint32_t, 
+                                                        size_t, const Model&, const DeviceBase&) const
 {
     throw std::runtime_error("Backend missing Variable::EventSinkBuffer implementation");
 }
@@ -59,8 +59,8 @@ std::unique_ptr<ArrayBase> EventChannel::createArray(std::optional<size_t>, uint
     throw std::runtime_error("Backend missing EventChannel::createArray implementation");
 }
 //----------------------------------------------------------------------------
-std::tuple<std::vector<size_t>, std::vector<size_t>> EventChannel::getArrayShapeStride(std::optional<size_t>, uint32_t, 
-                                                                                          size_t, const Model&, const DeviceBase&) const
+State::ShapeStride EventChannel::getArrayShapeStride(std::optional<size_t>, uint32_t, 
+                                                     size_t, const Model&, const DeviceBase&) const
 {
     throw std::runtime_error("Backend missing Variable::EventChannel implementation");
 }

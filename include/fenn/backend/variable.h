@@ -44,9 +44,8 @@ public:
     virtual std::unique_ptr<Frontend::ArrayBase> createArray(std::optional<size_t> splitDimension, uint32_t indexDimensions,
                                                              size_t numDevices, const Frontend::Model &model, Frontend::DeviceBase &device) const override final;
 
-    virtual std::tuple<std::vector<size_t>, std::vector<size_t>> getArrayShapeStride(std::optional<size_t> splitDimension,
-                                                                                     uint32_t indexDimensions, size_t numDevices, 
-                                                                                     const Frontend::Model &model, const Frontend::DeviceBase &device) const override final;
+    virtual ShapeStride getArrayShapeStride(std::optional<size_t> splitDimension, uint32_t indexDimensions, size_t numDevices, 
+                                            const Frontend::Model &model, const Frontend::DeviceBase &device) const override final;
 
     //------------------------------------------------------------------------
     // Public API

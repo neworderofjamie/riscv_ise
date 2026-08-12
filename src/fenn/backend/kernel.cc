@@ -1,5 +1,8 @@
 #include "fenn/backend/kernel.h"
 
+// Standard C++ includes
+#include <numeric>
+
 // Common include
 #include "common/utils.h"
 
@@ -61,7 +64,9 @@ KernelImplementation::KernelImplementation(const Frontend::ProcessGroupVector &p
                 }
 
                 // Update maximum size
-                maxEventSinkSize = std::max(maxEventSinkSize, e.getShape().getFlattenedSize());
+                maxEventSinkSize = std::max(maxEventSinkSize, 
+                                            std::accumulate(e.getShape().cbegin(), e.getShape().cend(), 
+                                                            size_t{1}, std::multiplies<size_t>()));
             }
         }
 

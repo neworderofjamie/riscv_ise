@@ -1,5 +1,8 @@
 #include "fenn/backend/events.h"
 
+// Standard C++ includes
+#include <numeric>
+
 // Compiler frontend includes
 #include "compiler_frontend/type.h"
 
@@ -15,6 +18,7 @@
 #include "fenn/backend/model.h"
 #include "fenn/backend/process.h"
 #include "fenn/backend/runtime.h"
+#include "fenn/backend/utils.h"
 
 using namespace FeNN;
 using namespace FeNN::Backend;
@@ -24,14 +28,37 @@ using namespace FeNN::Backend;
 //----------------------------------------------------------------------------
 namespace FeNN::Backend
 {
-std::unique_ptr<Frontend::ArrayBase> EventSinkImplementation::createBitArray(const std::vector<size_t> &shape, Frontend::DeviceBase &device) const
+Frontend::State::ShapeStride EventSinkImplementation::getBitArrayShapeStride(const std::vector<size_t> &shape, std::optional<size_t> splitDimension, 
+                                                                             uint32_t indexDimensions, size_t numDevices,  const Frontend::DeviceBase &device) const
 {
     // Event containers are implemented as word-aligned bitfields so divide and pad last axis
+    // **TODO** this is only true with 1D shape. With multi-dimensional shape, padding needs to be applied 
+    // **TODO** correct solution may be to treat bool datatype as 1 bit in a uint32 for vectorised code
     auto wordAlignedShape = shape;
     wordAlignedShape.back() = ::Common::Utils::ceilDivide(wordAlignedShape.back(), 32);
 
+    // If a split dimension is specified, split this dimension of word-aligned shape appropriately
+    if (splitDimension.has_value()) {
+        wordAlignedShape[splitDimension.value()] = Utils::getSplitDimension(wordAlignedShape, device.getDeviceIndex(),
+                                                                            splitDimension.value(), numDevices, 1);
+    }
+
+    // Calculate strides
+    std::vector<size_t> strides = Frontend::Shape::getStride(wordAlignedShape,
+                                                             CompilerFrontend::Type::Uint32.getSize());
+
+    // Return tuple of shape and strides
+    return std::make_tuple(shape, strides);
+}
+//----------------------------------------------------------------------------
+std::unique_ptr<Frontend::ArrayBase> EventSinkImplementation::createBitArray(const std::vector<size_t> &shape, std::optional<size_t> splitDimension,
+                                                                             uint32_t indexDimensions, size_t numDevices, Frontend::DeviceBase &device) const
+{
+    // Get shape and stride 
+    auto [deviceShape, strides] = getBitArrayShapeStride(shape, splitDimension, indexDimensions, numDevices, device);
+
     // Create BRAM array
-    return static_cast<DeviceFeNN&>(device).createBRAMArray(CompilerFrontend::Type::Uint32, wordAlignedShape);
+    return static_cast<DeviceFeNN&>(device).createBRAMArray(CompilerFrontend::Type::Uint32, deviceShape, strides);
 }
 //----------------------------------------------------------------------------
 Assembler::ScalarRegisterPtr EventSinkImplementation::genBitArrayPreamble(
@@ -77,17 +104,25 @@ void EventSinkImplementation::genBitArrayIncrement(Assembler::CodeGenerator &c, 
 // FeNN::Backend::EventSourceBuffer
 //----------------------------------------------------------------------------
 std::unique_ptr<Frontend::ArrayBase> EventSourceBuffer::createArray(std::optional<size_t> splitDimension, uint32_t indexDimensions,
-                                                                    size_t numDevices, const Frontend::Model&, Frontend::DeviceBase &device) const
+                                                                    size_t numDevices, const Frontend::Model &model, Frontend::DeviceBase &device) const
+{
+    // Get array shape and strides and create BRAM array with this shape and stride
+    auto [shape, strides] = getArrayShapeStride(splitDimension, indexDimensions, numDevices, model, device);
+    return static_cast<DeviceFeNN&>(device).createBRAMArray(CompilerFrontend::Type::Uint16, shape, strides);
+}
+//----------------------------------------------------------------------------
+Frontend::State::ShapeStride EventSourceBuffer::getArrayShapeStride(std::optional<size_t>, uint32_t, size_t, 
+                                                                    const Frontend::Model&, const Frontend::DeviceBase&) const
 {
     // Check we have enough bits to encode events from all device
-    // **THINK** there is a weird issue here as timeslicing these is meaningless but 
-    if (Frontend::Shape::getFlattenedSize(shape) >= 32768) {
+    // **NOTE** because event sources are never sliced this is correct
+    if (std::accumulate(getShape().cbegin(), getShape().cend(), 1, std::multiplies<size_t>()) >= 32768) {
         throw std::runtime_error("EventSourceBuffer can only deliver events from less than 32768 sources per-device");
     }
 
-    // Create BRAM array with one 16 bit word per-event
-    return static_cast<DeviceFeNN&>(device).createBRAMArray(CompilerFrontend::Type::Uint16, {getMaxEvents()}, 
-                                                            {CompilerFrontend::Type::Uint16.getSize()});
+    // Array shape and strides are irrespective of split - an array of maxEvents uint16s are instantiated on all devices
+    return std::make_tuple(std::vector<size_t>{getMaxEvents()}, 
+                           std::vector<size_t>{CompilerFrontend::Type::Uint16.getSize()});
 }
 //----------------------------------------------------------------------------
 uint32_t EventSourceBuffer::generateEventLoop(const Frontend::Merged<Frontend::EventSource> &mergedEventSource, const Runtime&, 
@@ -256,7 +291,7 @@ std::unique_ptr<Frontend::ArrayBase> EventSinkBuffer::createArray(std::optional<
 {
     LOGI_FENN_BACKEND << "Creating event sink buffer '" << getName() << "' array in BRAM";
 
-    return createBitArray(shape, device);
+    return createBitArray(getShape(), splitDimension, indexDimensions, numDevices, device);
 }
 //----------------------------------------------------------------------------
 std::vector<Assembler::ScalarRegisterPtr> EventSinkBuffer::genPreamble(
@@ -296,11 +331,22 @@ std::unique_ptr<Frontend::ArrayBase> EventChannel::createArray(std::optional<siz
     if(shouldRecord()) {
         LOGI_FENN_BACKEND << "Creating event channel buffer '" << getName() << "' array in BRAM";
 
-        return createBitArray(shape, device);
+        return createBitArray(getShape(), splitDimension, indexDimensions, numDevices, device);
     }
     else {
         // **TODO** check doesn't have time - that would be weird!
         return nullptr;
+    }
+}
+//----------------------------------------------------------------------------
+Frontend::State::ShapeStride EventChannel::getArrayShapeStride(std::optional<size_t> splitDimension, uint32_t indexDimensions,
+                                                               size_t numDevices, const Frontend::Model &model, const Frontend::DeviceBase &device) const
+{
+    if(shouldRecord()) {
+        return getBitArrayShapeStride(getShape(), splitDimension, indexDimensions, numDevices, device);
+    }
+    else {
+        return std::make_tuple(std::vector<size_t>{}, std::vector<size_t>{});
     }
 }
 //----------------------------------------------------------------------------
@@ -385,6 +431,7 @@ std::vector<Assembler::ScalarRegisterPtr> EventChannel::genPreamble(
             const auto splitDimension = model.getStateData(state).splitDimension;
 
             // Sum up size of this process across all previous devices
+            // **TODO** we need to ignore time dimension here
             uint32_t startID = 0;
             for(size_t i = 0; i < d; i++) {
                 const auto splitShape = p->getShape().getSplit(d, splitDimension, numDevices, 32);

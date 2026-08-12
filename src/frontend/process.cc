@@ -310,16 +310,10 @@ void EventPropagationProcess::updateCompatibleSplitDimensions(std::shared_ptr<co
                                                               uint32_t &compatibleSplitDimensions,
                                                               uint32_t &compatibleIndexDimensions) const 
 {
-    // If variable's target
+    // If variable's target, apply standard slicing rules
     if(state == getTarget().getUnderlying()) {
-        // If there are no delays, it can only be split on 1st (postsynaptic) dimension
-        if (getTarget().getShape().size() == 1) {
-            compatibleSplitDimensions &= (1 << 0);
-        }
-        // Otherwise, it can only be split on 2nd (postsynaptic) dimension
-        else {
-            compatibleSplitDimensions &= (1 << 1);
-        }
+        updateSlicedCompatibleSplit(getTarget(), compatibleSplitDimensions,
+                                    compatibleIndexDimensions);
     }
     // Otherwise, if it's input event source, we should receive all splits
     else {

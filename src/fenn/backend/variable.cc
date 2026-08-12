@@ -11,6 +11,7 @@
 #include "fenn/backend/environment.h"
 #include "fenn/backend/model.h"
 #include "fenn/backend/runtime.h"
+#include "fenn/backend/utils.h"
 
 //----------------------------------------------------------------------------
 // FeNN::Backend::Variable
@@ -51,26 +52,26 @@ std::unique_ptr<Frontend::ArrayBase> Variable::createArray(std::optional<size_t>
     }
 }
 //----------------------------------------------------------------------------
-std::tuple<std::vector<size_t>, std::vector<size_t>> Variable::getArrayShapeStride(std::optional<size_t> splitDimension,
-                                                                                   uint32_t indexDimensions, size_t numDevices,
-                                                                                   const Frontend::Model &model, const Frontend::DeviceBase &device) const
+Frontend::State::ShapeStride Variable::getArrayShapeStride(std::optional<size_t> splitDimension, uint32_t indexDimensions, 
+                                                           size_t numDevices, const Frontend::Model &model, const Frontend::DeviceBase &device) const
 {
-    // 1) Split getShape() based on device->getDeviceIndex(), applying FeNN constraints - assert that nothing is indexible 'below' split
-    // If a split dimension is specified
-    std::vector<size_t> shape;
-    if (splitDimension.has_value()) {
+    // Get memory space this variable is destined for
+    const auto memorySpace = getMemSpace(model);
 
-    }
-    // Otherwise, use variable shape
-    else {
-        shape = getShape();
+    // Copy shape
+    std::vector<size_t> shape = getShape();
+
+    // If a split dimension is specified, split this dimension appropriately
+    if (splitDimension.has_value()) {
+        shape[splitDimension.value()] = Utils::getSplitDimension(shape, device.getDeviceIndex(), splitDimension.value(),
+                                                                 numDevices, (memorySpace == MemSpace::BRAM) ? 1 : 32);
     }
     
     // Calculate strides
     std::vector<size_t> strides = Frontend::Shape::getStride(shape, getType().getSize());
 
     // If this variable is destined for a memory space with alignment constraints
-    if (getMemSpace(model) != MemSpace::BRAM) {
+    if (memorySpace != MemSpace::BRAM) {
         // Loop through stride dimensions
         for(size_t i = 0; i < strides.size(); i++) {
             // If this dimension is indexable, pad to 64 bytes

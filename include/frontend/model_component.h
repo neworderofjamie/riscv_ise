@@ -60,6 +60,8 @@ private:
 class FRONTEND_EXPORT State : public ModelComponent
 {
 public:
+    using ShapeStride = std::tuple<std::vector<size_t>, std::vector<size_t>>;
+
     //------------------------------------------------------------------------
     // Declared virtuals
     //------------------------------------------------------------------------
@@ -69,9 +71,8 @@ public:
     virtual std::unique_ptr<ArrayBase> createArray(std::optional<size_t> splitDimension, uint32_t indexDimensions,
                                                    size_t numDevices, const Model &model, DeviceBase &device) const = 0;
 
-    virtual std::tuple<std::vector<size_t>, std::vector<size_t>> getArrayShapeStride(std::optional<size_t> splitDimension,
-                                                                                     uint32_t indexDimensions, size_t numDevices, 
-                                                                                     const Model &model, const DeviceBase &device) const = 0;
+    virtual ShapeStride getArrayShapeStride(std::optional<size_t> splitDimension, uint32_t indexDimensions, 
+                                            size_t numDevices, const Model &model, const DeviceBase &device) const = 0;
 protected:
     using ModelComponent::ModelComponent;
 };
