@@ -3,9 +3,6 @@
 // Standard C includes
 #include <cstdint>
 
-// Plog includes
-#include <plog/Log.h>
-
 // Common includes
 #include "common/utils.h"
 
