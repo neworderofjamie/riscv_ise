@@ -21,13 +21,12 @@ class ExpLUTBroadcast:
 class DenseLinear:
     def __init__(self, backend: ModuleType, source_events: EventSource, 
                  target_var: Variable, weight_dtype: str, name: str = ""):
-        assert len(source_events.shape.dims) == 1
-        assert len(target_var.shape.dims) == 1
-        self.shape = (source_events.shape.dims[0], target_var.shape.dims[0])
-        
+        assert len(source_events.shape) == 1
+        assert len(target_var.shape) == 1
+        self.shape = (source_events.shape[0], target_var.shape[0])
+
         # **YUCK** pad weight shape
-        weight_shape = (source_events.shape.dims[0], pad(target_var.shape.dims[0], 32))
-        self.weight = backend.Variable(weight_shape, weight_dtype, f"{name}_weight")
+        self.weight = backend.Variable(self.shape, weight_dtype, f"{name}_weight")
         self.process = backend.DenseEventPropagationProcess(source_events, 
                                                             self.weight, 
                                                             target_var, name)
@@ -36,11 +35,11 @@ class SparseLinear:
     def __init__(self, backend: ModuleType, source_events: EventSource, 
                  target_var: Variable, weight_dtype: str, max_row_length: int,
                  num_sparse_connectivity_bits: int, name: str = ""):
-        assert len(source_events.shape.dims) == 1
-        assert len(target_var.shape.dims) == 1
-        self.shape = (source_events.shape.dims[0], target_var.shape.dims[0])
+        assert len(source_events.shape) == 1
+        assert len(target_var.shape) == 1
+        self.shape = (source_events.shape[0], target_var.shape[0])
         
-        weight_shape = (source_events.shape.dims[0], max_row_length)
+        weight_shape = (source_events.shape[0], max_row_length)
         self.weight = backend.Variable(weight_shape, weight_dtype, f"{name}_weight")
         self.process = backend.SparseEventPropagationProcess(
             source_events, self.weight, target_var, 

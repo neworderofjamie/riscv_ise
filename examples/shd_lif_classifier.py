@@ -74,9 +74,9 @@ class LI:
             name=name)
         
 num_timesteps = 1170
-input_shape = 700
-hidden_shape = 256
-output_shape = 20
+input_shape = (700,)
+hidden_shape = (256,)
+output_shape = (20,)
 input_hidden_shape = (input_shape, hidden_shape)
 hidden_hidden_shape = (hidden_shape, hidden_shape)
 hidden_output_shape = (hidden_shape, output_shape)
@@ -104,8 +104,8 @@ for events, label in tqdm(dataset, "Preprocessing dataset"):
 # Calculate maximum spike array length
 max_spike_array_length = max(len(s) for s in shd_spikes)
 
-log_appender = PythonLogAppender()
-backend.init_logging(log_appender, backend.PlogSeverity.DEBUG)
+#log_appender = PythonLogAppender()
+#backend.init_logging(log_appender, backend.PlogSeverity.DEBUG)
 
 # Input spikes
 input_spikes = backend.EventSourceBuffer(input_shape, max_spike_array_length)
@@ -157,11 +157,11 @@ runtime.allocate()
 
 # Load and quantise output weights
 load_quantise_and_push("0/108-Conn_Pop0_Pop1-g.npy",    #+- 1
-                       8, input_hidden.weight, runtime, input_shape, percentile=100.0)
+                       8, input_hidden.weight, runtime, percentile=100.0)
 load_quantise_and_push("0/108-Conn_Pop1_Pop1-g.npy",    #+- 1
-                       8, hidden_hidden.weight, runtime, hidden_shape, percentile=100.0)
+                       8, hidden_hidden.weight, runtime, percentile=100.0)
 load_quantise_and_push("0/108-Conn_Pop1_Pop2-g.npy",    #+-3
-                       8, hidden_output.weight, runtime, hidden_shape, True, percentile=100.0)
+                       8, hidden_output.weight, runtime, percentile=100.0)
 
 if args.time:
     zero_and_push(neuron_update_processes.performance_counter, runtime)
@@ -169,10 +169,10 @@ if args.time:
     zero_and_push(reset_processes.performance_counter, runtime)
 
 # Loop through examples
-input_spike_views = get_views(runtime, input_spikes, np.uint16)
+input_spike_views = get_views(runtime, input_spikes)
 assert len(input_spike_views) == 1
 
-output_v_avg_views = get_views(runtime, output.v_avg, np.int16)
+output_v_avg_views = get_views(runtime, output.v_avg)
 assert len(output_v_avg_views) == 1
 
 num_correct = 0

@@ -45,17 +45,10 @@ def is_kria() -> bool:
     else:
         return False
 
-def get_views(runtime: Runtime, state, dtype, shape=None):
+def get_views(runtime: Runtime, state):
     # Get views
-    views = [np.asarray(a.host_view).view(dtype) 
-             for a in runtime.get_arrays(state)]
-    
-    # **TODO** stack, handle stride etc
-    if shape is not None:
-        views = [np.reshape(v, shape) for v in views]
-    
-    assert not any(v.flags["OWNDATA"] for v in views)
-    return views
+    return [np.array(a, copy=False)
+            for a in runtime.get_arrays(state)]
 
 # Divide two integers, rounding up i.e. effectively taking ceil
 def ceil_divide(numerator, denominator):
@@ -64,8 +57,7 @@ def ceil_divide(numerator, denominator):
 def pad(numerator, denominator):
     return denominator * ceil_divide(numerator, denominator)
 
-def quantise(data, fractional_bits: int, num_pre: int = None,
-             pad_post: bool = False, percentile: float = 99.0):
+def quantise(data, fractional_bits: int, percentile: float = 99.0):
     # Split data into positive and negative
     positive_mask = (data > 0)
     positive_data = data[positive_mask]
@@ -79,13 +71,6 @@ def quantise(data, fractional_bits: int, num_pre: int = None,
     max_val = max(positive_perc, negative_perc)
     data = np.clip(data, -max_val, max_val)
 
-    if pad_post:
-        assert num_pre is not None
-        
-        data = np.reshape(data, (num_pre, -1))
-        pad_num_post = pad(data.shape[1], 32)
-        data = np.pad(data, ((0, 0), (0, pad_num_post - data.shape[1])))  
-
     # Scale, round and convert to int16
     fp_one = 2.0 ** fractional_bits
 
@@ -94,7 +79,7 @@ def quantise(data, fractional_bits: int, num_pre: int = None,
 
 def zero_and_push(state, runtime: Runtime):
     # Get array views
-    views = get_views(runtime, state, np.uint8)
+    views = get_views(runtime, state)
 
     # Zero
     # **HACK** assigning to the slice causes bus errors with DMA buffer
@@ -106,37 +91,50 @@ def zero_and_push(state, runtime: Runtime):
     # Push to device
     runtime.push_state_to_device(state)
 
-def copy_and_push(data: np.ndarray, state, runtime: Runtime, shape=None):
+def copy_and_push(data: np.ndarray, state, runtime: Runtime):
     # Get array and view
-    views = get_views(runtime, state, data.dtype, shape)
+    views = get_views(runtime, state)
+    assert len(views) == 1
+
+    data = np.reshape(data, views[0].shape)
 
     # Copy data to array host pointer
-    # **TODO** handle stride etc
-    assert len(views) == 1
     for v in views:
+        assert(v.dtype == data.dtype)
         v[:] = data
 
     # Push to device
     runtime.push_state_to_device(state)
 
 def load_and_push(filename: str, state, runtime: Runtime):
-    copy_and_push(np.fromfile(filename, dtype=np.uint8), state, runtime)
+    # Get views
+    views = get_views(runtime, state)
+    assert len(views) == 1
+
+    # Load data with correct datatype
+    data = np.fromfile(filename, dtype=views[0].dtype)
+    data = np.reshape(data, views[0].shape)
+
+    # Copy data to array host pointer
+    for v in views:
+        v[:] = data
+   
+    # Push to device
+    runtime.push_state_to_device(state)
 
 def load_quantise_and_push(filename: str, fractional_bits: int,
-                           state, runtime: Runtime, num_pre: int = None,
-                           pad_post: bool = False, percentile: float = 99.0):
+                           state, runtime: Runtime, percentile: float = 99.0):
     # Load data from file and quantise
-    data = quantise(np.load(filename), fractional_bits, 
-                    num_pre, pad_post, percentile)
+    data = quantise(np.load(filename), fractional_bits, percentile)
 
     # Copy and push
     copy_and_push(data, state, runtime)
 
 def pull_spikes(num_timesteps: int, state, runtime: Runtime):
     runtime.pull_state_from_device(state)
-    spike_views = get_views(runtime, state, np.uint8)
+    spike_views = get_views(runtime, state)
     
-    spike_views = [np.reshape(v, (num_timesteps, -1)) for v in spike_views]
+    spike_views = [np.reshape(v.view(np.uint8), (num_timesteps, -1)) for v in spike_views]
 
     return [np.where(np.unpackbits(v, axis=1, bitorder="little"))
             for v in spike_views]
@@ -154,7 +152,7 @@ def read_perf_counter(perf_counter, runtime: Runtime):
 
 def seed_and_push(state, runtime: Runtime):
     # Get array and view
-    views = get_views(runtime, state, np.int16)
+    views = get_views(runtime, state)
 
     # Generate different seeds for each view
     int16_info = np.iinfo(np.int16)

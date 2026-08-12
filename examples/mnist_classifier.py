@@ -12,9 +12,9 @@ from pyfenn.utils import (get_views, get_latency_spikes, load_and_push,
 from tqdm.auto import tqdm
 
 num_timesteps = 79
-input_shape = 28 * 28
-hidden_shape = 128
-output_shape = 10
+input_shape = (28 * 28,)
+hidden_shape = (128,)
+output_shape = (10,)
 input_hidden_shape = (input_shape, hidden_shape)
 hidden_output_shape = (hidden_shape, output_shape)
 
