@@ -40,6 +40,9 @@ std::vector<size_t> getStride(const std::vector<size_t> &shape, size_t elementSi
         stride *= shape[i];
     }
 
+    // Now reverse order of strides
+    std::reverse(strides.begin(), strides.end());
+
     return strides;
 }
 }
