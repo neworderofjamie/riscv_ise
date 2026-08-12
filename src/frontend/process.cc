@@ -266,11 +266,11 @@ void NeuronUpdateProcess::constrainSplitDimensions(std::unordered_map<std::share
 //----------------------------------------------------------------------------
 // EventPropagationProcess
 //----------------------------------------------------------------------------
-EventPropagationProcess::EventPropagationProcess(Private, Sliced<EventSource> inputEventSource, 
+EventPropagationProcess::EventPropagationProcess(Private, std::shared_ptr<const EventSource> inputEventSource, 
                                                  Sliced<Variable> target, const std::string &name)
 :   Process(name), m_InputEventSource(inputEventSource),  m_Target(target)
 {
-    if(getInputEventSource().getUnderlying() == nullptr) {
+    if(getInputEventSource() == nullptr) {
         throw std::runtime_error("Event propagation process requires input events");
     }
 
@@ -281,12 +281,12 @@ EventPropagationProcess::EventPropagationProcess(Private, Sliced<EventSource> in
 //----------------------------------------------------------------------------
 std::vector<std::shared_ptr<const State>> EventPropagationProcess::getAllState() const
 {
-    return {getInputEventSource().getUnderlying(), getTarget().getUnderlying()};
+    return {getInputEventSource(), getTarget().getUnderlying()};
 }
 //----------------------------------------------------------------------------
 std::vector<std::shared_ptr<const EventSource>> EventPropagationProcess::getAllEventSources() const
 {
-    return {getInputEventSource().getUnderlying()};
+    return {getInputEventSource()};
 }
 //----------------------------------------------------------------------------
 std::vector<Sliced<EventSink>> EventPropagationProcess::getAllEventSinks() const
@@ -300,7 +300,7 @@ void EventPropagationProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, 
     UPDATE_HASH_CLASS_NAME(EventPropagationProcess);
 
     // Input events
-    getInputEventSource().updateMergeHash(hash);
+    getInputEventSource()->updateMergeHash(hash);
 
     // Targets
     getTarget().updateMergeHash(hash);
@@ -323,7 +323,7 @@ void EventPropagationProcess::updateCompatibleSplitDimensions(std::shared_ptr<co
     }
     // Otherwise, if it's input event source, we should receive all splits
     else {
-        assert(state == getInputEventSource().getUnderlying());
+        assert(state == getInputEventSource());
         compatibleSplitDimensions = 0;
     }
 }

@@ -1002,7 +1002,7 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
 //----------------------------------------------------------------------------
 // FeNN::Backend::DenseEventPropagationProcess
 //----------------------------------------------------------------------------
-DenseEventPropagationProcess::DenseEventPropagationProcess(Private, Frontend::Sliced<Frontend::EventSource> inputEventSource, 
+DenseEventPropagationProcess::DenseEventPropagationProcess(Private, std::shared_ptr<const Frontend::EventSource>  inputEventSource, 
                                                            Frontend::VariablePtr weight, Frontend::Sliced<Frontend::Variable> target, 
                                                            const std::string &name)
 :   EventPropagationProcess(Private(), inputEventSource, target, name), m_Weight(weight)
@@ -1015,7 +1015,7 @@ DenseEventPropagationProcess::DenseEventPropagationProcess(Private, Frontend::Sl
         throw std::runtime_error("Dense event propagation process requires weight variable with a 2D shape");
     }
 
-    if (getInputEventSource().getShape().size() != 1) {
+    if (getInputEventSource()->getShape().size() != 1) {
         throw std::runtime_error("Dense event propagation process requires source events with a 1D shape");
     }  
 
@@ -1024,10 +1024,10 @@ DenseEventPropagationProcess::DenseEventPropagationProcess(Private, Frontend::Sl
     } 
 
     // Check weight shape matches input event shape
-    if(getWeight()->getShape()[0] != getInputEventSource().getShape()[0]) {
+    if(getWeight()->getShape()[0] != getInputEventSource()->getShape()[0]) {
         throw std::runtime_error("Weight with shape: " + Frontend::Shape::toString(getWeight()->getShape())
                                  + " is not compatible with event source with shape: " 
-                                 + Frontend::Shape::toString(getInputEventSource().getShape()));
+                                 + Frontend::Shape::toString(getInputEventSource()->getShape()));
     }
 
     // Check weight shape matches target shape
@@ -1175,7 +1175,7 @@ void DenseEventPropagationProcess::generateArchetypeCode(const Frontend::MergedP
 //----------------------------------------------------------------------------
 std::vector<std::shared_ptr<const Frontend::State>> DenseEventPropagationProcess::getAllState() const
 {
-    return {getInputEventSource().getUnderlying(), getWeight(), getTarget().getUnderlying()};
+    return {getInputEventSource(), getWeight(), getTarget().getUnderlying()};
 }
 //----------------------------------------------------------------------------
 void DenseEventPropagationProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Frontend::Model &model) const
@@ -1231,14 +1231,14 @@ void DenseEventPropagationProcess::updateCompatibleMemSpace(std::shared_ptr<cons
         compatibleMemSpaces &= (MemSpace::LLM | MemSpace::URAM);
     }
     else {
-        assert(state == getInputEventSource().getUnderlying());
+        assert(state == getInputEventSource());
     }
 }
 
 //----------------------------------------------------------------------------
 // FeNN::Backend::SparseEventPropagationProcess
 //----------------------------------------------------------------------------
-SparseEventPropagationProcess::SparseEventPropagationProcess(Private, Frontend::Sliced<Frontend::EventSource> inputEventSource, 
+SparseEventPropagationProcess::SparseEventPropagationProcess(Private, std::shared_ptr<const Frontend::EventSource> inputEventSource, 
                                                              Frontend::VariablePtr weight, Frontend::Sliced<Frontend::Variable> target, 
                                                              size_t numSparseConnectivityBits, const std::string &name)
 :   EventPropagationProcess(Private(), inputEventSource, target, name), m_Weight(weight), m_NumSparseConnectivityBits(numSparseConnectivityBits)
@@ -1251,7 +1251,7 @@ SparseEventPropagationProcess::SparseEventPropagationProcess(Private, Frontend::
         throw std::runtime_error("Sparse event propagation process requires weight variable with a 2D shape");
     }
 
-    if (getInputEventSource().getShape().size() != 1) {
+    if (getInputEventSource()->getShape().size() != 1) {
         throw std::runtime_error("Sparse event propagation process requires source events with a 1D shape");
     }  
 
@@ -1260,10 +1260,10 @@ SparseEventPropagationProcess::SparseEventPropagationProcess(Private, Frontend::
     } 
 
     // Check weight shape matches input event shape
-    if(getWeight()->getShape()[0] != getInputEventSource().getShape()[0]) {
+    if(getWeight()->getShape()[0] != getInputEventSource()->getShape()[0]) {
         throw std::runtime_error("Weight with shape: " + Frontend::Shape::toString(getWeight()->getShape()) 
                                  + " is not compatible with event source with shape: " 
-                                 + Frontend::Shape::toString(getInputEventSource().getShape()));
+                                 + Frontend::Shape::toString(getInputEventSource()->getShape()));
     }
 
     // Check weight shape is less than or equal to target shape
@@ -1419,7 +1419,7 @@ void SparseEventPropagationProcess::generateArchetypeCode(const Frontend::Merged
 //----------------------------------------------------------------------------
 std::vector<std::shared_ptr<const Frontend::State>> SparseEventPropagationProcess::getAllState() const
 {
-    return {getInputEventSource().getUnderlying(), getWeight(), getTarget().getUnderlying()};
+    return {getInputEventSource(), getWeight(), getTarget().getUnderlying()};
 }
 //----------------------------------------------------------------------------
 void SparseEventPropagationProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Frontend::Model &model) const
@@ -1478,7 +1478,7 @@ void SparseEventPropagationProcess::updateCompatibleMemSpace(std::shared_ptr<con
         compatibleMemSpaces &= MemSpace::LLM;
     }
     else {
-        assert(state == getInputEventSource().getUnderlying());
+        assert(state == getInputEventSource());
     }
 }
 
@@ -1486,7 +1486,7 @@ void SparseEventPropagationProcess::updateCompatibleMemSpace(std::shared_ptr<con
 //----------------------------------------------------------------------------
 // FeNN::Backend::DelayEventPropagationProcess
 //----------------------------------------------------------------------------
-DelayEventPropagationProcess::DelayEventPropagationProcess(Private, Frontend::Sliced<Frontend::EventSource> inputEventSource, 
+DelayEventPropagationProcess::DelayEventPropagationProcess(Private, std::shared_ptr<const Frontend::EventSource> inputEventSource, 
                                                            Frontend::VariablePtr weight, Frontend::Sliced<Frontend::Variable> target, 
                                                            size_t numDelayBits, const std::string &name)
 :   EventPropagationProcess(Private(), inputEventSource, target, name), m_Weight(weight), m_NumDelayBits(numDelayBits)
@@ -1499,7 +1499,7 @@ DelayEventPropagationProcess::DelayEventPropagationProcess(Private, Frontend::Sl
         throw std::runtime_error("Delayed event propagation process requires weight variable with a 2D shape");
     }
 
-    if (getInputEventSource().getShape().size() != 1) {
+    if (getInputEventSource()->getShape().size() != 1) {
         throw std::runtime_error("Delayed event propagation process requires source events with a 1D shape");
     }  
 
@@ -1517,10 +1517,10 @@ DelayEventPropagationProcess::DelayEventPropagationProcess(Private, Frontend::Sl
     }
 
     // Check weight shape matches input event shape
-    if(getWeight()->getShape()[0] != getInputEventSource().getShape()[0]) {
+    if(getWeight()->getShape()[0] != getInputEventSource()->getShape()[0]) {
         throw std::runtime_error("Weight with shape: " + Frontend::Shape::toString(getWeight()->getShape()) 
                                  + " is not compatible with event source with shape: " 
-                                 + Frontend::Shape::toString(getInputEventSource().getShape()));
+                                 + Frontend::Shape::toString(getInputEventSource()->getShape()));
     }
 
     // Check weight shape is less than or equal to target 
@@ -1685,7 +1685,7 @@ void DelayEventPropagationProcess::generateArchetypeCode(const Frontend::MergedP
 //----------------------------------------------------------------------------
 std::vector<std::shared_ptr<const Frontend::State>> DelayEventPropagationProcess::getAllState() const
 {
-    return {getInputEventSource().getUnderlying(), getWeight(), getTarget().getUnderlying()};
+    return {getInputEventSource(), getWeight(), getTarget().getUnderlying()};
 }
 //----------------------------------------------------------------------------
 void DelayEventPropagationProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Frontend::Model &model) const
@@ -1747,7 +1747,7 @@ void DelayEventPropagationProcess::updateCompatibleMemSpace(std::shared_ptr<cons
         compatibleMemSpaces &= MemSpace::LLM;
     }
     else {
-        assert(state == getInputEventSource().getUnderlying());
+        assert(state == getInputEventSource());
     }
 }
 //----------------------------------------------------------------------------

@@ -198,7 +198,7 @@ private:
 class FRONTEND_EXPORT EventPropagationProcess : public Process
 {
 public:
-    EventPropagationProcess(Private, Sliced<EventSource> inputEventSource, 
+    EventPropagationProcess(Private, std::shared_ptr<const EventSource> inputEventSource, 
                             Sliced<Variable> target, const std::string &name);
 
     //------------------------------------------------------------------------
@@ -241,7 +241,7 @@ private:
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
-    Sliced<EventSource> m_InputEventSource;
+    std::shared_ptr<const EventSource> m_InputEventSource;
 
     Sliced<Variable> m_Target;
     

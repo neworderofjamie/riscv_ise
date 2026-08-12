@@ -185,7 +185,7 @@ public:
 class FENN_BACKEND_EXPORT DenseEventPropagationProcess : public Frontend::EventPropagationProcess, public EventDrivenProcessImplementation
 {
 public:
-    DenseEventPropagationProcess(Private, Frontend::Sliced<Frontend::EventSource> inputEventSource, 
+    DenseEventPropagationProcess(Private, std::shared_ptr<const Frontend::EventSource> inputEventSource, 
                                  Frontend::VariablePtr weight, Frontend::Sliced<Frontend::Variable> target, 
                                  const std::string &name);
 
@@ -232,7 +232,7 @@ public:
     //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------
-    static std::shared_ptr<DenseEventPropagationProcess> create(Frontend::Sliced<Frontend::EventSource> inputEventSource, 
+    static std::shared_ptr<DenseEventPropagationProcess> create(std::shared_ptr<const Frontend::EventSource> inputEventSource, 
                                                                 Frontend::VariablePtr weight, Frontend::Sliced<Frontend::Variable> target, 
                                                                 const std::string &name = "")
     {
@@ -252,7 +252,7 @@ private:
 class FENN_BACKEND_EXPORT SparseEventPropagationProcess : public Frontend::EventPropagationProcess, public EventDrivenProcessImplementation
 {
 public:
-    SparseEventPropagationProcess(Private, Frontend::Sliced<Frontend::EventSource> inputEventSource, 
+    SparseEventPropagationProcess(Private, std::shared_ptr<const Frontend::EventSource> inputEventSource, 
                                   Frontend::VariablePtr weight, Frontend::Sliced<Frontend::Variable> target, 
                                   size_t numSparseConnectivityBits, const std::string &name);
 
@@ -300,7 +300,7 @@ public:
     //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------
-    static std::shared_ptr<SparseEventPropagationProcess> create(Frontend::Sliced<Frontend::EventSource> inputEventSource, 
+    static std::shared_ptr<SparseEventPropagationProcess> create(std::shared_ptr<const Frontend::EventSource> inputEventSource, 
                                                                  Frontend::VariablePtr weight, Frontend::Sliced<Frontend::Variable> target, 
                                                                  size_t numSparseConnectivityBits, const std::string &name = "")
     {
@@ -321,7 +321,7 @@ private:
 class FENN_BACKEND_EXPORT DelayEventPropagationProcess : public Frontend::EventPropagationProcess, public EventDrivenProcessImplementation
 {
 public:
-    DelayEventPropagationProcess(Private, Frontend::Sliced<Frontend::EventSource> inputEventSource, 
+    DelayEventPropagationProcess(Private, std::shared_ptr<const Frontend::EventSource>inputEventSource, 
                                  Frontend::VariablePtr weight, Frontend::Sliced<Frontend::Variable> target, 
                                  size_t numDelayBits, const std::string &name);
 
@@ -369,9 +369,9 @@ public:
     //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------
-    static std::shared_ptr<DelayEventPropagationProcess> create(Frontend::Sliced<Frontend::EventSource> inputEventSource, 
-                                                                 Frontend::VariablePtr weight, Frontend::Sliced<Frontend::Variable> target, 
-                                                                 size_t numDelayBits, const std::string &name = "")
+    static std::shared_ptr<DelayEventPropagationProcess> create(std::shared_ptr<const Frontend::EventSource>inputEventSource, 
+                                                                Frontend::VariablePtr weight, Frontend::Sliced<Frontend::Variable> target, 
+                                                                size_t numDelayBits, const std::string &name = "")
     {
         return std::make_shared<DelayEventPropagationProcess>(Private(), inputEventSource, weight, target, numDelayBits, name);
     }
