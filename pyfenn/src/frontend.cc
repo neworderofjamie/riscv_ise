@@ -52,10 +52,10 @@ class PyAppender : public plog::IAppender
 public: 
     using plog::IAppender::IAppender;
 
-	virtual void write(const plog::Record& record) override 
-	{ 
-		PYBIND11_OVERRIDE_PURE(void, plog::IAppender, write, std::cref(record)); 
-	}
+    virtual void write(const plog::Record& record) override 
+    { 
+        PYBIND11_OVERRIDE_PURE(void, plog::IAppender, write, std::cref(record)); 
+    }
 };
 }
 
@@ -80,22 +80,22 @@ PYBIND11_MODULE(_frontend, m)
     // Free functions
     //------------------------------------------------------------------------
     m.def("init_logging", &Common::Logging::init,
-		  pybind11::arg("frontend_level"), pybind11::arg("compiler_frontend_level"), 
+          pybind11::arg("frontend_level"), pybind11::arg("compiler_frontend_level"), 
           pybind11::arg("frontend_appender"), pybind11::arg("compiler_frontend_appender"));
-    
-	//------------------------------------------------------------------------
-	// frontend.Record
-	//------------------------------------------------------------------------
+
+    //------------------------------------------------------------------------
+    // frontend.Record
+    //------------------------------------------------------------------------
     pybind11::class_<plog::Record>(m, "Record")
         .def_property_readonly("time", &plog::Record::getTime)
-		.def_property_readonly("severity", &plog::Record::getSeverity)
-		.def_property_readonly("tid", &plog::Record::getTid)
-		.def_property_readonly("line", &plog::Record::getLine)
-		.def_property_readonly("message", &plog::Record::getMessage)
-		.def_property_readonly("func", &plog::Record::getFunc)
-		.def_property_readonly("file", &plog::Record::getFile);
+        .def_property_readonly("severity", &plog::Record::getSeverity)
+        .def_property_readonly("tid", &plog::Record::getTid)
+        .def_property_readonly("line", &plog::Record::getLine)
+        .def_property_readonly("message", &plog::Record::getMessage)
+        .def_property_readonly("func", &plog::Record::getFunc)
+        .def_property_readonly("file", &plog::Record::getFile);
 
-	//------------------------------------------------------------------------
+    //------------------------------------------------------------------------
     // frontend.IAppender
     //------------------------------------------------------------------------
     pybind11::class_<plog::IAppender, PyAppender>(m, "IAppender")
@@ -129,36 +129,36 @@ PYBIND11_MODULE(_frontend, m)
     pybind11::implicitly_convertible<const std::string&, CompilerFrontend::Type::UnresolvedType>();
     pybind11::implicitly_convertible<const CompilerFrontend::Type::ResolvedType&, CompilerFrontend::Type::UnresolvedType>();
 
-	//------------------------------------------------------------------------
+    //------------------------------------------------------------------------
     // frontend.ModelComponent
     //------------------------------------------------------------------------
-	pybind11::class_<Frontend::ModelComponent, std::shared_ptr<Frontend::ModelComponent>>(m, "ModelComponent")
-		WRAP_PROPERTY_RO("name", Frontend, ModelComponent, Name);
-	
-	//------------------------------------------------------------------------
+    pybind11::class_<Frontend::ModelComponent, std::shared_ptr<Frontend::ModelComponent>>(m, "ModelComponent")
+        WRAP_PROPERTY_RO("name", Frontend, ModelComponent, Name);
+
+    //------------------------------------------------------------------------
     // frontend.State
     //------------------------------------------------------------------------
-	pybind11::class_<Frontend::State, Frontend::ModelComponent, std::shared_ptr<Frontend::State>>(m, "State")
-		WRAP_PROPERTY_GETTER("shape", Frontend, State, Shape);
-		
+    pybind11::class_<Frontend::State, Frontend::ModelComponent, std::shared_ptr<Frontend::State>>(m, "State")
+        WRAP_PROPERTY_GETTER("shape", Frontend, State, Shape);
+        
     //------------------------------------------------------------------------
     // frontend.Variable
     //------------------------------------------------------------------------
     pybind11::class_<Frontend::Variable, Frontend::State, std::shared_ptr<Frontend::Variable>>(m, "Variable")
         WRAP_PROPERTY_RO("type", Frontend, Variable, Type);
     
-	//------------------------------------------------------------------------
+    //------------------------------------------------------------------------
     // frontend.SlicedVariable
     //------------------------------------------------------------------------
-	pybind11::class_<Frontend::Sliced<Frontend::Variable>>(m, "SlicedVariable")
+    pybind11::class_<Frontend::Sliced<Frontend::Variable>>(m, "SlicedVariable")
         .def(pybind11::init<std::shared_ptr<const Frontend::Variable>, bool>(),
              pybind11::arg("underlying"), pybind11::arg("timeSlice") = false)
-		 
-		.def_property_readonly("underlying", &Frontend::Sliced<Frontend::Variable>::getUnderlying, DOC(Frontend, Sliced, m_Underlying))
-		.def_property_readonly("shape", &Frontend::Sliced<Frontend::Variable>::getShape, DOC(Frontend, Sliced, m_Shape));
-	
-	pybind11::implicitly_convertible<std::shared_ptr<const Frontend::Variable>, Frontend::Sliced<Frontend::Variable>>();
-	
+         
+        .def_property_readonly("underlying", &Frontend::Sliced<Frontend::Variable>::getUnderlying, DOC(Frontend, Sliced, m_Underlying))
+        .def_property_readonly("shape", &Frontend::Sliced<Frontend::Variable>::getShape, DOC(Frontend, Sliced, m_Shape));
+
+    pybind11::implicitly_convertible<std::shared_ptr<const Frontend::Variable>, Frontend::Sliced<Frontend::Variable>>();
+
     //------------------------------------------------------------------------
     // frontend.EventSink
     //------------------------------------------------------------------------
@@ -185,18 +185,18 @@ PYBIND11_MODULE(_frontend, m)
     //------------------------------------------------------------------------
     pybind11::class_<Frontend::EventChannel, Frontend::EventSource, Frontend::EventSink, std::shared_ptr<Frontend::EventChannel>>(m, "EventChannel")
         WRAP_PROPERTY_RO_SHOULD("record", Frontend, EventChannel, Record);
-	
-	//------------------------------------------------------------------------
+
+    //------------------------------------------------------------------------
     // frontend.SlicedEventSink
     //------------------------------------------------------------------------
-	pybind11::class_<Frontend::Sliced<Frontend::EventSink>>(m, "SlicedEventSink")
+    pybind11::class_<Frontend::Sliced<Frontend::EventSink>>(m, "SlicedEventSink")
         .def(pybind11::init<std::shared_ptr<const Frontend::EventSink>, bool>(),
              pybind11::arg("underlying"), pybind11::arg("timeSlice") = false)
-		 
-		.def_property_readonly("underlying", &Frontend::Sliced<Frontend::EventSink>::getUnderlying, DOC(Frontend, Sliced, m_Underlying))
-		.def_property_readonly("shape", &Frontend::Sliced<Frontend::EventSink>::getShape, DOC(Frontend, Sliced, m_Shape));
-	
-	pybind11::implicitly_convertible<std::shared_ptr<const Frontend::EventSink>, Frontend::Sliced<Frontend::EventSink>>();
+         
+        .def_property_readonly("underlying", &Frontend::Sliced<Frontend::EventSink>::getUnderlying, DOC(Frontend, Sliced, m_Underlying))
+        .def_property_readonly("shape", &Frontend::Sliced<Frontend::EventSink>::getShape, DOC(Frontend, Sliced, m_Shape));
+
+    pybind11::implicitly_convertible<std::shared_ptr<const Frontend::EventSink>, Frontend::Sliced<Frontend::EventSink>>();
 
     //------------------------------------------------------------------------
     // frontend.Process
@@ -265,17 +265,17 @@ PYBIND11_MODULE(_frontend, m)
     // frontend.ArrayBase
     //------------------------------------------------------------------------
     pybind11::class_<Frontend::ArrayBase>(m, "ArrayBase", pybind11::buffer_protocol())
-		.def_buffer(
-			[](Frontend::ArrayBase &m)
-			{
-				return py::buffer_info(
-					m.getHostPointer(),                     // Pointer to buffer
-					m.getType().getSize(),					// Size of one scalar
-					py::format_descriptor<float>::format(), /* Python struct-style format descriptor */
-					m.getShape().size(),                    // Number of dimensions
-					m.getShape(),							// Buffer dimensions */
-					m.getStride());             			// Strides (in bytes) for each index
-			})
+        .def_buffer(
+            [](Frontend::ArrayBase &m)
+            {
+                return pybind11::buffer_info(
+                m.getHostPointer(),                     // Pointer to buffer
+                m.getType().getSize(),                  // Size of one scalar
+                m.getType().getNumeric().pythonFormat,  // Python struct-style format descriptor */
+                m.getShape().size(),                    // Number of dimensions
+                m.getShape(),                           // Buffer dimensions
+                m.getStrides());                        // Strides (in bytes) for each index
+            })
 
         WRAP_METHOD("push_to_device", Frontend, ArrayBase, pushToDevice)
         WRAP_METHOD("pull_from_device", Frontend, ArrayBase, pullFromDevice);

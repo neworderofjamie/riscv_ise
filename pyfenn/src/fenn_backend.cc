@@ -59,18 +59,18 @@ PYBIND11_MODULE(_fenn_backend, m)
         WRAP_ENUM(Compiler, RoundingMode, NEAREST)
         WRAP_ENUM(Compiler, RoundingMode, STOCHASTIC);
 
-	//------------------------------------------------------------------------
+    //------------------------------------------------------------------------
     // Free functions
     //------------------------------------------------------------------------
-	m.def("init_logging", &FeNN::Common::Logging::init,
-		  pybind11::arg("common_level"), pybind11::arg("assembler_level"), 
+    m.def("init_logging", &FeNN::Common::Logging::init,
+          pybind11::arg("common_level"), pybind11::arg("assembler_level"), 
           pybind11::arg("backend_level"), pybind11::arg("compiler_level"),
-		  pybind11::arg("ise_level"), pybind11::arg("common_appender"), 
-		  pybind11::arg("assembler_appender"), 
-		  pybind11::arg("backend_appender"), 
-		  pybind11::arg("compiler_appender"), pybind11::arg("ise_appender"));
-	
-	m.def("disassemble", 
+          pybind11::arg("ise_level"), pybind11::arg("common_appender"), 
+          pybind11::arg("assembler_appender"), 
+          pybind11::arg("backend_appender"), 
+          pybind11::arg("compiler_appender"), pybind11::arg("ise_appender"));
+
+    m.def("disassemble", 
         [](uint32_t instruction) -> std::optional<std::string> 
         {
             try {
@@ -132,14 +132,14 @@ PYBIND11_MODULE(_fenn_backend, m)
              pybind11::arg("weight"), pybind11::arg("target"),
              pybind11::arg("name") = "");
     
-	//------------------------------------------------------------------------
+    //------------------------------------------------------------------------
     // fenn_backend.SparseEventPropagationProcess
     //------------------------------------------------------------------------
     pybind11::class_<Backend::SparseEventPropagationProcess, Frontend::EventPropagationProcess, std::shared_ptr<Backend::SparseEventPropagationProcess>>(m, "SparseEventPropagationProcess", pybind11::multiple_inheritance())
         .def(pybind11::init(&Backend::SparseEventPropagationProcess::create),
              pybind11::arg("input_event_source"), 
              pybind11::arg("weight"), pybind11::arg("target"),
-			 pybind11::arg("num_sparse_connectivity_bits"),
+             pybind11::arg("num_sparse_connectivity_bits"),
              pybind11::arg("name") = "");
 
     //------------------------------------------------------------------------
@@ -183,7 +183,7 @@ PYBIND11_MODULE(_fenn_backend, m)
     // fenn_backend.Runtime
     //------------------------------------------------------------------------
     pybind11::class_<Backend::Runtime, Frontend::Runtime>(m, "Runtime")
-		WRAP_METHOD("get_kernel_code", Backend, Runtime, getKernelCode);
+        WRAP_METHOD("get_kernel_code", Backend, Runtime, getKernelCode);
 
     //------------------------------------------------------------------------
     // fenn_backend.RuntimeHW
@@ -209,5 +209,4 @@ PYBIND11_MODULE(_fenn_backend, m)
              pybind11::arg("keep_params_in_registers") = true,
              pybind11::arg("neuron_update_rounding_mode") = Compiler::RoundingMode::NEAREST,
              pybind11::arg("dma_buffer_size") = 512 * 1024);
-
 }
