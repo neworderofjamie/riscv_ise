@@ -24,7 +24,7 @@ TEST(Model, StateProcess)
     const std::vector<size_t> outputShape(10);
 
     // Input spikes
-    const auto inputSpikes = EventSourceBuffer::create(inputShape);
+    const auto inputSpikes = EventSourceBuffer::create(inputShape, 20);
 
     // Hidden neurons
     const double alpha = std::exp(-1.0 / 20.0);

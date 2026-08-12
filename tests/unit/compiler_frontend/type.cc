@@ -38,3 +38,24 @@ TEST(Type, writeNumeric)
         },
         std::runtime_error);
 }
+//--------------------------------------------------------------------------
+TEST(Type, pythonFormamt)
+{
+    EXPECT_EQ(Type::Bool.getNumeric().pythonFormat, "?");
+
+    EXPECT_EQ(Type::Int8.getNumeric().pythonFormat, "b");
+    EXPECT_EQ(Type::Int16.getNumeric().pythonFormat, "h");
+    EXPECT_EQ(Type::Int32.getNumeric().pythonFormat, "i");
+    EXPECT_EQ(Type::Int64.getNumeric().pythonFormat, "q");
+
+    EXPECT_EQ(Type::Uint8.getNumeric().pythonFormat, "B");
+    EXPECT_EQ(Type::Uint16.getNumeric().pythonFormat, "H");
+    EXPECT_EQ(Type::Uint32.getNumeric().pythonFormat, "I");
+    EXPECT_EQ(Type::Uint64.getNumeric().pythonFormat, "Q");
+
+    EXPECT_EQ(Type::S0_15.getNumeric().pythonFormat, "h");
+    EXPECT_EQ(Type::S14_1Sat.getNumeric().pythonFormat, "h");
+
+    EXPECT_EQ(Type::Float.getNumeric().pythonFormat, "f");
+    EXPECT_EQ(Type::Double.getNumeric().pythonFormat, "d");
+}
