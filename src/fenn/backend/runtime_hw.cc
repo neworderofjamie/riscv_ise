@@ -109,8 +109,8 @@ public:
     {
         // Allocate if count is specified
         if(getSizeBytes() > 0) {
-            // Allocate memory for host pointer
-            setHostPointer(new uint8_t[getSizeBytes()]);
+            // Allocate memory for host pointer, padding to match BRAM alignement
+            setHostPointer(new uint8_t[::Common::Utils::padSize(getSizeBytes(), 4)]);
 
             // Allocate BRAM
             setBRAMPointer(m_Device.get().getBRAMAllocator().allocate(getSizeBytes()));

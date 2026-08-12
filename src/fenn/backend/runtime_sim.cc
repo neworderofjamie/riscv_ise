@@ -44,8 +44,8 @@ public:
     {
         // Allocate if count is specified
         if(getSizeBytes() > 0) {
-            // Allocate memory for host pointer
-            setHostPointer(new uint8_t[getSizeBytes()]);
+            // Allocate memory for host pointer, padding to match URAM padding
+            setHostPointer(new uint8_t[::Common::Utils::padSize(getSizeBytes(), 64)]);
 
             // Allocate URAM
             setURAMPointer(m_Device.get().getURAMAllocator().allocate(getSizeBytes()));
@@ -99,8 +99,8 @@ public:
     {
         // Allocate if count is specified
         if(getSizeBytes() > 0) {
-            // Allocate memory for host pointer
-            setHostPointer(new uint8_t[getSizeBytes()]);
+            // Allocate memory for host pointer, padding to match BRAM padding
+            setHostPointer(new uint8_t[::Common::Utils::padSize(getSizeBytes(), 4)]);
 
             // Allocate BRAM
             setBRAMPointer(m_Device.get().getBRAMAllocator().allocate(getSizeBytes()));
