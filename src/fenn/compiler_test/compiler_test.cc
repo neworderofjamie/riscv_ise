@@ -143,11 +143,11 @@ int main(int argc, char** argv)
 
     constexpr size_t numTimesteps = 79;
     constexpr size_t maxSpikesPerExample = 304;
-    const Shape inputShape{{28 * 28}};
-    const Shape hiddenShape{{128}};
-    const Shape hiddenShapeTime{{numTimesteps + 1, hiddenShape[0]}};
-    const Shape outputShape{{10}};
-    const Shape outputShapeTime{{numTimesteps + 1, outputShape[0]}};
+    const std::vector<size_t> inputShape{{28 * 28}};
+    const std::vector<size_t> hiddenShape{{128}};
+    const std::vector<size_t> hiddenShapeTime{{numTimesteps + 1, hiddenShape[0]}};
+    const std::vector<size_t> outputShape{{10}};
+    const std::vector<size_t> outputShapeTime{{numTimesteps + 1, outputShape[0]}};
 
     
     // Input spikes
@@ -188,15 +188,15 @@ int main(int argc, char** argv)
 
 
     // Connect input spikes to hidden
-    const auto inputHiddenWeight = Backend::Variable::create(Frontend::Shape({inputShape[0], hiddenShape[0]}), Type::S10_5Sat, "inputHiddenWeight");
-    const auto inputHidden = Backend::DenseEventPropagationProcess::create(Sliced<EventSource>(inputSpikes),
+    const auto inputHiddenWeight = Backend::Variable::create({inputShape[0], hiddenShape[0]}, Type::S10_5Sat, "inputHiddenWeight");
+    const auto inputHidden = Backend::DenseEventPropagationProcess::create(inputSpikes,
                                                                            inputHiddenWeight,
                                                                            Sliced<Variable>(hiddenI),
                                                                            "inputHidden");
 
     // Connect hidden spikes to output
-    const auto hiddenOutputWeight = Backend::Variable::create(Frontend::Shape({hiddenShape[0], 32}), Type::S9_6Sat, "hiddenOutputWeight");
-    const auto hiddenOutput = Backend::DenseEventPropagationProcess::create(Sliced<EventSource>(hiddenSpikes, record),
+    const auto hiddenOutputWeight = Backend::Variable::create({hiddenShape[0], 32}, Type::S9_6Sat, "hiddenOutputWeight");
+    const auto hiddenOutput = Backend::DenseEventPropagationProcess::create(hiddenSpikes,
                                                                             hiddenOutputWeight,
                                                                             Sliced<Variable>(outputI),
                                                                             "hiddenOutput");
