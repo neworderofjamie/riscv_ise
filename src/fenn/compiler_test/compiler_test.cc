@@ -78,7 +78,9 @@ void loadAndPush(const std::string &filename, std::shared_ptr<const State> state
 
     // Get array
     for(auto *a : runtime->getArrays(state)) {
-        assert(a->getSizeBytes() == data.size());
+        if (a->getSizeBytes() != data.size()) {
+            LOGW << "Loading " << data.size() << " byte '" << filename << "' into " << a->getSizeBytes() << " byte  state '" << state->getName() << "'";
+        }
 
         // Copy data to array host pointer
         std::copy(data.cbegin(), data.cend(), a->getHostPointer());
