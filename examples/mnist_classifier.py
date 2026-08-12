@@ -29,7 +29,7 @@ mnist.datasets_url = "https://storage.googleapis.com/cvdf-datasets/mnist/"
 mnist_spikes, max_spike_array_length = get_latency_spikes(mnist.test_images())
 mnist_labels = mnist.test_labels().astype(np.int16)
 
-log_appender = PythonLogAppender()
+log_appender = backend.ConsoleAppender()#PythonLogAppender()
 backend.init_logging(log_appender, backend.PlogSeverity.DEBUG)
 
 # Input spikes
@@ -65,6 +65,7 @@ if args.disassemble:
 # Allocate memory for model
 runtime.allocate()
 
+    
 # Load weights
 load_and_push("mnist_in_hid.bin", input_hidden.weight, runtime)
 load_and_push("mnist_hid_out.bin", hidden_output.weight, runtime)
@@ -84,10 +85,10 @@ if args.time:
     zero_and_push(zero_processes.performance_counter, runtime)
 
 # Loop through examples
-input_spike_views = get_views(runtime, input_spikes, np.uint16)
+input_spike_views = get_views(runtime, input_spikes)
 assert len(input_spike_views) == 1
 
-output_v_avg_views = get_views(runtime, output.v_avg, np.int16)
+output_v_avg_views = get_views(runtime, output.v_avg)
 assert len(output_v_avg_views) == 1
 num_correct = 0
 for i in tqdm(range(len(mnist_labels))):
