@@ -196,6 +196,13 @@ PYBIND11_MODULE(_frontend, m)
     // frontend.EventChannelSource
     //------------------------------------------------------------------------
     pybind11::class_<Frontend::EventChannelSource, Frontend::EventSource, std::shared_ptr<Frontend::EventChannelSource>>(m, "EventChannelSource");
+    
+    //------------------------------------------------------------------------
+    // frontend.EventChanne
+    //------------------------------------------------------------------------
+    pybind11::class_<Frontend::EventChannel, Frontend::ModelComponent, std::shared_ptr<Frontend::EventChannel>>(m, "EventChannel")
+        WRAP_PROPERTY_RO("sink", Frontend, EventChannel, Sink)
+        WRAP_PROPERTY_RO("source", Frontend, EventChannel, Source);
 
     //------------------------------------------------------------------------
     // frontend.SlicedEventSink

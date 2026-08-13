@@ -12,8 +12,9 @@ class LIF:
         self.i = backend.Variable(self.shape, dtype, name=f"{name}_i")
         self.refrac_time = backend.Variable(self.shape, "int16_t",
                                             name=f"{name}_refrac_time")
-        self.out_spikes = backend.EventChannel(self.shape,
-                                               name=f"{name}_out_spikes")
+        channel = backend.EventChannel(self.shape, self.shape,
+                                       name=f"{name}_out_spikes")
+        self.out_spikes = channel.source
         self.process = backend.NeuronUpdateProcess(
             f"""
             V = ({np.exp(-dt / tau_m)}h{fixed_point} * V) + I;
@@ -28,7 +29,7 @@ class LIF:
             }}
             """,
             {"V": self.v, "I": self.i, "RefracTime": self.refrac_time},
-            {"Spike": self.out_spikes},
+            {"Spike": channel.sink},
             name=name)
 
 class ALIF:

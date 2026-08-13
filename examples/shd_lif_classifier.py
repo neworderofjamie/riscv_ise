@@ -26,7 +26,10 @@ class LIF:
         beta = np.exp(-1.0 / tau_syn)
         self.v = backend.Variable(self.shape, dtype, name=f"{name}_v")
         self.i = backend.Variable(self.shape, dtype, name=f"{name}_i")
-        self.out_spikes = backend.EventChannel(self.shape)
+
+        channel = backend.EventChannel(self.shape, self.shape,
+                                       name=f"{name}_out_spikes")
+        self.out_spikes = channel.source
         self.process = backend.NeuronUpdateProcess(
             f"""
             // Synapse
@@ -42,7 +45,7 @@ class LIF:
             }}
             """,
             {"V": self.v, "I": self.i},
-            {"Spike": self.out_spikes},
+            {"Spike": channel.sink},
             name=name)
 
 class LI:

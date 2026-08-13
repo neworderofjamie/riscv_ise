@@ -159,8 +159,8 @@ int main(int argc, char** argv)
     const auto hiddenV = Backend::Variable::create(hiddenShapeTime, Type::S10_5Sat, "hiddenV");
     const auto hiddenI = Backend::Variable::create(hiddenShape, Type::S10_5Sat, "hiddenI");
     const auto hiddenRefracTime = Backend::Variable::create(hiddenShape, Type::Int16, "hiddenRefracTime");
-    const auto hiddenSpikes = Frontend::EventChannel::create<Backend::EventChannelSink, Backend::EventChannelSource>(
-        record ? hiddenShapeTime : hiddenShape, hiddenShape, record, "hiddenSpikes");
+    const auto hiddenSpikes = Backend::EventChannel::create(record ? hiddenShapeTime : hiddenShape,
+                                                            hiddenShape, record, "hiddenSpikes");
     const auto hidden = Backend::NeuronUpdateProcess::create(
         "V = (" + std::to_string(std::exp(-1.0 / 20.0)) + " * V) + I;\n"
         "I = 0.0;\n"

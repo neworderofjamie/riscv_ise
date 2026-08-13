@@ -209,10 +209,11 @@ public:
     //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------
-    template<typename Sink = EventChannelSink, typename Source = EventChannelSource>
-    static std::shared_ptr<EventChannel> create(const std::vector<size_t> &sinkShape, 
-                                                const std::vector<size_t> &sourceShape, 
-                                                bool record = false, const std::string &name = "")
+    template<typename Channel = EventChannel, typename Sink = EventChannelSink, 
+             typename Source = EventChannelSource>
+    static std::shared_ptr<Channel> create(const std::vector<size_t> &sinkShape, 
+                                           const std::vector<size_t> &sourceShape, 
+                                           bool record = false, const std::string &name = "")
     {
         // If we are recording
         if (record) {
@@ -240,14 +241,15 @@ public:
                                                  name.empty() ? "" : name + "_sink");
 
         // Create channel
-        return std::make_shared<EventChannel>(Private(), sink, source, name);
+        return std::make_shared<Channel>(Private(), sink, source, name);
     }
 
-    template<typename Sink = EventChannelSink, typename Source = EventChannelSource>
-    static std::shared_ptr<EventChannel> create(const std::vector<size_t> &shape,
+    template<typename Channel = EventChannel, typename Sink = EventChannelSink, 
+             typename Source = EventChannelSource>
+    static std::shared_ptr<Channel> create(const std::vector<size_t> &shape,
                                                 const std::string &name = "")
     {
-        return create<Sink, Source>(shape, shape, false, name);
+        return create<Channel, Sink, Source>(shape, shape, false, name);
     }
 
 private:

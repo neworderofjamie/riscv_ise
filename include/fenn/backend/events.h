@@ -269,4 +269,36 @@ public:
                               const std::vector<Assembler::ScalarRegisterPtr> &state) const override final;
 };
 
+//----------------------------------------------------------------------------
+// FeNN::Backend::EventChannel
+//----------------------------------------------------------------------------
+//! **NOTE** this class isn't really necessary but it makes binding easier
+class FENN_BACKEND_EXPORT EventChannel : public Frontend::EventChannel
+{
+public:
+    using Frontend::EventChannel::EventChannel;
+
+    //------------------------------------------------------------------------
+    // Static API
+    //------------------------------------------------------------------------
+    static std::shared_ptr<EventChannel> create(const std::vector<size_t> &sinkShape, 
+                                                const std::vector<size_t> &sourceShape, 
+                                                bool record = false, 
+                                                const std::string &name = "")
+    {
+        return Frontend::EventChannel::create<EventChannel, 
+                                              EventChannelSink, 
+                                              EventChannelSource>(
+            sinkShape, sourceShape, record, name);
+    }
+
+    static std::shared_ptr<EventChannel> create(const std::vector<size_t> &shape,
+                                                const std::string &name = "")
+    {
+        return Frontend::EventChannel::create<EventChannel,
+                                              EventChannelSink,
+                                              EventChannelSource>(
+            shape, name);
+    }
+};
 }
