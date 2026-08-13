@@ -159,7 +159,8 @@ int main(int argc, char** argv)
     const auto hiddenV = Backend::Variable::create(hiddenShapeTime, Type::S10_5Sat, "hiddenV");
     const auto hiddenI = Backend::Variable::create(hiddenShape, Type::S10_5Sat, "hiddenI");
     const auto hiddenRefracTime = Backend::Variable::create(hiddenShape, Type::Int16, "hiddenRefracTime");
-    const auto hiddenSpikes = Backend::EventChannel::create(record ? hiddenShapeTime : hiddenShape, record, "hiddenSpikes");
+    const auto hiddenSpikes = Frontend::EventChannel::create<Backend::EventChannelSink, Backend::EventChannelSource>(
+        record ? hiddenShapeTime : hiddenShape, hiddenShape, record, "hiddenSpikes");
     const auto hidden = Backend::NeuronUpdateProcess::create(
         "V = (" + std::to_string(std::exp(-1.0 / 20.0)) + " * V) + I;\n"
         "I = 0.0;\n"
@@ -172,7 +173,7 @@ int main(int argc, char** argv)
         "   RefracTime = 5;\n"
         "}\n",
         {{"V", Sliced<Variable>(hiddenV, true)}, {"I", Sliced<Variable>(hiddenI)}, {"RefracTime", Sliced<Variable>(hiddenRefracTime)}},
-        {{"Spike", Sliced<EventSink>(hiddenSpikes, record)}},
+        {{"Spike", Sliced<EventSink>(hiddenSpikes->getSink(), record)}},
         Type::S10_5Sat, "hidden");
 
     // Output neurons
@@ -198,7 +199,7 @@ int main(int argc, char** argv)
 
     // Connect hidden spikes to output
     const auto hiddenOutputWeight = Backend::Variable::create({hiddenShape[0], outputShape[0]}, Type::S9_6Sat, "hiddenOutputWeight");
-    const auto hiddenOutput = Backend::DenseEventPropagationProcess::create(hiddenSpikes,
+    const auto hiddenOutput = Backend::DenseEventPropagationProcess::create(hiddenSpikes->getSource(),
                                                                             hiddenOutputWeight,
                                                                             Sliced<Variable>(outputI),
                                                                             "hiddenOutput");
@@ -268,7 +269,7 @@ int main(int argc, char** argv)
 
     // Loop through examples
     auto inputSpikeArrays = runtime->getArrays(inputSpikes);
-    auto hiddenSpikeArrays = runtime->getArrays(hiddenSpikes);
+    auto hiddenSpikeArrays = runtime->getArrays(hiddenSpikes->getSink());
     auto outputVAvgArrays = runtime->getArrays(outputVAvg);
     auto outputVAvgHostPtr = outputVAvgArrays[0]->getHostPointer<int16_t>();
 
