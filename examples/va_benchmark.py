@@ -31,7 +31,9 @@ class CUBALIF:
         self.i_exc = backend.Variable(self.shape, "s2_13_sat_t", name=f"{name}_IExc")
         self.i_inh = backend.Variable(self.shape, "s2_13_sat_t", name=f"{name}_IInh")
         self.refrac_time = backend.Variable(self.shape, "int16_t", name=f"{name}_RefracTime")
-        self.out_spikes = backend.EventChannel((num_timesteps + 1,) + self.shape, True)
+        channel = backend.EventChannel((num_timesteps + 1,) + self.shape, self.shape,
+                                       True, name=f"{name}_out_spikes")
+        self.out_spikes = channel.source
         self.process = backend.NeuronUpdateProcess(
             f"""
             s5_10_sat_t inSyn;
@@ -62,7 +64,7 @@ class CUBALIF:
             }}
             """,
             {"V": self.v, "IExc": self.i_exc, "IInh": self.i_inh, "RefracTime": self.refrac_time},
-            {"Spike": backend.SlicedEventSink(self.out_spikes, True)},
+            {"Spike": backend.SlicedEventSink(channel.sink, True)},
             name=name)
 
 parser = ArgumentParser("VA benchmark")
@@ -187,12 +189,10 @@ copy_and_push(ie_conn.flatten(), ie_pop.weight, runtime)
 # Initialise membrane voltages
 # **TODO** use init kernel
 v_thresh_fixed = int(round(10.0 * 2**10))
-num_excitatory_padded = ceil_divide(args.num_excitatory, 32) * 32
-num_inhibitory_padded = ceil_divide(num_inhibitory, 32) * 32
-copy_and_push(np.random.randint(0, v_thresh_fixed, num_excitatory_padded,
+copy_and_push(np.random.randint(0, v_thresh_fixed, args.num_excitatory,
                                 dtype=np.int16),
               e_pop.v, runtime)
-copy_and_push(np.random.randint(0, v_thresh_fixed, num_inhibitory_padded,
+copy_and_push(np.random.randint(0, v_thresh_fixed, num_inhibitory,
                                 dtype=np.int16),
               i_pop.v, runtime)
 
