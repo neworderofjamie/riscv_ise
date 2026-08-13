@@ -48,7 +48,7 @@ Frontend::State::ShapeStride EventSinkImplementation::getBitArrayShapeStride(con
                                                              CompilerFrontend::Type::Uint32.getSize());
 
     // Return tuple of shape and strides
-    return std::make_tuple(shape, strides);
+    return std::make_tuple(wordAlignedShape, strides);
 }
 //----------------------------------------------------------------------------
 std::unique_ptr<Frontend::ArrayBase> EventSinkImplementation::createBitArray(const std::vector<size_t> &shape, std::optional<size_t> splitDimension,
