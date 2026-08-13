@@ -128,7 +128,7 @@ Frontend::State::ShapeStride EventSourceBuffer::getArrayShapeStride(std::optiona
 uint32_t EventSourceBuffer::generateEventLoop(const Frontend::Merged<Frontend::EventSource> &mergedEventSource, const Runtime&, 
                                               const KernelImplementation&, MergedFields &mergedFields, 
                                               Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr preIndReg, 
-                                              Assembler::ScalarRegisterPtr spikeReturnReg, uint32_t,
+                                              Assembler::ScalarRegisterPtr spikeReturnReg, std::optional<uint32_t>,
                                               const std::unordered_map<std::shared_ptr<const Frontend::EventSource>, uint32_t> &eventSourceAddresses,
                                               uint32_t &fieldBase, Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator) const
 {
@@ -346,7 +346,7 @@ Frontend::State::ShapeStride EventChannelSource::getArrayShapeStride(std::option
 uint32_t EventChannelSource::generateEventLoop(const Frontend::Merged<Frontend::EventSource>&, const Runtime &runtime, 
                                                const KernelImplementation &kernel, MergedFields&, 
                                                Assembler::ScalarRegisterPtr, Assembler::ScalarRegisterPtr preIndReg, 
-                                               Assembler::ScalarRegisterPtr spikeReturnReg, uint32_t jumpTableAddress, 
+                                               Assembler::ScalarRegisterPtr spikeReturnReg, std::optional<uint32_t> jumpTableAddress, 
                                                const std::unordered_map<std::shared_ptr<const Frontend::EventSource>, uint32_t>&,
                                                uint32_t&, Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator) const
 {
@@ -396,7 +396,7 @@ uint32_t EventChannelSource::generateEventLoop(const Frontend::Merged<Frontend::
             }
 
             // Jump to correct population handler, storing return address in register
-            c.jalr(*spikeReturnReg, *SEventSinkID, jumpTableAddress);
+            c.jalr(*spikeReturnReg, *SEventSinkID, jumpTableAddress.value());
         }
 
         // Loop until spikes are processed

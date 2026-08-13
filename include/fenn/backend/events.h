@@ -54,7 +54,7 @@ public:
     virtual uint32_t generateEventLoop(const Frontend::Merged<Frontend::EventSource> &mergedEventSource, const Runtime &runtime, 
                                        const KernelImplementation &kernel, MergedFields &mergedFields, 
                                        Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr preIndReg, 
-                                       Assembler::ScalarRegisterPtr spikeReturnReg, uint32_t jumpTableAddress, 
+                                       Assembler::ScalarRegisterPtr spikeReturnReg, std::optional<uint32_t> jumpTableAddress, 
                                        const std::unordered_map<std::shared_ptr<const Frontend::EventSource>, uint32_t> &eventSourceAddresses,
                                        uint32_t &fieldBase, Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator) const = 0;
 };
@@ -133,7 +133,7 @@ public:
     virtual uint32_t generateEventLoop(const Frontend::Merged<Frontend::EventSource> &mergedEventSource, const Runtime &runtime, 
                                        const KernelImplementation &kernel, MergedFields &mergedFields, 
                                        Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr preIndReg, 
-                                       Assembler::ScalarRegisterPtr spikeReturnReg, uint32_t jumpTableAddress, 
+                                       Assembler::ScalarRegisterPtr spikeReturnReg, std::optional<uint32_t> jumpTableAddress, 
                                        const std::unordered_map<std::shared_ptr<const Frontend::EventSource>, uint32_t> &eventSourceAddresses,
                                        uint32_t &fieldBase, Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator) const override final;
 
@@ -221,7 +221,7 @@ public:
     virtual uint32_t generateEventLoop(const Frontend::Merged<Frontend::EventSource> &mergedEventSource, const Runtime &runtime, 
                                        const KernelImplementation &kernel, MergedFields &mergedFields, 
                                        Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr preIndReg, 
-                                       Assembler::ScalarRegisterPtr spikeReturnReg, uint32_t jumpTableAddress, 
+                                       Assembler::ScalarRegisterPtr spikeReturnReg, std::optional<uint32_t> jumpTableAddress, 
                                        const std::unordered_map<std::shared_ptr<const Frontend::EventSource>, uint32_t> &eventSourceAddresses,
                                        uint32_t &fieldBase, Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator) const override final;
 

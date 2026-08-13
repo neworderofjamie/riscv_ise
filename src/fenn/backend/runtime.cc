@@ -342,7 +342,7 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                              // Generate event processing loops
                                              eventLoopScalarRegisterMask |= m.template getArchetype<EventSourceImplementation>()->generateEventLoop(
                                                  m, *this, *ki, mergedEventSourceFields.first->second.back().second,
-                                                 timeRegister, SPreIndex, SSpikeReturn, c.getAddress(jumpTable).value(), eventSourceAddresses,
+                                                 timeRegister, SPreIndex, SSpikeReturn, c.getAddress(jumpTable), eventSourceAddresses,
                                                  fieldBase, eventLoopCodeGenerator, scalarRegisterAllocator);
                                          }
 
