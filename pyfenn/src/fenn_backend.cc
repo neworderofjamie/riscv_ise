@@ -43,6 +43,7 @@ using namespace FeNN;
 #define WRAP_PROPERTY_GETTER(NAME, NS, CLASS, METH_STEM) .def_property_readonly(FeNN, NAME, &NS::CLASS::get##METH_STEM, DOC(NS, CLASS, get##METH_STEM))
 #define WRAP_PROPERTY_RO(NAME, NS, CLASS, METH_STEM) .def_property_readonly(FeNN, NAME, &NS::CLASS::get##METH_STEM, DOC(NS, CLASS, m_##METH_STEM))
 #define WRAP_PROPERTY_RO_SHOULD(NAME, NS, CLASS, METH_STEM) .def_property_readonly(FeNN, NAME, &NS::CLASS::should##METH_STEM, DOC(NS, CLASS, m_##METH_STEM))
+#define WRAP_FRONTEND_PROPERTY_RO(NAME, NS, CLASS, METH_STEM) .def_property_readonly(NAME, &NS::CLASS::get##METH_STEM, DOC(NS, CLASS, m_##METH_STEM))
 
 //----------------------------------------------------------------------------
 // _fenn_backend
@@ -101,11 +102,18 @@ PYBIND11_MODULE(_fenn_backend, m)
     //------------------------------------------------------------------------
     // fenn_backend.EventChannel
     //------------------------------------------------------------------------
-    pybind11::class_<Backend::EventChannel, Frontend::EventChannel, std::shared_ptr<Backend::EventChannel>>(m, "EventChannel", pybind11::multiple_inheritance())
-        .def(pybind11::init(&Backend::EventChannel::create),
-             pybind11::arg("shape"), pybind11::arg("record") = false,
-             pybind11::arg("name") = "");
-    
+    pybind11::class_<Frontend::EventChannel, Frontend::ModelComponent, std::shared_ptr<Frontend::EventChannel>>(m, "EventChannel")
+        .def(pybind11::init(&Frontend::EventChannel::create<Backend::EventChannelSink, Backend::EventChannelSource>),
+             pybind11::arg("sink_shape"), pybind11::arg("source_shape"),
+             pybind11::arg("record") = false,
+             pybind11::arg("name") = "")
+        // **TODO** overload syntax
+        //.def(pybind11::init(&Frontend::EventChannel::create<Backend::EventChannelSink, Backend::EventChannelSource>),
+        //     pybind11::arg("shape"), pybind11::arg("name") = "")
+
+        WRAP_FRONTEND_PROPERTY_RO("sink", Frontend, EventChannel, Sink)
+        WRAP_FRONTEND_PROPERTY_RO("source", Frontend, EventChannel, Source);
+
     //------------------------------------------------------------------------
     // fenn_backend.Variable
     //------------------------------------------------------------------------

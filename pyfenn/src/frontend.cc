@@ -187,10 +187,15 @@ PYBIND11_MODULE(_frontend, m)
     pybind11::class_<Frontend::EventSinkBuffer, Frontend::EventSink, std::shared_ptr<Frontend::EventSinkBuffer>>(m, "EventSinkBuffer");
 
     //------------------------------------------------------------------------
-    // frontend.EventChannel
+    // frontend.EventChannelSink
     //------------------------------------------------------------------------
-    pybind11::class_<Frontend::EventChannel, Frontend::EventSource, Frontend::EventSink, std::shared_ptr<Frontend::EventChannel>>(m, "EventChannel")
-        WRAP_PROPERTY_RO_SHOULD("record", Frontend, EventChannel, Record);
+    pybind11::class_<Frontend::EventChannelSink, Frontend::EventSink, std::shared_ptr<Frontend::EventChannelSink>>(m, "EventChannelSink")
+        WRAP_PROPERTY_RO_SHOULD("record", Frontend, EventChannelSink, Record);
+
+    //------------------------------------------------------------------------
+    // frontend.EventChannelSource
+    //------------------------------------------------------------------------
+    pybind11::class_<Frontend::EventChannelSource, Frontend::EventSource, std::shared_ptr<Frontend::EventChannelSource>>(m, "EventChannelSource");
 
     //------------------------------------------------------------------------
     // frontend.SlicedEventSink

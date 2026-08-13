@@ -243,6 +243,13 @@ public:
         return std::make_shared<EventChannel>(Private(), sink, source, name);
     }
 
+    template<typename Sink = EventChannelSink, typename Source = EventChannelSource>
+    static std::shared_ptr<EventChannel> create(const std::vector<size_t> &shape,
+                                                const std::string &name = "")
+    {
+        return create<Sink, Source>(shape, shape, false, name);
+    }
+
 private:
     //------------------------------------------------------------------------
     // Members
