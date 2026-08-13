@@ -27,7 +27,7 @@ class PostNeuron:
 @pytest.mark.parametrize("use_dram_for_weights", [True, False])
 def test_forward(device, use_dram_for_weights):    
     log_appender = backend.ConsoleAppender()
-    backend.init_logging(log_appender, backend.PlogSeverity.INFO)
+    backend.init_logging(log_appender, backend.PlogSeverity.DEBUG)
 
     # Build spike array
     spike_neuron_ids = np.arange(16)
@@ -41,7 +41,7 @@ def test_forward(device, use_dram_for_weights):
             for i in range(16)]
 
     # Use to build dense matrix
-    dense = np.zeros((16, 32), dtype=np.int16)
+    dense = np.zeros((16, 4), dtype=np.int16)
     for i, row in enumerate(conn):
         dense[i,row] = 1
 
@@ -49,14 +49,14 @@ def test_forward(device, use_dram_for_weights):
     conn = build_sparse_connectivity(conn, 1, 3)
 
     # Create input spike container
-    input_spikes = backend.EventSourceBuffer((16,), 16, name="input_events")
+    input_spikes = backend.EventSourceBuffer((16,), len(spike_array), name="input_events")
 
     # Create one output neuron pop with sparse decoder population
     sparse_n_pop = PostNeuron(backend, (4,), 1, 17, "SparseNPop")
     dense_n_pop = PostNeuron(backend, (4,), 1, 17, "DenseNPop")
 
     input_sparse = SparseLinear(backend, input_spikes, backend.SlicedVariable(sparse_n_pop.i, True), 
-                                "int16_t", max_row_length=4, num_sparse_connectivity_bits=3,
+                                "int16_t", max_row_length=conn.shape[1], num_sparse_connectivity_bits=3,
                                 name="input_sparse")
     input_dense = DenseLinear(backend, input_spikes, backend.SlicedVariable(dense_n_pop.i, True), 
                               "int16_t", name="input_dense")
@@ -86,8 +86,8 @@ def test_forward(device, use_dram_for_weights):
 
     # Initialise weights
     copy_and_push(spike_array, input_spikes, runtime)
-    copy_and_push(conn.flatten(), input_sparse.weight, runtime)
-    copy_and_push(dense.flatten(), input_dense.weight, runtime)
+    copy_and_push(conn, input_sparse.weight, runtime)
+    copy_and_push(dense, input_dense.weight, runtime)
    
     # Simulate
     runtime.run(sim_kernel)
@@ -95,7 +95,7 @@ def test_forward(device, use_dram_for_weights):
     # Loop through output processes
     output_place_values = 2 ** np.arange(4)
     for p in [sparse_n_pop, dense_n_pop]:
-        x_view = get_views(runtime, p.x)
+        x_view = get_views(runtime, p.x)[0]
         runtime.pull_state_from_device(p.x)
         
         # Remove first timestep and padding neurons; and convert to bool
