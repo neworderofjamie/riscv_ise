@@ -1265,13 +1265,6 @@ SparseEventPropagationProcess::SparseEventPropagationProcess(Private, std::share
                                  + Frontend::Shape::toString(getInputEventSource()->getShape()));
     }
 
-    // Check weight shape is less than or equal to target shape
-    if(getWeight()->getShape()[1] > getTarget().getShape()[0]) {
-        throw std::runtime_error("Weight with shape: " + Frontend::Shape::toString(getWeight()->getShape()) 
-                                 + " is not compatible with target variable with shape: " 
-                                 + Frontend::Shape::toString(getTarget().getShape()));
-    }
-
     // Check weight and target have same types
     if(getWeight()->getType() != getTarget().getUnderlying()->getType()) {
         throw std::runtime_error("Weight with type: " + getWeight()->getType().getName() 
