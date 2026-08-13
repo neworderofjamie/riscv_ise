@@ -27,8 +27,7 @@ class LIF:
         self.v = backend.Variable(self.shape, dtype, name=f"{name}_v")
         self.i = backend.Variable(self.shape, dtype, name=f"{name}_i")
 
-        channel = backend.EventChannel(self.shape, self.shape,
-                                       name=f"{name}_out_spikes")
+        channel = backend.EventChannel(self.shape, name=f"{name}_out_spikes")
         self.out_spikes = channel.source
         self.process = backend.NeuronUpdateProcess(
             f"""

@@ -107,10 +107,10 @@ PYBIND11_MODULE(_fenn_backend, m)
                                                                                   bool, const std::string&)>(&Backend::EventChannel::create)),
              pybind11::arg("sink_shape"), pybind11::arg("source_shape"),
              pybind11::arg("record") = false,
-             pybind11::arg("name") = "");
-        // **TODO** overload syntax
-        //.def(pybind11::init(&Frontend::EventChannel::create<Backend::EventChannelSink, Backend::EventChannelSource>),
-        //     pybind11::arg("shape"), pybind11::arg("name") = "");
+             pybind11::arg("name") = "")
+        .def(pybind11::init(static_cast<std::shared_ptr<Backend::EventChannel>(*)(const std::vector<size_t>&,  
+                                                                                  const std::string&)>(&Backend::EventChannel::create)),
+             pybind11::arg("shape"), pybind11::arg("name") = "");
 
     //------------------------------------------------------------------------
     // fenn_backend.Variable
