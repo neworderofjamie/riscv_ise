@@ -33,6 +33,7 @@ class CUBALIF:
         self.refrac_time = backend.Variable(self.shape, "int16_t", name=f"{name}_RefracTime")
         channel = backend.EventChannel((num_timesteps + 1,) + self.shape, self.shape,
                                        True, name=f"{name}_out_spikes")
+        self.spike_sink = channel.sink
         self.out_spikes = channel.source
         self.process = backend.NeuronUpdateProcess(
             f"""
@@ -64,7 +65,7 @@ class CUBALIF:
             }}
             """,
             {"V": self.v, "IExc": self.i_exc, "IInh": self.i_inh, "RefracTime": self.refrac_time},
-            {"Spike": backend.SlicedEventSink(channel.sink, True)},
+            {"Spike": backend.SlicedEventSink(self.spike_sink, True)},
             name=name)
 
 parser = ArgumentParser("VA benchmark")
@@ -77,6 +78,8 @@ parser.add_argument("--num-timesteps", type=int, default=1000, help="Number of t
 parser.add_argument("--probability-connection", type=float, default=0.1, help="Probability to connect neurons with")
 args = parser.parse_args()
 
+args.uram = True
+args.num_excitatory = 410
 
 excitatory_inhibitory_ratio = 4
 num_inhibitory = args.num_excitatory // excitatory_inhibitory_ratio
@@ -93,10 +96,11 @@ num_timesteps_per_block = int(round(args.num_timesteps / num_blocks))
 
 print(f"{args.num_excitatory} excitatory neurons, {num_inhibitory} inhibitory neurons")
 
-log_appender = PythonLogAppender()
-backend.init_logging(log_appender, backend.PlogSeverity.INFO)
+log_appender = backend.ConsoleAppender()
+backend.init_logging(log_appender, backend.PlogSeverity.DEBUG)
 
 # Generate connectivity matrices
+np.random.seed(1234)
 ie_conn = generate_fixed_prob(num_inhibitory, args.num_excitatory, args.probability_connection)
 ii_conn = generate_fixed_prob(num_inhibitory, num_inhibitory, args.probability_connection)
 ee_conn = generate_fixed_prob(args.num_excitatory, args.num_excitatory, args.probability_connection)
@@ -200,8 +204,8 @@ copy_and_push(np.random.randint(0, v_thresh_fixed, num_inhibitory,
 # **TODO** use init kernel
 zero_and_push(e_pop.refrac_time, runtime)
 zero_and_push(i_pop.refrac_time, runtime)
-zero_and_push(e_pop.out_spikes, runtime)
-zero_and_push(i_pop.out_spikes, runtime)
+zero_and_push(e_pop.spike_sink, runtime)
+zero_and_push(i_pop.spike_sink, runtime)
 
 if args.time:
     zero_and_push(neuron_update_processes.performance_counter, runtime)
@@ -226,13 +230,13 @@ for b in range(num_blocks):
     sim_time += (perf_counter() - start_time)
 
     # Pull excitatory spikes and add to lists
-    block_e_spikes = pull_spikes(num_timesteps_per_block + 1, e_pop.out_spikes, runtime)
+    block_e_spikes = pull_spikes(num_timesteps_per_block + 1, e_pop.spike_sink, runtime)
     assert len(block_e_spikes) == 1
     e_spike_times.append(block_e_spikes[0][0] + block_start_timestep)
     e_spike_ids.append(block_e_spikes[0][1])
 
     # Pull inhibitory spikes and add to lists
-    block_i_spikes = pull_spikes(num_timesteps_per_block + 1, i_pop.out_spikes, runtime)
+    block_i_spikes = pull_spikes(num_timesteps_per_block + 1, i_pop.spike_sink, runtime)
     assert len(block_i_spikes) == 1
     i_spike_times.append(block_i_spikes[0][0] + block_start_timestep)
     i_spike_ids.append(block_i_spikes[0][1])
