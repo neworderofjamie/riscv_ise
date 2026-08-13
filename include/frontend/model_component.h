@@ -4,6 +4,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <vector>
 
 // Frontend includes
 #include "frontend/frontend_export.h"

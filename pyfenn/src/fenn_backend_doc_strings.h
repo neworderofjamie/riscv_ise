@@ -99,6 +99,34 @@ static const char *__doc_FeNN_Backend_DRAMArrayBase_serialiseDeviceObject = R"do
 
 static const char *__doc_FeNN_Backend_DRAMArrayBase_setDRAMPointer = R"doc()doc";
 
+static const char *__doc_FeNN_Backend_DelayEventPropagationProcess = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_DelayEventPropagationProcess_DelayEventPropagationProcess = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_DelayEventPropagationProcess_create = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_DelayEventPropagationProcess_generateArchetypeCode = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_DelayEventPropagationProcess_getAllState = R"doc(Get vector of state objects used by this process)doc";
+
+static const char *__doc_FeNN_Backend_DelayEventPropagationProcess_getNumDelayBits = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_DelayEventPropagationProcess_getWeight = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_DelayEventPropagationProcess_m_NumDelayBits = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_DelayEventPropagationProcess_m_Weight = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_DelayEventPropagationProcess_updateCompatibleMemSpace = R"doc(Update the memory compatibility of a variable associated with this process)doc";
+
+static const char *__doc_FeNN_Backend_DelayEventPropagationProcess_updateCompatibleSplitDimensions =
+R"doc(Update the compatible split dimensions of a state object (which should be
+one used by this process) with any constraints imposed by this process))doc";
+
+static const char *__doc_FeNN_Backend_DelayEventPropagationProcess_updateMaxDMABufferSize = R"doc(Update the max-row length to support this process)doc";
+
+static const char *__doc_FeNN_Backend_DelayEventPropagationProcess_updateMergeHash = R"doc(Update the provided hash with the properties of this process which determine whether it can be merged)doc";
+
 static const char *__doc_FeNN_Backend_DenseEventPropagationProcess = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_DenseEventPropagationProcess_DenseEventPropagationProcess = R"doc()doc";
@@ -137,8 +165,6 @@ static const char *__doc_FeNN_Backend_DeviceFeNNHW_createLLMArray = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_DeviceFeNNHW_createURAMArray = R"doc()doc";
 
-static const char *__doc_FeNN_Backend_DeviceFeNNHW_createURAMLLMArray = R"doc()doc";
-
 static const char *__doc_FeNN_Backend_DeviceFeNNHW_getDMABuffer = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_DeviceFeNNHW_getDMABuffer_2 = R"doc()doc";
@@ -172,8 +198,6 @@ static const char *__doc_FeNN_Backend_DeviceFeNNSim_createDRAMArray = R"doc()doc
 static const char *__doc_FeNN_Backend_DeviceFeNNSim_createLLMArray = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_DeviceFeNNSim_createURAMArray = R"doc()doc";
-
-static const char *__doc_FeNN_Backend_DeviceFeNNSim_createURAMLLMArray = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_DeviceFeNNSim_getDMABufferAllocator = R"doc()doc";
 
@@ -212,8 +236,6 @@ static const char *__doc_FeNN_Backend_DeviceFeNN_createLLMArray = R"doc()doc";
 static const char *__doc_FeNN_Backend_DeviceFeNN_createPerformanceCounter = R"doc(Create suitable array for performance counter on this device)doc";
 
 static const char *__doc_FeNN_Backend_DeviceFeNN_createURAMArray = R"doc()doc";
-
-static const char *__doc_FeNN_Backend_DeviceFeNN_createURAMLLMArray = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_DeviceFeNN_getBRAMAllocator = R"doc()doc";
 
@@ -317,21 +339,27 @@ static const char *__doc_FeNN_Backend_EnvironmentLiteral = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_EnvironmentMergedField = R"doc()doc";
 
-static const char *__doc_FeNN_Backend_EventChannel = R"doc()doc";
+static const char *__doc_FeNN_Backend_EventChannelSink = R"doc()doc";
 
-static const char *__doc_FeNN_Backend_EventChannel_EventChannel = R"doc()doc";
+static const char *__doc_FeNN_Backend_EventChannelSink_createArray = R"doc()doc";
 
-static const char *__doc_FeNN_Backend_EventChannel_create = R"doc()doc";
+static const char *__doc_FeNN_Backend_EventChannelSink_genEmit = R"doc()doc";
 
-static const char *__doc_FeNN_Backend_EventChannel_createArray = R"doc()doc";
+static const char *__doc_FeNN_Backend_EventChannelSink_genIncrement = R"doc()doc";
 
-static const char *__doc_FeNN_Backend_EventChannel_genEmit = R"doc()doc";
+static const char *__doc_FeNN_Backend_EventChannelSink_genPreamble = R"doc()doc";
 
-static const char *__doc_FeNN_Backend_EventChannel_genIncrement = R"doc()doc";
+static const char *__doc_FeNN_Backend_EventChannelSink_getArrayShapeStride = R"doc()doc";
 
-static const char *__doc_FeNN_Backend_EventChannel_genPreamble = R"doc()doc";
+static const char *__doc_FeNN_Backend_EventChannelSource = R"doc()doc";
 
-static const char *__doc_FeNN_Backend_EventChannel_generateEventLoop = R"doc(Generate code to implement event loop)doc";
+static const char *__doc_FeNN_Backend_EventChannelSource_createArray = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_EventChannelSource_generateArchetypeEventLoop = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_EventChannelSource_generateEventLoop = R"doc(Generate code to implement event loop)doc";
+
+static const char *__doc_FeNN_Backend_EventChannelSource_getArrayShapeStride = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_EventDrivenProcessImplementation = R"doc()doc";
 
@@ -340,8 +368,6 @@ static const char *__doc_FeNN_Backend_EventDrivenProcessImplementation_generateA
 static const char *__doc_FeNN_Backend_EventDrivenProcessImplementation_generateCode = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_EventSinkBuffer = R"doc()doc";
-
-static const char *__doc_FeNN_Backend_EventSinkBuffer_EventSinkBuffer = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_EventSinkBuffer_create = R"doc()doc";
 
@@ -352,6 +378,8 @@ static const char *__doc_FeNN_Backend_EventSinkBuffer_genEmit = R"doc()doc";
 static const char *__doc_FeNN_Backend_EventSinkBuffer_genIncrement = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_EventSinkBuffer_genPreamble = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_EventSinkBuffer_getArrayShapeStride = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_EventSinkImplementation = R"doc()doc";
 
@@ -369,9 +397,9 @@ static const char *__doc_FeNN_Backend_EventSinkImplementation_genIncrement = R"d
 
 static const char *__doc_FeNN_Backend_EventSinkImplementation_genPreamble = R"doc()doc";
 
-static const char *__doc_FeNN_Backend_EventSourceBuffer = R"doc()doc";
+static const char *__doc_FeNN_Backend_EventSinkImplementation_getBitArrayShapeStride = R"doc()doc";
 
-static const char *__doc_FeNN_Backend_EventSourceBuffer_EventSourceBuffer = R"doc()doc";
+static const char *__doc_FeNN_Backend_EventSourceBuffer = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_EventSourceBuffer_create = R"doc()doc";
 
@@ -380,6 +408,8 @@ static const char *__doc_FeNN_Backend_EventSourceBuffer_createArray = R"doc()doc
 static const char *__doc_FeNN_Backend_EventSourceBuffer_generateArchetypeEventLoop = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_EventSourceBuffer_generateEventLoop = R"doc(Generate code to implement event loop)doc";
+
+static const char *__doc_FeNN_Backend_EventSourceBuffer_getArrayShapeStride = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_EventSourceImplementation = R"doc()doc";
 
@@ -442,8 +472,6 @@ static const char *__doc_FeNN_Backend_MemSpace_DRAM = R"doc()doc";
 static const char *__doc_FeNN_Backend_MemSpace_LLM = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_MemSpace_URAM = R"doc()doc";
-
-static const char *__doc_FeNN_Backend_MemSpace_URAM_LLM = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_MemoryAllocator = R"doc()doc";
 
@@ -635,6 +663,34 @@ static const char *__doc_FeNN_Backend_SimulationLoopKernel_create = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_SimulationLoopKernel_generateCode = R"doc(Generate code to implement process)doc";
 
+static const char *__doc_FeNN_Backend_SparseEventPropagationProcess = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_SparseEventPropagationProcess_SparseEventPropagationProcess = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_SparseEventPropagationProcess_create = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_SparseEventPropagationProcess_generateArchetypeCode = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_SparseEventPropagationProcess_getAllState = R"doc(Get vector of state objects used by this process)doc";
+
+static const char *__doc_FeNN_Backend_SparseEventPropagationProcess_getNumSparseConnectivityBits = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_SparseEventPropagationProcess_getWeight = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_SparseEventPropagationProcess_m_NumSparseConnectivityBits = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_SparseEventPropagationProcess_m_Weight = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_SparseEventPropagationProcess_updateCompatibleMemSpace = R"doc(Update the memory compatibility of a variable associated with this process)doc";
+
+static const char *__doc_FeNN_Backend_SparseEventPropagationProcess_updateCompatibleSplitDimensions =
+R"doc(Update the compatible split dimensions of a state object (which should be
+one used by this process) with any constraints imposed by this process))doc";
+
+static const char *__doc_FeNN_Backend_SparseEventPropagationProcess_updateMaxDMABufferSize = R"doc(Update the max-row length to support this process)doc";
+
+static const char *__doc_FeNN_Backend_SparseEventPropagationProcess_updateMergeHash = R"doc(Update the provided hash with the properties of this process which determine whether it can be merged)doc";
+
 static const char *__doc_FeNN_Backend_SpecialFunctions_Exp_add = R"doc(Add overrides of exp() to library, allocate registers for constants and add to environment)doc";
 
 static const char *__doc_FeNN_Backend_SpecialFunctions_getLUTCount = R"doc(How many elements are required in the LUT for each special function)doc";
@@ -661,33 +717,7 @@ static const char *__doc_FeNN_Backend_URAMArrayBase_serialiseDeviceObject = R"do
 
 static const char *__doc_FeNN_Backend_URAMArrayBase_setURAMPointer = R"doc()doc";
 
-static const char *__doc_FeNN_Backend_URAMLLMArrayBase =
-R"doc(Base class for arrays which are allocated in URAM but also have a delayed input in LLM
-Typically used for implementing neuron variables with dendritically-delayed input)doc";
-
-static const char *__doc_FeNN_Backend_URAMLLMArrayBase_URAMLLMArrayBase = R"doc()doc";
-
-static const char *__doc_FeNN_Backend_URAMLLMArrayBase_getLLMCount = R"doc()doc";
-
-static const char *__doc_FeNN_Backend_URAMLLMArrayBase_getLLMPointer = R"doc()doc";
-
-static const char *__doc_FeNN_Backend_URAMLLMArrayBase_getLLMShape = R"doc()doc";
-
-static const char *__doc_FeNN_Backend_URAMLLMArrayBase_getLLMSizeBytes = R"doc()doc";
-
-static const char *__doc_FeNN_Backend_URAMLLMArrayBase_getURAMPointer = R"doc()doc";
-
-static const char *__doc_FeNN_Backend_URAMLLMArrayBase_m_LLMPointer = R"doc()doc";
-
-static const char *__doc_FeNN_Backend_URAMLLMArrayBase_m_LLMShape = R"doc()doc";
-
-static const char *__doc_FeNN_Backend_URAMLLMArrayBase_m_URAMPointer = R"doc()doc";
-
-static const char *__doc_FeNN_Backend_URAMLLMArrayBase_serialiseDeviceObject = R"doc(Serialise backend-specific device object to uint32_t)doc";
-
-static const char *__doc_FeNN_Backend_URAMLLMArrayBase_setLLMPointer = R"doc()doc";
-
-static const char *__doc_FeNN_Backend_URAMLLMArrayBase_setURAMPointer = R"doc()doc";
+static const char *__doc_FeNN_Backend_Utils_getSplitDimension = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_Variable = R"doc()doc";
 
@@ -702,6 +732,8 @@ static const char *__doc_FeNN_Backend_Variable_genLoad = R"doc(Generate code to 
 static const char *__doc_FeNN_Backend_Variable_genPreamble = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_Variable_genStore = R"doc(Generate code to store vector register reg to memory after unrolled loop iteration r)doc";
+
+static const char *__doc_FeNN_Backend_Variable_getArrayShapeStride = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_Variable_getMemSpace = R"doc()doc";
 
@@ -767,8 +799,7 @@ static const char *__doc_Frontend_DeviceBase = R"doc()doc";
 
 static const char *__doc_Frontend_EventSink =
 R"doc(Event sinks take events from model components
-which emit them e.g. NeuronUpdateProcess
-**NOTE** inherits State virtually to avoid diamond problem when EventSink AND EventSource are inherited)doc";
+which emit them e.g. NeuronUpdateProcess)doc";
 
 static const char *__doc_Frontend_EventSource = R"doc()doc";
 

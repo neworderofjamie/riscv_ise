@@ -393,6 +393,10 @@ static const char *__doc_CompilerFrontend_Parser_parseExpression = R"doc(Parse e
 
 static const char *__doc_CompilerFrontend_Parser_parseNumericType = R"doc(Parse type from tokens)doc";
 
+static const char *__doc_CompilerFrontend_PythonType_getPythonTypeString = R"doc()doc";
+
+static const char *__doc_CompilerFrontend_PythonType_log2 = R"doc()doc";
+
 static const char *__doc_CompilerFrontend_Scanner_scanSource = R"doc()doc";
 
 static const char *__doc_CompilerFrontend_SingleLineErrorHandler = R"doc()doc";
@@ -896,6 +900,8 @@ static const char *__doc_CompilerFrontend_Type_ResolvedType_Numeric_operator_lt 
 
 static const char *__doc_CompilerFrontend_Type_ResolvedType_Numeric_operator_ne = R"doc()doc";
 
+static const char *__doc_CompilerFrontend_Type_ResolvedType_Numeric_pythonFormat = R"doc()doc";
+
 static const char *__doc_CompilerFrontend_Type_ResolvedType_Numeric_rank = R"doc()doc";
 
 static const char *__doc_CompilerFrontend_Type_ResolvedType_Pointer = R"doc()doc";
@@ -1056,8 +1062,6 @@ R"doc(Base class for arrays created by backend
 
 static const char *__doc_Frontend_ArrayBase_ArrayBase = R"doc()doc";
 
-static const char *__doc_Frontend_ArrayBase_getCount = R"doc()doc";
-
 static const char *__doc_Frontend_ArrayBase_getHostPointer = R"doc(Get array host pointer)doc";
 
 static const char *__doc_Frontend_ArrayBase_getHostPointer_2 = R"doc()doc";
@@ -1066,11 +1070,17 @@ static const char *__doc_Frontend_ArrayBase_getShape = R"doc()doc";
 
 static const char *__doc_Frontend_ArrayBase_getSizeBytes = R"doc()doc";
 
+static const char *__doc_Frontend_ArrayBase_getStrides = R"doc()doc";
+
 static const char *__doc_Frontend_ArrayBase_getType = R"doc()doc";
 
 static const char *__doc_Frontend_ArrayBase_m_HostPointer = R"doc()doc";
 
 static const char *__doc_Frontend_ArrayBase_m_Shape = R"doc()doc";
+
+static const char *__doc_Frontend_ArrayBase_m_SizeBytes = R"doc()doc";
+
+static const char *__doc_Frontend_ArrayBase_m_Strides = R"doc()doc";
 
 static const char *__doc_Frontend_ArrayBase_m_Type = R"doc()doc";
 
@@ -1090,6 +1100,10 @@ static const char *__doc_Frontend_DeviceBase_2 = R"doc(Interface Runtime classes
 
 static const char *__doc_Frontend_DeviceBase_DeviceBase = R"doc()doc";
 
+static const char *__doc_Frontend_DeviceBase_DeviceBase_2 = R"doc()doc";
+
+static const char *__doc_Frontend_DeviceBase_DeviceBase_3 = R"doc()doc";
+
 static const char *__doc_Frontend_DeviceBase_createArray = R"doc(Create array to provide storage for model state)doc";
 
 static const char *__doc_Frontend_DeviceBase_createPerformanceCounter = R"doc(Create suitable array for performance counter on this device)doc";
@@ -1108,21 +1122,53 @@ static const char *__doc_Frontend_DeviceBase_runCurrentKernel = R"doc(Run curren
 
 static const char *__doc_Frontend_EventChannel = R"doc()doc";
 
+static const char *__doc_Frontend_EventChannelSink = R"doc(Event sink at the input end of an event channel)doc";
+
+static const char *__doc_Frontend_EventChannelSink_EventChannelSink = R"doc()doc";
+
+static const char *__doc_Frontend_EventChannelSink_createArray = R"doc()doc";
+
+static const char *__doc_Frontend_EventChannelSink_getArrayShapeStride = R"doc()doc";
+
+static const char *__doc_Frontend_EventChannelSink_getShape = R"doc()doc";
+
+static const char *__doc_Frontend_EventChannelSink_getSource = R"doc()doc";
+
+static const char *__doc_Frontend_EventChannelSink_m_Record = R"doc()doc";
+
+static const char *__doc_Frontend_EventChannelSink_m_Shape = R"doc()doc";
+
+static const char *__doc_Frontend_EventChannelSink_m_Source = R"doc()doc";
+
+static const char *__doc_Frontend_EventChannelSink_shouldRecord = R"doc()doc";
+
+static const char *__doc_Frontend_EventChannelSink_updateMergeHash = R"doc()doc";
+
+static const char *__doc_Frontend_EventChannelSource = R"doc(Event source at the output end of an event channel)doc";
+
+static const char *__doc_Frontend_EventChannelSource_EventChannelSource = R"doc()doc";
+
+static const char *__doc_Frontend_EventChannelSource_createArray = R"doc()doc";
+
+static const char *__doc_Frontend_EventChannelSource_getArrayShapeStride = R"doc()doc";
+
+static const char *__doc_Frontend_EventChannelSource_getShape = R"doc()doc";
+
+static const char *__doc_Frontend_EventChannelSource_m_Shape = R"doc()doc";
+
+static const char *__doc_Frontend_EventChannelSource_updateMergeHash = R"doc()doc";
+
 static const char *__doc_Frontend_EventChannel_EventChannel = R"doc()doc";
 
 static const char *__doc_Frontend_EventChannel_create = R"doc()doc";
 
-static const char *__doc_Frontend_EventChannel_createArray = R"doc()doc";
+static const char *__doc_Frontend_EventChannel_getSink = R"doc()doc";
 
-static const char *__doc_Frontend_EventChannel_getShape = R"doc()doc";
+static const char *__doc_Frontend_EventChannel_getSource = R"doc()doc";
 
-static const char *__doc_Frontend_EventChannel_m_Record = R"doc()doc";
+static const char *__doc_Frontend_EventChannel_m_Sink = R"doc()doc";
 
-static const char *__doc_Frontend_EventChannel_m_Shape = R"doc()doc";
-
-static const char *__doc_Frontend_EventChannel_shouldRecord = R"doc()doc";
-
-static const char *__doc_Frontend_EventChannel_updateMergeHash = R"doc()doc";
+static const char *__doc_Frontend_EventChannel_m_Source = R"doc()doc";
 
 static const char *__doc_Frontend_EventPropagationProcess = R"doc()doc";
 
@@ -1152,16 +1198,17 @@ static const char *__doc_Frontend_EventPropagationProcess_updateMergeHash = R"do
 
 static const char *__doc_Frontend_EventSink =
 R"doc(Event sinks take events from model components
-which emit them e.g. NeuronUpdateProcess
-**NOTE** inherits State virtually to avoid diamond problem when EventSink AND EventSource are inherited)doc";
+which emit them e.g. NeuronUpdateProcess)doc";
 
-static const char *__doc_Frontend_EventSinkBuffer = R"doc(A buffer for recording events)doc";
+static const char *__doc_Frontend_EventSinkBuffer = R"doc(A buffer for recording events emitted from a process)doc";
 
 static const char *__doc_Frontend_EventSinkBuffer_EventSinkBuffer = R"doc()doc";
 
 static const char *__doc_Frontend_EventSinkBuffer_create = R"doc()doc";
 
 static const char *__doc_Frontend_EventSinkBuffer_createArray = R"doc()doc";
+
+static const char *__doc_Frontend_EventSinkBuffer_getArrayShapeStride = R"doc()doc";
 
 static const char *__doc_Frontend_EventSinkBuffer_getShape = R"doc()doc";
 
@@ -1171,8 +1218,7 @@ static const char *__doc_Frontend_EventSinkBuffer_updateMergeHash = R"doc()doc";
 
 static const char *__doc_Frontend_EventSource =
 R"doc(Event sources produce events for model components
-which require them e.g. EventPropagationProcess
-**NOTE** inherits State virtually to avoid diamond problem when EventSink AND EventSource are inherited)doc";
+which require them e.g. EventPropagationProcess)doc";
 
 static const char *__doc_Frontend_EventSourceBuffer = R"doc(A buffer which provides a source of events)doc";
 
@@ -1181,6 +1227,8 @@ static const char *__doc_Frontend_EventSourceBuffer_EventSourceBuffer = R"doc()d
 static const char *__doc_Frontend_EventSourceBuffer_create = R"doc()doc";
 
 static const char *__doc_Frontend_EventSourceBuffer_createArray = R"doc()doc";
+
+static const char *__doc_Frontend_EventSourceBuffer_getArrayShapeStride = R"doc()doc";
 
 static const char *__doc_Frontend_EventSourceBuffer_getMaxEvents = R"doc()doc";
 
@@ -1288,6 +1336,8 @@ static const char *__doc_Frontend_Model_Model = R"doc()doc";
 
 static const char *__doc_Frontend_Model_StateData = R"doc()doc";
 
+static const char *__doc_Frontend_Model_StateData_indexDimensions = R"doc()doc";
+
 static const char *__doc_Frontend_Model_StateData_processes = R"doc()doc";
 
 static const char *__doc_Frontend_Model_StateData_splitDimension = R"doc()doc";
@@ -1343,6 +1393,8 @@ R"doc(Update the compatible split dimensions of a state object (which should be
 one used by this process) with any constraints imposed by this process))doc";
 
 static const char *__doc_Frontend_NeuronUpdateProcess_updateMergeHash = R"doc(Update the provided hash with the properties of this process which determine whether it can be merged)doc";
+
+static const char *__doc_Frontend_Padding = R"doc()doc";
 
 static const char *__doc_Frontend_Parameter = R"doc()doc";
 
@@ -1458,6 +1510,8 @@ static const char *__doc_Frontend_Runtime_createDevice = R"doc(Create suitable d
 
 static const char *__doc_Frontend_Runtime_getArrays = R"doc(Get array(s) associated with state)doc";
 
+static const char *__doc_Frontend_Runtime_getDeviceArrayShapeStrides = R"doc(Get size and shape of array state will map to on given device)doc";
+
 static const char *__doc_Frontend_Runtime_getDevices = R"doc()doc";
 
 static const char *__doc_Frontend_Runtime_getDevices_2 = R"doc()doc";
@@ -1482,8 +1536,6 @@ static const char *__doc_Frontend_Runtime_m_Model = R"doc()doc";
 
 static const char *__doc_Frontend_Runtime_m_NumDevices = R"doc()doc";
 
-static const char *__doc_Frontend_Runtime_m_StateSplitGranularity = R"doc()doc";
-
 static const char *__doc_Frontend_Runtime_m_WorkerRun = R"doc()doc";
 
 static const char *__doc_Frontend_Runtime_m_WorkerThreads = R"doc()doc";
@@ -1498,55 +1550,9 @@ static const char *__doc_Frontend_Runtime_runCommand = R"doc(Run command on all 
 
 static const char *__doc_Frontend_Runtime_threadFunction = R"doc(Thread function run on each worker thread to execute commands on device)doc";
 
-static const char *__doc_Frontend_Shape = R"doc()doc";
-
-static const char *__doc_Frontend_Shape_2 = R"doc()doc";
-
-static const char *__doc_Frontend_Shape_Shape = R"doc()doc";
-
-static const char *__doc_Frontend_Shape_Shape_2 = R"doc()doc";
-
-static const char *__doc_Frontend_Shape_Shape_3 = R"doc()doc";
-
-static const char *__doc_Frontend_Shape_Shape_4 = R"doc()doc";
-
-static const char *__doc_Frontend_Shape_getDims = R"doc()doc";
-
-static const char *__doc_Frontend_Shape_getFirst = R"doc()doc";
-
-static const char *__doc_Frontend_Shape_getFirst_2 = R"doc()doc";
-
-static const char *__doc_Frontend_Shape_getFlattenedSize = R"doc()doc";
-
-static const char *__doc_Frontend_Shape_getLast = R"doc()doc";
-
-static const char *__doc_Frontend_Shape_getLast_2 = R"doc()doc";
-
-static const char *__doc_Frontend_Shape_getNumDims = R"doc()doc";
-
-static const char *__doc_Frontend_Shape_getSplit =
-R"doc(Return the shape obtained by taking the splitnth split when
-the shape is split numSplits ways along the specified dimensions)doc";
-
-static const char *__doc_Frontend_Shape_getSplitDimension =
-R"doc(Return the shape obtained by taking the splitnth split when
-the shape is split numSplits ways along the specified dimensions)doc";
+static const char *__doc_Frontend_Shape_getStride = R"doc()doc";
 
 static const char *__doc_Frontend_Shape_isScalar = R"doc()doc";
-
-static const char *__doc_Frontend_Shape_m_Dims = R"doc()doc";
-
-static const char *__doc_Frontend_Shape_operator_array = R"doc()doc";
-
-static const char *__doc_Frontend_Shape_operator_array_2 = R"doc()doc";
-
-static const char *__doc_Frontend_Shape_operator_eq = R"doc()doc";
-
-static const char *__doc_Frontend_Shape_operator_ne = R"doc()doc";
-
-static const char *__doc_Frontend_Shape_padLast = R"doc(Return shape with last dimension padded)doc";
-
-static const char *__doc_Frontend_Shape_slice = R"doc(Return slice of shape dimensions)doc";
 
 static const char *__doc_Frontend_Shape_toString = R"doc()doc";
 
@@ -1616,6 +1622,8 @@ static const char *__doc_Frontend_State_3 = R"doc()doc";
 
 static const char *__doc_Frontend_State_createArray = R"doc()doc";
 
+static const char *__doc_Frontend_State_getArrayShapeStride = R"doc()doc";
+
 static const char *__doc_Frontend_State_getShape = R"doc()doc";
 
 static const char *__doc_Frontend_State_updateMergeHash = R"doc()doc";
@@ -1627,6 +1635,8 @@ static const char *__doc_Frontend_Variable_Variable = R"doc()doc";
 static const char *__doc_Frontend_Variable_create = R"doc()doc";
 
 static const char *__doc_Frontend_Variable_createArray = R"doc()doc";
+
+static const char *__doc_Frontend_Variable_getArrayShapeStride = R"doc()doc";
 
 static const char *__doc_Frontend_Variable_getShape = R"doc()doc";
 
