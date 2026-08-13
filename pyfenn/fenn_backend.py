@@ -21,7 +21,7 @@ def init_logging(appender, level=PlogSeverity.INFO,
     
     # Set root logger level
     # **THINK** better logger config
-    logging.basicConfig(level=logging.DEBUG)
+    #logging.basicConfig(level=logging.DEBUG)
     
     # Initialise frontend logging
     init_frontend_logging(frontend_level or level,
