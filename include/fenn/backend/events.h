@@ -115,9 +115,7 @@ protected:
 class FENN_BACKEND_EXPORT EventSourceBuffer : public Frontend::EventSourceBuffer, public EventSourceImplementation
 {
 public:
-    EventSourceBuffer(Private, const std::vector<size_t> &shape, size_t maxEvents, const std::string &name)
-    :   State(name), Frontend::EventSourceBuffer(Private(), shape, maxEvents, name)
-    {}
+    using Frontend::EventSourceBuffer::EventSourceBuffer;
 
     //------------------------------------------------------------------------
     // State virtuals
@@ -164,9 +162,7 @@ private:
 class FENN_BACKEND_EXPORT EventSinkBuffer : public Frontend::EventSinkBuffer, public EventSinkImplementation
 {
 public:
-    EventSinkBuffer(Private, const std::vector<size_t> &shape, const std::string &name)
-    :   State(name), Frontend::EventSinkBuffer(Private(), shape, name)
-    {}
+    using Frontend::EventSinkBuffer::EventSinkBuffer;
 
     //------------------------------------------------------------------------
     // State virtuals
@@ -202,24 +198,21 @@ public:
 };
 
 //----------------------------------------------------------------------------
-// FeNN::Backend::EventChannel
+// FeNN::Backend::EventChannelSource
 //----------------------------------------------------------------------------
-class FENN_BACKEND_EXPORT EventChannel : public Frontend::EventChannel, public EventSourceImplementation, public EventSinkImplementation
+class FENN_BACKEND_EXPORT EventChannelSource : public Frontend::EventChannelSource, public EventSourceImplementation
 {
 public:
-    EventChannel(Private, const std::vector<size_t> &shape, bool record, const std::string &name)
-    :   State(name), Frontend::EventChannel(Private(), shape, record, name)
-    {}
+    using Frontend::EventChannelSource::EventChannelSource;
 
     //------------------------------------------------------------------------
     // State virtuals
     //------------------------------------------------------------------------
-    virtual std::unique_ptr<Frontend::ArrayBase> createArray(std::optional<size_t> splitDimension, uint32_t indexDimensions,
-                                                             size_t numDevices, const Frontend::Model &model, Frontend::DeviceBase &device) const override final;
+    virtual std::unique_ptr<Frontend::ArrayBase> createArray(std::optional<size_t> splitDimension, uint32_t indexDimensions, size_t numDevices,
+                                                             const Frontend::Model &model, Frontend::DeviceBase &device) const override final;
 
-    virtual ShapeStride getArrayShapeStride(std::optional<size_t> splitDimension, uint32_t indexDimensions, 
-                                            size_t deviceIndex, size_t numDevices, const Frontend::Model &model) const override;
-
+    virtual ShapeStride getArrayShapeStride(std::optional<size_t> splitDimension, uint32_t indexDimensions,
+                                            size_t deviceIndex, size_t numDevices, const Frontend::Model &model) const override final;
 
     //----------------------------------------------------------------------------
     // EventSourceImplementation virtuals
@@ -232,13 +225,40 @@ public:
                                        const std::unordered_map<std::shared_ptr<const Frontend::EventSource>, uint32_t> &eventSourceAddresses,
                                        uint32_t &fieldBase, Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator) const override final;
 
+private:
+    //------------------------------------------------------------------------
+    // Private methods
+    //------------------------------------------------------------------------
+    void generateArchetypeEventLoop(MergedFields &mergedFields, 
+                                    Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg,
+                                    Assembler::ScalarRegisterPtr preIndReg, Assembler::ScalarRegisterPtr spikeReturnReg, 
+                                    const std::vector<uint32_t> &mergedLabelAddresses, Assembler::CodeGenerator &c, 
+                                    Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, uint32_t &scalarRegisterMask) const;
+};
+
+//----------------------------------------------------------------------------
+// FeNN::Backend::EventChannelSink
+//----------------------------------------------------------------------------
+class FENN_BACKEND_EXPORT EventChannelSink : public Frontend::EventChannelSink, public EventSinkImplementation
+{
+public:
+    using Frontend::EventChannelSink::EventChannelSink;
+
+    //------------------------------------------------------------------------
+    // State virtuals
+    //------------------------------------------------------------------------
+    virtual std::unique_ptr<Frontend::ArrayBase> createArray(std::optional<size_t> splitDimension, uint32_t indexDimensions,
+                                                             size_t numDevices, const Frontend::Model &model, Frontend::DeviceBase &device) const override final;
+    virtual ShapeStride getArrayShapeStride(std::optional<size_t> splitDimension, uint32_t indexDimensions, 
+                                            size_t deviceIndex, size_t numDevices, const Frontend::Model &model) const override;
+
     //------------------------------------------------------------------------
     // EventSinkImplementation virtuals
     //------------------------------------------------------------------------
     virtual std::vector<Assembler::ScalarRegisterPtr> genPreamble(
-        const Runtime &runtime, const KernelImplementation &kernel, Assembler::CodeGenerator &c,
+        const Runtime &runtime, const KernelImplementation &kernel, Assembler::CodeGenerator &c, 
         Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, const std::string &name,
-        std::optional<uint32_t> numTimesteps, bool hasTime, Assembler::ScalarRegisterPtr timeReg, 
+        std::optional<uint32_t> numTimesteps, bool hasTime, Assembler::ScalarRegisterPtr timeReg,
         Assembler::ScalarRegisterPtr numEventBytes, AddScalarConstantFn addScalarConstant, AddFieldFn addField) const override final;
 
     virtual void genEmit(Compiler::EnvironmentBase &env, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
@@ -247,14 +267,6 @@ public:
 
     virtual void genIncrement(Assembler::CodeGenerator &c, uint32_t numUnrolls, 
                               const std::vector<Assembler::ScalarRegisterPtr> &state) const override final;
-
-    //------------------------------------------------------------------------
-    // Static API
-    //------------------------------------------------------------------------
-    static std::shared_ptr<EventChannel> create(const std::vector<size_t> &shape, bool record = false, 
-                                                const std::string &name = "")
-    {
-        return std::make_shared<EventChannel>(Private(), shape, record, name);
-    }
 };
+
 }

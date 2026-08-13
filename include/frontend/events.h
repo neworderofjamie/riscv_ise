@@ -223,7 +223,7 @@ public:
             }
 
             // Check remaining dimensions match
-            if (!std::equal(sinkShape.cbegin() + 1, sinkShape.cend(), sourceShape)) {
+            if (!std::equal(sinkShape.cbegin() + 1, sinkShape.cend(), sourceShape.cbegin())) {
                 throw std::runtime_error("Event channel sink and source shapes must match");
             }
         }
@@ -232,11 +232,11 @@ public:
             throw std::runtime_error("Event channel sink and source shapes must match");
         }
         // Create source
-        auto source = std::make_unique<const Source>(Private(), sourceShape, 
+        auto source = std::make_shared<const Source>(Private(), sourceShape, 
                                                      name.empty() ? "" : name + "_source");
 
         // Create sink
-        auto sink = std::make_unique<const Sink>(Private(), sinkShape, source, record, 
+        auto sink = std::make_shared<const Sink>(Private(), sinkShape, source, record, 
                                                  name.empty() ? "" : name + "_sink");
 
         // Create channel

@@ -60,6 +60,7 @@ private:
 class FRONTEND_EXPORT State : public ModelComponent
 {
 public:
+     // **TODO** make optional
     using ShapeStride = std::tuple<std::vector<size_t>, std::vector<size_t>>;
 
     //------------------------------------------------------------------------

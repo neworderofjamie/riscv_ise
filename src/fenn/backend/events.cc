@@ -328,39 +328,27 @@ void EventSinkBuffer::genIncrement(Assembler::CodeGenerator &c, uint32_t numUnro
 }
 
 //----------------------------------------------------------------------------
-// FeNN::Backend::EventChannel
+// FeNN::Backend::EventChannelSource
 //----------------------------------------------------------------------------
-std::unique_ptr<Frontend::ArrayBase> EventChannel::createArray(std::optional<size_t> splitDimension, uint32_t indexDimensions,
-                                                               size_t numDevices, const Frontend::Model&, Frontend::DeviceBase &device) const
+std::unique_ptr<Frontend::ArrayBase> EventChannelSource::createArray(std::optional<size_t>, uint32_t, size_t,
+                                                                     const Frontend::Model&, Frontend::DeviceBase&) const
 {
-    if(shouldRecord()) {
-        LOGI_FENN_BACKEND << "Creating event channel buffer '" << getName() << "' array in BRAM";
-
-        return createBitArray(getShape(), splitDimension, indexDimensions, numDevices, device);
-    }
-    else {
-        // **TODO** check doesn't have time - that would be weird!
-        return nullptr;
-    }
+    return nullptr;
 }
 //----------------------------------------------------------------------------
-Frontend::State::ShapeStride EventChannel::getArrayShapeStride(std::optional<size_t> splitDimension, uint32_t indexDimensions,
-                                                               size_t deviceIndex, size_t numDevices, const Frontend::Model &model) const
+Frontend::State::ShapeStride EventChannelSource::getArrayShapeStride(std::optional<size_t>, uint32_t,
+                                                                     size_t, size_t, const Frontend::Model&) const
 {
-    if(shouldRecord()) {
-        return getBitArrayShapeStride(getShape(), splitDimension, indexDimensions, numDevices, deviceIndex);
-    }
-    else {
-        return std::make_tuple(std::vector<size_t>{}, std::vector<size_t>{});
-    }
+    // **YUCK** optional
+    return std::make_tuple(std::vector<size_t>{}, std::vector<size_t>{});
 }
 //----------------------------------------------------------------------------
-uint32_t EventChannel::generateEventLoop(const Frontend::Merged<Frontend::EventSource>&, const Runtime &runtime, 
-                                         const KernelImplementation &kernel, MergedFields&, 
-                                         Assembler::ScalarRegisterPtr, Assembler::ScalarRegisterPtr preIndReg, 
-                                         Assembler::ScalarRegisterPtr spikeReturnReg, uint32_t jumpTableAddress, 
-                                         const std::unordered_map<std::shared_ptr<const Frontend::EventSource>, uint32_t>&,
-                                         uint32_t&, Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator) const
+uint32_t EventChannelSource::generateEventLoop(const Frontend::Merged<Frontend::EventSource>&, const Runtime &runtime, 
+                                               const KernelImplementation &kernel, MergedFields&, 
+                                               Assembler::ScalarRegisterPtr, Assembler::ScalarRegisterPtr preIndReg, 
+                                               Assembler::ScalarRegisterPtr spikeReturnReg, uint32_t jumpTableAddress, 
+                                               const std::unordered_map<std::shared_ptr<const Frontend::EventSource>, uint32_t>&,
+                                               uint32_t&, Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator) const
 {
     // Wait for all events from last timestep to be communicated
     Assembler::Utils::generateRouterBarrier(c, scalarRegisterAllocator, runtime.getNumDevices());
@@ -386,7 +374,7 @@ uint32_t EventChannel::generateEventLoop(const Frontend::Merged<Frontend::EventS
     // While (spikeBuffer != spikeBufferEnd
     auto spikeLoopEnd = Assembler::createLabel();
     auto spikeLoop = c.L();
-    
+
     c.beq(*SSpikeBuffer, *SSpikeBufferEnd, spikeLoopEnd);
     {
         // Load spike from buffer and advance
@@ -417,8 +405,36 @@ uint32_t EventChannel::generateEventLoop(const Frontend::Merged<Frontend::EventS
     c.L(spikeLoopEnd);
     return scalarRegisterMask;
 }
+
 //----------------------------------------------------------------------------
-std::vector<Assembler::ScalarRegisterPtr> EventChannel::genPreamble(
+// FeNN::Backend::EventChannelSink
+//----------------------------------------------------------------------------
+std::unique_ptr<Frontend::ArrayBase> EventChannelSink::createArray(std::optional<size_t> splitDimension, uint32_t indexDimensions,
+                                                                   size_t numDevices, const Frontend::Model&, Frontend::DeviceBase &device) const
+{
+    if(shouldRecord()) {
+        LOGI_FENN_BACKEND << "Creating event channel buffer '" << getName() << "' array in BRAM";
+
+        return createBitArray(getShape(), splitDimension, indexDimensions, numDevices, device);
+    }
+    else {
+        // **TODO** check doesn't have time - that would be weird!
+        return nullptr;
+    }
+}
+//----------------------------------------------------------------------------
+Frontend::State::ShapeStride EventChannelSink::getArrayShapeStride(std::optional<size_t> splitDimension, uint32_t indexDimensions,
+                                                                   size_t deviceIndex, size_t numDevices, const Frontend::Model &model) const
+{
+    if(shouldRecord()) {
+        return getBitArrayShapeStride(getShape(), splitDimension, indexDimensions, numDevices, deviceIndex);
+    }
+    else {
+        return std::make_tuple(std::vector<size_t>{}, std::vector<size_t>{});
+    }
+}
+//----------------------------------------------------------------------------
+std::vector<Assembler::ScalarRegisterPtr> EventChannelSink::genPreamble(
     const Runtime &runtime, const KernelImplementation &kernel, Assembler::CodeGenerator &c,
     Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, const std::string &name,
     std::optional<uint32_t> numTimesteps, bool hasTime, Assembler::ScalarRegisterPtr timeReg, 
@@ -465,9 +481,9 @@ std::vector<Assembler::ScalarRegisterPtr> EventChannel::genPreamble(
     
 }
 //----------------------------------------------------------------------------
-void EventChannel::genEmit(Compiler::EnvironmentBase &env, Assembler::ScalarRegisterAllocator&,
-                           Assembler::ScalarRegisterPtr spikeMaskReg, uint32_t r, 
-                           const std::vector<Assembler::ScalarRegisterPtr> &state) const
+void EventChannelSink::genEmit(Compiler::EnvironmentBase &env, Assembler::ScalarRegisterAllocator&,
+                               Assembler::ScalarRegisterPtr spikeMaskReg, uint32_t r, 
+                               const std::vector<Assembler::ScalarRegisterPtr> &state) const
 {
     // If we should record, generate code to write to bitarray
     if(shouldRecord()) {
@@ -485,8 +501,8 @@ void EventChannel::genEmit(Compiler::EnvironmentBase &env, Assembler::ScalarRegi
     env.getCodeGenerator().addi(*state[0], *state[0], 32);
 }
 //----------------------------------------------------------------------------
-void EventChannel::genIncrement(Assembler::CodeGenerator &c, uint32_t numUnrolls,
-                                const std::vector<Assembler::ScalarRegisterPtr> &state) const
+void EventChannelSink::genIncrement(Assembler::CodeGenerator &c, uint32_t numUnrolls,
+                                    const std::vector<Assembler::ScalarRegisterPtr> &state) const
 {
     // If we should record, generate code to increment bitarray
     if(shouldRecord()) {
