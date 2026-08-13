@@ -22,7 +22,7 @@ std::unique_ptr<ArrayBase> EventSourceBuffer::createArray(std::optional<size_t>,
 State::ShapeStride EventSourceBuffer::getArrayShapeStride(std::optional<size_t>, uint32_t, 
                                                           size_t, size_t, const Model&) const
 {
-    throw std::runtime_error("Backend missing Variable::EventSourceBuffer implementation");
+    throw std::runtime_error("Backend missing EventSourceBuffer::getArrayShapeStride implementation");
 }
 
 //----------------------------------------------------------------------------
@@ -42,26 +42,46 @@ std::unique_ptr<ArrayBase> EventSinkBuffer::createArray(std::optional<size_t>, u
 State::ShapeStride EventSinkBuffer::getArrayShapeStride(std::optional<size_t>, uint32_t, 
                                                         size_t, size_t, const Model&) const
 {
-    throw std::runtime_error("Backend missing Variable::EventSinkBuffer implementation");
+    throw std::runtime_error("Backend missing EventSinkBuffer::getArrayShapeStride implementation");
 }
 
 //----------------------------------------------------------------------------
-// Frontend::EventChannel
+// Frontend::EventChannelSource
 //----------------------------------------------------------------------------
-void EventChannel::updateMergeHash(boost::uuids::detail::sha1 &hash) const
+void EventChannelSource::updateMergeHash(boost::uuids::detail::sha1 &hash) const
 {
-    UPDATE_HASH_CLASS_NAME(EventChannel);
+    UPDATE_HASH_CLASS_NAME(EventChannelSource);
 }
 //----------------------------------------------------------------------------
-std::unique_ptr<ArrayBase> EventChannel::createArray(std::optional<size_t>, uint32_t, 
-                                                     size_t, const Model&, DeviceBase&) const
+std::unique_ptr<ArrayBase> EventChannelSource::createArray(std::optional<size_t>, uint32_t, 
+                                                           size_t, const Model&, DeviceBase&) const
 {
-    throw std::runtime_error("Backend missing EventChannel::createArray implementation");
+    throw std::runtime_error("Backend missing EventChannelSource::createArray implementation");
 }
 //----------------------------------------------------------------------------
-State::ShapeStride EventChannel::getArrayShapeStride(std::optional<size_t>, uint32_t, 
-                                                     size_t, size_t, const Model&) const
+State::ShapeStride EventChannelSource::getArrayShapeStride(std::optional<size_t>, uint32_t, 
+                                                           size_t, size_t, const Model&) const
 {
-    throw std::runtime_error("Backend missing Variable::EventChannel implementation");
+    throw std::runtime_error("Backend missing EventChannelSource::getArrayShapeStride implementation");
+}
+
+//----------------------------------------------------------------------------
+// Frontend::EventChannelSink
+//----------------------------------------------------------------------------
+void EventChannelSink::updateMergeHash(boost::uuids::detail::sha1 &hash) const
+{
+    UPDATE_HASH_CLASS_NAME(EventChannelSink);
+}
+//----------------------------------------------------------------------------
+std::unique_ptr<ArrayBase> EventChannelSink::createArray(std::optional<size_t>, uint32_t, 
+                                                         size_t, const Model&, DeviceBase&) const
+{
+    throw std::runtime_error("Backend missing EventChannelSink::createArray implementation");
+}
+//----------------------------------------------------------------------------
+State::ShapeStride EventChannelSink::getArrayShapeStride(std::optional<size_t>, uint32_t, 
+                                                         size_t, size_t, const Model&) const
+{
+    throw std::runtime_error("Backend missing EventChannelSink::getArrayShapeStride implementation");
 }
 }
