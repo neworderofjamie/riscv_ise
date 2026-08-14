@@ -226,7 +226,7 @@ public:
     // Public API
     //------------------------------------------------------------------------
     const auto getInputEventSource() const{ return m_InputEventSource; }
-    const auto getTarget() const{ return m_Target; }
+    const auto &getTarget() const{ return m_Target; }
 
     //------------------------------------------------------------------------
     // Static API
@@ -328,7 +328,7 @@ public:
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
-    const auto getTarget() const{ return m_Target; }
+    const auto &getTarget() const{ return m_Target; }
 
     //------------------------------------------------------------------------
     // Static API
@@ -379,7 +379,7 @@ public:
     // Public API
     //------------------------------------------------------------------------
     const auto getDelayBuffer() const{ return m_DelayBuffer; }
-    const auto getTarget() const{ return m_Target; }
+    const auto &getTarget() const{ return m_Target; }
     const size_t getNumDelayBufferTimesteps() const{ return getDelayBuffer()->getShape().front(); }
 
     //------------------------------------------------------------------------
