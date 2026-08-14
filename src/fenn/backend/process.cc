@@ -2122,11 +2122,15 @@ std::vector<Compiler::RegisterPtr> MemsetProcess::generateArchetypeCode(
         processCodeGenerator, sharedCodeGenerator, scalarRegisterAllocator, sharedRegisters,
         [&runtime](size_t d, auto p)
         { 
-            // Get stride of target
-            const auto stride = std::get<1>(runtime.getDeviceArrayShapeStrides(p->getTarget().getUnderlying(), d));
+            // Get stride and shape of target
+            auto [shape, strides] = runtime.getDeviceArrayShapeStrides(p->getTarget().getUnderlying(), d);
 
-            // Return stride of axes at top of slice
-            return static_cast<uint32_t>(stride.at(stride.size() - p->getTarget().getShape().size()));
+            // Get axes at top of slice
+            const size_t topAxis = strides.size() - p->getTarget().getShape().size();
+
+            // Multiply this axis's stride by it's shape and pad to a multiple of 32 elements
+            return static_cast<uint32_t>(
+                ::Common::Utils::ceilDivide(strides.at(topAxis) * shape.at(topAxis), 64) * 32);
         });
 
     
@@ -2183,7 +2187,7 @@ void MemsetProcess::generateLLMMemset(Assembler::CodeGenerator &c,
         {
             c.vstorel(*VValue, *VLLMAddress, r * 2);
         },
-        [targetReg, VLLMAddress, VNumUnrollBytes, &vectorRegisterAllocator]
+        [VLLMAddress, VNumUnrollBytes, &vectorRegisterAllocator]
         (auto &c, uint32_t numUnrolls)
         {
             // Calculate how many bytes we need to advance LLM addresses
@@ -2192,7 +2196,6 @@ void MemsetProcess::generateLLMMemset(Assembler::CodeGenerator &c,
             c.vlui(*VNumUnrollBytes, numUnrolls * 2);
 
             c.vadd(*VLLMAddress, *VLLMAddress, *VNumUnrollBytes);
-            c.addi(*targetReg, *targetReg, 64 * numUnrolls);
         });
 }
 //----------------------------------------------------------------------------
