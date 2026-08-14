@@ -333,7 +333,7 @@ public:
     //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------
-    static std::shared_ptr<MemsetProcess> create(VariablePtr target, const std::string &name = "")
+    static std::shared_ptr<MemsetProcess> create(Sliced<Variable> target, const std::string &name = "")
     {
         return std::make_shared<MemsetProcess>(Private(), target, name);
     }
@@ -341,6 +341,61 @@ private:
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
+    Sliced<Variable> m_Target;
+};
+
+//----------------------------------------------------------------------------
+// Frontend::DendriticDelayUpdateProcess
+//----------------------------------------------------------------------------
+//! Process for copying current delayed input from delay buffer into target variable
+class FRONTEND_EXPORT DendriticDelayUpdateProcess : public Process
+{
+public:
+    DendriticDelayUpdateProcess(Private, VariablePtr delayBuffer, Sliced<Variable> target,
+                                const std::string &name);
+
+    //------------------------------------------------------------------------
+    // Process virtuals
+    //------------------------------------------------------------------------
+    //! Get vector of state objects used by this process
+    virtual std::vector<std::shared_ptr<const State>> getAllState() const override final;
+
+    //! Get vector of event source objects used by this process
+    virtual std::vector<std::shared_ptr<const EventSource>> getAllEventSources() const override final;
+
+    //! Get vector of event sink objects used by this process
+    virtual std::vector<Sliced<EventSink>> getAllEventSinks() const override final;
+
+    //! Update the provided hash with the properties of this process which determine whether it can be merged
+    virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const Model &model) const override;
+
+    //! Update the compatible split dimensions of a state object (which should be
+    //! one used by this process) with any constraints imposed by this process)
+    virtual void updateCompatibleSplitDimensions(std::shared_ptr<const State> state, 
+                                                 uint32_t &compatibleSplitDimensions,
+                                                 uint32_t &compatibleIndexDimensions) const override;
+
+    //------------------------------------------------------------------------
+    // Public API
+    //------------------------------------------------------------------------
+    const auto getDelayBuffer() const{ return m_DelayBuffer; }
+    const auto getTarget() const{ return m_Target; }
+    const size_t getNumDelayBufferTimesteps() const{ return getDelayBuffer()->getShape().front(); }
+
+    //------------------------------------------------------------------------
+    // Static API
+    //------------------------------------------------------------------------
+    static std::shared_ptr<DendriticDelayUpdateProcess> create(VariablePtr delayBuffer, VariablePtr target, 
+                                                               const std::string &name = "")
+    {
+        return std::make_shared<DendriticDelayUpdateProcess>(Private(), delayBuffer, target, name);
+    }
+
+private:
+    //------------------------------------------------------------------------
+    // Members
+    //------------------------------------------------------------------------
+    VariablePtr m_DelayBuffer;
     Sliced<Variable> m_Target;
 };
 }

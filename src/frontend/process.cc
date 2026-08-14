@@ -410,4 +410,78 @@ void MemsetProcess::updateCompatibleSplitDimensions(std::shared_ptr<const State>
     updateSlicedCompatibleSplit(getTarget(), compatibleSplitDimensions,
                                 compatibleIndexDimensions);
 }
+
+//----------------------------------------------------------------------------
+// DendriticDelayUpdateProcess
+//----------------------------------------------------------------------------
+DendriticDelayUpdateProcess::DendriticDelayUpdateProcess(Private, VariablePtr delayBuffer, Sliced<Variable> target, 
+                                                         const std::string &name)
+:   Process(name), m_DelayBuffer(delayBuffer), m_Target(target)
+{
+    if(getTarget().getUnderlying() == nullptr) {
+        throw std::runtime_error("Dendritic delay update process requires target");
+    }
+
+    if(getDelayBuffer() == nullptr) {
+        throw std::runtime_error("Dendritic delay update process requires delay buffer");
+    }
+
+    // If NUMBER of dimensions are incorrect
+    if ((getDelayBuffer()->getShape().size() + 1) != getTarget().getShape().size()) {
+        throw std::runtime_error("Delay buffer with shape: " + Shape::toString(getDelayBuffer()->getShape())
+                                 + " is not compatible with target with shape: " 
+                                 + Shape::toString(getTarget().getShape()));
+    }
+
+    // If the dimensions themselves don't match
+    if (!std::equal(getTarget().getShape().cbegin(), getTarget().getShape().cend(), 
+                    getDelayBuffer()->getShape().cbegin() + 1)) {
+        throw std::runtime_error("Delay buffer with shape: " + Shape::toString(getDelayBuffer()->getShape())
+                                 + " is not compatible with target with shape: " 
+                                 + Shape::toString(getTarget().getShape()));
+    }
+}
+//----------------------------------------------------------------------------
+std::vector<std::shared_ptr<const State>> DendriticDelayUpdateProcess::getAllState() const
+{
+    return {getDelayBuffer(), getTarget().getUnderlying()};
+}
+//----------------------------------------------------------------------------
+std::vector<std::shared_ptr<const EventSource>> DendriticDelayUpdateProcess::getAllEventSources() const
+{
+    return {};
+}
+//----------------------------------------------------------------------------
+std::vector<Sliced<EventSink>> DendriticDelayUpdateProcess::getAllEventSinks() const
+{
+    return {};
+}
+//----------------------------------------------------------------------------
+void DendriticDelayUpdateProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Model&) const
+{
+    UPDATE_HASH_CLASS_NAME(DendriticDelayUpdateProcess);
+
+    m_DelayBuffer->updateMergeHash(hash);
+    m_Target.updateMergeHash(hash);
+}
+//----------------------------------------------------------------------------
+void DendriticDelayUpdateProcess::updateCompatibleSplitDimensions(std::shared_ptr<const State> state, 
+                                                                  uint32_t &compatibleSplitDimensions,
+                                                                  uint32_t &compatibleIndexDimensions) const
+{
+    if (state == getTarget().getUnderlying()) {
+        updateSlicedCompatibleSplit(getTarget(), compatibleSplitDimensions,
+                                    compatibleIndexDimensions);
+    }
+    else {
+        assert(state == getDelayBuffer());
+
+        // Can split along any axis 'below' time
+        const uint32_t allAxes = (1 << getDelayBuffer()->getShape().size()) - 1;
+        compatibleSplitDimensions &= (allAxes << 1);
+
+        // Can only index along time dimension
+        compatibleIndexDimensions &= (1 << 0);
+    }
+}
 }
