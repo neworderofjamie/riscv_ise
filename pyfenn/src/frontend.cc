@@ -249,6 +249,13 @@ PYBIND11_MODULE(_frontend, m)
         WRAP_PROPERTY_RO("target", Frontend, MemsetProcess, Target);
 
     //------------------------------------------------------------------------
+    // frontend.DendriticDelayUpdateProcess
+    //------------------------------------------------------------------------
+    pybind11::class_<Frontend::DendriticDelayUpdateProcess, Frontend::Process, std::shared_ptr<Frontend::DendriticDelayUpdateProcess>>(m, "DendriticDelayUpdateProcess")
+        WRAP_PROPERTY_RO("delay_buffer", Frontend, DendriticDelayUpdateProcess, DelayBuffer)
+        WRAP_PROPERTY_RO("target", Frontend, DendriticDelayUpdateProcess, Target);
+
+    //------------------------------------------------------------------------
     // frontend.ProcessGroup
     //------------------------------------------------------------------------
     pybind11::class_<Frontend::ProcessGroup, Frontend::ModelComponent, std::shared_ptr<Frontend::ProcessGroup>>(m, "ProcessGroup")

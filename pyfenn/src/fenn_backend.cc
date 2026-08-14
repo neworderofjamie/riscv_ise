@@ -166,12 +166,20 @@ PYBIND11_MODULE(_fenn_backend, m)
              pybind11::arg("seed"), pybind11::arg("name") = "");
     
     //------------------------------------------------------------------------
-    // fenn_backend.RNGInitProcess
+    // fenn_backend.DendriticDelayUpdateProcess
+    //------------------------------------------------------------------------
+    pybind11::class_<Backend::DendriticDelayUpdateProcess, Frontend::DendriticDelayUpdateProcess, std::shared_ptr<Backend::DendriticDelayUpdateProcess>>(m, "DendriticDelayUpdateProcess", pybind11::multiple_inheritance())
+        .def(pybind11::init(&Backend::DendriticDelayUpdateProcess::create),
+             pybind11::arg("delay_buffer"), pybind11::arg("target"), 
+             pybind11::arg("name") = "");
+
+    //------------------------------------------------------------------------
+    // fenn_backend.MemsetProcess
     //------------------------------------------------------------------------
     pybind11::class_<Backend::MemsetProcess, Frontend::MemsetProcess, std::shared_ptr<Backend::MemsetProcess>>(m, "MemsetProcess", pybind11::multiple_inheritance())
         .def(pybind11::init(&Backend::MemsetProcess::create),
              pybind11::arg("target"), pybind11::arg("name") = "");
-    
+
     //------------------------------------------------------------------------
     // fenn_backend.BroadcastProcess
     //------------------------------------------------------------------------

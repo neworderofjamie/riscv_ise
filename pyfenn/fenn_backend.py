@@ -1,4 +1,5 @@
 from ._fenn_backend import (BroadcastProcess, DelayEventPropagationProcess,
+                            DendriticDelayUpdateProcess, 
                             DenseEventPropagationProcess, EventChannel, 
                             EventSinkBuffer, EventSourceBuffer, MemsetProcess,
                             NeuronUpdateProcess, RNGInitProcess, RoundingMode,
