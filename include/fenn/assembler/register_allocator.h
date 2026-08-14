@@ -70,6 +70,8 @@ public:
         : m_FreeRegisters(initialFreeRegisters), m_MaxUsedRegisters(0)
     {
     }
+    RegisterAllocator(const RegisterAllocator<T> &) = delete;
+    RegisterAllocator(RegisterAllocator<T> &&) = delete;
 
     //------------------------------------------------------------------------
     // Public API
