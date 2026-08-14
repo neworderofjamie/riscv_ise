@@ -25,7 +25,6 @@ class DenseLinear:
         assert len(target_var.shape) == 1
         self.shape = (source_events.shape[0], target_var.shape[0])
 
-        # **YUCK** pad weight shape
         self.weight = backend.Variable(self.shape, weight_dtype, f"{name}_weight")
         self.process = backend.DenseEventPropagationProcess(source_events, 
                                                             self.weight, 
@@ -44,3 +43,18 @@ class SparseLinear:
         self.process = backend.SparseEventPropagationProcess(
             source_events, self.weight, target_var, 
             num_sparse_connectivity_bits, name)
+
+class DelayLinear:
+    def __init__(self, backend: ModuleType, source_events: EventSource, 
+                 target_var: Variable, weight_dtype: str, num_delay_bits: int,
+                 name: str = ""):
+        assert len(source_events.shape) == 1
+        assert len(target_var.shape) == 1
+        self.shape = (source_events.shape[0], target_var.shape[0])
+
+        self.weight = backend.Variable(self.shape, weight_dtype, f"{name}_weight")
+        self.process = backend.DelayEventPropagationProcess(source_events,
+                                                            self.weight,
+                                                            target_var,
+                                                            num_delay_bits,
+                                                            name)

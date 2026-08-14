@@ -147,6 +147,16 @@ PYBIND11_MODULE(_fenn_backend, m)
              pybind11::arg("weight"), pybind11::arg("target"),
              pybind11::arg("num_sparse_connectivity_bits"),
              pybind11::arg("name") = "");
+    
+    //------------------------------------------------------------------------
+    // fenn_backend.DelayEventPropagationProcess
+    //------------------------------------------------------------------------
+    pybind11::class_<Backend::DelayEventPropagationProcess, Frontend::EventPropagationProcess, std::shared_ptr<Backend::DelayEventPropagationProcess>>(m, "DelayEventPropagationProcess", pybind11::multiple_inheritance())
+        .def(pybind11::init(&Backend::DelayEventPropagationProcess::create),
+             pybind11::arg("input_event_source"), 
+             pybind11::arg("weight"), pybind11::arg("target"),
+             pybind11::arg("num_delay_bits"),
+             pybind11::arg("name") = "");
 
     //------------------------------------------------------------------------
     // fenn_backend.RNGInitProcess

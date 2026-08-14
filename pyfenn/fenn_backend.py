@@ -1,8 +1,9 @@
-from ._fenn_backend import (BroadcastProcess, DenseEventPropagationProcess, 
-                            EventChannel, EventSinkBuffer, EventSourceBuffer, 
-                            MemsetProcess, NeuronUpdateProcess, 
-                            RNGInitProcess, RoundingMode, RuntimeHW, 
-                            RuntimeSim, SimpleKernel, SimulationLoopKernel,
+from ._fenn_backend import (BroadcastProcess, DelayEventPropagationProcess,
+                            DenseEventPropagationProcess, EventChannel, 
+                            EventSinkBuffer, EventSourceBuffer, MemsetProcess,
+                            NeuronUpdateProcess, RNGInitProcess, RoundingMode,
+                            RuntimeHW, RuntimeSim, SimpleKernel, 
+                            SimulationLoopKernel, 
                             SparseEventPropagationProcess, Variable, 
                             disassemble)
                             
