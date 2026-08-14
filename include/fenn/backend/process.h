@@ -321,7 +321,7 @@ private:
 class FENN_BACKEND_EXPORT DelayEventPropagationProcess : public Frontend::EventPropagationProcess, public EventDrivenProcessImplementation
 {
 public:
-    DelayEventPropagationProcess(Private, std::shared_ptr<const Frontend::EventSource>inputEventSource, 
+    DelayEventPropagationProcess(Private, std::shared_ptr<const Frontend::EventSource> inputEventSource, 
                                  Frontend::VariablePtr weight, Frontend::Sliced<Frontend::Variable> target, 
                                  size_t numDelayBits, const std::string &name);
 
@@ -369,7 +369,7 @@ public:
     //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------
-    static std::shared_ptr<DelayEventPropagationProcess> create(std::shared_ptr<const Frontend::EventSource>inputEventSource, 
+    static std::shared_ptr<DelayEventPropagationProcess> create(std::shared_ptr<const Frontend::EventSource> inputEventSource, 
                                                                 Frontend::VariablePtr weight, Frontend::Sliced<Frontend::Variable> target, 
                                                                 size_t numDelayBits, const std::string &name = "")
     {
@@ -479,6 +479,50 @@ private:
                            Assembler::VectorRegisterAllocator &vectorRegisterAllocator,
                            Assembler::ScalarRegisterPtr targetReg,
                            std::variant<Assembler::ScalarRegisterPtr, int, std::monostate> stride) const;
+};
+
+//----------------------------------------------------------------------------
+// FeNN::Backend::DendriticDelayUpdateProcess
+//----------------------------------------------------------------------------
+class FENN_BACKEND_EXPORT DendriticDelayUpdateProcess : public Frontend::DendriticDelayUpdateProcess, public TimeDrivenProcessImplementation
+{
+public:
+    DendriticDelayUpdateProcess(Private, Frontend::VariablePtr delayBuffer, 
+                                Frontend::Sliced<Frontend::Variable> target,
+                                const std::string &name);
+
+    //------------------------------------------------------------------------
+    // Process virtuals
+    //------------------------------------------------------------------------
+    virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const Frontend::Model &model) const override final;
+
+    //------------------------------------------------------------------------
+    // ProcessImplementation virtuals
+    //------------------------------------------------------------------------
+    //! Update the memory compatibility of a variable associated with this process
+    virtual void updateCompatibleMemSpace(std::shared_ptr<const Frontend::State> state, 
+                                          MemSpace &compatibleMemSpaces) const override final;
+
+    //------------------------------------------------------------------------
+    // TimeDrivenProcessImplementation virtuals
+    //------------------------------------------------------------------------ 
+    virtual std::vector<Compiler::RegisterPtr> generateArchetypeCode(
+        const Frontend::MergedProcess &mergedProcess, const Runtime &runtime, 
+        const KernelImplementation &kernel, MergedFields &mergedFields,
+        Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg,
+        std::optional<uint32_t> numTimesteps, Assembler::CodeGenerator &processCodeGenerator, 
+        Assembler::CodeGenerator &sharedCodeGenerator, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
+        Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;
+
+    //------------------------------------------------------------------------
+    // Static API
+    //------------------------------------------------------------------------
+    static std::shared_ptr<DendriticDelayUpdateProcess> create(Frontend::VariablePtr delayBuffer, 
+                                                               Frontend::Sliced<Frontend::Variable> target,
+                                                               const std::string &name = "")
+    {
+        return std::make_shared<DendriticDelayUpdateProcess>(Private(), delayBuffer, target, name);
+    }
 };
 
 //----------------------------------------------------------------------------

@@ -2228,6 +2228,166 @@ void MemsetProcess::generateURAMMemset(Assembler::CodeGenerator &c,
 }
 
 //----------------------------------------------------------------------------
+// FeNN::Backend::DendriticDelayUpdateProcess
+//----------------------------------------------------------------------------
+DendriticDelayUpdateProcess::DendriticDelayUpdateProcess(Private, Frontend::VariablePtr delayBuffer,
+                                                         Frontend::Sliced<Frontend::Variable> target,
+                                                         const std::string &name)
+:   Frontend::DendriticDelayUpdateProcess::DendriticDelayUpdateProcess(Private(), delayBuffer, target, name)
+{
+    // Check number of buffer timesteps is P.O.T.
+    if(!::Common::Utils::isPOT(getDelayBuffer()->getShape().at(0))) {
+        throw std::runtime_error("On FeNN, delay buffers need to have "
+                                 "a power-of-two number of timesteps");
+    }
+
+    // **TODO** implement
+    assert(!getTarget().hasTime());
+}
+//------------------------------------------------------------------------
+void DendriticDelayUpdateProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, 
+                                                  const Frontend::Model &model) const
+{
+    // Superclass
+    Frontend::DendriticDelayUpdateProcess::updateMergeHash(hash, model);
+
+    // Include has of number of delay buffer timesteps
+    // **NOTE** not merging these allows easier unrolled loop generation
+    ::Common::Utils::updateHash(getNumDelayBufferTimesteps(), hash);
+
+    // Include hash of delay buffer and target memory space
+    ::Common::Utils::updateHash(
+        static_cast<const Model&>(model).getStateMemSpace(getDelayBuffer(), 
+                                                          true/*getRuntime().shouldUseDRAMForWeights()*/), hash);
+    ::Common::Utils::updateHash(
+        static_cast<const Model&>(model).getStateMemSpace(getTarget().getUnderlying(), 
+                                                          true/*getRuntime().shouldUseDRAMForWeights()*/), hash);
+}
+//------------------------------------------------------------------------
+void DendriticDelayUpdateProcess::updateCompatibleMemSpace(std::shared_ptr<const Frontend::State> state,
+                                                           MemSpace &compatibleMemSpaces) const
+{
+    if (state == getTarget().getUnderlying()) {
+        compatibleMemSpaces &= MemSpace::URAM;
+    }
+    else {
+        assert(state == getDelayBuffer());
+
+        compatibleMemSpaces &= MemSpace::LLM;
+    }
+}
+
+//------------------------------------------------------------------------ 
+std::vector<Compiler::RegisterPtr> DendriticDelayUpdateProcess::generateArchetypeCode(
+    const Frontend::MergedProcess &mergedProcess, const Runtime &runtime,
+    const KernelImplementation &kernel, MergedFields &mergedFields,
+    Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg,
+    std::optional<uint32_t> numTimesteps, Assembler::CodeGenerator &processCodeGenerator,
+    Assembler::CodeGenerator &sharedCodeGenerator, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
+    Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
+{
+    // Add process fields
+    const uint32_t targetFieldOffset = mergedFields.addField<DendriticDelayUpdateProcess>(
+        [](const Frontend::DeviceBase &d, auto p)
+        { 
+            return d.getArray(p->getTarget().getUnderlying()); 
+        });
+
+    const uint32_t delayBufferFieldOffset = mergedFields.addField<DendriticDelayUpdateProcess>(
+        [](const Frontend::DeviceBase &d, auto p)
+        { 
+            return d.getArray(p->getDelayBuffer()); 
+        });
+
+    // Provide delay timestep mask
+    std::vector<Compiler::RegisterPtr> sharedRegisters;
+    auto stride = addScalarValue<DendriticDelayUpdateProcess>(
+        12, mergedProcess, runtime.getNumDevices(), mergedFields, fieldBaseReg,
+        processCodeGenerator, sharedCodeGenerator, scalarRegisterAllocator, sharedRegisters,
+        [&runtime](size_t d, auto p)
+        { 
+            // Get stride and shape of target
+            auto [shape, strides] = runtime.getDeviceArrayShapeStrides(p->getTarget().getUnderlying(), d);
+
+            // Get axes at top of slice
+            const size_t topAxis = strides.size() - p->getTarget().getShape().size();
+
+            // Multiply this axis's stride by it's shape and pad to a multiple of 32 elements
+            return static_cast<uint32_t>(
+                ::Common::Utils::ceilDivide(strides.at(topAxis) * shape.at(topAxis), 64) * 32);
+        });
+
+    // Register allocation
+    ALLOCATE_SCALAR(STargetBuffer);
+    ALLOCATE_VECTOR(VDelayBuffer);
+
+    auto &c = processCodeGenerator;
+    c.lw(*STargetBuffer, *fieldBaseReg, targetFieldOffset);
+
+    {
+        ALLOCATE_SCALAR(STmp);
+        ALLOCATE_SCALAR(STmp2);
+
+        // Calculate time modulo delay buffer size
+        c.andi(*STmp, *timeReg, getNumDelayBufferTimesteps() - 1);
+
+        // Double to get starting offset in bytes
+        c.slli(*STmp, *STmp, 1);
+
+        // Load LLM address, add offset and broadcast
+        c.lw(*STmp2, *fieldBaseReg, delayBufferFieldOffset);
+        c.add(*STmp2, *STmp2, *STmp);
+        c.vfill(*VDelayBuffer, *STmp2);
+    }
+
+    ALLOCATE_VECTOR(VDenDelayFront);
+    ALLOCATE_VECTOR(VTarget);
+    ALLOCATE_VECTOR(VZero);
+
+    c.vlui(*VZero, 0);
+
+    // Calculate stride over each neuron's delay buffer
+    const int delayStride = 2 * getNumDelayBufferTimesteps();
+
+    // Generate unrolled loop 
+    // **TODO** figure out unrolledness
+    unrollVectorLoopBody(
+        c, scalarRegisterAllocator, stride, getMaxUnroll(), true, false,
+        [delayStride, STargetBuffer, VDelayBuffer, VDenDelayFront, VTarget, VZero]
+        (auto &c, uint32_t r, auto)
+        {
+            // From from front of delay buffer in URAM
+            c.vloadl(*VDenDelayFront, *VDelayBuffer, delayStride * r);   
+
+            // Load from URAM buffer into state register
+            c.vloadv(*VTarget, *STargetBuffer, 64 * r);
+
+            // Write zero back to LLM
+            c.vstorel(*VZero, *VDelayBuffer, delayStride * r);
+
+            // Add new input from LLM to state register
+            c.vadd_s(*VTarget, *VTarget, *VDenDelayFront);
+
+            // Write back to target
+            c.vstore(*VTarget, *STargetBuffer, 64 * r);
+        },
+        [delayStride, STargetBuffer, VDelayBuffer, &vectorRegisterAllocator]
+        (auto &c, uint32_t numUnrolls)
+        {
+            // Calculate how many bytes we need to advance LLM addresses
+            // **TODO** VADDI instruction would save an instruction in this type of situation
+            ALLOCATE_VECTOR(VNumUnrollBytes);
+            c.vlui(*VNumUnrollBytes, numUnrolls * delayStride);
+
+            // Increment URAM and LLM pointers
+            c.addi(*STargetBuffer, *STargetBuffer, 64 * numUnrolls);
+            c.vadd(*VDelayBuffer, *VDelayBuffer, *VNumUnrollBytes);
+        });
+
+    return sharedRegisters;
+}
+
+//----------------------------------------------------------------------------
 // FeNN::Backend::BroadcastProcess
 //----------------------------------------------------------------------------
 BroadcastProcess::BroadcastProcess(Private, Frontend::VariablePtr source, Frontend::VariablePtr target, const std::string &name)
