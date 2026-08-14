@@ -127,6 +127,18 @@ static const char *__doc_FeNN_Backend_DelayEventPropagationProcess_updateMaxDMAB
 
 static const char *__doc_FeNN_Backend_DelayEventPropagationProcess_updateMergeHash = R"doc(Update the provided hash with the properties of this process which determine whether it can be merged)doc";
 
+static const char *__doc_FeNN_Backend_DendriticDelayUpdateProcess = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_DendriticDelayUpdateProcess_DendriticDelayUpdateProcess = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_DendriticDelayUpdateProcess_create = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_DendriticDelayUpdateProcess_generateArchetypeCode = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_DendriticDelayUpdateProcess_updateCompatibleMemSpace = R"doc(Update the memory compatibility of a variable associated with this process)doc";
+
+static const char *__doc_FeNN_Backend_DendriticDelayUpdateProcess_updateMergeHash = R"doc()doc";
+
 static const char *__doc_FeNN_Backend_DenseEventPropagationProcess = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_DenseEventPropagationProcess_DenseEventPropagationProcess = R"doc()doc";
@@ -339,6 +351,8 @@ static const char *__doc_FeNN_Backend_EnvironmentLiteral = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_EnvironmentMergedField = R"doc()doc";
 
+static const char *__doc_FeNN_Backend_EventChannel = R"doc(**NOTE** this class isn't really necessary but it makes binding easier)doc";
+
 static const char *__doc_FeNN_Backend_EventChannelSink = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_EventChannelSink_createArray = R"doc()doc";
@@ -360,6 +374,10 @@ static const char *__doc_FeNN_Backend_EventChannelSource_generateArchetypeEventL
 static const char *__doc_FeNN_Backend_EventChannelSource_generateEventLoop = R"doc(Generate code to implement event loop)doc";
 
 static const char *__doc_FeNN_Backend_EventChannelSource_getArrayShapeStride = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_EventChannel_create = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_EventChannel_create_2 = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_EventDrivenProcessImplementation = R"doc()doc";
 

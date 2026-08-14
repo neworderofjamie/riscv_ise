@@ -1094,6 +1094,34 @@ static const char *__doc_Frontend_ArrayBase_serialiseDeviceObject = R"doc(Serial
 
 static const char *__doc_Frontend_ArrayBase_setHostPointer = R"doc()doc";
 
+static const char *__doc_Frontend_DendriticDelayUpdateProcess = R"doc(Process for copying current delayed input from delay buffer into target variable)doc";
+
+static const char *__doc_Frontend_DendriticDelayUpdateProcess_DendriticDelayUpdateProcess = R"doc()doc";
+
+static const char *__doc_Frontend_DendriticDelayUpdateProcess_create = R"doc()doc";
+
+static const char *__doc_Frontend_DendriticDelayUpdateProcess_getAllEventSinks = R"doc(Get vector of event sink objects used by this process)doc";
+
+static const char *__doc_Frontend_DendriticDelayUpdateProcess_getAllEventSources = R"doc(Get vector of event source objects used by this process)doc";
+
+static const char *__doc_Frontend_DendriticDelayUpdateProcess_getAllState = R"doc(Get vector of state objects used by this process)doc";
+
+static const char *__doc_Frontend_DendriticDelayUpdateProcess_getDelayBuffer = R"doc()doc";
+
+static const char *__doc_Frontend_DendriticDelayUpdateProcess_getNumDelayBufferTimesteps = R"doc()doc";
+
+static const char *__doc_Frontend_DendriticDelayUpdateProcess_getTarget = R"doc()doc";
+
+static const char *__doc_Frontend_DendriticDelayUpdateProcess_m_DelayBuffer = R"doc()doc";
+
+static const char *__doc_Frontend_DendriticDelayUpdateProcess_m_Target = R"doc()doc";
+
+static const char *__doc_Frontend_DendriticDelayUpdateProcess_updateCompatibleSplitDimensions =
+R"doc(Update the compatible split dimensions of a state object (which should be
+one used by this process) with any constraints imposed by this process))doc";
+
+static const char *__doc_Frontend_DendriticDelayUpdateProcess_updateMergeHash = R"doc(Update the provided hash with the properties of this process which determine whether it can be merged)doc";
+
 static const char *__doc_Frontend_DeviceBase = R"doc()doc";
 
 static const char *__doc_Frontend_DeviceBase_2 = R"doc(Interface Runtime classes use to communicate with state on individual devices)doc";
@@ -1161,6 +1189,8 @@ static const char *__doc_Frontend_EventChannelSource_updateMergeHash = R"doc()do
 static const char *__doc_Frontend_EventChannel_EventChannel = R"doc()doc";
 
 static const char *__doc_Frontend_EventChannel_create = R"doc()doc";
+
+static const char *__doc_Frontend_EventChannel_create_2 = R"doc()doc";
 
 static const char *__doc_Frontend_EventChannel_getSink = R"doc()doc";
 
