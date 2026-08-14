@@ -7,6 +7,8 @@ from typing import Optional, Sequence, Tuple, Union
 
 from platform import system
 
+RaggedArray = Sequence[np.ndarray]
+SplitRaggedArray = Sequence[Sequence[np.ndarray]]
 
 class PythonLogAppender(IAppender):
     _log_level_map = {PlogSeverity.FATAL: logging.FATAL,
@@ -307,34 +309,45 @@ def build_delay_weights(weights: np.ndarray, delays: np.ndarray,
     # Combine weight and indices
     return (addresses | (weights << delay_bits)).astype(np.int16)
 
-def build_sparse_connectivity(row_ind: Sequence[np.ndarray], 
-                              weight: Union[Number, Sequence[np.ndarray]],
+def build_sparse_connectivity(row_ind: SplitRaggedArray, 
+                              weight: Union[Number, SplitRaggedArray],
                               sparse_connectivity_bits: int) -> np.ndarray:
-    # Determine which lane each postsynaptic index belongs in
-    row_lane = [r % 32 for r in row_ind]
+    # Check number of presynaptic neurons is the same across all splits
+    num_pre = [len(r) for r in row_ind]
+    assert all(num_pre[0] == n for n in num_pre)
     
-    # Get ordering of rows
-    row_order = [np.argsort(l) for l in row_lane]
+    # Determine which lane each postsynaptic index belongs in
+    row_lane = [[r % 32 for r in core_row_ind]
+                for core_row_ind in row_ind]
 
-    # Sort rows of indices by their lane
-    row_ind_sorted = [i[o] for i, o in zip(row_ind, row_order)]
+    # Get order of each row
+    row_order = [[np.argsort(l) for l in core_row_lane]
+                  for core_row_lane in row_lane]
+                      
+    # Use this to order indices
+    row_ind_sorted = [[i[o] for i, o in zip(core_row_ind, core_row_order)]
+                      for core_row_ind, core_row_order in zip(row_ind, row_order)]
 
     # Count how many connections each lane needs to process in each row
-    row_conns_per_lane = [np.bincount(l) for l in row_lane]
+    row_conns_per_lane = [[np.bincount(l) for l in core_row_lane]
+                          for core_row_lane in row_lane]
 
     # Determine maximum number of vectors
-    num_vectors = max(np.amax(c) for c in row_conns_per_lane
-                      if len(c) > 0)
+    num_vectors = max(np.amax(c) for core_row_conns_per_lane in row_conns_per_lane
+                      for c in core_row_conns_per_lane if len(c) > 0)
 
     # Calculate cumulative sum of bin count to determine where to split per-bank
-    row_conn_lane_sections = [np.cumsum(c) for c in row_conns_per_lane]
+    row_conn_lane_ind = [[np.cumsum(c) for c in core_row_conns_per_lane]
+                         for core_row_conns_per_lane in row_conns_per_lane]
 
     # Convert row indices into addresses
-    row_data_sorted = [((r // 32) * 2).astype(np.int16) for r in row_ind_sorted]
+    row_data_sorted = [[((r // 32) * 2).astype(np.int16) 
+                        for r in core_row_ind_sorted]
+                        for core_row_ind_sorted in row_ind_sorted]
 
     # Check largest address fits without sparse connectivity bits
-    max_address = max(np.amax(r) for r in row_data_sorted
-                      if len(r) > 0)
+    max_address = max(np.amax(r) for core_row_data_sorted in row_data_sorted
+                      for r in core_row_data_sorted if len(r) > 0)
     if max_address >= 2**sparse_connectivity_bits:
         raise RuntimeError("Not enough bits to represent connectivity")
     
@@ -347,38 +360,98 @@ def build_sparse_connectivity(row_ind: Sequence[np.ndarray],
             raise RuntimeError("Not enough bits for weight")
         
         # Combine weight and indices
-        row_data_sorted = [r | (weight << sparse_connectivity_bits)
-                           for r in row_data_sorted]
+        row_data_sorted = [[r | (weight << sparse_connectivity_bits)
+                            for r in core_row_data_sorted]
+                            for core_row_data_sorted in row_data_sorted]
     else:
-        # Check each row limits
-        for w in weight:
-            if len(w) > 0 and (np.amin(w) < min_weight or np.amax(w) > max_weight):
-                raise RuntimeError("Not enough bits for weight")
+        # Check weights and row indices are provided for same core count
+        assert len(weight) == len(row_ind)
+       
+        # Loop through core row indices and weights
+        for core_row_ind, core_weight in zip(row_ind, weight):
+            # Check they have the same number of rows
+            assert len(core_weight) == len(core_row_ind)
+        
+            # Check each row limits
+            for i, w in zip(core_row_ind, core_weight):
+                assert len(i) == len(w)
+                if len(w) > 0 and (np.amin(w) < min_weight or np.amax(w) > max_weight):
+                    raise RuntimeError("Not enough bits for weight")
         
         # Sort weights into same order as indices
-        weight_sorted = [w[o] for w, o in zip(weight, row_order)]
+        weight_sorted = [[w[o] for w, o in zip(core_weight, core_row_order)]
+                          for core_weight, core_row_order in zip(weights, row_ind)]
 
         # Combine weight and indices
-        assert len(row_data_sorted) == len(weight)
-        row_data_sorted = [r | (w << sparse_connectivity_bits)
-                           for r, w in zip(row_data_sorted, weight_sorted)]
-
-    padded_rows = []
-    for d, s in zip(row_data_sorted, row_conn_lane_sections):
-        # Split, pad list of connections with  
-        # **NOTE** we only care about which L.L.M. address of target in bytes
-        conn_id_banked = np.transpose(np.vstack([np.pad(a, (0, num_vectors - len(a)), 
-                                                        constant_values=0)
-                                                for a in np.split(d, s[:-1])]))
-        conn_id_banked = np.pad(conn_id_banked, ((0, 0), (0, 32 - conn_id_banked.shape[1])),
-                                constant_values=0)
-        
-        padded_rows.append(np.reshape(conn_id_banked, 32 * num_vectors))
+        row_data_sorted = [[r | (w << sparse_connectivity_bits)
+                           for r, w in zip(core_row_data_sorted, core_weight_sorted)]
+                           for core_row_data_sorted, core_weight_sorted in zip(row_data_sorted, weight_sorted)]
     
-    return np.vstack(padded_rows)
+    # Loop through cores
+    padded_rows = []
+    for core_row_data_sorted, core_row_conn_lane_ind in zip(row_data_sorted, row_conn_lane_ind):
+        # Loop through rows
+        core_padded_rows = []
+        for i, l in zip(core_row_data_sorted, core_row_conn_lane_ind):
+            # Split, pad list of connections with  
+            # **NOTE** we only care about which L.L.M. address of target in bytes
+            conn_id_banked = np.transpose(np.vstack([np.pad(a, (0, num_vectors - len(a)), 
+                                                            constant_values=-2)
+                                                    for a in np.split(i, l[:-1])]))
+            conn_id_banked = np.pad(conn_id_banked, ((0, 0), (0, 32 - conn_id_banked.shape[1])),
+                                    constant_values=0)
+            
+            core_padded_rows.append(np.reshape(conn_id_banked, 32 * num_vectors))
+        padded_rows.append(np.vstack(core_padded_rows).astype(np.int16))
+    
+    return padded_rows
 
+def split_sparse_connectivity(inds: RaggedArray, 
+                              right_edges: Sequence[int],
+                              *args) -> SplitRaggedArray:
+    # Count splits
+    num_splits = len(right_edges) + 1
+    
+    # Create list of lists to hold split indices
+    split_inds = [[] for _ in range(num_splits)]
+    
+    # Create list of list of lists for additional split arrays
+    split_arrays = [[[] for _ in range(num_splits)]
+                    for _ in range(len(args))]
+
+    # Loop through rows and other ragged arrays
+    for r in zip(inds, *args):
+        # Split inds based on right edge
+        # **NOTE** we want to copy 
+        splits = np.searchsorted(r[0], right_edges)
+        split_row_inds = np.split(r[0], splits)
+        assert len(split_row_inds) == num_splits
+
+        # Split each array the same way
+        split_row_arrays = [np.split(a, splits) for a in r[1:]]
+        assert all(len(s) == num_splits for s in split_row_arrays)
+
+        # Loop through split rows
+        for i, splits in enumerate(zip(split_row_inds, *split_row_arrays)):
+            # Subtract right edge of previous split 
+            # i.e. left edge from indices
+            split_row_ind = splits[0].copy()
+            if i > 0:
+                split_row_ind -= right_edges[i - 1]
+
+            # Add indices to list
+            split_inds[i].append(split_row_ind)
+            
+            # Loop through split arrays and add splits to list
+            for j, a in enumerate(split_arrays):
+                a[i].append(splits[j + 1])
+    
+    # Return tuple of split arrays
+    return (split_inds if len(split_arrays) == 0 
+            else (split_inds, *split_arrays))
+    
 def generate_fixed_prob(num_pre: int, num_post: int,
-                        prob: float) -> Sequence[np.ndarray]:
+                        prob: float) -> RaggedArray:
     # Loop through presynaptic neurons
     rows = []
     for i in range(num_pre):

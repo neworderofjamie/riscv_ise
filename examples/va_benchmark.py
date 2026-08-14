@@ -97,7 +97,7 @@ num_timesteps_per_block = int(round(args.num_timesteps / num_blocks))
 print(f"{args.num_excitatory} excitatory neurons, {num_inhibitory} inhibitory neurons")
 
 log_appender = backend.ConsoleAppender()
-backend.init_logging(log_appender, backend.PlogSeverity.DEBUG)
+backend.init_logging(log_appender, backend.PlogSeverity.INFO)
 
 # Generate connectivity matrices
 np.random.seed(1234)
@@ -108,11 +108,15 @@ ei_conn = generate_fixed_prob(args.num_excitatory, num_inhibitory, args.probabil
 
 print(f"Weight inhibitory: {int(round(inh_weight * 2**13))} ({inh_weight}), excitatory: {int(round(exc_weight * 2**13))} ({exc_weight})")
 # Pad
-ie_conn = build_sparse_connectivity(ie_conn, int(round(inh_weight * 2**13)), num_exc_sparse_connectivity_bits)
-ii_conn = build_sparse_connectivity(ii_conn, int(round(inh_weight * 2**13)), num_inh_sparse_connectivity_bits)
-ee_conn = build_sparse_connectivity(ee_conn, int(round(exc_weight * 2**13)), num_exc_sparse_connectivity_bits)
-ei_conn = build_sparse_connectivity(ei_conn, int(round(exc_weight * 2**13)), num_inh_sparse_connectivity_bits)
+ie_conn = build_sparse_connectivity([ie_conn], int(round(inh_weight * 2**13)), num_exc_sparse_connectivity_bits)
+ii_conn = build_sparse_connectivity([ii_conn], int(round(inh_weight * 2**13)), num_inh_sparse_connectivity_bits)
+ee_conn = build_sparse_connectivity([ee_conn], int(round(exc_weight * 2**13)), num_exc_sparse_connectivity_bits)
+ei_conn = build_sparse_connectivity([ei_conn], int(round(exc_weight * 2**13)), num_inh_sparse_connectivity_bits)
 
+ie_conn = ie_conn[0]
+ii_conn = ii_conn[0]
+ee_conn = ee_conn[0]
+ei_conn = ei_conn[0]
 print(f"Num sparse connectivity bits excitatory: {num_exc_sparse_connectivity_bits}, inhibitory: {num_inh_sparse_connectivity_bits}")
 print(f"Stride ee:{ee_conn.shape[1]} ei:{ei_conn.shape[1]} ii:{ii_conn.shape[1]} ie:{ie_conn.shape[1]}")
 print(f"Mean row length ee:{np.average(ee_conn[:,0]) * 32} ei:{np.average(ei_conn[:,0]) * 32} ii:{np.average(ii_conn[:,0]) * 32} ie:{np.average(ie_conn[:,0]) * 32}")
@@ -144,10 +148,10 @@ ie_pop = SparseLinear(backend, i_pop.out_spikes,
                       name="IE")
 
 # Initialisation
-ee_zero = Memset(backend, e_pop.i_exc)
-ei_zero = Memset(backend, e_pop.i_inh)
-ie_zero = Memset(backend, i_pop.i_exc)
-ii_zero = Memset(backend, i_pop.i_inh)
+ee_zero = Memset(backend, e_pop.i_exc, name="zero_i_exc")
+ei_zero = Memset(backend, e_pop.i_inh, name="zero_i_inh")
+ie_zero = Memset(backend, i_pop.i_exc, name="zero_i_exc")
+ii_zero = Memset(backend, i_pop.i_inh, name="zero_i_inh")
 
 # Group processes
 i_zero_processes = backend.ProcessGroup([ee_zero.process, ei_zero.process,
