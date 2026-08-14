@@ -427,7 +427,7 @@ DendriticDelayUpdateProcess::DendriticDelayUpdateProcess(Private, VariablePtr de
     }
 
     // If NUMBER of dimensions are incorrect
-    if ((getDelayBuffer()->getShape().size() + 1) != getTarget().getShape().size()) {
+    if (getDelayBuffer()->getShape().size() != (getTarget().getShape().size() + 1)) {
         throw std::runtime_error("Delay buffer with shape: " + Shape::toString(getDelayBuffer()->getShape())
                                  + " is not compatible with target with shape: " 
                                  + Shape::toString(getTarget().getShape()));
