@@ -18,7 +18,6 @@ class LIF:
                  v_thresh: float, fixed_point: int = 5, 
                  spike_record_timesteps: int = 1, name: str = ""):
         self.shape = shape
-        decay_dtype = "s0_15_sat_t"
         dtype = f"s{15 - fixed_point}_{fixed_point}_sat_t"
         
         i_scale = tau_syn * (1.0 - np.exp(-1.0 / tau_syn))
@@ -51,7 +50,6 @@ class LI:
     def __init__(self, backend, shape, tau_m: float, tau_syn: float,
                  num_timesteps: int, fixed_point: int = 5, name: str = ""):
         self.shape = shape
-        decay_dtype = "s0_15_sat_t"
         dtype = f"s{15 - fixed_point}_{fixed_point}_sat_t"
         
         i_scale = tau_syn * (1.0 - np.exp(-1.0 / tau_syn))
