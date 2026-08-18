@@ -46,7 +46,7 @@ def test_forward(device, use_dram_for_weights):
         dense[i,row] = 1
 
     # Convert into internal format
-    conn = build_sparse_connectivity(conn, 1, 3)
+    conn = build_sparse_connectivity([conn], 1, 3)[0]
 
     # Create input spike container
     input_spikes = backend.EventSourceBuffer((16,), len(spike_array), name="input_events")
@@ -79,7 +79,7 @@ def test_forward(device, use_dram_for_weights):
     # Create runtime
     runtime_params = {"use_dram_for_weights": use_dram_for_weights}
     runtime = (backend.RuntimeHW([sim_kernel], 1, **runtime_params) if device 
-            else backend.RuntimeSim([sim_kernel], 1, **runtime_params))
+               else backend.RuntimeSim([sim_kernel], 1, **runtime_params))
 
     # Allocate memory for model
     runtime.allocate()
