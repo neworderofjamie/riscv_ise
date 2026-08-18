@@ -132,6 +132,7 @@ hidden_output = DenseLinear(backend, hidden.out_spikes, output.i, "s7_8_sat_t", 
 
 # Zero remaining state
 hidden_i_zero = Memset(backend, hidden.i)
+hidden_den_delay_zero = Memset(backend, hidden.den_delay_buffer)
 hidden_v_zero = Memset(backend, hidden.v)
 output_i_zero = Memset(backend, output.i)
 output_v_zero = Memset(backend, output.v)
@@ -139,13 +140,13 @@ output_v_avg_zero = Memset(backend, output.v_avg)
 
 # Group processes
 synapse_update_processes = backend.ProcessGroup([input_hidden.process, hidden_hidden.process, 
-                                                 hidden_output.process])
-den_delay_update_processes = backend.ProcessGroup([hidden.den_delay_update_process])
-neuron_update_processes = backend.ProcessGroup([hidden.process, output.process])
+                                                 hidden_output.process], name="synapse update")
+den_delay_update_processes = backend.ProcessGroup([hidden.den_delay_update_process], name="den-delay update")
+neuron_update_processes = backend.ProcessGroup([hidden.process, output.process], name="neuron update")
 
 reset_processes = backend.ProcessGroup([hidden_i_zero.process, hidden_v_zero.process,
-                                        output_i_zero.process, output_v_zero.process,
-                                        output_v_avg_zero.process])
+                                        hidden_den_delay_zero.process, output_i_zero.process, 
+                                        output_v_zero.process, output_v_avg_zero.process], name="reset")
 
 # Create kernel
 kernel = backend.SimulationLoopKernel(
