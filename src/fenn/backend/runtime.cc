@@ -135,23 +135,20 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                 std::vector<std::shared_ptr<Frontend::EventSource const>>, 
                 ::Common::Utils::SHA1Hash> protoMergedEventSources;
 
-            // Loop through all processes in event source process group
-            for (const auto &p : ki->getEventSourceProcessGroup()->getProcesses()) {
-                for(const auto &e : p->getAllEventSources()) {
-                    // Build hash digest
-                    boost::uuids::detail::sha1 hash;
-                    e->updateMergeHash(hash);
-                    const auto digest = hash.get_digest();
+            // Loop through all event sources
+            for(const auto &e : ki->getEventSourceProcesses()) {
+                // Build hash digest
+                boost::uuids::detail::sha1 hash;
+                e.first->updateMergeHash(hash);
+                const auto digest = hash.get_digest();
 
-                    // Add to map
-                    protoMergedEventSources[digest].push_back(e);
-                }
+                // Add to map
+                protoMergedEventSources[digest].push_back(e.first);
             }
 
             // Reserve final merged groups vector
             auto &mergedEventSource = m_MergedEventSources[ki->getEventSourceProcessGroup()];
             mergedEventSource.reserve(protoMergedEventSources.size());
-
 
             // Construct final merged event source array
             size_t i = 0;
