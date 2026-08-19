@@ -33,7 +33,7 @@ class PostNeuronDelay:
                                                  "int16_t", name=f"{name}_den_delay")
 
         self.den_delay_update_process = backend.DendriticDelayUpdateProcess(
-            self.den_delay_buffer, self.i, name="f{name}_den_delay_update")
+            self.den_delay_buffer, self.i, name=f"{name}_den_delay_update")
         self.process = backend.NeuronUpdateProcess(
             """
             X = I;
