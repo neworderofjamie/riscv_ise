@@ -45,7 +45,8 @@ public:
         // Allocate if count is specified
         if(getSizeBytes() > 0) {
             // Allocate memory for host pointer, padding to match URAM padding
-            setHostPointer(new uint8_t[::Common::Utils::padSize(getSizeBytes(), 64)]);
+            // **NOTE** zero so padding around strides doesn't contain random values
+            setHostPointer(new uint8_t[::Common::Utils::padSize(getSizeBytes(), 64)]());
 
             // Allocate URAM
             setURAMPointer(m_Device.get().getURAMAllocator().allocate(getSizeBytes()));
@@ -100,7 +101,8 @@ public:
         // Allocate if count is specified
         if(getSizeBytes() > 0) {
             // Allocate memory for host pointer, padding to match BRAM padding
-            setHostPointer(new uint8_t[::Common::Utils::padSize(getSizeBytes(), 4)]);
+            // **NOTE** zero so padding around strides doesn't contain random values
+            setHostPointer(new uint8_t[::Common::Utils::padSize(getSizeBytes(), 4)]());
 
             // Allocate BRAM
             setBRAMPointer(m_Device.get().getBRAMAllocator().allocate(getSizeBytes()));
@@ -224,6 +226,7 @@ public:
             const size_t offset = m_Device.get().getDMABufferAllocator().allocate(getSizeBytes());
 
             // Add to virtual address of DMA buffer data to get host pointer
+            // **NOTE** because simulated DMA buffer storage is provided by std::vector, this is pre-zeroed
             setHostPointer(m_Device.get().getDMAController()->getData() + offset);
 
             // Use directly as device pointer

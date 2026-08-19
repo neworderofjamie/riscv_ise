@@ -45,6 +45,8 @@ public:
             m_DMABufferOffset = m_Device.get().getDMABufferAllocator().allocate(getSizeBytes());
             setHostPointer(m_Device.get().getDMABuffer().getData() + m_DMABufferOffset.value());
 
+            // **TODO** zero DMA buffer
+
             // Allocate URAM
             setURAMPointer(m_Device.get().getURAMAllocator().allocate(getSizeBytes()));
         }
@@ -110,7 +112,8 @@ public:
         // Allocate if count is specified
         if(getSizeBytes() > 0) {
             // Allocate memory for host pointer, padding to match BRAM alignement
-            setHostPointer(new uint8_t[::Common::Utils::padSize(getSizeBytes(), 4)]);
+            // **NOTE** zero so padding around strides doesn't contain random values
+            setHostPointer(new uint8_t[::Common::Utils::padSize(getSizeBytes(), 4)]());
 
             // Allocate BRAM
             setBRAMPointer(m_Device.get().getBRAMAllocator().allocate(getSizeBytes()));
@@ -209,6 +212,8 @@ public:
 
             // Add to virtual address of DMA buffer data to get host pointer
             setHostPointer(m_Device.get().getDMABuffer().getData() + offset);
+
+            // **TODO** zero DMA buffer
 
             // Add to physical address of DMA buffer to get device pointer
             setDRAMPointer(m_Device.get().getDMABuffer().getPhysicalAddress() + offset);
