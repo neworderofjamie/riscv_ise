@@ -1720,6 +1720,12 @@ void DelayEventPropagationProcess::updateCompatibleSplitDimensions(std::shared_p
         compatibleSplitDimensions &= (1 << 1);
         compatibleIndexDimensions &= (1 << 0);
     }
+    // Otherwise, if variable is target, it can only be split along 2nd 
+    // (postsynaptic)  axis and it can only be indexed along 1st (time) axis
+    else if (state == getTarget().getUnderlying()) {
+        compatibleSplitDimensions &= (1 << 1);
+        compatibleIndexDimensions &= (1 << 0);
+    }
     // Otherwise, superclass
     else {
         Frontend::EventPropagationProcess::updateCompatibleSplitDimensions(state, compatibleSplitDimensions,
@@ -2328,14 +2334,16 @@ std::vector<Compiler::RegisterPtr> DendriticDelayUpdateProcess::generateArchetyp
         ALLOCATE_SCALAR(STmp);
         ALLOCATE_SCALAR(STmp2);
 
+        // Load LLM address
+        c.lw(*STmp2, *fieldBaseReg, delayBufferFieldOffset);
+
         // Calculate time modulo delay buffer size
         c.andi(*STmp, *timeReg, getNumDelayBufferTimesteps() - 1);
 
         // Double to get starting offset in bytes
         c.slli(*STmp, *STmp, 1);
 
-        // Load LLM address, add offset and broadcast
-        c.lw(*STmp2, *fieldBaseReg, delayBufferFieldOffset);
+        // Add offset to LLM address and broadcast
         c.add(*STmp2, *STmp2, *STmp);
         c.vfill(*VDelayBuffer, *STmp2);
     }

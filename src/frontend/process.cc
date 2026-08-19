@@ -407,8 +407,18 @@ void MemsetProcess::updateCompatibleSplitDimensions(std::shared_ptr<const State>
 {
     assert(state == getTarget().getUnderlying());
 
-    updateSlicedCompatibleSplit(getTarget(), compatibleSplitDimensions,
-                                compatibleIndexDimensions);
+    // If sliced state has a time dimension, can split along any axis 'below' time
+    const uint32_t allAxes = (1 << getTarget().getShape().size()) - 1;
+    if(getTarget().hasTime()) {
+        compatibleSplitDimensions &= (allAxes << 1);
+    }
+    // Otherwise, can split along any axis
+    else {
+        compatibleSplitDimensions &= allAxes;
+    }
+
+    // Can index on any axis - memset will potentially just zero out stride padding
+    compatibleIndexDimensions &= allAxes;
 }
 
 //----------------------------------------------------------------------------
