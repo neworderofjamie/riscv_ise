@@ -32,7 +32,7 @@ class LIF:
         channel = backend.EventChannel(self.shape, name=f"{name}_out_spikes")
         self.out_spikes = channel.source
         self.den_delay_update_process = backend.DendriticDelayUpdateProcess(
-            self.den_delay_buffer, self.i, name="f{name}_den_delay_update")
+            self.den_delay_buffer, self.i, name=f"{name}_den_delay_update")
         self.process = backend.NeuronUpdateProcess(
             f"""
             // Synapse
@@ -99,10 +99,8 @@ dataset = SHD(save_to="data", train=False)
 # Loop through dataset
 shd_spikes = []
 shd_labels = []
-for i in range(100):
-#for events, label in tqdm(dataset, "Preprocessing dataset"):
+for events, label in tqdm(dataset, "Preprocessing dataset"):
     # Convert events into a spike array
-    events, label = dataset[i]
     spike_array = convert_tonic_spikes(events, dataset.ordering,
                                        dataset.sensor_size, 
                                        max_time=num_timesteps)
@@ -113,7 +111,7 @@ for i in range(100):
 max_spike_array_length = max(len(s) for s in shd_spikes)
 
 log_appender = backend.ConsoleAppender()#PythonLogAppender()
-backend.init_logging(log_appender, backend.PlogSeverity.DEBUG)
+backend.init_logging(log_appender, backend.PlogSeverity.INFO)
 
 # Input spikes
 input_spikes = backend.EventSourceBuffer(input_shape, max_spike_array_length)
