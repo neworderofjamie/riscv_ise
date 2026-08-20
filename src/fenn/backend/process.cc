@@ -1618,7 +1618,6 @@ void DelayEventPropagationProcess::generateArchetypeCode(const Frontend::MergedP
     }
 
     // Loop over postsynaptic neurons
-    ALLOCATE_SCALAR(STargetReg);
     ALLOCATE_VECTOR(VAccum);
     ALLOCATE_VECTOR(VWeightInd1);
     ALLOCATE_VECTOR(VWeightInd2);
@@ -1666,12 +1665,12 @@ void DelayEventPropagationProcess::generateArchetypeCode(const Frontend::MergedP
             // Write back accumulator
             c.vstorel(*VAccum, *VPostAddr, delayStride * r);
         },
-        [this, delayStride, STargetReg, SWeightBuffer, &vectorRegisterAllocator]
+        [this, delayStride, STargetBuf, SWeightBuffer, &vectorRegisterAllocator]
         (Assembler::CodeGenerator &c, uint32_t numUnrolls)
         {
             // Increment pointers 
             c.addi(*SWeightBuffer, *SWeightBuffer, 64 * numUnrolls);
-            c.addi(*STargetReg, *STargetReg, numUnrolls * delayStride);
+            c.addi(*STargetBuf, *STargetBuf, numUnrolls * delayStride);
         });
 }
 //----------------------------------------------------------------------------
