@@ -1552,6 +1552,8 @@ static const char *__doc_Frontend_Runtime_getModel = R"doc()doc";
 
 static const char *__doc_Frontend_Runtime_getNumDevices = R"doc()doc";
 
+static const char *__doc_Frontend_Runtime_getSplitDimension = R"doc()doc";
+
 static const char *__doc_Frontend_Runtime_m_Barrier = R"doc()doc";
 
 static const char *__doc_Frontend_Runtime_m_Command = R"doc()doc";
