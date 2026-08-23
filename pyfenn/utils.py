@@ -96,14 +96,33 @@ def zero_and_push(state, runtime: Runtime):
 def copy_and_push(data: np.ndarray, state, runtime: Runtime):
     # Get array and view
     views = get_views(runtime, state)
-    assert len(views) == 1
 
-    data = np.reshape(data, views[0].shape)
+    # Get split dimension
+    split_dimension = runtime.get_split_dimension(state)
+
+    # Determine overall shape
+    overall_shape = list(views[0].shape)
+    if split_dimension is not None:
+        split_dimension = len(views[0].shape) - 1 - split_dimension
+        overall_shape[split_dimension] = sum(v.shape[split_dimension]
+                                             for v in views)
+        explicit_inds_slice = split_dimension * (slice(None),) 
+
+    # Reshape data to this shape
+    data = np.reshape(data, overall_shape)
 
     # Copy data to array host pointer
+    split_dim_start = 0
     for v in views:
         assert(v.dtype == data.dtype)
-        v[:] = data
+        if split_dimension is not None:
+            v[:] = data[explicit_inds_slice 
+                        + (slice(split_dim_start, 
+                                 split_dim_start + v.shape[split_dimension]),)]
+            split_dim_start += v.shape[split_dimension]
+        # Otherwise, copy all data into view
+        else:
+            v[:] = data
 
     # Push to device
     runtime.push_state_to_device(state)

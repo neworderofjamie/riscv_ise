@@ -313,6 +313,7 @@ PYBIND11_MODULE(_frontend, m)
         WRAP_METHOD("run", Frontend, Runtime, run)
         WRAP_METHOD("push_state_to_device", Frontend, Runtime, pushStateToDevice)
         WRAP_METHOD("pull_state_from_device", Frontend, Runtime, pullStateFromDevice)
-		WRAP_METHOD_REF("get_arrays", Frontend, Runtime, getArrays)
-        WRAP_PROPERTY_RO("num_devices", Frontend, Runtime, NumDevices);    
+        WRAP_METHOD("get_split_dimension", Frontend, Runtime, getSplitDimension)
+        WRAP_METHOD_REF("get_arrays", Frontend, Runtime, getArrays)
+        WRAP_PROPERTY_RO("num_devices", Frontend, Runtime, NumDevices);
 }
