@@ -64,8 +64,9 @@ Frontend::State::ShapeStride Variable::getArrayShapeStride(std::optional<size_t>
 
     // If a split dimension is specified, split this dimension appropriately
     if (splitDimension.has_value()) {
-        shape[splitDimension.value()] = Utils::getSplitDimension(shape, deviceIndex, splitDimension.value(),
-                                                                 numDevices, (memorySpace == MemSpace::BRAM) ? 1 : 32);
+        const size_t absSplitDim = shape.size() - 1 - splitDimension.value();
+        shape[absSplitDim] = Utils::getSplitDimension(shape, deviceIndex, absSplitDim,
+                                                      numDevices, (memorySpace == MemSpace::BRAM) ? 1 : 32);
     }
     
     // Calculate strides
@@ -74,9 +75,10 @@ Frontend::State::ShapeStride Variable::getArrayShapeStride(std::optional<size_t>
     // If this variable is destined for a memory space with alignment constraints
     if (memorySpace != MemSpace::BRAM) {
         // Loop through stride dimensions
+        const uint32_t topDim = 1 << (shape.size() - 1);
         for(size_t i = 0; i < strides.size(); i++) {
             // If this dimension is indexable, pad to 64 bytes
-            if (indexDimensions & (1 << i)) {
+            if (indexDimensions & (topDim >> i)) {
                 strides[i] = ::Common::Utils::padSize(strides[i], 64);
             }
         }

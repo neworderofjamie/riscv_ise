@@ -38,8 +38,8 @@ void URAMArrayBase::serialiseDeviceObject(std::vector<std::byte> &bytes) const
     bytes.resize(4);
 
     // Memcpy URAM pointer into bytes
-    const uint32_t uramPointer = getURAMPointer(); 
-    std::memcpy(bytes.data(), &uramPointer, 4);
+    const uint32_t uramPointer = getURAMPointer().value_or(0); 
+    std::memcpy(bytes.data(), &uramPointer, 4);    
 }
 
 //------------------------------------------------------------------------
@@ -51,7 +51,7 @@ void BRAMArrayBase::serialiseDeviceObject(std::vector<std::byte> &bytes) const
     bytes.resize(4);
 
     // Memcpy BRAM pointer into bytes
-    const uint32_t bramPointer = getBRAMPointer();
+    const uint32_t bramPointer = getBRAMPointer().value_or(0);
     std::memcpy(bytes.data(), &bramPointer, 4);
 }
 
@@ -66,7 +66,7 @@ void LLMArrayBase::serialiseDeviceObject(std::vector<std::byte> &bytes) const
     // Memcpy LLM pointer into bytes
     // **NOTE** the code wants lane addresses not array addresses
     // **THINK** would it be better to allocate 2 byte aligned?
-    const uint32_t llmPointer = getLLMPointer() / 32;
+    const uint32_t llmPointer = getLLMPointer().value_or(0) / 32;
     std::memcpy(bytes.data(), &llmPointer, 4);
 }
 
@@ -79,7 +79,7 @@ void DRAMArrayBase::serialiseDeviceObject(std::vector<std::byte> &bytes) const
     bytes.resize(4);
 
     // Memcpy DRAM pointer into bytes
-    const uint32_t dramPointer = getDRAMPointer();
+    const uint32_t dramPointer = getDRAMPointer().value_or(0);
     std::memcpy(bytes.data(), &dramPointer, 4);
 }
 

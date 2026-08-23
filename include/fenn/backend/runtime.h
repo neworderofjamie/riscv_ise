@@ -43,7 +43,7 @@ public:
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
-    uint32_t getURAMPointer() const{ return m_URAMPointer.value(); }
+    auto getURAMPointer() const{ return m_URAMPointer; }
 
 protected:
     URAMArrayBase(const CompilerFrontend::Type::ResolvedType &type, 
@@ -83,7 +83,7 @@ public:
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
-    uint32_t getBRAMPointer() const{ return m_BRAMPointer.value(); }
+    auto getBRAMPointer() const{ return m_BRAMPointer; }
 
 protected:
     using ArrayBase::ArrayBase;
@@ -117,7 +117,7 @@ public:
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
-    uint32_t getLLMPointer() const{ return m_LLMPointer.value(); }
+    auto getLLMPointer() const{ return m_LLMPointer; }
 
 protected:
     LLMArrayBase(const CompilerFrontend::Type::ResolvedType &type, 
@@ -157,7 +157,7 @@ public:
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
-    uint32_t getDRAMPointer() const{ return m_DRAMPointer.value(); }
+    auto getDRAMPointer() const{ return m_DRAMPointer; }
 
 protected:
     using ArrayBase::ArrayBase;

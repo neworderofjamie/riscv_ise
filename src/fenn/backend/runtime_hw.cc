@@ -66,11 +66,13 @@ public:
     //! Copy entire array to device
     virtual void pushToDevice() final override
     {
-        // Start DMA write and wait for completion
-        auto *dmaController = m_Device.get().getDevice().getDMAController();
-        dmaController->startWrite(getURAMPointer(), m_Device.get().getDMABuffer(),
-                                  m_DMABufferOffset.value(), getSizeBytes());
-        dmaController->waitForWriteComplete();
+        if(getSizeBytes() > 0) {
+            // Start DMA write and wait for completion
+            auto *dmaController = m_Device.get().getDevice().getDMAController();
+            dmaController->startWrite(getURAMPointer().value(), m_Device.get().getDMABuffer(),
+                                      m_DMABufferOffset.value(), getSizeBytes());
+            dmaController->waitForWriteComplete();
+        }
     }
 
     virtual void memsetHostPointer(int value) final override
@@ -86,10 +88,12 @@ public:
     virtual void pullFromDevice() final override
     {
         // Start DMA read and wait for completion
-        auto *dmaController = m_Device.get().getDevice().getDMAController();
-        dmaController->startRead(m_Device.get().getDMABuffer(), m_DMABufferOffset.value(), 
-                                 getURAMPointer(), getSizeBytes());
-        dmaController->waitForReadComplete();
+        if(getSizeBytes() > 0) {
+            auto *dmaController = m_Device.get().getDevice().getDMAController();
+            dmaController->startRead(m_Device.get().getDMABuffer(), m_DMABufferOffset.value(), 
+                                     getURAMPointer().value(), getSizeBytes());
+            dmaController->waitForReadComplete();
+        }
     }
 
 private:
@@ -135,15 +139,19 @@ public:
     //! Copy entire array to device
     virtual void pushToDevice() final override
      {
-        m_Device.get().getDevice().memcpyDataToDevice(getBRAMPointer(), getHostPointer(),
-                                                      getSizeBytes());
+        if(getSizeBytes() > 0) {
+            m_Device.get().getDevice().memcpyDataToDevice(getBRAMPointer().value(), getHostPointer(),
+                                                          getSizeBytes());
+        }
     }
 
     //! Copy entire array from device
     virtual void pullFromDevice() final override
     {
-        m_Device.get().getDevice().memcpyDataFromDevice(getHostPointer(), getBRAMPointer(), 
-                                                        getSizeBytes());
+        if(getSizeBytes() > 0) {
+            m_Device.get().getDevice().memcpyDataFromDevice(getHostPointer(), getBRAMPointer().value(),
+                                                            getSizeBytes());
+        }
     }
 private:
      std::reference_wrapper<DeviceFeNNHW> m_Device;

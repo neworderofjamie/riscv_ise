@@ -68,18 +68,22 @@ public:
     virtual void pushToDevice() final override
     {
         // Copy correct number of int16_t from host pointer to vector data memory
-        auto &vectorDataMemory = m_Device.get().getRISCV().getCoprocessor<ISE::VectorProcessor>(FeNN::Common::vectorQuadrant)->getVectorDataMemory();
-        std::copy_n(getHostPointer<int16_t>(), getSizeBytes() / 2, 
-                    vectorDataMemory.getData() + (getURAMPointer() / 2));
+        if(getSizeBytes() > 0) {
+            auto &vectorDataMemory = m_Device.get().getRISCV().getCoprocessor<ISE::VectorProcessor>(FeNN::Common::vectorQuadrant)->getVectorDataMemory();
+            std::copy_n(getHostPointer<int16_t>(), getSizeBytes() / 2, 
+                        vectorDataMemory.getData() + (getURAMPointer().value() / 2));
+        }
     }
 
     //! Copy entire array from device
     virtual void pullFromDevice() final override
     {
         // Copy correct number of int16_t from vector data memory to host pointer
-        const auto &vectorDataMemory = m_Device.get().getRISCV().getCoprocessor<ISE::VectorProcessor>(FeNN::Common::vectorQuadrant)->getVectorDataMemory();
-        std::copy_n(vectorDataMemory.getData() + (getURAMPointer() / 2), getSizeBytes() / 2, 
-                    getHostPointer<int16_t>());
+        if(getSizeBytes() > 0) {
+            const auto &vectorDataMemory = m_Device.get().getRISCV().getCoprocessor<ISE::VectorProcessor>(FeNN::Common::vectorQuadrant)->getVectorDataMemory();
+            std::copy_n(vectorDataMemory.getData() + (getURAMPointer().value() / 2), getSizeBytes() / 2, 
+                        getHostPointer<int16_t>());
+        }
     }
 
 private:
@@ -125,18 +129,22 @@ public:
     virtual void pushToDevice() final override
     {
         // Copy correct number of int16_t from host pointer to vector data memory
-        auto &scalarDataMemory = m_Device.get().getRISCV().getScalarDataMemory();
-        std::copy_n(getHostPointer<uint8_t>(), getSizeBytes(), 
-                    scalarDataMemory.getData() + getBRAMPointer());
+        if(getSizeBytes() > 0) {
+            auto &scalarDataMemory = m_Device.get().getRISCV().getScalarDataMemory();
+            std::copy_n(getHostPointer<uint8_t>(), getSizeBytes(), 
+                        scalarDataMemory.getData() + getBRAMPointer().value());
+        }
     }
 
     //! Copy entire array from device
     virtual void pullFromDevice() final override
     {
         // Copy correct number of int16_t from vector data memory to host pointer
-        const auto &scalarDataMemory = m_Device.get().getRISCV().getScalarDataMemory();
-        std::copy_n(scalarDataMemory.getData() + getBRAMPointer(), getSizeBytes(), 
-                    getHostPointer<uint8_t>());
+        if(getSizeBytes() > 0) {
+            const auto &scalarDataMemory = m_Device.get().getRISCV().getScalarDataMemory();
+            std::copy_n(scalarDataMemory.getData() + getBRAMPointer().value(), getSizeBytes(),
+                        getHostPointer<uint8_t>());
+        }
     }
 
 private:
@@ -181,11 +189,13 @@ public:
     {
         LOGW_FENN_BACKEND << "Copying LLM buffers is implemented in simulation for convenience but is not possible on device";
         const size_t numRows = ::Common::Utils::ceilDivide(getSizeBytes(), 64);
-        for(size_t l = 0; l < 32; l++) {
-            auto &laneLocalMemory = m_Device.get().getRISCV().getCoprocessor<ISE::VectorProcessor>(FeNN::Common::vectorQuadrant)->getLaneLocalMemory(l);    
-            int16_t *llmPointer = laneLocalMemory.getData() + (getLLMPointer() / 2);
-            for(size_t r = 0; r < numRows; r++) {
-                *llmPointer++ = getHostPointer<int16_t>()[(r * 32) + l];
+        if(numRows > 0) {
+            for(size_t l = 0; l < 32; l++) {
+                auto &laneLocalMemory = m_Device.get().getRISCV().getCoprocessor<ISE::VectorProcessor>(FeNN::Common::vectorQuadrant)->getLaneLocalMemory(l);    
+                int16_t *llmPointer = laneLocalMemory.getData() + (getLLMPointer().value() / 2);
+                for(size_t r = 0; r < numRows; r++) {
+                    *llmPointer++ = getHostPointer<int16_t>()[(r * 32) + l];
+                }
             }
         }
     }
@@ -196,11 +206,13 @@ public:
         LOGW_FENN_BACKEND << "Copying LLM buffers is implemented in simulation for convenience but is not possible on device";
             
         const size_t numRows = ::Common::Utils::ceilDivide(getSizeBytes(), 64);
-        for(size_t l = 0; l < 32; l++) {
-            const auto &laneLocalMemory = m_Device.get().getRISCV().getCoprocessor<ISE::VectorProcessor>(FeNN::Common::vectorQuadrant)->getLaneLocalMemory(l);    
-            const int16_t *llmPointer = laneLocalMemory.getData() + (getLLMPointer() / 2);
-            for(size_t r = 0; r < numRows; r++) {
-                getHostPointer<int16_t>()[(r * 32) + l] = *llmPointer++;
+        if(numRows > 0) {
+            for(size_t l = 0; l < 32; l++) {
+                const auto &laneLocalMemory = m_Device.get().getRISCV().getCoprocessor<ISE::VectorProcessor>(FeNN::Common::vectorQuadrant)->getLaneLocalMemory(l);    
+                const int16_t *llmPointer = laneLocalMemory.getData() + (getLLMPointer().value() / 2);
+                for(size_t r = 0; r < numRows; r++) {
+                    getHostPointer<int16_t>()[(r * 32) + l] = *llmPointer++;
+                }
             }
         }
     }

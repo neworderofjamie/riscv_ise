@@ -79,10 +79,10 @@ Model::Model(const KernelVector &kernels)
         if(stateCompatibleSplitDimensions == 0) {
             s.second.splitDimension = std::nullopt;
         }
-        // Otherwise, count leading-zeros to pick highest compatible dimension
+        // Otherwise, count trailing-zeros to pick highest compatible dimension
         // to split on (this maximises the number of contiguous sections of data)
         else {
-            s.second.splitDimension = 31 - ::Common::Utils::clz(stateCompatibleSplitDimensions);
+            s.second.splitDimension = ::Common::Utils::ctz(stateCompatibleSplitDimensions);
         }
     }
 }

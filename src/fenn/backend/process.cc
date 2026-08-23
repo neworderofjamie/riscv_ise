@@ -1208,8 +1208,8 @@ void DenseEventPropagationProcess::updateCompatibleSplitDimensions(std::shared_p
     // If variable is weight, it can only be split in 2nd (postsynaptic) axis
     // and it can only be indexed along 1st (presynaptic) axis
     if(state == getWeight()) {
-        compatibleSplitDimensions &= (1 << 1);
-        compatibleIndexDimensions &= (1 << 0);
+        compatibleSplitDimensions &= (1 << 0);
+        compatibleIndexDimensions &= (1 << 1);
     }
     // Otherwise, superclass
     else {
@@ -1448,8 +1448,8 @@ void SparseEventPropagationProcess::updateCompatibleSplitDimensions(std::shared_
     // If variable is weight, it can only be split in 2nd (postsynaptic) dimension
     // and it can only be indexed along 1st (presynaptic) axis
     if(state == getWeight()) {
-        compatibleSplitDimensions &= (1 << 1);
-        compatibleIndexDimensions &= (1 << 0);
+        compatibleSplitDimensions &= (1 << 0);
+        compatibleIndexDimensions &= (1 << 1);
     }
     // Otherwise, superclass
     else {
@@ -1716,14 +1716,14 @@ void DelayEventPropagationProcess::updateCompatibleSplitDimensions(std::shared_p
     // If variable is weight, it can only be split in 2nd (postsynaptic) dimension
     // and it can only be indexed along 1st (presynaptic) axis
     if(state == getWeight()) {
-        compatibleSplitDimensions &= (1 << 1);
-        compatibleIndexDimensions &= (1 << 0);
+        compatibleSplitDimensions &= (1 << 0);
+        compatibleIndexDimensions &= (1 << 1);
     }
     // Otherwise, if variable is target, it can only be split along 2nd 
     // (postsynaptic)  axis and it can only be indexed along 1st (time) axis
     else if (state == getTarget().getUnderlying()) {
-        compatibleSplitDimensions &= (1 << 1);
-        compatibleIndexDimensions &= (1 << 0);
+        compatibleSplitDimensions &= (1 << 0);
+        compatibleIndexDimensions &= (1 << 1);
     }
     // Otherwise, superclass
     else {

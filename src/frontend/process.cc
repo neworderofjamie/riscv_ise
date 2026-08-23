@@ -26,10 +26,10 @@ void updateSlicedCompatibleSplit(const Frontend::Sliced<T> &sliced, uint32_t &co
     const uint32_t allAxes = (1 << sliced.getShape().size()) - 1;
     if(sliced.hasTime()) {
         // Can split along any axis 'below' time
-        compatibleSplitDimensions &= (allAxes << 1);
+        compatibleSplitDimensions &= allAxes;
 
         // Can only index along time dimension
-        compatibleIndexDimensions &= (1 << 0);
+        compatibleIndexDimensions &= (1 << sliced.getShape().size());
     }
     // Otherwise
     else {
@@ -362,7 +362,7 @@ void RNGInitProcess::updateCompatibleSplitDimensions(std::shared_ptr<const State
     assert(state == getSeed());
 
     // Seed should be split along device axis
-    compatibleSplitDimensions &= (1 << 1);
+    compatibleSplitDimensions &= (1 << 0);
 
     // No need to index - seed is backend-specific size
     compatibleIndexDimensions = 0;
@@ -407,17 +407,12 @@ void MemsetProcess::updateCompatibleSplitDimensions(std::shared_ptr<const State>
 {
     assert(state == getTarget().getUnderlying());
 
-    // If sliced state has a time dimension, can split along any axis 'below' time
+    // Can split along any sliced axes
     const uint32_t allAxes = (1 << getTarget().getShape().size()) - 1;
-    if(getTarget().hasTime()) {
-        compatibleSplitDimensions &= (allAxes << 1);
-    }
-    // Otherwise, can split along any axis
-    else {
-        compatibleSplitDimensions &= allAxes;
-    }
+    compatibleSplitDimensions &= allAxes;
 
     // Can index on any axis - memset will potentially just zero out stride padding
+    // **TODO** time?
     compatibleIndexDimensions &= allAxes;
 }
 
@@ -488,10 +483,10 @@ void DendriticDelayUpdateProcess::updateCompatibleSplitDimensions(std::shared_pt
 
         // Can split along any axis 'below' time
         const uint32_t allAxes = (1 << getDelayBuffer()->getShape().size()) - 1;
-        compatibleSplitDimensions &= (allAxes << 1);
+        compatibleSplitDimensions &= allAxes;
 
         // Can only index along time dimension
-        compatibleIndexDimensions &= (1 << 0);
+        compatibleIndexDimensions &= (1 << 1);
     }
 }
 }

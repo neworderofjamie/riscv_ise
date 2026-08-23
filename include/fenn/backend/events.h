@@ -152,8 +152,9 @@ private:
     void generateArchetypeEventLoop(MergedFields &mergedFields, 
                                     Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg,
                                     Assembler::ScalarRegisterPtr preIndReg, Assembler::ScalarRegisterPtr spikeReturnReg, 
-                                    const std::vector<uint32_t> &mergedLabelAddresses, Assembler::CodeGenerator &c, 
-                                    Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, uint32_t &scalarRegisterMask) const;
+                                    const std::unordered_map<std::shared_ptr<const Frontend::EventSource>, uint32_t> &eventSourceAddresses, 
+                                    Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
+                                    uint32_t &scalarRegisterMask) const;
 };
 
 //----------------------------------------------------------------------------

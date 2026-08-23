@@ -132,18 +132,13 @@ uint32_t EventSourceBuffer::generateEventLoop(const Frontend::Merged<Frontend::E
                                               const std::unordered_map<std::shared_ptr<const Frontend::EventSource>, uint32_t> &eventSourceAddresses,
                                               uint32_t &fieldBase, Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator) const
 {
-    // Build a vector of the labels corresponding to the event sources which have been merged together
-    std::vector<uint32_t> mergedLabelAddresses;
-    std::transform(mergedEventSource.getMerged().cbegin(), mergedEventSource.getMerged().cend(), std::back_inserter(mergedLabelAddresses),
-                   [&c, &eventSourceAddresses](const auto &e){ return eventSourceAddresses.at(e); });
-
     // Allocate base register
     uint32_t scalarRegisterMask = 0;
     ALLOCATE_SCALAR_AND_MASK(SFieldBase);
 
     // Generate archetype code and populate merged fields
     Assembler::CodeGenerator archetypeCodeGenerator;
-    generateArchetypeEventLoop(mergedFields, SFieldBase, timeReg, preIndReg, spikeReturnReg, mergedLabelAddresses, 
+    generateArchetypeEventLoop(mergedFields, SFieldBase, timeReg, preIndReg, spikeReturnReg, eventSourceAddresses, 
                                archetypeCodeGenerator, scalarRegisterAllocator, scalarRegisterMask);
 
     // Load fieldBase
@@ -180,8 +175,8 @@ uint32_t EventSourceBuffer::generateEventLoop(const Frontend::Merged<Frontend::E
 void EventSourceBuffer::generateArchetypeEventLoop(MergedFields &mergedFields, 
                                                    Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg,
                                                    Assembler::ScalarRegisterPtr preIndReg, Assembler::ScalarRegisterPtr spikeReturnReg, 
-                                                   const std::vector<uint32_t> &mergedLabelAddresses, Assembler::CodeGenerator &c, 
-                                                   Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, uint32_t &scalarRegisterMask) const
+                                                   const std::unordered_map<std::shared_ptr<const Frontend::EventSource>, uint32_t> &eventSourceAddresses, 
+                                                   Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, uint32_t &scalarRegisterMask) const
 {
     // Add field to hold buffer
     const uint32_t bufferFieldOffset = mergedFields.addField<EventSourceBuffer>(
@@ -193,9 +188,9 @@ void EventSourceBuffer::generateArchetypeEventLoop(MergedFields &mergedFields,
     // Add field containing address to jump to 
     // **OPTIMISE** if all labels are the same (/there is only one) no need for a label
     const uint32_t labelFieldOffset = mergedFields.addField<EventSourceBuffer>(
-        [mergedLabelAddresses](size_t i, auto)
+        [eventSourceAddresses](size_t, auto e)
         {
-            return mergedLabelAddresses.at(i);
+            return eventSourceAddresses.at(e);
         });
 
     // **NOTE** we don't REALLY need SBufferStart all the time, could reload at end
