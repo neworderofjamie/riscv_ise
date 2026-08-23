@@ -263,6 +263,8 @@ public:
     std::tuple<std::vector<size_t>, std::vector<size_t>> getDeviceArrayShapeStrides(std::shared_ptr<const State> state, 
                                                                                     size_t deviceIndex) const;
 
+    std::optional<size_t> getSplitDimension(std::shared_ptr<const State> state) const;
+
     size_t getNumDevices() const{ return m_NumDevices; }
 
     //! Get map of process groups to merged processes

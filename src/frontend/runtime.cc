@@ -201,6 +201,11 @@ State::ShapeStride Runtime::getDeviceArrayShapeStrides(std::shared_ptr<const Sta
                                       deviceIndex, getNumDevices(), *getModel());
 }
 //----------------------------------------------------------------------------
+std::optional<size_t> Runtime::getSplitDimension(std::shared_ptr<const State> state) const
+{
+    return getModel()->getStateData(state).splitDimension;
+}
+//----------------------------------------------------------------------------
 Runtime::Runtime(std::unique_ptr<Model> model, size_t numDevices)
 :   m_Devices(numDevices), m_Model(std::move(model)), m_NumDevices(numDevices), 
     m_WorkerRun(true), m_Command(nullptr), m_Barrier(numDevices + 1)
