@@ -300,7 +300,7 @@ void unrollLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAll
     // If there is a remainder
     if(numUnrolls.rem != 0) {
         // Load number of iterations
-        if(numUnrolls.quot > 1) {
+        if(numUnrolls.rem > 1) {
             c.li(*SNumIterations, numUnrolls.rem);
         }
 
@@ -315,7 +315,7 @@ void unrollLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAll
             }
 
             // If more than 1 iteration is required
-            if(numUnrolls.quot > 1) {
+            if(numUnrolls.rem > 1) {
                 // Decrement increment count and loop if still > 0
                 c.addi(*SNumIterations, *SNumIterations, -1);
                 c.bgt(*SNumIterations, FeNN::Common::Reg::X0, loop);
