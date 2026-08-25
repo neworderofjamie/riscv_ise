@@ -35,7 +35,7 @@ RouterSim::RouterSim(SharedBusSim &sharedBus, ScalarDataMemory &spikeMemory, siz
     writeRegInternal(Register::SLAVE_EVENT_END_ADDRESS, readAddress);
 }
 //----------------------------------------------------------------------------
-void RouterSim::tick()
+void RouterSim::tick(bool lastTick)
 {
     // Tick MM2S FSM
     m_MasterFSM.tick<void>(
@@ -44,14 +44,14 @@ void RouterSim::tick()
         {
         },
         // Tick
-        [this](auto state, auto transition)
+        [this, lastTick](auto state, auto transition)
         {
             if (state == MasterFSMState::IDLE) {
                 // Put no data on the bus
                 m_SharedBus.get().send(m_RouterIndex, std::nullopt);
 
                 // Synchronise with other routers and write any received events to memory
-                writeReceivedEvent(m_SharedBus.get().synchronise(m_RouterIndex).first);
+                writeReceivedEvent(m_SharedBus.get().synchronise(m_RouterIndex, lastTick).first);
 
                 // If a event bitfield has been written to the register
                 if (readReg(Register::MASTER_EVENT_BITFIELD) != 0) {
@@ -85,7 +85,7 @@ void RouterSim::tick()
                 m_SharedBus.get().send(m_RouterIndex, std::nullopt);
 
                 // Synchronise with other routers and write any received events to memory
-                writeReceivedEvent(m_SharedBus.get().synchronise(m_RouterIndex).first);
+                writeReceivedEvent(m_SharedBus.get().synchronise(m_RouterIndex, lastTick).first);
 
                 // Count trailing zeros
                 const uint32_t numTZ = ::Common::Utils::ctz(m_CurrentSpikeBitfield);
@@ -104,7 +104,7 @@ void RouterSim::tick()
                 m_SharedBus.get().send(m_RouterIndex, m_CurrentSpikeID | m_CurrentEventIDBase);
 
                 // Synchronise with other routers
-                const auto syncResult = m_SharedBus.get().synchronise(m_RouterIndex);
+                const auto syncResult = m_SharedBus.get().synchronise(m_RouterIndex, lastTick);
 
                 // Synchronise with bus and write any received events to memory
                 writeReceivedEvent(syncResult.first);
@@ -130,7 +130,7 @@ void RouterSim::tick()
                 m_SharedBus.get().send(m_RouterIndex, barrierEventID);
 
                 // Synchronise with other routers
-                const auto syncResult = m_SharedBus.get().synchronise(m_RouterIndex);
+                const auto syncResult = m_SharedBus.get().synchronise(m_RouterIndex, lastTick);
 
                 // Synchronise with bus and write any received events to memory
                 writeReceivedEvent(syncResult.first);

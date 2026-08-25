@@ -27,8 +27,8 @@ std::pair<std::optional<uint32_t>, bool> SharedBusSim::synchronise(size_t router
         }
     }
     
-    // If this is the last tick we want to make and our router has send it's data
-    if(lastTick && readRouterIndex == routerIndex) {
+    // If this is the last tick we want to make and our router has send it's data or there is no data to send
+    if(lastTick && (!readRouterIndex || readRouterIndex == routerIndex)) {
         // Check we're the last router
         // **TODO** more flexible data structure
         assert(routerIndex == (m_NumRouters - 1));

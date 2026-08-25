@@ -185,6 +185,18 @@ bool RISCV::run()
     {
         while (true) 
         {
+            // Tick co-processors
+            for(auto &c : m_Coprocessors) {
+                if(c) {
+                    c->tick();
+                }
+            }
+
+            // Tick DMA controller if present
+            if(m_DMAController) {
+                m_DMAController->tick();
+            }
+           
             // Default value for next PC is next instruction, can be changed by branches or exceptions
             m_NextPC = m_PC + 4;
 
@@ -212,6 +224,12 @@ bool RISCV::run()
 
             // update current PC
             m_PC = m_NextPC;
+
+            // Tick router if present
+            if(m_Router) {
+                m_Router->tick();
+            }
+
         }
     }
     catch(const Exception &ex)
@@ -267,6 +285,10 @@ bool RISCV::run()
 
         case Exception::Cause::ECALL:
         {
+            // Tick router if present
+            if(m_Router) {
+                m_Router->tick(true);
+            }
             return true;
         }
         
@@ -1132,21 +1154,6 @@ void RISCV::executeStandardInstruction(uint32_t inst)
 //----------------------------------------------------------------------------
 void RISCV::executeInstruction(uint32_t inst)
 {
-    // Tick co-processors
-    for(auto &c : m_Coprocessors) {
-        if(c) {
-            c->tick();
-        }
-    }
-
-    // Tick DMA controller and router if present
-    if(m_DMAController) {
-        m_DMAController->tick();
-    }
-    if(m_Router) {
-        m_Router->tick();
-    }
-
     // Extract 2-bit quadrant
     const uint32_t quadrant = inst & 0b11;
 
