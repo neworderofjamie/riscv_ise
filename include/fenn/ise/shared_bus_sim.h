@@ -18,15 +18,13 @@ namespace FeNN::ISE
 class SharedBusSim
 {
 public:
-    SharedBusSim(size_t numRouters)
-    :   m_NumRouters(numRouters), m_SendData(numRouters), m_NextRouter(0), m_Barrier(m_NumRouters)
-    {}
-    
+    SharedBusSim(size_t numRouters);
+
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
     //! Sets value a router should TRY and transmit
-    void send(size_t routerIndex, std::optional<uint32_t> value) { m_SendData.at(routerIndex) = value; }
+    void send(size_t routerIndex, std::optional<uint32_t> value);
     
     //! Read value of shared bus and updates round-robin logic
     //! **NOTE** blocks until all threads reach this point and read value
@@ -44,9 +42,15 @@ private:
     //! Data each master is trying to transmit
     std::vector<std::optional<uint32_t>> m_SendData;
 
+    //! Which entry in send data corresponds to each router ID
+    std::vector<std::optional<size_t>> m_RouterMap;
+
     //! Next router to give a chance to send data
     size_t m_NextRouter;
 
     ::Common::Barrier m_Barrier;
+
+    //! Mutex to protect m_RouterMap and m_NumRouters
+    std::mutex m_RemovalMutex;
 };
 }   // namespace FeNN::ISE
