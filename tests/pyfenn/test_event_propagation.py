@@ -61,20 +61,24 @@ def test_forward(device, use_dram_for_weights, num_cores):
     conn = [np.where((j_value & (i + 1)) != 0)[0]
             for i in range(16)]
 
+    # Duplicate the connections 10x, targetting 40 postsynaptic neurons
+    conn = [np.concatenate([c + (i * 4) for i in range(10)])
+            for c in conn]
+
     # Use to build dense matrix
-    dense = np.zeros((16, 4), dtype=np.int16)
+    dense = np.zeros((16, 40), dtype=np.int16)
     for i, row in enumerate(conn):
         dense[i,row] = 1
 
     # Convert into internal format
-    conn = build_sparse_connectivity([conn], 1, 3)[0]
+    conn = build_sparse_connectivity([conn], 1, 6)[0]
 
     # Create input spike source buffer
     input_spikes = backend.EventSourceBuffer((16,), len(spike_array), name="input_events")
 
     # Create one output neuron pop with sparse decoder population
     #sparse_n_pop = PostNeuron(backend, (4,), 17, "SparseNPop")
-    dense_n_pop = PostNeuron(backend, (4,), 17, "DenseNPop")
+    dense_n_pop = PostNeuron(backend, (40,), 17, "DenseNPop")
 
     #input_sparse = SparseLinear(backend, input_spikes, sparse_n_pop.i, 
     #                            "int16_t", max_row_length=conn.shape[1], num_sparse_connectivity_bits=3,
@@ -118,7 +122,8 @@ def test_forward(device, use_dram_for_weights, num_cores):
     runtime.run(sim_kernel)
 
     # Loop through output processes
-    output_place_values = 2 ** np.arange(4)
+    output_place_values = np.tile(2 ** np.arange(4), 10)
+
     #for p in [sparse_n_pop, dense_n_pop]:
     for p in [dense_n_pop]:
         # Get value of x
@@ -126,9 +131,10 @@ def test_forward(device, use_dram_for_weights, num_cores):
 
         # Remove first timestep and convert to bool
         x_val = x_val[1:,:].astype(bool)
-        
         for t in range(16):
             correct_value = (t + 1) % 16
+            print(x_val[t])
+            print(output_place_values[x_val[t]])
             output_value = np.sum(output_place_values[x_val[t]])
             if output_value != correct_value:
                 assert False, f"{p.process.name} decoding incorrect ({output_value} rather than {correct_value})"
