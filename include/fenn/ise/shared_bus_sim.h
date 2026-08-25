@@ -10,12 +10,15 @@
 // Common includes
 #include "common/barrier.h"
 
+// FeNN ISE includes
+#include "fenn/ise/ise_export.h"
+
 //----------------------------------------------------------------------------
 // FeNN::ISE::SharedBusSim
 //----------------------------------------------------------------------------
 namespace FeNN::ISE
 {
-class SharedBusSim
+class ISE_EXPORT SharedBusSim
 {
 public:
     SharedBusSim(size_t numRouters);
