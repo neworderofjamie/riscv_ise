@@ -43,7 +43,7 @@ public:
     RouterSim(SharedBusSim &sharedBus, ScalarDataMemory &spikeMemory, size_t routerIndex);
 
     // Update state every clock cycle
-    void tick();
+    void tick(bool lastTick = false);
 
     //! Write to register
     void writeReg(Register reg, uint32_t val);
