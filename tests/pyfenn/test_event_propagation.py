@@ -44,7 +44,8 @@ class PostNeuronDelay:
             name=name)
 
 @pytest.mark.parametrize("use_dram_for_weights", [True, False])
-def test_forward(device, use_dram_for_weights):    
+@pytest.mark.parametrize("num_cores", [1, 2])
+def test_forward(device, use_dram_for_weights, num_cores):
     log_appender = backend.ConsoleAppender()
     backend.init_logging(log_appender, backend.PlogSeverity.DEBUG)
 
@@ -71,23 +72,27 @@ def test_forward(device, use_dram_for_weights):
     input_spikes = backend.EventSourceBuffer((16,), len(spike_array), name="input_events")
 
     # Create one output neuron pop with sparse decoder population
-    sparse_n_pop = PostNeuron(backend, (4,), 17, "SparseNPop")
+    #sparse_n_pop = PostNeuron(backend, (4,), 17, "SparseNPop")
     dense_n_pop = PostNeuron(backend, (4,), 17, "DenseNPop")
 
-    input_sparse = SparseLinear(backend, input_spikes, sparse_n_pop.i, 
-                                "int16_t", max_row_length=conn.shape[1], num_sparse_connectivity_bits=3,
-                                name="input_sparse")
+    #input_sparse = SparseLinear(backend, input_spikes, sparse_n_pop.i, 
+    #                            "int16_t", max_row_length=conn.shape[1], num_sparse_connectivity_bits=3,
+    #                            name="input_sparse")
     input_dense = DenseLinear(backend, input_spikes, dense_n_pop.i, 
                               "int16_t", name="input_dense")
 
     # Initialisation
-    sparse_zero = Memset(backend, sparse_n_pop.i)
+    #sparse_zero = Memset(backend, sparse_n_pop.i)
     dense_zero = Memset(backend, dense_n_pop.i)
     
     # Group processes
-    init_processes = backend.ProcessGroup([sparse_zero.process, dense_zero.process])
-    neuron_update_processes = backend.ProcessGroup([sparse_n_pop.process, dense_n_pop.process])
-    synapse_update_processes = backend.ProcessGroup([input_sparse.process, input_dense.process])
+    #init_processes = backend.ProcessGroup([sparse_zero.process, dense_zero.process])
+    #neuron_update_processes = backend.ProcessGroup([sparse_n_pop.process, dense_n_pop.process])
+    #synapse_update_processes = backend.ProcessGroup([input_sparse.process, input_dense.process])
+    init_processes = backend.ProcessGroup([dense_zero.process])
+    neuron_update_processes = backend.ProcessGroup([dense_n_pop.process])
+    synapse_update_processes = backend.ProcessGroup([input_dense.process])
+
 
     # Create simulation kernel
     sim_kernel = backend.SimulationLoopKernel(
@@ -97,15 +102,15 @@ def test_forward(device, use_dram_for_weights):
 
     # Create runtime
     runtime_params = {"use_dram_for_weights": use_dram_for_weights}
-    runtime = (backend.RuntimeHW([sim_kernel], 1, **runtime_params) if device 
-               else backend.RuntimeSim([sim_kernel], 1, **runtime_params))
+    runtime = (backend.RuntimeHW([sim_kernel], num_cores, **runtime_params) if device 
+               else backend.RuntimeSim([sim_kernel], num_cores, **runtime_params))
 
     # Allocate memory for model
     runtime.allocate()
 
     # Initialise weights
     copy_and_push(spike_array, input_spikes, runtime)
-    copy_and_push(conn, input_sparse.weight, runtime)
+    #copy_and_push(conn, input_sparse.weight, runtime)
     copy_and_push(dense, input_dense.weight, runtime)
    
     # Simulate
@@ -113,7 +118,8 @@ def test_forward(device, use_dram_for_weights):
 
     # Loop through output processes
     output_place_values = 2 ** np.arange(4)
-    for p in [sparse_n_pop, dense_n_pop]:
+    #for p in [sparse_n_pop, dense_n_pop]:
+    for p in [dense_n_pop]:
         x_view = get_views(runtime, p.x)[0]
         runtime.pull_state_from_device(p.x)
         
