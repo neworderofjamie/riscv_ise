@@ -290,6 +290,8 @@ void DeviceFeNNHW::runCurrentKernel()
     m_Device.waitOnNonZero(0);
     LOGD_FENN_BACKEND << "Done";
 
+    // **TODO** we should wait on a barrier here
+
     // Disable core
     if (getDeviceIndex() == 0) {
         static_cast<RuntimeHW&>(getRuntime()).getDeviceControl().setEnabled(false);
