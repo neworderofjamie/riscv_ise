@@ -79,6 +79,17 @@ def quantise(data, fractional_bits: int, percentile: float = 99.0):
     # Scale by fixed point, round, convert to int and flatten
     return np.round(data * fp_one).astype(np.int16).flatten()
 
+def pull_and_get(runtime: Runtime, state):
+    # Pull from device
+    runtime.pull_state_from_device(state)
+
+    # Get views
+    views = get_views(runtime, state)
+    
+    # Recombine views
+    split_axis = len(views[0].shape) - 1 - runtime.get_split_dimension(state)
+    return np.concatenate(views, axis=split_axis)
+
 def zero_and_push(state, runtime: Runtime):
     # Get array views
     views = get_views(runtime, state)

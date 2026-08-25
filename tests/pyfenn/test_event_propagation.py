@@ -6,7 +6,8 @@ import pyfenn.fenn_backend as backend
 
 from pyfenn.models import DelayLinear, DenseLinear, Memset, SparseLinear
 from pyfenn.utils import (build_delay_weights, build_sparse_connectivity,
-                          build_spike_array, copy_and_push, get_views)
+                          build_spike_array, copy_and_push, get_views, 
+                          pull_and_get)
                           
 
 
@@ -120,15 +121,15 @@ def test_forward(device, use_dram_for_weights, num_cores):
     output_place_values = 2 ** np.arange(4)
     #for p in [sparse_n_pop, dense_n_pop]:
     for p in [dense_n_pop]:
-        x_view = get_views(runtime, p.x)[0]
-        runtime.pull_state_from_device(p.x)
-        
-        # Remove first timestep and padding neurons; and convert to bool
-        x_view = x_view[1:,:4].astype(bool)
+        # Get value of x
+        x_val = pull_and_get(runtime, p.x)
+
+        # Remove first timestep and convert to bool
+        x_val = x_val[1:,:].astype(bool)
         
         for t in range(16):
             correct_value = (t + 1) % 16
-            output_value = np.sum(output_place_values[x_view[t]])
+            output_value = np.sum(output_place_values[x_val[t]])
             if output_value != correct_value:
                 assert False, f"{p.process.name} decoding incorrect ({output_value} rather than {correct_value})"
     
