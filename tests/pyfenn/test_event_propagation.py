@@ -132,9 +132,7 @@ def test_forward(device, use_dram_for_weights, num_cores):
         # Remove first timestep and convert to bool
         x_val = x_val[1:,:].astype(bool)
         for t in range(16):
-            correct_value = (t + 1) % 16
-            print(x_val[t])
-            print(output_place_values[x_val[t]])
+            correct_value = 10 * ((t + 1) % 16)
             output_value = np.sum(output_place_values[x_val[t]])
             if output_value != correct_value:
                 assert False, f"{p.process.name} decoding incorrect ({output_value} rather than {correct_value})"
