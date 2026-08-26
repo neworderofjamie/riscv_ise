@@ -21,7 +21,7 @@ namespace FeNN::Common
 class FENN_COMMON_EXPORT DeviceControl
 {
 public:
-    DeviceControl(int numCores);
+    DeviceControl(int numCores = 1);
 
     //------------------------------------------------------------------------
     // Public API
