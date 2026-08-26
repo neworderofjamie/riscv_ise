@@ -10,28 +10,34 @@
 #include <cassert>
 #include <cmath>
 
-// PLOG includes
-#include <plog/Log.h>
-#include <plog/Severity.h>
+// Third party includes
+#include "third_party/CLI11.hpp"
 #include <plog/Appenders/ConsoleAppender.h>
+#include <plog/Formatters/TxtFormatter.h>
 
-// RISC-V common include
-#include "common/CLI11.hpp"
-#include "common/app_utils.h"
-#include "common/device.h"
-#include "common/device_control.h"
-#include "common/dma_buffer.h"
-#include "common/dma_controller.h"
-#include "common/utils.h"
+// Common includes
+#include "common/logging.h"
 
-// RISC-V assembler includes
-#include "assembler/assembler.h"
-#include "assembler/assembler_utils.h"
-#include "assembler/register_allocator.h"
+// FeNN common includes
+#include "fenn/common/app_utils.h"
+#include "fenn/common/device.h"
+#include "fenn/common/device_control.h"
+#include "fenn/common/dma_buffer.h"
+#include "fenn/common/dma_controller.h"
+#include "fenn/common/logging.h"
 
-// RISC-V ISE includes
-#include "ise/riscv.h"
-#include "ise/vector_processor.h"
+// FeNN assembler includes
+#include "fenn/assembler/assembler.h"
+#include "fenn/assembler/assembler_utils.h"
+#include "fenn/assembler/register_allocator.h"
+
+// FeNN ISE includes
+#include "fenn/ise/riscv.h"
+#include "fenn/ise/vector_processor.h"
+
+using namespace FeNN::Common;
+using namespace FeNN::Assembler;
+using namespace FeNN::ISE;
 
 #define _STRINGIFY(x) #x
 #define STRINGIFY(x) _STRINGIFY(x)
@@ -72,7 +78,7 @@ void genStaticPulse(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAll
     }
     
     // Get address of end of presynaptic spike buffer
-    c.li(*SSpikeBufferEnd, (ceilDivide(numPre, 32) * 4));
+    c.li(*SSpikeBufferEnd, (Common::Utils::ceilDivide(numPre, 32) * 4));
     c.add(*SSpikeBufferEnd, *SSpikeBufferEnd, *SSpikeBuffer);
     
     // SISynBuffer = hiddenIsyn;
@@ -149,10 +155,10 @@ void genStaticPulse(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAll
             // Preload first ISyn to avoid stall
             c.vloadv(*VISyn1, *SISynBuffer, 0);
 
-            AssemblerUtils::unrollVectorLoopBody(
-                c, scalarRegisterAllocator, numPost, 4, *SISynBuffer,
+            Utils::unrollOddEvenLoopBody(
+                c, scalarRegisterAllocator, Common::Utils::ceilDivide(numPost, 32), 4,
                 [SWeightBuffer, SISynBuffer, VWeight, VISyn1, VISyn2, VISynNew]
-                (CodeGenerator &c, uint32_t r, bool even, ScalarRegisterPtr maskReg)
+                (CodeGenerator &c, uint32_t r, bool even)
                 {
                     // Load vector of weights
                     c.vloadv(*VWeight, *SWeightBuffer, r * 64);
@@ -164,13 +170,13 @@ void genStaticPulse(CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAll
                     // Add weights to ISyn
                     auto VISyn = even ? VISyn1 : VISyn2;
 
-                    if(maskReg) {
-                        c.vadd_s(*VISynNew, *VISyn, *VWeight);
-                        c.vsel(*VISyn, *maskReg, *VISynNew);
-                    }
-                    else {
+                    //if(maskReg) {
+                    //    c.vadd_s(*VISynNew, *VISyn, *VWeight);
+                    //    c.vsel(*VISyn, *maskReg, *VISynNew);
+                    //}
+                    //else {
                         c.vadd_s(*VISyn, *VISyn, *VWeight);
-                    }
+                    //}
 
                     // Write back ISyn and increment SISynBuffer
                     c.vstore(*VISyn, *SISynBuffer, r * 64);
@@ -215,7 +221,11 @@ int main(int argc, char** argv)
 {
     // Configure logging
     plog::ConsoleAppender<plog::TxtFormatter> consoleAppender;
-    plog::init(plog::debug, &consoleAppender);
+    Common::Logging::init(plog::info, plog::info, 
+                          &consoleAppender, &consoleAppender);
+    Logging::init(plog::info, plog::info, plog::info, plog::info, plog::info,
+                  &consoleAppender, &consoleAppender, &consoleAppender, &consoleAppender, &consoleAppender);
+
 
     bool device = false;
     size_t numExamples = 10000;
@@ -242,9 +252,9 @@ int main(int argc, char** argv)
     constexpr uint32_t numTimesteps = 79;
     constexpr uint32_t hiddenFixedPoint = 5;
     constexpr uint32_t outFixedPoint = 6;
-    constexpr uint32_t numInputSpikeWords = ceilDivide(numInput, 32);
-    constexpr uint32_t numHiddenSpikeWords = ceilDivide(numHidden, 32);
-    constexpr uint32_t numOutputSpikeWords = ceilDivide(numOutput, 32);
+    constexpr uint32_t numInputSpikeWords = Common::Utils::ceilDivide(numInput, 32);
+    constexpr uint32_t numHiddenSpikeWords = Common::Utils::ceilDivide(numHidden, 32);
+    constexpr uint32_t numOutputSpikeWords = Common::Utils::ceilDivide(numOutput, 32);
     constexpr uint32_t numInputSpikeArrayWords = numInputSpikeWords * numTimesteps;
     constexpr uint32_t numHiddenSpikeArrayWords = numHiddenSpikeWords * numTimesteps;
     constexpr uint32_t numOutputSpikeArrayWords = numOutputSpikeWords * numTimesteps;
@@ -283,7 +293,7 @@ int main(int argc, char** argv)
     const auto mnistLabels = AppUtils::loadBinaryData<int16_t>("mnist_labels.bin");
    
     // Generate sim code
-    const auto simCode = AssemblerUtils::generateStandardKernel(
+    const auto simCode = Utils::generateStandardKernel(
         !device, readyFlagPtr,
         [=](CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator, ScalarRegisterAllocator &scalarRegisterAllocator)
         {
@@ -387,9 +397,9 @@ int main(int argc, char** argv)
 
                     // Load constants
                     // alpha = e^(-1/20)
-                    c.vlui(*VAlpha, convertFixedPoint(std::exp(-1.0 / 20.0), hiddenFixedPoint));
-                    c.vlui(*VThresh, convertFixedPoint(0.61, hiddenFixedPoint));
-                    c.vlui(*VMinusThresh, (uint16_t)convertFixedPoint(-0.61, hiddenFixedPoint));
+                    c.vlui(*VAlpha, Common::Utils::convertFixedPoint(std::exp(-1.0 / 20.0), hiddenFixedPoint));
+                    c.vlui(*VThresh, Common::Utils::convertFixedPoint(0.61, hiddenFixedPoint));
+                    c.vlui(*VMinusThresh, (uint16_t)Common::Utils::convertFixedPoint(-0.61, hiddenFixedPoint));
                     c.vlui(*VTauRefrac, 5);
                     c.vlui(*VMinusDT, (uint16_t)-1);
                     c.vlui(*VZero, 0);
@@ -400,8 +410,8 @@ int main(int argc, char** argv)
                     c.li(*SRefracTimeBuffer, hiddenRefracTimePtr);
                     c.li(*SSpikeBuffer, hiddenSpikePtr);
                  
-                    AssemblerUtils::unrollVectorLoopBody(
-                        c, scalarRegisterAllocator, numHidden, 4, *SVBuffer,
+                    Utils::unrollVectorLoopBody(
+                        c, scalarRegisterAllocator, numHidden, 4,
                         [&scalarRegisterAllocator, &vectorRegisterAllocator,
                          hiddenFixedPoint, 
  #ifdef RECORD_HIDDEN_SPIKES
@@ -412,7 +422,7 @@ int main(int argc, char** argv)
 #endif
                          SVBuffer, SISynBuffer, SRefracTimeBuffer, SSpikeBuffer,
                          VAlpha, VMinusDT, VTauRefrac, VThresh, VMinusThresh, VZero]
-                        (CodeGenerator &c, uint32_t r, bool, ScalarRegisterPtr maskReg)
+                        (CodeGenerator &c, uint32_t r, ScalarRegisterPtr maskReg)
                         {
                             assert(!maskReg);
 
@@ -512,7 +522,7 @@ int main(int argc, char** argv)
 
                     // Load constants
                     // alpha = e^(-1/20)
-                    c.vlui(*VAlpha, convertFixedPoint(std::exp(-1.0 / 20.0), outFixedPoint));
+                    c.vlui(*VAlpha, Common::Utils::convertFixedPoint(std::exp(-1.0 / 20.0), outFixedPoint));
                     c.vlui(*VZero, 0);
 
                     // Get address of voltage, voltage sum and Isyn buffers
@@ -613,7 +623,7 @@ int main(int argc, char** argv)
         });
     LOGI << simCode.size() << " simulation instructions";
     LOGI << scalarInitData.size() << " bytes of scalar memory required";
-    LOGI << vectorInitData.size() * 2 << " bytes of vector memory required (" << ceilDivide(vectorInitData.size() / 32, 4096) << " URAM cascade)";
+    LOGI << vectorInitData.size() * 2 << " bytes of vector memory required (" << Common::Utils::ceilDivide(vectorInitData.size() / 32, 4096) << " URAM cascade)";
 
     if(device) {
         LOGI << "Creating device";

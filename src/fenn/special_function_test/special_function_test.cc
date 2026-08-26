@@ -3,26 +3,34 @@
 #include <numeric>
 #include <random>
 
-// PLOG includes
-#include <plog/Log.h>
-#include <plog/Severity.h>
+// Third party includes
+#include "third_party/CLI11.hpp"
 #include <plog/Appenders/ConsoleAppender.h>
+#include <plog/Formatters/TxtFormatter.h>
 
-// RISC-V common includes
-#include "common/CLI11.hpp"
-#include "common/app_utils.h"
-#include "common/device.h"
-#include "common/dma_buffer.h"
-#include "common/dma_controller.h"
+// Common includes
+#include "common/logging.h"
 
-// RISC-V assembler includes
-#include "assembler/assembler.h"
-#include "assembler/assembler_utils.h"
-#include "assembler/register_allocator.h"
+// FeNN common includes
+#include "fenn/common/app_utils.h"
+#include "fenn/common/device.h"
+#include "fenn/common/device_control.h"
+#include "fenn/common/dma_buffer.h"
+#include "fenn/common/dma_controller.h"
+#include "fenn/common/logging.h"
 
-// RISC-V ISE includes
-#include "ise/riscv.h"
-#include "ise/vector_processor.h"
+// FeNN assembler includes
+#include "fenn/assembler/assembler.h"
+#include "fenn/assembler/assembler_utils.h"
+#include "fenn/assembler/register_allocator.h"
+
+// FeNN ISE includes
+#include "fenn/ise/riscv.h"
+#include "fenn/ise/vector_processor.h"
+
+using namespace FeNN::Common;
+using namespace FeNN::Assembler;
+using namespace FeNN::ISE;
 
 void writeData(const int16_t *inputData, const volatile int16_t *scalarOutputData, size_t count)
 {
@@ -37,7 +45,11 @@ int main(int argc, char** argv)
 {
     // Configure logging
     plog::ConsoleAppender<plog::TxtFormatter> consoleAppender;
-    plog::init(plog::debug, &consoleAppender);
+    Common::Logging::init(plog::info, plog::info, 
+                            &consoleAppender, &consoleAppender);
+    Logging::init(plog::info, plog::info, plog::info, plog::info, plog::info,
+                  &consoleAppender, &consoleAppender, &consoleAppender, &consoleAppender, &consoleAppender);
+
 
     bool device = false;
     bool dumpCoe = false;
@@ -58,11 +70,11 @@ int main(int argc, char** argv)
     constexpr bool saturate = true;
     const double min = 1.0;
     const double max = 8.0;
-    const int16_t minFixed = convertFixedPoint(min, inputFixedPoint);
-    const int16_t maxFixed = convertFixedPoint(max, inputFixedPoint);
+    const int16_t minFixed = Common::Utils::convertFixedPoint(min, inputFixedPoint);
+    const int16_t maxFixed = Common::Utils::convertFixedPoint(max, inputFixedPoint);
 
     const size_t count = maxFixed - minFixed;
-    const size_t numTestVectors = ceilDivide(count, 32);
+    const size_t numTestVectors = Common::Utils::ceilDivide(count, 32);
 
     LOGI << "Count: " << count;
 
@@ -89,7 +101,7 @@ int main(int argc, char** argv)
     const double step = (2.0 * expMax) / (1 << tableBits);
 
     for(double x = -expMax; x < expMax; x += step) {
-        lut.push_back(convertFixedPoint(std::exp(x), 14));
+        lut.push_back(Common::Utils::convertFixedPoint(std::exp(x), 14));
     }
     assert(lut.size() == lutSize);
     
@@ -108,13 +120,13 @@ int main(int argc, char** argv)
     }
 
     // Generate code
-    const auto code = AssemblerUtils::generateStandardKernel(
+    const auto code = Utils::generateStandardKernel(
         !device, readyFlagPtr,
         [=](CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator, ScalarRegisterAllocator &scalarRegisterAllocator)
         {
             // Generate code to broadcast LUT to start of all lane-local memories
-            AssemblerUtils::generateScalarLaneLocalBroadcast(c, vectorRegisterAllocator, scalarRegisterAllocator,
-                                                             lutScalarDataPtr, 0, lutSize);
+            Utils::generateScalarLaneLocalBroadcast(c, vectorRegisterAllocator, scalarRegisterAllocator,
+                                                    lutScalarDataPtr, 0, lutSize);
             // Register allocation
             ALLOCATE_SCALAR(SInputBuffer);
             ALLOCATE_SCALAR(SInputBufferEnd);
@@ -137,10 +149,10 @@ int main(int argc, char** argv)
             // Load constants
             c.vlui(*VShiftScale, 14 - outputFixedPoint);
             c.vlui(*VFracMask, (1 << fracBits) - 1);
-            c.vlui(*VLog2, convertFixedPoint(log2, 15));
-            c.vlui(*VInvLog, convertFixedPoint(1.0 / log2, 14));
-            c.vlui(*VExpMax, convertFixedPoint(expMax, inputFixedPoint));
-            c.vlui(*VHalf, convertFixedPoint(0.5, 15));
+            c.vlui(*VLog2, Common::Utils::convertFixedPoint(log2, 15));
+            c.vlui(*VInvLog, Common::Utils::convertFixedPoint(1.0 / log2, 14));
+            c.vlui(*VExpMax, Common::Utils::convertFixedPoint(expMax, inputFixedPoint));
+            c.vlui(*VHalf, Common::Utils::convertFixedPoint(0.5, 15));
 
             // Loop over vectors
             c.L(vectorLoop);
@@ -239,8 +251,8 @@ int main(int argc, char** argv)
 
 
             // Copy output vector memory to BRAM
-            AssemblerUtils::generateVectorScalarMemcpy(c, vectorRegisterAllocator, scalarRegisterAllocator,
-                                                       outputDataPtr, outputScalarDataPtr, numTestVectors);
+            Utils::generateVectorScalarMemcpy(c, vectorRegisterAllocator, scalarRegisterAllocator,
+                                              outputDataPtr, outputScalarDataPtr, numTestVectors);
 
         });
 
@@ -252,9 +264,11 @@ int main(int argc, char** argv)
     if(device) {
         LOGI << "Creating device";
         Device device;
+        DeviceControl deviceControl;
+
         LOGI << "Resetting";
         // Put core into reset state
-        device.setEnabled(false);
+        deviceControl.setEnabled(false);
 
         {
             LOGI << "DMAing vector init data to device";
@@ -286,12 +300,12 @@ int main(int argc, char** argv)
         
         LOGI << "Enabling";
         // Put core into running state
-        device.setEnabled(true);
+        deviceControl.setEnabled(true);
         LOGI << "Running";
         
         // Wait until ready flag
         device.waitOnNonZero(readyFlagPtr);
-        device.setEnabled(false);
+        deviceControl.setEnabled(false);
         LOGI << "Done";
 
         // Write data to text file
