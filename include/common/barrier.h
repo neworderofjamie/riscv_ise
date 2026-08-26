@@ -40,6 +40,12 @@ public:
         waitInternal(lock);
     }
 
+    void reset(size_t count)
+    {
+        m_ResetCount = count;
+        m_Count = count;
+    }
+
 private:
     //------------------------------------------------------------------------
     // Private methods

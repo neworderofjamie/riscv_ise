@@ -160,6 +160,9 @@ void Runtime::run(std::shared_ptr<const Kernel> kernel)
         m_CurrentKernel = kernel;
     }
 
+    // Reset
+    reset();
+
     // Run run command
     RunCurrentKernelCommand run;
     runCommand(&run);

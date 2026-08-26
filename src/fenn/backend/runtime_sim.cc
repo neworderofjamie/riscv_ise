@@ -352,4 +352,9 @@ std::unique_ptr<Frontend::DeviceBase> RuntimeSim::createDevice(size_t deviceInde
 {
     return std::make_unique<DeviceFeNNSim>(deviceIndex, *this, m_SharedBus);
 }
+//------------------------------------------------------------------------
+void RuntimeSim::reset()
+{
+    m_SharedBus.reset(getNumDevices());
+}
 }

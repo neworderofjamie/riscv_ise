@@ -81,12 +81,12 @@ public:
                size_t numDevices, bool useDRAMForWeights = false, bool keepParamsInRegisters = true, 
                Compiler::RoundingMode neuronUpdateRoundingMode = Compiler::RoundingMode::NEAREST,
                size_t dmaBufferSize = 512 * 1024);
-    
-private:
+
     //------------------------------------------------------------------------
     // Runtime virtuals
     //------------------------------------------------------------------------
     virtual std::unique_ptr<Frontend::DeviceBase> createDevice(size_t deviceIndex) override final;
+    virtual void reset() override final;
 
     //------------------------------------------------------------------------
     // Members

@@ -288,6 +288,9 @@ protected:
     //! Backend-specific logic to run at end of allocate function
     virtual void allocatePostamble() {}
 
+    //! **YUCK** Backend-specific logic to run before starting kernel
+    virtual void reset() {}
+
     //! Create suitable device
     virtual std::unique_ptr<DeviceBase> createDevice(size_t deviceIndex) = 0;
 

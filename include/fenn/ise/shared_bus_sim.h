@@ -32,7 +32,9 @@ public:
     //! Read value of shared bus and updates round-robin logic
     //! **NOTE** blocks until all threads reach this point and read value
     std::pair<std::optional<uint32_t>, bool> synchronise(size_t routerIndex, bool lastTick = false);
-   
+
+    void reset(size_t numRouters);
+    
     size_t getNumRouters() const{ return m_NumRouters; }
 
 private:

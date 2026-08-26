@@ -13,11 +13,9 @@
 namespace FeNN::ISE
 {
 SharedBusSim::SharedBusSim(size_t numRouters)
-:   m_NumRouters(numRouters), m_SendData(numRouters), m_NextRouter(0), 
-    m_Barrier(m_NumRouters), m_RouterMap(numRouters)
+:   m_NextRouter(0), m_Barrier(numRouters), m_RouterMap(numRouters)
 {
-    // Generate initial router map
-    std::iota(m_RouterMap.begin(), m_RouterMap.end(), 0);
+    reset(numRouters);
 }
 //----------------------------------------------------------------------------
 void SharedBusSim::send(size_t routerIndex, std::optional<uint32_t> value) 
@@ -93,5 +91,19 @@ std::pair<std::optional<uint32_t>, bool> SharedBusSim::synchronise(size_t router
 
     // Return read data and whether the event that got send was 'ours'
     return std::make_pair(data, readRouterIndex == routerIndex);
+}
+void SharedBusSim::reset(size_t numRouters)
+{
+    // Reset router count
+    m_NumRouters = numRouters;
+
+    // Resize send data
+    m_SendData.resize(numRouters, std::nullopt);
+
+    // Generate initial router map
+    std::iota(m_RouterMap.begin(), m_RouterMap.end(), 0);
+
+    // Reset barrier
+    m_Barrier.reset(numRouters);
 }
 }
