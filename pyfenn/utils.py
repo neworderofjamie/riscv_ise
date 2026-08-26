@@ -104,6 +104,17 @@ def zero_and_push(state, runtime: Runtime):
     # Push to device
     runtime.push_state_to_device(state)
 
+def copy_split_and_push(data: Sequence[np.ndarray], state, runtime: Runtime):
+    # Get array and view
+    views = get_views(runtime, state)
+    assert len(views) == len(data)
+
+    for v, d in zip(views, data):
+        v[:] = d
+    
+    # Push to device
+    runtime.push_state_to_device(state)
+
 def copy_and_push(data: np.ndarray, state, runtime: Runtime):
     # Get array and view
     views = get_views(runtime, state)

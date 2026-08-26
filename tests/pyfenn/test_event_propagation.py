@@ -6,8 +6,9 @@ import pyfenn.fenn_backend as backend
 
 from pyfenn.models import DelayLinear, DenseLinear, Memset, SparseLinear
 from pyfenn.utils import (build_delay_weights, build_sparse_connectivity,
-                          build_spike_array, copy_and_push, get_views, 
-                          pull_and_get)
+                          build_spike_array, copy_and_push, 
+                          copy_split_and_push, get_views, 
+                          pull_and_get, split_sparse_connectivity)
                           
 
 
@@ -70,34 +71,38 @@ def test_forward(device, use_dram_for_weights, num_cores):
     for i, row in enumerate(conn):
         dense[i,row] = 1
 
+
+    if num_cores > 1:
+        assert num_cores == 2
+        conn = split_sparse_connectivity(conn, [32,])
+    else:
+        conn = [conn]
+
     # Convert into internal format
-    conn = build_sparse_connectivity([conn], 1, 6)[0]
+    conn = build_sparse_connectivity(conn, 1, 6)
+    assert all(c.shape[1] == conn[0].shape[1] for c in conn)
 
     # Create input spike source buffer
     input_spikes = backend.EventSourceBuffer((16,), len(spike_array), name="input_events")
 
     # Create one output neuron pop with sparse decoder population
-    #sparse_n_pop = PostNeuron(backend, (4,), 17, "SparseNPop")
+    sparse_n_pop = PostNeuron(backend, (40,), 17, "SparseNPop")
     dense_n_pop = PostNeuron(backend, (40,), 17, "DenseNPop")
 
-    #input_sparse = SparseLinear(backend, input_spikes, sparse_n_pop.i, 
-    #                            "int16_t", max_row_length=conn.shape[1], num_sparse_connectivity_bits=3,
-    #                            name="input_sparse")
+    input_sparse = SparseLinear(backend, input_spikes, sparse_n_pop.i, 
+                                "int16_t", max_row_length=sum(c.shape[1] for c in conn), 
+                                num_sparse_connectivity_bits=6, name="input_sparse")
     input_dense = DenseLinear(backend, input_spikes, dense_n_pop.i, 
                               "int16_t", name="input_dense")
 
     # Initialisation
-    #sparse_zero = Memset(backend, sparse_n_pop.i)
+    sparse_zero = Memset(backend, sparse_n_pop.i)
     dense_zero = Memset(backend, dense_n_pop.i)
     
     # Group processes
-    #init_processes = backend.ProcessGroup([sparse_zero.process, dense_zero.process])
-    #neuron_update_processes = backend.ProcessGroup([sparse_n_pop.process, dense_n_pop.process])
-    #synapse_update_processes = backend.ProcessGroup([input_sparse.process, input_dense.process])
-    init_processes = backend.ProcessGroup([dense_zero.process])
-    neuron_update_processes = backend.ProcessGroup([dense_n_pop.process])
-    synapse_update_processes = backend.ProcessGroup([input_dense.process])
-
+    init_processes = backend.ProcessGroup([sparse_zero.process, dense_zero.process])
+    neuron_update_processes = backend.ProcessGroup([sparse_n_pop.process, dense_n_pop.process])
+    synapse_update_processes = backend.ProcessGroup([input_sparse.process, input_dense.process])
 
     # Create simulation kernel
     sim_kernel = backend.SimulationLoopKernel(
@@ -115,7 +120,7 @@ def test_forward(device, use_dram_for_weights, num_cores):
 
     # Initialise weights
     copy_and_push(spike_array, input_spikes, runtime)
-    #copy_and_push(conn, input_sparse.weight, runtime)
+    copy_split_and_push(conn, input_sparse.weight, runtime)
     copy_and_push(dense, input_dense.weight, runtime)
    
     # Simulate
@@ -124,8 +129,7 @@ def test_forward(device, use_dram_for_weights, num_cores):
     # Loop through output processes
     output_place_values = np.tile(2 ** np.arange(4), 10)
 
-    #for p in [sparse_n_pop, dense_n_pop]:
-    for p in [dense_n_pop]:
+    for p in [sparse_n_pop, dense_n_pop]:
         # Get value of x
         x_val = pull_and_get(runtime, p.x)
 
