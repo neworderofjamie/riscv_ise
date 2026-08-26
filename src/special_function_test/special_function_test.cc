@@ -12,6 +12,7 @@
 #include "common/CLI11.hpp"
 #include "common/app_utils.h"
 #include "common/device.h"
+#include "common/device_control.h"
 #include "common/dma_buffer.h"
 #include "common/dma_controller.h"
 
@@ -252,9 +253,10 @@ int main(int argc, char** argv)
     if(device) {
         LOGI << "Creating device";
         Device device;
+        DeviceControl deviceControl(1);
         LOGI << "Resetting";
         // Put core into reset state
-        device.setEnabled(false);
+        deviceControl.setEnabled(false);
 
         {
             LOGI << "DMAing vector init data to device";
@@ -286,12 +288,12 @@ int main(int argc, char** argv)
         
         LOGI << "Enabling";
         // Put core into running state
-        device.setEnabled(true);
+        deviceControl.setEnabled(true);
         LOGI << "Running";
         
         // Wait until ready flag
         device.waitOnNonZero(readyFlagPtr);
-        device.setEnabled(false);
+        deviceControl.setEnabled(false);
         LOGI << "Done";
 
         // Write data to text file
