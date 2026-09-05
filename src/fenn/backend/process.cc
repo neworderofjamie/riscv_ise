@@ -1197,7 +1197,7 @@ void DenseEventPropagationProcess::updateMergeHash(boost::uuids::detail::sha1 &h
     // **NOTE** we don't need to hash the weights as the generated code doesn't depend on their type
 
     // Include hash of weight memory space
-    updateHash(static_cast<const Model&>(model).getStateMemSpace(getTarget().getUnderlying(), 
+    updateHash(static_cast<const Model&>(model).getStateMemSpace(getWeight(), 
                                                                  true/*getRuntime().shouldUseDRAMForWeights()*/), hash);
 }
 //----------------------------------------------------------------------------
@@ -1437,7 +1437,7 @@ void SparseEventPropagationProcess::updateMergeHash(boost::uuids::detail::sha1 &
     // **NOTE** we don't need to hash the weights as the generated code doesn't depend on their type
 
     // Include hash of weight memory space
-    updateHash(static_cast<const Model&>(model).getStateMemSpace(getTarget().getUnderlying(), 
+    updateHash(static_cast<const Model&>(model).getStateMemSpace(getWeight(), 
                                                                  true/*getRuntime().shouldUseDRAMForWeights()*/), hash);
 }
 //----------------------------------------------------------------------------
@@ -1705,7 +1705,7 @@ void DelayEventPropagationProcess::updateMergeHash(boost::uuids::detail::sha1 &h
     // **NOTE** we don't need to hash the weights as the generated code doesn't depend on their type
 
     // Include hash of weight memory space
-    updateHash(static_cast<const Model&>(model).getStateMemSpace(getTarget().getUnderlying(), 
+    updateHash(static_cast<const Model&>(model).getStateMemSpace(getWeight(), 
                                                                  true/*getRuntime().shouldUseDRAMForWeights()*/), hash);
 }
 //----------------------------------------------------------------------------
@@ -1742,6 +1742,145 @@ void DelayEventPropagationProcess::updateCompatibleMemSpace(std::shared_ptr<cons
     // Otherwise, if variable's target, it can only be in LLM 
     else if(state == getTarget().getUnderlying()) {
         compatibleMemSpaces &= MemSpace::LLM;
+    }
+    else {
+        assert(state == getInputEventSource());
+    }
+}
+
+//----------------------------------------------------------------------------
+// FeNN::Backend::Downsample2DEventPropagationProcess
+//----------------------------------------------------------------------------
+Downsample2DEventPropagationProcess::Downsample2DEventPropagationProcess(Private, std::shared_ptr<const Frontend::EventSource> inputEventSource, 
+                                                                         Frontend::Sliced<Frontend::Variable> target, const std::string &name)
+    :   EventPropagationProcess(Private(), inputEventSource, target, name)
+{
+    if (getInputEventSource()->getShape().size() != 2) {
+        throw std::runtime_error("Downsample 2D event propagation process requires source events with a 2D shape");
+    }  
+
+    if (getTarget().getShape().size() != 2) {
+        throw std::runtime_error("Downsample 2D event propagation process requires target variable with a 2D shape");
+    } 
+}
+//------------------------------------------------------------------------
+void Downsample2DEventPropagationProcess::updateMaxDMABufferSize(size_t&) const
+{
+}
+//------------------------------------------------------------------------
+void Downsample2DEventPropagationProcess::generateArchetypeCode(const Frontend::MergedProcess &mergedProcess, const Runtime &runtime, 
+                                                                const KernelImplementation&, MergedFields &mergedFields, 
+                                                                Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg, 
+                                                                Assembler::ScalarRegisterPtr preIndReg, std::optional<uint32_t>, 
+                                                                Assembler::CodeGenerator &processCodeGenerator, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
+                                                                Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
+{
+    // Make some friendlier-named references
+    auto &c = processCodeGenerator;
+
+    const uint32_t targetFieldOffset = mergedFields.addField<DelayEventPropagationProcess>(
+        [](const Frontend::DeviceBase &d, auto p)
+        { 
+            return d.getArray(p->getTarget().getUnderlying()); 
+        });
+
+    // Spike ID expected to have | Polarity | X | Y | in the lowest bits with 9 bit X and Y
+
+    /*li      a4,16384          ; a4 = 16384
+    srli    a5,a0,2             ; a5 = a0 >> 2 
+    addi    t0,a4,-128          ; t0 = a4 - 128 (0b11111110000000 to extract x)
+    srli    a0,a0,4             ; a0 = a0 >> 4 (put x in correct location)
+    and     t1,a0,t0            ; t1 = a0 & 0b11111110000000 (x bits)
+    andi    t2,a5,96            ; t2 = a5 & 0b00000001100000 (y bits to use for URAM address)
+    li      a1,1                ; a1 = 1
+    or      a0,t2,t1            ; a0 = t1 | t2 (URAM address)
+    sll     a1,a1,a5            ; a1 = 1 << a5 (SLL only looks at lower 5 bits) 
+    tail    _Z4loadjj@plt*/
+
+    constexpr size_t inputCoordBits = 9;
+    constexpr size_t outputCoordBits = 7;
+    constexpr size_t coordScaleShift = inputCoordBits - outputCoordBits;
+
+    
+    ALLOCATE_SCALAR(SXMask);
+    ALLOCATE_SCALAR(SAddressLow);
+    ALLOCATE_SCALAR(SAddressHigh);
+    ALLOCATE_SCALAR(SX);
+    ALLOCATE_SCALAR(SY);
+
+    // Load mask used to mask x coordinate in output forma
+    c.li(*SXMask, ((1 << outputCoordBits) - 1) << outputCoordBits);
+
+    // Shift presynaptix index down, leaving correctly scaled Y in bottom outputCoordBits
+    c.srli(*SAddressLow, *preIndReg, coordScaleShift);
+
+    // Shift presynaptic index down, leaving correctly scaled X in outputCoordBits above it
+    c.srli(*SAddressHigh, *preIndReg, coordScaleShift * 2);
+
+    // Mask out X bits in address high
+    c.and_(*SX, *SAddressHigh, *SXMask);
+
+    // Mask out Y bits above the bottom 5 bits
+    c.andi(*SY, *SAddressLow, ((1 << (outputCoordBits - 5)) - 1) << 5);
+
+    // or      a0,t2,t1            ; a0 = t1 | t2 (URAM address)
+    // LOADV
+    // sll a1,a1,a5
+    // ADDV
+    // VSEL a1
+    // VSTORE
+
+
+}
+//----------------------------------------------------------------------------
+std::vector<std::shared_ptr<const Frontend::State>> Downsample2DEventPropagationProcess::getAllState() const
+{
+    return {getInputEventSource(), getTarget().getUnderlying()};
+}
+//----------------------------------------------------------------------------
+void Downsample2DEventPropagationProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Frontend::Model &model) const
+{
+    using namespace ::Common::Utils;
+    UPDATE_HASH_CLASS_NAME(Downsample2DEventPropagationProcess);
+
+    // **NOTE** we do NOT call the superclass here because we want to set our 
+    // own name and do not want to include input event source in hash as 
+    // event sources are handled seperately in FeNN backend
+
+    // Targets
+    // **NOTE** generated code doesn't depend on underlying target type so do not include in hash
+    getTarget().updateMergeHash(hash, false);
+
+    // Include hash of target memory space
+    updateHash(static_cast<const Model&>(model).getStateMemSpace(getTarget().getUnderlying(), 
+                                                                 true/*getRuntime().shouldUseDRAMForWeights()*/), hash);
+}
+//----------------------------------------------------------------------------
+void Downsample2DEventPropagationProcess::updateCompatibleSplitDimensions(std::shared_ptr<const Frontend::State> state, 
+                                                                          uint32_t &compatibleSplitDimensions,
+                                                                          uint32_t &compatibleIndexDimensions) const 
+{
+    // If variable is target, it can only be split along 2nd 
+    // (postsynaptic)  axis and it can only be indexed along 1st (time) axis
+    if (state == getTarget().getUnderlying()) {
+        // **TODO** think
+        assert(false);
+        //compatibleSplitDimensions &= (1 << 0);
+        //compatibleIndexDimensions &= (1 << 1);
+    }
+    // Otherwise, superclass
+    else {
+        Frontend::EventPropagationProcess::updateCompatibleSplitDimensions(state, compatibleSplitDimensions,
+                                                                           compatibleIndexDimensions);
+    }
+}
+//----------------------------------------------------------------------------
+void Downsample2DEventPropagationProcess::updateCompatibleMemSpace(std::shared_ptr<const Frontend::State> state, 
+                                                                   MemSpace &compatibleMemSpaces) const
+{
+    // If variable's target, it can only be in URAM 
+    if(state == getTarget().getUnderlying()) {
+        compatibleMemSpaces &= MemSpace::URAM;
     }
     else {
         assert(state == getInputEventSource());
