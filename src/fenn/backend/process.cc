@@ -1775,6 +1775,7 @@ void Downsample2DEventPropagationProcess::generateArchetypeCode(const Frontend::
                                                                 Assembler::CodeGenerator &processCodeGenerator, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                                                 Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
+    assert(runtime.getNumDevices() == 1);
     // Make some friendlier-named references
     auto &c = processCodeGenerator;
 
@@ -1784,53 +1785,86 @@ void Downsample2DEventPropagationProcess::generateArchetypeCode(const Frontend::
             return d.getArray(p->getTarget().getUnderlying()); 
         });
 
+    auto targetYStride = addScalarValue(0, mergedProcess, runtime.getNumDevices(), mergedFields,
+                                        fieldBaseReg, c, scalarRegisterAllocator, 
+                                        [&runtime](size_t d, auto p)
+                                        { 
+                                            // Get stride and shape of target
+                                            auto [shape, strides] = runtime.getDeviceArrayShapeStrides(p->getTarget().getUnderlying(), d);
+
+                                            // Multiply this axis's stride by it's shape and pad to a multiple of 32 elements
+                                            return static_cast<uint32_t>(
+                                                ::Common::Utils::ceilDivide(strides.at(topAxis) * shape.at(topAxis), 64) * 32);
+                                        });
     // Spike ID expected to have | Polarity | X | Y | in the lowest bits with 9 bit X and Y
 
-    /*li      a4,16384          ; a4 = 16384
-    srli    a5,a0,2             ; a5 = a0 >> 2 
-    addi    t0,a4,-128          ; t0 = a4 - 128 (0b11111110000000 to extract x)
-    srli    a0,a0,4             ; a0 = a0 >> 4 (put x in correct location)
-    and     t1,a0,t0            ; t1 = a0 & 0b11111110000000 (x bits)
-    andi    t2,a5,96            ; t2 = a5 & 0b00000001100000 (y bits to use for URAM address)
+    /*srli    a5,a0,2           ; a5 = spikeID >> 2 
+    andi    t0,a5,127           ; y = a5 & 127
+    mul     t1,t0,a1            ; index = y * strideY
+    srli    a0,a0,11            ; a0 = spikeID >> 11 (extract x and scale)
+    andi    t2,a0,127           ; x = a5 & 127 
     li      a1,1                ; a1 = 1
-    or      a0,t2,t1            ; a0 = t1 | t2 (URAM address)
-    sll     a1,a1,a5            ; a1 = 1 << a5 (SLL only looks at lower 5 bits) 
+    add     a2,t1,t2            ; index = (y * strideY) + x
+    sll     a1,a1,a2            ; a1 = 1 << index (SLL only looks at lower 5 bits) 
+    andi    a0,a2,-32           ; a0 = index & -32
     tail    _Z4loadjj@plt*/
 
     constexpr size_t inputCoordBits = 9;
     constexpr size_t outputCoordBits = 7;
     constexpr size_t coordScaleShift = inputCoordBits - outputCoordBits;
-
+    constexpr uint32_t outputCoordMask =  (1 << outputCoordBits) - 1;
     
-    ALLOCATE_SCALAR(SXMask);
-    ALLOCATE_SCALAR(SAddressLow);
-    ALLOCATE_SCALAR(SAddressHigh);
-    ALLOCATE_SCALAR(SX);
-    ALLOCATE_SCALAR(SY);
+    ALLOCATE_SCALAR(SIndex);
 
-    // Load mask used to mask x coordinate in output forma
-    c.li(*SXMask, ((1 << outputCoordBits) - 1) << outputCoordBits);
+    {
+        ALLOCATE_SCALAR(SX);
+        ALLOCATE_SCALAR(SY);
+        // Extract X coordinate
+        c.srli(*SY, *preIndReg, coordScaleShift);
+        c.andi(*SY, *SY, outputCoordMask);
+   
+        // Extract X coordinate
+        c.srli(*SX, *preIndReg, inputCoordBits + coordScaleShift);
+        c.andi(*SX, *SX, outputCoordMask);
 
-    // Shift presynaptix index down, leaving correctly scaled Y in bottom outputCoordBits
-    c.srli(*SAddressLow, *preIndReg, coordScaleShift);
+        // Calculate index into post
+        c.mul(*SIndex, std::get<Assembler::ScalarRegisterPtr>(targetYStride), *SY);
+        c.add(*SIndex, *SIndex, *SX);
+    }
 
-    // Shift presynaptic index down, leaving correctly scaled X in outputCoordBits above it
-    c.srli(*SAddressHigh, *preIndReg, coordScaleShift * 2);
+    {
+        ALLOCATE_SCALAR(STargetBuffer);
+        ALLOCATE_SCALAR(STargetVectorAddress);
+        ALLOCATE_SCALAR(SMask);
+        ALLOCATE_VECTOR(VTarget);
+        ALLOCATE_VECTOR(VTargetNew);
+        ALLOCATE_VECTOR(VWeight);
 
-    // Mask out X bits in address high
-    c.and_(*SX, *SAddressHigh, *SXMask);
+        // Load weight
+        c.vlui(*VWeight, 1);
 
-    // Mask out Y bits above the bottom 5 bits
-    c.andi(*SY, *SAddressLow, ((1 << (outputCoordBits - 5)) - 1) << 5);
+        // Load target address
+        c.lw(*STargetBuffer, *fieldBaseReg, targetFieldOffset);
 
-    // or      a0,t2,t1            ; a0 = t1 | t2 (URAM address)
-    // LOADV
-    // sll a1,a1,a5
-    // ADDV
-    // VSEL a1
-    // VSTORE
+        // Build vector address and load target
+        // **TODO** bytes not half-words
+        c.andi(*STargetVectorAddress, *SIndex, -32);
+        c.add(*STargetVectorAddress, *STargetVectorAddress, *STargetBuffer);
+        c.vloadv(*VTarget, *STargetVectorAddress);
 
+        // Build mask
+        c.li(*SMask, 1);
+        c.sll(*SMask, *SMask, *SIndex);
 
+        // VTargetNew = VTarget + VWeight
+        c.vadd(*VTargetNew, *VTarget, *VWeight);
+
+        // VTarget = SMask ? VTargetNew : VTarget
+        c.vsel(*VTarget, *SMask, *VTargetNew);
+
+        // Store updated target current
+        c.vstore(*VTarget, *STargetVectorAddress);
+    }
 }
 //----------------------------------------------------------------------------
 std::vector<std::shared_ptr<const Frontend::State>> Downsample2DEventPropagationProcess::getAllState() const
