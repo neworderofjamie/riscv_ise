@@ -1,5 +1,4 @@
 import numpy as np
-import mnist
 import pyfenn.fenn_backend as backend
 
 from argparse import ArgumentParser
