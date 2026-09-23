@@ -38,8 +38,8 @@ class CUBALIF:
             f"""
             s5_10_sat_t inSyn;
             {{
-                inSyn = (I * {syn_scale}h10);
-                IExc *= {beta}h15;
+                inSyn = (I @ {syn_scale}h10);
+                I *= {beta}h15;
             }}
             
             // Update V
@@ -72,22 +72,20 @@ class CUBALIFIE:
         self.v = backend.Variable(self.shape, dtype, name=f"{name}_V")
         self.i_exc = backend.Variable(self.shape, "s14_1_sat_t", name=f"{name}_IExc")
         self.i_inh = backend.Variable(self.shape, "s14_1_sat_t", name=f"{name}_IInh")
-        channel = backend.EventChannel((num_timesteps + 1,) + self.shape, self.shape,
-                                       True, name=f"{name}_out_spikes")
-        self.spike_sink = channel.sink
-        self.out_spikes = channel.source
+        self.spike_sink = backend.EventSinkBuffer((num_timesteps + 1,) + self.shape, 
+                                                  name=f"{name}_spike_sink")
         self.process = backend.NeuronUpdateProcess(
             f"""
             s5_10_sat_t inSyn;
             // Excitatory
             {{
-                inSyn = (IExc * {exc_scale}h10);
+                inSyn = (IExc @ {exc_scale}h10);
                 IExc *= {beta_exc}h15;
             }}
             
             // Inhibitory
             {{
-                inSyn += (IInh * {inh_scale}h10);
+                inSyn += (IInh @ {inh_scale}h10);
                 IInh *= {beta_inh}h15;
             }}
             
@@ -265,3 +263,19 @@ sim_kernel = backend.SimulationLoopKernel(
 runtime_params = {}
 runtime = (backend.RuntimeHW([init_kernel, sim_kernel], 1, **runtime_params) if args.device 
            else backend.RuntimeSim([init_kernel, sim_kernel], 1, **runtime_params))
+
+
+# Disassemble if required
+if args.disassemble:
+    print("Init:")
+    code = runtime.get_kernel_code(init_kernel)
+    for i, c in enumerate(code):
+        print(f"{i * 4} : {backend.disassemble(c)}")
+
+    print("Simulation:")
+    code = runtime.get_kernel_code(sim_kernel)
+    for i, c in enumerate(code):
+        print(f"{i * 4} : {backend.disassemble(c)}")
+
+# Allocate memory for model
+runtime.allocate()
