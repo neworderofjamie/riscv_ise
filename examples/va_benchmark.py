@@ -19,7 +19,6 @@ class CUBALIF:
                  num_timesteps: int = 1, name: str = ""):
         self.shape = shape
         dtype = "s5_10_sat_t"
-        decay_dtype = "s0_15_sat_t"
 
         exc_scale = tau_syn_exc * (1.0 - np.exp(-1.0 / tau_syn_exc))
         inh_scale = tau_syn_inh * (1.0 - np.exp(-1.0 / tau_syn_inh))
