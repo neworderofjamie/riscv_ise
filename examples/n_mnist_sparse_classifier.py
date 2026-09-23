@@ -1,5 +1,4 @@
 import numpy as np
-import mnist
 
 from argparse import ArgumentParser
 import pyfenn.fenn_backend as backend
@@ -9,8 +8,7 @@ from pyfenn.models import SparseLinear, Memset
 from pyfenn.utils import PythonLogAppender
 from tonic.datasets import NMNIST
 
-from pyfenn import disassemble, init_logging
-from pyfenn.utils import (build_sparse_connectivity, ceil_divide,
+from pyfenn.utils import (build_sparse_connectivity,
                           convert_tonic_spikes, copy_and_push,
                           get_views, load_quantise_and_push, quantise,
                           seed_and_push, zero_and_push)
@@ -39,7 +37,7 @@ def build_sparse_conn(checkpoint_stem: str, num_pre: int,
         row_weights.append(weights[mask])
         row_ind.append(post_ind[mask])
 
-    return build_sparse_connectivity(row_ind, row_weights, num_sparse_connectivity_bits)
+    return build_sparse_connectivity([row_ind], [row_weights], num_sparse_connectivity_bits)
 
 dt = 1.0
 num_timesteps = 300
@@ -71,7 +69,7 @@ for events, label in tqdm(dataset, "Preprocessing dataset"):
     n_mnist_labels.append(label)
 
 # Calculate maximum spike array length
-max_spike_array_length = max(len(s) for s in shd_spikes)
+max_spike_array_length = max(len(s) for s in n_mnist_spikes)
 
 # Build connectivity
 in_hid_conn = build_sparse_conn("n_mnist_checkpoints/98-Conn_Pop0_Pop2",
@@ -105,38 +103,32 @@ hidden_zero = Memset(backend, hidden.i)
 # Group processes
 init_processes = backend.ProcessGroup([rng_init.process, hidden_zero.process])
 neuron_update_processes = backend.ProcessGroup([hidden.process, output.process])
-synapse_update_processes = backend, .ProcessGroup([input_hidden.process, hidden_hidden.process, 
+synapse_update_processes = backend.ProcessGroup([input_hidden.process, hidden_hidden.process, 
                                                    hidden_output.process])
 zero_processes = backend.ProcessGroup([output_zero.process])
 
-# Create backend
-backend_kwargs = {"use_dram_for_weights": True, "rounding_mode": RoundingMode.STOCHASTIC, 
-                  "dma_buffer_size": 2 * 1024 * 1024}
-backend = (BackendFeNNHW(**backend_kwargs) 
-           if args.device else BackendFeNNSim(**backend_kwargs))
+# Create kernels
+init_kernel = backend.SimpleKernel([init_processes])
+kernel = backend.SimulationLoopKernel(
+    num_timesteps, [synapse_update_processes, neuron_update_processes],
+    [zero_processes], [])
 
-# Create model
-model = Model([init_processes, neuron_update_processes, synapse_update_processes, zero_processes],
-              backend)
-
-# Generate init and sim code
-init_code = backend.generate_kernel([init_processes], model)
-code = backend.generate_simulation_kernel([synapse_update_processes, neuron_update_processes],  # Update synapses and then neurons every timestep
-                                          [zero_processes], [],
-                                          num_timesteps, model)
+# Create runtime
+runtime_params = {"neuron_update_rounding_mode": backend.RoundingMode.STOCHASTIC}
+runtime = (backend.RuntimeHW([kernel], 1, **runtime_params) if args.device 
+           else backend.RuntimeSim([kernel], 1, **runtime_params))
 
 # Disassemble if required
 if args.disassemble:
     print("Init:")
-    for i, c in enumerate(init_code):
-        print(f"{i * 4} : {disassemble(c)}")
-
-    print("Simulation:")
+    code = runtime.get_kernel_code(init_kernel)
     for i, c in enumerate(code):
         print(f"{i * 4} : {disassemble(c)}")
 
-# Create runtime
-runtime = Runtime(model, backend)
+    print("Simulation:")
+    code = runtime.get_kernel_code(kernel)
+    for i, c in enumerate(code):
+        print(f"{i * 4} : {backend.disassemble(c)}")
 
 # Allocate memory for model
 runtime.allocate()
@@ -161,34 +153,31 @@ zero_and_push(output.v_avg, runtime)
 # Get array and view
 seed_and_push(rng_init.seed, runtime)
 
-# Set init instructions and run
-runtime.set_instructions(init_code)
-runtime.run()
-
-# Set instructions
-runtime.set_instructions(code)
+# Run init kernel
+runtime.run(init_kernel)
 
 # Loop through examples
-input_spike_array, input_spike_view = get_array_view(runtime, input_spikes,
-                                                     np.uint32)
-hidden_spike_array = runtime.get_array(hidden.out_spikes)
-output_v_avg_array, output_v_avg_view = get_array_view(runtime, output.v_avg, np.int16)
+input_spike_views = get_views(runtime, input_spikes)
+assert len(input_spike_views) == 1
+
+output_v_avg_views = get_views(runtime, output.v_avg)
+assert len(output_v_avg_views) == 1
 
 num_correct = 0
 for spikes, label in tqdm(zip(n_mnist_spikes, n_mnist_labels),
                           total=len(n_mnist_labels), desc="Simulating"):
     # Copy data to array host pointe
-    input_spike_view[:] = spikes
-    input_spike_array.push_to_device()
+    input_spike_views[0][:len(spikes)] = spikes
+    runtime.push_state_to_device(input_spikes)
 
     # Classify
-    runtime.run()
+    runtime.run(kernel)
 
     # Copy output V sum from device
-    output_v_avg_array.pull_from_device()
+    runtime.pull_state_from_device(output.v_avg)
 
     # Determine if output is correct
-    classification = np.argmax(output_v_avg_view[:10])
+    classification = np.argmax(output_v_avg_views[0])
     if classification == label:
         num_correct += 1
 
