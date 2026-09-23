@@ -248,13 +248,16 @@ public:
     void allocate();
    
     //! Run kernel on device
-    void run(std::shared_ptr<const Kernel> kernel);
+    void run(std::shared_ptr<const Kernel> kernel, bool async = false);
 
     //! Push state to all devices
-    void pushStateToDevice(std::shared_ptr<const State> state);
+    void pushStateToDevice(std::shared_ptr<const State> state, bool async = false);
 
     //! Pull state from all devices
-    void pullStateFromDevice(std::shared_ptr<const State> state);
+    void pullStateFromDevice(std::shared_ptr<const State> state, bool async = false);
+
+    //! Wait for previous asynchronous commands to complete on all devices
+    void waitCommand();
 
     //! Get array(s) associated with state
     std::vector<ArrayBase*> getArrays(std::shared_ptr<const State> state) const;

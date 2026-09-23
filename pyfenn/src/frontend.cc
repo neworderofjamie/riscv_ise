@@ -310,9 +310,12 @@ PYBIND11_MODULE(_frontend, m)
     //------------------------------------------------------------------------
     pybind11::class_<Frontend::Runtime>(m, "Runtime")
         WRAP_METHOD("allocate", Frontend, Runtime, allocate)
-        WRAP_METHOD("run", Frontend, Runtime, run)
-        WRAP_METHOD("push_state_to_device", Frontend, Runtime, pushStateToDevice)
-        WRAP_METHOD("pull_state_from_device", Frontend, Runtime, pullStateFromDevice)
+        .def("run", &Frontend::Runtime::run, DOC(Frontend, Runtime, run),
+             pybind11::arg("kernel"), pybind11::arg("async") = false)
+        .def("push_state_to_device", &Frontend::Runtime::pushStateToDevice, DOC(Frontend, Runtime, pushStateToDevice),
+             pybind11::arg("state"), pybind11::arg("async") = false)
+        .def("pull_state_from_device", &Frontend::Runtime::pullStateFromDevice, DOC(Frontend, Runtime, pullStateFromDevice),
+             pybind11::arg("state"), pybind11::arg("async") = false)
         WRAP_METHOD("get_split_dimension", Frontend, Runtime, getSplitDimension)
         WRAP_METHOD_REF("get_arrays", Frontend, Runtime, getArrays)
         WRAP_PROPERTY_RO("num_devices", Frontend, Runtime, NumDevices);

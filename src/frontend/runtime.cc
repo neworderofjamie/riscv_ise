@@ -143,7 +143,7 @@ void Runtime::allocate()
     }
 }
 //----------------------------------------------------------------------------
-void Runtime::run(std::shared_ptr<const Kernel> kernel)
+void Runtime::run(std::shared_ptr<const Kernel> kernel, bool async)
 {
     // Check worker threads have been created
     if(m_WorkerThreads.empty()) {
@@ -156,6 +156,9 @@ void Runtime::run(std::shared_ptr<const Kernel> kernel)
         LoadKernelCommand load(kernel);
         runCommand(&load);
 
+        // Wait for command to complete
+        waitCommand();
+
         // Update current kernel
         m_CurrentKernel = kernel;
     }
@@ -166,18 +169,39 @@ void Runtime::run(std::shared_ptr<const Kernel> kernel)
     // Run run command
     RunCurrentKernelCommand run;
     runCommand(&run);
+
+    // If we're not running asynchronously, wait for command to complete
+    if(!async) {
+        waitCommand();
+    }
 }
 //----------------------------------------------------------------------------
-void Runtime::pushStateToDevice(std::shared_ptr<const State> state)
+void Runtime::pushStateToDevice(std::shared_ptr<const State> state, bool async)
 {
     PushStateCommand push(state);
     runCommand(&push);
+
+    // If we're not running asynchronously, wait for command to complete
+    if(!async) {
+        waitCommand();
+    }
 }
 //----------------------------------------------------------------------------
-void Runtime::pullStateFromDevice(std::shared_ptr<const State> state)
+void Runtime::pullStateFromDevice(std::shared_ptr<const State> state, bool async)
 {
     PullStateCommand pull(state);
     runCommand(&pull);
+
+    // If we're not running asynchronously, wait for command to complete
+    if(!async) {
+        waitCommand();
+    }
+}
+//----------------------------------------------------------------------------
+void Runtime::waitCommand()
+{
+    // Wait for all workers to finish
+    m_Barrier.wait();   
 }
 //----------------------------------------------------------------------------
 std::vector<ArrayBase*> Runtime::getArrays(std::shared_ptr<const State> state) const
@@ -233,11 +257,7 @@ void Runtime::runCommand(Command *command)
     m_Command = command;
 
     // Wait for all workers to be ready
-    m_Barrier.wait();
-
-    // Wait for all workers to finish
-    m_Barrier.wait();   
-   
+    m_Barrier.wait(); 
 }
 //----------------------------------------------------------------------------
 void Runtime::threadFunction(DeviceBase *device)
