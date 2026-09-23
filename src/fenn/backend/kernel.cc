@@ -121,6 +121,14 @@ void SimpleKernel::generateCode(Assembler::CodeGenerator &c,
     }
 }
 //----------------------------------------------------------------------------
+bool SimpleKernel::requiresPerformanceCounters() const
+{
+    // Performance counters are required if any process groups want to record performance
+    return std::any_of(getProcessGroups().cbegin(), getProcessGroups().cend(),
+                       [](const auto &g){ return g->shouldRecordPerformance(); });
+}
+
+//----------------------------------------------------------------------------
 // FeNN::Backend::SimulationLoopKernel
 //----------------------------------------------------------------------------
 void SimulationLoopKernel::generateCode(Assembler::CodeGenerator &c,
@@ -161,5 +169,16 @@ void SimulationLoopKernel::generateCode(Assembler::CodeGenerator &c,
                              scalarRegisterAllocator, vectorRegisterAllocator);
     }
 }
-
+//----------------------------------------------------------------------------
+bool SimulationLoopKernel::requiresPerformanceCounters() const
+{
+    // Performance counters are required if any of the process groups want to record performance
+    // **TODO** realtime!
+    return (std::any_of(getBeginProcessGroups().cbegin(), getBeginProcessGroups().cend(),
+                        [](const auto &g){ return g->shouldRecordPerformance(); })
+            || std::any_of(getTimestepProcessGroups().cbegin(), getTimestepProcessGroups().cend(),
+                        [](const auto &g){ return g->shouldRecordPerformance(); })
+            || std::any_of(getEndProcessGroups().cbegin(), getEndProcessGroups().cend(),
+                        [](const auto &g){ return g->shouldRecordPerformance(); }));
+}
 }

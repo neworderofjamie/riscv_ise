@@ -179,16 +179,9 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                     throw std::runtime_error("FeNN backend runtime used with incompatible kernel");
                 }
 
-                // If performance counters are enabled, disinhibit them
-                // **NOTE** on device, this takes a few cycles to make it through the pipeline so we do it well before we try and access counters
-                // **TODO** also any real-time kernels that use performance counters
-                {
-                    const auto processGroups = k->getAllProcessGroups();
-                    if (std::any_of(processGroups.cbegin(), processGroups.cend(),
-                                    [](const auto &p) { return p->shouldRecordPerformance(); }))
-                    {
-                        c.csrw(Common::CSR::MCOUNTINHIBIT, Common::Reg::X0);
-                    }
+                // If performance counters are required for this kernel, disinhibit them
+                if(ki->requiresPerformanceCounters()) {
+                    c.csrw(Common::CSR::MCOUNTINHIBIT, Common::Reg::X0);
                 }
 
                 // Assign a label to each event source

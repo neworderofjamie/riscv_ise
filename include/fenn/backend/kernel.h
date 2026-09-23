@@ -42,11 +42,16 @@ public:
     
     KernelImplementation(const Frontend::ProcessGroupVector &processGroups);
 
+    //------------------------------------------------------------------------
+    // Declared virtuals
+    //------------------------------------------------------------------------
     //! Generate code to implement process
     virtual void generateCode(Assembler::CodeGenerator &c,
                               Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                               Assembler::VectorRegisterAllocator &vectorRegisterAllocator,
                               GenerateProcessGroupFn generateProcessGroup) const = 0;
+
+    virtual bool requiresPerformanceCounters() const = 0;
 
     //------------------------------------------------------------------------
     // Public API
@@ -93,13 +98,15 @@ public:
     {}
 
     //------------------------------------------------------------------------
-    // GraphImplementation virtuals
+    // KernelImplementation virtuals
     //------------------------------------------------------------------------
     //! Generate code to implement process
     virtual void generateCode(Assembler::CodeGenerator &c,
                               Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                               Assembler::VectorRegisterAllocator &vectorRegisterAllocator,
                               GenerateProcessGroupFn generateProcessGroup) const override final;
+
+    virtual bool requiresPerformanceCounters() const override final;
 
     //------------------------------------------------------------------------
     // Static API
@@ -128,14 +135,15 @@ public:
     {}
 
     //------------------------------------------------------------------------
-    // GraphImplementation virtuals
+    // KernelImplementation virtuals
     //------------------------------------------------------------------------
     //! Generate code to implement process
     virtual void generateCode(Assembler::CodeGenerator &c,
                               Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                               Assembler::VectorRegisterAllocator &vectorRegisterAllocator,
                               GenerateProcessGroupFn generateProcessGroup) const override final;
-
+    virtual bool requiresPerformanceCounters() const override final;
+    
     //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------
