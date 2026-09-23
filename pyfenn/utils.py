@@ -420,8 +420,8 @@ def build_sparse_connectivity(row_ind: SplitRaggedArray,
                     raise RuntimeError("Not enough bits for weight")
         
         # Sort weights into same order as indices
-        weight_sorted = [[w[o] for w, o in zip(core_weight, core_row_order)]
-                          for core_weight, core_row_order in zip(weights, row_ind)]
+        weight_sorted = [[w[o] for o, w in zip(core_row_order, core_weight)]
+                          for core_row_order, core_weight in zip(row_order, weight)]
 
         # Combine weight and indices
         row_data_sorted = [[r | (w << sparse_connectivity_bits)
