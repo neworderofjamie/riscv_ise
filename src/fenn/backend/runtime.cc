@@ -204,18 +204,20 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                         c.nop();
                     }
 
-                    // Loop through event sink ids
+                    // Loop through event source labels
                     std::vector<Assembler::Label> labels;
                     labels.resize(ki->getEventSinkIDs().size());
-                    for (const auto &e : ki->getEventSinkIDs()) {
-                        // If this sink is the input end of an event channel
-                        auto eventSinkChannel = std::dynamic_pointer_cast<const Frontend::EventChannelSink>(e.first);
-                        if(eventSinkChannel) {
+                    for(const auto &e : eventSourceLabels) {
+                        // If this source is the output of an event channel
+                        auto eventSourceChannel = std::dynamic_pointer_cast<const Frontend::EventChannelSource>(e.first);
+                        if(eventSourceChannel) {
+                            // Get ID of sink at other end
+                            const auto eventSinkID = ki->getEventSinkIDs().at(eventSourceChannel->getSink());
+
                             // Insert label at correct index in vector
-                            // **THINK** only shared pointers can be used as keys 
-                            auto &l = labels.at(e.second / 4);
+                            auto &l = labels.at(eventSinkID / 4);
                             assert(!l);
-                            l = eventSourceLabels.at(eventSinkChannel->getSource().lock());
+                            l = eventSourceLabels.at(e.first);
                         }
                     }
 
