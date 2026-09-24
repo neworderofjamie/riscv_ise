@@ -322,84 +322,6 @@ void EventSinkBuffer::genIncrement(Assembler::CodeGenerator &c, uint32_t numUnro
     genBitArrayIncrement(c, numUnrolls, state[0]);
 }
 
-//----------------------------------------------------------------------------
-// FeNN::Backend::EventChannelSource
-//----------------------------------------------------------------------------
-std::unique_ptr<Frontend::ArrayBase> EventChannelSource::createArray(std::optional<size_t>, uint32_t, size_t,
-                                                                     const Frontend::Model&, Frontend::DeviceBase&) const
-{
-    return nullptr;
-}
-//----------------------------------------------------------------------------
-Frontend::State::ShapeStride EventChannelSource::getArrayShapeStride(std::optional<size_t>, uint32_t,
-                                                                     size_t, size_t, const Frontend::Model&) const
-{
-    // **YUCK** optional
-    return std::make_tuple(std::vector<size_t>{}, std::vector<size_t>{});
-}
-//----------------------------------------------------------------------------
-uint32_t EventChannelSource::generateEventLoop(const Frontend::Merged<Frontend::EventSource>&, const Runtime &runtime, 
-                                               const KernelImplementation &kernel, MergedFields&, 
-                                               Assembler::ScalarRegisterPtr, Assembler::ScalarRegisterPtr preIndReg, 
-                                               Assembler::ScalarRegisterPtr spikeReturnReg, std::optional<uint32_t> jumpTableAddress, 
-                                               const std::unordered_map<std::shared_ptr<const Frontend::EventSource>, uint32_t>&,
-                                               uint32_t&, Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator) const
-{
-    // Wait for all events from last timestep to be communicated
-    Assembler::Utils::generateRouterBarrier(c, scalarRegisterAllocator, runtime.getNumDevices());
-
-    uint32_t scalarRegisterMask = 0;
-    ALLOCATE_SCALAR_AND_MASK(SSpikeBuffer);
-    ALLOCATE_SCALAR_AND_MASK(SSpikeBufferEnd);
-
-    // Load start and end of this timestep's spike buffer
-    // **NOTE** because all event channels will be merged together, we ignore the merged event sources here
-    c.csrr(*SSpikeBuffer, Common::CSR::SLAVE_EVENT_START_ADDRESS);
-    c.csrr(*SSpikeBufferEnd, Common::CSR::SLAVE_EVENT_END_ADDRESS);
-
-    // If neuron ID mask doesn't fit in an immediate, load it into register
-    const uint32_t neuronIDMask = (1 << kernel.getNumNeuronIDBits()) - 1;
-    Assembler::ScalarRegisterPtr neuronIDMaskReg;
-    if(!Common::inSBit(neuronIDMask, 12)) {
-        neuronIDMaskReg = scalarRegisterAllocator.getRegister("SNeuronIDMaskReg = X");
-        c.li(*neuronIDMaskReg, neuronIDMask);
-        Assembler::ScalarRegisterAllocator::updateMask(*neuronIDMaskReg, scalarRegisterMask);
-    }
-
-    // While (spikeBuffer != spikeBufferEnd
-    auto spikeLoopEnd = Assembler::createLabel();
-    auto spikeLoop = c.L();
-
-    c.beq(*SSpikeBuffer, *SSpikeBufferEnd, spikeLoopEnd);
-    {
-        // Load spike from buffer and advance
-        c.lw(*preIndReg, *SSpikeBuffer);
-        c.addi(*SSpikeBuffer, *SSpikeBuffer, 4);
-
-        {
-            // Extract event sink ID
-            // **TODO** these were multiplied by 4 to obtain bytes in order to save an instruction
-            ALLOCATE_SCALAR(SEventSinkID);
-            c.srli(*SEventSinkID, *preIndReg, kernel.getNumNeuronIDBits());
-
-            // AND neuron ID with mask
-            if(Common::inSBit(neuronIDMask, 12)) {
-                c.andi(*preIndReg, *preIndReg, neuronIDMask);
-            }
-            else {
-                c.and_(*preIndReg, *preIndReg, *neuronIDMaskReg);
-            }
-
-            // Jump to correct population handler, storing return address in register
-            c.jalr(*spikeReturnReg, *SEventSinkID, jumpTableAddress.value());
-        }
-
-        // Loop until spikes are processed
-        c.j_(spikeLoop);
-    }
-    c.L(spikeLoopEnd);
-    return scalarRegisterMask;
-}
 
 //----------------------------------------------------------------------------
 // FeNN::Backend::EventChannelSink
@@ -504,5 +426,84 @@ void EventChannelSink::genIncrement(Assembler::CodeGenerator &c, uint32_t numUnr
         assert(state.size() == 2);
         genBitArrayIncrement(c, numUnrolls, state[1]);
     }
+}
+
+//----------------------------------------------------------------------------
+// FeNN::Backend::EventChannelSource
+//----------------------------------------------------------------------------
+std::unique_ptr<Frontend::ArrayBase> EventChannelSource::createArray(std::optional<size_t>, uint32_t, size_t,
+                                                                     const Frontend::Model&, Frontend::DeviceBase&) const
+{
+    return nullptr;
+}
+//----------------------------------------------------------------------------
+Frontend::State::ShapeStride EventChannelSource::getArrayShapeStride(std::optional<size_t>, uint32_t,
+                                                                     size_t, size_t, const Frontend::Model&) const
+{
+    // **YUCK** optional
+    return std::make_tuple(std::vector<size_t>{}, std::vector<size_t>{});
+}
+//----------------------------------------------------------------------------
+uint32_t EventChannelSource::generateEventLoop(const Frontend::Merged<Frontend::EventSource>&, const Runtime &runtime, 
+                                               const KernelImplementation &kernel, MergedFields&, 
+                                               Assembler::ScalarRegisterPtr, Assembler::ScalarRegisterPtr preIndReg, 
+                                               Assembler::ScalarRegisterPtr spikeReturnReg, std::optional<uint32_t> jumpTableAddress, 
+                                               const std::unordered_map<std::shared_ptr<const Frontend::EventSource>, uint32_t>&,
+                                               uint32_t&, Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator) const
+{
+    // Wait for all events from last timestep to be communicated
+    Assembler::Utils::generateRouterBarrier(c, scalarRegisterAllocator, runtime.getNumDevices());
+
+    uint32_t scalarRegisterMask = 0;
+    ALLOCATE_SCALAR_AND_MASK(SSpikeBuffer);
+    ALLOCATE_SCALAR_AND_MASK(SSpikeBufferEnd);
+
+    // Load start and end of this timestep's spike buffer
+    // **NOTE** because all event channels will be merged together, we ignore the merged event sources here
+    c.csrr(*SSpikeBuffer, Common::CSR::SLAVE_EVENT_START_ADDRESS);
+    c.csrr(*SSpikeBufferEnd, Common::CSR::SLAVE_EVENT_END_ADDRESS);
+
+    // If neuron ID mask doesn't fit in an immediate, load it into register
+    const uint32_t neuronIDMask = (1 << kernel.getNumNeuronIDBits()) - 1;
+    Assembler::ScalarRegisterPtr neuronIDMaskReg;
+    if(!Common::inSBit(neuronIDMask, 12)) {
+        neuronIDMaskReg = scalarRegisterAllocator.getRegister("SNeuronIDMaskReg = X");
+        c.li(*neuronIDMaskReg, neuronIDMask);
+        Assembler::ScalarRegisterAllocator::updateMask(*neuronIDMaskReg, scalarRegisterMask);
+    }
+
+    // While (spikeBuffer != spikeBufferEnd
+    auto spikeLoopEnd = Assembler::createLabel();
+    auto spikeLoop = c.L();
+
+    c.beq(*SSpikeBuffer, *SSpikeBufferEnd, spikeLoopEnd);
+    {
+        // Load spike from buffer and advance
+        c.lw(*preIndReg, *SSpikeBuffer);
+        c.addi(*SSpikeBuffer, *SSpikeBuffer, 4);
+
+        {
+            // Extract event sink ID
+            // **TODO** these were multiplied by 4 to obtain bytes in order to save an instruction
+            ALLOCATE_SCALAR(SEventSinkID);
+            c.srli(*SEventSinkID, *preIndReg, kernel.getNumNeuronIDBits());
+
+            // AND neuron ID with mask
+            if(Common::inSBit(neuronIDMask, 12)) {
+                c.andi(*preIndReg, *preIndReg, neuronIDMask);
+            }
+            else {
+                c.and_(*preIndReg, *preIndReg, *neuronIDMaskReg);
+            }
+
+            // Jump to correct population handler, storing return address in register
+            c.jalr(*spikeReturnReg, *SEventSinkID, jumpTableAddress.value());
+        }
+
+        // Loop until spikes are processed
+        c.j_(spikeLoop);
+    }
+    c.L(spikeLoopEnd);
+    return scalarRegisterMask;
 }
 }

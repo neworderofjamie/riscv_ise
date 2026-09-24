@@ -199,6 +199,39 @@ public:
 };
 
 //----------------------------------------------------------------------------
+// FeNN::Backend::EventChannelSink
+//----------------------------------------------------------------------------
+class FENN_BACKEND_EXPORT EventChannelSink : public Frontend::EventChannelSink, public EventSinkImplementation
+{
+public:
+    using Frontend::EventChannelSink::EventChannelSink;
+
+    //------------------------------------------------------------------------
+    // State virtuals
+    //------------------------------------------------------------------------
+    virtual std::unique_ptr<Frontend::ArrayBase> createArray(std::optional<size_t> splitDimension, uint32_t indexDimensions,
+                                                             size_t numDevices, const Frontend::Model &model, Frontend::DeviceBase &device) const override final;
+    virtual ShapeStride getArrayShapeStride(std::optional<size_t> splitDimension, uint32_t indexDimensions, 
+                                            size_t deviceIndex, size_t numDevices, const Frontend::Model &model) const override;
+
+    //------------------------------------------------------------------------
+    // EventSinkImplementation virtuals
+    //------------------------------------------------------------------------
+    virtual std::vector<Assembler::ScalarRegisterPtr> genPreamble(
+        const Runtime &runtime, const KernelImplementation &kernel, Assembler::CodeGenerator &c, 
+        Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, const std::string &name,
+        std::optional<uint32_t> numTimesteps, bool hasTime, Assembler::ScalarRegisterPtr timeReg,
+        Assembler::ScalarRegisterPtr numEventBytes, AddScalarConstantFn addScalarConstant, AddFieldFn addField) const override final;
+
+    virtual void genEmit(Compiler::EnvironmentBase &env, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
+                         Assembler::ScalarRegisterPtr spikeMaskReg, uint32_t r, 
+                         const std::vector<Assembler::ScalarRegisterPtr> &state) const override final;
+
+    virtual void genIncrement(Assembler::CodeGenerator &c, uint32_t numUnrolls, 
+                              const std::vector<Assembler::ScalarRegisterPtr> &state) const override final;
+};
+
+//----------------------------------------------------------------------------
 // FeNN::Backend::EventChannelSource
 //----------------------------------------------------------------------------
 class FENN_BACKEND_EXPORT EventChannelSource : public Frontend::EventChannelSource, public EventSourceImplementation
@@ -235,39 +268,6 @@ private:
                                     Assembler::ScalarRegisterPtr preIndReg, Assembler::ScalarRegisterPtr spikeReturnReg, 
                                     const std::vector<uint32_t> &mergedLabelAddresses, Assembler::CodeGenerator &c, 
                                     Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, uint32_t &scalarRegisterMask) const;
-};
-
-//----------------------------------------------------------------------------
-// FeNN::Backend::EventChannelSink
-//----------------------------------------------------------------------------
-class FENN_BACKEND_EXPORT EventChannelSink : public Frontend::EventChannelSink, public EventSinkImplementation
-{
-public:
-    using Frontend::EventChannelSink::EventChannelSink;
-
-    //------------------------------------------------------------------------
-    // State virtuals
-    //------------------------------------------------------------------------
-    virtual std::unique_ptr<Frontend::ArrayBase> createArray(std::optional<size_t> splitDimension, uint32_t indexDimensions,
-                                                             size_t numDevices, const Frontend::Model &model, Frontend::DeviceBase &device) const override final;
-    virtual ShapeStride getArrayShapeStride(std::optional<size_t> splitDimension, uint32_t indexDimensions, 
-                                            size_t deviceIndex, size_t numDevices, const Frontend::Model &model) const override;
-
-    //------------------------------------------------------------------------
-    // EventSinkImplementation virtuals
-    //------------------------------------------------------------------------
-    virtual std::vector<Assembler::ScalarRegisterPtr> genPreamble(
-        const Runtime &runtime, const KernelImplementation &kernel, Assembler::CodeGenerator &c, 
-        Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, const std::string &name,
-        std::optional<uint32_t> numTimesteps, bool hasTime, Assembler::ScalarRegisterPtr timeReg,
-        Assembler::ScalarRegisterPtr numEventBytes, AddScalarConstantFn addScalarConstant, AddFieldFn addField) const override final;
-
-    virtual void genEmit(Compiler::EnvironmentBase &env, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
-                         Assembler::ScalarRegisterPtr spikeMaskReg, uint32_t r, 
-                         const std::vector<Assembler::ScalarRegisterPtr> &state) const override final;
-
-    virtual void genIncrement(Assembler::CodeGenerator &c, uint32_t numUnrolls, 
-                              const std::vector<Assembler::ScalarRegisterPtr> &state) const override final;
 };
 
 //----------------------------------------------------------------------------
