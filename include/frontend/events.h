@@ -118,37 +118,6 @@ private:
 
 
 //----------------------------------------------------------------------------
-// Frontend::EventChannelSource
-//----------------------------------------------------------------------------
-//! Event source at the output end of an event channel
-class FRONTEND_EXPORT EventChannelSource : public EventSource
-{
-public:
-    EventChannelSource(Private, const std::vector<size_t> &shape, const std::string &name)
-    :   EventSource(name), m_Shape(shape)
-    {}
-
-    //------------------------------------------------------------------------
-    // State virtuals
-    //------------------------------------------------------------------------
-    virtual const std::vector<size_t> &getShape() const override final{ return m_Shape; }
-
-    virtual void updateMergeHash(boost::uuids::detail::sha1 &hash) const override;
-
-    virtual std::unique_ptr<ArrayBase> createArray(std::optional<size_t> splitDimension, uint32_t indexDimensions,
-                                                   size_t numDevices, const Model &model, DeviceBase &device) const override;
-
-    virtual ShapeStride getArrayShapeStride(std::optional<size_t> splitDimension, uint32_t indexDimensions,
-                                            size_t deviceIndex, size_t numDevices, const Model &model) const override;
-
-private:
-    //------------------------------------------------------------------------
-    // Members
-    //------------------------------------------------------------------------
-    std::vector<size_t> m_Shape;
-};
-
-//----------------------------------------------------------------------------
 // Frontend::EventChannelSink
 //----------------------------------------------------------------------------
 //! Event sink at the input end of an event channel
@@ -156,9 +125,8 @@ class FRONTEND_EXPORT EventChannelSink : public EventSink
 {
 public:
     EventChannelSink(Private, const std::vector<size_t> &shape, 
-                     std::weak_ptr<const EventChannelSource> source,
                      bool record, const std::string &name)
-    :   EventSink(name), m_Shape(shape), m_Source(source), m_Record(record)
+    :   EventSink(name), m_Shape(shape), m_Record(record)
     {}
 
     //------------------------------------------------------------------------
@@ -177,7 +145,6 @@ public:
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
-    auto getSource() const{ return m_Source; }
     bool shouldRecord() const{ return m_Record; }
 
 private:
@@ -185,8 +152,45 @@ private:
     // Members
     //------------------------------------------------------------------------
     std::vector<size_t> m_Shape;
-    std::weak_ptr<const EventChannelSource> m_Source;
     bool m_Record;
+};
+
+//----------------------------------------------------------------------------
+// Frontend::EventChannelSource
+//----------------------------------------------------------------------------
+//! Event source at the output end of an event channel
+class FRONTEND_EXPORT EventChannelSource : public EventSource
+{
+public:
+    EventChannelSource(Private, const std::vector<size_t> &shape, 
+                       std::weak_ptr<const EventChannelSink> sink, const std::string &name)
+    :   EventSource(name), m_Shape(shape), m_Sink(sink) 
+    {}
+
+    //------------------------------------------------------------------------
+    // State virtuals
+    //------------------------------------------------------------------------
+    virtual const std::vector<size_t> &getShape() const override final{ return m_Shape; }
+
+    virtual void updateMergeHash(boost::uuids::detail::sha1 &hash) const override;
+
+    virtual std::unique_ptr<ArrayBase> createArray(std::optional<size_t> splitDimension, uint32_t indexDimensions,
+                                                   size_t numDevices, const Model &model, DeviceBase &device) const override;
+
+    virtual ShapeStride getArrayShapeStride(std::optional<size_t> splitDimension, uint32_t indexDimensions,
+                                            size_t deviceIndex, size_t numDevices, const Model &model) const override;
+
+    //------------------------------------------------------------------------
+    // Public API
+    //------------------------------------------------------------------------
+    auto getSink() const{ return m_Sink; }
+
+private:
+    //------------------------------------------------------------------------
+    // Members
+    //------------------------------------------------------------------------
+    std::vector<size_t> m_Shape;
+    std::weak_ptr<const EventChannelSink> m_Sink;
 };
 
 //----------------------------------------------------------------------------
@@ -232,13 +236,14 @@ public:
         else if (sinkShape != sourceShape) {
             throw std::runtime_error("Event channel sink and source shapes must match");
         }
-        // Create source
-        auto source = std::make_shared<const Source>(Private(), sourceShape, 
-                                                     name.empty() ? "" : name + "_source");
-
+    
         // Create sink
-        auto sink = std::make_shared<const Sink>(Private(), sinkShape, source, record, 
+        auto sink = std::make_shared<const Sink>(Private(), sinkShape, record, 
                                                  name.empty() ? "" : name + "_sink");
+
+        // Create source
+        auto source = std::make_shared<const Source>(Private(), sourceShape, sink,
+                                                     name.empty() ? "" : name + "_source");
 
         // Create channel
         return std::make_shared<Channel>(Private(), sink, source, name);

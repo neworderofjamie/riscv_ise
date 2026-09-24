@@ -362,7 +362,7 @@ public:
     //------------------------------------------------------------------------
     const auto getDelayBuffer() const{ return m_DelayBuffer; }
     const auto &getTarget() const{ return m_Target; }
-    const size_t getNumDelayBufferTimesteps() const{ return getDelayBuffer()->getShape().front(); }
+    size_t getNumDelayBufferTimesteps() const{ return getDelayBuffer()->getShape().front(); }
 
     //------------------------------------------------------------------------
     // Static API

@@ -46,26 +46,6 @@ State::ShapeStride EventSinkBuffer::getArrayShapeStride(std::optional<size_t>, u
 }
 
 //----------------------------------------------------------------------------
-// Frontend::EventChannelSource
-//----------------------------------------------------------------------------
-void EventChannelSource::updateMergeHash(boost::uuids::detail::sha1 &hash) const
-{
-    UPDATE_HASH_CLASS_NAME(EventChannelSource);
-}
-//----------------------------------------------------------------------------
-std::unique_ptr<ArrayBase> EventChannelSource::createArray(std::optional<size_t>, uint32_t, 
-                                                           size_t, const Model&, DeviceBase&) const
-{
-    throw std::runtime_error("Backend missing EventChannelSource::createArray implementation");
-}
-//----------------------------------------------------------------------------
-State::ShapeStride EventChannelSource::getArrayShapeStride(std::optional<size_t>, uint32_t, 
-                                                           size_t, size_t, const Model&) const
-{
-    throw std::runtime_error("Backend missing EventChannelSource::getArrayShapeStride implementation");
-}
-
-//----------------------------------------------------------------------------
 // Frontend::EventChannelSink
 //----------------------------------------------------------------------------
 void EventChannelSink::updateMergeHash(boost::uuids::detail::sha1 &hash) const
@@ -83,5 +63,25 @@ State::ShapeStride EventChannelSink::getArrayShapeStride(std::optional<size_t>, 
                                                          size_t, size_t, const Model&) const
 {
     throw std::runtime_error("Backend missing EventChannelSink::getArrayShapeStride implementation");
+}
+
+//----------------------------------------------------------------------------
+// Frontend::EventChannelSource
+//----------------------------------------------------------------------------
+void EventChannelSource::updateMergeHash(boost::uuids::detail::sha1 &hash) const
+{
+    UPDATE_HASH_CLASS_NAME(EventChannelSource);
+}
+//----------------------------------------------------------------------------
+std::unique_ptr<ArrayBase> EventChannelSource::createArray(std::optional<size_t>, uint32_t, 
+                                                           size_t, const Model&, DeviceBase&) const
+{
+    throw std::runtime_error("Backend missing EventChannelSource::createArray implementation");
+}
+//----------------------------------------------------------------------------
+State::ShapeStride EventChannelSource::getArrayShapeStride(std::optional<size_t>, uint32_t, 
+                                                           size_t, size_t, const Model&) const
+{
+    throw std::runtime_error("Backend missing EventChannelSource::getArrayShapeStride implementation");
 }
 }
