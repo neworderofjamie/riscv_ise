@@ -169,15 +169,6 @@ std::vector<std::shared_ptr<const EventSource>> NeuronUpdateProcess::getAllEvent
     return {};
 }
 //----------------------------------------------------------------------------
-std::vector<Sliced<EventSink>> NeuronUpdateProcess::getAllEventSinks() const
-{
-    std::vector<Sliced<EventSink>> eventSinks;
-    eventSinks.reserve(getOutputEventSinks().size());
-    std::transform(getOutputEventSinks().cbegin(), getOutputEventSinks().cend(), std::back_inserter(eventSinks),
-                   [](const auto &e) { return e.second; });
-    return eventSinks;
-}
-//----------------------------------------------------------------------------
 void NeuronUpdateProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Model&) const
 {
     using namespace Common;
@@ -289,11 +280,6 @@ std::vector<std::shared_ptr<const EventSource>> EventPropagationProcess::getAllE
     return {getInputEventSource()};
 }
 //----------------------------------------------------------------------------
-std::vector<Sliced<EventSink>> EventPropagationProcess::getAllEventSinks() const
-{
-    return {};
-}
-//----------------------------------------------------------------------------
 void EventPropagationProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Frontend::Model&) const
 {
     using namespace Common::Utils;
@@ -343,11 +329,6 @@ std::vector<std::shared_ptr<const EventSource>> RNGInitProcess::getAllEventSourc
     return {};
 }
 //----------------------------------------------------------------------------
-std::vector<Sliced<EventSink>> RNGInitProcess::getAllEventSinks() const
-{
-    return {};
-}
-//----------------------------------------------------------------------------
 void RNGInitProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Model&) const
 {
     UPDATE_HASH_CLASS_NAME(RNGInitProcess);
@@ -385,11 +366,6 @@ std::vector<std::shared_ptr<const State>> MemsetProcess::getAllState() const
 }
 //----------------------------------------------------------------------------
 std::vector<std::shared_ptr<const EventSource>> MemsetProcess::getAllEventSources() const
-{
-    return {};
-}
-//----------------------------------------------------------------------------
-std::vector<Sliced<EventSink>> MemsetProcess::getAllEventSinks() const
 {
     return {};
 }
@@ -453,11 +429,6 @@ std::vector<std::shared_ptr<const State>> DendriticDelayUpdateProcess::getAllSta
 }
 //----------------------------------------------------------------------------
 std::vector<std::shared_ptr<const EventSource>> DendriticDelayUpdateProcess::getAllEventSources() const
-{
-    return {};
-}
-//----------------------------------------------------------------------------
-std::vector<Sliced<EventSink>> DendriticDelayUpdateProcess::getAllEventSinks() const
 {
     return {};
 }
