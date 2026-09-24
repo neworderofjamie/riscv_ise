@@ -1775,7 +1775,9 @@ void Downsample2DEventPropagationProcess::generateArchetypeCode(const Frontend::
                                                                 Assembler::CodeGenerator &processCodeGenerator, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                                                 Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
+    // **TODO** handle splitting 
     assert(runtime.getNumDevices() == 1);
+
     // Make some friendlier-named references
     auto &c = processCodeGenerator;
 
