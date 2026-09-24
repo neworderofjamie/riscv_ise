@@ -111,6 +111,12 @@ PYBIND11_MODULE(_fenn_backend, m)
         .def(pybind11::init(static_cast<std::shared_ptr<Backend::EventChannel>(*)(const std::vector<size_t>&,  
                                                                                   const std::string&)>(&Backend::EventChannel::create)),
              pybind11::arg("shape"), pybind11::arg("name") = "");
+     
+     //------------------------------------------------------------------------
+    // fenn_backend.GenX320
+    //------------------------------------------------------------------------
+    pybind11::class_<Backend::GenX320, Frontend::ModelComponent, std::shared_ptr<Backend::GenX320>>(m, "GenX320")
+        .def(pybind11::init(&Backend::GenX320::create));
 
     //------------------------------------------------------------------------
     // fenn_backend.Variable

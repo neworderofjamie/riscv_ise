@@ -219,7 +219,10 @@ parser.add_argument("--disassemble", action="store_true", help="Disassemble gene
 args = parser.parse_args()
 
 log_appender = backend.ConsoleAppender()
-backend.init_logging(log_appender, backend.PlogSeverity.INFO)
+backend.init_logging(log_appender, backend.PlogSeverity.DEBUG)
+
+# Event camera
+event_camera = backend.GenX320()
 
 # Neurons
 macro_pixel_pop = CUBALIF(backend, (MACRO_PIXEL_SIZE * MACRO_PIXEL_SIZE,), 

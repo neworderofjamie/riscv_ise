@@ -330,4 +330,73 @@ public:
             shape, name);
     }
 };
+
+//----------------------------------------------------------------------------
+// FeNN::Backend::GenX320EventChannelSink
+//----------------------------------------------------------------------------
+class FENN_BACKEND_EXPORT GenX320EventChannelSink : public Frontend::EventChannelSink, public EventSinkRouterKeyImplementation
+{
+public:
+    GenX320EventChannelSink(Private)
+    :   Frontend::EventChannelSink(Private(), {320, 320}, false, "genx320_sink")
+    {}
+
+    //------------------------------------------------------------------------
+    // State virtuals
+    //------------------------------------------------------------------------
+    virtual std::unique_ptr<Frontend::ArrayBase> createArray(std::optional<size_t> splitDimension, uint32_t indexDimensions,
+                                                             size_t numDevices, const Frontend::Model &model, Frontend::DeviceBase &device) const override final;
+    virtual ShapeStride getArrayShapeStride(std::optional<size_t> splitDimension, uint32_t indexDimensions, 
+                                            size_t deviceIndex, size_t numDevices, const Frontend::Model &model) const override;
+
+    //------------------------------------------------------------------------
+    // EventSinkRouterKeyImplementation virtuals
+    //------------------------------------------------------------------------
+    //! Get the number of bits this sink requires to encode its neuron IDs
+    virtual size_t getNumNeuronIDBits() const override final{ return 9 + 9 + 1; }
+
+    //! Get population ID this sink uses to encode its neuron IDs if this is fixed
+    virtual std::optional<uint32_t> getPopulationID() const override final{ return 0; }
+};
+
+//----------------------------------------------------------------------------
+// GenX320
+//----------------------------------------------------------------------------
+class FENN_BACKEND_EXPORT GenX320 : public Frontend::ModelComponent
+{
+public:
+    GenX320(Private, std::shared_ptr<const Frontend::EventChannelSink> sink,
+            std::shared_ptr<const Frontend::EventChannelSource> source, const std::string &name)
+    :   ModelComponent(name), m_Sink(sink), m_Source(source)
+    {}
+
+    //------------------------------------------------------------------------
+    // Public API
+    //------------------------------------------------------------------------
+    auto getSource() const{ return m_Source; }
+
+    //------------------------------------------------------------------------
+    // Static API
+    //------------------------------------------------------------------------
+    static std::shared_ptr<GenX320> create()
+    {
+        // Create sink
+        auto sink = std::make_shared<const GenX320EventChannelSink>(Private());
+
+        // Create source
+        auto source = std::make_shared<const EventChannelSource>(Private(), sink->getShape(), sink,
+                                                                 "genx320_source");
+
+        // Create channel
+        return std::make_shared<GenX320>(Private(), sink, source, "genx320");
+    }
+
+
+private:
+    //------------------------------------------------------------------------
+    // Members
+    //------------------------------------------------------------------------
+    std::shared_ptr<const Frontend::EventChannelSink> m_Sink;
+    std::shared_ptr<const Frontend::EventChannelSource> m_Source;
+};
 }

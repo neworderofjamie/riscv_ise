@@ -526,4 +526,20 @@ uint32_t EventChannelSource::generateEventLoop(const Frontend::Merged<Frontend::
     c.L(spikeLoopEnd);
     return scalarRegisterMask;
 }
+
+//----------------------------------------------------------------------------
+// FeNN::Backend::GenX320EventChannelSink
+//----------------------------------------------------------------------------
+std::unique_ptr<Frontend::ArrayBase> GenX320EventChannelSink::createArray(std::optional<size_t> splitDimension, uint32_t indexDimensions,
+                                                                          size_t numDevices, const Frontend::Model &model, Frontend::DeviceBase &device) const
+{
+    return nullptr;
+}
+//----------------------------------------------------------------------------
+Frontend::State::ShapeStride GenX320EventChannelSink::getArrayShapeStride(std::optional<size_t> splitDimension, uint32_t indexDimensions,
+                                                                          size_t deviceIndex, size_t numDevices, const Frontend::Model &model) const
+{
+    return std::make_tuple(std::vector<size_t>{}, std::vector<size_t>{});
+}
+
 }
