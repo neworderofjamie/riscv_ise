@@ -1787,7 +1787,17 @@ void Downsample2DEventPropagationProcess::generateArchetypeCode(const Frontend::
             return d.getArray(p->getTarget().getUnderlying()); 
         });
 
-    auto targetYStride = addScalarValue(0, mergedProcess, runtime.getNumDevices(), mergedFields,
+    /*srli    a5,a0,2           ; a5 = spikeID >> 2 
+    andi    t0,a5,127           ; y = a5 & 127
+    mul     t1,t0,a1            ; index = y * strideY
+    srli    a0,a0,11            ; a0 = spikeID >> 11 (extract x and scale)
+    andi    t2,a0,127           ; x = a5 & 127 
+    li      a1,1                ; a1 = 1
+    add     a2,t1,t2            ; index = (y * strideY) + x
+    sll     a1,a1,a2            ; a1 = 1 << index (SLL only looks at lower 5 bits) 
+    andi    a0,a2,-32           ; a0 = index & -32
+    tail    _Z4loadjj@plt*/
+    /*auto targetYStride = addScalarValue(0, mergedProcess, runtime.getNumDevices(), mergedFields,
                                         fieldBaseReg, c, scalarRegisterAllocator, 
                                         [&runtime](size_t d, auto p)
                                         { 
@@ -1800,16 +1810,7 @@ void Downsample2DEventPropagationProcess::generateArchetypeCode(const Frontend::
                                         });
     // Spike ID expected to have | Polarity | X | Y | in the lowest bits with 9 bit X and Y
 
-    /*srli    a5,a0,2           ; a5 = spikeID >> 2 
-    andi    t0,a5,127           ; y = a5 & 127
-    mul     t1,t0,a1            ; index = y * strideY
-    srli    a0,a0,11            ; a0 = spikeID >> 11 (extract x and scale)
-    andi    t2,a0,127           ; x = a5 & 127 
-    li      a1,1                ; a1 = 1
-    add     a2,t1,t2            ; index = (y * strideY) + x
-    sll     a1,a1,a2            ; a1 = 1 << index (SLL only looks at lower 5 bits) 
-    andi    a0,a2,-32           ; a0 = index & -32
-    tail    _Z4loadjj@plt*/
+    
 
     constexpr size_t inputCoordBits = 9;
     constexpr size_t outputCoordBits = 7;
@@ -1866,7 +1867,7 @@ void Downsample2DEventPropagationProcess::generateArchetypeCode(const Frontend::
 
         // Store updated target current
         c.vstore(*VTarget, *STargetVectorAddress);
-    }
+    }*/
 }
 //----------------------------------------------------------------------------
 std::vector<std::shared_ptr<const Frontend::State>> Downsample2DEventPropagationProcess::getAllState() const
