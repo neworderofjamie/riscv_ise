@@ -2,6 +2,7 @@
 
 // Standard C++ includes
 #include <numeric>
+#include <set>
 
 // Common include
 #include "common/utils.h"
@@ -30,6 +31,8 @@ KernelImplementation::KernelImplementation(const Frontend::ProcessGroupVector &p
 {
     // Loop through all process groups in kernel
     // **NOTE** at least 5 bits need to be used for neuron ID
+    std::unordered_map<std::shared_ptr<const Frontend::EventSink>, std::optional<uint32_t>> eventSinkIDs;
+    std::set<uint32_t> allocatedPopulationIDs;
     m_NumNeuronIDBits = 5;
     for (const auto &g : processGroups) {
         // Loop through processes in group
@@ -59,13 +62,33 @@ KernelImplementation::KernelImplementation(const Frontend::ProcessGroupVector &p
                         auto eventSink = eventSourceChannel->getSink();
                         auto eventSinkRouter = std::dynamic_pointer_cast<const EventSinkRouterKeyImplementation>(eventSink);
                         if(eventSinkRouter) {
-                            // Allocate event sink ID and add to map and, if this is a new sink, update maximum number of neuron ID bits
-                            // **NOTE** these are multiplied by 4 to save an instruction when processing events - we are going to have 2 bits spare for a while!
-                            if(m_EventSinkIDs.try_emplace(eventSink, m_EventSinkIDs.size() * 4).second) {
-                                m_NumNeuronIDBits = std::max(m_NumNeuronIDBits, eventSinkRouter->getNumNeuronIDBits());
+                            // If event sink specified a hard-coded population ID 
+                            const auto populationID = eventSinkRouter->getPopulationID();
+                            if(populationID) {
+                                // If population ID isn't a multiple of four give error
+                                // **NOTE** this is a micro-optimisation to save an instruction when processing events - we are going to have 2 bits spare for a while!
+                                if((populationID.value() % 4) != 0) {
+                                    throw std::runtime_error("Event sink '" + eventSink->getName() 
+                                                             + "' requesting population ID: "
+                                                             + std::to_string(populationID.value())
+                                                             + " which is not a multiple of 4");
+                                }
+
+                                // Add to set, giving error if this ID has already been allocated
+                                if(!allocatedPopulationIDs.emplace(populationID.value()).second) {
+                                    throw std::runtime_error("Event sink '" + eventSink->getName() 
+                                                             + "' requesting duplicate population ID: "
+                                                             + std::to_string(populationID.value()));
+                                }
                             }
+
+                            // Add event sink and hard-coded population ID (if any) to map
+                            eventSinkIDs.try_emplace(eventSink, populationID);
+
+                            // Update maximum number of neuron ID bits
+                            m_NumNeuronIDBits = std::max(m_NumNeuronIDBits, 
+                                                         eventSinkRouter->getNumNeuronIDBits());
                         }
-                        
                     }
                 }
             }
@@ -81,14 +104,39 @@ KernelImplementation::KernelImplementation(const Frontend::ProcessGroupVector &p
         }
     }
 
-    // If there are no event sinks
-    if(m_EventSinkIDs.empty()) {
-        LOGI_FENN_BACKEND << "No event sinks found";
-    }
-    // Otherwise
-    else {
+    // If there are any event sinks
+    if(!eventSinkIDs.empty()) {
+        uint32_t nextID = 0;
+        std::transform(eventSinkIDs.cbegin(), eventSinkIDs.cend(),
+                       std::inserter(m_EventSinkIDs, m_EventSinkIDs.begin()),
+                       [&allocatedPopulationIDs, &nextID](const auto &e)
+                       {
+                           // If population ID is hardcoded, add directly
+                           if(e.second) {
+                               LOGD_FENN_BACKEND << "Event sink '" << e.first->getName() << "' using hard-coded population ID: " << e.second.value();
+                               return std::make_pair(e.first, e.second.value());
+                           } 
+                           // Otherwise
+                           else {
+                               // Advance while next ID has already been allocated
+                               while(allocatedPopulationIDs.find(nextID) != allocatedPopulationIDs.end()) {
+                                   nextID += 4;
+                               }
+
+                               LOGD_FENN_BACKEND << "Event sink '" << e.first->getName() << "' allocated population ID: " << nextID;
+                               auto result = std::make_pair(e.first, nextID);
+                               nextID += 4;
+                               return result;
+                           }
+                       });
+
+        // Get largest population ID
+        const uint32_t maxPopulationID = (allocatedPopulationIDs.empty() 
+                                          ? nextID 
+                                          : std::max(nextID, *allocatedPopulationIDs.rbegin()));
+
         // Count bits required to represent largest population index
-        m_NumPopulationIDBits = 32 - ::Common::Utils::clz((m_EventSinkIDs.size() * 4) - 1);
+        m_NumPopulationIDBits = 32 - ::Common::Utils::clz(maxPopulationID - 1);
         LOGI_FENN_BACKEND << "Neuron IDs require " << m_NumNeuronIDBits << " and population IDs require " << m_NumPopulationIDBits << " bits";
         if ((m_NumNeuronIDBits + m_NumPopulationIDBits) > 24) {
             throw std::runtime_error("Insufficient event address space");

@@ -3,6 +3,7 @@
 // Standard C++ includes
 #include <functional>
 #include <memory>
+#include <optional>
 #include <vector>
 
 // Common includes
@@ -120,7 +121,11 @@ public:
     //------------------------------------------------------------------------
     // Declared virtuals
     //------------------------------------------------------------------------
+    //! Get the number of bits this sink requires to encode its neuron IDs
     virtual size_t getNumNeuronIDBits() const = 0;
+
+    //! Get population ID this sink uses to encode its neuron IDs if this is fixed
+    virtual std::optional<uint32_t> getPopulationID() const = 0;
 };
 
 //----------------------------------------------------------------------------
@@ -247,7 +252,11 @@ public:
     //------------------------------------------------------------------------
     // EventSinkRouterKeyImplementation virtuals
     //------------------------------------------------------------------------
+    //! Get the number of bits this sink requires to encode its neuron IDs
     virtual size_t getNumNeuronIDBits() const override final;
+
+    //! Get population ID this sink uses to encode its neuron IDs if this is fixed
+    virtual std::optional<uint32_t> getPopulationID() const override final{ return std::nullopt; }
 };
 
 //----------------------------------------------------------------------------
