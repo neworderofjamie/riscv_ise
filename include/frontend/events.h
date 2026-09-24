@@ -163,7 +163,7 @@ class FRONTEND_EXPORT EventChannelSource : public EventSource
 {
 public:
     EventChannelSource(Private, const std::vector<size_t> &shape, 
-                       std::weak_ptr<const EventChannelSink> sink, const std::string &name)
+                       std::shared_ptr<const EventChannelSink> sink, const std::string &name)
     :   EventSource(name), m_Shape(shape), m_Sink(sink) 
     {}
 
@@ -190,7 +190,7 @@ private:
     // Members
     //------------------------------------------------------------------------
     std::vector<size_t> m_Shape;
-    std::weak_ptr<const EventChannelSink> m_Sink;
+    std::shared_ptr<const EventChannelSink> m_Sink;
 };
 
 //----------------------------------------------------------------------------
