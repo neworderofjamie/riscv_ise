@@ -68,9 +68,9 @@ public:
     //! Get the process group in this kernel 
     auto getEventSourceProcessGroup() const{ return m_EventSourceProcessGroup; }
 
-    uint32_t getNumNeuronIDBits() const{ return m_NumNeuronIDBits; }
+    size_t getNumNeuronIDBits() const{ return m_NumNeuronIDBits; }
 
-    uint32_t getNumPopulationIDBits() const { return m_NumPopulationIDBits; }
+    size_t getNumPopulationIDBits() const { return m_NumPopulationIDBits; }
 
 private:
     //------------------------------------------------------------------------
@@ -83,8 +83,8 @@ private:
     std::unordered_map<std::shared_ptr<const Frontend::EventSource>, 
                        std::vector<std::shared_ptr<const Frontend::Process>>> m_EventSourceProcesses;
 
-    uint32_t m_NumNeuronIDBits;
-    uint32_t m_NumPopulationIDBits;
+    size_t m_NumNeuronIDBits;
+    size_t m_NumPopulationIDBits;
 };
 
 //----------------------------------------------------------------------------
@@ -143,7 +143,7 @@ public:
                               Assembler::VectorRegisterAllocator &vectorRegisterAllocator,
                               GenerateProcessGroupFn generateProcessGroup) const override final;
     virtual bool requiresPerformanceCounters() const override final;
-    
+
     //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------

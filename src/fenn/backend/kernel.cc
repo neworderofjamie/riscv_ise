@@ -15,6 +15,7 @@
 #include "fenn/assembler/register_allocator.h"
 
 // FeNN backend includes
+#include "fenn/backend/events.h"
 #include "fenn/backend/process.h"
 
 using namespace FeNN;
@@ -27,10 +28,9 @@ namespace FeNN::Backend
 KernelImplementation::KernelImplementation(const Frontend::ProcessGroupVector &processGroups)
 :   m_NumNeuronIDBits(0), m_NumPopulationIDBits(0)
 {
-    // Loop through kernels
-    size_t maxEventSinkSize = 0;
-
     // Loop through all process groups in kernel
+    // **NOTE** at least 5 bits need to be used for neuron ID
+    m_NumNeuronIDBits = 5;
     for (const auto &g : processGroups) {
         // Loop through processes in group
         bool allEvent = true;
@@ -47,26 +47,27 @@ KernelImplementation::KernelImplementation(const Frontend::ProcessGroupVector &p
                 // Flag that this group can't contain event sources
                 noEvent = false;
 
-                // Add mapping between event source and process
+                // Loop through event sources
                 for(const auto &e : eventSources) {
+                    // Add mapping between event source and process
                     m_EventSourceProcesses[e].push_back(p);
-                }
-            }
 
-            // Loop through event sinks associated with this process, update count and maximum event sink size
-            // **NOTE** events are broadcast so no need to consider core split here
-            const auto eventSinks = p->getAllEventSinks();
-            for(const auto &e : eventSinks) {
-                // Allocate event sink ID and add to mape
-                // **NOTE** these are multiplied by 4 to save an instruction when processing events - we are going to have 2 bits spare for a while!
-                if(!m_EventSinkIDs.try_emplace(e.getUnderlying(), m_EventSinkIDs.size() * 4).second) {
-                    throw std::runtime_error("Duplicate event sinks encountered in model");
+                    // If this source is the output of an event channel
+                    auto eventSourceChannel = std::dynamic_pointer_cast<const Frontend::EventChannelSource>(e);
+                    if(eventSourceChannel) {
+                        // If the sink at the other end requires a routing key
+                        auto eventSink = eventSourceChannel->getSink();
+                        auto eventSinkRouter = std::dynamic_pointer_cast<const EventSinkRouterKeyImplementation>(eventSink);
+                        if(eventSinkRouter) {
+                            // Allocate event sink ID and add to map and, if this is a new sink, update maximum number of neuron ID bits
+                            // **NOTE** these are multiplied by 4 to save an instruction when processing events - we are going to have 2 bits spare for a while!
+                            if(m_EventSinkIDs.try_emplace(eventSink, m_EventSinkIDs.size() * 4).second) {
+                                m_NumNeuronIDBits = std::max(m_NumNeuronIDBits, eventSinkRouter->getNumNeuronIDBits());
+                            }
+                        }
+                        
+                    }
                 }
-
-                // Update maximum size
-                maxEventSinkSize = std::max(maxEventSinkSize, 
-                                            std::accumulate(e.getShape().cbegin(), e.getShape().cend(), 
-                                                            size_t{1}, std::multiplies<size_t>()));
             }
         }
 
@@ -86,9 +87,7 @@ KernelImplementation::KernelImplementation(const Frontend::ProcessGroupVector &p
     }
     // Otherwise
     else {
-        // Count bits required to represent largest neuron and population index
-        // **NOTE** at least bottom 5 bits need to be used for neuron ID
-        m_NumNeuronIDBits = 32 - ::Common::Utils::clz(std::max(size_t{32}, maxEventSinkSize) - 1);
+        // Count bits required to represent largest population index
         m_NumPopulationIDBits = 32 - ::Common::Utils::clz((m_EventSinkIDs.size() * 4) - 1);
         LOGI_FENN_BACKEND << "Neuron IDs require " << m_NumNeuronIDBits << " and population IDs require " << m_NumPopulationIDBits << " bits";
         if ((m_NumNeuronIDBits + m_NumPopulationIDBits) > 24) {

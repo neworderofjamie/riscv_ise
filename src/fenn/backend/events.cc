@@ -24,12 +24,27 @@ using namespace FeNN;
 using namespace FeNN::Backend;
 
 //----------------------------------------------------------------------------
+// Anonymous namespace
+//----------------------------------------------------------------------------
+namespace
+{
+size_t getNumNeuronIDBits(const std::vector<size_t> &shape, bool record)
+{
+    // Starting at either first of second dimension, depending on whether recording is enabled,
+    // Sum up the number of bits required to represent 
+    auto shapeBegin = record ? (shape.cbegin() + 1) : shape.cbegin();
+    return std::accumulate(shapeBegin, shape.cend(), size_t{0}, 
+                           [](size_t acc, size_t v){ return acc + (32 - ::Common::Utils::clz(v - 1)); });
+}
+}
+
+//----------------------------------------------------------------------------
 // FeNN::Backend::EventSinkImplementation
 //----------------------------------------------------------------------------
 namespace FeNN::Backend
 {
 Frontend::State::ShapeStride EventSinkImplementation::getBitArrayShapeStride(const std::vector<size_t> &shape, std::optional<size_t> splitDimension, 
-                                                                             uint32_t indexDimensions, size_t deviceIndex, size_t numDevices) const
+                                                                             uint32_t, size_t deviceIndex, size_t numDevices) const
 {
     // Event containers are implemented as word-aligned bitfields so divide and pad last axis
     // **TODO** this is only true with 1D shape. With multi-dimensional shape, padding needs to be applied 
@@ -341,7 +356,7 @@ std::unique_ptr<Frontend::ArrayBase> EventChannelSink::createArray(std::optional
 }
 //----------------------------------------------------------------------------
 Frontend::State::ShapeStride EventChannelSink::getArrayShapeStride(std::optional<size_t> splitDimension, uint32_t indexDimensions,
-                                                                   size_t deviceIndex, size_t numDevices, const Frontend::Model &model) const
+                                                                   size_t deviceIndex, size_t numDevices, const Frontend::Model&) const
 {
     if(shouldRecord()) {
         return getBitArrayShapeStride(getShape(), splitDimension, indexDimensions, numDevices, deviceIndex);
@@ -426,6 +441,11 @@ void EventChannelSink::genIncrement(Assembler::CodeGenerator &c, uint32_t numUnr
         assert(state.size() == 2);
         genBitArrayIncrement(c, numUnrolls, state[1]);
     }
+}
+//----------------------------------------------------------------------------
+size_t EventChannelSink::getNumNeuronIDBits() const
+{
+    return ::getNumNeuronIDBits(getShape(), shouldRecord());
 }
 
 //----------------------------------------------------------------------------

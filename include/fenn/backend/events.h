@@ -60,8 +60,9 @@ public:
 };
 
 //----------------------------------------------------------------------------
-// FeNN::Backend::EventSourceImplementation
+// FeNN::Backend::EventSinkImplementation
 //----------------------------------------------------------------------------
+//! Base class for event sinks into which processes send events
 class FENN_BACKEND_EXPORT EventSinkImplementation
 {
 protected:
@@ -107,6 +108,19 @@ protected:
 
     void genBitArrayIncrement(Assembler::CodeGenerator &c, uint32_t numUnrolls,
                               Assembler::ScalarRegisterPtr stateReg) const;
+};
+
+//----------------------------------------------------------------------------
+// FeNN::Backend::EventSinkRouterKeyImplementation
+//----------------------------------------------------------------------------
+//! Base class for event sinks which require router keys to be allocated
+class FENN_BACKEND_EXPORT EventSinkRouterKeyImplementation
+{
+public:
+    //------------------------------------------------------------------------
+    // Declared virtuals
+    //------------------------------------------------------------------------
+    virtual size_t getNumNeuronIDBits() const = 0;
 };
 
 //----------------------------------------------------------------------------
@@ -201,7 +215,7 @@ public:
 //----------------------------------------------------------------------------
 // FeNN::Backend::EventChannelSink
 //----------------------------------------------------------------------------
-class FENN_BACKEND_EXPORT EventChannelSink : public Frontend::EventChannelSink, public EventSinkImplementation
+class FENN_BACKEND_EXPORT EventChannelSink : public Frontend::EventChannelSink, public EventSinkImplementation, public EventSinkRouterKeyImplementation
 {
 public:
     using Frontend::EventChannelSink::EventChannelSink;
@@ -229,6 +243,11 @@ public:
 
     virtual void genIncrement(Assembler::CodeGenerator &c, uint32_t numUnrolls, 
                               const std::vector<Assembler::ScalarRegisterPtr> &state) const override final;
+
+    //------------------------------------------------------------------------
+    // EventSinkRouterKeyImplementation virtuals
+    //------------------------------------------------------------------------
+    virtual size_t getNumNeuronIDBits() const override final;
 };
 
 //----------------------------------------------------------------------------
