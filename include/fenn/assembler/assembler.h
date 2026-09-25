@@ -208,6 +208,11 @@ public:
     void csrsi(Common::CSR csr, uint32_t imm) { csrrsi(Common::Reg::X0, csr, imm); }
     void csrci(Common::CSR csr, uint32_t imm) { csrrci(Common::Reg::X0, csr, imm); }
 
+    // Zba instructions
+    void sh1add(Common::Reg rd, Common::Reg rs1, Common::Reg rs2) { Rtype(Common::StandardOpCode::OP, 0b010, 0b0010000, rd, rs1, rs2); }
+    void sh2add(Common::Reg rd, Common::Reg rs1, Common::Reg rs2) { Rtype(Common::StandardOpCode::OP, 0b100, 0b0010000, rd, rs1, rs2); }
+    void sh3add(Common::Reg rd, Common::Reg rs1, Common::Reg rs2) { Rtype(Common::StandardOpCode::OP, 0b110, 0b0010000, rd, rs1, rs2); }
+
     // Zbb instructions
     void clz(Common::Reg rd, Common::Reg rs) { opShift(0x30, 1, Common::StandardOpCode::OP_IMM, rd, rs, 0); }
     void ctz(Common::Reg rd, Common::Reg rs) { opShift(0x30, 1, Common::StandardOpCode::OP_IMM, rd, rs, 1); }
