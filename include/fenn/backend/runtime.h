@@ -266,10 +266,10 @@ protected:
     // Runtime virtuals
     //------------------------------------------------------------------------
     //! Backend-specific logic to run at beginning of allocate function
-    virtual void allocatePreamble() override final;
+    virtual void allocatePreamble() override;
 
     //! Backend-specific logic to run at end of allocate function
-    virtual void allocatePostamble() override final;
+    virtual void allocatePostamble() override;
 
 private:
     //------------------------------------------------------------------------

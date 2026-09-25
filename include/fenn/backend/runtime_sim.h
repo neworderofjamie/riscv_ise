@@ -1,5 +1,8 @@
 #pragma once
 
+// Standard C++ includes
+#include <thread>
+
 // FeNN ISE includes
 #include "fenn/ise/dma_controller_sim.h"
 #include "fenn/ise/riscv.h"
@@ -80,17 +83,29 @@ public:
     RuntimeSim(const std::vector<std::shared_ptr<const Frontend::Kernel>> &kernels,
                size_t numDevices, bool useDRAMForWeights = false, bool keepParamsInRegisters = true, 
                Compiler::RoundingMode neuronUpdateRoundingMode = Compiler::RoundingMode::NEAREST,
-               size_t dmaBufferSize = 512 * 1024);
+               size_t dmaBufferSize = 512 * 1024, const std::vector<uint32_t> &spikeInjectData = {});
 
+protected:
     //------------------------------------------------------------------------
     // Runtime virtuals
     //------------------------------------------------------------------------
     virtual std::unique_ptr<Frontend::DeviceBase> createDevice(size_t deviceIndex) override final;
     virtual void reset() override final;
 
+    //! Backend-specific logic to run at end of allocate function
+    virtual void allocatePostamble() override final;
+
+private:
+    //------------------------------------------------------------------------
+    // Private methods
+    //------------------------------------------------------------------------
+    void spikeInjectThread();
+
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
     ISE::SharedBusSim m_SharedBus;
+    std::thread m_SpikeInjectThread;
+    std::vector<uint32_t> m_SpikeInjectData;
 };
 }

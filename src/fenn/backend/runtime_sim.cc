@@ -14,6 +14,7 @@
 
 // FeNN ISE includes
 #include "fenn/ise/dma_controller_sim.h"
+#include "fenn/ise/event_injector_sim.h"
 #include "fenn/ise/riscv.h"
 #include "fenn/ise/router_sim.h"
 #include "fenn/ise/vector_processor.h"
@@ -341,11 +342,20 @@ std::unique_ptr<DRAMArrayBase> DeviceFeNNSim::createDRAMArray(const Type::Resolv
 // FeNN::Backend::RuntimeSim
 //----------------------------------------------------------------------------
 RuntimeSim::RuntimeSim(const std::vector<std::shared_ptr<const Frontend::Kernel>> &kernels,
-                      size_t numDevices, bool useDRAMForWeights, bool keepParamsInRegisters, 
-                      Compiler::RoundingMode neuronUpdateRoundingMode, size_t dmaBufferSize)
+                       size_t numDevices, bool useDRAMForWeights, bool keepParamsInRegisters, 
+                       Compiler::RoundingMode neuronUpdateRoundingMode, size_t dmaBufferSize,
+                       const std::vector<uint32_t> &spikeInjectData)
 :   Runtime(kernels, numDevices, true, useDRAMForWeights, keepParamsInRegisters, neuronUpdateRoundingMode, dmaBufferSize),
-    m_SharedBus(numDevices)
+    m_SharedBus(numDevices), m_SpikeInjectData(spikeInjectData)
 {
+}
+//------------------------------------------------------------------------
+RuntimeSim::~RuntimeSim()
+{
+    // Join spike injector thread
+    if(m_SpikeInjectThread.joinable()) {
+        m_SpikeInjectThread.join();
+    }
 }
 //------------------------------------------------------------------------
 std::unique_ptr<Frontend::DeviceBase> RuntimeSim::createDevice(size_t deviceIndex)
@@ -356,5 +366,27 @@ std::unique_ptr<Frontend::DeviceBase> RuntimeSim::createDevice(size_t deviceInde
 void RuntimeSim::reset()
 {
     m_SharedBus.reset(getNumDevices());
+}
+//------------------------------------------------------------------------
+void RuntimeSim::allocatePostamble()
+{
+    // If there is any spike injection data, launch spike injection thread
+    if(!m_SpikeInjectData.empty()) {
+        LOGI_FENN_BACKEND << "Launching spike injection thread";
+        m_SpikeInjectThread = std::thread(&RuntimeSim::spikeInjectThread, this);
+        ::Common::Utils::setThreadName(m_SpikeInjectThread, "Spike injector thread");
+    }
+
+    // Superclass
+    Runtime::allocatePostamble();
+}
+//------------------------------------------------------------------------
+void RuntimeSim::spikeInjectThread()
+{
+    // Create event injector
+    ISE::EventInjectorSim eventInjector(m_SharedBus, m_SpikeInjectData, 0);
+
+    // Keep ticking event injector until it runs out of data
+    while(eventInjector.tick());
 }
 }
