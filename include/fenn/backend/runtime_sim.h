@@ -84,6 +84,7 @@ public:
                size_t numDevices, bool useDRAMForWeights = false, bool keepParamsInRegisters = true, 
                Compiler::RoundingMode neuronUpdateRoundingMode = Compiler::RoundingMode::NEAREST,
                size_t dmaBufferSize = 512 * 1024, const std::vector<uint32_t> &spikeInjectData = {});
+    virtual ~RuntimeSim();
 
 protected:
     //------------------------------------------------------------------------
