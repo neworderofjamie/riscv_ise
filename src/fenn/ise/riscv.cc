@@ -629,6 +629,21 @@ uint32_t RISCV::calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs2, uint3
         return std::min(val, val2);
     }
 
+    case OpType::SH1ADD:
+    {
+        return val2 + (val << 1);
+    }
+
+    case OpType::SH2ADD:
+    {
+        return val2 + (val << 2);
+    }
+
+    case OpType::SH3ADD:
+    {
+        return val2 + (val << 3);
+    }
+
     default:
     {
         throw Exception(Exception::Cause::ILLEGAL_INSTRUCTION, inst);
