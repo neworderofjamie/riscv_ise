@@ -391,7 +391,7 @@ class FENN_BACKEND_EXPORT Downsample2DEventPropagationProcess : public Frontend:
 {
 public:
     Downsample2DEventPropagationProcess(Private, std::shared_ptr<const Frontend::EventSource> inputEventSource, 
-                                        Frontend::Sliced<Frontend::Variable> target, double weight, const std::string &name);
+                                        double weight, Frontend::Sliced<Frontend::Variable> target, const std::string &name);
 
     //------------------------------------------------------------------------
     // Process virtuals
@@ -432,11 +432,11 @@ public:
     // Static API
     //------------------------------------------------------------------------
     static std::shared_ptr<Downsample2DEventPropagationProcess> create(std::shared_ptr<const Frontend::EventSource> inputEventSource, 
-                                                                       Frontend::Sliced<Frontend::Variable> target, double weight,
+                                                                       double weight, Frontend::Sliced<Frontend::Variable> target, 
                                                                        const std::string &name = "")
     {
         return std::make_shared<Downsample2DEventPropagationProcess>(Private(), inputEventSource, 
-                                                                     target, weight, name);
+                                                                     weight, target, name);
     }
 
     double getWeight() const{ return m_Weight; }

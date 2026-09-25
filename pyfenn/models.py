@@ -58,3 +58,10 @@ class DelayLinear:
                                                             target_var,
                                                             num_delay_bits,
                                                             name)
+
+class Downsample2D:
+    def __init__(self, backend: ModuleType, source_events: EventSource, 
+                 target_var: Variable, weight: float, name: str = ""):
+        self.process = backend.Downsample2DEventPropagationProcess(source_events, 
+                                                                   weight, 
+                                                                   target_var, name)

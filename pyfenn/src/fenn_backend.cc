@@ -40,9 +40,9 @@ using namespace FeNN;
 //----------------------------------------------------------------------------
 #define WRAP_ENUM(NS, ENUM, VAL) .value(#VAL, NS::ENUM::VAL, DOC(FeNN, NS, ENUM, VAL))
 #define WRAP_METHOD(NAME, NS, CLASS, METH) .def(NAME, &NS::CLASS::METH, DOC(FeNN, NS, CLASS, METH))
-#define WRAP_PROPERTY_GETTER(NAME, NS, CLASS, METH_STEM) .def_property_readonly(FeNN, NAME, &NS::CLASS::get##METH_STEM, DOC(NS, CLASS, get##METH_STEM))
-#define WRAP_PROPERTY_RO(NAME, NS, CLASS, METH_STEM) .def_property_readonly(FeNN, NAME, &NS::CLASS::get##METH_STEM, DOC(NS, CLASS, m_##METH_STEM))
-#define WRAP_PROPERTY_RO_SHOULD(NAME, NS, CLASS, METH_STEM) .def_property_readonly(FeNN, NAME, &NS::CLASS::should##METH_STEM, DOC(NS, CLASS, m_##METH_STEM))
+#define WRAP_PROPERTY_GETTER(NAME, NS, CLASS, METH_STEM) .def_property_readonly(NAME, &NS::CLASS::get##METH_STEM, DOC(FeNN, NS, CLASS, get##METH_STEM))
+#define WRAP_PROPERTY_RO(NAME, NS, CLASS, METH_STEM) .def_property_readonly(NAME, &NS::CLASS::get##METH_STEM, DOC(FeNN, NS, CLASS, m_##METH_STEM))
+#define WRAP_PROPERTY_RO_SHOULD(NAME, NS, CLASS, METH_STEM) .def_property_readonly(NAME, &NS::CLASS::should##METH_STEM, DOC(FeNN, NS, CLASS, m_##METH_STEM))
 
 //----------------------------------------------------------------------------
 // _fenn_backend
@@ -116,7 +116,9 @@ PYBIND11_MODULE(_fenn_backend, m)
     // fenn_backend.GenX320
     //------------------------------------------------------------------------
     pybind11::class_<Backend::GenX320, Frontend::ModelComponent, std::shared_ptr<Backend::GenX320>>(m, "GenX320")
-        .def(pybind11::init(&Backend::GenX320::create));
+        .def(pybind11::init(&Backend::GenX320::create))
+        
+        WRAP_PROPERTY_RO("source", Backend, GenX320, Source);
 
     //------------------------------------------------------------------------
     // fenn_backend.Variable
@@ -163,6 +165,17 @@ PYBIND11_MODULE(_fenn_backend, m)
              pybind11::arg("weight"), pybind11::arg("target"),
              pybind11::arg("num_delay_bits"),
              pybind11::arg("name") = "");
+
+    //------------------------------------------------------------------------
+    // fenn_backend.Downsample2DEventPropagationProcess
+    //------------------------------------------------------------------------
+    pybind11::class_<Backend::Downsample2DEventPropagationProcess, Frontend::EventPropagationProcess, std::shared_ptr<Backend::Downsample2DEventPropagationProcess>>(m, "Downsample2DEventPropagationProcess", pybind11::multiple_inheritance())
+        .def(pybind11::init(&Backend::Downsample2DEventPropagationProcess::create),
+             pybind11::arg("input_event_source"), 
+             pybind11::arg("weight"), pybind11::arg("target"), 
+             pybind11::arg("name") = "")
+
+        WRAP_PROPERTY_RO("weight", Backend, Downsample2DEventPropagationProcess, Weight);
 
     //------------------------------------------------------------------------
     // fenn_backend.RNGInitProcess
@@ -233,10 +246,11 @@ PYBIND11_MODULE(_fenn_backend, m)
     //------------------------------------------------------------------------
     pybind11::class_<Backend::RuntimeSim, Backend::Runtime>(m, "RuntimeSim")
         .def(pybind11::init<const std::vector<std::shared_ptr<const Frontend::Kernel>>&, 
-             size_t, bool, bool, Compiler::RoundingMode, size_t>(),
+             size_t, bool, bool, Compiler::RoundingMode, size_t, const std::vector<uint32_t>&>(),
              pybind11::arg("kernels"), pybind11::arg("num_devices"),
              pybind11::arg("use_dram_for_weights") = false, 
              pybind11::arg("keep_params_in_registers") = true,
              pybind11::arg("neuron_update_rounding_mode") = Compiler::RoundingMode::NEAREST,
-             pybind11::arg("dma_buffer_size") = 512 * 1024);
+             pybind11::arg("dma_buffer_size") = 512 * 1024,
+             pybind11::arg("spike_inject_data") = std::vector<uint32_t>{});
 }

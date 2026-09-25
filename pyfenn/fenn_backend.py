@@ -1,6 +1,7 @@
 from ._fenn_backend import (BroadcastProcess, DelayEventPropagationProcess,
                             DendriticDelayUpdateProcess, 
-                            DenseEventPropagationProcess, EventChannel, 
+                            DenseEventPropagationProcess, 
+                            Downsample2DEventPropagationProcess, EventChannel,
                             EventSinkBuffer, EventSourceBuffer, GenX320, 
                             MemsetProcess, NeuronUpdateProcess, 
                             RNGInitProcess, RoundingMode, RuntimeHW,

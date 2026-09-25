@@ -1797,7 +1797,7 @@ void DelayEventPropagationProcess::updateCompatibleMemSpace(std::shared_ptr<cons
 // FeNN::Backend::Downsample2DEventPropagationProcess
 //----------------------------------------------------------------------------
 Downsample2DEventPropagationProcess::Downsample2DEventPropagationProcess(Private, std::shared_ptr<const Frontend::EventSource> inputEventSource, 
-                                                                         Frontend::Sliced<Frontend::Variable> target, double weight, const std::string &name)
+                                                                         double weight, Frontend::Sliced<Frontend::Variable> target, const std::string &name)
     :   EventPropagationProcess(Private(), inputEventSource, target, name), m_Weight(weight)
 {
     if (getInputEventSource()->getShape().size() != 2) {
@@ -1821,6 +1821,9 @@ Downsample2DEventPropagationProcess::Downsample2DEventPropagationProcess(Private
 
     // Count number of bits used to encode target coordinate
     m_NumTargetCoordBits = ::Common::Utils::getNumBits(targetSize);
+
+    // **TODO** 
+    assert(!getTarget().hasTime());
 }
 //----------------------------------------------------------------------------
 std::vector<std::shared_ptr<const Frontend::State>> Downsample2DEventPropagationProcess::getAllState() const
@@ -1858,13 +1861,11 @@ void Downsample2DEventPropagationProcess::updateCompatibleSplitDimensions(std::s
                                                                           uint32_t &compatibleSplitDimensions,
                                                                           uint32_t &compatibleIndexDimensions) const 
 {
-    // If variable is target, should be splittable on X axis
-    // **NOTE** this is to match split of frame
+    // If variable is target, should be splittable on 2nd (X) axis
+    // **NOTE** this is to match HW split of event-camera frame
     if (state == getTarget().getUnderlying()) {
-        // **TODO** think
-        assert(false);
-        //compatibleSplitDimensions &= (1 << 0);
-        //compatibleIndexDimensions &= (1 << 1);
+        compatibleSplitDimensions &= (1 << 0);
+        compatibleIndexDimensions = 0;
     }
     // Otherwise, superclass
     else {
@@ -1923,15 +1924,13 @@ void Downsample2DEventPropagationProcess::generateArchetypeCode(const Frontend::
     auto targetYStride = addScalarValue<Downsample2DEventPropagationProcess>(
         0, mergedProcess, runtime.getNumDevices(), mergedFields,
         fieldBaseReg, c, scalarRegisterAllocator, 
-        [&runtime](size_t d, auto p)
+        [&runtime](size_t d, auto p) -> uint32_t
         { 
             // Get stride and shape of target
-            /*auto [shape, strides] = runtime.getDeviceArrayShapeStrides(p->getTarget().getUnderlying(), d);
+            auto [shape, strides] = runtime.getDeviceArrayShapeStrides(p->getTarget().getUnderlying(), d);
 
-            // Multiply this axis's stride by it's shape and pad to a multiple of 32 elements
-            return static_cast<uint32_t>(
-                ::Common::Utils::ceilDivide(strides.at(topAxis) * shape.at(topAxis), 64) * 32);*/
-            return 0;
+            // We want to multiply by width of (potentially split) shape
+            return std::get<1>(p->getScaleFactor());
         });
     
     // Spike ID expected to have | Polarity | X | Y |

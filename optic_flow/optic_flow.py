@@ -4,7 +4,7 @@ import pyfenn.fenn_backend as backend
 
 from argparse import ArgumentParser
 from enum import IntEnum
-from pyfenn.models import SparseLinear, Memset
+from pyfenn.models import Downsample2D, SparseLinear, Memset
 from pyfenn.utils import PythonLogAppender
 
 from pyfenn.utils import (build_sparse_connectivity, ceil_divide,
@@ -233,6 +233,7 @@ detector_pop = CUBALIFIE(backend, (DETECTOR_SIZE * DETECTOR_SIZE * len(Detector)
                          v_thresh=10.0, num_timesteps=NUM_TIMESTEPS_PER_FRAME, name="Detector")
 
 # Synapses
+downsample_pop = Downsample2D(backend, event_camera.source, macro_pixel_pop.i, 1.0, name="EventCamMacroPixel")
 macro_pixel_detector_exc_pop = SparseLinear(backend, macro_pixel_pop.out_spikes, 
                                             detector_pop.i_exc, weight_dtype="s14_1_sat_t", max_row_length=macro_pixel_detector_exc_conn[0].shape[1],
                                             num_sparse_connectivity_bits=num_sparse_connectivity_bits, 
@@ -252,7 +253,8 @@ i_zero_processes = backend.ProcessGroup([detector_e_zero.process,
 neuron_update_processes = backend.ProcessGroup([macro_pixel_pop.process, 
                                                 detector_pop.process])
 synapse_update_processes = backend.ProcessGroup([macro_pixel_detector_exc_pop.process,
-                                                 macro_pixel_detector_inh_pop.process])
+                                                 macro_pixel_detector_inh_pop.process,
+                                                 downsample_pop.process])
 
 # Create init kernel
 init_kernel = backend.SimpleKernel([i_zero_processes])
