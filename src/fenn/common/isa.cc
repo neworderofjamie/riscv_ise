@@ -163,7 +163,18 @@ OpType getOpType(int32_t funct7, uint32_t funct3)
             return OpType::MUL;
         }
     }
-    // B-extension
+    // ZBA-extensiom SHXADD
+    else if (funct7 == 0x10) {
+        switch(funct3) {
+        case 0b010:
+            return OpType::SH1ADD;
+        case 0b100:
+            return OpType::SH2ADD;
+        case 0b110:
+            return OpType::SH3ADD;
+        }
+    }
+    // ZBB-extension MINMAX/CLMUL
     else if (funct7 == 0x5) {
         switch(funct3) {
         case 0b110:
