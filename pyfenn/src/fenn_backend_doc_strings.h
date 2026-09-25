@@ -65,8 +65,6 @@ static const char *__doc_FeNN_Backend_BroadcastProcess_create = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_BroadcastProcess_generateArchetypeCode = R"doc()doc";
 
-static const char *__doc_FeNN_Backend_BroadcastProcess_getAllEventSinks = R"doc(Get vector of event source objects used by this process)doc";
-
 static const char *__doc_FeNN_Backend_BroadcastProcess_getAllEventSources = R"doc(Get vector of event source objects used by this process)doc";
 
 static const char *__doc_FeNN_Backend_BroadcastProcess_getAllState = R"doc()doc";
@@ -279,6 +277,36 @@ static const char *__doc_FeNN_Backend_DeviceFeNN_m_Runtime = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_DeviceFeNN_m_URAMAllocator = R"doc()doc";
 
+static const char *__doc_FeNN_Backend_Downsample2DEventPropagationProcess = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_Downsample2DEventPropagationProcess_Downsample2DEventPropagationProcess = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_Downsample2DEventPropagationProcess_create = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_Downsample2DEventPropagationProcess_generateArchetypeCode = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_Downsample2DEventPropagationProcess_getAllState = R"doc(Get vector of state objects used by this process)doc";
+
+static const char *__doc_FeNN_Backend_Downsample2DEventPropagationProcess_getScaleFactor = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_Downsample2DEventPropagationProcess_getWeight = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_Downsample2DEventPropagationProcess_m_NumInputCoordBits = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_Downsample2DEventPropagationProcess_m_NumTargetCoordBits = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_Downsample2DEventPropagationProcess_m_Weight = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_Downsample2DEventPropagationProcess_updateCompatibleMemSpace = R"doc(Update the memory compatibility of a variable associated with this process)doc";
+
+static const char *__doc_FeNN_Backend_Downsample2DEventPropagationProcess_updateCompatibleSplitDimensions =
+R"doc(Update the compatible split dimensions of a state object (which should be
+one used by this process) with any constraints imposed by this process))doc";
+
+static const char *__doc_FeNN_Backend_Downsample2DEventPropagationProcess_updateMaxDMABufferSize = R"doc(Update the max-row length to support this process)doc";
+
+static const char *__doc_FeNN_Backend_Downsample2DEventPropagationProcess_updateMergeHash = R"doc(Update the provided hash with the properties of this process which determine whether it can be merged)doc";
+
 static const char *__doc_FeNN_Backend_EnvironmentExternal = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_EnvironmentExternal_2 = R"doc()doc";
@@ -365,6 +393,10 @@ static const char *__doc_FeNN_Backend_EventChannelSink_genPreamble = R"doc()doc"
 
 static const char *__doc_FeNN_Backend_EventChannelSink_getArrayShapeStride = R"doc()doc";
 
+static const char *__doc_FeNN_Backend_EventChannelSink_getNumNeuronIDBits = R"doc(Get the number of bits this sink requires to encode its neuron IDs)doc";
+
+static const char *__doc_FeNN_Backend_EventChannelSink_getPopulationID = R"doc(Get population ID this sink uses to encode its neuron IDs if this is fixed)doc";
+
 static const char *__doc_FeNN_Backend_EventChannelSource = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_EventChannelSource_createArray = R"doc()doc";
@@ -399,7 +431,7 @@ static const char *__doc_FeNN_Backend_EventSinkBuffer_genPreamble = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_EventSinkBuffer_getArrayShapeStride = R"doc()doc";
 
-static const char *__doc_FeNN_Backend_EventSinkImplementation = R"doc()doc";
+static const char *__doc_FeNN_Backend_EventSinkImplementation = R"doc(Base class for event sinks into which processes send events)doc";
 
 static const char *__doc_FeNN_Backend_EventSinkImplementation_createBitArray = R"doc()doc";
 
@@ -417,6 +449,12 @@ static const char *__doc_FeNN_Backend_EventSinkImplementation_genPreamble = R"do
 
 static const char *__doc_FeNN_Backend_EventSinkImplementation_getBitArrayShapeStride = R"doc()doc";
 
+static const char *__doc_FeNN_Backend_EventSinkRouterKeyImplementation = R"doc(Base class for event sinks which require router keys to be allocated)doc";
+
+static const char *__doc_FeNN_Backend_EventSinkRouterKeyImplementation_getNumNeuronIDBits = R"doc(Get the number of bits this sink requires to encode its neuron IDs)doc";
+
+static const char *__doc_FeNN_Backend_EventSinkRouterKeyImplementation_getPopulationID = R"doc(Get population ID this sink uses to encode its neuron IDs if this is fixed)doc";
+
 static const char *__doc_FeNN_Backend_EventSourceBuffer = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_EventSourceBuffer_create = R"doc()doc";
@@ -432,6 +470,30 @@ static const char *__doc_FeNN_Backend_EventSourceBuffer_getArrayShapeStride = R"
 static const char *__doc_FeNN_Backend_EventSourceImplementation = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_EventSourceImplementation_generateEventLoop = R"doc(Generate code to implement event loop)doc";
+
+static const char *__doc_FeNN_Backend_GenX320 = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_GenX320EventChannelSink = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_GenX320EventChannelSink_GenX320EventChannelSink = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_GenX320EventChannelSink_createArray = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_GenX320EventChannelSink_getArrayShapeStride = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_GenX320EventChannelSink_getNumNeuronIDBits = R"doc(Get the number of bits this sink requires to encode its neuron IDs)doc";
+
+static const char *__doc_FeNN_Backend_GenX320EventChannelSink_getPopulationID = R"doc(Get population ID this sink uses to encode its neuron IDs if this is fixed)doc";
+
+static const char *__doc_FeNN_Backend_GenX320_GenX320 = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_GenX320_create = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_GenX320_getSource = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_GenX320_m_Sink = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_GenX320_m_Source = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_KernelImplementation = R"doc()doc";
 
@@ -464,6 +526,8 @@ static const char *__doc_FeNN_Backend_KernelImplementation_m_EventSourceProcesse
 static const char *__doc_FeNN_Backend_KernelImplementation_m_NumNeuronIDBits = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_KernelImplementation_m_NumPopulationIDBits = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_KernelImplementation_requiresPerformanceCounters = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_LLMAllocator = R"doc()doc";
 
@@ -623,9 +687,19 @@ static const char *__doc_FeNN_Backend_RuntimeSim_2 = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_RuntimeSim_RuntimeSim = R"doc()doc";
 
+static const char *__doc_FeNN_Backend_RuntimeSim_allocatePostamble = R"doc(Backend-specific logic to run at end of allocate function)doc";
+
 static const char *__doc_FeNN_Backend_RuntimeSim_createDevice = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_RuntimeSim_m_SharedBus = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_RuntimeSim_m_SpikeInjectData = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_RuntimeSim_m_SpikeInjectThread = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_RuntimeSim_reset = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_RuntimeSim_spikeInjectThread = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_Runtime_Runtime = R"doc()doc";
 
@@ -673,6 +747,8 @@ static const char *__doc_FeNN_Backend_SimpleKernel_create = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_SimpleKernel_generateCode = R"doc(Generate code to implement process)doc";
 
+static const char *__doc_FeNN_Backend_SimpleKernel_requiresPerformanceCounters = R"doc()doc";
+
 static const char *__doc_FeNN_Backend_SimulationLoopKernel = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_SimulationLoopKernel_SimulationLoopKernel = R"doc()doc";
@@ -680,6 +756,8 @@ static const char *__doc_FeNN_Backend_SimulationLoopKernel_SimulationLoopKernel 
 static const char *__doc_FeNN_Backend_SimulationLoopKernel_create = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_SimulationLoopKernel_generateCode = R"doc(Generate code to implement process)doc";
+
+static const char *__doc_FeNN_Backend_SimulationLoopKernel_requiresPerformanceCounters = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_SparseEventPropagationProcess = R"doc()doc";
 

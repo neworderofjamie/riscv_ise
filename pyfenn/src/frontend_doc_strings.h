@@ -39,6 +39,8 @@ static const char *__doc_Common_Barrier_m_Mutex = R"doc()doc";
 
 static const char *__doc_Common_Barrier_m_ResetCount = R"doc()doc";
 
+static const char *__doc_Common_Barrier_reset = R"doc()doc";
+
 static const char *__doc_Common_Barrier_wait = R"doc()doc";
 
 static const char *__doc_Common_Barrier_waitAndDrop = R"doc()doc";
@@ -72,6 +74,8 @@ static const char *__doc_Common_Utils_clz = R"doc()doc";
 static const char *__doc_Common_Utils_convertFixedPoint = R"doc()doc";
 
 static const char *__doc_Common_Utils_ctz = R"doc()doc";
+
+static const char *__doc_Common_Utils_getNumBits = R"doc()doc";
 
 static const char *__doc_Common_Utils_isPOT = R"doc()doc";
 
@@ -1100,8 +1104,6 @@ static const char *__doc_Frontend_DendriticDelayUpdateProcess_DendriticDelayUpda
 
 static const char *__doc_Frontend_DendriticDelayUpdateProcess_create = R"doc()doc";
 
-static const char *__doc_Frontend_DendriticDelayUpdateProcess_getAllEventSinks = R"doc(Get vector of event sink objects used by this process)doc";
-
 static const char *__doc_Frontend_DendriticDelayUpdateProcess_getAllEventSources = R"doc(Get vector of event source objects used by this process)doc";
 
 static const char *__doc_Frontend_DendriticDelayUpdateProcess_getAllState = R"doc(Get vector of state objects used by this process)doc";
@@ -1160,13 +1162,9 @@ static const char *__doc_Frontend_EventChannelSink_getArrayShapeStride = R"doc()
 
 static const char *__doc_Frontend_EventChannelSink_getShape = R"doc()doc";
 
-static const char *__doc_Frontend_EventChannelSink_getSource = R"doc()doc";
-
 static const char *__doc_Frontend_EventChannelSink_m_Record = R"doc()doc";
 
 static const char *__doc_Frontend_EventChannelSink_m_Shape = R"doc()doc";
-
-static const char *__doc_Frontend_EventChannelSink_m_Source = R"doc()doc";
 
 static const char *__doc_Frontend_EventChannelSink_shouldRecord = R"doc()doc";
 
@@ -1182,7 +1180,11 @@ static const char *__doc_Frontend_EventChannelSource_getArrayShapeStride = R"doc
 
 static const char *__doc_Frontend_EventChannelSource_getShape = R"doc()doc";
 
+static const char *__doc_Frontend_EventChannelSource_getSink = R"doc()doc";
+
 static const char *__doc_Frontend_EventChannelSource_m_Shape = R"doc()doc";
+
+static const char *__doc_Frontend_EventChannelSource_m_Sink = R"doc()doc";
 
 static const char *__doc_Frontend_EventChannelSource_updateMergeHash = R"doc()doc";
 
@@ -1205,8 +1207,6 @@ static const char *__doc_Frontend_EventPropagationProcess = R"doc()doc";
 static const char *__doc_Frontend_EventPropagationProcess_EventPropagationProcess = R"doc()doc";
 
 static const char *__doc_Frontend_EventPropagationProcess_create = R"doc()doc";
-
-static const char *__doc_Frontend_EventPropagationProcess_getAllEventSinks = R"doc(Get vector of event sink objects used by this process)doc";
 
 static const char *__doc_Frontend_EventPropagationProcess_getAllEventSources = R"doc(Get vector of event source objects used by this process)doc";
 
@@ -1283,8 +1283,6 @@ static const char *__doc_Frontend_MemsetProcess = R"doc(Process for memsetting v
 static const char *__doc_Frontend_MemsetProcess_MemsetProcess = R"doc()doc";
 
 static const char *__doc_Frontend_MemsetProcess_create = R"doc()doc";
-
-static const char *__doc_Frontend_MemsetProcess_getAllEventSinks = R"doc(Get vector of event sink objects used by this process)doc";
 
 static const char *__doc_Frontend_MemsetProcess_getAllEventSources = R"doc(Get vector of event source objects used by this process)doc";
 
@@ -1392,8 +1390,6 @@ R"doc(Once compatible split dimensions have been obtained for each state object,
 
 static const char *__doc_Frontend_NeuronUpdateProcess_create = R"doc()doc";
 
-static const char *__doc_Frontend_NeuronUpdateProcess_getAllEventSinks = R"doc(Get vector of event sink objects used by this process)doc";
-
 static const char *__doc_Frontend_NeuronUpdateProcess_getAllEventSources = R"doc(Get vector of event source objects used by this process)doc";
 
 static const char *__doc_Frontend_NeuronUpdateProcess_getAllState = R"doc(Get vector of state objects used by this process)doc";
@@ -1460,8 +1456,6 @@ static const char *__doc_Frontend_Process_constrainSplitDimensions =
 R"doc(Once compatible split dimensions have been obtained for each state object, they might need
 'constraining' e.g. to ensure all variables associated with a neuron update process get split the same)doc";
 
-static const char *__doc_Frontend_Process_getAllEventSinks = R"doc(Get vector of event sink objects used by this process)doc";
-
 static const char *__doc_Frontend_Process_getAllEventSources = R"doc(Get vector of event source objects used by this process)doc";
 
 static const char *__doc_Frontend_Process_getAllState = R"doc(Get vector of state objects used by this process)doc";
@@ -1477,8 +1471,6 @@ static const char *__doc_Frontend_RNGInitProcess = R"doc()doc";
 static const char *__doc_Frontend_RNGInitProcess_RNGInitProcess = R"doc()doc";
 
 static const char *__doc_Frontend_RNGInitProcess_create = R"doc()doc";
-
-static const char *__doc_Frontend_RNGInitProcess_getAllEventSinks = R"doc(Get vector of event sink objects used by this process)doc";
 
 static const char *__doc_Frontend_RNGInitProcess_getAllEventSources = R"doc(Get vector of event source objects used by this process)doc";
 
@@ -1576,11 +1568,15 @@ static const char *__doc_Frontend_Runtime_pullStateFromDevice = R"doc(Pull state
 
 static const char *__doc_Frontend_Runtime_pushStateToDevice = R"doc(Push state to all devices)doc";
 
+static const char *__doc_Frontend_Runtime_reset = R"doc(**YUCK** Backend-specific logic to run before starting kernel)doc";
+
 static const char *__doc_Frontend_Runtime_run = R"doc(Run kernel on device)doc";
 
 static const char *__doc_Frontend_Runtime_runCommand = R"doc(Run command on all worker threads)doc";
 
 static const char *__doc_Frontend_Runtime_threadFunction = R"doc(Thread function run on each worker thread to execute commands on device)doc";
+
+static const char *__doc_Frontend_Runtime_waitCommand = R"doc(Wait for previous asynchronous commands to complete on all devices)doc";
 
 static const char *__doc_Frontend_Shape_getStride = R"doc()doc";
 
