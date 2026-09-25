@@ -45,20 +45,20 @@ namespace
 {
 using ScalarConstant = std::variant<Assembler::ScalarRegisterPtr, int, std::monostate>;
 
-int64_t getVectorLiteralValue(const Frontend::Literals::value_type &literal)
+int64_t getVectorLiteralValue(const Type::ResolvedType &type, const Type::NumericValue &value)
 {
     // Get literal value for this process
-    const auto &numericType = std::get<0>(literal).getNumeric();
+    const auto &numericType = type.getNumeric();
 
     // Convert to integer
     int64_t integerResult;
     if(numericType.isIntegral) {
-        integerResult = std::get<1>(literal).cast<int64_t>();
+        integerResult = value.cast<int64_t>();
     }
     // Otherwise, if it is fixed point
     else if(numericType.fixedPoint) {
         integerResult = static_cast<int64_t>(
-            std::round(std::get<1>(literal).cast<double>() * (1u << numericType.fixedPoint.value())));
+            std::round(value.cast<double>() * (1u << numericType.fixedPoint.value())));
     }
     else {
         throw std::runtime_error("FeNN does not support floating point types");
@@ -68,7 +68,7 @@ int64_t getVectorLiteralValue(const Frontend::Literals::value_type &literal)
     if(integerResult < std::numeric_limits<int16_t>::min() 
         || integerResult > std::numeric_limits<int16_t>::max())
     {
-        throw std::runtime_error("Literal out of range for type '" + std::get<0>(literal).getName() + "'");
+        throw std::runtime_error("Literal out of range for type '" + type.getName() + "'");
     }
 
     return integerResult;
@@ -297,6 +297,49 @@ Assembler::VectorRegisterPtr addVectorConstant(const Frontend::MergedProcess &me
 
         // Add register to vector of shared registers
         sharedRegisters.push_back(VReg);
+
+        return VReg;
+    }
+}
+
+template<typename P>
+Assembler::VectorRegisterPtr addVectorConstant(const Frontend::MergedProcess &mergedProcess, MergedFields &mergedFields,
+                                               size_t numDevices, Assembler::ScalarRegisterPtr fieldBaseReg,
+                                               Assembler::CodeGenerator &processCodeGenerator, 
+                                               Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
+                                               Assembler::VectorRegisterAllocator &vectorRegisterAllocator, 
+                                               MergedFields::GetFieldConstantFunc<P> getFieldValueFn)
+{
+    // If value is heterogeneous, add field
+    if(isHeterogeneous(mergedProcess, numDevices, getFieldValueFn)) {
+        // Add field
+        const uint32_t fieldOffset = mergedFields.addField<P>(getFieldValueFn);
+
+        // Allocate register
+        ALLOCATE_SCALAR(SReg);
+        ALLOCATE_VECTOR(VReg);
+
+        // Load value into register and fill vector register
+        processCodeGenerator.lw(*SReg, *fieldBaseReg, fieldOffset);
+        processCodeGenerator.vfill(*VReg, *SReg);
+        return VReg;
+    }
+    // Otherwise
+    else {
+        // Convert homogeneous value to int
+        const int value = std::visit([](auto v){ return static_cast<int>(v); },
+                                     getFieldValueFn(0, mergedProcess.getArchetype<P>()));
+
+        // If the value fits within the max literal bits, add scalar literal
+        if(!FeNN::Common::inSBit(value, 16)) {
+            throw std::runtime_error("Vector literal out of range");
+        }
+
+        // Allocate register
+        ALLOCATE_VECTOR(VReg);
+
+        // Load shared immediate
+        processCodeGenerator.vlui(*VReg, value);
 
         return VReg;
     }
@@ -863,7 +906,9 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
                 sharedCodeGenerator, scalarRegisterAllocator, vectorRegisterAllocator, sharedRegisters,
                 [i](size_t, auto p)
                 {
-                    return static_cast<int32_t>(getVectorLiteralValue(p->getLiterals().at(i)));
+                    const auto &literal = p->getLiterals().at(i);
+                    return static_cast<int32_t>(getVectorLiteralValue(std::get<0>(literal),
+                                                                      std::get<1>(literal)));
                 });
             
             // Add to environment
@@ -1752,8 +1797,8 @@ void DelayEventPropagationProcess::updateCompatibleMemSpace(std::shared_ptr<cons
 // FeNN::Backend::Downsample2DEventPropagationProcess
 //----------------------------------------------------------------------------
 Downsample2DEventPropagationProcess::Downsample2DEventPropagationProcess(Private, std::shared_ptr<const Frontend::EventSource> inputEventSource, 
-                                                                         Frontend::Sliced<Frontend::Variable> target, const std::string &name)
-    :   EventPropagationProcess(Private(), inputEventSource, target, name)
+                                                                         Frontend::Sliced<Frontend::Variable> target, double weight, const std::string &name)
+    :   EventPropagationProcess(Private(), inputEventSource, target, name), m_Weight(weight)
 {
     if (getInputEventSource()->getShape().size() != 2) {
         throw std::runtime_error("Downsample 2D event propagation process requires source events with a 2D shape");
@@ -1763,128 +1808,19 @@ Downsample2DEventPropagationProcess::Downsample2DEventPropagationProcess(Private
         throw std::runtime_error("Downsample 2D event propagation process requires source events with a square shape");
     }
 
-    // If target is flattened
-    if (getTarget().getShape().size() == 1) {
-        // **TODO** scale factor
-    }
-    // If target is 2D
-    else if (getTarget().getShape().size() == 2) {
-        // Check it's square and 
-        if (getTarget().getShape()[0] != getTarget().getShape()[1]) {
-            throw std::runtime_error("Downsample 2D event propagation process requires target variable with a square shape");
-        }
+    // Count number of bits used to encode input coordinates
+    m_NumInputCoordBits = ::Common::Utils::getNumBits(getInputEventSource()->getShape()[0]);
 
-        // **TODO** scale factor
-    }
-    else {
-        throw std::runtime_error("Downsample 2D event propagation process requires target variable with a 2D or 1D flattened shape");
-    }
-}
-//------------------------------------------------------------------------
-void Downsample2DEventPropagationProcess::updateMaxDMABufferSize(size_t&) const
-{
-}
-//------------------------------------------------------------------------
-void Downsample2DEventPropagationProcess::generateArchetypeCode(const Frontend::MergedProcess &mergedProcess, const Runtime &runtime, 
-                                                                const KernelImplementation&, MergedFields &mergedFields, 
-                                                                Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg, 
-                                                                Assembler::ScalarRegisterPtr preIndReg, std::optional<uint32_t>, 
-                                                                Assembler::CodeGenerator &processCodeGenerator, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
-                                                                Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
-{
-    // **TODO** handle splitting 
-    assert(runtime.getNumDevices() == 1);
+    // Validate target size and get scale factor
+    const auto [scaleFactor, targetSize] = getScaleFactor();
 
-    // Make some friendlier-named references
-    auto &c = processCodeGenerator;
-
-    const uint32_t targetFieldOffset = mergedFields.addField<DelayEventPropagationProcess>(
-        [](const Frontend::DeviceBase &d, auto p)
-        { 
-            return d.getArray(p->getTarget().getUnderlying()); 
-        });
-
-    /*srli    a5,a0,2           ; a5 = spikeID >> 2 
-    andi    t0,a5,127           ; y = a5 & 127
-    mul     t1,t0,a1            ; index = y * strideY
-    srli    a0,a0,11            ; a0 = spikeID >> 11 (extract x and scale)
-    andi    t2,a0,127           ; x = a5 & 127 
-    li      a1,1                ; a1 = 1
-    add     a2,t1,t2            ; index = (y * strideY) + x
-    sll     a1,a1,a2            ; a1 = 1 << index (SLL only looks at lower 5 bits) 
-    andi    a0,a2,-32           ; a0 = index & -32
-    tail    _Z4loadjj@plt*/
-    /*auto targetYStride = addScalarValue(0, mergedProcess, runtime.getNumDevices(), mergedFields,
-                                        fieldBaseReg, c, scalarRegisterAllocator, 
-                                        [&runtime](size_t d, auto p)
-                                        { 
-                                            // Get stride and shape of target
-                                            auto [shape, strides] = runtime.getDeviceArrayShapeStrides(p->getTarget().getUnderlying(), d);
-
-                                            // Multiply this axis's stride by it's shape and pad to a multiple of 32 elements
-                                            return static_cast<uint32_t>(
-                                                ::Common::Utils::ceilDivide(strides.at(topAxis) * shape.at(topAxis), 64) * 32);
-                                        });
-    // Spike ID expected to have | Polarity | X | Y | in the lowest bits with 9 bit X and Y
-
-    
-
-    constexpr size_t inputCoordBits = 9;
-    constexpr size_t outputCoordBits = 7;
-    constexpr size_t coordScaleShift = inputCoordBits - outputCoordBits;
-    constexpr uint32_t outputCoordMask =  (1 << outputCoordBits) - 1;
-    
-    ALLOCATE_SCALAR(SIndex);
-
-    {
-        ALLOCATE_SCALAR(SX);
-        ALLOCATE_SCALAR(SY);
-        // Extract X coordinate
-        c.srli(*SY, *preIndReg, coordScaleShift);
-        c.andi(*SY, *SY, outputCoordMask);
-   
-        // Extract X coordinate
-        c.srli(*SX, *preIndReg, inputCoordBits + coordScaleShift);
-        c.andi(*SX, *SX, outputCoordMask);
-
-        // Calculate index into post
-        c.mul(*SIndex, std::get<Assembler::ScalarRegisterPtr>(targetYStride), *SY);
-        c.add(*SIndex, *SIndex, *SX);
+    // If scale factor isn't an integer or that integer value isn't a power of two
+    if(scaleFactor != std::floor(scaleFactor) || !::Common::Utils::isPOT(static_cast<int>(scaleFactor))) {
+        throw std::runtime_error("Downsample 2D event propagation process can only downsample by a power of two");
     }
 
-    {
-        ALLOCATE_SCALAR(STargetBuffer);
-        ALLOCATE_SCALAR(STargetVectorAddress);
-        ALLOCATE_SCALAR(SMask);
-        ALLOCATE_VECTOR(VTarget);
-        ALLOCATE_VECTOR(VTargetNew);
-        ALLOCATE_VECTOR(VWeight);
-
-        // Load weight
-        c.vlui(*VWeight, 1);
-
-        // Load target address
-        c.lw(*STargetBuffer, *fieldBaseReg, targetFieldOffset);
-
-        // Build vector address and load target
-        // **TODO** bytes not half-words
-        c.andi(*STargetVectorAddress, *SIndex, -32);
-        c.add(*STargetVectorAddress, *STargetVectorAddress, *STargetBuffer);
-        c.vloadv(*VTarget, *STargetVectorAddress);
-
-        // Build mask
-        c.li(*SMask, 1);
-        c.sll(*SMask, *SMask, *SIndex);
-
-        // VTargetNew = VTarget + VWeight
-        c.vadd(*VTargetNew, *VTarget, *VWeight);
-
-        // VTarget = SMask ? VTargetNew : VTarget
-        c.vsel(*VTarget, *SMask, *VTargetNew);
-
-        // Store updated target current
-        c.vstore(*VTarget, *STargetVectorAddress);
-    }*/
+    // Count number of bits used to encode target coordinate
+    m_NumTargetCoordBits = ::Common::Utils::getNumBits(targetSize);
 }
 //----------------------------------------------------------------------------
 std::vector<std::shared_ptr<const Frontend::State>> Downsample2DEventPropagationProcess::getAllState() const
@@ -1908,14 +1844,22 @@ void Downsample2DEventPropagationProcess::updateMergeHash(boost::uuids::detail::
     // Include hash of target memory space
     updateHash(static_cast<const Model&>(model).getStateMemSpace(getTarget().getUnderlying(), 
                                                                  true/*getRuntime().shouldUseDRAMForWeights()*/), hash);
+
+
+    // Include hashes of number of bits used to encode input and target coordinates
+    // **NOTE** if we can use immediate shifts, downsampling code can be more efficient
+    // and, as this is a tight loop, this is worth potential duplication, especially
+    // as, realistically, I can't really think of a reason models would have >1 downsampler!
+    updateHash(m_NumInputCoordBits, hash);
+    updateHash(m_NumTargetCoordBits, hash);
 }
 //----------------------------------------------------------------------------
 void Downsample2DEventPropagationProcess::updateCompatibleSplitDimensions(std::shared_ptr<const Frontend::State> state, 
                                                                           uint32_t &compatibleSplitDimensions,
                                                                           uint32_t &compatibleIndexDimensions) const 
 {
-    // If variable is target, it can only be split along 2nd 
-    // (postsynaptic)  axis and it can only be indexed along 1st (time) axis
+    // If variable is target, should be splittable on X axis
+    // **NOTE** this is to match split of frame
     if (state == getTarget().getUnderlying()) {
         // **TODO** think
         assert(false);
@@ -1940,269 +1884,137 @@ void Downsample2DEventPropagationProcess::updateCompatibleMemSpace(std::shared_p
         assert(state == getInputEventSource());
     }
 }
-//----------------------------------------------------------------------------
-// FeNN::Backend::EventPropagationProcess
-//----------------------------------------------------------------------------
-/*
-
-void generateDRAMWordLoop(const std::vector<std::unique_ptr<RowGeneratorBase>> &rowGenerators, 
-                          ScalarRegisterPtr eventBufferReg, 
-                          ScalarRegisterPtr eventBufferEndReg)
+//------------------------------------------------------------------------
+void Downsample2DEventPropagationProcess::updateMaxDMABufferSize(size_t&) const
 {
-    // Make some friendlier-named references
-    auto &scalarRegisterAllocator = m_ScalarRegisterAllocator.get();
-    auto &c = m_CodeGenerator.get();
-
-    ALLOCATE_SCALAR(SConst1);
-    ALLOCATE_SCALAR(SCurrentEventWord);
-    ALLOCATE_SCALAR(SCurrentWordStartID);
-    ALLOCATE_SCALAR(SIDPre);
-    ALLOCATE_SCALAR(SPrevIDPre);
-    ALLOCATE_SCALAR(SRowBufferA);
-    ALLOCATE_SCALAR(SRowBufferB);
-
-    // Labels
-    auto tail = createLabel();
-    auto end = createLabel();
-
-    // Do we have an even number of rows? This dictates whether swap is required
-    const bool evenNumRows = ((rowGenerators.size() % 2) == 0);
-
-    // Load row buffer pointers
-    c.lw(*SRowBufferA, Reg::X0, getBackendFieldOffset(StateObjectID::ROW_BUFFER_A));
-    c.lw(*SRowBufferB, Reg::X0, getBackendFieldOffset(StateObjectID::ROW_BUFFER_B));
-        
-    // Load some useful constants
-    c.li(*SConst1, 1);
-    c.li(*SCurrentWordStartID, 31);
-
-    //--------------------------------------------------------------------
-    // Prefetch
-    //--------------------------------------------------------------------
-    {
-        // Register allocation
-        ALLOCATE_SCALAR(SPrefetchEventWord);
-        ALLOCATE_SCALAR(SPrefetchCurrentWordStartID);
-
-        // Labels
-        auto prefetchLoop = createLabel();
-        auto prefetchWord = createLabel();
-        auto prefetchZeroEventWord = createLabel();
-
-        c.L(prefetchLoop);
-
-        // PrefetcEventWord = *eventBufferReg++
-        c.lw(*SPrefetchEventWord, *eventBufferReg);
-        c.addi(*eventBufferReg, *eventBufferReg, 4);
-
-        c.addi(*SPrefetchCurrentWordStartID, *SCurrentWordStartID, 32);
-
-        // If PrefetchEventWord != 0, goto prefetchWord
-        c.bne(*SPrefetchEventWord, Reg::X0, prefetchWord);
-
-        c.mv(*SIDPre, *SCurrentWordStartID);
-
-        // If eventWord == eventWordEnd, goto end
-        c.beq(*eventBufferReg, *eventBufferEndReg, end);
-
-        // CurrentWordStartID = PrefetchCurrentWordStartID
-        c.mv(*SCurrentWordStartID, *SPrefetchCurrentWordStartID);
-            
-        // Goto prefetch loop
-        // **YUCK** jump
-        c.beq(Reg::X0, Reg::X0, prefetchLoop);
-            
-        c.L(prefetchWord);
-
-        {
-            ALLOCATE_SCALAR(SNumLZ);
-            
-            // Zero current spike word
-            c.li(*SCurrentEventWord, 0);
-                
-            // Count leading zeros in prefetched word
-            c.clz(*SNumLZ, *SPrefetchEventWord);
-                
-            // If the word we prefetched is one, skip shifting and leave current spike word at 0
-            c.beq(*SPrefetchEventWord, *SConst1, prefetchZeroEventWord);
- 
-            // SCurrentEventWord = SPrefetchEventWord << (NumLZ + 1)
-            c.addi(*SCurrentEventWord, *SNumLZ, 1);
-            c.sll(*SCurrentEventWord, *SPrefetchEventWord, *SCurrentEventWord);
-
-            c.L(prefetchZeroEventWord);
-
-            // PrevIDPre = CurrentWordStartID - NumLZ
-            c.sub(*SPrevIDPre, *SCurrentWordStartID, *SNumLZ);
-        }
-            
-        {
-            // Calculate weight buffer
-            auto prefetchWeightBuffer = rowGenerators[0]->loadWeightBuffer(c, SPrevIDPre);
-
-            // Start DMA write into RowBufferA
-            AssemblerUtils::generateDMAStartWrite(c, *SRowBufferA, *prefetchWeightBuffer, 
-                                                    *rowGenerators[0]->getStrideReg());
-        }
-
-        // IdPre = PrevIDPre -1
-        c.addi(*SIDPre, *SPrevIDPre, -1);
-
-        // WordStartID = PrefetchWordStartID
-        c.mv(*SCurrentWordStartID, *SPrefetchCurrentWordStartID);
-
-        // Goto tail
-        // **YUCK** jump
-        c.beq(Reg::X0, Reg::X0, tail);
-    }
-
-    //--------------------------------------------------------------------
-    // Iterate
-    //--------------------------------------------------------------------
-    {
-        // Labels
-        auto zeroEventWord = createLabel();
-        auto wordLoop = createLabel();
-        auto processBit = createLabel();
-        auto nextEventWord = createLabel();
-
-        c.L(zeroEventWord);
-            
-        // Zero event work and goto processBit
-        // **YUCK** jump
-        c.li(*SCurrentEventWord, 0);
-        c.beq(Reg::X0, Reg::X0, processBit);
-            
-        c.L(wordLoop);
-
-        // Loop through all but last row
-        for(size_t r = 0; r < (rowGenerators.size() - 1); r++) {
-            const bool evenRow = ((r % 2) == 0);
-            {
-                // Start DMA from weight buffer into correct buffer
-                auto fetchRowBuffer = evenRow ? SRowBufferB : SRowBufferA;
-                auto fetchWeightBuffer = rowGenerators[r + 1]->loadWeightBuffer(c, SPrevIDPre);
-                AssemblerUtils::generateDMAWaitForWriteComplete(c, scalarRegisterAllocator);
-                AssemblerUtils::generateDMAStartWrite(c, *fetchRowBuffer, *fetchWeightBuffer, 
-                                                        *rowGenerators[r + 1]->getStrideReg());
-            }
-
-            // Generate code to process row in other buffer
-            {
-                ALLOCATE_SCALAR(SRowBuffer);
-                c.mv(*SRowBuffer, evenRow ? *SRowBufferA : *SRowBufferB);
-                rowGenerators[r]->generateRow(c, SRowBuffer);
-            }
-        }    
-
-        {
-            ALLOCATE_SCALAR(SNumLZ);
-
-            // If CurrentSpikeWord == 1 i.e. NumLZ == 31, goto zeroEventWord
-            c.clz(*SNumLZ, *SCurrentEventWord);
-            c.beq(*SCurrentEventWord, *SConst1, zeroEventWord);
-
-            // CurrentEventWord = CurrentEventWord << (NumLZ + 1)
-            {
-                ALLOCATE_SCALAR(STmp);
-                c.addi(*STmp, *SNumLZ, 1);
-                c.sll(*SCurrentEventWord, *SCurrentEventWord, *STmp);
-            }
-                
-            c.L(processBit);
-
-            // IDPre -= NumLZ
-            c.sub(*SIDPre, *SIDPre, *SNumLZ);
-        }
-
-        {
-            // Start DMA write into correct buffer
-            auto fetchRowBuffer = evenNumRows ? SRowBufferA : SRowBufferB;
-            auto fetchWeightBuffer = rowGenerators[0]->loadWeightBuffer(c, SIDPre);
-            AssemblerUtils::generateDMAWaitForWriteComplete(c, scalarRegisterAllocator);
-            AssemblerUtils::generateDMAStartWrite(c, *fetchRowBuffer, *fetchWeightBuffer, 
-                                                    *rowGenerators[0]->getStrideReg());
-        }
-
-        // Generate code to process row in other buffer
-        {
-            ALLOCATE_SCALAR(SRowBuffer);
-            c.mv(*SRowBuffer, evenNumRows ? *SRowBufferB : *SRowBufferA);
-            rowGenerators.back()->generateRow(c, SRowBuffer);
-        }
-
-        // If we have an odd number of rows, swap buffers
-        if(!evenNumRows) {
-            ALLOCATE_SCALAR(STmp);
-            c.mv(*STmp, *SRowBufferA);
-            c.mv(*SRowBufferA, *SRowBufferB);
-            c.mv(*SRowBufferB, *STmp);
-        }
-            
-        // PrevIDPre = IDPre
-        c.mv(*SPrevIDPre, *SIDPre);
-
-        {
-            // Register allocation
-            ALLOCATE_SCALAR(SPrevWordStartID);
-            ALLOCATE_SCALAR(SNextEventBuffer);
-
-            c.mv(*SPrevWordStartID, *SCurrentWordStartID);
-            c.addi(*SCurrentWordStartID, *SIDPre, -1);
-
-            c.mv(*SNextEventBuffer, *eventBufferReg);
-                
-            c.L(nextEventWord);
-
-            c.mv(*SIDPre, *SCurrentWordStartID);
-            c.mv(*SCurrentWordStartID, *SPrevWordStartID);
-            c.mv(*eventBufferReg, *SNextEventBuffer);
-
-            c.L(tail);
-
-            // If CurrentEventWord != 0, goto wordLoop
-            c.bne(*SCurrentEventWord, Reg::X0, wordLoop);
-                
-            c.addi(*SNextEventBuffer, *eventBufferReg, 4);
-            c.lw(*SCurrentEventWord, *eventBufferReg);
-            c.addi(*SPrevWordStartID, *SCurrentWordStartID, 32);
-                
-            // If nextEventWord < eventWordEnd i.e. there is a next goto nextEventWord
-            c.bgeu(*eventBufferEndReg, *SNextEventBuffer, nextEventWord);
-        }
-            
-        // Loop through all but last row
-        for(size_t r = 0; r < (rowGenerators.size() - 1); r++) {
-            const bool evenRow = ((r % 2) == 0);
-            {
-                // Start DMA write into correct buffer
-                auto fetchRowBuffer = evenRow ? SRowBufferB : SRowBufferA;
-                auto fetchWeightBuffer = rowGenerators[r + 1]->loadWeightBuffer(c, SPrevIDPre);
-
-                // Start DMA write into RowBufferA
-                AssemblerUtils::generateDMAWaitForWriteComplete(c, scalarRegisterAllocator);
-                AssemblerUtils::generateDMAStartWrite(c, *fetchRowBuffer, *fetchWeightBuffer, 
-                                                    *rowGenerators[r + 1]->getStrideReg());
-            }
-
-            // Generate code to process row in other buffer
-            {
-                ALLOCATE_SCALAR(SRowBuffer);
-                c.mv(*SRowBuffer, evenRow ? *SRowBufferA : *SRowBufferB);
-                rowGenerators[r]->generateRow(c, SRowBuffer);
-            }
-
-        }
-
-        // Generate code to process final row
-        AssemblerUtils::generateDMAWaitForWriteComplete(c, scalarRegisterAllocator);
-        rowGenerators.back()->generateRow(c, evenNumRows ? SRowBufferB : SRowBufferA);
-
-    }
-
-    c.L(end);
 }
-*/
+//------------------------------------------------------------------------
+void Downsample2DEventPropagationProcess::generateArchetypeCode(const Frontend::MergedProcess &mergedProcess, const Runtime &runtime, 
+                                                                const KernelImplementation&, MergedFields &mergedFields, 
+                                                                Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg, 
+                                                                Assembler::ScalarRegisterPtr preIndReg, std::optional<uint32_t>, 
+                                                                Assembler::CodeGenerator &processCodeGenerator, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
+                                                                Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
+{
+    // **TODO** handle splitting 
+    assert(runtime.getNumDevices() == 1);
+
+    // Make some friendlier-named references
+    auto &c = processCodeGenerator;
+
+    // Get offset of target
+    const uint32_t targetFieldOffset = mergedFields.addField<DelayEventPropagationProcess>(
+        [](const Frontend::DeviceBase &d, auto p)
+        { 
+            return d.getArray(p->getTarget().getUnderlying()); 
+        });
+
+    // Load weight
+    const auto VWeight = addVectorConstant<Downsample2DEventPropagationProcess>(
+        mergedProcess, mergedFields, runtime.getNumDevices(), fieldBaseReg, c,
+        scalarRegisterAllocator, vectorRegisterAllocator,
+        [](size_t, auto p) -> int32_t
+        {
+            return getVectorLiteralValue(p->getTarget().getUnderlying()->getType(),
+                                         p->getWeight());
+        });
+
+    // 
+    auto targetYStride = addScalarValue<Downsample2DEventPropagationProcess>(
+        0, mergedProcess, runtime.getNumDevices(), mergedFields,
+        fieldBaseReg, c, scalarRegisterAllocator, 
+        [&runtime](size_t d, auto p)
+        { 
+            // Get stride and shape of target
+            /*auto [shape, strides] = runtime.getDeviceArrayShapeStrides(p->getTarget().getUnderlying(), d);
+
+            // Multiply this axis's stride by it's shape and pad to a multiple of 32 elements
+            return static_cast<uint32_t>(
+                ::Common::Utils::ceilDivide(strides.at(topAxis) * shape.at(topAxis), 64) * 32);*/
+            return 0;
+        });
+    
+    // Spike ID expected to have | Polarity | X | Y |
+
+    // Calculate shift required to scale coordinates and mask 
+    const size_t coordScaleShift = m_NumInputCoordBits - m_NumTargetCoordBits;
+    const uint32_t outputCoordMask =  (1 << m_NumTargetCoordBits) - 1;
+    
+    ALLOCATE_SCALAR(SIndex);
+
+    {
+        ALLOCATE_SCALAR(SX);
+        ALLOCATE_SCALAR(SY);
+
+        // Extract X coordinate
+        c.srli(*SY, *preIndReg, coordScaleShift);
+        c.andi(*SY, *SY, outputCoordMask);
+   
+        // Extract X coordinate
+        c.srli(*SX, *preIndReg, m_NumInputCoordBits + coordScaleShift);
+        c.andi(*SX, *SX, outputCoordMask);
+
+        // Calculate index into post
+        c.mul(*SIndex, *std::get<Assembler::ScalarRegisterPtr>(targetYStride), *SY);
+        c.add(*SIndex, *SIndex, *SX);
+    }
+
+    {
+        ALLOCATE_SCALAR(STargetBuffer);
+        ALLOCATE_SCALAR(STargetVectorAddress);
+        ALLOCATE_SCALAR(SMask);
+        ALLOCATE_VECTOR(VTarget);
+        ALLOCATE_VECTOR(VTargetNew);
+
+        // Load target address
+        c.lw(*STargetBuffer, *fieldBaseReg, targetFieldOffset);
+
+        // Build vector address and load target
+        c.andi(*STargetVectorAddress, *SIndex, -32);
+        c.sh1add(*STargetBuffer, *STargetVectorAddress, *STargetBuffer);
+        c.vloadv(*VTarget, *STargetBuffer);
+
+        // Build mask
+        c.li(*SMask, 1);
+        c.sll(*SMask, *SMask, *SIndex);
+
+        // VTargetNew = VTarget + VWeight
+        c.vadd(*VTargetNew, *VTarget, *VWeight);
+
+        // VTarget = SMask ? VTargetNew : VTarget
+        c.vsel(*VTarget, *SMask, *VTargetNew);
+
+        // Store updated target current
+        c.vstore(*VTarget, *STargetBuffer);
+    }
+}
+//----------------------------------------------------------------------------
+std::tuple<double, size_t> Downsample2DEventPropagationProcess::getScaleFactor() const
+{
+    // If target is flattened
+    if (getTarget().getShape().size() == 1) {
+        // Get side-length of target
+        const double side = std::sqrt(getTarget().getShape()[0]);
+        if(side != std::floor(side)) {
+            throw std::runtime_error("Downsample 2D event propagation process requires target variable with a square shape");
+        }
+
+        return std::make_tuple(getInputEventSource()->getShape()[0] / side, static_cast<size_t>(side));
+    }
+    // If target is 2D
+    else if (getTarget().getShape().size() == 2) {
+        // Check it's square and 
+        if (getTarget().getShape()[0] != getTarget().getShape()[1]) {
+            throw std::runtime_error("Downsample 2D event propagation process requires target variable with a square shape");
+        }
+
+        return std::make_tuple(getInputEventSource()->getShape()[0] / getTarget().getShape()[0],
+                               getTarget().getShape()[0]);
+    }
+    else {
+        throw std::runtime_error("Downsample 2D event propagation process requires target variable with a 2D or 1D flattened shape");
+    }
+}
 
 //----------------------------------------------------------------------------
 // FeNN::Backend::RNGInitProcess
@@ -2478,9 +2290,9 @@ void DendriticDelayUpdateProcess::updateCompatibleMemSpace(std::shared_ptr<const
 //------------------------------------------------------------------------ 
 std::vector<Compiler::RegisterPtr> DendriticDelayUpdateProcess::generateArchetypeCode(
     const Frontend::MergedProcess &mergedProcess, const Runtime &runtime,
-    const KernelImplementation &kernel, MergedFields &mergedFields,
+    const KernelImplementation&, MergedFields &mergedFields,
     Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg,
-    std::optional<uint32_t> numTimesteps, Assembler::CodeGenerator &processCodeGenerator,
+    std::optional<uint32_t>, Assembler::CodeGenerator &processCodeGenerator,
     Assembler::CodeGenerator &sharedCodeGenerator, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
     Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
@@ -2532,11 +2344,8 @@ std::vector<Compiler::RegisterPtr> DendriticDelayUpdateProcess::generateArchetyp
         // Calculate time modulo delay buffer size
         c.andi(*STmp, *timeReg, getNumDelayBufferTimesteps() - 1);
 
-        // Double to get starting offset in bytes
-        c.slli(*STmp, *STmp, 1);
-
-        // Add offset to LLM address and broadcast
-        c.add(*STmp2, *STmp2, *STmp);
+        // Add doubled offset to LLM address and broadcast
+        c.sh1add(*STmp2, *STmp, *STmp2);
         c.vfill(*VDelayBuffer, *STmp2);
     }
 

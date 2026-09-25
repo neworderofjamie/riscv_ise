@@ -34,7 +34,7 @@ size_t getNumNeuronIDBits(const std::vector<size_t> &shape, bool record)
     // Sum up the number of bits required to represent 
     auto shapeBegin = record ? (shape.cbegin() + 1) : shape.cbegin();
     return std::accumulate(shapeBegin, shape.cend(), size_t{0}, 
-                           [](size_t acc, size_t v){ return acc + (32 - ::Common::Utils::clz(v - 1)); });
+                           [](size_t acc, size_t v){ return acc + ::Common::Utils::getNumBits(v); });
 }
 }
 

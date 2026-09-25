@@ -136,7 +136,7 @@ KernelImplementation::KernelImplementation(const Frontend::ProcessGroupVector &p
                                           : std::max(nextID, *allocatedPopulationIDs.rbegin()));
 
         // Count bits required to represent largest population index
-        m_NumPopulationIDBits = 32 - ::Common::Utils::clz(maxPopulationID - 1);
+        m_NumPopulationIDBits = ::Common::Utils::getNumBits(maxPopulationID);
         LOGI_FENN_BACKEND << "Neuron IDs require " << m_NumNeuronIDBits << " and population IDs require " << m_NumPopulationIDBits << " bits";
         if ((m_NumNeuronIDBits + m_NumPopulationIDBits) > 24) {
             throw std::runtime_error("Insufficient event address space");

@@ -391,7 +391,7 @@ class FENN_BACKEND_EXPORT Downsample2DEventPropagationProcess : public Frontend:
 {
 public:
     Downsample2DEventPropagationProcess(Private, std::shared_ptr<const Frontend::EventSource> inputEventSource, 
-                                        Frontend::Sliced<Frontend::Variable> target, const std::string &name);
+                                        Frontend::Sliced<Frontend::Variable> target, double weight, const std::string &name);
 
     //------------------------------------------------------------------------
     // Process virtuals
@@ -432,10 +432,29 @@ public:
     // Static API
     //------------------------------------------------------------------------
     static std::shared_ptr<Downsample2DEventPropagationProcess> create(std::shared_ptr<const Frontend::EventSource> inputEventSource, 
-                                                                       Frontend::Sliced<Frontend::Variable> target, const std::string &name = "")
+                                                                       Frontend::Sliced<Frontend::Variable> target, double weight,
+                                                                       const std::string &name = "")
     {
-        return std::make_shared<Downsample2DEventPropagationProcess>(Private(), inputEventSource, target, name);
+        return std::make_shared<Downsample2DEventPropagationProcess>(Private(), inputEventSource, 
+                                                                     target, weight, name);
     }
+
+    double getWeight() const{ return m_Weight; }
+
+private:
+    //------------------------------------------------------------------------
+    // Private methods
+    //------------------------------------------------------------------------
+    std::tuple<double, size_t> getScaleFactor() const;
+
+    //------------------------------------------------------------------------
+    // Members
+    //------------------------------------------------------------------------
+    size_t m_NumInputCoordBits;
+
+    size_t m_NumTargetCoordBits;
+
+    double m_Weight;
 };
 
 

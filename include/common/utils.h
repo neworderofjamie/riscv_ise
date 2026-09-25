@@ -36,26 +36,6 @@ namespace Common::Utils
 template<class... Ts> struct Overload : Ts... { using Ts::operator()...; };
 template<class... Ts> Overload(Ts...) -> Overload<Ts...>; // line not needed in
 
-//! Divide two integers, rounding up i.e. effectively taking ceil
-template<typename A, typename B, typename = std::enable_if_t<std::is_integral_v<A>&& std::is_integral_v<B>>>
-constexpr inline auto ceilDivide(A numerator, B denominator)
-{
-    return ((numerator + denominator - 1) / denominator);
-}
-
-//! Pad an integer to a multiple of another
-template<typename A, typename B, typename = std::enable_if_t<std::is_integral_v<A>&& std::is_integral_v<B>>>
-constexpr inline auto padSize(A size, B blockSize)
-{
-    return ceilDivide(size, blockSize) * blockSize;
-}
-
-template<typename A, typename = std::enable_if_t<std::is_integral_v<A>>>
-constexpr inline bool isPOT(A value)
-{
-    return (value & (value - 1)) == 0;
-}
-
 inline int clz(uint32_t value)
 {
 #ifdef _WIN32
@@ -104,6 +84,32 @@ inline void breakPoint()
 #else
     __builtin_trap();
 #endif
+}
+
+
+//! Divide two integers, rounding up i.e. effectively taking ceil
+template<typename A, typename B, typename = std::enable_if_t<std::is_integral_v<A>&& std::is_integral_v<B>>>
+constexpr inline auto ceilDivide(A numerator, B denominator)
+{
+    return ((numerator + denominator - 1) / denominator);
+}
+
+//! Pad an integer to a multiple of another
+template<typename A, typename B, typename = std::enable_if_t<std::is_integral_v<A>&& std::is_integral_v<B>>>
+constexpr inline auto padSize(A size, B blockSize)
+{
+    return ceilDivide(size, blockSize) * blockSize;
+}
+
+template<typename A, typename = std::enable_if_t<std::is_integral_v<A>>>
+constexpr inline bool isPOT(A value)
+{
+    return (value & (value - 1)) == 0;
+}
+
+inline int getNumBits(uint32_t value)
+{
+    return 32 - clz(value - 1);
 }
 
 inline int16_t convertFixedPoint(double x, uint32_t fixedPoint)
