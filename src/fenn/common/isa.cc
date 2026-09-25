@@ -152,11 +152,6 @@ OpImmType getOpImmType(int32_t imm, uint32_t funct3)
 //----------------------------------------------------------------------------
 OpType getOpType(int32_t funct7, uint32_t funct3)
 {
-    // If any bits are set in funct7 aside from the one used for distinguishing ops
-    if (funct7 & ~0x21) {
-        return OpType::INVALID;
-    }
-    
     // M-extension
     if(funct7 == 0x1) {
         if (funct3 == 0) {
@@ -189,6 +184,11 @@ OpType getOpType(int32_t funct7, uint32_t funct3)
     }
     // Standard
     else {
+        // If any bits are set in funct7 aside from the one used for distinguishing ops
+        if (funct7 & ~0x21) {
+            return OpType::INVALID;
+        }
+    
         switch(funct3) {
         case 0:
             return (funct7 == 0) ? OpType::ADD : OpType::SUB;
