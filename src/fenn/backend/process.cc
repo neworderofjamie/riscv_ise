@@ -1759,9 +1759,26 @@ Downsample2DEventPropagationProcess::Downsample2DEventPropagationProcess(Private
         throw std::runtime_error("Downsample 2D event propagation process requires source events with a 2D shape");
     }  
 
-    if (getTarget().getShape().size() != 2) {
-        throw std::runtime_error("Downsample 2D event propagation process requires target variable with a 2D shape");
-    } 
+    if (getInputEventSource()->getShape()[0] != getInputEventSource()->getShape()[1]) {
+        throw std::runtime_error("Downsample 2D event propagation process requires source events with a square shape");
+    }
+
+    // If target is flattened
+    if (getTarget().getShape().size() == 1) {
+        // **TODO** scale factor
+    }
+    // If target is 2D
+    else if (getTarget().getShape().size() == 2) {
+        // Check it's square and 
+        if (getTarget().getShape()[0] != getTarget().getShape()[1]) {
+            throw std::runtime_error("Downsample 2D event propagation process requires target variable with a square shape");
+        }
+
+        // **TODO** scale factor
+    }
+    else {
+        throw std::runtime_error("Downsample 2D event propagation process requires target variable with a 2D or 1D flattened shape");
+    }
 }
 //------------------------------------------------------------------------
 void Downsample2DEventPropagationProcess::updateMaxDMABufferSize(size_t&) const
