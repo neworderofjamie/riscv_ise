@@ -346,7 +346,7 @@ RuntimeSim::RuntimeSim(const std::vector<std::shared_ptr<const Frontend::Kernel>
                        Compiler::RoundingMode neuronUpdateRoundingMode, size_t dmaBufferSize,
                        const std::vector<uint32_t> &spikeInjectData)
 :   Runtime(kernels, numDevices, true, useDRAMForWeights, keepParamsInRegisters, neuronUpdateRoundingMode, dmaBufferSize),
-    m_SharedBus(numDevices), m_SpikeInjectData(spikeInjectData)
+    m_SharedBus(spikeInjectData.empty() ? numDevices : (numDevices + 1)), m_SpikeInjectData(spikeInjectData)
 {
 }
 //------------------------------------------------------------------------
@@ -365,7 +365,7 @@ std::unique_ptr<Frontend::DeviceBase> RuntimeSim::createDevice(size_t deviceInde
 //------------------------------------------------------------------------
 void RuntimeSim::reset()
 {
-    m_SharedBus.reset(getNumDevices());
+    m_SharedBus.reset(m_SpikeInjectData.empty() ? getNumDevices() : (getNumDevices() + 1));
 }
 //------------------------------------------------------------------------
 void RuntimeSim::allocatePostamble()
