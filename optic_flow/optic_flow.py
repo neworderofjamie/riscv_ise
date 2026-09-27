@@ -284,3 +284,19 @@ if args.disassemble:
 
 # Allocate memory for model
 runtime.allocate()
+
+# Copy connectivity
+copy_and_push(macro_pixel_detector_exc_conn[0], macro_pixel_detector_exc_pop.weight, runtime)
+copy_and_push(macro_pixel_detector_inh_conn[0], macro_pixel_detector_inh_pop.weight, runtime)
+
+
+# Initialise membrane voltages
+# **TODO** use init kernel
+zero_and_push(macro_pixel_pop.v, runtime)
+zero_and_push(macro_pixel_pop.i, runtime)
+zero_and_push(detector_pop.v, runtime)
+
+
+# Initialise
+print("Initialising")
+runtime.run(init_kernel)
