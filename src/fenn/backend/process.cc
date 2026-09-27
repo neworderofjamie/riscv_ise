@@ -1904,7 +1904,7 @@ void Downsample2DEventPropagationProcess::generateArchetypeCode(const Frontend::
     auto &c = processCodeGenerator;
 
     // Get offset of target
-    const uint32_t targetFieldOffset = mergedFields.addField<DelayEventPropagationProcess>(
+    const uint32_t targetFieldOffset = mergedFields.addField<Downsample2DEventPropagationProcess>(
         [](const Frontend::DeviceBase &d, auto p)
         { 
             return d.getArray(p->getTarget().getUnderlying()); 
