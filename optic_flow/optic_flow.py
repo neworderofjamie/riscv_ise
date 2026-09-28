@@ -122,6 +122,10 @@ MACRO_PIXEL_DETECTOR_INH_WEIGHT = int(round(-0.5 * 2**MACRO_PIXEL_DETECTOR_WEIGH
 # Number of timesteps to run between updating visualisation
 NUM_TIMESTEPS_PER_FRAME = 33
 
+OUTPUT_SCALE = 12
+FLOW_PERSISTENCE = 0.995
+OUTPUT_VECTOR_SCALE = 2.0
+
 # Loop through macro pixels
 macro_pixel_detector_exc_inds = []
 for yi in range(MACRO_PIXEL_SIZE):
@@ -263,11 +267,15 @@ init_kernel = backend.SimpleKernel([i_zero_processes])
 sim_kernel = backend.SimulationLoopKernel(
     NUM_TIMESTEPS_PER_FRAME, [synapse_update_processes, neuron_update_processes],
     [], [])
-    
+
+# Load spike data
+spike_data = np.fromfile("courtyard.bin", dtype=np.uint32)
+
 # Create runtime
 runtime_params = {}
 runtime = (backend.RuntimeHW([init_kernel, sim_kernel], 1, **runtime_params) if args.device 
-           else backend.RuntimeSim([init_kernel, sim_kernel], 1, **runtime_params))
+           else backend.RuntimeSim([init_kernel, sim_kernel], 1, 
+                                   spike_inject_data=spike_data, **runtime_params))
 
 
 # Disassemble if required
@@ -296,7 +304,51 @@ zero_and_push(macro_pixel_pop.v, runtime)
 zero_and_push(macro_pixel_pop.i, runtime)
 zero_and_push(detector_pop.v, runtime)
 
+zero_and_push(detector_pop.spike_sink, runtime)
 
 # Initialise
 print("Initialising")
 runtime.run(init_kernel)
+
+cv2.namedWindow("Output")
+
+output = np.zeros((DETECTOR_SIZE, DETECTOR_SIZE, 2))
+output_image = np.zeros((DETECTOR_SIZE * OUTPUT_SCALE, DETECTOR_SIZE * OUTPUT_SCALE, 3),
+                        dtype=np.uint8)
+
+output_start_x, output_start_y = np.meshgrid(np.arange(DETECTOR_SIZE), np.arange(DETECTOR_SIZE))
+output_start_x *= OUTPUT_SCALE
+output_start_y *= OUTPUT_SCALE
+
+# **TEMP** run 10 frames
+for i in range(10):
+    # Simulate
+    runtime.run(sim_kernel)
+
+    # Get detector spikes
+    # **TODO** asynchronous loop
+    detector_spikes = pull_spikes(NUM_TIMESTEPS_PER_FRAME + 1, detector_pop.spike_sink, runtime)
+    detector_spike_ids = detector_spikes[0][1]
+    print(len(detector_spike_ids))
+    # Unravel to get x, y and detector
+    detector_spike_ids = np.unravel_index(detector_spike_ids, (DETECTOR_SIZE, DETECTOR_SIZE, len(Detector)))
+
+    # Split detector channel into horizontal/vertical and polarity
+    output_channel = (detector_spike_ids[2] & 0x2)
+    output_polarity = (2 * (detector_spike_ids[2] & 0x1)) - 1
+
+    # Make vectorised update
+    output[detector_spike_ids[0], detector_spike_ids[1], output_channel] += output_polarity
+    output *= FLOW_PERSISTENCE
+
+    # Scale output to render size
+    scaled_output = np.round(output * OUTPUT_VECTOR_SCALE).astype(int)
+
+    # Draw optic flow arrows
+    for i in range(DETECTOR_SIZE):
+        for j in range(DETECTOR_SIZE):
+            cv2.line(output_image, (output_start_x[i,j], output_start_y[i,j]),
+                     (output_start_x[i,j] + scaled_output[i,j,0], output_start_y[i,j] + scaled_output[i, j, 1]),
+                     (255, 255, 255))
+    cv2.imshow("Output", output_image)
+    cv2.waitKey(1)
