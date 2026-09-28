@@ -374,7 +374,7 @@ void RuntimeSim::allocatePostamble()
     if(!m_SpikeInjectData.empty()) {
         LOGI_FENN_BACKEND << "Launching spike injection thread";
         m_SpikeInjectThread = std::thread(&RuntimeSim::spikeInjectThread, this);
-        ::Common::Utils::setThreadName(m_SpikeInjectThread, "Spike injector thread");
+        ::Common::Utils::setThreadName(m_SpikeInjectThread, "SpikeInject");
     }
 
     // Superclass
@@ -384,7 +384,7 @@ void RuntimeSim::allocatePostamble()
 void RuntimeSim::spikeInjectThread()
 {
     // Create event injector
-    ISE::EventInjectorSim eventInjector(m_SharedBus, m_SpikeInjectData, 0);
+    ISE::EventInjectorSim eventInjector(m_SharedBus, m_SpikeInjectData, getNumDevices());
 
     // Keep ticking event injector until it runs out of data
     while(eventInjector.tick());
