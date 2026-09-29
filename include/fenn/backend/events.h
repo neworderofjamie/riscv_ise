@@ -134,11 +134,13 @@ public:
 class FENN_BACKEND_EXPORT EventSourceBuffer : public Frontend::EventSourceBuffer, public EventSourceImplementation
 {
 public:
-    using Frontend::EventSourceBuffer::EventSourceBuffer;
+    EventSourceBuffer(Private, const std::vector<size_t> &shape, size_t maxEvents, const std::string &name);
 
     //------------------------------------------------------------------------
     // State virtuals
     //------------------------------------------------------------------------
+    virtual void updateMergeHash(boost::uuids::detail::sha1 &hash) const override final;
+
     virtual std::unique_ptr<Frontend::ArrayBase> createArray(std::optional<size_t> splitDimension, uint32_t indexDimensions, size_t numDevices,
                                                              const Frontend::Model &model, Frontend::DeviceBase &device) const override final;
 
@@ -174,6 +176,11 @@ private:
                                     const std::unordered_map<std::shared_ptr<const Frontend::EventSource>, uint32_t> &eventSourceAddresses, 
                                     Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                     uint32_t &scalarRegisterMask) const;
+
+    //------------------------------------------------------------------------
+    // Members
+    //------------------------------------------------------------------------
+    bool m_LongEvents;
 };
 
 //----------------------------------------------------------------------------

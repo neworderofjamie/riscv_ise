@@ -119,25 +119,40 @@ void EventSinkImplementation::genBitArrayIncrement(Assembler::CodeGenerator &c, 
 //----------------------------------------------------------------------------
 // FeNN::Backend::EventSourceBuffer
 //----------------------------------------------------------------------------
+EventSourceBuffer::EventSourceBuffer(Private, const std::vector<size_t> &shape, size_t maxEvents, const std::string &name)
+:   Frontend::EventSourceBuffer(Private(), shape, maxEvents, name),
+    m_LongEvents(std::accumulate(shape.cbegin(), shape.cend(), 1, std::multiplies<size_t>()) >= 32768)
+{
+    LOGI_FENN_BACKEND << "Event source buffer '" << getName() << "' uses " << (m_LongEvents : "long" : "short") << " events";
+}
+//----------------------------------------------------------------------------
+void EventSourceBuffer::updateMergeHash(boost::uuids::detail::sha1 &hash) const
+{
+    // Superclass
+    Frontend::EventSourceBuffer::updateMergeHash(hash);
+
+    // Event source buffers which use long format event cannot be merged with this which use short format
+    ::Common::Utils::updateHash(m_LongEvents, hash);
+}
+//----------------------------------------------------------------------------
 std::unique_ptr<Frontend::ArrayBase> EventSourceBuffer::createArray(std::optional<size_t> splitDimension, uint32_t indexDimensions,
                                                                     size_t numDevices, const Frontend::Model &model, Frontend::DeviceBase &device) const
 {
+    using namespace CompilerFrontend::Type;
+
     // Get array shape and strides and create BRAM array with this shape and stride
     auto [shape, strides] = getArrayShapeStride(splitDimension, indexDimensions, device.getDeviceIndex(), numDevices, model);
-    return static_cast<DeviceFeNN&>(device).createBRAMArray(CompilerFrontend::Type::Uint16, shape, strides);
+    return static_cast<DeviceFeNN&>(device).createBRAMArray(m_LongEvents ? Uint32 : Uint16, shape, strides);
 }
 //----------------------------------------------------------------------------
 Frontend::State::ShapeStride EventSourceBuffer::getArrayShapeStride(std::optional<size_t>, uint32_t,
-                                                                    size_t, size_t, const Frontend::Model&) const{
-    // Check we have enough bits to encode events from all device
-    // **NOTE** because event sources are never sliced this is correct
-    if (std::accumulate(getShape().cbegin(), getShape().cend(), 1, std::multiplies<size_t>()) >= 32768) {
-        throw std::runtime_error("EventSourceBuffer can only deliver events from less than 32768 sources per-device");
-    }
+                                                                    size_t, size_t, const Frontend::Model&) const
+{
+    using namespace CompilerFrontend::Type;
 
-    // Array shape and strides are irrespective of split - an array of maxEvents uint16s are instantiated on all devices
+    // Array shape and strides are irrespective of split - an array of maxEvents uint32 or uint16 are instantiated on all devices
     return std::make_tuple(std::vector<size_t>{getMaxEvents()}, 
-                           std::vector<size_t>{CompilerFrontend::Type::Uint16.getSize()});
+                           std::vector<size_t>{(m_LongEvents ? Uint32.getSize() : Uint16.getSize())});
 }
 //----------------------------------------------------------------------------
 uint32_t EventSourceBuffer::generateEventLoop(const Frontend::Merged<Frontend::EventSource> &mergedEventSource, const Runtime&, 
@@ -227,70 +242,141 @@ void EventSourceBuffer::generateArchetypeEventLoop(MergedFields &mergedFields,
         c.add(*SBuffer, *SBufferStart, *STmp);
     }
 
-    // Load first half-word from buffer
-    // **NOTE** add 4 to skip 4 bytes holding offset
-    c.lhu(*preIndReg, *SBuffer, 4);
+    // If events should be 32 bit
+    // **TODO** refactor so structure is common
+    if (m_LongEvents) {
+        // Load first word from buffer
+        // **NOTE** add 4 to skip 4 bytes holding offset
+        c.lw(*preIndReg, *SBuffer, 4);
 
-    // Extract time from lower 31 bits of event
-    // **NOTE** we assume this is a time
-    {
-        ALLOCATE_SCALAR(STmp);
-        c.li(*STmp, 0x7FFF);
-        c.and_(*preIndReg, *preIndReg, *STmp);
-    }
-
-    // If word doesn't match current timestep, goto end
-    auto noSpikes = Assembler::createLabel();
-    c.bne(*preIndReg, *timeReg, noSpikes);
-
-    {
-        // Build time mask
-        ALLOCATE_SCALAR_AND_MASK(STimeMask);
-        c.li(*STimeMask, 1 << 15);
-        
-        // Advance buffer pointer
-        c.addi(*SBuffer, *SBuffer, 2);
-
-        auto spikeLoopStart = c.L();
-        auto spikeLoopEnd = Assembler::createLabel();
-        {
-            // Load next word from buffer and increment pointer
-            // **NOTE** add 4 to skip 4 bytes holding offset
-            c.lhu(*preIndReg, *SBuffer, 4);
-            c.addi(*SBuffer, *SBuffer, 2);
-
-            // If we have hit the next timestamp, goto spikeLoopEnd
-            {
-                ALLOCATE_SCALAR(STmp);
-                c.and_(*STmp, *preIndReg, *STimeMask);
-                c.bne(*STmp, Common::Reg::X0, spikeLoopEnd);
-            }
-
-            // Jump to event source handler, storing return address in register provides
-            c.jalr(*spikeReturnReg, *SEventSourceHandler);
-
-            // Goto spike loop start
-            c.j_(spikeLoopStart);
-        }
-
-        c.L(spikeLoopEnd);
-
+        // Extract time from lower 31 bits of event
+        // **NOTE** we assume this is a time
         {
             ALLOCATE_SCALAR(STmp);
-            
-            // Subtract 2 from buffer to counteract
-            // **NOTE** this is better than adding 2 AFTER branch as it hides stall EVERY spike
-            c.addi(*SBuffer, *SBuffer, -2);
-
-            // Get updated offset
-            c.sub(*STmp, *SBuffer, *SBufferStart);
-
-            // Store it back to start of buffer
-            c.sw(*STmp, *SBufferStart);
+            c.li(*STmp, 0x7FFFFFFF);
+            c.and_(*preIndReg, *preIndReg, *STmp);
         }
-    }
 
-    c.L(noSpikes);
+        // If word doesn't match current timestep, goto end
+        auto noSpikes = Assembler::createLabel();
+        c.bne(*preIndReg, *timeReg, noSpikes);
+
+        {
+            // Build time mask
+            ALLOCATE_SCALAR_AND_MASK(STimeMask);
+            c.li(*STimeMask, 1 << 31);
+
+            // Advance buffer pointer
+            c.addi(*SBuffer, *SBuffer, 4);
+
+            auto spikeLoopStart = c.L();
+            auto spikeLoopEnd = Assembler::createLabel();
+            {
+                // Load next word from buffer and increment pointer
+                // **NOTE** add 4 to skip 4 bytes holding offset
+                c.lw(*preIndReg, *SBuffer, 4);
+                c.addi(*SBuffer, *SBuffer, 4);
+
+                // If we have hit the next timestamp, goto spikeLoopEnd
+                {
+                    ALLOCATE_SCALAR(STmp);
+                    c.and_(*STmp, *preIndReg, *STimeMask);
+                    c.bne(*STmp, Common::Reg::X0, spikeLoopEnd);
+                }
+
+                // Jump to event source handler, storing return address in register provides
+                c.jalr(*spikeReturnReg, *SEventSourceHandler);
+
+                // Goto spike loop start
+                c.j_(spikeLoopStart);
+            }
+
+            c.L(spikeLoopEnd);
+
+            {
+                ALLOCATE_SCALAR(STmp);
+
+                // Subtract 4 from buffer to counteract
+                // **NOTE** this is better than adding 4 AFTER branch as it hides stall EVERY spike
+                c.addi(*SBuffer, *SBuffer, -4);
+
+                // Get updated offset
+                c.sub(*STmp, *SBuffer, *SBufferStart);
+
+                // Store it back to start of buffer
+                c.sw(*STmp, *SBufferStart);
+            }
+        }
+
+        c.L(noSpikes);
+    }
+    // Otherwise, if 16 bit is sufficient
+    else {
+        // Load first half-word from buffer
+        // **NOTE** add 4 to skip 4 bytes holding offset
+        c.lhu(*preIndReg, *SBuffer, 4);
+
+        // Extract time from lower 15 bits of event
+        // **NOTE** we assume this is a time
+        {
+            ALLOCATE_SCALAR(STmp);
+            c.li(*STmp, 0x7FFF);
+            c.and_(*preIndReg, *preIndReg, *STmp);
+        }
+
+        // If word doesn't match current timestep, goto end
+        auto noSpikes = Assembler::createLabel();
+        c.bne(*preIndReg, *timeReg, noSpikes);
+
+        {
+            // Build time mask
+            ALLOCATE_SCALAR_AND_MASK(STimeMask);
+            c.li(*STimeMask, 1 << 15);
+        
+            // Advance buffer pointer
+            c.addi(*SBuffer, *SBuffer, 2);
+
+            auto spikeLoopStart = c.L();
+            auto spikeLoopEnd = Assembler::createLabel();
+            {
+                // Load next word from buffer and increment pointer
+                // **NOTE** add 4 to skip 4 bytes holding offset
+                c.lhu(*preIndReg, *SBuffer, 4);
+                c.addi(*SBuffer, *SBuffer, 2);
+
+                // If we have hit the next timestamp, goto spikeLoopEnd
+                {
+                    ALLOCATE_SCALAR(STmp);
+                    c.and_(*STmp, *preIndReg, *STimeMask);
+                    c.bne(*STmp, Common::Reg::X0, spikeLoopEnd);
+                }
+
+                // Jump to event source handler, storing return address in register provides
+                c.jalr(*spikeReturnReg, *SEventSourceHandler);
+
+                // Goto spike loop start
+                c.j_(spikeLoopStart);
+            }
+
+            c.L(spikeLoopEnd);
+
+            {
+                ALLOCATE_SCALAR(STmp);
+            
+                // Subtract 2 from buffer to counteract
+                // **NOTE** this is better than adding 2 AFTER branch as it hides stall EVERY spike
+                c.addi(*SBuffer, *SBuffer, -2);
+
+                // Get updated offset
+                c.sub(*STmp, *SBuffer, *SBufferStart);
+
+                // Store it back to start of buffer
+                c.sw(*STmp, *SBufferStart);
+            }
+        }
+
+        c.L(noSpikes);
+    }
 }
 
 //----------------------------------------------------------------------------
