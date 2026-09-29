@@ -7,8 +7,8 @@ from enum import IntEnum
 from pyfenn.models import Downsample2D, SparseLinear, Memset
 from pyfenn.utils import PythonLogAppender
 
-from pyfenn.utils import (build_sparse_connectivity, ceil_divide,
-                          copy_and_push, generate_fixed_prob, pull_spikes,
+from pyfenn.utils import (build_sparse_connectivity, build_spike_array,
+                          copy_and_push, get_views, pull_spikes,
                           read_perf_counter, zero_and_push)
 
 # Enumeration of the detectors in the output layer of model
@@ -225,8 +225,45 @@ args = parser.parse_args()
 log_appender = backend.ConsoleAppender()
 backend.init_logging(log_appender, backend.PlogSeverity.DEBUG)
 
-# Event camera
-event_camera = backend.GenX320()
+# If we are running on device
+if args.device:
+    event_camera = backend.GenX320()
+    event_input = event_camera.source
+# Otherwise
+else:
+    # Load raw courtyard data
+    # **NOTE** prophesee compressed hdf5 load is incredible annoying to setup!
+    courtyard_data = np.load("courtyard.npy")
+
+    # First couple of ms contain crap so throw away
+    lose_early_mask = (courtyard_data["t"] > 1000)
+    courtyard_data = courtyard_data[lose_early_mask]
+
+    # Only keep on events
+    courtyard_data = courtyard_data[courtyard_data["p"]]
+    
+    # Determine which frame each event is destined for
+    event_frame = courtyard_data["t"] // (33 * 1000)
+
+    # Count events per-frame and use to split event data into frames
+    events_per_frame = np.bincount(event_frame)
+    events_per_frame = np.cumsum(events_per_frame)
+    timestep_events = np.split(courtyard_data, events_per_frame)
+
+    # **YUCK** truncate events
+    timestep_events = [e[:min(len(e), 20000)] for e in timestep_events]
+
+    # Turn each frame into a spike array
+    courtyard_frames = [build_spike_array(e["t"] // 1000, 
+                                          np.ravel_multi_index((e["y"], e["x"]), (320, 320)))
+                        for e in timestep_events]
+
+    # Count maximum events per frame and build event source buffer
+    max_events_per_frame = max(len(f) for f in courtyard_frames)
+    print(f"Max events per frame: {max_events_per_frame}")
+    event_input = backend.EventSourceBuffer((320, 320), max_events_per_frame, name="input_events")
+
+
 
 # Neurons
 macro_pixel_pop = CUBALIF(backend, (MACRO_PIXEL_SIZE * MACRO_PIXEL_SIZE,), 
@@ -237,7 +274,7 @@ detector_pop = CUBALIFIE(backend, (DETECTOR_SIZE * DETECTOR_SIZE * len(Detector)
                          v_thresh=10.0, num_timesteps=NUM_TIMESTEPS_PER_FRAME, name="Detector")
 
 # Synapses
-downsample_pop = Downsample2D(backend, event_camera.source, macro_pixel_pop.i, 1.0, name="EventCamMacroPixel")
+downsample_pop = Downsample2D(backend, event_input, macro_pixel_pop.i, 1.0, name="EventCamMacroPixel")
 macro_pixel_detector_exc_pop = SparseLinear(backend, macro_pixel_pop.out_spikes, 
                                             detector_pop.i_exc, weight_dtype="s14_1_sat_t", max_row_length=macro_pixel_detector_exc_conn[0].shape[1],
                                             num_sparse_connectivity_bits=num_sparse_connectivity_bits, 
@@ -268,14 +305,10 @@ sim_kernel = backend.SimulationLoopKernel(
     NUM_TIMESTEPS_PER_FRAME, [synapse_update_processes, neuron_update_processes],
     [], [])
 
-# Load spike data
-spike_data = np.fromfile("courtyard.bin", dtype=np.uint32)
-
 # Create runtime
 runtime_params = {}
 runtime = (backend.RuntimeHW([init_kernel, sim_kernel], 1, **runtime_params) if args.device 
-           else backend.RuntimeSim([init_kernel, sim_kernel], 1, 
-                                   spike_inject_data=spike_data, **runtime_params))
+           else backend.RuntimeSim([init_kernel, sim_kernel], 1, **runtime_params))
 
 
 # Disassemble if required
@@ -320,8 +353,16 @@ output_start_x, output_start_y = np.meshgrid(np.arange(DETECTOR_SIZE), np.arange
 output_start_x *= OUTPUT_SCALE
 output_start_y *= OUTPUT_SCALE
 
+assert not args.device
+
+input_spike_views = get_views(runtime, event_input)
+
 # **TEMP** run 10 frames
-for i in range(10):
+for f in courtyard_frames:
+    # Copy data to array host pointer
+    input_spike_views[0][:len(f)] = f
+    runtime.push_state_to_device(event_input)
+
     # Simulate
     runtime.run(sim_kernel)
 
