@@ -225,10 +225,10 @@ def generate_exp_lut_and_push(state, runtime: Runtime):
     runtime.push_state_to_device(state)
 
 def build_spike_array(timesteps, neuron_ids):
-    # Check timesteps and neuron ids can be 16-bit encoded
-    assert np.all(neuron_ids < (1 << 15))
-    assert np.all(timesteps < (1 << 15))
-
+    # Use short format if neuron ids and timesteps can be encoded in 15 bit
+    short_format = (np.all(neuron_ids < (1 << 15))
+                    and np.all(timesteps < (1 << 15)))
+    
     # Order by time
     order = np.argsort(timesteps)
     timesteps = timesteps[order]
@@ -239,25 +239,35 @@ def build_spike_array(timesteps, neuron_ids):
     timestep_spikes = np.split(neuron_ids, num_spikes_per_time)
     
     # Concatenate timestamps onto each non-empty group of neuron ids
-    timestep_spikes = [np.concatenate(((t | 1 << 15,), n))
+    time_bit = (1 << 15) if short_format else (1 << 31)
+    timestep_spikes = [np.concatenate(((t | time_bit,), n))
                        for t, n in enumerate(timestep_spikes)
                        if len(n) > 0]
 
     # Rejoin into single array
     timestep_spikes = np.concatenate(timestep_spikes)
 
-    # We need a minimum of a single padding value at the end of each 
-    # spike array and total length to be a multiple of 2
-    padded_length = pad(1 + len(timestep_spikes), 2)
-    
-    # Pad 
-    timestep_spikes = np.pad(timestep_spikes, 
-                             (2, padded_length - len(timestep_spikes)), 
-                             constant_values=(0, 0xFFFF))
+    if short_format:
+        # We need a minimum of a single padding value at 
+        # the end of each spike array and total length to be a
+        # multiple of 2 because offsets must be 4 byte aligned
+        padded_length = pad(1 + len(timestep_spikes), 2)
+        
+        # Pad with two halfwords at beginning to contain offset and padding at end
+        timestep_spikes = np.pad(timestep_spikes, 
+                                 (2, padded_length - len(timestep_spikes)), 
+                                 constant_values=(0, 0xFFFF))
 
-    # Convert to uint16 and return
-    return timestep_spikes.astype(np.uint16)
-
+        # Convert to uint16 and return
+        return timestep_spikes.astype(np.uint16)
+    else:
+        # Pad with single word at the beginning to contain offset and 
+        # single word at end to hold end time to prevent further iteration
+        timestep_spikes = np.pad(timestep_spikes, (1, 1), 
+                                 constant_values=(0, 0xFFFFFFFF))
+        
+        # Convert to uint32 and return
+        return timestep_spikes.astype(np.uint32)
 
 def convert_tonic_spikes(events: np.ndarray, ordering: Sequence[str],
                          shape: Tuple, time_scale=1.0 / 1000.0,
