@@ -123,7 +123,7 @@ EventSourceBuffer::EventSourceBuffer(Private, const std::vector<size_t> &shape, 
 :   Frontend::EventSourceBuffer(Private(), shape, maxEvents, name),
     m_LongEvents(std::accumulate(shape.cbegin(), shape.cend(), 1, std::multiplies<size_t>()) >= 32768)
 {
-    LOGI_FENN_BACKEND << "Event source buffer '" << getName() << "' uses " << (m_LongEvents : "long" : "short") << " events";
+    LOGI_FENN_BACKEND << "Event source buffer '" << getName() << "' uses " << (m_LongEvents ? "long" : "short") << " events";
 }
 //----------------------------------------------------------------------------
 void EventSourceBuffer::updateMergeHash(boost::uuids::detail::sha1 &hash) const
