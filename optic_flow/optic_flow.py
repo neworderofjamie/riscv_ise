@@ -257,11 +257,15 @@ else:
     # **YUCK** truncate events
     timestep_events = [e[:min(len(e), 20000)] for e in timestep_events]
 
+    print(timestep_events[0][:10])
+    
     # Turn each frame into a spike array
+    # **NOTE** we use POT shape to build flat spike indices
     courtyard_frames = [build_spike_array(e["t"] // 1000, 
-                                          np.ravel_multi_index((e["y"], e["x"]), (320, 320)))
+                                          np.ravel_multi_index((e["x"], e["y"]), (512, 512)))
                         for e in timestep_events]
-
+    
+    print(courtyard_frames[0][:10])
     # Count maximum events per frame and build event source buffer
     max_events_per_frame = max(len(f) for f in courtyard_frames)
     print(f"Max events per frame: {max_events_per_frame}")
