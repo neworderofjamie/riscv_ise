@@ -30,7 +30,7 @@ class CUBALIF:
         alpha = np.exp(-1.0 / tau_m)
 
         self.v = backend.Variable(self.shape, dtype, name=f"{name}_V")
-        self.i = backend.Variable(self.shape, "s14_1_sat_t", name=f"{name}_I")
+        self.i = backend.Variable(self.shape, "s2_13_sat_t", name=f"{name}_I")
         channel = backend.EventChannel(self.shape, name=f"{name}_out_spikes")
         self.spike_sink = channel.sink
         self.out_spikes = channel.source
@@ -38,7 +38,7 @@ class CUBALIF:
             f"""
             s5_10_sat_t inSyn;
             {{
-                inSyn = (I @ {syn_scale}h10);
+                inSyn = (I * {syn_scale}h10);
                 I *= {beta}h15;
             }}
             
@@ -261,9 +261,9 @@ else:
     
     # Turn each frame into a spike array
     # **NOTE** we use POT shape to build flat spike indices
-    courtyard_frames = [build_spike_array(e["t"] // 1000, 
+    courtyard_frames = [build_spike_array((e["t"] // 1000) - (33 * i), 
                                           np.ravel_multi_index((e["x"], e["y"]), (512, 512)))
-                        for e in timestep_events]
+                        for i, e in enumerate(timestep_events)]
     
     print(courtyard_frames[0][:10])
     # Count maximum events per frame and build event source buffer
@@ -281,7 +281,7 @@ detector_pop = CUBALIFIE(backend, (DETECTOR_SIZE * DETECTOR_SIZE * len(Detector)
                          v_thresh=10.0, num_timesteps=NUM_TIMESTEPS_PER_FRAME, name="Detector")
 
 # Synapses
-downsample_pop = Downsample2D(backend, event_input, macro_pixel_pop.i, 1.0, name="EventCamMacroPixel")
+downsample_pop = Downsample2D(backend, event_input, macro_pixel_pop.i, 0.8, name="EventCamMacroPixel")
 macro_pixel_detector_exc_pop = SparseLinear(backend, macro_pixel_pop.out_spikes, 
                                             detector_pop.i_exc, weight_dtype="s14_1_sat_t", max_row_length=macro_pixel_detector_exc_conn[0].shape[1],
                                             num_sparse_connectivity_bits=num_sparse_connectivity_bits, 
