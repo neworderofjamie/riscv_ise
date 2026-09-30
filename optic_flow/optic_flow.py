@@ -249,6 +249,10 @@ else:
     events_per_frame = np.bincount(event_frame)
     events_per_frame = np.cumsum(events_per_frame)
     timestep_events = np.split(courtyard_data, events_per_frame)
+    
+    # **YUCK** remove final empty frame
+    assert(len(timestep_events[-1]) == 0)
+    timestep_events = timestep_events[:-1]
 
     # **YUCK** truncate events
     timestep_events = [e[:min(len(e), 20000)] for e in timestep_events]
@@ -262,7 +266,6 @@ else:
     max_events_per_frame = max(len(f) for f in courtyard_frames)
     print(f"Max events per frame: {max_events_per_frame}")
     event_input = backend.EventSourceBuffer((320, 320), max_events_per_frame, name="input_events")
-
 
 
 # Neurons
@@ -371,11 +374,12 @@ for f in courtyard_frames:
     detector_spikes = pull_spikes(NUM_TIMESTEPS_PER_FRAME + 1, detector_pop.spike_sink, runtime)
     detector_spike_ids = detector_spikes[0][1]
     print(len(detector_spike_ids))
+
     # Unravel to get x, y and detector
     detector_spike_ids = np.unravel_index(detector_spike_ids, (DETECTOR_SIZE, DETECTOR_SIZE, len(Detector)))
 
     # Split detector channel into horizontal/vertical and polarity
-    output_channel = (detector_spike_ids[2] & 0x2)
+    output_channel = (detector_spike_ids[2] & 0x2) >> 1
     output_polarity = (2 * (detector_spike_ids[2] & 0x1)) - 1
 
     # Make vectorised update
