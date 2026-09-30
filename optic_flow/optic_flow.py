@@ -143,31 +143,6 @@ for yi in range(MACRO_PIXEL_SIZE):
             row_inds.append(xj + Detector.UP + (yj * DETECTOR_SIZE * len(Detector)))
             row_inds.append(xj + Detector.DOWN + (yj * DETECTOR_SIZE * len(Detector)))
 
-        # Add inhibitory connections
-        # Create inhibitory connection to 'left' detector associated with macropixel one to right
-        if xi < (MACRO_PIXEL_SIZE - 2) and yi >= 1 and yi < (MACRO_PIXEL_SIZE - 1):
-            xj = (xi - 1 + 1) * len(Detector)
-            yj = yi - 1
-            row_inds.append(xj + Detector.LEFT + (yj * DETECTOR_SIZE * len(Detector)))
-    
-        # Create inhibitory connection to 'right' detector associated with macropixel one to right
-        if xi >= 2 and yi >= 1 and yi < (MACRO_PIXEL_SIZE - 1):
-            xj = (xi - 1 - 1) * len(Detector)
-            yj = yi - 1
-            row_inds.append(xj + Detector.RIGHT + (yj * DETECTOR_SIZE * len(Detector)))
-
-        # Create inhibitory connection to 'up' detector associated with macropixel one below
-        if xi >= 1 and xi < (MACRO_PIXEL_SIZE - 1) and yi < (MACRO_PIXEL_SIZE - 2):
-            xj = (xi - 1) * len(Detector)
-            yj = yi - 1 + 1
-            row_inds.append(xj + Detector.UP + (yj * DETECTOR_SIZE * len(Detector)))
-
-        # Create inhibitory connection to 'down' detector associated with macropixel one above
-        if xi >= 1 and xi < (MACRO_PIXEL_SIZE - 1) and yi >= 2:
-            xj = (xi - 1) * len(Detector)
-            yj = yi - 1 - 1
-            row_inds.append(xj + Detector.DOWN + (yj * DETECTOR_SIZE * len(Detector)))
-
         # Convert row lists to numpy and add to 
         macro_pixel_detector_exc_inds.append(np.asarray(row_inds, dtype=int))
 
@@ -394,6 +369,7 @@ for f in courtyard_frames:
     scaled_output = np.round(output * OUTPUT_VECTOR_SCALE).astype(int)
 
     # Draw optic flow arrows
+    output_image[:] = 0
     for i in range(DETECTOR_SIZE):
         for j in range(DETECTOR_SIZE):
             cv2.line(output_image, (output_start_x[i,j], output_start_y[i,j]),
