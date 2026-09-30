@@ -70,8 +70,8 @@ class CUBALIFIE:
         alpha = np.exp(-1.0 / tau_m)
 
         self.v = backend.Variable(self.shape, dtype, name=f"{name}_V")
-        self.i_exc = backend.Variable(self.shape, "s14_1_sat_t", name=f"{name}_IExc")
-        self.i_inh = backend.Variable(self.shape, "s14_1_sat_t", name=f"{name}_IInh")
+        self.i_exc = backend.Variable(self.shape, "s10_5_sat_t", name=f"{name}_IExc")
+        self.i_inh = backend.Variable(self.shape, "s10_5_sat_t", name=f"{name}_IInh")
         self.spike_sink = backend.EventSinkBuffer((num_timesteps + 1,) + self.shape, 
                                                   name=f"{name}_spike_sink")
         self.process = backend.NeuronUpdateProcess(
@@ -115,7 +115,7 @@ MACRO_PIXEL_SIZE = INPUT_SIZE // KERNEL_SIZE
 # Size of (square) detector layer 
 DETECTOR_SIZE = MACRO_PIXEL_SIZE - 2
 
-MACRO_PIXEL_DETECTOR_WEIGHT_FRACTIONAL_BITS = 1
+MACRO_PIXEL_DETECTOR_WEIGHT_FRACTIONAL_BITS = 5
 MACRO_PIXEL_DETECTOR_EXC_WEIGHT = int(round(1.0 * 2**MACRO_PIXEL_DETECTOR_WEIGHT_FRACTIONAL_BITS))
 MACRO_PIXEL_DETECTOR_INH_WEIGHT = int(round(-0.5 * 2**MACRO_PIXEL_DETECTOR_WEIGHT_FRACTIONAL_BITS))
 
@@ -283,11 +283,11 @@ detector_pop = CUBALIFIE(backend, (DETECTOR_SIZE * DETECTOR_SIZE * len(Detector)
 # Synapses
 downsample_pop = Downsample2D(backend, event_input, macro_pixel_pop.i, 0.8, name="EventCamMacroPixel")
 macro_pixel_detector_exc_pop = SparseLinear(backend, macro_pixel_pop.out_spikes, 
-                                            detector_pop.i_exc, weight_dtype="s14_1_sat_t", max_row_length=macro_pixel_detector_exc_conn[0].shape[1],
+                                            detector_pop.i_exc, weight_dtype="s10_5_sat_t", max_row_length=macro_pixel_detector_exc_conn[0].shape[1],
                                             num_sparse_connectivity_bits=num_sparse_connectivity_bits, 
                                             name="MacroPixelDetectorExc")
 macro_pixel_detector_inh_pop = SparseLinear(backend, macro_pixel_pop.out_spikes, 
-                                            detector_pop.i_inh, weight_dtype="s14_1_sat_t", max_row_length=macro_pixel_detector_inh_conn[0].shape[1],
+                                            detector_pop.i_inh, weight_dtype="s10_5_sat_t", max_row_length=macro_pixel_detector_inh_conn[0].shape[1],
                                             num_sparse_connectivity_bits=num_sparse_connectivity_bits, 
                                             name="MacroPixelDetectorInh")
 
@@ -385,7 +385,7 @@ for f in courtyard_frames:
     # Split detector channel into horizontal/vertical and polarity
     output_channel = (detector_spike_ids[2] & 0x2) >> 1
     output_polarity = (2 * (detector_spike_ids[2] & 0x1)) - 1
-
+    print(np.sum(output_polarity))
     # Make vectorised update
     output[detector_spike_ids[0], detector_spike_ids[1], output_channel] += output_polarity
     output *= FLOW_PERSISTENCE
