@@ -131,7 +131,7 @@ def test_forward(device, use_dram_for_weights, num_cores):
 
     for p in [sparse_n_pop, dense_n_pop]:
         # Get value of x
-        x_val = pull_and_get(runtime, p.x)
+        x_val = pull_and_get(p.x, runtime)
 
         # Remove first timestep and convert to bool
         x_val = x_val[1:,:].astype(bool)

@@ -79,7 +79,7 @@ def quantise(data, fractional_bits: int, percentile: float = 99.0):
     # Scale by fixed point, round, convert to int and flatten
     return np.round(data * fp_one).astype(np.int16).flatten()
 
-def pull_and_get(runtime: Runtime, state):
+def pull_and_get(state, runtime: Runtime):
     # Pull from device
     runtime.pull_state_from_device(state)
 
