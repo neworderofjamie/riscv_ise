@@ -1978,7 +1978,7 @@ void Downsample2DEventPropagationProcess::generateArchetypeCode(const Frontend::
         c.sll(*SMask, *SMask, *SIndex);
 
         // VTargetNew = VTarget + VWeight
-        c.vadd(*VTargetNew, *VTarget, *VWeight);
+        c.vadd_s(*VTargetNew, *VTarget, *VWeight);
 
         // VTarget = SMask ? VTargetNew : VTarget
         c.vsel(*VTarget, *SMask, *VTargetNew);
