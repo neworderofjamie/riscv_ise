@@ -256,11 +256,13 @@ else:
     assert(len(timestep_events[-1]) == 0)
     timestep_events = timestep_events[:-1]
 
-    # **YUCK** truncate events
-    timestep_events = [e[:min(len(e), 20000)] for e in timestep_events]
-
-    print(timestep_events[0][:10])
-    
+    # **YUCK** decimate excess spikes
+    for i, e in enumerate(timestep_events):
+        num_delete = len(e) - 20000
+        if num_delete > 0:
+            delete_ind = np.random.choice(len(e), num_delete, replace=False)
+            timestep_events[i] = np.delete(timestep_events[i], delete_ind)
+  
     # Turn each frame into a spike array
     # **NOTE** we use POT shape to build flat spike indices
     courtyard_frames = [build_spike_array((e["t"] // 1000) - (33 * i), 
@@ -392,7 +394,7 @@ for f in courtyard_frames:
     macro_pixel[macro_pixel_spike_ids[0], macro_pixel_spike_ids[1]] += 1
     macro_pixel *= 0.75
     
-    macro_pixel_image[:,:,0] = np.round(macro_pixel * 10).astype(np.uint8)
+    macro_pixel_image[:,:,0] = np.round(macro_pixel * 100).astype(np.uint8)
     macro_pixel_image[:,:,1] = macro_pixel_image[:,:,0]
     macro_pixel_image[:,:,2] = macro_pixel_image[:,:,0]
     # Get detector spikes
