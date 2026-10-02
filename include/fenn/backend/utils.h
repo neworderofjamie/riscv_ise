@@ -3,6 +3,9 @@
 // Standard C++ includes
 #include <vector>
 
+// Standard C includes
+#include <cstddef>
+
 // FeNN backend includes
 #include "fenn/backend/backend_export.h"
 
