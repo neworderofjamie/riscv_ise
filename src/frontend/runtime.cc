@@ -95,7 +95,7 @@ Runtime::~Runtime()
     if(!m_WorkerThreads.empty()) {
 	    // Clear run flag
         m_WorkerRun = false;
-        m_Command = nullptr;
+        m_Command.release();
 
         // **YUCK** get all threads to loop
         m_Barrier.wait();
@@ -153,8 +153,7 @@ void Runtime::run(std::shared_ptr<const Kernel> kernel, bool async)
     // If kernel isn't already loaded
     if(kernel != m_CurrentKernel) {
         // Run load command
-        LoadKernelCommand load(kernel);
-        runCommand(&load);
+        runCommand(createLoadKernelCommand(kernel));
 
         // Wait for command to complete
         waitCommand();
@@ -163,12 +162,9 @@ void Runtime::run(std::shared_ptr<const Kernel> kernel, bool async)
         m_CurrentKernel = kernel;
     }
 
-    // Reset
-    reset();
-
     // Run run command
     RunCurrentKernelCommand run;
-    runCommand(&run);
+    runCommand(createRunCurrentKernelCommand());
 
     // If we're not running asynchronously, wait for command to complete
     if(!async) {
@@ -178,8 +174,7 @@ void Runtime::run(std::shared_ptr<const Kernel> kernel, bool async)
 //----------------------------------------------------------------------------
 void Runtime::pushStateToDevice(std::shared_ptr<const State> state, bool async)
 {
-    PushStateCommand push(state);
-    runCommand(&push);
+    runCommand(createPushStateCommand(state));
 
     // If we're not running asynchronously, wait for command to complete
     if(!async) {
@@ -189,8 +184,7 @@ void Runtime::pushStateToDevice(std::shared_ptr<const State> state, bool async)
 //----------------------------------------------------------------------------
 void Runtime::pullStateFromDevice(std::shared_ptr<const State> state, bool async)
 {
-    PullStateCommand pull(state);
-    runCommand(&pull);
+    runCommand(createPullStateCommand(state));
 
     // If we're not running asynchronously, wait for command to complete
     if(!async) {
@@ -202,6 +196,9 @@ void Runtime::waitCommand()
 {
     // Wait for all workers to finish
     m_Barrier.wait();   
+
+    // Run postamble code
+    m_Command->postamble(*this);
 }
 //----------------------------------------------------------------------------
 std::vector<ArrayBase*> Runtime::getArrays(std::shared_ptr<const State> state) const
@@ -250,11 +247,34 @@ Runtime::Runtime(std::unique_ptr<Model> model, size_t numDevices)
     }
 }
 //----------------------------------------------------------------------------
-void Runtime::runCommand(Command *command)
+std::unique_ptr<Runtime::Command> Runtime::createLoadKernelCommand(std::shared_ptr<const Kernel> kernel) const
+{
+    return std::make_unique<LoadKernelCommand>(kernel);
+}
+//----------------------------------------------------------------------------
+std::unique_ptr<Runtime::Command> Runtime::createRunCurrentKernelCommand() const
+{
+    return std::make_unique<RunCurrentKernelCommand>();
+}
+//----------------------------------------------------------------------------
+std::unique_ptr<Runtime::Command> Runtime::createPushStateCommand(std::shared_ptr<const State> state) const
+{
+    return std::make_unique<PushStateCommand>(state);
+}
+//----------------------------------------------------------------------------
+std::unique_ptr<Runtime::Command> Runtime::createPullStateCommand(std::shared_ptr<const State> state) const
+{
+    return std::make_unique<PullStateCommand>(state);
+}
+//----------------------------------------------------------------------------
+void Runtime::runCommand(std::unique_ptr<Command> command)
 {
     // Set command
     // **NOTE** all workers should be waiting for barrier at this point
-    m_Command = command;
+    m_Command = std::move(command);
+
+    // Run preamble code
+    m_Command->preamble(*this);
 
     // Wait for all workers to be ready
     m_Barrier.wait(); 
