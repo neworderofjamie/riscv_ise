@@ -104,6 +104,9 @@ protected:
         {
             // Enable cores
             static_cast<RuntimeHW&>(runtime).getDeviceControl().setEnabled(true);
+
+            // Hand DMA buffer over to FeNN cores before running kernel
+            static_cast<RuntimeHW&>(runtime).setDMABufferAccessMode(Common::DMABuffer::AccessMode::FENN);
         }
 
         //! Run any code required after the command execures on the main thread
@@ -111,6 +114,63 @@ protected:
         {
             // Disable cores
             static_cast<RuntimeHW&>(runtime).getDeviceControl().setEnabled(false);
+
+            // Once kernel is finished, hand DMA buffer back to CPU
+            static_cast<RuntimeHW&>(runtime).setDMABufferAccessMode(Common::DMABuffer::AccessMode::CPU);
+        }
+    };
+
+    //------------------------------------------------------------------------
+    // PushStateCommand
+    //------------------------------------------------------------------------
+    //! Command for pushing 
+    class PushStateCommand : public Frontend::Runtime::PushStateCommand
+    {
+    public:
+        using Frontend::Runtime::PushStateCommand::PushStateCommand;
+
+        //--------------------------------------------------------------------
+        // Command virtuals
+        //--------------------------------------------------------------------
+        //! Run any code required before the command execures on the main thread
+        virtual void preamble(Frontend::Runtime &runtime) const override final
+        {
+            // Hand DMA buffer over to FeNN cores before starting DMA
+            static_cast<RuntimeHW&>(runtime).setDMABufferAccessMode(Common::DMABuffer::AccessMode::FENN);
+        }
+
+        //! Run any code required after the command execures on the main thread
+        virtual void postamble(Frontend::Runtime &runtime) const override final
+        {
+            // Once DMA is finished, hand DMA buffer back to CPU
+            static_cast<RuntimeHW&>(runtime).setDMABufferAccessMode(Common::DMABuffer::AccessMode::CPU);
+        }
+    };
+
+    //------------------------------------------------------------------------
+    // PullStateCommand
+    //------------------------------------------------------------------------
+    //! Command for pushing 
+    class PullStateCommand : public Frontend::Runtime::PullStateCommand
+    {
+    public:
+        using Frontend::Runtime::PullStateCommand::PullStateCommand;
+
+        //--------------------------------------------------------------------
+        // Command virtuals
+        //--------------------------------------------------------------------
+        //! Run any code required before the command execures on the main thread
+        virtual void preamble(Frontend::Runtime &runtime) const override final
+        {
+            // Hand DMA buffer over to FeNN cores before starting DMA
+            static_cast<RuntimeHW&>(runtime).setDMABufferAccessMode(Common::DMABuffer::AccessMode::FENN);
+        }
+
+        //! Run any code required after the command execures on the main thread
+        virtual void postamble(Frontend::Runtime &runtime) const override final
+        {
+            // Once DMA is finished, hand DMA buffer back to CPU
+            static_cast<RuntimeHW&>(runtime).setDMABufferAccessMode(Common::DMABuffer::AccessMode::CPU);
         }
     };
 
@@ -122,6 +182,17 @@ private:
 
     //! Factory method to create a run current kernel command object
     virtual std::unique_ptr<Command> createRunCurrentKernelCommand() const override final;
+
+    //! Factory method to create a push state command object
+    virtual std::unique_ptr<Command> createPushStateCommand(std::shared_ptr<const Frontend::State> state) const override final;
+
+    // Factory method to create a pull state command object
+    virtual std::unique_ptr<Command> createPullStateCommand(std::shared_ptr<const Frontend::State> state) const override final;
+
+    //------------------------------------------------------------------------
+    // Private methods
+    //------------------------------------------------------------------------
+    void setDMABufferAccessMode(Common::DMABuffer::AccessMode mode);
 
     //------------------------------------------------------------------------
     // Members
