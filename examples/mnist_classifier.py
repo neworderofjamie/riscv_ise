@@ -60,7 +60,7 @@ runtime = (backend.RuntimeHW([kernel], 1) if args.device
 if args.disassemble:
     code = runtime.get_kernel_code(kernel)
     for i, c in enumerate(code):
-        print(f"{i * 4} : {disassemble(c)}")
+        print(f"{i * 4} : {backend.disassemble(c)}")
 
 # Allocate memory for model
 runtime.allocate()
