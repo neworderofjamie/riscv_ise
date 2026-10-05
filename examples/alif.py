@@ -1,13 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import pyfenn.fenn_backend as backend
 
-from pyfenn import (BackendFeNNHW, BackendFeNNSim, EventContainer, Model,
-                    NeuronUpdateProcess, Parameter, PlogSeverity,
-                    ProcessGroup, Runtime, Variable)
-from pyfenn.models import RNGInit
 
-from pyfenn import disassemble, init_logging
-from pyfenn.utils import get_array_view, seed_and_push, zero_and_push
+from pyfenn.utils import get_views, seed_and_push, zero_and_push
 
 device = False
 num_timesteps = 1000
@@ -16,37 +12,39 @@ rate = 7846 / 1370
 disassemble_code = False
 
 class ALIF:
-    def __init__(self, shape, tau_m: float, tau_a: float, tau_refrac: int,
+    def __init__(self, backend, shape, tau_m: float, tau_a: float, tau_refrac: int,
                  v_thresh: float, beta: float, weight:float, num_timesteps: int):
-        self.shape = shape
+        self.shape = (shape,)
         v_dtype = "s6_9_sat_t"
         a_dtype = "s6_9_sat_t"
         decay_dtype = "s0_15_sat_t"
-        self.v = Variable(self.shape, v_dtype, num_timesteps + 1)
-        self.a = Variable(self.shape, a_dtype, num_timesteps + 1)
-        self.i = Variable(self.shape, "int16_t", num_timesteps + 1)
-        self.refrac_time = Variable(self.shape, "int16_t")
-        self.process = NeuronUpdateProcess(
-            """
-            V = mul_rs(Alpha, V) + (Weight * I);
-            A = mul_rs(A, Rho);
+        
+        alpha = np.exp(-1.0 / tau_m)
+        rho = np.exp(-1.0 / tau_a)
 
-            if (RefracTime > 0) {
+        self.v = backend.Variable((num_timesteps + 1,) + self.shape, v_dtype)
+        self.a = backend.Variable((num_timesteps + 1,) + self.shape, a_dtype)
+        self.i = backend.Variable((num_timesteps + 1,) + self.shape, "int16_t")
+        self.refrac_time = backend.Variable(self.shape, "int16_t")
+        self.process = backend.NeuronUpdateProcess(
+            f"""
+            V = ({alpha}h15 * V) + ({weight}h9 * I);
+            A = A * {rho}h15;
+
+            if (RefracTime > 0) {{
                RefracTime -= 1;
-            }
-            else if(V >= (VThresh + (Beta * A))) {
-               V -= VThresh;
+            }}
+            else if(V >= ({v_thresh}h9 + ({beta}h9 * A))) {{
+               V -= {v_thresh}h9;
                A += 1.0h9;
-               RefracTime = TauRefrac;
-            }
+               RefracTime = {tau_refrac};
+            }}
             """,
-            {"Alpha": Parameter(np.exp(-1.0 / tau_m), decay_dtype),
-             "Rho": Parameter(np.exp(-1.0 / tau_a), decay_dtype),
-             "VThresh": Parameter(v_thresh, v_dtype),
-             "Beta": Parameter(beta, v_dtype),
-             "Weight": Parameter(weight, v_dtype),
-             "TauRefrac": Parameter(tau_refrac, "int16_t")},
-            {"V": self.v, "A": self.a, "I": self.i, "RefracTime": self.refrac_time})
+            {"V": backend.SlicedVariable(self.v, True), 
+             "A": backend.SlicedVariable(self.a, True), 
+             "I": backend.SlicedVariable(self.i, True),
+             "RefracTime": self.refrac_time},
+             {}, name="ALIF")
 
 # Generate poisson data with two periods of average firing interspersed by background
 data = np.zeros(num_timesteps + 1)
@@ -64,36 +62,30 @@ data_bad[4000:5000] = np.random.poisson(rate * 1.7, 1000)
 repeated_data = np.repeat(data[:,None], 32, axis=1).astype(np.int16)
 #repeated_data_bad = np.repeat(data_bad[:,None], 32, axis=1).astype(np.int16)
 
-init_logging()
+log_appender = backend.ConsoleAppender()#PythonLogAppender()
+backend.init_logging(log_appender, backend.PlogSeverity.DEBUG)
 
 # Model
-rng_init = RNGInit()
-neurons = ALIF(32, 20.0, 2000, 5, 0.6, 0.0174, 0.01, num_timesteps)
+#rng_init = RNGInit()
+neurons = ALIF(backend, 32, 20.0, 2000, 5, 0.6, 0.0174, 0.01, num_timesteps)
 
 # Group processes
-init_processes = ProcessGroup([rng_init.process])
-neuron_update_processes = ProcessGroup([neurons.process])
+#init_processes = backend.ProcessGroup([rng_init.process])
+neuron_update_processes = backend.ProcessGroup([neurons.process])
+
+sim_kernel = backend.SimulationLoopKernel(
+    num_timesteps, [neuron_update_processes],
+    [], [])
 
 # Create backend
-backend = BackendFeNNHW() if device else BackendFeNNSim()
-
-# Create model
-model = Model([init_processes, neuron_update_processes],
-              backend)
-
-# Generate init and sim code
-init_code = backend.generate_kernel([init_processes], model)
-code = backend.generate_simulation_kernel([neuron_update_processes],
-                                          [], [],
-                                          num_timesteps, model)
+runtime = (backend.RuntimeHW([sim_kernel], 1) if device 
+           else backend.RuntimeSim([sim_kernel], 1))
 
 # Disassemble if required
 if disassemble_code:
+    code = runtime.get_kernel_code(sim_kernel)
     for i, c in enumerate(code):
-        print(f"{i * 4} : {disassemble(c)}")
-
-# Create runtime
-runtime = Runtime(model, backend)
+        print(f"{i * 4} : {backend.disassemble(c)}")
 
 # Allocate memory for model
 runtime.allocate()
@@ -104,38 +96,31 @@ zero_and_push(neurons.a, runtime)
 zero_and_push(neurons.refrac_time, runtime)
 
 # Copy input currents to device
-input_i_array, input_i_view = get_array_view(runtime, neurons.i, np.int16)
-input_i_view[:] = repeated_data.flatten()
-input_i_array.push_to_device()
+input_i_views = get_views(runtime, neurons.i)
+input_i_views[0][:] = repeated_data
+runtime.push_state_to_device(neurons.i)
 
 # Get array and view
-seed_and_push(rng_init.seed, runtime)
+#seed_and_push(rng_init.seed, runtime)
 
 # Set init instructions and run
-runtime.set_instructions(init_code)
-runtime.run()
-
-# Set instructions
-runtime.set_instructions(code)
+#runtime.run(init_kernel)
 
 # Simulate
-runtime.run()
+runtime.run(sim_kernel)
 
-neurons_v_array, neurons_v_view = get_array_view(runtime, neurons.v, np.int16)
-neurons_a_array, neurons_a_view = get_array_view(runtime, neurons.a, np.int16)
+neurons_v_views = get_views(runtime, neurons.v)
+neurons_a_views = get_views(runtime, neurons.a)
 
-neurons_v_array.pull_from_device()
-neurons_a_array.pull_from_device()
+runtime.pull_state_from_device(neurons.v)
+runtime.pull_state_from_device(neurons.a)
 
-# **YUCK** reshape
-neurons_v_view = np.reshape(neurons_v_view, (-1, 32))
-neurons_a_view = np.reshape(neurons_a_view, (-1, 32))
 
 # Calculate mean and standard deviation
-neurons_v_mean = np.average(neurons_v_view, axis=1)
-neurons_v_std = np.std(neurons_v_view, axis=1)
-neurons_a_mean = np.average(neurons_a_view, axis=1)
-neurons_a_std = np.std(neurons_a_view, axis=1)
+neurons_v_mean = np.average(neurons_v_views[0], axis=1)
+neurons_v_std = np.std(neurons_v_views[0], axis=1)
+neurons_a_mean = np.average(neurons_a_views[0], axis=1)
+neurons_a_std = np.std(neurons_a_views[0], axis=1)
 
 fig, axis = plt.subplots()
 
