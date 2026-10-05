@@ -337,8 +337,28 @@ RuntimeHW::RuntimeHW(const std::vector<std::shared_ptr<const Frontend::Kernel>> 
 {
 }
 //------------------------------------------------------------------------
+std::unique_ptr<Frontend::Runtime::Command> RuntimeHW::createRunCurrentKernelCommand() const
+{
+    return std::make_unique<RunCurrentKernelCommand>();
+}
+//------------------------------------------------------------------------
+std::unique_ptr<Frontend::Runtime::Command> RuntimeHW::createPushStateCommand(std::shared_ptr<const Frontend::State> state) const
+{
+    return std::make_unique<PushStateCommand>(state);
+}
+//------------------------------------------------------------------------
+ std::unique_ptr<Frontend::Runtime::Command> RuntimeHW::createPullStateCommand(std::shared_ptr<const Frontend::State> state) const
+{
+    return std::make_unique<PullStateCommand>(state);
+}
+//------------------------------------------------------------------------
 std::unique_ptr<Frontend::DeviceBase> RuntimeHW::createDevice(size_t deviceIndex)
 {
     return std::make_unique<DeviceFeNNHW>(deviceIndex, *this, m_ParentDMABuffer);
+}
+//------------------------------------------------------------------------
+void RuntimeHW::setDMABufferAccessMode(Common::DMABuffer::AccessMode mode)
+{
+    m_ParentDMABuffer.setAccessMode(mode);
 }
 }
