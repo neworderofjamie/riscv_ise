@@ -280,31 +280,7 @@ public:
     }
 
 protected:
-    Runtime(std::unique_ptr<Model> model, size_t numDevices);
-    
-    //------------------------------------------------------------------------
-    // Declared virtuals
-    //------------------------------------------------------------------------
-    //! Backend-specific logic to run at beginning of allocate function
-    virtual void allocatePreamble() {}
-
-    //! Backend-specific logic to run at end of allocate function
-    virtual void allocatePostamble() {}
-
-    //! **YUCK** Backend-specific logic to run before starting kernel
-    virtual void reset() {}
-
-    //! Create suitable device
-    virtual std::unique_ptr<DeviceBase> createDevice(size_t deviceIndex) = 0;
-
-    //------------------------------------------------------------------------
-    // Protected API
-    //------------------------------------------------------------------------
-    const auto &getDevices() const{ return m_Devices; }
-    auto &getDevices(){ return m_Devices; }
-
-private:
-    //------------------------------------------------------------------------
+     //------------------------------------------------------------------------
     // Command
     //------------------------------------------------------------------------
     //! Base class for commands to run on worker threads
@@ -314,6 +290,13 @@ private:
         //--------------------------------------------------------------------
         // Declared virtuals
         //--------------------------------------------------------------------
+        //! Run any code required before the command execures on the main thread
+        virtual void preamble(Runtime&) const {}
+
+        //! Run any code required after the command execures on the main thread
+        virtual void postamble(Runtime&) const {}
+
+        //! Execute command on a device thread
         virtual void execute(DeviceBase *device) const = 0;
     };
 
@@ -411,11 +394,44 @@ private:
         std::shared_ptr<const State> m_State;
     };
 
+    Runtime(std::unique_ptr<Model> model, size_t numDevices);
+    
+    //------------------------------------------------------------------------
+    // Declared virtuals
+    //------------------------------------------------------------------------
+    //! Backend-specific logic to run at beginning of allocate function
+    virtual void allocatePreamble() {}
+
+    //! Backend-specific logic to run at end of allocate function
+    virtual void allocatePostamble() {}
+
+    //! Factory method to create a load kernel command object
+    virtual std::unique_ptr<Command> createLoadKernelCommand(std::shared_ptr<const Kernel> kernel) const;
+
+    //! Factory method to create a run current kernel command object
+    virtual std::unique_ptr<Command> createRunCurrentKernelCommand() const;
+
+    //! Factory method to create a push state command object
+    virtual std::unique_ptr<Command> createPushStateCommand(std::shared_ptr<const State> state) const;
+
+    // Factory method to create a pull state command object
+    virtual std::unique_ptr<Command> createPullStateCommand(std::shared_ptr<const State> state) const;
+
+    //! Create suitable device
+    virtual std::unique_ptr<DeviceBase> createDevice(size_t deviceIndex) = 0;
+
+    //------------------------------------------------------------------------
+    // Protected API
+    //------------------------------------------------------------------------
+    const auto &getDevices() const{ return m_Devices; }
+    auto &getDevices(){ return m_Devices; }
+
+private:
     //------------------------------------------------------------------------
     // Private methods
     //------------------------------------------------------------------------
     //! Run command on all worker threads
-    void runCommand(Command *command);
+    void runCommand(std::unique_ptr<Command> command);
 
     //! Thread function run on each worker thread to execute commands on device
     void threadFunction(DeviceBase *device);
@@ -439,7 +455,7 @@ private:
     std::atomic<bool> m_WorkerRun;
 
     // Current command being executed by workers
-    Command *m_Command;
+    std::unique_ptr<Command> m_Command;
 
     // Barrier used for synchronising command execution
     Common::Barrier m_Barrier;

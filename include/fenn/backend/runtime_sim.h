@@ -88,10 +88,29 @@ public:
 
 protected:
     //------------------------------------------------------------------------
+    // RunCurrentKernelCommand
+    //------------------------------------------------------------------------
+    //! Command for running kernel on all devices
+    class RunCurrentKernelCommand : public Frontend::Runtime::RunCurrentKernelCommand
+    {
+    public:
+        //--------------------------------------------------------------------
+        // Command virtuals
+        //--------------------------------------------------------------------
+        //! Run any code required before the command execures on the main thread
+        virtual void preamble(Frontend::Runtime &runtime) const override final
+        {
+            static_cast<RuntimeSim&>(runtime).resetSharedBus();
+        }
+    };
+
+    //------------------------------------------------------------------------
     // Runtime virtuals
     //------------------------------------------------------------------------
     virtual std::unique_ptr<Frontend::DeviceBase> createDevice(size_t deviceIndex) override final;
-    virtual void reset() override final;
+
+    //! Factory method to create a run current kernel command object
+    virtual std::unique_ptr<Command> createRunCurrentKernelCommand() const override final;
 
     //! Backend-specific logic to run at end of allocate function
     virtual void allocatePostamble() override final;
@@ -101,6 +120,7 @@ private:
     // Private methods
     //------------------------------------------------------------------------
     void spikeInjectThread();
+    void resetSharedBus();
 
     //------------------------------------------------------------------------
     // Members

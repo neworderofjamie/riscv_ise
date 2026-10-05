@@ -363,10 +363,10 @@ std::unique_ptr<Frontend::DeviceBase> RuntimeSim::createDevice(size_t deviceInde
     return std::make_unique<DeviceFeNNSim>(deviceIndex, *this, m_SharedBus);
 }
 //------------------------------------------------------------------------
-void RuntimeSim::reset()
-{
-    m_SharedBus.reset(m_SpikeInjectData.empty() ? getNumDevices() : (getNumDevices() + 1));
-}
+ std::unique_ptr<Frontend::Runtime::Command> RuntimeSim::createRunCurrentKernelCommand() const
+ {
+    return std::make_unique<RunCurrentKernelCommand>();
+ }
 //------------------------------------------------------------------------
 void RuntimeSim::allocatePostamble()
 {
@@ -388,5 +388,10 @@ void RuntimeSim::spikeInjectThread()
 
     // Keep ticking event injector until it runs out of data
     while(eventInjector.tick());
+}
+//------------------------------------------------------------------------
+void RuntimeSim::resetSharedBus()
+{
+    m_SharedBus.reset(m_SpikeInjectData.empty() ? getNumDevices() : (getNumDevices() + 1));
 }
 }
