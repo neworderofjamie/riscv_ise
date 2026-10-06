@@ -88,12 +88,40 @@ public:
     const auto &getDeviceControl() const{ return m_DeviceControl; }
     auto &getDeviceControl(){ return m_DeviceControl; }
 
+protected:
+    //------------------------------------------------------------------------
+    // RunCurrentKernelCommand
+    //------------------------------------------------------------------------
+    //! Command for running kernel on all devices
+    class RunCurrentKernelCommand : public Frontend::Runtime::RunCurrentKernelCommand
+    {
+    public:
+        //--------------------------------------------------------------------
+        // Command virtuals
+        //--------------------------------------------------------------------
+        //! Run any code required before the command execures on the main thread
+        virtual void preamble(Frontend::Runtime &runtime) const override final
+        {
+            // Enable cores
+            static_cast<RuntimeHW&>(runtime).getDeviceControl().setEnabled(true);
+        }
+
+        //! Run any code required after the command execures on the main thread
+        virtual void postamble(Frontend::Runtime &runtime) const override final
+        {
+            // Disable cores
+            static_cast<RuntimeHW&>(runtime).getDeviceControl().setEnabled(false);
+        }
+    };
 
 private:
     //------------------------------------------------------------------------
     // Runtime virtuals
     //------------------------------------------------------------------------
     virtual std::unique_ptr<Frontend::DeviceBase> createDevice(size_t deviceIndex) override final;
+
+    //! Factory method to create a run current kernel command object
+    virtual std::unique_ptr<Command> createRunCurrentKernelCommand() const override final;
 
     //------------------------------------------------------------------------
     // Members

@@ -280,22 +280,10 @@ void DeviceFeNNHW::loadKernel(std::shared_ptr<const Frontend::Kernel> kernel)
 //----------------------------------------------------------------------------
 void DeviceFeNNHW::runCurrentKernel()
 {
-    if (getDeviceIndex() == 0) {
-        static_cast<RuntimeHW&>(getRuntime()).getDeviceControl().setEnabled(true);
-    }
-
+    // Wait until ready flag
     LOGD_FENN_BACKEND << "Running";
-
-     // Wait until ready flag
     m_Device.waitOnNonZero(0);
     LOGD_FENN_BACKEND << "Done";
-
-    // **TODO** we should wait on a barrier here
-
-    // Disable core
-    if (getDeviceIndex() == 0) {
-        static_cast<RuntimeHW&>(getRuntime()).getDeviceControl().setEnabled(false);
-    }
 }
 //----------------------------------------------------------------------------
 std::unique_ptr<URAMArrayBase> DeviceFeNNHW::createURAMArray(const Type::ResolvedType &type, 
@@ -340,5 +328,10 @@ RuntimeHW::RuntimeHW(const std::vector<std::shared_ptr<const Frontend::Kernel>> 
 std::unique_ptr<Frontend::DeviceBase> RuntimeHW::createDevice(size_t deviceIndex)
 {
     return std::make_unique<DeviceFeNNHW>(deviceIndex, *this, m_ParentDMABuffer);
+}
+//------------------------------------------------------------------------
+std::unique_ptr<Frontend::Runtime::Command> RuntimeHW::createRunCurrentKernelCommand() const
+{
+    return std::make_unique<RunCurrentKernelCommand>();
 }
 }

@@ -363,10 +363,10 @@ std::unique_ptr<Frontend::DeviceBase> RuntimeSim::createDevice(size_t deviceInde
     return std::make_unique<DeviceFeNNSim>(deviceIndex, *this, m_SharedBus);
 }
 //------------------------------------------------------------------------
- std::unique_ptr<Frontend::Runtime::Command> RuntimeSim::createRunCurrentKernelCommand() const
- {
+std::unique_ptr<Frontend::Runtime::Command> RuntimeSim::createRunCurrentKernelCommand() const
+{
     return std::make_unique<RunCurrentKernelCommand>();
- }
+}
 //------------------------------------------------------------------------
 void RuntimeSim::allocatePostamble()
 {
