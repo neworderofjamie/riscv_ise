@@ -513,8 +513,13 @@ void EventDrivenProcessImplementation::generateCode(const Frontend::MergedProces
     // If there is more than one merged group, calculate offset
     if(mergedProcess.getMerged().size() > 1) {
         ALLOCATE_SCALAR(STmp);
-        c.li(*STmp, mergedFields.getSize());
-        c.mul(*STmp, *STmp, *groupIndReg);
+        if(::Common::Utils::isPOT(mergedFields.getSize())) {
+            c.slli(*STmp, *groupIndReg, ::Common::Utils::ctz(mergedFields.getSize()));
+        }
+        else {
+            c.li(*STmp, mergedFields.getSize());
+            c.mul(*STmp, *STmp, *groupIndReg);
+        }
 
         // Either add fieldbase as an immediate or register
         if(Common::inSBit(fieldBase, 12)) {
