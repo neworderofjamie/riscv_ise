@@ -1,6 +1,7 @@
 import logging
 import numpy as np
 
+from itertools import product
 from numbers import Number
 from pyfenn._frontend import IAppender, PlogSeverity, Runtime
 from typing import Optional, Sequence, Tuple, Union
@@ -97,8 +98,8 @@ def zero_and_push(state, runtime: Runtime):
     # Zero
     # **HACK** assigning to the slice causes bus errors with DMA buffer
     for v in views:
-        for i in range(len(v)):
-            v[i] = 0
+        for c in product(*(range(n) for n in v.shape)):
+            v[c] = 0
     #view[:] = 0
 
     # Push to device
@@ -110,7 +111,11 @@ def copy_split_and_push(data: Sequence[np.ndarray], state, runtime: Runtime):
     assert len(views) == len(data)
 
     for v, d in zip(views, data):
-        v[:] = d
+        #v[:] = d
+        # **HACK** assigning to the slice causes bus errors with DMA buffer
+        for v, d in zip(views, data):
+            for c in product(*(range(n) for n in v.shape)):
+                v[c] = d[c]
     
     # Push to device
     runtime.push_state_to_device(state)
@@ -144,7 +149,10 @@ def copy_and_push(data: np.ndarray, state, runtime: Runtime):
             split_dim_start += v.shape[split_dimension]
         # Otherwise, copy all data into view
         else:
-            v[:] = data
+            #v[:] = data
+            # **HACK** assigning to the slice causes bus errors with DMA buffer
+            for c in product(*(range(n) for n in v.shape)):
+                v[c] = data[c]
 
     # Push to device
     runtime.push_state_to_device(state)
@@ -160,7 +168,10 @@ def load_and_push(filename: str, state, runtime: Runtime):
 
     # Copy data to array host pointer
     for v in views:
-        v[:] = data
+        #v[:] = data
+        # **HACK** assigning to the slice causes bus errors with DMA buffer
+        for c in product(*(range(n) for n in v.shape)):
+            v[c] = data[c]
    
     # Push to device
     runtime.push_state_to_device(state)
