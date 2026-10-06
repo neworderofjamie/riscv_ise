@@ -70,7 +70,8 @@ public:
             // Start DMA write and wait for completion
             auto *dmaController = m_Device.get().getDevice().getDMAController();
             dmaController->startWrite(getURAMPointer().value(), m_Device.get().getDMABuffer(),
-                                      m_DMABufferOffset.value(), getSizeBytes());
+                                      m_DMABufferOffset.value(), 
+                                      ::Common::Utils::padSize(getSizeBytes(), 64));
             dmaController->waitForWriteComplete();
         }
     }
@@ -91,7 +92,8 @@ public:
         if(getSizeBytes() > 0) {
             auto *dmaController = m_Device.get().getDevice().getDMAController();
             dmaController->startRead(m_Device.get().getDMABuffer(), m_DMABufferOffset.value(), 
-                                     getURAMPointer().value(), getSizeBytes());
+                                     getURAMPointer().value(), 
+                                     ::Common::Utils::padSize(getSizeBytes(), 64));
             dmaController->waitForReadComplete();
         }
     }
