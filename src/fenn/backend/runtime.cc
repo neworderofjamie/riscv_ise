@@ -88,6 +88,85 @@ void DRAMArrayBase::serialiseDeviceObject(std::vector<std::byte> &bytes) const
 DeviceFeNN::DeviceFeNN(size_t deviceIndex, Runtime &runtime)
 :   Frontend::DeviceBase(deviceIndex), m_Runtime(runtime)
 {
+    
+}
+//----------------------------------------------------------------------------
+void DeviceFeNN::allocateDataStructures()
+{
+    // **NOTE** this needs to happen here so they are correctly allocated at the start of BRAM
+    // **YUCK** first 4 bytes used for ready flag pointer
+    getBRAMAllocator().allocate(4);
+
+    // Loop through kernels
+    for (const auto &k : getRuntime().getModel()->getKernels()) {
+        // Ensure kernel has proper base class
+        auto ki = std::dynamic_pointer_cast<const KernelImplementation>(k);
+        if (!ki) {
+            throw std::runtime_error("FeNN backend runtime used with incompatible kernel");
+        }
+
+        // If this kernel has an event sink-source table
+        if (!ki->getEventSinkSourceTable().empty()) {
+            // Create array in BRAM
+            LOGD_FENN_BACKEND << "Creating event sink-source table array for kernel '" << k->getName() << "' in BRAM";
+            auto array = createBRAMArray(Type::Uint8, {ki->getEventSinkSourceTable().size() * 2},
+                                         {Type::Uint8.getSize()});
+
+            // Convert offsets in sink source table into bytes and copy into arrray
+            std::transform(ki->getEventSinkSourceTable().cbegin(), ki->getEventSinkSourceTable().cend(), 
+                           array->getHostPointer<uint16_t>(), [](size_t offset){ return (offset * 4); });
+
+            // Copy array to device
+            array->pushToDevice();
+
+            // Move array pointer into dictionary
+            m_KernelEventSinkSourceTableArrays.try_emplace(k, std::move(array));
+        }
+
+        // If this kernel has a event source->process table, allocate memory 
+        if (ki->getEventSourceProcessTableSize() > 0) {
+            // Create array in BRAM
+            LOGD_FENN_BACKEND << "Creating event source-population table array for kernel '" << k->getName() << "' in BRAM";
+            auto array = createBRAMArray(Type::Uint8, {ki->getEventSourceProcessTableSize() * 4},
+                                         {Type::Uint8.getSize()});
+
+            // Get merged processes associated with event source process group
+            assert(ki->getEventSourceProcessGroup());
+            const auto &mergedProcessGroup = getRuntime().getMergedProcessGroups().at(ki->getEventSourceProcessGroup());
+
+            // Loop through event source processes
+            const auto &mergedProcessAddresses = getRuntime().getKernelMergedProcessAddresses().at(k);
+            uint16_t *arrayPointer = array->getHostPointer<uint16_t>();
+            for (const auto &e : ki->getEventSourceProcesses()) {
+                auto [processStartOffset, processEndOffset]  = ki->getEventSourceProcessTableOffsets().at(e.first);
+
+                // Loop through processes 
+                for (const auto &p : e.second) {
+                    // Determine this processes destination in merged groups
+                    const auto &destination = mergedProcessGroup.getDestination(p);
+
+                    // Write merged process addresses and merged group index into array
+                    // **NOTE** offsets are in terms of entries - each of which is two halfwords
+                    arrayPointer[processStartOffset * 2] = mergedProcessAddresses.at(destination.first);
+                    arrayPointer[(processStartOffset * 2) + 1] = destination.second;
+                    processStartOffset += 2;
+                }
+            }
+           
+            // Copy array to device
+            array->pushToDevice();
+
+            // Move array pointer into dictionary
+            m_KernelEventSourcePopulationTableArrays.try_emplace(k, std::move(array));
+        }
+    }
+
+
+    LOGI_FENN_BACKEND << "Creating field array in BRAM";
+
+    // Create field array in BRAM and assert it is at correct fixed location
+    m_FieldArray = createBRAMArray(Type::Uint8, {getRuntime().getNumFieldBytes()}, 
+                                   {Type::Uint8.getSize()});
 }
 //----------------------------------------------------------------------------
 std::unique_ptr<Frontend::ArrayBase> DeviceFeNN::createPerformanceCounter()
@@ -97,15 +176,6 @@ std::unique_ptr<Frontend::ArrayBase> DeviceFeNN::createPerformanceCounter()
     // Performance counter contains a 64-bit number for 
     // instructions retired and one for number of cycles 
     return createBRAMArray(Type::Uint64, {2}, {Type::Uint64.getSize(4)});
-}
-//----------------------------------------------------------------------------
-void DeviceFeNN::createFieldArray(uint32_t numFieldBytes)
-{
-    LOGI_FENN_BACKEND << "Creating field array in BRAM";
-
-    // Create field array in BRAM and assert it is at correct fixed location
-    m_FieldArray = createBRAMArray(Type::Uint8, {numFieldBytes}, {Type::Uint8.getSize()});
-    assert(m_FieldArray->getBRAMPointer() == 4);
 }
 
 //----------------------------------------------------------------------------
@@ -120,7 +190,7 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
     m_DMABufferSize(dmaBufferSize)
 {
     // Loop through kernels
-    uint32_t fieldBase = 4;
+    uint32_t fieldStart = 4;
     std::unordered_map<std::shared_ptr<const Frontend::Kernel>, 
                        std::tuple<uint32_t, uint32_t>> kernelEventTableLocations;
     for (const auto &k : getModel()->getKernels()) {
@@ -131,16 +201,17 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
         }
 
         // Add size of datastructures to fieldbase
-        const uint32_t eventSinkSourceTableAddress = fieldBase;
-        fieldBase += (ki->getEventSinkSourceTable().size() * 2);
-        LOGD_FENN_BACKEND << "Kernel '" << k->getName() << "' has an event sink source table at " << eventSinkSourceTableAddress << " and an event source->process table at " << fieldBase;
-        kernelEventTableLocations.try_emplace(k, eventSinkSourceTableAddress, fieldBase);
-        fieldBase += (ki->getEventSourceProcessTableSize() * 4);
+        const uint32_t eventSinkSourceTableAddress = fieldStart;
+        fieldStart += (ki->getEventSinkSourceTable().size() * 2);
+        LOGD_FENN_BACKEND << "Kernel '" << k->getName() << "' has an event sink source table at " << eventSinkSourceTableAddress << " and an event source->process table at " << fieldStart;
+        kernelEventTableLocations.try_emplace(k, eventSinkSourceTableAddress, fieldStart);
+        fieldStart += (ki->getEventSourceProcessTableSize() * 4);
     }
     // Ensure field-base is 32-bit word aligned
-    fieldBase = ::Common::Utils::padSize(fieldBase, 4);
+    fieldStart = ::Common::Utils::padSize(fieldStart, 4);
 
-    LOGD_FENN_BACKEND << "Merged fields start at " << fieldBase;
+    LOGD_FENN_BACKEND << "Merged fields start at " << fieldStart;
+    uint32_t fieldBase = fieldStart;
 
     //! Same ready flag is used by all kernels and located at BRAM address zero
     constexpr uint32_t readyFlagPtr = 0;
@@ -150,7 +221,7 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
         // Generate kernel
         auto code = Assembler::Utils::generateStandardKernel(
             generateSimulationKernels, readyFlagPtr,
-            [this, generateSimulationKernels, &fieldBase, &k, &kernelEventTableLocations]
+            [this, fieldStart, generateSimulationKernels, &fieldBase, &k, &kernelEventTableLocations]
             (Assembler::CodeGenerator &c, Assembler::VectorRegisterAllocator &vectorRegisterAllocator, 
              Assembler::ScalarRegisterAllocator &scalarRegisterAllocator)
             {
@@ -167,7 +238,7 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
 
                 // Generate code for kernel
                 ki->generateCode(c, scalarRegisterAllocator, vectorRegisterAllocator,
-                                 [this, &fieldBase, &k, &kernelEventTableLocations, &ki]
+                                 [this, fieldStart, &fieldBase, &k, &kernelEventTableLocations, &ki]
                                  (auto processGroup, auto timeRegister, auto numTimesteps, auto &c,
                                   auto &scalarRegisterAllocator, auto &vectorRegisterAllocator)
                                  {
@@ -211,24 +282,6 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                          auto endProcessGroupLabel = Assembler::createLabel();
                                          c.j_(endProcessGroupLabel);
 
-                                         // Loop through event sources and their proceses
-                                         // **TODO** potentially this could happen much later
-                                         /*auto &eventSourceProcesses = m_KernelEventSourceProcesses.at(k);
-                                         const auto &eventSourceProcessOffsets = kernelEventSourceProcessOffsets.at(k);
-                                         for (const auto &e : ki->getEventSourceProcesses()) {
-                                             // Loop through all processes which should handle this
-                                             uint32_t processOffset = eventSourceProcessOffsets.at(e.first);
-                                             for (const auto &p : e.second) {
-                                                 // Determine this processes destination in merged groups
-                                                 const auto &destination = mergedProcessGroup.getDestination(p);
-
-                                                 // Populate event source process table
-                                                 auto &eventSourceProcess = eventSourceProcesses.at(processOffset);
-                                                 eventSourceProcess.eventPropCodeAddr = mergedProcessLabels.at(destination.first);
-                                                 eventSourceProcess.eventPropMergedGroupIndex = destination.second;
-                                             }
-                                         }*/
-
                                          // Registers used to communicate presynaptic spike id, group index 
                                          // and return address from event loop to event propagation proces code
                                          ALLOCATE_SCALAR(SPreIndex);
@@ -246,7 +299,7 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                              // **NOTE** these are relative to start of field array
                                              // **TODO** pass through fields so event source buffer can be implemented
                                              mergedEventSourceFields.first->second.emplace_back(std::piecewise_construct,
-                                                                                                std::make_tuple(fieldBase - 4),
+                                                                                                std::make_tuple(fieldBase - fieldStart),
                                                                                                 std::make_tuple());
 
                                              // Generate event processing loops
@@ -299,7 +352,7 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                              // Add new merged field
                                              // **NOTE** these are relative to start of field array
                                              mergedProcessGroupFields.first->second.emplace_back(std::piecewise_construct,
-                                                                                                 std::make_tuple(fieldBase - 4),
+                                                                                                 std::make_tuple(fieldBase - fieldStart),
                                                                                                  std::make_tuple());
 
                                              // Generate code
@@ -320,7 +373,10 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                          // Add generted event loop code
                                          c += eventLoopCodeGenerator;
 
-                                         
+                                         // Resolve merged process label addresses 
+                                         std::transform(mergedProcessLabels.cbegin(), mergedProcessLabels.cend(),
+                                                        std::inserter(m_KernelMergedProcessAddresses[k], m_KernelMergedProcessAddresses[k].begin()),
+                                                        [&c](const auto &m){ return std::make_pair(m.first, c.getAddress(m.second).value()); });
                                      }
                                      // Otherwise
                                      else {
@@ -352,18 +408,15 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
     }
 
     // Calculate number of bytes required for fields
-    m_NumFieldBytes = fieldBase - 4;
+    m_NumFieldBytes = fieldBase - fieldStart;
     LOGI_FENN_BACKEND << m_NumFieldBytes << " bytes of BRAM required for fields";
 }
 //----------------------------------------------------------------------------
 void Runtime::allocatePreamble()
 {
-    // Loop through devices and create field arrays
-    // **NOTE** this needs to happen here so they are correctly allocated at the start of BRAM
-    // **YUCK** first 4 bytes used for ready flag pointer
+    // Loop through devices and allocate data structures
     for(auto &d : getDevices()) {
-        static_cast<DeviceFeNN*>(d.get())->getBRAMAllocator().allocate(4);
-        static_cast<DeviceFeNN*>(d.get())->createFieldArray(m_NumFieldBytes);
+        static_cast<DeviceFeNN*>(d.get())->allocateDataStructures();
     }
 }
 //----------------------------------------------------------------------------

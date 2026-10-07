@@ -206,6 +206,8 @@ public:
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
+    void allocateDataStructures();
+
     const auto &getBRAMAllocator() const{ return m_BRAMAllocator; }
     auto &getBRAMAllocator(){ return m_BRAMAllocator; }
 
@@ -214,8 +216,6 @@ public:
 
     const auto &getLLMAllocator() const{ return m_LLMAllocator; }
     auto &getLLMAllocator(){ return m_LLMAllocator; }
-
-    void createFieldArray(uint32_t numFieldBytes);
 
     BRAMArrayBase *getFieldArray(){ return m_FieldArray.get(); }
     const BRAMArrayBase *getFieldArray() const { return m_FieldArray.get(); }
@@ -238,6 +238,11 @@ private:
 
     std::unique_ptr<BRAMArrayBase> m_FieldArray;
 
+    std::unordered_map<std::shared_ptr<const Frontend::Kernel>, 
+                       std::unique_ptr<BRAMArrayBase>> m_KernelEventSinkSourceTableArrays;
+    std::unordered_map<std::shared_ptr<const Frontend::Kernel>, 
+                       std::unique_ptr<BRAMArrayBase>> m_KernelEventSourcePopulationTableArrays;
+
     std::reference_wrapper<Runtime> m_Runtime;
 };
 
@@ -256,9 +261,12 @@ public:
     // Public API
     //------------------------------------------------------------------------
     const auto &getKernelCode(std::shared_ptr<const Frontend::Kernel> kernel) const{ return m_KernelCode.at(kernel); }
+    const auto &getKernelMergedProcessAddresses() const{ return m_KernelMergedProcessAddresses; }
+
     bool shouldUseDRAMForWeights() const{ return m_UseDRAMForWeights; }
     bool shouldKeepParamsInRegisters() const{ return m_KeepParamsInRegisters; }
     size_t getDMABufferSize() const{ return m_DMABufferSize; }
+    size_t getNumFieldBytes() const{ return m_NumFieldBytes; }
     auto getNeuronRoundingMode() const{ return m_NeuronUpdateRoundingMode; }
 
 protected:
@@ -295,6 +303,11 @@ private:
     //! Map of kernel pointers to code
     std::unordered_map<std::shared_ptr<const Frontend::Kernel>, 
                        std::vector<uint32_t>> m_KernelCode;
+
+    //! Map of pointers into kernels for code to handle merged event propagation processes
+    std::unordered_map<std::shared_ptr<const Frontend::Kernel>, 
+                       std::unordered_map<std::shared_ptr<const Frontend::Process>,
+                                          uint32_t>> m_KernelMergedProcessAddresses;
 
     //! Map from process groups to start addresses and merged fields associated with processes
     std::unordered_map<std::shared_ptr<const Frontend::ProcessGroup>,

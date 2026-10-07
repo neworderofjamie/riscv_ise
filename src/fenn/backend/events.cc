@@ -218,14 +218,14 @@ void EventSourceBuffer::generateArchetypeEventLoop(const KernelImplementation &k
     const uint32_t eventSourceProcessStartOffset = mergedFields.addField<EventSourceBuffer>(
         [&kernel](size_t, auto e) -> uint32_t
         {
-            return (2 * std::get<0>(kernel.getEventSourceProcessTableOffsets().at(e)));
+            return (4 * std::get<0>(kernel.getEventSourceProcessTableOffsets().at(e)));
         });
 
     // Add field containing end offsets (in bytes) into event source process table
     const uint32_t eventSourceProcessEndOffset = mergedFields.addField<EventSourceBuffer>(
         [&kernel](size_t, auto e) -> uint32_t
         {
-            return (2 * std::get<1>(kernel.getEventSourceProcessTableOffsets().at(e)));
+            return (4 * std::get<1>(kernel.getEventSourceProcessTableOffsets().at(e)));
         });
 
     // **NOTE** we don't REALLY need SBufferStart all the time, could reload at end
