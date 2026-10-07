@@ -67,11 +67,11 @@ KernelImplementation::KernelImplementation(const Frontend::ProcessGroupVector &p
                             if(populationID) {
                                 // If population ID isn't a multiple of four give error
                                 // **NOTE** this is a micro-optimisation to save an instruction when processing events - we are going to have 2 bits spare for a while!
-                                if((populationID.value() % 4) != 0) {
+                                if((populationID.value() % 2) != 0) {
                                     throw std::runtime_error("Event sink '" + eventSink->getName() 
                                                              + "' requesting population ID: "
                                                              + std::to_string(populationID.value())
-                                                             + " which is not a multiple of 4");
+                                                             + " which is not a multiple of 2");
                                 }
 
                                 // Add to set, giving error if this ID has already been allocated
@@ -120,12 +120,12 @@ KernelImplementation::KernelImplementation(const Frontend::ProcessGroupVector &p
                            else {
                                // Advance while next ID has already been allocated
                                while(allocatedPopulationIDs.find(nextID) != allocatedPopulationIDs.end()) {
-                                   nextID += 4;
+                                   nextID += 2;
                                }
 
                                LOGD_FENN_BACKEND << "Event sink '" << e.first->getName() << "' allocated population ID: " << nextID;
                                auto result = std::make_pair(e.first, nextID);
-                               nextID += 4;
+                               nextID += 2;
                                return result;
                            }
                        });

@@ -273,6 +273,17 @@ protected:
 
 private:
     //------------------------------------------------------------------------
+    // EventSourceProcess
+    //------------------------------------------------------------------------
+    //! Struct used to store mapping of event source to an event-propagation process
+    struct EventSourceProcess
+    {
+        Assembler::Label eventPropCodeAddr;
+        uint16_t eventPropMergedGroupIndex;
+        //uint16_t strideGroupIndex;
+    };
+
+    //------------------------------------------------------------------------
     // Private methods
     //------------------------------------------------------------------------
     void populateFields(size_t p, const std::pair<uint32_t, MergedFields> &mergedFields,
@@ -281,9 +292,17 @@ private:
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
-    // Map of kernel pointers to code
+    //! Map of kernel pointers to code
     std::unordered_map<std::shared_ptr<const Frontend::Kernel>, 
                        std::vector<uint32_t>> m_KernelCode;
+
+    //! Map of kernel points to event sink->source mappings
+    std::unordered_map<std::shared_ptr<const Frontend::Kernel>, 
+                       std::vector<std::optional<uint16_t>>> m_KernelEventSinkSources;
+
+    //! Map of kernel pointers to event source->process mappings
+    std::unordered_map<std::shared_ptr<const Frontend::Kernel>, 
+                       std::vector<EventSourceProcess>> m_KernelEventSourceProcesses;
 
     //! Map from process groups to start addresses and merged fields associated with processes
     std::unordered_map<std::shared_ptr<const Frontend::ProcessGroup>,

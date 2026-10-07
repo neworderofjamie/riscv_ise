@@ -121,6 +121,9 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
     m_DMABufferSize(dmaBufferSize)
 {
     // Loop through kernels
+    uint32_t fieldBase = 4;
+    std::unordered_map<std::shared_ptr<const Frontend::Kernel>, 
+                       std::unordered_map<std::shared_ptr<const Frontend::EventSource>, uint32_t>> kernelEventSourceProcessOffsets;
     for(const auto &k : getModel()->getKernels()) {
         // Ensure kernel has proper base class
         auto ki = std::dynamic_pointer_cast<const KernelImplementation>(k);
@@ -128,8 +131,20 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
             throw std::runtime_error("FeNN backend runtime used with incompatible kernel");
         }
 
+        // Get event sink->source map for this kernel
+        auto &eventSinkSources = m_KernelEventSinkSources[k];
+        auto &eventSourceProcesses = m_KernelEventSourceProcesses[k];
+
+        // If this kernel has any event sinks, allocate event sink source table
+        // **NOTE** as a micro-optimisation, bottom bit of population IDs are always zero so one less bit required
+        if (!ki->getEventSinkIDs().empty()) {
+            eventSinkSources.resize((size_t{1} << (ki->getNumPopulationIDBits() - 1)), std::nullopt);
+        }
+
         // If kernel has an event source process group
         if(ki->getEventSourceProcessGroup()) {
+            auto &eventSourceProcessOffsets = kernelEventSourceProcessOffsets[k];
+
             // Create a hash map to group together processes with the same SHA1 digest
             std::unordered_map<boost::uuids::detail::sha1::digest_type, 
                 std::vector<std::shared_ptr<Frontend::EventSource const>>, 
@@ -137,6 +152,22 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
 
             // Loop through all event sources
             for(const auto &e : ki->getEventSourceProcesses()) {
+                // If this source is the output of an event channel
+                auto eventSourceChannel = std::dynamic_pointer_cast<const Frontend::EventChannelSource>(e.first);
+                if(eventSourceChannel) {
+                    // Get ID of sink at other end
+                    const auto eventSinkID = ki->getEventSinkIDs().at(eventSourceChannel->getSink());
+
+                    // Processes connected to this sink will be inserted into event source processes from it's current end
+                    const uint32_t eventSourceProcessOffset = eventSourceProcesses.size() * 4;
+                    eventSinkSources.at(eventSinkID) = eventSourceProcessOffset;
+                    eventSourceProcessOffsets[e.first] = eventSourceProcessOffset;
+
+                    // Add empty structures to event source processes
+                    eventSourceProcesses.reserve(eventSourceProcesses.size() + e.second.size());
+                    eventSourceProcesses.insert(eventSourceProcesses.end(), e.second.size(), EventSourceProcess{});
+                }
+
                 // Build hash digest
                 boost::uuids::detail::sha1 hash;
                 e.first->updateMergeHash(hash);
@@ -156,20 +187,29 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                 mergedEventSource.emplace_back(i++, s.second);
             }
         }
+
+
+        // Update field base to go past the two data datastructures
+        LOGD_FENN_BACKEND << "Kernel '" << k->getName() << "' requires " << (eventSinkSources.size() * 2) << " bytes for event sink->source mapping";
+        LOGD_FENN_BACKEND << "Kernel '" << k->getName() << "' requires " << (eventSourceProcesses.size() * sizeof(EventSourceProcess)) << " bytes for event source->process mapping";
+        fieldBase += (eventSinkSources.size() * 2);
+        fieldBase += (eventSourceProcesses.size() * 4);
     }
+
+    // Ensure field-base is 32-bit word aligned
+    fieldBase = ::Common::Utils::padSize(fieldBase, 4);
+
+    LOGD_FENN_BACKEND << "Merged fields start at " << fieldBase;
 
     //! Same ready flag is used by all kernels and located at BRAM address zero
     constexpr uint32_t readyFlagPtr = 0;
-
-    //! Fields always start at address 4
-    uint32_t fieldBase = 4;
 
     // Loop through kernels
     for (const auto &k : getModel()->getKernels()) {
         // Generate kernel
         auto code = Assembler::Utils::generateStandardKernel(
             generateSimulationKernels, readyFlagPtr,
-            [this, generateSimulationKernels, &fieldBase, &k]
+            [this, generateSimulationKernels, &fieldBase, &k, &kernelEventSourceProcessOffsets]
             (Assembler::CodeGenerator &c, Assembler::VectorRegisterAllocator &vectorRegisterAllocator, 
              Assembler::ScalarRegisterAllocator &scalarRegisterAllocator)
             {
@@ -184,62 +224,9 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                     c.csrw(Common::CSR::MCOUNTINHIBIT, Common::Reg::X0);
                 }
 
-                // Assign a label to each event source
-                std::unordered_map<std::shared_ptr<const Frontend::EventSource>, Assembler::Label> eventSourceLabels;
-                std::transform(ki->getEventSourceProcesses().cbegin(), ki->getEventSourceProcesses().cend(),
-                               std::inserter(eventSourceLabels, eventSourceLabels.begin()),
-                               [](const auto &e){ return std::make_pair(e.first, Assembler::createLabel()); });
-
-                // Define jump table for routing events
-                // **NOTE** this is at the top of the kernel so it can be easily addressed
-                auto jumpTable = Assembler::createLabel();
-                if(!ki->getEventSinkIDs().empty()) {
-                    // Jump over jump table
-                    auto endOfJumpTable = Assembler::createLabel();
-                    c.j_(endOfJumpTable);
-
-                    c.L(jumpTable);
-                    // **HACK**
-                    if(!generateSimulationKernels) {
-                        c.nop();
-                    }
-
-                    // Loop through event source labels
-                    std::vector<Assembler::Label> labels;
-                    labels.resize(ki->getEventSinkIDs().size());
-                    for(const auto &e : eventSourceLabels) {
-                        // If this source is the output of an event channel
-                        auto eventSourceChannel = std::dynamic_pointer_cast<const Frontend::EventChannelSource>(e.first);
-                        if(eventSourceChannel) {
-                            // Get ID of sink at other end
-                            const auto eventSinkID = ki->getEventSinkIDs().at(eventSourceChannel->getSink());
-
-                            // Insert label at correct index in vector
-                            auto &l = labels.at(eventSinkID / 4);
-                            assert(!l);
-                            l = eventSourceLabels.at(e.first);
-                        }
-                    }
-
-                    // Generate event sink jump tables
-                    bool gapEncountered = false;
-                    for (const auto &l : labels) {
-                        if(l) {
-                            assert(!gapEncountered);
-                            c.j_(l);
-                        }
-                        else {
-                            gapEncountered = true;
-                        }
-                    }
-
-                    // Label at end of jump table
-                    c.L(endOfJumpTable);
-                }
-
                 // Generate code for kernel
                 ki->generateCode(c, scalarRegisterAllocator, vectorRegisterAllocator,
-                                 [this, jumpTable, &eventSourceLabels, &fieldBase, &ki]
+                                 [this, &fieldBase, &k, &ki, &kernelEventSourceProcessOffsets]
                                  (auto processGroup, auto timeRegister, auto numTimesteps, auto &c,
                                   auto &scalarRegisterAllocator, auto &vectorRegisterAllocator)
                                  {
@@ -287,36 +274,22 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                          c.j_(endProcessGroupLabel);
 
                                          // Loop through event sources and their proceses
+                                         // **TODO** potentially this could happen much later
+                                         auto &eventSourceProcesses = m_KernelEventSourceProcesses.at(k);
+                                         const auto &eventSourceProcessOffsets = kernelEventSourceProcessOffsets.at(k);
                                          for (const auto &e : ki->getEventSourceProcesses()) {
-                                             // Get corresponding label and define
-                                             const auto &label = eventSourceLabels.at(e.first);
-                                             c.L(label);
-
                                              // Loop through all processes which should handle this
+                                             uint32_t processOffset = eventSourceProcessOffsets.at(e.first);
                                              for (const auto &p : e.second) {
                                                  // Determine this processes destination in merged groups
                                                  const auto &destination = mergedProcessGroup.getDestination(p);
-                                                 
-                                                 // Set group index
-                                                 // **OPTIMISE** if there is only 1 merged process, no need for this!
-                                                 // **OPTIMISE** if group index is same as last, don't bother re-loading
-                                                 c.li(*SGroupIndex, destination.second);
 
-                                                 // Jump to merged process handler, storing return address
-                                                 c.jal(*SMergedGroupReturn, mergedProcessLabels.at(destination.first));
+                                                 // Populate event source process table
+                                                 auto &eventSourceProcess = eventSourceProcesses.at(processOffset);
+                                                 eventSourceProcess.eventPropCodeAddr = mergedProcessLabels.at(destination.first);
+                                                 eventSourceProcess.eventPropMergedGroupIndex = destination.second;
                                              }
-
-                                             // Return to spike loop to process next spike
-                                             c.jr(*SSpikeReturn);
                                          }
-
-                                         // Resolve addresses of event source labels
-                                         // **THINK** this is required because we are generating event loop using a different code generator
-                                         // Alternatively, could chain code generators together for label resolution but not clear  if that's any les gross
-                                         std::unordered_map<std::shared_ptr<const Frontend::EventSource>, uint32_t> eventSourceAddresses;
-                                         std::transform(eventSourceLabels.cbegin(), eventSourceLabels.cend(),
-                                                        std::inserter(eventSourceAddresses, eventSourceAddresses.begin()),
-                                                        [&c](const auto &e){ return std::make_pair(e.first, c.getAddress(e.second).value()); });
 
                                          // Loop over merged event sources
                                          Assembler::CodeGenerator eventLoopCodeGenerator;
