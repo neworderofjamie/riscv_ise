@@ -96,7 +96,7 @@ private:
 
     //! Offsets into event source process table
     std::unordered_map<std::shared_ptr<const Frontend::EventSource>, 
-                       uint32_t> m_EventSourceProcessTableOffsets;
+                       std::tuple<size_t, size_t>> m_EventSourceProcessTableOffsets;
 
     // Map of process groups to merged process groups
     std::unordered_map<std::shared_ptr<const Frontend::ProcessGroup>,

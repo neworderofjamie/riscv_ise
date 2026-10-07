@@ -121,6 +121,8 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
 {
     // Loop through kernels
     uint32_t fieldBase = 4;
+    std::unordered_map<std::shared_ptr<const Frontend::Kernel>, 
+                       std::tuple<uint32_t, uint32_t>> kernelEventTableLocations;
     for (const auto &k : getModel()->getKernels()) {
         // Ensure kernel has proper base class
         auto ki = std::dynamic_pointer_cast<const KernelImplementation>(k);
@@ -129,9 +131,11 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
         }
 
         // Add size of datastructures to fieldbase
+        const uint32_t eventSinkSourceTableAddress = fieldBase;
         fieldBase += (ki->getEventSinkSourceTable().size() * 2);
+        LOGD_FENN_BACKEND << "Kernel '" << k->getName() << "' has an event sink source table at " << eventSinkSourceTableAddress << " and an event source->process table at " << fieldBase;
+        kernelEventTableLocations.try_emplace(k, eventSinkSourceTableAddress, fieldBase);
         fieldBase += (ki->getEventSourceProcessTableSize() * 4);
-
     }
     // Ensure field-base is 32-bit word aligned
     fieldBase = ::Common::Utils::padSize(fieldBase, 4);
@@ -146,7 +150,7 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
         // Generate kernel
         auto code = Assembler::Utils::generateStandardKernel(
             generateSimulationKernels, readyFlagPtr,
-            [this, generateSimulationKernels, &fieldBase, &k]
+            [this, generateSimulationKernels, &fieldBase, &k, &kernelEventTableLocations]
             (Assembler::CodeGenerator &c, Assembler::VectorRegisterAllocator &vectorRegisterAllocator, 
              Assembler::ScalarRegisterAllocator &scalarRegisterAllocator)
             {
@@ -163,7 +167,7 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
 
                 // Generate code for kernel
                 ki->generateCode(c, scalarRegisterAllocator, vectorRegisterAllocator,
-                                 [this, &fieldBase, &k, &ki]
+                                 [this, &fieldBase, &k, &kernelEventTableLocations, &ki]
                                  (auto processGroup, auto timeRegister, auto numTimesteps, auto &c,
                                   auto &scalarRegisterAllocator, auto &vectorRegisterAllocator)
                                  {
@@ -182,6 +186,8 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
 
                                      // If this is the event source process group
                                      if (processGroup == ki->getEventSourceProcessGroup()) {
+                                         const auto &eventTableLocations = kernelEventTableLocations.at(k);
+
                                          // Create map containing a label for each merged process (key is archectype progress group)
                                          std::unordered_map<std::shared_ptr<const Frontend::Process>,
                                                             Assembler::Label> mergedProcessLabels;
@@ -243,14 +249,13 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                                                                                 std::make_tuple(fieldBase - 4),
                                                                                                 std::make_tuple());
 
-                                             const uint32_t kernelEventSinkSourceTableAddress = 0;  // **TODO**
                                              // Generate event processing loops
                                              eventLoopScalarRegisterMask |= m.template getArchetype<EventSourceImplementation>()->generateEventLoop(
                                                  m, *this, *ki, mergedEventSourceFields.first->second.back().second,
-                                                 timeRegister, kernelEventSinkSourceTableAddress,
+                                                 timeRegister, SPreIndex, std::get<0>(eventTableLocations),
                                                  fieldBase, eventLoopCodeGenerator, scalarRegisterAllocator,
-                                                 [SGroupIndex, SMergedGroupReturn]
-                                                 (auto &c, auto preIndReg, auto eventSourceProcessStartOffsetReg, auto eventSourceProcessEndOffsetReg)
+                                                 [SGroupIndex, SMergedGroupReturn, &eventTableLocations, &scalarRegisterAllocator]
+                                                 (auto &c, auto eventSourceProcessStartOffsetReg, auto eventSourceProcessEndOffsetReg)
                                                  {
                                                      // Loop over event propagation processes
                                                      {
@@ -258,8 +263,8 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
 
                                                          // Load process address and group index from event source->process table
                                                          ALLOCATE_SCALAR(SProcessAddress);
-                                                         c.lhu(*SProcessAddress, *eventSourceProcessStartOffsetReg, kernelEventSourceProcessTable);
-                                                         c.lhu(*SGroupIndex, *eventSourceProcessStartOffsetReg, kernelEventSourceProcessTable + 2);
+                                                         c.lhu(*SProcessAddress, *eventSourceProcessStartOffsetReg, std::get<1>(eventTableLocations));
+                                                         c.lhu(*SGroupIndex, *eventSourceProcessStartOffsetReg, std::get<1>(eventTableLocations) + 2);
 
                                                          // Jump to process address
                                                          c.jalr(*SMergedGroupReturn, *SProcessAddress);

@@ -48,8 +48,7 @@ namespace FeNN::Backend
 class FENN_BACKEND_EXPORT EventSourceImplementation
 {
 protected:
-    using ProcessEventsFn = std::function<void(Assembler::CodeGenerator&, Assembler::ScalarRegisterPtr, 
-                                               Assembler::ScalarRegisterPtr, Assembler::ScalarRegisterPtr)>;
+    using ProcessEventsFn = std::function<void(Assembler::CodeGenerator&, Assembler::ScalarRegisterPtr, Assembler::ScalarRegisterPtr)>;
 public:
     //----------------------------------------------------------------------------
     // Declared virtuals
@@ -57,8 +56,9 @@ public:
     //! Generate code to implement event loop
     virtual uint32_t generateEventLoop(const Frontend::Merged<Frontend::EventSource> &mergedEventSource, const Runtime &runtime, 
                                        const KernelImplementation &kernel, MergedFields &mergedFields, Assembler::ScalarRegisterPtr timeReg, 
-                                       std::optional<uint32_t> eventSinkSourceTableAddress, uint32_t &fieldBase, Assembler::CodeGenerator &c, 
-                                       Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, ProcessEventsFn processEvents) const = 0;
+                                       Assembler::ScalarRegisterPtr preIndReg,  uint32_t eventSinkSourceTableAddress, uint32_t &fieldBase, 
+                                       Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
+                                       ProcessEventsFn processEvents) const = 0;
 };
 
 //----------------------------------------------------------------------------
@@ -154,8 +154,9 @@ public:
     //! Generate code to implement event loop
     virtual uint32_t generateEventLoop(const Frontend::Merged<Frontend::EventSource> &mergedEventSource, const Runtime &runtime, 
                                        const KernelImplementation &kernel, MergedFields &mergedFields, Assembler::ScalarRegisterPtr timeReg, 
-                                       std::optional<uint32_t> eventSinkSourceTableAddress, uint32_t &fieldBase, Assembler::CodeGenerator &c, 
-                                       Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, ProcessEventsFn processEvents) const override final;
+                                       Assembler::ScalarRegisterPtr preIndReg, uint32_t eventSinkSourceTableAddress, uint32_t &fieldBase, 
+                                       Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
+                                       ProcessEventsFn processEvents) const override final;
 
     //------------------------------------------------------------------------
     // Static API
@@ -171,8 +172,8 @@ private:
     //------------------------------------------------------------------------
     void generateArchetypeEventLoop(const KernelImplementation &kernel, MergedFields &mergedFields, 
                                     Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg, 
-                                    std::optional<uint32_t> eventSinkSourceTableAddress, Assembler::CodeGenerator &c,
-                                    Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
+                                    Assembler::ScalarRegisterPtr preIndReg, uint32_t eventSinkSourceTableAddress, 
+                                    Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                     uint32_t &scalarRegisterMask, ProcessEventsFn processEvents) const;
 
     //------------------------------------------------------------------------
@@ -287,8 +288,9 @@ public:
     //! Generate code to implement event loop
     virtual uint32_t generateEventLoop(const Frontend::Merged<Frontend::EventSource> &mergedEventSource, const Runtime &runtime, 
                                        const KernelImplementation &kernel, MergedFields &mergedFields, Assembler::ScalarRegisterPtr timeReg, 
-                                       std::optional<uint32_t> eventSinkSourceTableAddress, uint32_t &fieldBase, Assembler::CodeGenerator &c, 
-                                       Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, ProcessEventsFn processEvents) const override final;
+                                       Assembler::ScalarRegisterPtr preIndReg,  uint32_t eventSinkSourceTableAddress, uint32_t &fieldBase, 
+                                       Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
+                                       ProcessEventsFn processEvents) const override final;
 };
 
 //----------------------------------------------------------------------------

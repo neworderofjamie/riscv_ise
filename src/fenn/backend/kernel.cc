@@ -170,10 +170,9 @@ KernelImplementation::KernelImplementation(const Frontend::ProcessGroupVector &p
             }
 
             // Also record offset for this event source so it can be populated later
-            m_EventSourceProcessTableOffsets.try_emplace(e.first, m_EventSourceProcessTableSize);
-
-            // Update offset into 
+            const size_t eventSourceProcessTableStart = m_EventSourceProcessTableSize;
             m_EventSourceProcessTableSize += e.second.size();
+            m_EventSourceProcessTableOffsets.try_emplace(e.first, eventSourceProcessTableStart, m_EventSourceProcessTableSize);
 
             // Build hash digest
             boost::uuids::detail::sha1 hash;
@@ -184,18 +183,31 @@ KernelImplementation::KernelImplementation(const Frontend::ProcessGroupVector &p
             protoMergedEventSources[digest].push_back(e.first);
         }
 
-        // Find first empty entry and last non-empty entry in event sink source table
-        const auto firstEmpty = std::find(eventSinkSourceTable.cbegin(), eventSinkSourceTable.cend(), std::nullopt);
-        const auto lastNonEmpty = std::find_if(eventSinkSourceTable.crbegin(), eventSinkSourceTable.crend(), 
-                                               [](const auto &v){ return v.has_value(); });
+        // Add final element to event sink source table
+        if (!eventSinkSourceTable.empty()) {
+            // Find first empty entry and last non-empty entry in event sink source table
+            const auto firstEmpty = std::find(eventSinkSourceTable.cbegin(), eventSinkSourceTable.cend(), std::nullopt);
+            const auto lastNonEmpty = std::find_if(eventSinkSourceTable.crbegin(), eventSinkSourceTable.crend(), 
+                                                   [](const auto &v){ return v.has_value(); });
 
-        // Check first empty entry appears after the last non-empty one
-        assert(firstEmpty > lastNonEmpty.base());
+            // If there are no gaps
+            if (firstEmpty == eventSinkSourceTable.cend()) {
+                m_EventSinkSourceTable.reserve(eventSinkSourceTable.size() + 1);
+            }
+            else {
+                // Check first empty entry appears after the last non-empty one
+                assert(firstEmpty > lastNonEmpty.base());
+                m_EventSinkSourceTable.reserve(1 + std::distance(eventSinkSourceTable.cbegin(), firstEmpty));
+            }
 
-        // Copy all valid elements into final table
-        m_EventSinkSourceTable.reserve(std::distance(eventSinkSourceTable.cbegin(), firstEmpty));
-        std::transform(eventSinkSourceTable.cbegin(), eventSinkSourceTable.cend(), 
-                       std::back_inserter(m_EventSinkSourceTable), [](const auto &v){ return v.value(); });
+            // Copy all valid elements into final table
+            std::transform(eventSinkSourceTable.cbegin(), eventSinkSourceTable.cend(), 
+                           std::back_inserter(m_EventSinkSourceTable), [](const auto &v){ return v.value(); });
+
+            // Add final entry
+            m_EventSinkSourceTable.push_back(m_EventSourceProcessTableSize);
+        }
+        
 
         // Reserve final merged groups vector
         auto &mergedEventSource = m_MergedEventSources[getEventSourceProcessGroup()];
