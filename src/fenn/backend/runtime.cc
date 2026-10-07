@@ -122,71 +122,7 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
 {
     // Loop through kernels
     uint32_t fieldBase = 4;
-    std::unordered_map<std::shared_ptr<const Frontend::Kernel>, 
-                       std::unordered_map<std::shared_ptr<const Frontend::EventSource>, uint32_t>> kernelEventSourceProcessOffsets;
-    for(const auto &k : getModel()->getKernels()) {
-        // Ensure kernel has proper base class
-        auto ki = std::dynamic_pointer_cast<const KernelImplementation>(k);
-        if (!ki) {
-            throw std::runtime_error("FeNN backend runtime used with incompatible kernel");
-        }
-
-        // Get event sink->source map for this kernel
-        auto &eventSinkSources = m_KernelEventSinkSources[k];
-        auto &eventSourceProcesses = m_KernelEventSourceProcesses[k];
-
-        // If this kernel has any event sinks, allocate event sink source table
-        // **NOTE** as a micro-optimisation, bottom bit of population IDs are always zero so one less bit required
-        if (!ki->getEventSinkIDs().empty()) {
-            eventSinkSources.resize((size_t{1} << (ki->getNumPopulationIDBits() - 1)), std::nullopt);
-        }
-
-        // If kernel has an event source process group
-        if(ki->getEventSourceProcessGroup()) {
-            auto &eventSourceProcessOffsets = kernelEventSourceProcessOffsets[k];
-
-            // Create a hash map to group together processes with the same SHA1 digest
-            std::unordered_map<boost::uuids::detail::sha1::digest_type, 
-                std::vector<std::shared_ptr<Frontend::EventSource const>>, 
-                ::Common::Utils::SHA1Hash> protoMergedEventSources;
-
-            // Loop through all event sources
-            for(const auto &e : ki->getEventSourceProcesses()) {
-                // If this source is the output of an event channel
-                auto eventSourceChannel = std::dynamic_pointer_cast<const Frontend::EventChannelSource>(e.first);
-                if(eventSourceChannel) {
-                    // Get ID of sink at other end
-                    const auto eventSinkID = ki->getEventSinkIDs().at(eventSourceChannel->getSink());
-
-                    // Processes connected to this sink will be inserted into event source processes from it's current end
-                    const uint32_t eventSourceProcessOffset = eventSourceProcesses.size() * 4;
-                    eventSinkSources.at(eventSinkID) = eventSourceProcessOffset;
-                    eventSourceProcessOffsets[e.first] = eventSourceProcessOffset;
-
-                    // Add empty structures to event source processes
-                    eventSourceProcesses.reserve(eventSourceProcesses.size() + e.second.size());
-                    eventSourceProcesses.insert(eventSourceProcesses.end(), e.second.size(), EventSourceProcess{});
-                }
-
-                // Build hash digest
-                boost::uuids::detail::sha1 hash;
-                e.first->updateMergeHash(hash);
-                const auto digest = hash.get_digest();
-
-                // Add to map
-                protoMergedEventSources[digest].push_back(e.first);
-            }
-
-            // Reserve final merged groups vector
-            auto &mergedEventSource = m_MergedEventSources[ki->getEventSourceProcessGroup()];
-            mergedEventSource.reserve(protoMergedEventSources.size());
-
-            // Construct final merged event source array
-            size_t i = 0;
-            for(auto &s : protoMergedEventSources) {
-                mergedEventSource.emplace_back(i++, s.second);
-            }
-        }
+    
 
 
         // Update field base to go past the two data datastructures

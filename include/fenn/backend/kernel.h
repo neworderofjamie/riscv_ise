@@ -7,7 +7,7 @@
 // Frontend includes
 #include "frontend/events.h"
 #include "frontend/kernel.h"
-#include "frontend/model.h"
+#include "frontend/runtime.h"
 
 // Assembler includes
 #include "fenn/assembler/register_allocator.h"
@@ -62,6 +62,12 @@ public:
     //! Get map of event sources to the processes they provide input to
     const auto &getEventSourceProcesses() const{ return m_EventSourceProcesses; }
 
+    const auto &getEventSinkSourceTable() const{ return m_EventSinkSourceTable; }
+
+    const auto &getEventSourceProcessTableOffsets() const{ return m_EventSourceProcessTableOffsets; }
+
+    const auto &getMergedEventSources() const{ return m_MergedEventSources; }
+
     //! Get the base ID of this event sink
     uint32_t getEventSinkIDBase(std::shared_ptr<const Frontend::EventSink> eventSink) const;
     
@@ -82,6 +88,17 @@ private:
 
     std::unordered_map<std::shared_ptr<const Frontend::EventSource>, 
                        std::vector<std::shared_ptr<const Frontend::Process>>> m_EventSourceProcesses;
+
+    //! Mapping between event sinks and 
+    std::vector<size_t> m_EventSinkSourceTable;
+
+    //! Offsets into event source process table
+    std::unordered_map<std::shared_ptr<const Frontend::EventSource>, 
+                       uint32_t> m_EventSourceProcessTableOffsets;
+
+    // Map of process groups to merged process groups
+    std::unordered_map<std::shared_ptr<const Frontend::ProcessGroup>,
+                       std::vector<Frontend::Merged<Frontend::EventSource>>> m_MergedEventSources;
 
     size_t m_NumNeuronIDBits;
     size_t m_NumPopulationIDBits;

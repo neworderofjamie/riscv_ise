@@ -296,14 +296,6 @@ private:
     std::unordered_map<std::shared_ptr<const Frontend::Kernel>, 
                        std::vector<uint32_t>> m_KernelCode;
 
-    //! Map of kernel points to event sink->source mappings
-    std::unordered_map<std::shared_ptr<const Frontend::Kernel>, 
-                       std::vector<std::optional<uint16_t>>> m_KernelEventSinkSources;
-
-    //! Map of kernel pointers to event source->process mappings
-    std::unordered_map<std::shared_ptr<const Frontend::Kernel>, 
-                       std::vector<EventSourceProcess>> m_KernelEventSourceProcesses;
-
     //! Map from process groups to start addresses and merged fields associated with processes
     std::unordered_map<std::shared_ptr<const Frontend::ProcessGroup>,
                        std::vector<std::pair<uint32_t, MergedFields>>> m_MergedProcessFields;
@@ -312,9 +304,6 @@ private:
     std::unordered_map<std::shared_ptr<const Frontend::ProcessGroup>,
                        std::vector<std::pair<uint32_t, MergedFields>>> m_MergedEventSourceFields;
 
-    // Map of process groups to merged process groups
-    std::unordered_map<std::shared_ptr<const Frontend::ProcessGroup>,
-                       std::vector<Frontend::Merged<Frontend::EventSource>>> m_MergedEventSources;
 
     bool m_UseDRAMForWeights;
     bool m_KeepParamsInRegisters;

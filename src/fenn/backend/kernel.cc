@@ -1,8 +1,10 @@
 #include "fenn/backend/kernel.h"
 
 // Standard C++ includes
-#include <numeric>
 #include <set>
+
+// Standard C++ includes
+#include <cassert>
 
 // Common include
 #include "common/utils.h"
@@ -142,6 +144,71 @@ KernelImplementation::KernelImplementation(const Frontend::ProcessGroupVector &p
             throw std::runtime_error("Insufficient event address space");
         }
     }
+
+    // If kernel has an event source process group
+    if(getEventSourceProcessGroup()) {
+        // Create a hash map to group together processes with the same SHA1 digest
+        std::unordered_map<boost::uuids::detail::sha1::digest_type, 
+            std::vector<std::shared_ptr<Frontend::EventSource const>>, 
+            ::Common::Utils::SHA1Hash> protoMergedEventSources;
+
+        // Allocate event sink source table
+        // **NOTE** this gets checked for gaps and trimmed
+        std::vector<std::optional<size_t>> eventSinkSourceTable((size_t{1} << (m_NumPopulationIDBits - 1)), 
+                                                                std::nullopt);
+
+        // Loop through all event sources
+        size_t eventSourceProcessTableOffset = 0;
+        for(const auto &e : getEventSourceProcesses()) {
+            // If this source is the output of an event channel
+            auto eventSourceChannel = std::dynamic_pointer_cast<const Frontend::EventChannelSource>(e.first);
+            if(eventSourceChannel) {
+                // Get ID of sink at other end
+                const auto eventSinkID = getEventSinkIDs().at(eventSourceChannel->getSink());
+
+                // Add offset into yet-to-be-constructed event source process table 
+                // into event sink->source table and record it so it can be populated later
+                eventSinkSourceTable.at(eventSinkID / 2) = eventSourceProcessTableOffset;
+                m_EventSourceProcessTableOffsets.try_emplace(e.first, eventSourceProcessTableOffset);
+
+                // Update offset into 
+                eventSourceProcessTableOffset += e.second.size();
+            }
+
+            // Build hash digest
+            boost::uuids::detail::sha1 hash;
+            e.first->updateMergeHash(hash);
+            const auto digest = hash.get_digest();
+
+            // Add to map
+            protoMergedEventSources[digest].push_back(e.first);
+        }
+
+        // Find first empty entry and last non-empty entry in event sink source table
+        const auto firstEmpty = std::find(eventSinkSourceTable.cbegin(), eventSinkSourceTable.cend(), std::nullopt);
+        const auto lastNonEmpty = std::find_if(eventSinkSourceTable.crbegin(), eventSinkSourceTable.crend(), 
+                                               [](const auto &v){ return v.has_value(); });
+
+        // Check first empty entry appears after the last non-empty one
+        assert(firstEmpty > lastNonEmpty.base());
+
+        // Copy all valid elements into final table
+        m_EventSinkSourceTable.reserve(std::distance(eventSinkSourceTable.cbegin(), firstEmpty));
+        std::transform(eventSinkSourceTable.cbegin(), eventSinkSourceTable.cend(), 
+                       std::back_inserter(m_EventSinkSourceTable), [](const auto &v){ return v.value(); });
+
+        // Reserve final merged groups vector
+        auto &mergedEventSource = m_MergedEventSources[getEventSourceProcessGroup()];
+        mergedEventSource.reserve(protoMergedEventSources.size());
+
+        // Construct final merged event source array
+        size_t i = 0;
+        for(auto &s : protoMergedEventSources) {
+            mergedEventSource.emplace_back(i++, s.second);
+        }
+    }
+
+    LOGI_FENN_BACKEND << "Event sink->source table requires " << (m_EventSinkSourceTable.size() * 2) << "bytes of BRAM";
 }
 //----------------------------------------------------------------------------
 uint32_t KernelImplementation::getEventSinkIDBase(std::shared_ptr<const Frontend::EventSink> eventSink) const
