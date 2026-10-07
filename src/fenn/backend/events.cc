@@ -294,6 +294,10 @@ void EventSourceBuffer::generateArchetypeEventLoop(const KernelImplementation &k
                 // Process events
                 processEvents(c, SEventSourceProcessStartOffset, SEventSourceProcessEndOffset);
 
+                // Reset loop start
+                // **YUCK** doing this first would cause a stall as processEvents starts with a load from here
+                c.lw(*SEventSourceProcessStartOffset, *fieldBaseReg, eventSourceProcessStartOffset);
+
                 // Goto spike loop start
                 c.j_(spikeLoopStart);
             }
@@ -359,7 +363,11 @@ void EventSourceBuffer::generateArchetypeEventLoop(const KernelImplementation &k
                 }
 
                 // Process events
+                // **YUCK** doing this first would cause a stall as processEvents starts with a load from here
                 processEvents(c, SEventSourceProcessStartOffset, SEventSourceProcessEndOffset);
+
+                // Reset loop start
+                c.lw(*SEventSourceProcessStartOffset, *fieldBaseReg, eventSourceProcessStartOffset);
 
                 // Goto spike loop start
                 c.j_(spikeLoopStart);
