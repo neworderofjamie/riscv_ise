@@ -154,8 +154,11 @@ KernelImplementation::KernelImplementation(const Frontend::ProcessGroupVector &p
 
         // Allocate event sink source table
         // **NOTE** this gets checked for gaps and trimmed
-        std::vector<std::optional<size_t>> eventSinkSourceTable((size_t{1} << (m_NumPopulationIDBits - 1)), 
-                                                                std::nullopt);
+        std::vector<std::optional<size_t>> eventSinkSourceTable;
+        if (!eventSinkIDs.empty()) {
+            eventSinkSourceTable.resize((size_t{1} << (m_NumPopulationIDBits - 1)), std::nullopt);
+        }
+        
 
         // Loop through all event sources
         for(const auto &e : getEventSourceProcesses()) {
