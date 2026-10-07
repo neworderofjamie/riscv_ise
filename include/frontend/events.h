@@ -252,7 +252,7 @@ public:
     template<typename Channel = EventChannel, typename Sink = EventChannelSink, 
              typename Source = EventChannelSource>
     static std::shared_ptr<Channel> create(const std::vector<size_t> &shape,
-                                                const std::string &name = "")
+                                           const std::string &name = "")
     {
         return create<Channel, Sink, Source>(shape, shape, false, name);
     }
