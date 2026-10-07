@@ -14,9 +14,8 @@
 
 // Frontend includes
 #include "frontend/process_group.h"
-#include "frontend/variable.h"
 
-// Assembler includes
+// FeNN assembler includes
 #include "fenn/assembler/assembler_utils.h"
 
 // FeNN backend includes
@@ -122,16 +121,18 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
 {
     // Loop through kernels
     uint32_t fieldBase = 4;
-    
+    for (const auto &k : getModel()->getKernels()) {
+        // Ensure kernel has proper base class
+        auto ki = std::dynamic_pointer_cast<const KernelImplementation>(k);
+        if (!ki) {
+            throw std::runtime_error("FeNN backend runtime used with incompatible kernel");
+        }
 
+        // Add size of datastructures to fieldbase
+        fieldBase += (ki->getEventSinkSourceTable().size() * 2);
+        fieldBase += (ki->getEventSourceProcessTableSize() * 4);
 
-        // Update field base to go past the two data datastructures
-        LOGD_FENN_BACKEND << "Kernel '" << k->getName() << "' requires " << (eventSinkSources.size() * 2) << " bytes for event sink->source mapping";
-        LOGD_FENN_BACKEND << "Kernel '" << k->getName() << "' requires " << (eventSourceProcesses.size() * sizeof(EventSourceProcess)) << " bytes for event source->process mapping";
-        fieldBase += (eventSinkSources.size() * 2);
-        fieldBase += (eventSourceProcesses.size() * 4);
     }
-
     // Ensure field-base is 32-bit word aligned
     fieldBase = ::Common::Utils::padSize(fieldBase, 4);
 
@@ -145,7 +146,7 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
         // Generate kernel
         auto code = Assembler::Utils::generateStandardKernel(
             generateSimulationKernels, readyFlagPtr,
-            [this, generateSimulationKernels, &fieldBase, &k, &kernelEventSourceProcessOffsets]
+            [this, generateSimulationKernels, &fieldBase, &k]
             (Assembler::CodeGenerator &c, Assembler::VectorRegisterAllocator &vectorRegisterAllocator, 
              Assembler::ScalarRegisterAllocator &scalarRegisterAllocator)
             {
@@ -162,7 +163,7 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
 
                 // Generate code for kernel
                 ki->generateCode(c, scalarRegisterAllocator, vectorRegisterAllocator,
-                                 [this, &fieldBase, &k, &ki, &kernelEventSourceProcessOffsets]
+                                 [this, &fieldBase, &k, &ki]
                                  (auto processGroup, auto timeRegister, auto numTimesteps, auto &c,
                                   auto &scalarRegisterAllocator, auto &vectorRegisterAllocator)
                                  {
@@ -181,11 +182,6 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
 
                                      // If this is the event source process group
                                      if (processGroup == ki->getEventSourceProcessGroup()) {
-                                         ALLOCATE_SCALAR(SPreIndex);
-                                         ALLOCATE_SCALAR(SGroupIndex);
-                                         ALLOCATE_SCALAR(SMergedGroupReturn);
-                                         ALLOCATE_SCALAR(SSpikeReturn);
-
                                          // Create map containing a label for each merged process (key is archectype progress group)
                                          std::unordered_map<std::shared_ptr<const Frontend::Process>,
                                                             Assembler::Label> mergedProcessLabels;
@@ -211,7 +207,7 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
 
                                          // Loop through event sources and their proceses
                                          // **TODO** potentially this could happen much later
-                                         auto &eventSourceProcesses = m_KernelEventSourceProcesses.at(k);
+                                         /*auto &eventSourceProcesses = m_KernelEventSourceProcesses.at(k);
                                          const auto &eventSourceProcessOffsets = kernelEventSourceProcessOffsets.at(k);
                                          for (const auto &e : ki->getEventSourceProcesses()) {
                                              // Loop through all processes which should handle this
@@ -225,11 +221,18 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                                  eventSourceProcess.eventPropCodeAddr = mergedProcessLabels.at(destination.first);
                                                  eventSourceProcess.eventPropMergedGroupIndex = destination.second;
                                              }
-                                         }
+                                         }*/
+
+                                         // Registers used to communicate presynaptic spike id, group index 
+                                         // and return address from event loop to event propagation proces code
+                                         ALLOCATE_SCALAR(SPreIndex);
+                                         ALLOCATE_SCALAR(SGroupIndex);
+                                         ALLOCATE_SCALAR(SMergedGroupReturn);
+                        
 
                                          // Loop over merged event sources
                                          Assembler::CodeGenerator eventLoopCodeGenerator;
-                                         const auto &mergedEventSourcesGroup = getMergedEventSources().at(processGroup);
+                                         const auto &mergedEventSourcesGroup = ki->getMergedEventSources().at(processGroup);
                                          mergedEventSourceFields.first->second.reserve(mergedEventSourcesGroup.size());
                                          uint32_t eventLoopScalarRegisterMask = 0;
                                          for (const auto &m : mergedEventSourcesGroup) {
@@ -240,11 +243,34 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                                                                                 std::make_tuple(fieldBase - 4),
                                                                                                 std::make_tuple());
 
+                                             const uint32_t kernelEventSinkSourceTableAddress = 0;  // **TODO**
                                              // Generate event processing loops
                                              eventLoopScalarRegisterMask |= m.template getArchetype<EventSourceImplementation>()->generateEventLoop(
                                                  m, *this, *ki, mergedEventSourceFields.first->second.back().second,
-                                                 timeRegister, SPreIndex, SSpikeReturn, c.getAddress(jumpTable), eventSourceAddresses,
-                                                 fieldBase, eventLoopCodeGenerator, scalarRegisterAllocator);
+                                                 timeRegister, kernelEventSinkSourceTableAddress,
+                                                 fieldBase, eventLoopCodeGenerator, scalarRegisterAllocator,
+                                                 [SGroupIndex, SMergedGroupReturn]
+                                                 (auto &c, auto preIndReg, auto eventSourceProcessStartOffsetReg, auto eventSourceProcessEndOffsetReg)
+                                                 {
+                                                     // Loop over event propagation processes
+                                                     {
+                                                         auto processLoop = c.L();
+
+                                                         // Load process address and group index from event source->process table
+                                                         ALLOCATE_SCALAR(SProcessAddress);
+                                                         c.lhu(*SProcessAddress, *eventSourceProcessStartOffsetReg, kernelEventSourceProcessTable);
+                                                         c.lhu(*SGroupIndex, *eventSourceProcessStartOffsetReg, kernelEventSourceProcessTable + 2);
+
+                                                         // Jump to process address
+                                                         c.jalr(*SMergedGroupReturn, *SProcessAddress);
+
+                                                         // Advance pointer
+                                                         c.addi(*eventSourceProcessStartOffsetReg, *eventSourceProcessStartOffsetReg, 4);
+
+                                                         // Loop if there are more events
+                                                         c.bne(*eventSourceProcessStartOffsetReg, *eventSourceProcessEndOffsetReg, processLoop);
+                                                     }
+                                                 });
                                          }
 
                                          LOGD_FENN_BACKEND << "Event loops require " << ::Common::Utils::popCount(eventLoopScalarRegisterMask) << " scalar registers";
@@ -419,28 +445,37 @@ void Runtime::allocatePostamble()
         }
     }
 
-    // Loop through merged event sources
-    for(const auto &m : getMergedEventSources()) {
-        // Get corresponding merged fields
-        const auto &f = m_MergedEventSourceFields.at(m.first);
-        const auto &mergedEventSources = m.second;
-        assert(mergedEventSources.size() == f.size());
+    // Loop through kernels
+    for (const auto &k : getModel()->getKernels()) {
+        // Ensure kernel has proper base class
+        auto ki = std::dynamic_pointer_cast<const KernelImplementation>(k);
+        if (!ki) {
+            throw std::runtime_error("FeNN backend runtime used with incompatible kernel");
+        }
 
-        LOGD_FENN_BACKEND << "Populating fields associated with event sources in process group '" << m.first->getName() << "'";
+        // Loop through merged event sources
+        for(const auto &m : ki->getMergedEventSources()) {
+            // Get corresponding merged fields
+            const auto &f = m_MergedEventSourceFields.at(m.first);
+            const auto &mergedEventSources = m.second;
+            assert(mergedEventSources.size() == f.size());
 
-        // Loop through the merged processes and shared fields for this merged group
-        for(size_t g = 0; g < mergedEventSources.size(); g++) {
-            const auto &mergedEventSource = mergedEventSources[g];
-            const auto &mergedFields = f[g];
+            LOGD_FENN_BACKEND << "Populating fields associated with event sources in process group '" << m.first->getName() << "'";
 
-            LOGD_FENN_BACKEND << "\tMerged event source " << g;
+            // Loop through the merged processes and shared fields for this merged group
+            for(size_t g = 0; g < mergedEventSources.size(); g++) {
+                const auto &mergedEventSource = mergedEventSources[g];
+                const auto &mergedFields = f[g];
 
-            // Loop through processes
-            for(size_t p = 0; p < mergedEventSource.getMerged().size(); p++) {
-                auto eventSource = mergedEventSource.getMerged()[p];
-                LOGD_FENN_BACKEND << "\t\tEvent source '" << eventSource->getName() << "'";
+                LOGD_FENN_BACKEND << "\tMerged event source " << g;
+
+                // Loop through processes
+                for(size_t p = 0; p < mergedEventSource.getMerged().size(); p++) {
+                    auto eventSource = mergedEventSource.getMerged()[p];
+                    LOGD_FENN_BACKEND << "\t\tEvent source '" << eventSource->getName() << "'";
                 
-                populateFields(p, mergedFields, eventSource);
+                    populateFields(p, mergedFields, eventSource);
+                }
             }
         }
     }

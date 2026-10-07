@@ -29,7 +29,7 @@ using namespace FeNN;
 namespace FeNN::Backend
 {
 KernelImplementation::KernelImplementation(const Frontend::ProcessGroupVector &processGroups)
-:   m_NumNeuronIDBits(0), m_NumPopulationIDBits(0)
+:   m_NumNeuronIDBits(0), m_NumPopulationIDBits(0), m_EventSourceProcessTableSize(0)
 {
     // Loop through all process groups in kernel
     // **NOTE** at least 5 bits need to be used for neuron ID
@@ -158,7 +158,6 @@ KernelImplementation::KernelImplementation(const Frontend::ProcessGroupVector &p
                                                                 std::nullopt);
 
         // Loop through all event sources
-        size_t eventSourceProcessTableOffset = 0;
         for(const auto &e : getEventSourceProcesses()) {
             // If this source is the output of an event channel
             auto eventSourceChannel = std::dynamic_pointer_cast<const Frontend::EventChannelSource>(e.first);
@@ -166,14 +165,15 @@ KernelImplementation::KernelImplementation(const Frontend::ProcessGroupVector &p
                 // Get ID of sink at other end
                 const auto eventSinkID = getEventSinkIDs().at(eventSourceChannel->getSink());
 
-                // Add offset into yet-to-be-constructed event source process table 
-                // into event sink->source table and record it so it can be populated later
-                eventSinkSourceTable.at(eventSinkID / 2) = eventSourceProcessTableOffset;
-                m_EventSourceProcessTableOffsets.try_emplace(e.first, eventSourceProcessTableOffset);
-
-                // Update offset into 
-                eventSourceProcessTableOffset += e.second.size();
+                // Add offset into yet-to-be-constructed event source process table into event sink->source table
+                eventSinkSourceTable.at(eventSinkID / 2) = m_EventSourceProcessTableSize;
             }
+
+            // Also record offset for this event source so it can be populated later
+            m_EventSourceProcessTableOffsets.try_emplace(e.first, m_EventSourceProcessTableSize);
+
+            // Update offset into 
+            m_EventSourceProcessTableSize += e.second.size();
 
             // Build hash digest
             boost::uuids::detail::sha1 hash;
@@ -208,7 +208,8 @@ KernelImplementation::KernelImplementation(const Frontend::ProcessGroupVector &p
         }
     }
 
-    LOGI_FENN_BACKEND << "Event sink->source table requires " << (m_EventSinkSourceTable.size() * 2) << "bytes of BRAM";
+    LOGI_FENN_BACKEND << "Event sink->source table requires " << (m_EventSinkSourceTable.size() * 2) << " bytes of BRAM";
+    LOGI_FENN_BACKEND << "Event source->process table requires " << (m_EventSourceProcessTableSize * 4) << " bytes of BRAM";
 }
 //----------------------------------------------------------------------------
 uint32_t KernelImplementation::getEventSinkIDBase(std::shared_ptr<const Frontend::EventSink> eventSink) const

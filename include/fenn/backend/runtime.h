@@ -6,6 +6,9 @@
 // Frontend includes
 #include "frontend/runtime.h"
 
+// FeNN assembler includes
+#include "fenn/assembler/assembler.h"
+
 // FeNN compiler includes
 #include "fenn/compiler/compiler.h"
 
@@ -257,9 +260,6 @@ public:
     bool shouldKeepParamsInRegisters() const{ return m_KeepParamsInRegisters; }
     size_t getDMABufferSize() const{ return m_DMABufferSize; }
     auto getNeuronRoundingMode() const{ return m_NeuronUpdateRoundingMode; }
-    
-    //! Get merged event sources
-    const auto &getMergedEventSources() const { return m_MergedEventSources; }
 
 protected:
     //------------------------------------------------------------------------

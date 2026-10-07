@@ -78,6 +78,8 @@ public:
 
     size_t getNumPopulationIDBits() const { return m_NumPopulationIDBits; }
 
+    size_t getEventSourceProcessTableSize() const{ return m_EventSourceProcessTableSize; }
+
 private:
     //------------------------------------------------------------------------
     // Members
@@ -102,6 +104,7 @@ private:
 
     size_t m_NumNeuronIDBits;
     size_t m_NumPopulationIDBits;
+    size_t m_EventSourceProcessTableSize;
 };
 
 //----------------------------------------------------------------------------
