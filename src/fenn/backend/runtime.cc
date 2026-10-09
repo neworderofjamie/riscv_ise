@@ -189,7 +189,8 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
     m_KeepParamsInRegisters(keepParamsInRegisters), m_NeuronUpdateRoundingMode(neuronUpdateRoundingMode), 
     m_DMABufferSize(dmaBufferSize)
 {
-    // Loop through kernels
+    // Loop through kernels to figure out where data structures will 
+    // be so immediate addresses can be written into kernels 
     uint32_t fieldStart = 4;
     std::unordered_map<std::shared_ptr<const Frontend::Kernel>, 
                        std::tuple<uint32_t, uint32_t>> kernelEventTableLocations;
@@ -201,14 +202,13 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
         }
 
         // Add size of datastructures to fieldbase
+        // **NOTE** BRAM allocations are word-aligned
         const uint32_t eventSinkSourceTableAddress = fieldStart;
-        fieldStart += (ki->getEventSinkSourceTable().size() * 2);
+        fieldStart += ::Common::Utils::padSize(ki->getEventSinkSourceTable().size() * 2, 4);
         LOGD_FENN_BACKEND << "Kernel '" << k->getName() << "' has an event sink source table at " << eventSinkSourceTableAddress << " and an event source->process table at " << fieldStart;
         kernelEventTableLocations.try_emplace(k, eventSinkSourceTableAddress, fieldStart);
-        fieldStart += (ki->getEventSourceProcessTableSize() * 4);
+        fieldStart += ::Common::Utils::padSize(ki->getEventSourceProcessTableSize() * 4, 4);
     }
-    // Ensure field-base is 32-bit word aligned
-    fieldStart = ::Common::Utils::padSize(fieldStart, 4);
 
     LOGD_FENN_BACKEND << "Merged fields start at " << fieldStart;
     uint32_t fieldBase = fieldStart;
