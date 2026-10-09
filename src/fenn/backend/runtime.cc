@@ -390,7 +390,7 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                             // Add new merged field
                                             // **NOTE** these are relative to start of field array
                                             mergedProcessGroupFields.first->second.emplace_back(std::piecewise_construct,
-                                                                                    std::make_tuple(fieldBase - 4),
+                                                                                    std::make_tuple(fieldBase - fieldStart),
                                                                                     std::make_tuple());
 
                                             // Generate code
@@ -429,7 +429,6 @@ void Runtime::populateFields(size_t p, const std::pair<uint32_t, MergedFields> &
     // Loop through the fields in this merged group
     for(auto &f : mergedFields.second.getFields()) {
         // If field contains a constant
-        // **TODO** CHECK THESE AREN'T OFF BY 4 AS THESE ARE OFFSETS
         const uint32_t fieldAddress = fieldBaseAddress + f.first;
         if(std::holds_alternative<MergedFields::GetFieldConstantFunc<>>(f.second)) {
             auto getFieldValueFn = std::get<MergedFields::GetFieldConstantFunc<>>(f.second);
