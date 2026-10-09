@@ -161,7 +161,14 @@ KernelImplementation::KernelImplementation(const Frontend::ProcessGroupVector &p
         
 
         // Loop through all event sources
+        size_t lastEventSinkEnd = 0;
         for(const auto &e : getEventSourceProcesses()) {
+            // Record offset for this event source so it can be populated later
+            const size_t eventSourceProcessTableStart = m_EventSourceProcessTableSize;
+            m_EventSourceProcessTableSize += e.second.size();
+            m_EventSourceProcessTableOffsets.try_emplace(e.first, eventSourceProcessTableStart, m_EventSourceProcessTableSize);
+
+
             // If this source is the output of an event channel
             auto eventSourceChannel = std::dynamic_pointer_cast<const Frontend::EventChannelSource>(e.first);
             if(eventSourceChannel) {
@@ -169,13 +176,12 @@ KernelImplementation::KernelImplementation(const Frontend::ProcessGroupVector &p
                 const auto eventSinkID = getEventSinkIDs().at(eventSourceChannel->getSink());
 
                 // Add offset into yet-to-be-constructed event source process table into event sink->source table
-                eventSinkSourceTable.at(eventSinkID / 2) = m_EventSourceProcessTableSize;
-            }
+                eventSinkSourceTable.at(eventSinkID / 2) = eventSourceProcessTableStart;
 
-            // Also record offset for this event source so it can be populated later
-            const size_t eventSourceProcessTableStart = m_EventSourceProcessTableSize;
-            m_EventSourceProcessTableSize += e.second.size();
-            m_EventSourceProcessTableOffsets.try_emplace(e.first, eventSourceProcessTableStart, m_EventSourceProcessTableSize);
+                // Check this matches end of last entry and update last
+                assert(lastEventSinkEnd == eventSourceProcessTableStart);
+                lastEventSinkEnd = m_EventSourceProcessTableSize;
+            }
 
             // Build hash digest
             boost::uuids::detail::sha1 hash;
@@ -208,7 +214,7 @@ KernelImplementation::KernelImplementation(const Frontend::ProcessGroupVector &p
                            std::back_inserter(m_EventSinkSourceTable), [](const auto &v){ return v.value(); });
 
             // Add final entry
-            m_EventSinkSourceTable.push_back(m_EventSourceProcessTableSize);
+            m_EventSinkSourceTable.push_back(lastEventSinkEnd);
         }
         
 
