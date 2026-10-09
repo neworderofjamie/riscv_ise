@@ -149,7 +149,7 @@ void DeviceFeNN::allocateDataStructures()
                     // **NOTE** offsets are in terms of entries - each of which is two halfwords
                     arrayPointer[processStartOffset * 2] = mergedProcessAddresses.at(destination.first);
                     arrayPointer[(processStartOffset * 2) + 1] = destination.second;
-                    processStartOffset += 2;
+                    processStartOffset++;
                 }
             }
            
