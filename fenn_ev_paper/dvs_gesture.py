@@ -118,7 +118,6 @@ sparse_weights = [build_sparse_conn(f"hidden{i + 1}.npy", num_pre=np.prod(s),
                   for i, (s, n, f) in enumerate(zip(layer_shapes[:3], layer_sparse_connectivity_bits, 
                                                     layer_fractional_bits))]
 
-
 parser = ArgumentParser("DVS gesture classifier using LIF neurons")
 parser.add_argument("--device", action="store_true", help="Run model on FeNN hardware")
 parser.add_argument("--time", action="store_true", help="Record detailed timings using performance counters")
@@ -154,7 +153,7 @@ backend.init_logging(log_appender, backend.PlogSeverity.DEBUG)
 input_spike_buffer = backend.EventSourceBuffer((np.prod(layer_shapes[0]),), max_spike_array_length)
 
 # Populations of LIF neurons
-populations = [LIF(backend, (np.prod(s),), 0.93, 1.0, f, name=f"hidden{i}")
+populations = [LIF(backend, (np.prod(s),), 0.93, 1.0, f, name=f"hidden{i + 1}")
                for i, (s, f) in enumerate(zip(layer_shapes[1:-1], layer_fractional_bits))]
 populations.append(LIFOutput(backend, (np.prod(layer_shapes[-1]),), 0.93, 1.0, 
                    layer_fractional_bits[-1], name="output"))
@@ -213,6 +212,11 @@ if args.disassemble:
 # Allocate memory for model
 runtime.allocate()
 
+# Copy connectivity
+copy_and_push(sparse_weights[0][0], input_hidden1.weight, runtime)
+copy_and_push(sparse_weights[1][0], hidden1_hidden2.weight, runtime)
+copy_and_push(sparse_weights[2][0], hidden2_hidden3.weight, runtime)
+
 # Load and quantise output weights
 load_quantise_and_push("hidden4.npy", layer_fractional_bits[3], 
                        hidden3_hidden4.weight, runtime, percentile=100.0)
@@ -249,7 +253,7 @@ for spikes, label in tqdm(zip(input_spikes, input_labels),
     if classification == label:
         num_correct += 1
 
-print(f"{num_correct} / {len(shd_labels)} correct {100.0 * (num_correct / len(input_labels))}%")
+print(f"{num_correct} / {len(input_labels)} correct {100.0 * (num_correct / len(input_labels))}%")
 
 if args.time:
     neuron_update_cycles, neuron_update_instructions = read_perf_counter(
