@@ -161,6 +161,7 @@ populations.append(LIFOutput(backend, (np.prod(layer_shapes[-1]),), 0.93, 1.0,
 
 # Create memset processes to zero each population's V
 zero = [Memset(backend, p.v) for p in populations]
+zero.append(Memset(backend, populations[-1].num_spikes))
 
 # Connect input spikes to first layer
 input_hidden1 = SparseLinear(backend, input_spikes, populations[0].i, 
@@ -227,8 +228,8 @@ if args.time:
 input_spike_views = get_views(runtime, input_spikes)
 assert len(input_spike_views) == 1
 
-#output_v_avg_views = get_views(runtime, output.v_avg)
-#assert len(output_v_avg_views) == 1
+output_num_spikes_views = get_views(runtime, output.num_spikes)
+assert len(output_num_spikes_views) == 1
 
 num_correct = 0
 for spikes, label in tqdm(zip(input_spikes, input_labels),
@@ -241,10 +242,10 @@ for spikes, label in tqdm(zip(input_spikes, input_labels),
     runtime.run(kernel)
 
     # Copy output V sum from device
-    runtime.pull_state_from_device(output.v_avg)
+    runtime.pull_state_from_device(output.num_spikes)
 
     # Determine if output is correct
-    classification = np.argmax(output_v_avg_views[0])
+    classification = np.argmax(output_num_spikes_views[0])
     if classification == label:
         num_correct += 1
 
