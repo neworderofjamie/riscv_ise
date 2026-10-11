@@ -161,7 +161,7 @@ KernelImplementation::KernelImplementation(const Frontend::ProcessGroupVector &p
         
 
         // Loop through all event sources
-        size_t lastEventSinkEnd = 0;
+        std::optional<size_t> lastEventSinkEnd;
         for(const auto &e : getEventSourceProcesses()) {
             // Record offset for this event source so it can be populated later
             const size_t eventSourceProcessTableStart = m_EventSourceProcessTableSize;
@@ -178,8 +178,7 @@ KernelImplementation::KernelImplementation(const Frontend::ProcessGroupVector &p
                 // Add offset into yet-to-be-constructed event source process table into event sink->source table
                 eventSinkSourceTable.at(eventSinkID / 2) = eventSourceProcessTableStart;
 
-                // Check this matches end of last entry and update last
-                assert(lastEventSinkEnd == eventSourceProcessTableStart);
+                // If this is the last entry in the event sink-source table, use table size as end
                 lastEventSinkEnd = m_EventSourceProcessTableSize;
             }
 
@@ -214,7 +213,7 @@ KernelImplementation::KernelImplementation(const Frontend::ProcessGroupVector &p
                            std::back_inserter(m_EventSinkSourceTable), [](const auto &v){ return v.value(); });
 
             // Add final entry
-            m_EventSinkSourceTable.push_back(lastEventSinkEnd);
+            m_EventSinkSourceTable.push_back(lastEventSinkEnd.value());
         }
         
 
