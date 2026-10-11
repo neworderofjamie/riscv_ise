@@ -133,8 +133,8 @@ if args.disassemble:
 runtime.allocate()
 
 # Copy connectivity
-copy_and_push(in_hid_conn[0].flatten(), input_hidden.weight, runtime)
-copy_and_push(hid_hid_conn[0].flatten(), hidden_hidden.weight, runtime)
+copy_and_push(in_hid_conn[0], input_hidden.weight, runtime)
+copy_and_push(hid_hid_conn[0], hidden_hidden.weight, runtime)
 
 # Load output weights and biases, quantise and push to FeNN
 load_quantise_and_push("n_mnist_checkpoints/98-Conn_Pop2_Pop1-g.npy", 9, 
