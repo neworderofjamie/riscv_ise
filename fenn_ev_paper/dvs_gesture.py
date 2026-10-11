@@ -151,7 +151,7 @@ log_appender = backend.ConsoleAppender()#PythonLogAppender()
 backend.init_logging(log_appender, backend.PlogSeverity.DEBUG)
 
 # Input spikes
-input_spikes = backend.EventSourceBuffer((np.prod(layer_shapes[0]),), max_spike_array_length)
+input_spike_buffer = backend.EventSourceBuffer((np.prod(layer_shapes[0]),), max_spike_array_length)
 
 # Populations of LIF neurons
 populations = [LIF(backend, (np.prod(s),), 0.93, 1.0, f, name=f"hidden{i}")
@@ -164,7 +164,7 @@ zero = [Memset(backend, p.v) for p in populations]
 zero.append(Memset(backend, populations[-1].num_spikes))
 
 # Connect input spikes to first layer
-input_hidden1 = SparseLinear(backend, input_spikes, populations[0].i, 
+input_hidden1 = SparseLinear(backend, input_spike_buffer, populations[0].i, 
                              get_sat_type(layer_fractional_bits[0]), max_row_length=sparse_weights[0][0].shape[1],
                              num_sparse_connectivity_bits=layer_sparse_connectivity_bits[0], name="input_hidden1")
 
@@ -217,7 +217,7 @@ runtime.allocate()
 load_quantise_and_push("hidden4.npy", layer_fractional_bits[3], 
                        hidden3_hidden4.weight, runtime, percentile=100.0)
 load_quantise_and_push("output.npy", layer_fractional_bits[4], 
-                       hidden4_hidden5.weight, runtime, percentile=100.0)
+                       hidden4_output.weight, runtime, percentile=100.0)
 
 if args.time:
     zero_and_push(neuron_update_processes.performance_counter, runtime)
@@ -225,31 +225,31 @@ if args.time:
     zero_and_push(reset_processes.performance_counter, runtime)
 
 # Loop through examples
-input_spike_views = get_views(runtime, input_spikes)
+input_spike_views = get_views(runtime, input_spike_buffer)
 assert len(input_spike_views) == 1
 
-output_num_spikes_views = get_views(runtime, output.num_spikes)
+output_num_spikes_views = get_views(runtime, populations[-1].num_spikes)
 assert len(output_num_spikes_views) == 1
 
 num_correct = 0
 for spikes, label in tqdm(zip(input_spikes, input_labels),
-                          total=len(shd_labels), desc="Simulating"):
+                          total=len(input_labels), desc="Simulating"):
     # Copy data to array host pointe
     input_spike_views[0][:len(spikes)] = spikes
-    runtime.push_state_to_device(input_spikes)
+    runtime.push_state_to_device(input_spike_buffer)
 
     # Classify
     runtime.run(kernel)
 
     # Copy output V sum from device
-    runtime.pull_state_from_device(output.num_spikes)
+    runtime.pull_state_from_device(populations[-1].num_spikes)
 
     # Determine if output is correct
     classification = np.argmax(output_num_spikes_views[0])
     if classification == label:
         num_correct += 1
 
-print(f"{num_correct} / {len(shd_labels)} correct {100.0 * (num_correct / len(shd_labels))}%")
+print(f"{num_correct} / {len(shd_labels)} correct {100.0 * (num_correct / len(input_labels))}%")
 
 if args.time:
     neuron_update_cycles, neuron_update_instructions = read_perf_counter(
