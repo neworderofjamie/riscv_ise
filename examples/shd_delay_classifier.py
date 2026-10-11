@@ -81,9 +81,6 @@ num_timesteps = 1170
 input_shape = (700,)
 hidden_shape = (256,)
 output_shape = (20,)
-input_hidden_shape = (input_shape, hidden_shape)
-hidden_hidden_shape = (hidden_shape, hidden_shape)
-hidden_output_shape = (hidden_shape, output_shape)
 num_delay_bits = 7
 
 parser = ArgumentParser("SHD classifier using trained synaptic delays")

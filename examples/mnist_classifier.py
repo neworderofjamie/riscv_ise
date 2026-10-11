@@ -15,8 +15,6 @@ num_timesteps = 79
 input_shape = (28 * 28,)
 hidden_shape = (128,)
 output_shape = (10,)
-input_hidden_shape = (input_shape, hidden_shape)
-hidden_output_shape = (hidden_shape, output_shape)
 
 parser = ArgumentParser("MNIST classifier")
 parser.add_argument("--device", action="store_true", help="Run model on FeNN hardware")

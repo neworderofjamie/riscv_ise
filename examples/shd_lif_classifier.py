@@ -76,9 +76,6 @@ num_timesteps = 1170
 input_shape = (700,)
 hidden_shape = (256,)
 output_shape = (20,)
-input_hidden_shape = (input_shape, hidden_shape)
-hidden_hidden_shape = (hidden_shape, hidden_shape)
-hidden_output_shape = (hidden_shape, output_shape)
 
 parser = ArgumentParser("SHD classifier using LIF neurons")
 parser.add_argument("--device", action="store_true", help="Run model on FeNN hardware")
