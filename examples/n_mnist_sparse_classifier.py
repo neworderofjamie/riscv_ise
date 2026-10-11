@@ -4,7 +4,7 @@ from argparse import ArgumentParser
 import pyfenn.fenn_backend as backend
 
 from models import LIF, LI
-from pyfenn.models import SparseLinear, Memset
+from pyfenn.models import DenseLinear, Memset, SparseLinear
 from pyfenn.utils import PythonLogAppender
 from tonic.datasets import NMNIST
 
@@ -41,12 +41,10 @@ def build_sparse_conn(checkpoint_stem: str, num_pre: int,
 
 dt = 1.0
 num_timesteps = 300
-input_shape = 34 * 34 * 2
-hidden_shape = 512
-output_shape = 10
-input_hidden_shape = (input_shape, hidden_shape)
-hidden_hidden_shape = (hidden_shape, hidden_shape)
-hidden_output_shape = (hidden_shape, output_shape)
+input_shape = (34 * 34 * 2,)
+hidden_shape = (512,)
+output_shape = (10,)
+
 num_sparse_connectivity_bits = 5
 
 parser = ArgumentParser("N-MNIST classifier with sparse connectivity")
@@ -73,35 +71,36 @@ max_spike_array_length = max(len(s) for s in n_mnist_spikes)
 
 # Build connectivity
 in_hid_conn = build_sparse_conn("n_mnist_checkpoints/98-Conn_Pop0_Pop2",
-                                input_shape, num_sparse_connectivity_bits, fractional_bits=8,
+                                input_shape[0], num_sparse_connectivity_bits, fractional_bits=8,
                                 percentile=100.0)
 hid_hid_conn = build_sparse_conn("n_mnist_checkpoints/98-Conn_Pop2_Pop2",
-                                 hidden_shape, num_sparse_connectivity_bits, fractional_bits=8,
+                                 hidden_shape[0], num_sparse_connectivity_bits, fractional_bits=8,
                                  percentile=100.0)
 
-log_appender = PythonLogAppender()
+log_appender = backend.ConsoleAppender()#PythonLogAppender()
 backend.init_logging(log_appender, backend.PlogSeverity.DEBUG)
 
 # Input spikes
 input_spikes = backend.EventSourceBuffer(input_shape, max_spike_array_length)
 
 # Model
-rng_init = backend.RNGInit()
+#rng_init = backend.RNGInit()
 hidden = LIF(backend, hidden_shape, 20.0, 4, 0.61,
              1, 8, dt=dt, name="hidden")
 output = LI(backend, output_shape, 20.0, num_timesteps, 9, dt=dt, name="output")
 
-input_hidden = SparseLinear(backend, input_spikes, hidden.i, "s7_8_sat_t", max_row_length=in_hid_conn.shape[1],
+input_hidden = SparseLinear(backend, input_spikes, hidden.i, "s7_8_sat_t", max_row_length=in_hid_conn[0].shape[1],
                             num_sparse_connectivity_bits=num_sparse_connectivity_bits, name="input_hidden")
-hidden_hidden = SparseLinear(backend, hidden.out_spikes, hidden.i, "s7_8_sat_t", max_row_length=hid_hid_conn.shape[1],
+hidden_hidden = SparseLinear(backend, hidden.out_spikes, hidden.i, "s7_8_sat_t", max_row_length=hid_hid_conn[0].shape[1],
                              num_sparse_connectivity_bits=num_sparse_connectivity_bits, name="hidden_hidden")
-hidden_output = SparseLinear(backend, hidden.out_spikes, output.i, "s6_9_sat_t", name="hidden_output")
+hidden_output = DenseLinear(backend, hidden.out_spikes, output.i, "s6_9_sat_t", name="hidden_output")
 
 output_zero = Memset(backend, output.v_avg)
 hidden_zero = Memset(backend, hidden.i)
 
 # Group processes
-init_processes = backend.ProcessGroup([rng_init.process, hidden_zero.process])
+init_processes = backend.ProcessGroup([#rng_init.process, 
+                                       hidden_zero.process])
 neuron_update_processes = backend.ProcessGroup([hidden.process, output.process])
 synapse_update_processes = backend.ProcessGroup([input_hidden.process, hidden_hidden.process, 
                                                    hidden_output.process])
@@ -114,9 +113,9 @@ kernel = backend.SimulationLoopKernel(
     [zero_processes], [])
 
 # Create runtime
-runtime_params = {"neuron_update_rounding_mode": backend.RoundingMode.STOCHASTIC}
-runtime = (backend.RuntimeHW([kernel], 1, **runtime_params) if args.device 
-           else backend.RuntimeSim([kernel], 1, **runtime_params))
+runtime_params = {"neuron_update_rounding_mode": backend.RoundingMode.NEAREST}
+runtime = (backend.RuntimeHW([init_kernel, kernel], 1, **runtime_params) if args.device 
+           else backend.RuntimeSim([init_kernel, kernel], 1, **runtime_params))
 
 # Disassemble if required
 if args.disassemble:
@@ -134,14 +133,14 @@ if args.disassemble:
 runtime.allocate()
 
 # Copy connectivity
-copy_and_push(in_hid_conn.flatten(), input_hidden.weight, runtime)
-copy_and_push(hid_hid_conn.flatten(), hidden_hidden.weight, runtime)
+copy_and_push(in_hid_conn[0].flatten(), input_hidden.weight, runtime)
+copy_and_push(hid_hid_conn[0].flatten(), hidden_hidden.weight, runtime)
 
 # Load output weights and biases, quantise and push to FeNN
-load_quantise_and_push("n_mnist_checkpoints/98-Conn_Pop2_Pop1-g.npy", 9, hidden_output.weight,
-                       runtime, hidden_shape, True, percentile=100.0)
-load_quantise_and_push("n_mnist_checkpoints/98-Pop1-Bias.npy", 9, output.bias, runtime, 
-                       1, True, percentile=100.0)
+load_quantise_and_push("n_mnist_checkpoints/98-Conn_Pop2_Pop1-g.npy", 9, 
+                       hidden_output.weight, runtime, percentile=100.0)
+load_quantise_and_push("n_mnist_checkpoints/98-Pop1-Bias.npy", 9, 
+                       output.bias, runtime, percentile=100.0)
 
 # Zero remaining state
 zero_and_push(hidden.v, runtime)
@@ -151,7 +150,7 @@ zero_and_push(output.i, runtime)
 zero_and_push(output.v_avg, runtime)
 
 # Get array and view
-seed_and_push(rng_init.seed, runtime)
+#seed_and_push(rng_init.seed, runtime)
 
 # Run init kernel
 runtime.run(init_kernel)
