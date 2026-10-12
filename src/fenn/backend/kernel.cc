@@ -261,7 +261,7 @@ KernelImplementation::KernelImplementation(const Frontend::ProcessGroupVector &p
     }
 
     LOGI_FENN_BACKEND << "Event sink->source table requires " << (m_EventSinkSourceTable.size() * 2) << " bytes of BRAM";
-    LOGI_FENN_BACKEND << "Event source->process table requires " << (m_EventSourceProcessTableSize * 4) << " bytes of BRAM";
+    LOGI_FENN_BACKEND << "Event source->process table requires " << (m_EventSourceProcessTableSize * 16) << " bytes of BRAM";
 }
 //----------------------------------------------------------------------------
 uint32_t KernelImplementation::getEventSinkIDBase(std::shared_ptr<const Frontend::EventSink> eventSink) const

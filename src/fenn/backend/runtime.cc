@@ -110,8 +110,8 @@ void DeviceFeNN::allocateDataStructures()
             // Create array in BRAM
             LOGD_FENN_BACKEND << "Creating event sink-source table array for kernel '" << k->getName() << "' in BRAM";
             m_KernelEventSinkSourceTableArrays.try_emplace(
-                k, createBRAMArray(Type::Uint8, {ki->getEventSinkSourceTable().size() * 2},
-                                   {Type::Uint8.getSize()}));
+                k, createBRAMArray(Type::Uint16, {ki->getEventSinkSourceTable().size()},
+                                   {Type::Uint16.getSize()}));
         }
 
         // If this kernel has a event source->process table, allocate memory 
@@ -119,8 +119,8 @@ void DeviceFeNN::allocateDataStructures()
             // Create array in BRAM
             LOGD_FENN_BACKEND << "Creating event source-population table array for kernel '" << k->getName() << "' in BRAM";
             m_KernelEventSourcePopulationTableArrays.try_emplace(
-                k, createBRAMArray(Type::Uint8, {ki->getEventSourceProcessTableSize() * 4},
-                                   {Type::Uint8.getSize()}));
+                k, createBRAMArray(Type::Uint32, {ki->getEventSourceProcessTableSize() * 4},
+                                   {Type::Uint32.getSize()}));
         }
     }
 
@@ -145,12 +145,11 @@ void DeviceFeNN::populateDataStructures()
         // If this kernel has an event sink-source table
         if (!ki->getEventSinkSourceTable().empty()) {
             // Create array in BRAM
-            LOGD_FENN_BACKEND << "Creating event sink-source table array for kernel '" << k->getName() << "' in BRAM";
             auto *array = m_KernelEventSinkSourceTableArrays.at(k).get();
 
             // Convert offsets in sink source table into bytes and copy into arrray
             std::transform(ki->getEventSinkSourceTable().cbegin(), ki->getEventSinkSourceTable().cend(), 
-                           array->getHostPointer<uint16_t>(), [](size_t offset){ return (offset * 4); });
+                           array->getHostPointer<uint16_t>(), [](size_t offset){ return (offset * 16); });
 
             // Copy array to device
             array->pushToDevice();
@@ -159,7 +158,7 @@ void DeviceFeNN::populateDataStructures()
         // If this kernel has a event source->process table, allocate memory 
         if (ki->getEventSourceProcessTableSize() > 0) {
             // Create array in BRAM
-            LOGD_FENN_BACKEND << "Creating event source-population table array for kernel '" << k->getName() << "' in BRAM";
+            LOGD_FENN_BACKEND << "Populating event source-population table array for kernel '" << k->getName() << "' in BRAM";
             auto *array = m_KernelEventSourcePopulationTableArrays.at(k).get();
 
             // Get merged processes associated with event source process group
@@ -167,21 +166,44 @@ void DeviceFeNN::populateDataStructures()
             const auto &mergedProcessGroup = getRuntime().getMergedProcessGroups().at(ki->getEventSourceProcessGroup());
 
             // Loop through event source processes
+            // **TODO** this is BASICALLY now fields, we might as well add to event loop
             const auto &mergedProcessAddresses = getRuntime().getKernelMergedProcessAddresses().at(k);
-            uint16_t *arrayPointer = array->getHostPointer<uint16_t>();
+            uint32_t *arrayPointer = array->getHostPointer<uint32_t>();
             for (const auto &e : ki->getEventSourceProcesses()) {
+                LOGD_FENN_BACKEND << "\t Event source: '" << e.first->getName() << "'";
                 auto [processStartOffset, processEndOffset]  = ki->getEventSourceProcessTableOffsets().at(e.first);
 
                 // Loop through processes 
                 for (const auto &p : e.second) {
+                    // Ensure process has proper base class
+                    auto pi = std::dynamic_pointer_cast<const EventDrivenProcessImplementation>(p);
+                    if (!pi) {
+                        throw std::runtime_error("FeNN backend runtime used with incompatible process");
+                    }
+
                     // Determine this processes destination in merged groups
                     const auto &destination = mergedProcessGroup.getDestination(p);
+                    
+                    // Serialise array's 'device object'
+                    std::vector<std::byte> bytes;
+                    const auto *weightArray = getArray(pi->getWeight());
+                    weightArray->serialiseDeviceObject(bytes);
+                    assert(bytes.size() <= 4);
+
+                    // Get stride
+                    const uint32_t stride = static_cast<uint32_t>(std::get<1>(
+                        getRuntime().getDeviceArrayShapeStrides(pi->getWeight(), getDeviceIndex()))[0]);
 
                     // Write merged process addresses and merged group index into array
                     // **NOTE** offsets are in terms of entries - each of which is two halfwords
-                    arrayPointer[processStartOffset * 2] = mergedProcessAddresses.at(destination.first);
-                    arrayPointer[(processStartOffset * 2) + 1] = destination.second;
+                    arrayPointer[processStartOffset * 4] = mergedProcessAddresses.at(destination.first);
+                    arrayPointer[(processStartOffset * 4) + 1] = destination.second;
+                    arrayPointer[(processStartOffset * 4) + 2] = stride;
+                    std::memcpy(arrayPointer + ((processStartOffset * 4) + 3),
+                                bytes.data(), bytes.size());
                     processStartOffset++;
+                    //LOGD_FENN_BACKEND << "\t Process '" << p->getName() << "': ";
+                    
                 }
             }
 
@@ -229,7 +251,7 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
         fieldStart += ::Common::Utils::padSize(ki->getEventSinkSourceTable().size() * 2, 4);
         LOGD_FENN_BACKEND << "Kernel '" << k->getName() << "' has an event sink source table at " << eventSinkSourceTableAddress << " and an event source->process table at " << fieldStart;
         kernelEventTableLocations.try_emplace(k, eventSinkSourceTableAddress, fieldStart);
-        fieldStart += ::Common::Utils::padSize(ki->getEventSourceProcessTableSize() * 4, 4);
+        fieldStart += ::Common::Utils::padSize(ki->getEventSourceProcessTableSize() * 16, 4);
     }
 
     LOGD_FENN_BACKEND << "Merged fields start at " << fieldStart;
@@ -306,7 +328,8 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
 
                                          // Registers used to communicate presynaptic spike id, group index 
                                          // and return address from event loop to event propagation proces code
-                                         ALLOCATE_SCALAR(SPreIndex);
+                                         ALLOCATE_SCALAR(SWeightBuffer);
+                                         ALLOCATE_SCALAR(SStride);
                                          ALLOCATE_SCALAR(SGroupIndex);
                                          ALLOCATE_SCALAR(SMergedGroupReturn);
                         
@@ -327,25 +350,32 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                              // Generate event processing loops
                                              eventLoopScalarRegisterMask |= m.template getArchetype<EventSourceImplementation>()->generateEventLoop(
                                                  m, *this, *ki, mergedEventSourceFields.first->second.back().second,
-                                                 timeRegister, SPreIndex, std::get<0>(eventTableLocations),
+                                                 timeRegister, std::get<0>(eventTableLocations),
                                                  fieldBase, eventLoopCodeGenerator, scalarRegisterAllocator,
-                                                 [SGroupIndex, SMergedGroupReturn, &eventTableLocations, &scalarRegisterAllocator]
-                                                 (auto &c, auto eventSourceProcessStartOffsetReg, auto eventSourceProcessEndOffsetReg)
+                                                 [SGroupIndex, SMergedGroupReturn, SStride, SWeightBuffer, &eventTableLocations, &scalarRegisterAllocator]
+                                                 (auto &c, auto eventSourceProcessStartOffsetReg, auto eventSourceProcessEndOffsetReg, auto preIndReg)
                                                  {
                                                      // Loop over event propagation processes
                                                      {
                                                          auto processLoop = c.L();
 
-                                                         // Load process address and group index from event source->process table
+                                                         // Load process address, group index and weight buffer from event source->process table
                                                          ALLOCATE_SCALAR(SProcessAddress);
-                                                         c.lhu(*SProcessAddress, *eventSourceProcessStartOffsetReg, std::get<1>(eventTableLocations));
-                                                         c.lhu(*SGroupIndex, *eventSourceProcessStartOffsetReg, std::get<1>(eventTableLocations) + 2);
+                                                         c.lw(*SProcessAddress, *eventSourceProcessStartOffsetReg, std::get<1>(eventTableLocations));
+                                                         c.lw(*SGroupIndex, *eventSourceProcessStartOffsetReg, std::get<1>(eventTableLocations) + 4);
+                                                         c.lw(*SStride, *eventSourceProcessStartOffsetReg, std::get<1>(eventTableLocations) + 8);
+                                                         c.lw(*SWeightBuffer, *eventSourceProcessStartOffsetReg, std::get<1>(eventTableLocations) + 12);
 
+                                                         {
+                                                             ALLOCATE_SCALAR(STemp);
+                                                             c.mul(*STemp, *preIndReg, *SStride);
+                                                             c.add(*SWeightBuffer, *SWeightBuffer, *STemp);
+                                                         }
                                                          // Jump to process address
                                                          c.jalr(*SMergedGroupReturn, *SProcessAddress);
 
                                                          // Advance pointer
-                                                         c.addi(*eventSourceProcessStartOffsetReg, *eventSourceProcessStartOffsetReg, 4);
+                                                         c.addi(*eventSourceProcessStartOffsetReg, *eventSourceProcessStartOffsetReg, 16);
 
                                                          // Loop if there are more events
                                                          c.bne(*eventSourceProcessStartOffsetReg, *eventSourceProcessEndOffsetReg, processLoop);
@@ -379,9 +409,9 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
 
                                              // Generate code
                                              pi->generateCode(m, *this, *ki, mergedProcessGroupFields.first->second.back().second, 
-                                                              timeRegister, SPreIndex, SGroupIndex, 
-                                                              numTimesteps, fieldBase, c, 
-                                                              scalarRegisterAllocator, vectorRegisterAllocator);
+                                                              timeRegister, SWeightBuffer, SStride, SGroupIndex, numTimesteps, 
+                                                              fieldBase, c, scalarRegisterAllocator, vectorRegisterAllocator);
+
                                              // Return
                                              c.jr(*SMergedGroupReturn);
                                          }

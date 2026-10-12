@@ -484,9 +484,9 @@ void TimeDrivenProcessImplementation::generateCode(const Frontend::MergedProcess
 //----------------------------------------------------------------------------
 void EventDrivenProcessImplementation::generateCode(const Frontend::MergedProcess &mergedProcess, const Runtime &runtime, 
                                                     const KernelImplementation &kernel, MergedFields &mergedFields, 
-                                                    Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr preIndReg, 
-                                                    Assembler::ScalarRegisterPtr groupIndReg, std::optional<uint32_t> numTimesteps, 
-                                                    uint32_t &fieldBase, Assembler::CodeGenerator &c, 
+                                                    Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr weightBufferReg, 
+                                                    Assembler::ScalarRegisterPtr strideReg, Assembler::ScalarRegisterPtr groupIndReg, 
+                                                    std::optional<uint32_t> numTimesteps, uint32_t &fieldBase, Assembler::CodeGenerator &c, 
                                                     Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
                                                     Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
@@ -496,8 +496,8 @@ void EventDrivenProcessImplementation::generateCode(const Frontend::MergedProces
     // Generate archetype code and populate merged fields
     Assembler::CodeGenerator archetypeCodeGenerator;
     generateArchetypeCode(mergedProcess, runtime, kernel, mergedFields, 
-                          SFieldBase, timeReg,  preIndReg, numTimesteps, archetypeCodeGenerator,
-                          scalarRegisterAllocator, vectorRegisterAllocator);
+                          SFieldBase, timeReg,  weightBufferReg, strideReg, numTimesteps, 
+                          archetypeCodeGenerator, scalarRegisterAllocator, vectorRegisterAllocator);
 
     // If there is only one merged group so fieldbase is used  
     // directly or fieldBase can't fit in an immediate, load it
@@ -1095,10 +1095,11 @@ void DenseEventPropagationProcess::updateMaxDMABufferSize(size_t &size) const
 }
 //------------------------------------------------------------------------
 void DenseEventPropagationProcess::generateArchetypeCode(const Frontend::MergedProcess &mergedProcess, const Runtime &runtime, 
-                                                         const KernelImplementation&, MergedFields &mergedFields, 
-                                                         Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr, 
-                                                         Assembler::ScalarRegisterPtr preIndReg, std::optional<uint32_t>, 
-                                                         Assembler::CodeGenerator &processCodeGenerator, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
+                                                         const KernelImplementation &kernel, MergedFields &mergedFields,
+                                                         Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg, 
+                                                         Assembler::ScalarRegisterPtr weightBufferReg, Assembler::ScalarRegisterPtr strideReg, 
+                                                         std::optional<uint32_t> numTimesteps, Assembler::CodeGenerator &processCodeGenerator,
+                                                         Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                                          Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
     // Make some friendlier-named references
@@ -1124,14 +1125,6 @@ void DenseEventPropagationProcess::generateArchetypeCode(const Frontend::MergedP
             return static_cast<uint32_t>(std::get<1>(runtime.getDeviceArrayShapeStrides(p->getWeight(), d))[0]);
         };
     
-    // Get stride
-    // **NOTE** this is going into a multiply so always needs to be in a register
-    // **OPTIMISE** immediate loop count saves much more than a single li!
-    const auto strideReg = std::get<Assembler::ScalarRegisterPtr>(
-        addScalarValue<DenseEventPropagationProcess>(
-            0, mergedProcess, runtime.getNumDevices(), mergedFields, fieldBaseReg, 
-            processCodeGenerator, scalarRegisterAllocator, getStride));
-
     // No need for unrolling if all strides are 
     // less than the size of a single unrolled iteration
     // **THINK** this could also trigger a reduction in maxUnroll
@@ -1167,15 +1160,6 @@ void DenseEventPropagationProcess::generateArchetypeCode(const Frontend::MergedP
     ALLOCATE_SCALAR(STargetBuf);
     c.lw(*STargetBuf, *fieldBaseReg, targetFieldOffset);
 
-    // Calculate row start address
-    ALLOCATE_SCALAR(SWeightBuffer);
-    c.lw(*SWeightBuffer, *fieldBaseReg, weightFieldOffset);
-    {
-        ALLOCATE_SCALAR(STemp);
-        c.mul(*STemp, *preIndReg, *strideReg);
-        c.add(*SWeightBuffer, *SWeightBuffer, *STemp);
-    }
-
     // **TODO** this should be fine, just need to index target correctly
     assert(!getTarget().hasTime());
 
@@ -1192,11 +1176,11 @@ void DenseEventPropagationProcess::generateArchetypeCode(const Frontend::MergedP
         c, scalarRegisterAllocator,
         *strideReg, getMaxUnroll(), 64,
         strideNoUnroll, strideNoPairs, strideNoFinal,
-        [this, SWeightBuffer, STargetBuf, VWeight, VTarget1, VTarget2, VTargetNew]
+        [this, weightBufferReg, STargetBuf, VWeight, VTarget1, VTarget2, VTargetNew]
         (Assembler::CodeGenerator &c, uint32_t r, bool even)
         {
             // Load vector of weights
-            c.vloadv(*VWeight, *SWeightBuffer, r * 64);
+            c.vloadv(*VWeight, *weightBufferReg, r * 64);
 
             // Load NEXT vector of target to avoid stall
             // **YUCK** in last iteration, while this may not be accessed, it may be out of bounds                  
@@ -1209,11 +1193,11 @@ void DenseEventPropagationProcess::generateArchetypeCode(const Frontend::MergedP
             // Write back target
             c.vstore(*VTarget, *STargetBuf, r * 64);
         },
-        [this, SWeightBuffer, STargetBuf](Assembler::CodeGenerator &c, uint32_t numUnrolls)
+        [this, weightBufferReg, STargetBuf](Assembler::CodeGenerator &c, uint32_t numUnrolls)
         {
             // Increment pointers 
             c.addi(*STargetBuf, *STargetBuf, 64 * numUnrolls);
-            c.addi(*SWeightBuffer, *SWeightBuffer, 64 * numUnrolls);
+            c.addi(*weightBufferReg, *weightBufferReg, 64 * numUnrolls);
         });
 }
 //----------------------------------------------------------------------------
@@ -1324,10 +1308,11 @@ void SparseEventPropagationProcess::updateMaxDMABufferSize(size_t &size) const
 }
 //------------------------------------------------------------------------
 void SparseEventPropagationProcess::generateArchetypeCode(const Frontend::MergedProcess &mergedProcess, const Runtime &runtime, 
-                                                          const KernelImplementation&, MergedFields &mergedFields, 
-                                                          Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr, 
-                                                          Assembler::ScalarRegisterPtr preIndReg, std::optional<uint32_t>, 
-                                                          Assembler::CodeGenerator &processCodeGenerator, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
+                                                          const KernelImplementation &kernel, MergedFields &mergedFields,
+                                                          Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg, 
+                                                          Assembler::ScalarRegisterPtr weightBufferReg, Assembler::ScalarRegisterPtr strideReg, 
+                                                          std::optional<uint32_t> numTimesteps, Assembler::CodeGenerator &processCodeGenerator,
+                                                          Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                                           Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
     // Make some friendlier-named references
@@ -1352,14 +1337,6 @@ void SparseEventPropagationProcess::generateArchetypeCode(const Frontend::Merged
         {
             return static_cast<uint32_t>(std::get<1>(runtime.getDeviceArrayShapeStrides(p->getWeight(), d))[0]);
         };
-
-    // Get stride
-    // **NOTE** this is going into a multiply so always needs to be in a register
-    // **OPTIMISE** immediate loop count saves much more than a single li!
-    const auto strideReg = std::get<Assembler::ScalarRegisterPtr>(
-        addScalarValue<SparseEventPropagationProcess>(
-            0, mergedProcess, runtime.getNumDevices(), mergedFields, fieldBaseReg, 
-            processCodeGenerator, scalarRegisterAllocator, getStride));
 
     // No need for unrolling if all strides are 
     // less than the size of a single unrolled iteration
@@ -1397,13 +1374,13 @@ void SparseEventPropagationProcess::generateArchetypeCode(const Frontend::Merged
     c.lw(*STargetBuf, *fieldBaseReg, targetFieldOffset);
 
     // Calculate row start address
-    ALLOCATE_SCALAR(SWeightBuffer);
+    /*ALLOCATE_SCALAR(SWeightBuffer);
     c.lw(*SWeightBuffer, *fieldBaseReg, weightFieldOffset);
     {
         ALLOCATE_SCALAR(STemp);
         c.mul(*STemp, *preIndReg, *strideReg);
         c.add(*SWeightBuffer, *SWeightBuffer, *STemp);
-    }
+    }*/
 
     // **TODO** this should be fine, just need to index target correctly
     assert(!getTarget().hasTime());
@@ -1416,17 +1393,17 @@ void SparseEventPropagationProcess::generateArchetypeCode(const Frontend::Merged
     ALLOCATE_VECTOR(VWeight);
 
     // Preload first weights and indices to avoid stall
-    c.vloadv(*VWeightInd1, *SWeightBuffer, 0);
+    c.vloadv(*VWeightInd1, *weightBufferReg, 0);
 
     Assembler::Utils::unrollOddEvenLoopBody(
         c, scalarRegisterAllocator,
         *strideReg, getMaxUnroll(), 64,
         strideNoUnroll, strideNoPairs, strideNoFinal,
-        [this, SWeightBuffer, STargetBuf, VAccum, VPostAddr, VWeight, VWeightInd1, VWeightInd2]
+        [this, weightBufferReg, STargetBuf, VAccum, VPostAddr, VWeight, VWeightInd1, VWeightInd2]
         (Assembler::CodeGenerator &c, uint32_t r, bool even)
         {
             // Load NEXT vector of weights and indices
-            c.vloadv(even ? *VWeightInd2 : *VWeightInd1, *SWeightBuffer, (r + 1) * 64);
+            c.vloadv(even ? *VWeightInd2 : *VWeightInd1, *weightBufferReg, (r + 1) * 64);
 
             // Extract postsynaptic index and add base address
             auto VWeightInd = even ? VWeightInd1 : VWeightInd2;
@@ -1445,11 +1422,11 @@ void SparseEventPropagationProcess::generateArchetypeCode(const Frontend::Merged
             // Write back accumulator
             c.vstorel(*VAccum, *VPostAddr);
         },
-        [this, SWeightBuffer]
+        [this, weightBufferReg]
         (Assembler::CodeGenerator &c, uint32_t numUnrolls)
         {
             // Increment pointers 
-            c.addi(*SWeightBuffer, *SWeightBuffer, 64 * numUnrolls);
+            c.addi(*weightBufferReg, *weightBufferReg, 64 * numUnrolls);
         });
 
 }
@@ -1581,10 +1558,11 @@ void DelayEventPropagationProcess::updateMaxDMABufferSize(size_t &size) const
 }
 //------------------------------------------------------------------------
 void DelayEventPropagationProcess::generateArchetypeCode(const Frontend::MergedProcess &mergedProcess, const Runtime &runtime, 
-                                                         const KernelImplementation&, MergedFields &mergedFields, 
+                                                         const KernelImplementation &kernel, MergedFields &mergedFields,
                                                          Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg, 
-                                                         Assembler::ScalarRegisterPtr preIndReg, std::optional<uint32_t>, 
-                                                         Assembler::CodeGenerator &processCodeGenerator, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
+                                                         Assembler::ScalarRegisterPtr weightBufferReg, Assembler::ScalarRegisterPtr strideReg, 
+                                                         std::optional<uint32_t> numTimesteps, Assembler::CodeGenerator &processCodeGenerator,
+                                                         Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                                          Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
     // Make some friendlier-named references
@@ -1609,14 +1587,6 @@ void DelayEventPropagationProcess::generateArchetypeCode(const Frontend::MergedP
         {
             return static_cast<uint32_t>(std::get<1>(runtime.getDeviceArrayShapeStrides(p->getWeight(), d))[0]);
         };
-
-    // Get stride
-    // **NOTE** this is going into a multiply so always needs to be in a register
-    // **OPTIMISE** immediate loop count saves much more than a single li!
-    const auto strideReg = std::get<Assembler::ScalarRegisterPtr>(
-        addScalarValue<DelayEventPropagationProcess>(
-            0, mergedProcess, runtime.getNumDevices(), mergedFields, fieldBaseReg, 
-            processCodeGenerator, scalarRegisterAllocator, getStride));
 
     // No need for unrolling if all strides are 
     // less than the size of a single unrolled iteration
@@ -1654,13 +1624,13 @@ void DelayEventPropagationProcess::generateArchetypeCode(const Frontend::MergedP
     c.lw(*STargetBuf, *fieldBaseReg, targetFieldOffset);
 
     // Calculate row start address
-    ALLOCATE_SCALAR(SWeightBuffer);
+    /*ALLOCATE_SCALAR(SWeightBuffer);
     c.lw(*SWeightBuffer, *fieldBaseReg, weightFieldOffset);
     {
         ALLOCATE_SCALAR(STemp);
         c.mul(*STemp, *preIndReg, *strideReg);
         c.add(*SWeightBuffer, *SWeightBuffer, *STemp);
-    }
+    }*/
 
     // Loop over postsynaptic neurons
     ALLOCATE_VECTOR(VAccum);
@@ -1676,7 +1646,7 @@ void DelayEventPropagationProcess::generateArchetypeCode(const Frontend::MergedP
     c.vslli(1, *VTime, *VTime);
 
     // Preload first weights and indices to avoid stall
-    c.vloadv(*VWeightInd1, *SWeightBuffer, 0);
+    c.vloadv(*VWeightInd1, *weightBufferReg, 0);
 
     // Stride of each neuron's delay buffer in LLM
     const uint32_t delayStride = 2 * getTarget().getNumTimesteps();
@@ -1685,11 +1655,11 @@ void DelayEventPropagationProcess::generateArchetypeCode(const Frontend::MergedP
         c, scalarRegisterAllocator,
         *strideReg, getMaxUnroll(), 64,
         strideNoUnroll, strideNoPairs, strideNoFinal,
-        [this, delayStride, SWeightBuffer, STargetBuf, VAccum, VPostAddr, VTime, VWeight, VWeightInd1, VWeightInd2]
+        [this, delayStride, weightBufferReg, STargetBuf, VAccum, VPostAddr, VTime, VWeight, VWeightInd1, VWeightInd2]
         (Assembler::CodeGenerator &c, uint32_t r, bool even)
         {
             // Load NEXT vector of weights and indices
-            c.vloadv(even ? *VWeightInd2 : *VWeightInd1, *SWeightBuffer, (r + 1) * 64);
+            c.vloadv(even ? *VWeightInd2 : *VWeightInd1, *weightBufferReg, (r + 1) * 64);
 
             // Add time to delay
             auto VWeightInd = even ? VWeightInd1 : VWeightInd2;
@@ -1710,11 +1680,11 @@ void DelayEventPropagationProcess::generateArchetypeCode(const Frontend::MergedP
             // Write back accumulator
             c.vstorel(*VAccum, *VPostAddr, delayStride * r);
         },
-        [this, delayStride, STargetBuf, SWeightBuffer, &vectorRegisterAllocator]
+        [this, delayStride, STargetBuf, weightBufferReg, &vectorRegisterAllocator]
         (Assembler::CodeGenerator &c, uint32_t numUnrolls)
         {
             // Increment pointers 
-            c.addi(*SWeightBuffer, *SWeightBuffer, 64 * numUnrolls);
+            c.addi(*weightBufferReg, *weightBufferReg, 64 * numUnrolls);
             c.addi(*STargetBuf, *STargetBuf, numUnrolls * delayStride);
         });
 }
@@ -1891,12 +1861,14 @@ void Downsample2DEventPropagationProcess::updateMaxDMABufferSize(size_t&) const
 }
 //------------------------------------------------------------------------
 void Downsample2DEventPropagationProcess::generateArchetypeCode(const Frontend::MergedProcess &mergedProcess, const Runtime &runtime, 
-                                                                const KernelImplementation&, MergedFields &mergedFields, 
+                                                                const KernelImplementation &kernel, MergedFields &mergedFields,
                                                                 Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg, 
-                                                                Assembler::ScalarRegisterPtr preIndReg, std::optional<uint32_t>, 
-                                                                Assembler::CodeGenerator &processCodeGenerator, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
+                                                                Assembler::ScalarRegisterPtr weightBufferReg, Assembler::ScalarRegisterPtr strideReg, 
+                                                                std::optional<uint32_t> numTimesteps, Assembler::CodeGenerator &processCodeGenerator,
+                                                                Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                                                 Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
+    assert(false);
     // **TODO** handle splitting 
     assert(runtime.getNumDevices() == 1);
 
@@ -1917,7 +1889,7 @@ void Downsample2DEventPropagationProcess::generateArchetypeCode(const Frontend::
         [](size_t, auto p) -> int32_t
         {
             return getVectorLiteralValue(p->getTarget().getUnderlying()->getType(),
-                                         p->getWeight());
+                                         p->m_Weight);
         });
 
     // 
@@ -1942,10 +1914,11 @@ void Downsample2DEventPropagationProcess::generateArchetypeCode(const Frontend::
     ALLOCATE_SCALAR(SIndex);
 
     {
-        ALLOCATE_SCALAR(SX);
+        /*ALLOCATE_SCALAR(SX);
         ALLOCATE_SCALAR(SY);
 
         // Extract X coordinate
+        assert(false);
         c.srli(*SY, *preIndReg, coordScaleShift);
         c.andi(*SY, *SY, outputCoordMask);
    
@@ -1955,7 +1928,7 @@ void Downsample2DEventPropagationProcess::generateArchetypeCode(const Frontend::
 
         // Calculate index into post
         c.mul(*SIndex, *std::get<Assembler::ScalarRegisterPtr>(targetYStride), *SY);
-        c.add(*SIndex, *SIndex, *SX);
+        c.add(*SIndex, *SIndex, *SX);*/
     }
 
     {
