@@ -109,8 +109,44 @@ void DeviceFeNN::allocateDataStructures()
         if (!ki->getEventSinkSourceTable().empty()) {
             // Create array in BRAM
             LOGD_FENN_BACKEND << "Creating event sink-source table array for kernel '" << k->getName() << "' in BRAM";
-            auto array = createBRAMArray(Type::Uint8, {ki->getEventSinkSourceTable().size() * 2},
-                                         {Type::Uint8.getSize()});
+            m_KernelEventSinkSourceTableArrays.try_emplace(
+                k, createBRAMArray(Type::Uint8, {ki->getEventSinkSourceTable().size() * 2},
+                                   {Type::Uint8.getSize()}));
+        }
+
+        // If this kernel has a event source->process table, allocate memory 
+        if (ki->getEventSourceProcessTableSize() > 0) {
+            // Create array in BRAM
+            LOGD_FENN_BACKEND << "Creating event source-population table array for kernel '" << k->getName() << "' in BRAM";
+            m_KernelEventSourcePopulationTableArrays.try_emplace(
+                k, createBRAMArray(Type::Uint8, {ki->getEventSourceProcessTableSize() * 4},
+                                   {Type::Uint8.getSize()}));
+        }
+    }
+
+
+    LOGI_FENN_BACKEND << "Creating field array in BRAM";
+
+    // Create field array in BRAM and assert it is at correct fixed location
+    m_FieldArray = createBRAMArray(Type::Uint8, {getRuntime().getNumFieldBytes()}, 
+                                   {Type::Uint8.getSize()});
+}
+//----------------------------------------------------------------------------
+void DeviceFeNN::populateDataStructures()
+{
+    // Loop through kernels
+    for (const auto &k : getRuntime().getModel()->getKernels()) {
+        // Ensure kernel has proper base class
+        auto ki = std::dynamic_pointer_cast<const KernelImplementation>(k);
+        if (!ki) {
+            throw std::runtime_error("FeNN backend runtime used with incompatible kernel");
+        }
+
+        // If this kernel has an event sink-source table
+        if (!ki->getEventSinkSourceTable().empty()) {
+            // Create array in BRAM
+            LOGD_FENN_BACKEND << "Creating event sink-source table array for kernel '" << k->getName() << "' in BRAM";
+            auto *array = m_KernelEventSinkSourceTableArrays.at(k).get();
 
             // Convert offsets in sink source table into bytes and copy into arrray
             std::transform(ki->getEventSinkSourceTable().cbegin(), ki->getEventSinkSourceTable().cend(), 
@@ -118,17 +154,13 @@ void DeviceFeNN::allocateDataStructures()
 
             // Copy array to device
             array->pushToDevice();
-
-            // Move array pointer into dictionary
-            m_KernelEventSinkSourceTableArrays.try_emplace(k, std::move(array));
         }
 
         // If this kernel has a event source->process table, allocate memory 
         if (ki->getEventSourceProcessTableSize() > 0) {
             // Create array in BRAM
             LOGD_FENN_BACKEND << "Creating event source-population table array for kernel '" << k->getName() << "' in BRAM";
-            auto array = createBRAMArray(Type::Uint8, {ki->getEventSourceProcessTableSize() * 4},
-                                         {Type::Uint8.getSize()});
+            auto *array = m_KernelEventSourcePopulationTableArrays.at(k).get();
 
             // Get merged processes associated with event source process group
             assert(ki->getEventSourceProcessGroup());
@@ -152,21 +184,11 @@ void DeviceFeNN::allocateDataStructures()
                     processStartOffset++;
                 }
             }
-           
+
             // Copy array to device
             array->pushToDevice();
-
-            // Move array pointer into dictionary
-            m_KernelEventSourcePopulationTableArrays.try_emplace(k, std::move(array));
         }
     }
-
-
-    LOGI_FENN_BACKEND << "Creating field array in BRAM";
-
-    // Create field array in BRAM and assert it is at correct fixed location
-    m_FieldArray = createBRAMArray(Type::Uint8, {getRuntime().getNumFieldBytes()}, 
-                                   {Type::Uint8.getSize()});
 }
 //----------------------------------------------------------------------------
 std::unique_ptr<Frontend::ArrayBase> DeviceFeNN::createPerformanceCounter()
@@ -420,60 +442,6 @@ void Runtime::allocatePreamble()
     }
 }
 //----------------------------------------------------------------------------
-void Runtime::populateFields(size_t p, const std::pair<uint32_t, MergedFields> &mergedFields,
-                             std::shared_ptr<const Frontend::ModelComponent> owner)
-{
-    // Get base address of this process's fields
-    const uint32_t fieldBaseAddress = mergedFields.first + (p * mergedFields.second.getSize());
-
-    // Loop through the fields in this merged group
-    for(auto &f : mergedFields.second.getFields()) {
-        // If field contains a constant
-        const uint32_t fieldAddress = fieldBaseAddress + f.first;
-        if(std::holds_alternative<MergedFields::GetFieldConstantFunc<>>(f.second)) {
-            auto getFieldValueFn = std::get<MergedFields::GetFieldConstantFunc<>>(f.second);
-
-            // Loop through devices
-            for(size_t d = 0; d < getNumDevices(); d++) {
-                // Get value for this device
-                auto deviceValue = getFieldValueFn(d, owner);
-                
-                // Copy value into field array
-                auto *fieldArray = static_cast<DeviceFeNN*>(getDevices()[d].get())->getFieldArray();
-                std::visit(
-                    [fieldAddress, fieldArray](auto v)
-                    {
-                        LOGD_FENN_BACKEND << "\t\t\tWriting value " << v << " into field at " << fieldAddress;
-                        static_assert(sizeof(v) <= 4, "In FeNN backend, fields are always 4 bytes");
-                        std::memcpy(fieldArray->getHostPointer() + fieldAddress, 
-                                    &v, sizeof(v));
-                    },
-                    deviceValue);
-            }
-        }
-        // Otherwise, it contains an array
-        else {
-            // Loop through devices
-            auto getFieldPointerFn = std::get<MergedFields::GetFieldPointerFunc<>>(f.second);
-            for(auto &d : getDevices()) {
-                // Get array allocated on this device
-                auto deviceArray = getFieldPointerFn(*d, owner);
-
-                // Serialise array's 'device object'
-                std::vector<std::byte> bytes;
-                deviceArray->serialiseDeviceObject(bytes);
-                assert(bytes.size() <= 4);
-                LOGD_FENN_BACKEND << "\t\t\tWriting pointer into field at " << fieldAddress;
-
-                // Memcpy bytes into field offset
-                auto *fieldArray = static_cast<DeviceFeNN*>(d.get())->getFieldArray();
-                std::memcpy(fieldArray->getHostPointer() + fieldAddress, 
-                            bytes.data(), bytes.size());
-            }
-        }
-    }
-}
-//----------------------------------------------------------------------------
 void Runtime::allocatePostamble()
 {
     // Loop through merged process groups
@@ -537,9 +505,67 @@ void Runtime::allocatePostamble()
         }
     }
 
-    // Loop through all devices and push field arrays to device
+    // Loop through all devices 
     for(auto &d : getDevices()) {
+        // Push field arrays to device
         static_cast<DeviceFeNN*>(d.get())->getFieldArray()->pushToDevice();
+
+        // Populate data structures
+        static_cast<DeviceFeNN*>(d.get())->populateDataStructures();
+    }
+}
+//----------------------------------------------------------------------------
+void Runtime::populateFields(size_t p, const std::pair<uint32_t, MergedFields> &mergedFields,
+                             std::shared_ptr<const Frontend::ModelComponent> owner)
+{
+    // Get base address of this process's fields
+    const uint32_t fieldBaseAddress = mergedFields.first + (p * mergedFields.second.getSize());
+
+    // Loop through the fields in this merged group
+    for(auto &f : mergedFields.second.getFields()) {
+        // If field contains a constant
+        const uint32_t fieldAddress = fieldBaseAddress + f.first;
+        if(std::holds_alternative<MergedFields::GetFieldConstantFunc<>>(f.second)) {
+            auto getFieldValueFn = std::get<MergedFields::GetFieldConstantFunc<>>(f.second);
+
+            // Loop through devices
+            for(size_t d = 0; d < getNumDevices(); d++) {
+                // Get value for this device
+                auto deviceValue = getFieldValueFn(d, owner);
+                
+                // Copy value into field array
+                auto *fieldArray = static_cast<DeviceFeNN*>(getDevices()[d].get())->getFieldArray();
+                std::visit(
+                    [fieldAddress, fieldArray](auto v)
+                    {
+                        LOGD_FENN_BACKEND << "\t\t\tWriting value " << v << " into field at " << fieldAddress;
+                        static_assert(sizeof(v) <= 4, "In FeNN backend, fields are always 4 bytes");
+                        std::memcpy(fieldArray->getHostPointer() + fieldAddress, 
+                                    &v, sizeof(v));
+                    },
+                    deviceValue);
+            }
+        }
+        // Otherwise, it contains an array
+        else {
+            // Loop through devices
+            auto getFieldPointerFn = std::get<MergedFields::GetFieldPointerFunc<>>(f.second);
+            for(auto &d : getDevices()) {
+                // Get array allocated on this device
+                auto deviceArray = getFieldPointerFn(*d, owner);
+
+                // Serialise array's 'device object'
+                std::vector<std::byte> bytes;
+                deviceArray->serialiseDeviceObject(bytes);
+                assert(bytes.size() <= 4);
+                LOGD_FENN_BACKEND << "\t\t\tWriting pointer into field at " << fieldAddress;
+
+                // Memcpy bytes into field offset
+                auto *fieldArray = static_cast<DeviceFeNN*>(d.get())->getFieldArray();
+                std::memcpy(fieldArray->getHostPointer() + fieldAddress, 
+                            bytes.data(), bytes.size());
+            }
+        }
     }
 }
 }

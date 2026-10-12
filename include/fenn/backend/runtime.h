@@ -207,6 +207,7 @@ public:
     // Public API
     //------------------------------------------------------------------------
     void allocateDataStructures();
+    void populateDataStructures();
 
     const auto &getBRAMAllocator() const{ return m_BRAMAllocator; }
     auto &getBRAMAllocator(){ return m_BRAMAllocator; }
