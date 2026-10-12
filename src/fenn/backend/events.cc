@@ -155,10 +155,10 @@ Frontend::State::ShapeStride EventSourceBuffer::getArrayShapeStride(std::optiona
                            std::vector<size_t>{(m_LongEvents ? Uint32.getSize() : Uint16.getSize())});
 }
 //----------------------------------------------------------------------------
-uint32_t EventSourceBuffer::generateEventLoop(const Frontend::Merged<Frontend::EventSource> &mergedEventSource, const Runtime &runtime, 
-                                              const KernelImplementation &kernel, MergedFields &mergedFields, Assembler::ScalarRegisterPtr timeReg, 
-                                              uint32_t eventSinkSourceTableAddress, uint32_t &fieldBase, Assembler::CodeGenerator &c, 
-                                              Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, ProcessEventsFn processEvents) const
+uint32_t EventSourceBuffer::generateURAMEventLoop(const Frontend::Merged<Frontend::EventSource> &mergedEventSource, const Runtime &runtime, 
+                                                  const KernelImplementation &kernel, MergedFields &mergedFields, Assembler::ScalarRegisterPtr timeReg, 
+                                                  uint32_t eventSinkSourceTableAddress, uint32_t &fieldBase, Assembler::CodeGenerator &c, 
+                                                  Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, ProcessEventsFn processEvents) const
 {
     // Allocate base register
     uint32_t scalarRegisterMask = 0;
@@ -567,10 +567,10 @@ Frontend::State::ShapeStride EventChannelSource::getArrayShapeStride(std::option
     return std::make_tuple(std::vector<size_t>{}, std::vector<size_t>{});
 }
 //----------------------------------------------------------------------------
-uint32_t EventChannelSource::generateEventLoop(const Frontend::Merged<Frontend::EventSource> &mergedEventSource, const Runtime &runtime, 
-                                               const KernelImplementation &kernel, MergedFields &mergedFields, Assembler::ScalarRegisterPtr timeReg, 
-                                               uint32_t eventSinkSourceTableAddress, uint32_t &fieldBase, Assembler::CodeGenerator &c, 
-                                               Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, ProcessEventsFn processEvents) const
+uint32_t EventChannelSource::generateURAMEventLoop(const Frontend::Merged<Frontend::EventSource> &mergedEventSource, const Runtime &runtime, 
+                                                   const KernelImplementation &kernel, MergedFields &mergedFields, Assembler::ScalarRegisterPtr timeReg, 
+                                                   uint32_t eventSinkSourceTableAddress, uint32_t &fieldBase, Assembler::CodeGenerator &c, 
+                                                   Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, ProcessEventsFn processEvents) const
 {
     // Wait for all events from last timestep to be communicated
     Assembler::Utils::generateRouterBarrier(c, scalarRegisterAllocator, runtime.getNumDevices());

@@ -55,10 +55,10 @@ public:
     // Declared virtuals
     //----------------------------------------------------------------------------
     //! Generate code to implement event loop
-    virtual uint32_t generateEventLoop(const Frontend::Merged<Frontend::EventSource> &mergedEventSource, const Runtime &runtime, 
-                                       const KernelImplementation &kernel, MergedFields &mergedFields, Assembler::ScalarRegisterPtr timeReg, 
-                                       uint32_t eventSinkSourceTableAddress, uint32_t &fieldBase, Assembler::CodeGenerator &c, 
-                                       Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, ProcessEventsFn processEvents) const = 0;
+    virtual uint32_t generateURAMEventLoop(const Frontend::Merged<Frontend::EventSource> &mergedEventSource, const Runtime &runtime, 
+                                           const KernelImplementation &kernel, MergedFields &mergedFields, Assembler::ScalarRegisterPtr timeReg, 
+                                           uint32_t eventSinkSourceTableAddress, uint32_t &fieldBase, Assembler::CodeGenerator &c, 
+                                           Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, ProcessEventsFn processEvents) const = 0;
 };
 
 //----------------------------------------------------------------------------
@@ -152,10 +152,10 @@ public:
     // EventSourceImplementation virtuals
     //----------------------------------------------------------------------------
     //! Generate code to implement event loop
-    virtual uint32_t generateEventLoop(const Frontend::Merged<Frontend::EventSource> &mergedEventSource, const Runtime &runtime, 
-                                       const KernelImplementation &kernel, MergedFields &mergedFields, Assembler::ScalarRegisterPtr timeReg, 
-                                       uint32_t eventSinkSourceTableAddress, uint32_t &fieldBase, Assembler::CodeGenerator &c, 
-                                       Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, ProcessEventsFn processEvents) const override final;
+    virtual uint32_t generateURAMEventLoop(const Frontend::Merged<Frontend::EventSource> &mergedEventSource, const Runtime &runtime, 
+                                           const KernelImplementation &kernel, MergedFields &mergedFields, Assembler::ScalarRegisterPtr timeReg, 
+                                           uint32_t eventSinkSourceTableAddress, uint32_t &fieldBase, Assembler::CodeGenerator &c, 
+                                           Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, ProcessEventsFn processEvents) const override final;
 
     //------------------------------------------------------------------------
     // Static API
@@ -285,10 +285,10 @@ public:
     // EventSourceImplementation virtuals
     //----------------------------------------------------------------------------
     //! Generate code to implement event loop
-    virtual uint32_t generateEventLoop(const Frontend::Merged<Frontend::EventSource> &mergedEventSource, const Runtime &runtime, 
-                                       const KernelImplementation &kernel, MergedFields &mergedFields, Assembler::ScalarRegisterPtr timeReg, 
-                                       uint32_t eventSinkSourceTableAddress, uint32_t &fieldBase, Assembler::CodeGenerator &c, 
-                                       Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, ProcessEventsFn processEvents) const override final;
+    virtual uint32_t generateURAMEventLoop(const Frontend::Merged<Frontend::EventSource> &mergedEventSource, const Runtime &runtime, 
+                                           const KernelImplementation &kernel, MergedFields &mergedFields, Assembler::ScalarRegisterPtr timeReg, 
+                                           uint32_t eventSinkSourceTableAddress, uint32_t &fieldBase, Assembler::CodeGenerator &c, 
+                                           Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, ProcessEventsFn processEvents) const override final;
 };
 
 //----------------------------------------------------------------------------

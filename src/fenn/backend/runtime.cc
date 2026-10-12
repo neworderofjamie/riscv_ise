@@ -348,7 +348,7 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                                                                                 std::make_tuple());
 
                                              // Generate event processing loops
-                                             eventLoopScalarRegisterMask |= m.template getArchetype<EventSourceImplementation>()->generateEventLoop(
+                                             eventLoopScalarRegisterMask |= m.template getArchetype<EventSourceImplementation>()->generateURAMEventLoop(
                                                  m, *this, *ki, mergedEventSourceFields.first->second.back().second,
                                                  timeRegister, std::get<0>(eventTableLocations),
                                                  fieldBase, eventLoopCodeGenerator, scalarRegisterAllocator,
