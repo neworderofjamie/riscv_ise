@@ -190,15 +190,11 @@ void DeviceFeNN::populateDataStructures()
                     weightArray->serialiseDeviceObject(bytes);
                     assert(bytes.size() <= 4);
 
-                    // Get stride
-                    const uint32_t stride = static_cast<uint32_t>(std::get<1>(
-                        getRuntime().getDeviceArrayShapeStrides(pi->getWeight(), getDeviceIndex()))[0]);
-
                     // Write merged process addresses and merged group index into array
                     // **NOTE** offsets are in terms of entries - each of which is two halfwords
                     arrayPointer[processStartOffset * 4] = mergedProcessAddresses.at(destination.first);
                     arrayPointer[(processStartOffset * 4) + 1] = destination.second;
-                    arrayPointer[(processStartOffset * 4) + 2] = stride;
+                    arrayPointer[(processStartOffset * 4) + 2] = pi->getWeightStride(getRuntime(), getDeviceIndex());
                     std::memcpy(arrayPointer + ((processStartOffset * 4) + 3),
                                 bytes.data(), bytes.size());
                     processStartOffset++;

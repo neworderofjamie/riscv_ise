@@ -531,6 +531,11 @@ void EventDrivenProcessImplementation::generateCode(const Frontend::MergedProces
     // Update fieldbase for next merged group
     fieldBase += (mergedProcess.getMerged().size() * mergedFields.getSize());
 }
+//----------------------------------------------------------------------------
+size_t EventDrivenProcessImplementation::getWeightStride(const Runtime &runtime, size_t deviceIndex) const
+{
+    return std::get<1>(runtime.getDeviceArrayShapeStrides(getWeight(), deviceIndex))[0];
+}
 
 //----------------------------------------------------------------------------
 // FeNN::Backend::NeuronUpdateProcess
@@ -1089,11 +1094,6 @@ DenseEventPropagationProcess::DenseEventPropagationProcess(Private, std::shared_
     }
 }
 //------------------------------------------------------------------------
-void DenseEventPropagationProcess::updateMaxDMABufferSize(size_t &size) const
-{
-    size = std::max(size, getWeight()->getShape()[1]);
-}
-//------------------------------------------------------------------------
 void DenseEventPropagationProcess::generateArchetypeCode(const Frontend::MergedProcess &mergedProcess, const Runtime &runtime, 
                                                          const KernelImplementation &kernel, MergedFields &mergedFields,
                                                          Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg, 
@@ -1300,11 +1300,6 @@ SparseEventPropagationProcess::SparseEventPropagationProcess(Private, std::share
                                  + " is not compatible with target variable with type: " 
                                  + getTarget().getUnderlying()->getType().getName());
     }
-}
-//------------------------------------------------------------------------
-void SparseEventPropagationProcess::updateMaxDMABufferSize(size_t &size) const
-{
-    size = std::max(size, getWeight()->getShape()[1]);
 }
 //------------------------------------------------------------------------
 void SparseEventPropagationProcess::generateArchetypeCode(const Frontend::MergedProcess &mergedProcess, const Runtime &runtime, 
@@ -1550,11 +1545,6 @@ DelayEventPropagationProcess::DelayEventPropagationProcess(Private, std::shared_
                                  + " is not compatible with target variable with type: " 
                                  + getTarget().getUnderlying()->getType().getName());
     }
-}
-//------------------------------------------------------------------------
-void DelayEventPropagationProcess::updateMaxDMABufferSize(size_t &size) const
-{
-    size = std::max(size, getWeight()->getShape()[1]);
 }
 //------------------------------------------------------------------------
 void DelayEventPropagationProcess::generateArchetypeCode(const Frontend::MergedProcess &mergedProcess, const Runtime &runtime, 
@@ -1854,10 +1844,6 @@ void Downsample2DEventPropagationProcess::updateCompatibleMemSpace(std::shared_p
     else {
         assert(state == getInputEventSource());
     }
-}
-//------------------------------------------------------------------------
-void Downsample2DEventPropagationProcess::updateMaxDMABufferSize(size_t&) const
-{
 }
 //------------------------------------------------------------------------
 void Downsample2DEventPropagationProcess::generateArchetypeCode(const Frontend::MergedProcess &mergedProcess, const Runtime &runtime, 

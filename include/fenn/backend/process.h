@@ -47,10 +47,6 @@ public:
     virtual void updateCompatibleMemSpace(std::shared_ptr<const Frontend::State> state, 
                                           MemSpace &compatibleMemSpaces) const = 0;
 
-    //! Update the max-row length to support this process
-    virtual void updateMaxDMABufferSize(size_t&) const
-    {
-    }
 
     //virtual void updateLUTObjectIDs(std::unordered_set<Model::StateObjectID> m_LUTObjectIDs;)
 
@@ -127,6 +123,8 @@ public:
                       std::optional<uint32_t> numTimesteps, uint32_t &fieldBase, Assembler::CodeGenerator &c, 
                       Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                       Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const;
+
+    size_t getWeightStride(const Runtime &runtime, size_t deviceIndex) const;
 };
 
 //----------------------------------------------------------------------------
@@ -204,9 +202,6 @@ public:
     virtual void updateCompatibleMemSpace(std::shared_ptr<const Frontend::State> state, 
                                           MemSpace &compatibleMemSpaces) const override final;
 
-    //! Update the max-row length to support this process
-    virtual void updateMaxDMABufferSize(size_t&) const override final;
-
     //------------------------------------------------------------------------
     // EventDrivenProcessImplementation virtuals
     //------------------------------------------------------------------------
@@ -268,9 +263,6 @@ public:
     //! Update the memory compatibility of a variable associated with this process
     virtual void updateCompatibleMemSpace(std::shared_ptr<const Frontend::State> state, 
                                           MemSpace &compatibleMemSpaces) const override final;
-
-    //! Update the max-row length to support this process
-    virtual void updateMaxDMABufferSize(size_t&) const override final;
 
     //------------------------------------------------------------------------
     // EventDrivenProcessImplementation virtuals
@@ -340,9 +332,6 @@ public:
     virtual void updateCompatibleMemSpace(std::shared_ptr<const Frontend::State> state, 
                                           MemSpace &compatibleMemSpaces) const override final;
 
-    //! Update the max-row length to support this process
-    virtual void updateMaxDMABufferSize(size_t&) const override final;
-
     //------------------------------------------------------------------------
     // EventDrivenProcessImplementation virtuals
     //------------------------------------------------------------------------
@@ -408,9 +397,6 @@ public:
     //! Update the memory compatibility of a variable associated with this process
     virtual void updateCompatibleMemSpace(std::shared_ptr<const Frontend::State> state, 
                                           MemSpace &compatibleMemSpaces) const override final;
-
-    //! Update the max-row length to support this process
-    virtual void updateMaxDMABufferSize(size_t&) const override final;
 
     //------------------------------------------------------------------------
     // EventDrivenProcessImplementation virtuals
