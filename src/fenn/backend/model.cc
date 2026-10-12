@@ -10,7 +10,6 @@
 #include "frontend/process_group.h"
 
 // FeNN backend includes
-#include "fenn/backend/kernel.h"
 #include "fenn/backend/process.h"
 
 //----------------------------------------------------------------------------
