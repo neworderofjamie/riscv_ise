@@ -438,8 +438,7 @@ namespace FeNN::Backend
 {
 void TimeDrivenProcessImplementation::generateCode(const Frontend::MergedProcess &mergedProcess, const Runtime &runtime, 
                                                    const KernelImplementation &kernel, MergedFields &mergedFields, 
-                                                   Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr preIndReg, 
-                                                   Assembler::ScalarRegisterPtr groupIndReg, std::optional<uint32_t> numTimesteps, 
+                                                   Assembler::ScalarRegisterPtr timeReg, std::optional<uint32_t> numTimesteps,
                                                    uint32_t &fieldBase, Assembler::CodeGenerator &c, 
                                                    Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
                                                    Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
@@ -447,10 +446,6 @@ void TimeDrivenProcessImplementation::generateCode(const Frontend::MergedProcess
     // Allocate base register
     ALLOCATE_SCALAR(SFieldBase);
     ALLOCATE_SCALAR(SFieldBaseEnd);
-
-    // Check presynaptic or group index registers are not set at this point
-    assert(!preIndReg);
-    assert(!groupIndReg);
 
     // Generate archetype code and populate merged fields
     Assembler::CodeGenerator archetypeCodeGenerator;

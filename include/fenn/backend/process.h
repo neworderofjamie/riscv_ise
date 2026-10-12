@@ -54,15 +54,6 @@ public:
 
     //virtual void updateLUTObjectIDs(std::unordered_set<Model::StateObjectID> m_LUTObjectIDs;)
 
-    //! Generate code to implement process
-    virtual void generateCode(const Frontend::MergedProcess &mergedProcess, const Runtime &runtime, 
-                              const KernelImplementation &kernel, MergedFields &mergedFields, 
-                              Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr preIndReg, 
-                              Assembler::ScalarRegisterPtr groupIndReg, std::optional<uint32_t> numTimesteps, 
-                              uint32_t &fieldBase, Assembler::CodeGenerator &c, 
-                              Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
-                              Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const = 0;
-    
     //----------------------------------------------------------------------------
     // Public API
     //----------------------------------------------------------------------------
@@ -97,15 +88,14 @@ public:
         Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const = 0;
 
     //----------------------------------------------------------------------------
-    // ProcessImplementation virtuals
+    // Public API
     //----------------------------------------------------------------------------
-    virtual void generateCode(const Frontend::MergedProcess &mergedProcess, const Runtime &runtime,
-                              const KernelImplementation &kernel, MergedFields &mergedFields, 
-                              Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr preIndReg,
-                              Assembler::ScalarRegisterPtr groupIndReg, std::optional<uint32_t> numTimesteps, 
-                              uint32_t &fieldBase, Assembler::CodeGenerator &c, 
-                              Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
-                              Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;
+    void generateCode(const Frontend::MergedProcess &mergedProcess, const Runtime &runtime,
+                      const KernelImplementation &kernel, MergedFields &mergedFields, 
+                      Assembler::ScalarRegisterPtr timeReg, std::optional<uint32_t> numTimesteps, 
+                      uint32_t &fieldBase, Assembler::CodeGenerator &c, 
+                      Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
+                      Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const;
 };
 
 //----------------------------------------------------------------------------
@@ -125,15 +115,15 @@ public:
                                        Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const = 0;
 
     //----------------------------------------------------------------------------
-    // ProcessImplementation virtuals
+    // Public API
     //----------------------------------------------------------------------------
-    virtual void generateCode(const Frontend::MergedProcess &mergedProcess, const Runtime &runtime,
-                              const KernelImplementation &kernel, MergedFields &mergedFields, 
-                              Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr preIndReg, 
-                              Assembler::ScalarRegisterPtr groupIndReg, std::optional<uint32_t> numTimesteps, 
-                              uint32_t &fieldBase, Assembler::CodeGenerator &c, 
-                              Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
-                              Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;
+    void generateCode(const Frontend::MergedProcess &mergedProcess, const Runtime &runtime,
+                      const KernelImplementation &kernel, MergedFields &mergedFields, 
+                      Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr preIndReg, 
+                      Assembler::ScalarRegisterPtr groupIndReg, std::optional<uint32_t> numTimesteps, 
+                      uint32_t &fieldBase, Assembler::CodeGenerator &c, 
+                      Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
+                      Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const;
 };
 
 //----------------------------------------------------------------------------

@@ -363,7 +363,7 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                          // and SMergedGroupReturn to be populated before jumping to them
                                          for(const auto &m : mergedProcesses) {
                                              // Ensure process has proper base class
-                                             auto pi = std::dynamic_pointer_cast<const ProcessImplementation>(m.getArchetype());
+                                             auto pi = std::dynamic_pointer_cast<const EventDrivenProcessImplementation>(m.getArchetype());
                                              if (!pi) {
                                                  throw std::runtime_error("FeNN backend runtime used with incompatible process");
                                              }
@@ -404,7 +404,7 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                      else {
                                         for(const auto &m : mergedProcesses) {
                                             // Ensure process has proper base class
-                                            auto pi = std::dynamic_pointer_cast<const ProcessImplementation>(m.getArchetype());
+                                            auto pi = std::dynamic_pointer_cast<const TimeDrivenProcessImplementation>(m.getArchetype());
                                             if (!pi) {
                                                 throw std::runtime_error("FeNN backend runtime used with incompatible process");
                                             }
@@ -417,8 +417,7 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
 
                                             // Generate code
                                             pi->generateCode(m, *this, *ki, mergedProcessGroupFields.first->second.back().second, 
-                                                             timeRegister, nullptr, nullptr, 
-                                                             numTimesteps, fieldBase, c, 
+                                                             timeRegister, numTimesteps, fieldBase, c, 
                                                              scalarRegisterAllocator, vectorRegisterAllocator);
                                         }
                                      }
