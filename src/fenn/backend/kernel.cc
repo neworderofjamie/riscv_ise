@@ -158,19 +158,51 @@ KernelImplementation::KernelImplementation(const Frontend::ProcessGroupVector &p
         if (!eventSinkIDs.empty()) {
             eventSinkSourceTable.resize((size_t{1} << (m_NumPopulationIDBits - 1)), std::nullopt);
         }
-        
+
+        // We need to build tables in event sink ID order so make a copy of event sources
+        std::vector<std::shared_ptr<const Frontend::EventSource>> orderedEventSources;
+        orderedEventSources.reserve(getEventSourceProcesses().size());
+        std::transform(getEventSourceProcesses().cbegin(), getEventSourceProcesses().cend(),
+                       std::back_inserter(orderedEventSources), [](const auto &e){ return e.first; });
+
+		// Sort these by std::optional<int> style ordering of corresponding event sink IDs
+        // This means, non-channel sources end up at the beginning with the remainder in ascending order
+        std::sort(orderedEventSources.begin(), orderedEventSources.end(),
+                  [this](auto lhs, auto rhs)
+                  {
+                      // If this source is the output of an event channel
+                      auto eventSourceChannelLHS = std::dynamic_pointer_cast<const Frontend::EventChannelSource>(lhs);
+                      auto eventSourceChannelRHS = std::dynamic_pointer_cast<const Frontend::EventChannelSource>(rhs);
+
+                      if(!eventSourceChannelRHS) {
+                          return false;
+                      }
+                      else {
+                          if(!eventSourceChannelLHS) {
+                              return true;
+                          }
+                          else {
+                              // Get ID of sink at other end
+                              const auto eventSinkIDLHS = getEventSinkIDs().at(eventSourceChannelLHS->getSink());
+                              const auto eventSinkIDRHS = getEventSinkIDs().at(eventSourceChannelRHS->getSink());
+
+                              return (eventSinkIDLHS < eventSinkIDRHS);
+                          }
+                      }
+                  });
 
         // Loop through all event sources
         std::optional<size_t> lastEventSinkEnd;
-        for(const auto &e : getEventSourceProcesses()) {
+        for(auto e : orderedEventSources) {
             // Record offset for this event source so it can be populated later
+            const auto &processes = getEventSourceProcesses().at(e);
             const size_t eventSourceProcessTableStart = m_EventSourceProcessTableSize;
-            m_EventSourceProcessTableSize += e.second.size();
-            m_EventSourceProcessTableOffsets.try_emplace(e.first, eventSourceProcessTableStart, m_EventSourceProcessTableSize);
+            m_EventSourceProcessTableSize += processes.size();
+            m_EventSourceProcessTableOffsets.try_emplace(e, eventSourceProcessTableStart, m_EventSourceProcessTableSize);
 
 
             // If this source is the output of an event channel
-            auto eventSourceChannel = std::dynamic_pointer_cast<const Frontend::EventChannelSource>(e.first);
+            auto eventSourceChannel = std::dynamic_pointer_cast<const Frontend::EventChannelSource>(e);
             if(eventSourceChannel) {
                 // Get ID of sink at other end
                 const auto eventSinkID = getEventSinkIDs().at(eventSourceChannel->getSink());
@@ -184,11 +216,11 @@ KernelImplementation::KernelImplementation(const Frontend::ProcessGroupVector &p
 
             // Build hash digest
             boost::uuids::detail::sha1 hash;
-            e.first->updateMergeHash(hash);
+            e->updateMergeHash(hash);
             const auto digest = hash.get_digest();
 
             // Add to map
-            protoMergedEventSources[digest].push_back(e.first);
+            protoMergedEventSources[digest].push_back(e);
         }
 
         // Add final element to event sink source table
