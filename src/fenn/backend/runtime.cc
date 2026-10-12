@@ -125,11 +125,22 @@ void DeviceFeNN::allocateDataStructures()
     }
 
 
-    LOGI_FENN_BACKEND << "Creating field array in BRAM";
-
     // Create field array in BRAM and assert it is at correct fixed location
+    LOGI_FENN_BACKEND << "Creating field array in BRAM";
     m_FieldArray = createBRAMArray(Type::Uint8, {getRuntime().getNumFieldBytes()}, 
                                    {Type::Uint8.getSize()});
+
+    // If DMA buffers are required, allocate arrays in URAM
+    if (getRuntime().getDMARowBufferSize() > 0) {
+        LOGI_FENN_BACKEND << "Creating DMA row buffers in URAM";
+        m_DMARowBufferA = createURAMArray(Type::Int16, {getRuntime().getDMARowBufferSize() / 2},
+                                          {Type::Int16.getSize()});
+        m_DMARowBufferB = createURAMArray(Type::Int16, {getRuntime().getDMARowBufferSize() / 2},
+                                          {Type::Int16.getSize()});
+
+        assert(m_DMARowBufferA->getURAMPointer() == 0);
+        assert(m_DMARowBufferB->getURAMPointer() == getRuntime().getDMARowBufferSize());
+    }
 }
 //----------------------------------------------------------------------------
 void DeviceFeNN::populateDataStructures()
@@ -227,7 +238,7 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                  size_t dmaBufferSize)
 :   Frontend::Runtime(std::make_unique<Model>(kernels), numDevices), m_UseDRAMForWeights(useDRAMForWeights), 
     m_KeepParamsInRegisters(keepParamsInRegisters), m_NeuronUpdateRoundingMode(neuronUpdateRoundingMode), 
-    m_DMABufferSize(dmaBufferSize)
+    m_DMABufferSize(dmaBufferSize), m_DMARowBufferSize(0)
 {
     // Loop through kernels to figure out where data structures will 
     // be so immediate addresses can be written into kernels 
@@ -248,10 +259,33 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
         LOGD_FENN_BACKEND << "Kernel '" << k->getName() << "' has an event sink source table at " << eventSinkSourceTableAddress << " and an event source->process table at " << fieldStart;
         kernelEventTableLocations.try_emplace(k, eventSinkSourceTableAddress, fieldStart);
         fieldStart += ::Common::Utils::padSize(ki->getEventSourceProcessTableSize() * 16, 4);
+
+        if(shouldUseDRAMForWeights()) {
+            // Loop through event source processes in the kernel
+            // **YUCK** I kinda think this should go somewhere else!
+            for (const auto &e : ki->getEventSourceProcesses()) {
+                for(auto p : e.second) {
+                    // Ensure process has proper base class
+                    auto pi = std::dynamic_pointer_cast<const EventDrivenProcessImplementation>(p);
+                    if (!pi) {
+                        throw std::runtime_error("FeNN backend runtime used with incompatible process");
+                    }
+                
+                    // Loop through devices and update row buffer size
+                    for(size_t d = 0; d < getNumDevices(); d++) {
+                        m_DMARowBufferSize = std::max(m_DMARowBufferSize, pi->getWeightStride(*this, d));
+                    }
+                }
+            }
+        }
     }
 
     LOGD_FENN_BACKEND << "Merged fields start at " << fieldStart;
     uint32_t fieldBase = fieldStart;
+
+    if (shouldUseDRAMForWeights()) {
+        LOGI << "DMA row buffer size: " << m_DMARowBufferSize << " bytes";
+    }
 
     //! Same ready flag is used by all kernels and located at BRAM address zero
     constexpr uint32_t readyFlagPtr = 0;
@@ -328,7 +362,21 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                          ALLOCATE_SCALAR(SStride);
                                          ALLOCATE_SCALAR(SGroupIndex);
                                          ALLOCATE_SCALAR(SMergedGroupReturn);
-                        
+                                        
+                                         // If we're using DRAM for weight
+                                         Assembler::ScalarRegisterPtr SDMARowBufferA;
+                                         Assembler::ScalarRegisterPtr SDMARowBufferB;
+                                         if (shouldUseDRAMForWeights()) {
+                                             // Allocate scalar 
+                                             // Registers to hold DMA row buffer addresses
+                                             SDMARowBufferA = scalarRegisterAllocator.getRegister("SDMARowBufferA = X");
+                                             SDMARowBufferB = scalarRegisterAllocator.getRegister("SDMARowBufferB = X");
+
+                                             // Load URAM addresses
+                                             // **NOTE** it doesn't matter that these get swapped round
+                                             c.li(*SDMARowBufferA, 0);
+                                             c.li(*SDMARowBufferB, getDMARowBufferSize());
+                                         }
 
                                          // Loop over merged event sources
                                          Assembler::CodeGenerator eventLoopCodeGenerator;
@@ -343,40 +391,95 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                                                                                 std::make_tuple(fieldBase - fieldStart),
                                                                                                 std::make_tuple());
 
-                                             // Generate event processing loops
-                                             eventLoopScalarRegisterMask |= m.template getArchetype<EventSourceImplementation>()->generateURAMEventLoop(
-                                                 m, *this, *ki, mergedEventSourceFields.first->second.back().second,
-                                                 timeRegister, std::get<0>(eventTableLocations),
-                                                 fieldBase, eventLoopCodeGenerator, scalarRegisterAllocator,
-                                                 [SGroupIndex, SMergedGroupReturn, SStride, SWeightBuffer, &eventTableLocations, &scalarRegisterAllocator]
-                                                 (auto &c, auto eventSourceProcessStartOffsetReg, auto eventSourceProcessEndOffsetReg, auto preIndReg)
-                                                 {
-                                                     // Loop over event propagation processes
+                                             // If we should use DRAM for weights
+                                             if(shouldUseDRAMForWeights()) {
+                                                 eventLoopScalarRegisterMask |= m.template getArchetype<EventSourceImplementation>()->generateDRAMEventLoop(
+                                                     m, *this, *ki, mergedEventSourceFields.first->second.back().second,
+                                                     timeRegister, std::get<0>(eventTableLocations),
+                                                     fieldBase, eventLoopCodeGenerator, scalarRegisterAllocator,
+                                                     // Prefetch
+                                                     [SGroupIndex, SMergedGroupReturn, SDMARowBufferA, SDMARowBufferB, SStride, SWeightBuffer, &eventTableLocations, &scalarRegisterAllocator]
+                                                     (auto &c, auto eventSourceProcessOffsetReg, auto preIndReg)
                                                      {
-                                                         auto processLoop = c.L();
-
-                                                         // Load process address, group index and weight buffer from event source->process table
-                                                         ALLOCATE_SCALAR(SProcessAddress);
-                                                         c.lw(*SProcessAddress, *eventSourceProcessStartOffsetReg, std::get<1>(eventTableLocations));
-                                                         c.lw(*SGroupIndex, *eventSourceProcessStartOffsetReg, std::get<1>(eventTableLocations) + 4);
-                                                         c.lw(*SStride, *eventSourceProcessStartOffsetReg, std::get<1>(eventTableLocations) + 8);
-                                                         c.lw(*SWeightBuffer, *eventSourceProcessStartOffsetReg, std::get<1>(eventTableLocations) + 12);
+                                                         // Load group index and weight buffer from event source->process table
+                                                         c.lw(*SStride, *eventSourceProcessOffsetReg, std::get<1>(eventTableLocations) + 8);
+                                                         c.lw(*SWeightBuffer, *eventSourceProcessOffsetReg, std::get<1>(eventTableLocations) + 12);
 
                                                          {
                                                              ALLOCATE_SCALAR(STemp);
                                                              c.mul(*STemp, *preIndReg, *SStride);
                                                              c.add(*SWeightBuffer, *SWeightBuffer, *STemp);
                                                          }
+                                                         
+
+                                                         // Start DMA write into RowBufferA
+                                                         Assembler::Utils::generateDMAStartWrite(c, *SDMARowBufferA, *SWeightBuffer, *SStride);
+                                                     },
+                                                     // Process event
+                                                     [SGroupIndex, SMergedGroupReturn, SDMARowBufferA, SDMARowBufferB, SStride, SWeightBuffer, &eventTableLocations, &scalarRegisterAllocator]
+                                                     (auto &c, auto eventSourceProcessOffsetReg, auto preIndReg)
+                                                     {
+                                                         ALLOCATE_SCALAR(SProcessAddress);
+
+                                                         // Load group index and weight buffer for NEXT event source->process table
+                                                         // **TODO** will this have been incremented?
+                                                         c.lw(*SStride, *eventSourceProcessOffsetReg, std::get<1>(eventTableLocations) + 8);
+                                                         c.lw(*SWeightBuffer, *eventSourceProcessOffsetReg, std::get<1>(eventTableLocations) + 12);
+
+                                                         // Load process address and group index for PREVIOUS event source->process table
+                                                         c.lw(*SProcessAddress, *eventSourceProcessOffsetReg, std::get<1>(eventTableLocations) + 16);
+                                                         c.lw(*SGroupIndex, *eventSourceProcessOffsetReg, std::get<1>(eventTableLocations) + 20);
+
+                                                         // Calculate address for next transfer
+                                                         {
+                                                             ALLOCATE_SCALAR(STemp);
+                                                             c.mul(*STemp, *preIndReg, *SStride);
+                                                             c.add(*SWeightBuffer, *SWeightBuffer, *STemp);
+                                                         }
+
+                                                         // Wait on previous DMA write (into RowBufferA)
+                                                         Assembler::Utils::generateDMAWaitForWriteComplete(c, scalarRegisterAllocator);
+
+                                                         // Start next DMA write into RowBufferB
+                                                         Assembler::Utils::generateDMAStartWrite(c, *SDMARowBufferB, *SWeightBuffer, *SStride);
+
                                                          // Jump to process address
                                                          c.jalr(*SMergedGroupReturn, *SProcessAddress);
 
-                                                         // Advance pointer
-                                                         c.addi(*eventSourceProcessStartOffsetReg, *eventSourceProcessStartOffsetReg, 16);
+                                                         // Swap buffers
+                                                         {
+                                                             ALLOCATE_SCALAR(STmp);
+                                                             c.mv(*STmp, *SDMARowBufferA);
+                                                             c.mv(*SDMARowBufferA, *SDMARowBufferB);
+                                                             c.mv(*SDMARowBufferB, *STmp);
+                                                         } 
+                                                     });
+                                             }
+                                             // Otherwise, generate event loop with weights in URAM
+                                             else {
+                                                 eventLoopScalarRegisterMask |= m.template getArchetype<EventSourceImplementation>()->generateURAMEventLoop(
+                                                     m, *this, *ki, mergedEventSourceFields.first->second.back().second,
+                                                     timeRegister, std::get<0>(eventTableLocations),
+                                                     fieldBase, eventLoopCodeGenerator, scalarRegisterAllocator,
+                                                     [SGroupIndex, SMergedGroupReturn, SStride, SWeightBuffer, &eventTableLocations, &scalarRegisterAllocator]
+                                                     (auto &c, auto eventSourceProcessOffsetReg, auto preIndReg)
+                                                     {
+                                                        // Load process address, group index and weight buffer from event source->process table
+                                                        ALLOCATE_SCALAR(SProcessAddress);
+                                                        c.lw(*SProcessAddress, *eventSourceProcessOffsetReg, std::get<1>(eventTableLocations));
+                                                        c.lw(*SGroupIndex, *eventSourceProcessOffsetReg, std::get<1>(eventTableLocations) + 4);
+                                                        c.lw(*SStride, *eventSourceProcessOffsetReg, std::get<1>(eventTableLocations) + 8);
+                                                        c.lw(*SWeightBuffer, *eventSourceProcessOffsetReg, std::get<1>(eventTableLocations) + 12);
 
-                                                         // Loop if there are more events
-                                                         c.bne(*eventSourceProcessStartOffsetReg, *eventSourceProcessEndOffsetReg, processLoop);
-                                                     }
-                                                 });
+                                                        {
+                                                            ALLOCATE_SCALAR(STemp);
+                                                            c.mul(*STemp, *preIndReg, *SStride);
+                                                            c.add(*SWeightBuffer, *SWeightBuffer, *STemp);
+                                                        }
+                                                        // Jump to process address
+                                                        c.jalr(*SMergedGroupReturn, *SProcessAddress);
+                                                     });
+                                             }
                                          }
 
                                          LOGD_FENN_BACKEND << "Event loops require " << ::Common::Utils::popCount(eventLoopScalarRegisterMask) << " scalar registers";

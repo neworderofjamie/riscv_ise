@@ -238,6 +238,8 @@ private:
     LLMAllocator m_LLMAllocator;
 
     std::unique_ptr<BRAMArrayBase> m_FieldArray;
+    std::unique_ptr<URAMArrayBase> m_DMARowBufferA;
+    std::unique_ptr<URAMArrayBase> m_DMARowBufferB;
 
     std::unordered_map<std::shared_ptr<const Frontend::Kernel>, 
                        std::unique_ptr<BRAMArrayBase>> m_KernelEventSinkSourceTableArrays;
@@ -267,6 +269,7 @@ public:
     bool shouldUseDRAMForWeights() const{ return m_UseDRAMForWeights; }
     bool shouldKeepParamsInRegisters() const{ return m_KeepParamsInRegisters; }
     size_t getDMABufferSize() const{ return m_DMABufferSize; }
+    size_t getDMARowBufferSize() const{ return m_DMARowBufferSize; }
     size_t getNumFieldBytes() const{ return m_NumFieldBytes; }
     auto getNeuronRoundingMode() const{ return m_NeuronUpdateRoundingMode; }
 
@@ -323,6 +326,7 @@ private:
     bool m_KeepParamsInRegisters;
     Compiler::RoundingMode m_NeuronUpdateRoundingMode;
     size_t m_DMABufferSize;
+    size_t m_DMARowBufferSize;
     size_t m_NumFieldBytes;
 };
 }

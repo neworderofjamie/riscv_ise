@@ -48,17 +48,26 @@ namespace FeNN::Backend
 class FENN_BACKEND_EXPORT EventSourceImplementation
 {
 protected:
-    using ProcessEventsFn = std::function<void(Assembler::CodeGenerator&, Assembler::ScalarRegisterPtr, 
-                                               Assembler::ScalarRegisterPtr, Assembler::ScalarRegisterPtr)>;
+    using ProcessEventFn = std::function<void(Assembler::CodeGenerator&, Assembler::ScalarRegisterPtr, 
+                                               Assembler::ScalarRegisterPtr)>;
+    using PrefetchRowFn = std::function<void(Assembler::CodeGenerator&, Assembler::ScalarRegisterPtr, 
+                                             Assembler::ScalarRegisterPtr)>;
 public:
     //----------------------------------------------------------------------------
     // Declared virtuals
     //----------------------------------------------------------------------------
-    //! Generate code to implement event loop
+    //! Generate code to implement event loop for when weights are stored in URAM
     virtual uint32_t generateURAMEventLoop(const Frontend::Merged<Frontend::EventSource> &mergedEventSource, const Runtime &runtime, 
                                            const KernelImplementation &kernel, MergedFields &mergedFields, Assembler::ScalarRegisterPtr timeReg, 
                                            uint32_t eventSinkSourceTableAddress, uint32_t &fieldBase, Assembler::CodeGenerator &c, 
-                                           Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, ProcessEventsFn processEvents) const = 0;
+                                           Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, ProcessEventFn processEvents) const = 0;
+
+    //! Generate code to implement event loop for when weights are stored in DRAM
+    virtual uint32_t generateDRAMEventLoop(const Frontend::Merged<Frontend::EventSource> &mergedEventSource, const Runtime &runtime, 
+                                           const KernelImplementation &kernel, MergedFields &mergedFields, Assembler::ScalarRegisterPtr timeReg, 
+                                           uint32_t eventSinkSourceTableAddress, uint32_t &fieldBase, Assembler::CodeGenerator &c, 
+                                           Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
+                                           PrefetchRowFn prefetchRow, ProcessEventFn processEvent) const = 0;
 };
 
 //----------------------------------------------------------------------------
@@ -151,11 +160,18 @@ public:
     //----------------------------------------------------------------------------
     // EventSourceImplementation virtuals
     //----------------------------------------------------------------------------
-    //! Generate code to implement event loop
+    //! Generate code to implement event loop for when weights are stored in URAM
     virtual uint32_t generateURAMEventLoop(const Frontend::Merged<Frontend::EventSource> &mergedEventSource, const Runtime &runtime, 
                                            const KernelImplementation &kernel, MergedFields &mergedFields, Assembler::ScalarRegisterPtr timeReg, 
                                            uint32_t eventSinkSourceTableAddress, uint32_t &fieldBase, Assembler::CodeGenerator &c, 
-                                           Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, ProcessEventsFn processEvents) const override final;
+                                           Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, ProcessEventFn processEvent) const override final;
+
+    //! Generate code to implement event loop for when weights are stored in DRAM
+    virtual uint32_t generateDRAMEventLoop(const Frontend::Merged<Frontend::EventSource> &mergedEventSource, const Runtime &runtime, 
+                                           const KernelImplementation &kernel, MergedFields &mergedFields, Assembler::ScalarRegisterPtr timeReg, 
+                                           uint32_t eventSinkSourceTableAddress, uint32_t &fieldBase, Assembler::CodeGenerator &c, 
+                                           Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
+                                           PrefetchRowFn prefetchRow, ProcessEventFn processEvent) const override final;
 
     //------------------------------------------------------------------------
     // Static API
@@ -173,7 +189,7 @@ private:
                                     Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg, 
                                     uint32_t eventSinkSourceTableAddress, Assembler::CodeGenerator &c, 
                                     Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
-                                    uint32_t &scalarRegisterMask, ProcessEventsFn processEvents) const;
+                                    uint32_t &scalarRegisterMask, ProcessEventFn processEvent) const;
 
     //------------------------------------------------------------------------
     // Members
@@ -284,11 +300,18 @@ public:
     //----------------------------------------------------------------------------
     // EventSourceImplementation virtuals
     //----------------------------------------------------------------------------
-    //! Generate code to implement event loop
+    //! Generate code to implement event loop for when weights are stored in URAM
     virtual uint32_t generateURAMEventLoop(const Frontend::Merged<Frontend::EventSource> &mergedEventSource, const Runtime &runtime, 
                                            const KernelImplementation &kernel, MergedFields &mergedFields, Assembler::ScalarRegisterPtr timeReg, 
                                            uint32_t eventSinkSourceTableAddress, uint32_t &fieldBase, Assembler::CodeGenerator &c, 
-                                           Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, ProcessEventsFn processEvents) const override final;
+                                           Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, ProcessEventFn processEvent) const override final;
+    
+    //! Generate code to implement event loop for when weights are stored in DRAM
+    virtual uint32_t generateDRAMEventLoop(const Frontend::Merged<Frontend::EventSource> &mergedEventSource, const Runtime &runtime, 
+                                           const KernelImplementation &kernel, MergedFields &mergedFields, Assembler::ScalarRegisterPtr timeReg, 
+                                           uint32_t eventSinkSourceTableAddress, uint32_t &fieldBase, Assembler::CodeGenerator &c, 
+                                           Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
+                                           PrefetchRowFn prefetchRow, ProcessEventFn processEvent) const override final;
 };
 
 //----------------------------------------------------------------------------
