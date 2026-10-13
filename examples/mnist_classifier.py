@@ -7,8 +7,8 @@ from pyfenn.models import DenseLinear, Memset
 from pyfenn.utils import PythonLogAppender
 from models import LI, LIF
 
-from pyfenn.utils import (get_views, get_latency_spikes, load_and_push,
-                          read_perf_counter, zero_and_push)
+from pyfenn.utils import (get_views, get_latency_spikes, 
+                          load_and_push, zero_and_push)
 from tqdm.auto import tqdm
 
 num_timesteps = 79
@@ -42,9 +42,10 @@ hidden_output = DenseLinear(backend, hidden.out_spikes, output.i, "s9_6_sat_t", 
 avg_zero = Memset(backend, output.v_avg)
 
 # Group processes
-neuron_update_processes = backend.ProcessGroup([hidden.process, output.process])
-synapse_update_processes = backend.ProcessGroup([input_hidden.process, hidden_output.process])
-zero_processes = backend.ProcessGroup([avg_zero.process])
+perf_counters = ["num_instructions", "num_clock_cycles"] if args.time else []
+neuron_update_processes = backend.ProcessGroup([hidden.process, output.process], perf_counters)
+synapse_update_processes = backend.ProcessGroup([input_hidden.process, hidden_output.process], perf_counters)
+zero_processes = backend.ProcessGroup([avg_zero.process], perf_counters)
 
 kernel = backend.SimulationLoopKernel(
     num_timesteps, [synapse_update_processes, neuron_update_processes],
@@ -77,10 +78,6 @@ zero_and_push(output.v, runtime)
 zero_and_push(output.i, runtime)
 zero_and_push(output.v_avg, runtime)
 
-if args.time:
-    zero_and_push(neuron_update_processes.performance_counter, runtime)
-    zero_and_push(synapse_update_processes.performance_counter, runtime)
-    zero_and_push(zero_processes.performance_counter, runtime)
 
 # Loop through examples
 input_spike_views = get_views(runtime, input_spikes)
@@ -107,14 +104,14 @@ for i in tqdm(range(len(mnist_labels))):
 
 
 print(f"{num_correct} / {len(mnist_labels)} correct {100.0 * (num_correct / len(mnist_labels))}%")
-
 if args.time:
-    neuron_update_cycles, neuron_update_instructions = read_perf_counter(
-        neuron_update_processes.performance_counter, runtime)
-    synapse_update_cycles, synapse_update_instructions = read_perf_counter(
-        synapse_update_processes.performance_counter, runtime)
-    zero_cycles, zero_instructions = read_perf_counter(
-        zero_processes.performance_counter, runtime)
+    neuron_update_cycles = runtime.read_performance_counter(neuron_update_processes, 'num_clock_cycles')[0]
+    neuron_update_instructions = runtime.read_performance_counter(neuron_update_processes, 'num_instructions')[0]
+    synapse_update_cycles = runtime.read_performance_counter(synapse_update_processes, 'num_clock_cycles')[0]
+    synapse_update_instructions = runtime.read_performance_counter(synapse_update_processes, 'num_instructions')[0]
+    zero_cycles = runtime.read_performance_counter(zero_processes, 'num_clock_cycles')[0]
+    zero_instructions = runtime.read_performance_counter(zero_processes, 'num_instructions')[0]
+   
     
     print(f"Neuron update {neuron_update_cycles} cycles, {neuron_update_instructions} instruction ({neuron_update_instructions / neuron_update_cycles})")
     print(f"Synapse update {synapse_update_cycles} cycles, {synapse_update_instructions} instruction ({synapse_update_instructions / synapse_update_cycles})")

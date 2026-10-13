@@ -193,17 +193,6 @@ def pull_spikes(num_timesteps: int, state, runtime: Runtime):
     return [np.where(np.unpackbits(v, axis=1, bitorder="little"))
             for v in spike_views]
 
-
-def read_perf_counter(perf_counter, runtime: Runtime):
-    assert False
-    # Get array and view
-    array, view = get_array_view(runtime, perf_counter, np.uint64)
-
-    # Pull
-    array.pull_from_device()
-    
-    return view[0], view[1]
-
 def seed_and_push(state, runtime: Runtime):
     # Get array and view
     views = get_views(runtime, state)
