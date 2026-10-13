@@ -285,17 +285,6 @@ protected:
 
 private:
     //------------------------------------------------------------------------
-    // EventSourceProcess
-    //------------------------------------------------------------------------
-    //! Struct used to store mapping of event source to an event-propagation process
-    struct EventSourceProcess
-    {
-        Assembler::Label eventPropCodeAddr;
-        uint16_t eventPropMergedGroupIndex;
-        //uint16_t strideGroupIndex;
-    };
-
-    //------------------------------------------------------------------------
     // Private methods
     //------------------------------------------------------------------------
     void populateFields(size_t p, const std::pair<uint32_t, MergedFields> &mergedFields,
