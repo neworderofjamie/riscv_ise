@@ -28,7 +28,7 @@ mnist_spikes, max_spike_array_length = get_latency_spikes(mnist.test_images())
 mnist_labels = mnist.test_labels().astype(np.int16)
 
 log_appender = backend.ConsoleAppender()#PythonLogAppender()
-backend.init_logging(log_appender, backend.PlogSeverity.DEBUG)
+backend.init_logging(log_appender, backend.PlogSeverity.INFO)
 
 # Input spikes
 input_spikes = backend.EventSourceBuffer(input_shape, max_spike_array_length, name="input_events")

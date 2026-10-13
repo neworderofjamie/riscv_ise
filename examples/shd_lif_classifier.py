@@ -101,7 +101,7 @@ for events, label in tqdm(dataset, "Preprocessing dataset"):
 max_spike_array_length = max(len(s) for s in shd_spikes)
 
 log_appender = backend.ConsoleAppender()#PythonLogAppender()
-backend.init_logging(log_appender, backend.PlogSeverity.DEBUG)
+backend.init_logging(log_appender, backend.PlogSeverity.INFO)
 
 # Input spikes
 input_spikes = backend.EventSourceBuffer(input_shape, max_spike_array_length)
