@@ -79,6 +79,7 @@ int main(int argc, char** argv)
         [=](Assembler::CodeGenerator &c, Assembler::VectorRegisterAllocator &vectorRegisterAllocator, 
             Assembler::ScalarRegisterAllocator &scalarRegisterAllocator)
         {
+            /*logic in body of vectorised loop
             ALLOCATE_SCALAR(SCount);
             ALLOCATE_SCALAR(SRemaining);
             ALLOCATE_SCALAR(SLoopTime);
@@ -96,32 +97,32 @@ int main(int argc, char** argv)
 
             c.addi(*SRemaining, *SRemaining, -32);
             c.j_(start);
-            c.L(end);
+            c.L(end);*/
 
+            ALLOCATE_SCALAR(SCount);
+            ALLOCATE_SCALAR(SLoopTime);
+            c.li(*SCount, 0);
 
-            /*4r : ADDI X16, X0, 256
-            48 : BLTU X4, X16, 84
-            52 : VLOAD V0, 0(X3)
-            56 : VLOAD V2, 64(X15)
-            60 : VADD_S V1, V1, V0
-            64 : VSTORE V1, 0(X15)
-            68 : VLOAD V0, 64(X3)
-            72 : VLOAD V1, 128(X15)
-            76 : VADD_S V2, V2, V0
-            80 : VSTORE V2, 64(X15)
-            84 : VLOAD V0, 128(X3)
-            88 : VLOAD V2, 192(X15)
-            92 : VADD_S V1, V1, V0
-            96 : VSTORE V1, 128(X15)
-            100 : VLOAD V0, 192(X3)
-            104 : VLOAD V1, 256(X15)
-            108 : VADD_S V2, V2, V0
-            112 : VSTORE V2, 192(X15)
-            116 : ADDI X15, X15, 256
-            120 : ADDI X3, X3, 256
-            124 : SUB X4, X4, X16
-            128 : JAL X0, -80*/
+            auto tailEnd = Assembler::createLabel();
+            auto buttEnd = Assembler::createLabel();
+            c.beq(*SCount, FeNN::Common::Reg::X0, tailEnd);
+            
+            // Should never happen
+            c.li(*SCount, 255);
 
+            // 
+            auto magic = c.L();
+            c.li(*SCount, 100);
+            c.li(*SLoopTime, loopTimePtr);
+            c.sw(*SCount, *SLoopTime);
+
+            c.j_(buttEnd);
+
+            c.L(tailEnd);
+            c.j_(magic);
+            c.L(buttEnd);
+
+            
             /* top-level loop structure
             ALLOCATE_SCALAR(STimeStart);
             ALLOCATE_SCALAR(STimeEnd);
