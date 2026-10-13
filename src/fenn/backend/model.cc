@@ -1,5 +1,10 @@
 #include "fenn/backend/model.h"
 
+// Standard C++ includes
+#include <algorithm>
+#include <iterator>
+#include <sstream>
+
 // PLOG includes
 #include <plog/Log.h>
 
@@ -13,12 +18,21 @@
 #include "fenn/backend/process.h"
 
 //----------------------------------------------------------------------------
+// Anonymous namespace
+//----------------------------------------------------------------------------
+namespace
+{
+const std::set<std::string> supportedPerformanceCounters{"num_instructions",
+                                                         "num_clock_cycles"};
+}
+
+//----------------------------------------------------------------------------
 // FeNN::Backend::Model
 //----------------------------------------------------------------------------
 namespace FeNN::Backend
 {
 Model::Model(const KernelVector &kernels)
-:   Frontend::Model(kernels)
+:   Frontend::Model(kernels), m_PerformanceCounterArraySize(0)
 {
     // Loop through all model state
     // **YUCK** we really only want to do this for variables
@@ -42,6 +56,26 @@ Model::Model(const KernelVector &kernels)
         // **NOTE** cannot resolve best right now as e.g. whether
         // we want to use DRAM for weights is not currently known
         m_StateCompatibleMemSpaces.try_emplace(s.first, compatibleMemSpaces);
+    }
+
+    // Loop through groups with performance counters 
+    for(const auto &p : getPerformanceCounters()) {
+        // If any performance counters are unsupported
+        std::set<std::string> unsupportedPerformanceCounters;
+        std::set_difference(p.second.cbegin(), p.second.cend(), 
+                            supportedPerformanceCounters.cbegin(), supportedPerformanceCounters.cend(),
+                            std::inserter(unsupportedPerformanceCounters, unsupportedPerformanceCounters.end()));
+        if(!unsupportedPerformanceCounters.empty()) {
+            std::ostringstream unsupportedPerformanceCountersString;
+            std::copy(unsupportedPerformanceCounters.cbegin(), unsupportedPerformanceCounters.cend(),
+                      std::ostream_iterator<std::string>(unsupportedPerformanceCountersString, ", "));
+            throw std::runtime_error("Performance counters not supported by FeNN backend '" + unsupportedPerformanceCountersString.str() + "'");
+        }
+
+        // Add offsets to array
+        const size_t perfCounterArrayStart = m_PerformanceCounterArraySize;
+        m_PerformanceCounterArraySize += p.second.size();
+        m_PerformanceCounterArrayOffsets.try_emplace(p.first, perfCounterArrayStart, m_PerformanceCounterArraySize);
     }
 }
 //----------------------------------------------------------------------------

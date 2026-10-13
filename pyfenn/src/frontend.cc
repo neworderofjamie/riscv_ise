@@ -260,11 +260,12 @@ PYBIND11_MODULE(_frontend, m)
     //------------------------------------------------------------------------
     pybind11::class_<Frontend::ProcessGroup, Frontend::ModelComponent, std::shared_ptr<Frontend::ProcessGroup>>(m, "ProcessGroup")
         .def(pybind11::init(&Frontend::ProcessGroup::create),
-             pybind11::arg("processes"), pybind11::arg("record_performance") = false,
+             pybind11::arg("processes"), 
+             pybind11::arg("performance_counters") = std::vector<std::string>{},
              pybind11::arg("name") = "")
 
         WRAP_PROPERTY_RO("processes", Frontend, ProcessGroup, Processes)
-        WRAP_PROPERTY_RO_SHOULD("record_performance", Frontend, ProcessGroup, RecordPerformance);
+        WRAP_PROPERTY_RO("performance_counters", Frontend, ProcessGroup, PerformanceCounters);
 
     //------------------------------------------------------------------------
     // frontend.Kernel

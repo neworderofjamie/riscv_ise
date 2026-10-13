@@ -121,8 +121,6 @@ static const char *__doc_FeNN_Backend_DelayEventPropagationProcess_updateCompati
 R"doc(Update the compatible split dimensions of a state object (which should be
 one used by this process) with any constraints imposed by this process))doc";
 
-static const char *__doc_FeNN_Backend_DelayEventPropagationProcess_updateMaxDMABufferSize = R"doc(Update the max-row length to support this process)doc";
-
 static const char *__doc_FeNN_Backend_DelayEventPropagationProcess_updateMergeHash = R"doc(Update the provided hash with the properties of this process which determine whether it can be merged)doc";
 
 static const char *__doc_FeNN_Backend_DendriticDelayUpdateProcess = R"doc()doc";
@@ -156,8 +154,6 @@ static const char *__doc_FeNN_Backend_DenseEventPropagationProcess_updateCompati
 static const char *__doc_FeNN_Backend_DenseEventPropagationProcess_updateCompatibleSplitDimensions =
 R"doc(Update the compatible split dimensions of a state object (which should be
 one used by this process) with any constraints imposed by this process))doc";
-
-static const char *__doc_FeNN_Backend_DenseEventPropagationProcess_updateMaxDMABufferSize = R"doc(Update the max-row length to support this process)doc";
 
 static const char *__doc_FeNN_Backend_DenseEventPropagationProcess_updateMergeHash = R"doc(Update the provided hash with the properties of this process which determine whether it can be merged)doc";
 
@@ -235,11 +231,11 @@ static const char *__doc_FeNN_Backend_DeviceFeNNSim_runCurrentKernel = R"doc(Run
 
 static const char *__doc_FeNN_Backend_DeviceFeNN_DeviceFeNN = R"doc()doc";
 
+static const char *__doc_FeNN_Backend_DeviceFeNN_allocateDataStructures = R"doc()doc";
+
 static const char *__doc_FeNN_Backend_DeviceFeNN_createBRAMArray = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_DeviceFeNN_createDRAMArray = R"doc()doc";
-
-static const char *__doc_FeNN_Backend_DeviceFeNN_createFieldArray = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_DeviceFeNN_createLLMArray = R"doc()doc";
 
@@ -269,13 +265,23 @@ static const char *__doc_FeNN_Backend_DeviceFeNN_getURAMAllocator_2 = R"doc()doc
 
 static const char *__doc_FeNN_Backend_DeviceFeNN_m_BRAMAllocator = R"doc(Allocators for BRAM, URAM and Lane-Local Memories)doc";
 
+static const char *__doc_FeNN_Backend_DeviceFeNN_m_DMARowBufferA = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_DeviceFeNN_m_DMARowBufferB = R"doc()doc";
+
 static const char *__doc_FeNN_Backend_DeviceFeNN_m_FieldArray = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_DeviceFeNN_m_KernelEventSinkSourceTableArrays = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_DeviceFeNN_m_KernelEventSourcePopulationTableArrays = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_DeviceFeNN_m_LLMAllocator = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_DeviceFeNN_m_Runtime = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_DeviceFeNN_m_URAMAllocator = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_DeviceFeNN_populateDataStructures = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_Downsample2DEventPropagationProcess = R"doc()doc";
 
@@ -302,8 +308,6 @@ static const char *__doc_FeNN_Backend_Downsample2DEventPropagationProcess_update
 static const char *__doc_FeNN_Backend_Downsample2DEventPropagationProcess_updateCompatibleSplitDimensions =
 R"doc(Update the compatible split dimensions of a state object (which should be
 one used by this process) with any constraints imposed by this process))doc";
-
-static const char *__doc_FeNN_Backend_Downsample2DEventPropagationProcess_updateMaxDMABufferSize = R"doc(Update the max-row length to support this process)doc";
 
 static const char *__doc_FeNN_Backend_Downsample2DEventPropagationProcess_updateMergeHash = R"doc(Update the provided hash with the properties of this process which determine whether it can be merged)doc";
 
@@ -401,9 +405,9 @@ static const char *__doc_FeNN_Backend_EventChannelSource = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_EventChannelSource_createArray = R"doc()doc";
 
-static const char *__doc_FeNN_Backend_EventChannelSource_generateArchetypeEventLoop = R"doc()doc";
+static const char *__doc_FeNN_Backend_EventChannelSource_generateDRAMEventLoop = R"doc(Generate code to implement event loop for when weights are stored in DRAM)doc";
 
-static const char *__doc_FeNN_Backend_EventChannelSource_generateEventLoop = R"doc(Generate code to implement event loop)doc";
+static const char *__doc_FeNN_Backend_EventChannelSource_generateURAMEventLoop = R"doc(Generate code to implement event loop for when weights are stored in URAM)doc";
 
 static const char *__doc_FeNN_Backend_EventChannelSource_getArrayShapeStride = R"doc()doc";
 
@@ -416,6 +420,10 @@ static const char *__doc_FeNN_Backend_EventDrivenProcessImplementation = R"doc()
 static const char *__doc_FeNN_Backend_EventDrivenProcessImplementation_generateArchetypeCode = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_EventDrivenProcessImplementation_generateCode = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_EventDrivenProcessImplementation_getWeight = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_EventDrivenProcessImplementation_getWeightStride = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_EventSinkBuffer = R"doc()doc";
 
@@ -457,19 +465,29 @@ static const char *__doc_FeNN_Backend_EventSinkRouterKeyImplementation_getPopula
 
 static const char *__doc_FeNN_Backend_EventSourceBuffer = R"doc()doc";
 
+static const char *__doc_FeNN_Backend_EventSourceBuffer_EventSourceBuffer = R"doc()doc";
+
 static const char *__doc_FeNN_Backend_EventSourceBuffer_create = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_EventSourceBuffer_createArray = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_EventSourceBuffer_generateArchetypeEventLoop = R"doc()doc";
 
-static const char *__doc_FeNN_Backend_EventSourceBuffer_generateEventLoop = R"doc(Generate code to implement event loop)doc";
+static const char *__doc_FeNN_Backend_EventSourceBuffer_generateDRAMEventLoop = R"doc(Generate code to implement event loop for when weights are stored in DRAM)doc";
+
+static const char *__doc_FeNN_Backend_EventSourceBuffer_generateURAMEventLoop = R"doc(Generate code to implement event loop for when weights are stored in URAM)doc";
 
 static const char *__doc_FeNN_Backend_EventSourceBuffer_getArrayShapeStride = R"doc()doc";
 
+static const char *__doc_FeNN_Backend_EventSourceBuffer_m_LongEvents = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_EventSourceBuffer_updateMergeHash = R"doc()doc";
+
 static const char *__doc_FeNN_Backend_EventSourceImplementation = R"doc()doc";
 
-static const char *__doc_FeNN_Backend_EventSourceImplementation_generateEventLoop = R"doc(Generate code to implement event loop)doc";
+static const char *__doc_FeNN_Backend_EventSourceImplementation_generateDRAMEventLoop = R"doc(Generate code to implement event loop for when weights are stored in DRAM)doc";
+
+static const char *__doc_FeNN_Backend_EventSourceImplementation_generateURAMEventLoop = R"doc(Generate code to implement event loop for when weights are stored in URAM)doc";
 
 static const char *__doc_FeNN_Backend_GenX320 = R"doc()doc";
 
@@ -509,9 +527,17 @@ static const char *__doc_FeNN_Backend_KernelImplementation_getEventSinkIDBase = 
 
 static const char *__doc_FeNN_Backend_KernelImplementation_getEventSinkIDs = R"doc(Get map of event sinks to their IDs)doc";
 
+static const char *__doc_FeNN_Backend_KernelImplementation_getEventSinkSourceTable = R"doc()doc";
+
 static const char *__doc_FeNN_Backend_KernelImplementation_getEventSourceProcessGroup = R"doc(Get the process group in this kernel)doc";
 
+static const char *__doc_FeNN_Backend_KernelImplementation_getEventSourceProcessTableOffsets = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_KernelImplementation_getEventSourceProcessTableSize = R"doc()doc";
+
 static const char *__doc_FeNN_Backend_KernelImplementation_getEventSourceProcesses = R"doc(Get map of event sources to the processes they provide input to)doc";
+
+static const char *__doc_FeNN_Backend_KernelImplementation_getMergedEventSources = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_KernelImplementation_getNumNeuronIDBits = R"doc()doc";
 
@@ -519,9 +545,17 @@ static const char *__doc_FeNN_Backend_KernelImplementation_getNumPopulationIDBit
 
 static const char *__doc_FeNN_Backend_KernelImplementation_m_EventSinkIDs = R"doc()doc";
 
+static const char *__doc_FeNN_Backend_KernelImplementation_m_EventSinkSourceTable = R"doc(Mapping between event sinks and)doc";
+
 static const char *__doc_FeNN_Backend_KernelImplementation_m_EventSourceProcessGroup = R"doc()doc";
 
+static const char *__doc_FeNN_Backend_KernelImplementation_m_EventSourceProcessTableOffsets = R"doc(Offsets into event source process table)doc";
+
+static const char *__doc_FeNN_Backend_KernelImplementation_m_EventSourceProcessTableSize = R"doc()doc";
+
 static const char *__doc_FeNN_Backend_KernelImplementation_m_EventSourceProcesses = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_KernelImplementation_m_MergedEventSources = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_KernelImplementation_m_NumNeuronIDBits = R"doc()doc";
 
@@ -611,7 +645,15 @@ static const char *__doc_FeNN_Backend_Model_2 = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_Model_Model = R"doc()doc";
 
+static const char *__doc_FeNN_Backend_Model_getPerformanceCounterArrayOffsets = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_Model_getPerformanceCounterArraySize = R"doc()doc";
+
 static const char *__doc_FeNN_Backend_Model_getStateMemSpace = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_Model_m_PerformanceCounterArrayOffsets = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_Model_m_PerformanceCounterArraySize = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_Model_m_StateCompatibleMemSpaces = R"doc()doc";
 
@@ -631,8 +673,6 @@ static const char *__doc_FeNN_Backend_ProcessImplementation = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_ProcessImplementation_ProcessImplementation = R"doc()doc";
 
-static const char *__doc_FeNN_Backend_ProcessImplementation_generateCode = R"doc(Generate code to implement process)doc";
-
 static const char *__doc_FeNN_Backend_ProcessImplementation_getMaxUnroll = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_ProcessImplementation_m_MaxUnroll = R"doc()doc";
@@ -640,8 +680,6 @@ static const char *__doc_FeNN_Backend_ProcessImplementation_m_MaxUnroll = R"doc(
 static const char *__doc_FeNN_Backend_ProcessImplementation_setMaxUnroll = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_ProcessImplementation_updateCompatibleMemSpace = R"doc(Update the memory compatibility of a variable associated with this process)doc";
-
-static const char *__doc_FeNN_Backend_ProcessImplementation_updateMaxDMABufferSize = R"doc(Update the max-row length to support this process)doc";
 
 static const char *__doc_FeNN_Backend_RNGInitProcess = R"doc()doc";
 
@@ -667,9 +705,17 @@ static const char *__doc_FeNN_Backend_RuntimeHW = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_RuntimeHW_2 = R"doc()doc";
 
+static const char *__doc_FeNN_Backend_RuntimeHW_RunCurrentKernelCommand = R"doc(Command for running kernel on all devices)doc";
+
+static const char *__doc_FeNN_Backend_RuntimeHW_RunCurrentKernelCommand_postamble = R"doc(Run any code required after the command execures on the main thread)doc";
+
+static const char *__doc_FeNN_Backend_RuntimeHW_RunCurrentKernelCommand_preamble = R"doc(Run any code required before the command execures on the main thread)doc";
+
 static const char *__doc_FeNN_Backend_RuntimeHW_RuntimeHW = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_RuntimeHW_createDevice = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_RuntimeHW_createRunCurrentKernelCommand = R"doc(Factory method to create a run current kernel command object)doc";
 
 static const char *__doc_FeNN_Backend_RuntimeHW_getDeviceControl = R"doc()doc";
 
@@ -685,11 +731,17 @@ static const char *__doc_FeNN_Backend_RuntimeSim = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_RuntimeSim_2 = R"doc()doc";
 
+static const char *__doc_FeNN_Backend_RuntimeSim_RunCurrentKernelCommand = R"doc(Command for running kernel on all devices)doc";
+
+static const char *__doc_FeNN_Backend_RuntimeSim_RunCurrentKernelCommand_preamble = R"doc(Run any code required before the command execures on the main thread)doc";
+
 static const char *__doc_FeNN_Backend_RuntimeSim_RuntimeSim = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_RuntimeSim_allocatePostamble = R"doc(Backend-specific logic to run at end of allocate function)doc";
 
 static const char *__doc_FeNN_Backend_RuntimeSim_createDevice = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_RuntimeSim_createRunCurrentKernelCommand = R"doc(Factory method to create a run current kernel command object)doc";
 
 static const char *__doc_FeNN_Backend_RuntimeSim_m_SharedBus = R"doc()doc";
 
@@ -697,7 +749,7 @@ static const char *__doc_FeNN_Backend_RuntimeSim_m_SpikeInjectData = R"doc()doc"
 
 static const char *__doc_FeNN_Backend_RuntimeSim_m_SpikeInjectThread = R"doc()doc";
 
-static const char *__doc_FeNN_Backend_RuntimeSim_reset = R"doc()doc";
+static const char *__doc_FeNN_Backend_RuntimeSim_resetSharedBus = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_RuntimeSim_spikeInjectThread = R"doc()doc";
 
@@ -709,21 +761,27 @@ static const char *__doc_FeNN_Backend_Runtime_allocatePreamble = R"doc(Backend-s
 
 static const char *__doc_FeNN_Backend_Runtime_getDMABufferSize = R"doc()doc";
 
+static const char *__doc_FeNN_Backend_Runtime_getDMARowBufferSize = R"doc()doc";
+
 static const char *__doc_FeNN_Backend_Runtime_getKernelCode = R"doc()doc";
 
-static const char *__doc_FeNN_Backend_Runtime_getMergedEventSources = R"doc(Get merged event sources)doc";
+static const char *__doc_FeNN_Backend_Runtime_getKernelMergedProcessAddresses = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_Runtime_getNeuronRoundingMode = R"doc()doc";
 
+static const char *__doc_FeNN_Backend_Runtime_getNumFieldBytes = R"doc()doc";
+
 static const char *__doc_FeNN_Backend_Runtime_m_DMABufferSize = R"doc()doc";
+
+static const char *__doc_FeNN_Backend_Runtime_m_DMARowBufferSize = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_Runtime_m_KeepParamsInRegisters = R"doc()doc";
 
-static const char *__doc_FeNN_Backend_Runtime_m_KernelCode = R"doc()doc";
+static const char *__doc_FeNN_Backend_Runtime_m_KernelCode = R"doc(Map of kernel pointers to code)doc";
+
+static const char *__doc_FeNN_Backend_Runtime_m_KernelMergedProcessAddresses = R"doc(Map of pointers into kernels for code to handle merged event propagation processes)doc";
 
 static const char *__doc_FeNN_Backend_Runtime_m_MergedEventSourceFields = R"doc(Map from process groups to start addresses and merged fields associated with event sources)doc";
-
-static const char *__doc_FeNN_Backend_Runtime_m_MergedEventSources = R"doc()doc";
 
 static const char *__doc_FeNN_Backend_Runtime_m_MergedProcessFields = R"doc(Map from process groups to start addresses and merged fields associated with processes)doc";
 
@@ -782,8 +840,6 @@ static const char *__doc_FeNN_Backend_SparseEventPropagationProcess_updateCompat
 static const char *__doc_FeNN_Backend_SparseEventPropagationProcess_updateCompatibleSplitDimensions =
 R"doc(Update the compatible split dimensions of a state object (which should be
 one used by this process) with any constraints imposed by this process))doc";
-
-static const char *__doc_FeNN_Backend_SparseEventPropagationProcess_updateMaxDMABufferSize = R"doc(Update the max-row length to support this process)doc";
 
 static const char *__doc_FeNN_Backend_SparseEventPropagationProcess_updateMergeHash = R"doc(Update the provided hash with the properties of this process which determine whether it can be merged)doc";
 

@@ -91,4 +91,24 @@ const Model::StateData &Model::getStateData(std::shared_ptr<const Frontend::Stat
 {
     return m_StateData.at(state);
 }
+//----------------------------------------------------------------------------
+std::unordered_map<std::shared_ptr<const ProcessGroup>,
+                   std::set<std::string>> Model::getPerformanceCounters() const
+{
+    // Loop through kernels
+    std::unordered_map<std::shared_ptr<const ProcessGroup>,
+                       std::set<std::string>> performanceCounters;
+    for(const auto &k : getKernels()) {
+        // Loop through all process groups in kernel
+        const auto processGroups = k->getAllProcessGroups();
+        for (const auto &g : processGroups) {
+            // Add performance counters to map
+            if(!performanceCounters.try_emplace(g, g->getPerformanceCounters()).second){
+                throw std::runtime_error("Duplicate process group '" + g->getName() + "' encountered in model");
+            }
+        }
+    }
+
+    return performanceCounters;
+}
 }

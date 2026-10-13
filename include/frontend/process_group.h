@@ -2,6 +2,7 @@
 
 // Standard C++ includes
 #include <memory>
+#include <set>
 #include <vector>
 
 // Compiler includes
@@ -23,8 +24,9 @@ class FRONTEND_EXPORT ProcessGroup : public ModelComponent
 {
 public:
     ProcessGroup(Private, const std::vector<std::shared_ptr<const Process>> &processes, 
-                 bool recordPerformance, const std::string &name)
-    :   ModelComponent(name), m_Processes(processes), m_RecordPerformance(recordPerformance)
+                 const std::vector<std::string> &performanceCounters, const std::string &name)
+    :   ModelComponent(name), m_Processes(processes), 
+        m_PerformanceCounters(performanceCounters.cbegin(), performanceCounters.cend())
     {
     }
 
@@ -32,15 +34,15 @@ public:
     // Public API
     //------------------------------------------------------------------------
     const auto &getProcesses() const{ return m_Processes; }
-    bool shouldRecordPerformance() const{ return m_RecordPerformance; }
+    const auto &getPerformanceCounters() const{ return m_PerformanceCounters; }
 
     //------------------------------------------------------------------------
     // Static API
     //------------------------------------------------------------------------
     static std::shared_ptr<ProcessGroup> create(const std::vector<std::shared_ptr<const Process>> &processes,
-                                                bool recordPerformance = false, const std::string &name = "")
+                                                const std::vector<std::string> &performanceCounters = {}, const std::string &name = "")
     {
-        return std::make_shared<ProcessGroup>(Private(), processes, recordPerformance, name);
+        return std::make_shared<ProcessGroup>(Private(), processes, performanceCounters, name);
     }
 
 private:
@@ -48,6 +50,6 @@ private:
     // Members
     //------------------------------------------------------------------------
     std::vector<std::shared_ptr<const Process>> m_Processes;
-    bool m_RecordPerformance;
+    std::set<std::string> m_PerformanceCounters;
 };
 }

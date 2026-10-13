@@ -3,6 +3,7 @@
 // Standard C++ includes
 #include <memory>
 #include <optional>
+#include <set>
 #include <unordered_map>
 #include <vector>
 
@@ -50,6 +51,10 @@ public:
     const auto &getKernels() const{ return m_Kernels; }
     const auto &getStateData() const{ return m_StateData; }
     const StateData &getStateData(std::shared_ptr<const Frontend::State> state) const;
+
+    //! Get names of all performance counters in model
+    std::unordered_map<std::shared_ptr<const ProcessGroup>,
+                       std::set<std::string>> getPerformanceCounters() const;
 
 private:
     //----------------------------------------------------------------------------

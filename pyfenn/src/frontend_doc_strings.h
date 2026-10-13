@@ -1372,6 +1372,8 @@ static const char *__doc_Frontend_Model_StateData_splitDimension = R"doc()doc";
 
 static const char *__doc_Frontend_Model_getKernels = R"doc()doc";
 
+static const char *__doc_Frontend_Model_getPerformanceCounters = R"doc(Get names of all performance counters in model)doc";
+
 static const char *__doc_Frontend_Model_getStateData = R"doc()doc";
 
 static const char *__doc_Frontend_Model_getStateData_2 = R"doc()doc";
@@ -1444,13 +1446,13 @@ static const char *__doc_Frontend_ProcessGroup_ProcessGroup = R"doc()doc";
 
 static const char *__doc_Frontend_ProcessGroup_create = R"doc()doc";
 
+static const char *__doc_Frontend_ProcessGroup_getPerformanceCounters = R"doc()doc";
+
 static const char *__doc_Frontend_ProcessGroup_getProcesses = R"doc()doc";
 
+static const char *__doc_Frontend_ProcessGroup_m_PerformanceCounters = R"doc()doc";
+
 static const char *__doc_Frontend_ProcessGroup_m_Processes = R"doc()doc";
-
-static const char *__doc_Frontend_ProcessGroup_m_RecordPerformance = R"doc()doc";
-
-static const char *__doc_Frontend_ProcessGroup_shouldRecordPerformance = R"doc()doc";
 
 static const char *__doc_Frontend_Process_constrainSplitDimensions =
 R"doc(Once compatible split dimensions have been obtained for each state object, they might need
@@ -1490,7 +1492,11 @@ static const char *__doc_Frontend_Runtime = R"doc()doc";
 
 static const char *__doc_Frontend_Runtime_Command = R"doc(Base class for commands to run on worker threads)doc";
 
-static const char *__doc_Frontend_Runtime_Command_execute = R"doc()doc";
+static const char *__doc_Frontend_Runtime_Command_execute = R"doc(Execute command on a device thread)doc";
+
+static const char *__doc_Frontend_Runtime_Command_postamble = R"doc(Run any code required after the command execures on the main thread)doc";
+
+static const char *__doc_Frontend_Runtime_Command_preamble = R"doc(Run any code required before the command execures on the main thread)doc";
 
 static const char *__doc_Frontend_Runtime_LoadKernelCommand = R"doc(Command for loading kernels onto devices)doc";
 
@@ -1530,6 +1536,14 @@ static const char *__doc_Frontend_Runtime_allocatePreamble = R"doc(Backend-speci
 
 static const char *__doc_Frontend_Runtime_createDevice = R"doc(Create suitable device)doc";
 
+static const char *__doc_Frontend_Runtime_createLoadKernelCommand = R"doc(Factory method to create a load kernel command object)doc";
+
+static const char *__doc_Frontend_Runtime_createPullStateCommand = R"doc()doc";
+
+static const char *__doc_Frontend_Runtime_createPushStateCommand = R"doc(Factory method to create a push state command object)doc";
+
+static const char *__doc_Frontend_Runtime_createRunCurrentKernelCommand = R"doc(Factory method to create a run current kernel command object)doc";
+
 static const char *__doc_Frontend_Runtime_getArrays = R"doc(Get array(s) associated with state)doc";
 
 static const char *__doc_Frontend_Runtime_getDeviceArrayShapeStrides = R"doc(Get size and shape of array state will map to on given device)doc";
@@ -1567,8 +1581,6 @@ static const char *__doc_Frontend_Runtime_m_WorkerThreads = R"doc()doc";
 static const char *__doc_Frontend_Runtime_pullStateFromDevice = R"doc(Pull state from all devices)doc";
 
 static const char *__doc_Frontend_Runtime_pushStateToDevice = R"doc(Push state to all devices)doc";
-
-static const char *__doc_Frontend_Runtime_reset = R"doc(**YUCK** Backend-specific logic to run before starting kernel)doc";
 
 static const char *__doc_Frontend_Runtime_run = R"doc(Run kernel on device)doc";
 
