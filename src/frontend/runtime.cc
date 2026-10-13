@@ -201,6 +201,21 @@ void Runtime::waitCommand()
     m_Command->postamble(*this);
 }
 //----------------------------------------------------------------------------
+std::vector<uint64_t> Runtime::readPerformanceCounter(std::shared_ptr<const ProcessGroup> group,
+                                                      const std::string &counter) const
+{
+    // Reserve vector of counts
+    std::vector<uint64_t> arrays;
+    arrays.reserve(getNumDevices());
+
+    // Get arrays from each device
+    for (auto &d : getDevices()) {
+        arrays.push_back(d->readPerformanceCounter(group, counter));
+    }
+
+    return arrays;
+}
+//----------------------------------------------------------------------------
 std::vector<ArrayBase*> Runtime::getArrays(std::shared_ptr<const State> state) const
 {
     // Reserve vector of arrays

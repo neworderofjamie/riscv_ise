@@ -4,6 +4,7 @@
 #include <memory>
 #include <optional>
 #include <set>
+#include <string>
 #include <unordered_map>
 #include <vector>
 
@@ -54,7 +55,7 @@ public:
 
     //! Get names of all performance counters in model
     std::unordered_map<std::shared_ptr<const ProcessGroup>,
-                       std::set<std::string>> getPerformanceCounters() const;
+                       std::reference_wrapper<const std::set<std::string>>> getPerformanceCounters() const;
 
 private:
     //----------------------------------------------------------------------------

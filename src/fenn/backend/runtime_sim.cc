@@ -148,6 +148,19 @@ public:
         }
     }
 
+protected:
+    //------------------------------------------------------------------------
+    // Declared virtuals
+    //------------------------------------------------------------------------
+    virtual void readDevice(uint8_t *destPointer, size_t offsetBytes, size_t sizeBytes) const override final
+    {
+        if(getSizeBytes() > 0) {
+            const auto &scalarDataMemory = m_Device.get().getRISCV().getScalarDataMemory();
+            std::copy_n(scalarDataMemory.getData() + getBRAMPointer().value() + offsetBytes, 
+                        sizeBytes, destPointer);
+        }
+    }
+
 private:
     std::reference_wrapper<DeviceFeNNSim> m_Device;
 };

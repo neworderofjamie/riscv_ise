@@ -62,7 +62,7 @@ Model::Model(const KernelVector &kernels)
     for(const auto &p : getPerformanceCounters()) {
         // If any performance counters are unsupported
         std::set<std::string> unsupportedPerformanceCounters;
-        std::set_difference(p.second.cbegin(), p.second.cend(), 
+        std::set_difference(p.second.get().cbegin(), p.second.get().cend(), 
                             supportedPerformanceCounters.cbegin(), supportedPerformanceCounters.cend(),
                             std::inserter(unsupportedPerformanceCounters, unsupportedPerformanceCounters.end()));
         if(!unsupportedPerformanceCounters.empty()) {
@@ -74,7 +74,7 @@ Model::Model(const KernelVector &kernels)
 
         // Add offset to array
         m_PerformanceCounterArrayOffsets.try_emplace(p.first, m_PerformanceCounterArraySize);
-        m_PerformanceCounterArraySize += p.second.size();
+        m_PerformanceCounterArraySize += p.second.get().size();
     }
 }
 //----------------------------------------------------------------------------

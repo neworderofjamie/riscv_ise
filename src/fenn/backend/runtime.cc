@@ -186,6 +186,25 @@ DeviceFeNN::DeviceFeNN(size_t deviceIndex, Runtime &runtime)
     
 }
 //----------------------------------------------------------------------------
+uint64_t DeviceFeNN::readPerformanceCounter(std::shared_ptr<const Frontend::ProcessGroup> group,
+                                            const std::string &counter) const
+{
+    // Get offset of counter
+    const size_t arrayOffset = (getRuntime().getModel<Model>()->getPerformanceCounterArrayOffset(group) 
+                                * sizeof(uint64_t));
+
+    // Loop through performance counters
+    // **NOTE** we could store offsets in a dictionary or whatever but this is probably fine
+    auto p = group->getPerformanceCounters().cbegin();
+    for (size_t i = 0; i < group->getPerformanceCounters().size(); i++, p++) {
+        if (*p == counter) {
+            return m_PerformanceCounters->readDevice<uint64_t>(arrayOffset);
+        }
+    }
+
+    throw std::runtime_error("Process group '" + group->getName() + "' missing performance counter '" + counter + "'");
+}
+//----------------------------------------------------------------------------
 void DeviceFeNN::allocateDataStructures()
 {
     // **NOTE** this needs to happen here so they are correctly allocated at the start of BRAM
@@ -327,15 +346,6 @@ void DeviceFeNN::populateDataStructures()
         m_PerformanceCounters->pushToDevice();
     }
 }
-//----------------------------------------------------------------------------
-std::unique_ptr<Frontend::ArrayBase> DeviceFeNN::createPerformanceCounter()
-{
-    LOGI_FENN_BACKEND << "Creating performance counter array in BRAM";
-
-    // Performance counter contains a 64-bit number for 
-    // instructions retired and one for number of cycles 
-    return createBRAMArray(Type::Uint64, {2}, {Type::Uint64.getSize(4)});
-}
 
 //----------------------------------------------------------------------------
 // FeNN::Backend::Runtime
@@ -434,7 +444,7 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                   auto &scalarRegisterAllocator, auto &vectorRegisterAllocator)
                                  {
                                     // Create performance counter scope
-                                    PerformanceCounterScope p(performanceCounterBase + getModel<Model>()->getPerformanceCounterArrayOffset(processGroup), 
+                                    PerformanceCounterScope p(performanceCounterBase + (getModel<Model>()->getPerformanceCounterArrayOffset(processGroup) * sizeof(uint64_t)),
                                                               c, scalarRegisterAllocator, processGroup->getPerformanceCounters());
 
                                      // Create empty vector of merged fields associated with these processes

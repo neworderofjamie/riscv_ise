@@ -77,6 +77,8 @@ private:
 class FENN_BACKEND_EXPORT BRAMArrayBase  : public Frontend::ArrayBase
 {
 public:
+    
+
     //------------------------------------------------------------------------
     // ArrayBase virtuals
     //------------------------------------------------------------------------
@@ -88,8 +90,25 @@ public:
     //------------------------------------------------------------------------
     auto getBRAMPointer() const{ return m_BRAMPointer; }
 
+    template<typename T>
+    T readDevice(size_t offsetBytes) const
+    {
+        // Check alignement
+        assert((offsetBytes % sizeof(T)) == 0);
+        
+        // Read value and return
+        T value;
+        readDevice(reinterpret_cast<uint8_t*>(&value), offsetBytes, sizeof(T));
+        return value;
+    }
+
 protected:
     using ArrayBase::ArrayBase;
+
+    //------------------------------------------------------------------------
+    // Declared virtuals
+    //------------------------------------------------------------------------
+    virtual void readDevice(uint8_t *destPointer, size_t offsetBytes, size_t sizeBytes) const = 0;
 
     //------------------------------------------------------------------------
     // Protected API
@@ -200,8 +219,8 @@ public:
     //------------------------------------------------------------------------
     // DeviceBase virtuals
     //------------------------------------------------------------------------
-    //! Create suitable array for performance counter on this device
-    virtual std::unique_ptr<Frontend::ArrayBase> createPerformanceCounter() override final;
+    virtual uint64_t readPerformanceCounter(std::shared_ptr<const Frontend::ProcessGroup> group,
+                                            const std::string &counter) const override final;
 
     //------------------------------------------------------------------------
     // Public API

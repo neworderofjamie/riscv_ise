@@ -210,8 +210,9 @@ public:
     //! Run current kernel on device
     virtual void runCurrentKernel() = 0;
 
-    //! Create suitable array for performance counter on this device
-    virtual std::unique_ptr<ArrayBase> createPerformanceCounter() = 0;
+    //! Read named performance counter on each device
+    virtual uint64_t readPerformanceCounter(std::shared_ptr<const ProcessGroup> group,
+                                            const std::string &counter) const = 0;
 
     //------------------------------------------------------------------------
     // Public API
@@ -258,6 +259,10 @@ public:
 
     //! Wait for previous asynchronous commands to complete on all devices
     void waitCommand();
+
+    //! Read named performance counter on each device
+    std::vector<uint64_t> readPerformanceCounter(std::shared_ptr<const ProcessGroup> group,
+                                                 const std::string &counter) const;
 
     //! Get array(s) associated with state
     std::vector<ArrayBase*> getArrays(std::shared_ptr<const State> state) const;

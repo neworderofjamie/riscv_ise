@@ -319,5 +319,6 @@ PYBIND11_MODULE(_frontend, m)
              pybind11::arg("state"), pybind11::arg("async") = false)
         WRAP_METHOD("get_split_dimension", Frontend, Runtime, getSplitDimension)
         WRAP_METHOD_REF("get_arrays", Frontend, Runtime, getArrays)
+        .def("read_performance_counter", &Frontend::Runtime::readPerformanceCounter)
         WRAP_PROPERTY_RO("num_devices", Frontend, Runtime, NumDevices);
 }

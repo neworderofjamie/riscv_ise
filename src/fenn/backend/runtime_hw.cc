@@ -140,7 +140,7 @@ public:
     //------------------------------------------------------------------------
     //! Copy entire array to device
     virtual void pushToDevice() final override
-     {
+    {
         if(getSizeBytes() > 0) {
             m_Device.get().getDevice().memcpyDataToDevice(getBRAMPointer().value(), getHostPointer(),
                                                           getSizeBytes());
@@ -153,6 +153,17 @@ public:
         if(getSizeBytes() > 0) {
             m_Device.get().getDevice().memcpyDataFromDevice(getHostPointer(), getBRAMPointer().value(),
                                                             getSizeBytes());
+        }
+    }
+protected:
+    //------------------------------------------------------------------------
+    // Declared virtuals
+    //------------------------------------------------------------------------
+    virtual void readDevice(uint8_t *destPointer, size_t offsetBytes, size_t sizeBytes) const override final
+    {
+        if(getSizeBytes() > 0) {
+            m_Device.get().getDevice().memcpyDataFromDevice(destPointer, getBRAMPointer().value() + offsetBytes,
+                                                            sizeBytes);
         }
     }
 private:
