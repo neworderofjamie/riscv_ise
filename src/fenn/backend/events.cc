@@ -705,88 +705,101 @@ uint32_t EventChannelSource::generateDRAMEventLoop(const Frontend::Merged<Fronte
         Assembler::ScalarRegisterAllocator::updateMask(*neuronIDMaskReg, scalarRegisterMask);
     }
 
-    // While (spikeBuffer != spikeBufferEnd
-    auto spikeLoopEnd = Assembler::createLabel();
-
-    // If there are no spikes, goto end
-    c.beq(*SSpikeBuffer, *SSpikeBufferEnd, spikeLoopEnd);
-
-    //------------------------------------------------------------------------
-    // Prefetch first spike
-    //------------------------------------------------------------------------
-    // Load first spike from buffer and advance
-    c.lw(*SPreIndReg, *SSpikeBuffer);
-    c.addi(*SSpikeBuffer, *SSpikeBuffer, 4);
-
+    /*struct EventSourceProcess
     {
-        // Extract event sink ID
-        // **NOTE** these were multiplied by 2 to obtain bytes in order to save an instruction
-        ALLOCATE_SCALAR(SEventSinkID);
-        c.srli(*SEventSinkID, *SPreIndReg, kernel.getNumNeuronIDBits());
+        void (*processRow)(const uint32_t*, uint32_t, uint32_t);
+        uint32_t groupIndex;
+        uint32_t stride;
+        const uint32_t *weight;
+    };
 
-        // AND neuron ID with mask
-        if(Common::inSBit(neuronIDMask, 12)) {
-            c.andi(*SPreIndReg, *SPreIndReg, neuronIDMask);
-        }
-        else {
-            c.and_(*SPreIndReg, *SPreIndReg, *neuronIDMaskReg);
-        }
 
-        // Load start and end offset of block of event propagation processes which should be passed this spike
-        c.lhu(*SEventSourceProcessStartOffset, *SEventSinkID, eventSinkSourceTableAddress);
-        c.lhu(*SEventSourceProcessEndOffset, *SEventSinkID, eventSinkSourceTableAddress + 2);
+    spikeLoopDMA(const uint32_t *spikeStart (a0), const uint32_t *spikeEnd (a1),
+                 const uint16_t *eventSinkSourceTable (a2),
+                 const EventSourceProcess *eventSourceProcesses (a3),
+                 uint32_t *rowBufferA (a4), uint32_t *rowBufferB (a5)):
+             
+            beq     a0,a1,.L13          ; If spikeStart == spikeEnd, goto return
+            lw      s2,0(a0)            ; preInd (s2) = *spikeStart
+            mv      s6,a5               ; s6 = rowBufferB
+            srli    a5,s2,5             ; eventSinkID (a5) = preInd (s2) >> 5
+            sh1add  t0,a5,a2            ; t0 = eventSinkSourceTable + (2 * eventSinkID)
+            lhu     s1,0(t0)            ; processStartIdx = *(eventSinkSourceTable + (2 * eventSinkID))
+            slli    s3,s1,4             ; prevEventSourceProcess (s3) = processStartIdx (a1) *= 16
+            add     s3,a3,s3            ; prevEventSourceProcess (s3) = eventSourceProcesses + (processStartIdx (a1) *= 16)
+            mv      s8,a2               ; s8 = eventSinkSourceTable
+            lw      a2,8(s3)            ; a2 = prevEventSource->stride
+            andi    s2,s2,31            ; preInd (s2) &= (1 << 5) - 1 
+            mv      s7,a1               ; s7 = spikeEnd (a1)
+            mul     a1,a2,s2            ; a1 = prevEventSource->stride (a2) * preInd (s2)
+            lw      t1,12(s3)           ; t1 =  prevEventSource->weight
+            addi    s4,a0,4             ; spikeStart (s4) = spikeStart (a0) + 4
+        
+            lhu     s9,2(t0)            ; processEndIDX (s9) = *(2 + eventSinkSourceTable + (2 * eventSinkID))
+        
+            mv      s5,a4               ; s5 = rowBufferA
+            mv      s10,a3              ; s10 = eventSourceProcesses
+            addi    s1,s1,1             ; processStartIdx += 1
+        
+            ; Call DMA fetch (prefetch)
+            mv      a0,a4               ; a0 = rowBufferA
+            sh2add  a1,a1,t1            ; a1 = prevEventSource->weight (t1) + (prevEventSource->stride (a2) * preInd (s2) * 4)
+            call    dmaFetch(unsigned int*, unsigned int const*, unsigned int)@plt
+    .L15:
+            slli    s0,s1,4             ; nextEventSource = processStartIdx * 16
+            add     s0,s10,s0           ; nextEventSource += eventSourceProcesses
+            bne     s1,s9,.L16          ; If processStartIdx != processEndIDX, goto L16
+    .L22:
+            beq     s4,s7,.L17          ; If spikeStart(s4) == spikeEnd(s7), goto L17
+            lw      a0,0(s4)            ; spike = *spikeStart
+            addi    s4,s4,4             ; spikeStart+=4
+            srli    a6,a0,5             ; eventSinkID (a6) = spike >> 5
+            sh1add  a2,a6,s8            ; a2 = eventSinkSourceTable + (2 * eventSinkID)
+            lhu     s1,0(a2)            ; processStartIdx (s1) = *(eventSinkSourceTable + (2 * eventSinkID))
+            lhu     s9,2(a2)            ; processEndIDX (s9) = *(2 + eventSinkSourceTable + (2 * eventSinkID))
+            andi    s2,a0,31            ; preInd (s2) = spike (a0) & (1 << 5) - 1 
+            slli    s0,s1,4             ; nextEventSource (s0) = processStartIdx (s1) * 16 
+            add     s0,s10,s0           ; nextEventSource += eventSourceProcesses
+            beq     s1,s9,.L22          ; If processStartIdx != processEndIDX, goto L16
+    .L16:
+            ; Call DMA wait
+            call    dmaWait()@plt
+        
+            lw      a2,8(s0)            ; a2 = nextEventSource->stride
+            lw      a3,12(s0)           ; a3 = nextEventSource->weight
+            mul     a4,a2,s2            ; a4 = nextEventSource->stride (a2) * preInd (s2)
+            addi    s1,s1,1             ; processStartIdx += 1 
+        
+            ; Call DMA fetch
+            mv      a0,s6               ; a0 = rowBufferB
+            sh2add  a1,a4,a3            ; a1 = nextEventSource->weight (a3) + (nextEventSource->stride (a2) * preInd (s2))
+            call    dmaFetch(unsigned int*, unsigned int const*, unsigned int)@plt
 
-        // Prefetch first event
-        prefetchRow(c, SEventSourceProcessStartOffset, SPreIndReg);
+            ; Call processRow
+            lw      a7,0(s3)            ; a7 = prevEventSource->processRow
+            mv      a0,s5               ; a0 = rowBufferA
+            lw      a2,4(s3)            ; a2 = prevEventSource->groupIndex
+            lw      a1,8(s3)            ; a1 = prevEventSource->stride
+            jalr    a7
 
-        // Start DMA write to fetch first row into RowBufferA
-        ::Assembler::Utils::generateDMAStartWrite(c, *SRowBufferA, *prefetchWeightBuffer, 
-         
+            mv      s3,s0               ; prevEventSource (s3) = nextEventSource (s0)
 
-        // Process events
-        //processEvents(c, SEventSourceProcessStartOffset, 
-        //              SEventSourceProcessEndOffset, SPreIndReg);
-    }
+            ; Swap buffers
+            mv      t3,s5               ; t3 = rowBufferA
+            mv      s5,s6               ; rowBufferA = rowBufferB
+            mv      s6,t3               ; rowBufferB = rowBufferA
+            j       .L15
 
-    // Start DMA write into RowBufferA
-    //::Assembler::Utils::generateDMAStartWrite(c, *SRowBufferA, *prefetchWeightBuffer, 
-    //                                          *rowGenerators[0]->getStrideReg());
-
-    auto spikeLoop = c.L();
-
-    c.beq(*SSpikeBuffer, *SSpikeBufferEnd, spikeLoopEnd);
-    {
-        // Load spike from buffer and advance
-        c.lw(*SPreIndReg, *SSpikeBuffer);
-        c.addi(*SSpikeBuffer, *SSpikeBuffer, 4);
-
-        {
-            // Extract event sink ID
-            // **NOTE** these were multiplied by 2 to obtain bytes in order to save an instruction
-            ALLOCATE_SCALAR(SEventSinkID);
-            c.srli(*SEventSinkID, *SPreIndReg, kernel.getNumNeuronIDBits());
-
-            // AND neuron ID with mask
-            if(Common::inSBit(neuronIDMask, 12)) {
-                c.andi(*SPreIndReg, *SPreIndReg, neuronIDMask);
-            }
-            else {
-                c.and_(*SPreIndReg, *SPreIndReg, *neuronIDMaskReg);
-            }
-
-            // Load start and end offset of block of event propagation processes which should be passed this spike
-            c.lhu(*SEventSourceProcessStartOffset, *SEventSinkID, eventSinkSourceTableAddress);
-            c.lhu(*SEventSourceProcessEndOffset, *SEventSinkID, eventSinkSourceTableAddress + 2);
-
-            // Process events
-            processEvents(c, SEventSourceProcessStartOffset, 
-                          SEventSourceProcessEndOffset, SPreIndReg);
-        }
-
-        // Loop until spikes are processed
-        c.j_(spikeLoop);
-    }
-    c.L(spikeLoopEnd);
+    ; Tail
+    .L17:
+            ; Call process row
+            call    dmaWait()@plt
+            lw      t2,0(s3)        ; t2 = prevEventSource->processRow
+            lw      a2,4(s3)        ; a2 = prevEventSource->groupIndex
+            lw      a1,8(s3)        ; a1 = prevEventSource->stride
+            jr      t2              
+    .L13:
+            ret*/
     return scalarRegisterMask;
 }
 
