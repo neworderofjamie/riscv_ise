@@ -25,7 +25,102 @@
 #include "fenn/backend/kernel.h"
 
 using namespace CompilerFrontend;
+using namespace FeNN;
 
+//-------------------------------------------------
+// Anonymous namespace
+//-------------------------------------------------
+namespace
+{
+class PerformanceCounterScope
+{
+public:
+    PerformanceCounterScope(size_t processGroupStartOffset, 
+                            Assembler::CodeGenerator &codeGenerator,
+                            Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
+                            const std::set<std::string> &performanceCounters)
+    :   m_CodeGenerator(codeGenerator), m_ScalarRegisterAllocator(scalarRegisterAllocator)
+    {
+        auto &c = m_CodeGenerator.get();
+
+        // Loop through performance counters
+        m_PerformanceCounters.reserve(performanceCounters.size());
+        for(const auto &p : performanceCounters) {
+            // Get low and high CSRs
+            auto [lowCSR, highCSR] = s_PerformanceCounterCSRs.at(p);
+
+            // Allocate registers
+            auto startLowReg = m_ScalarRegisterAllocator.get().getRegister(("Start" + p + " X").c_str());
+            auto startHighReg = m_ScalarRegisterAllocator.get().getRegister(("Start" + p + "H X").c_str());
+
+            // Read performance counters into registers
+            c.csrr(*startLowReg, lowCSR);
+            c.csrr(*startHighReg, highCSR);
+
+            // Add registers to vector and update offset
+            m_PerformanceCounters.emplace_back(startLowReg, startHighReg, 
+                                               lowCSR, highCSR,
+                                               processGroupStartOffset);
+            processGroupStartOffset += sizeof(uint64_t);
+        }
+    }
+
+    ~PerformanceCounterScope()
+    {
+        auto &c = m_CodeGenerator.get();
+        auto &scalarRegisterAllocator = m_ScalarRegisterAllocator.get();
+            
+        // Loop through performance counters
+        for(const auto &p : m_PerformanceCounters) {
+            auto [startLowReg, startHighReg, lowCSR, highCSR, offset] = p;
+
+            // Read performance counters into registers
+            ALLOCATE_SCALAR(SEndLow);
+            ALLOCATE_SCALAR(SEndHigh);
+            c.csrr(*SEndLow, lowCSR);
+            c.csrr(*SEndHigh, highCSR);
+
+            // Subtract previous performance counter values 
+            // **NOTE** result goes into SEndLow and SEndHigh
+            Assembler::Utils::generateSubtractUint64(c, scalarRegisterAllocator,
+                                                     *SEndLow, *SEndHigh,
+                                                     *startLowReg, *startHighReg);
+            
+            // Load previous performance counter values
+            c.lw(*startLowReg, FeNN::Common::Reg::X0, offset);
+            c.lw(*startHighReg, FeNN::Common::Reg::X0, offset + 4);
+
+            // Add new performance counter values
+            // **NOTE** result goes into startLowReg and startHighReg
+            // **NOTE** first instruction access startLowReg so no stall
+            Assembler::Utils::generateAddUint64(c, scalarRegisterAllocator,
+                                                *startLowReg, *startHighReg,
+                                                *SEndLow, *SEndHigh);
+            // Store updated values
+            c.sw(*startLowReg, FeNN::Common::Reg::X0, offset);
+            c.sw(*startHighReg, FeNN::Common::Reg::X0, offset + 4);
+        }
+    }
+private:
+    //------------------------------------------------------------------------
+    // Static members
+    //------------------------------------------------------------------------
+    inline static const std::unordered_map<std::string,
+                                           std::tuple<FeNN::Common::CSR,
+                                                      FeNN::Common::CSR>>
+        s_PerformanceCounterCSRs = {{"num_instructions", {FeNN::Common::CSR::MCYCLE, FeNN::Common::CSR::MCYCLEH}},
+                                    {"num_clock_cycles", {FeNN::Common::CSR::MINSTRET, FeNN::Common::CSR::MINSTRETH}}};
+
+    //------------------------------------------------------------------------
+    // Members
+    //------------------------------------------------------------------------
+    std::reference_wrapper<Assembler::CodeGenerator> m_CodeGenerator;
+    std::reference_wrapper<Assembler::ScalarRegisterAllocator> m_ScalarRegisterAllocator;
+
+    std::vector<std::tuple<Assembler::ScalarRegisterPtr, Assembler::ScalarRegisterPtr, 
+                           FeNN::Common::CSR, FeNN::Common::CSR, size_t>> m_PerformanceCounters;
+};
+}
 //------------------------------------------------------------------------
 // FeNN::Backend::URAMArrayBase
 //------------------------------------------------------------------------
@@ -124,6 +219,13 @@ void DeviceFeNN::allocateDataStructures()
         }
     }
 
+    // Create performance counter array
+    const size_t numPerformanceCounters = getRuntime().getModel<Model>()->getPerformanceCounterArraySize();
+    if(numPerformanceCounters > 0) {
+        LOGI_FENN_BACKEND << "Creating performance counter array";
+        m_PerformanceCounters = createBRAMArray(Type::Uint64, {numPerformanceCounters}, 
+                                                {Type::Uint64.getSize()});
+    }
 
     // Create field array in BRAM and assert it is at correct fixed location
     LOGI_FENN_BACKEND << "Creating field array in BRAM";
@@ -218,6 +320,12 @@ void DeviceFeNN::populateDataStructures()
             array->pushToDevice();
         }
     }
+
+    // If performance counters are allocated, zero
+    if(m_PerformanceCounters) {
+        m_PerformanceCounters->memsetHostPointer(0);
+        m_PerformanceCounters->pushToDevice();
+    }
 }
 //----------------------------------------------------------------------------
 std::unique_ptr<Frontend::ArrayBase> DeviceFeNN::createPerformanceCounter()
@@ -252,7 +360,7 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
             throw std::runtime_error("FeNN backend runtime used with incompatible kernel");
         }
 
-        // Add size of datastructures to fieldbase
+        // Add size of datastructures to fieldStart
         // **NOTE** BRAM allocations are word-aligned
         const uint32_t eventSinkSourceTableAddress = fieldStart;
         fieldStart += ::Common::Utils::padSize(ki->getEventSinkSourceTable().size() * 2, 4);
@@ -280,6 +388,15 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
         }
     }
 
+    // Add size of any performance counters to fieldStart
+    uint32_t performanceCounterBase = 0;
+    const size_t numPerformanceCounters = getModel<Model>()->getPerformanceCounterArraySize();
+    if(numPerformanceCounters > 0) {
+        LOGD_FENN_BACKEND << "Performance counters start at " << fieldStart;
+        performanceCounterBase = fieldStart;
+        fieldStart += (numPerformanceCounters * sizeof(uint64_t));
+    }
+
     LOGD_FENN_BACKEND << "Merged fields start at " << fieldStart;
     uint32_t fieldBase = fieldStart;
 
@@ -295,7 +412,7 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
         // Generate kernel
         auto code = Assembler::Utils::generateStandardKernel(
             generateSimulationKernels, readyFlagPtr,
-            [this, fieldStart, generateSimulationKernels, &fieldBase, &k, &kernelEventTableLocations]
+            [this, fieldStart, generateSimulationKernels, performanceCounterBase, &fieldBase, &k, &kernelEventTableLocations]
             (Assembler::CodeGenerator &c, Assembler::VectorRegisterAllocator &vectorRegisterAllocator, 
              Assembler::ScalarRegisterAllocator &scalarRegisterAllocator)
             {
@@ -312,10 +429,14 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
 
                 // Generate code for kernel
                 ki->generateCode(c, scalarRegisterAllocator, vectorRegisterAllocator,
-                                 [this, fieldStart, generateSimulationKernels, &fieldBase, &k, &kernelEventTableLocations, &ki]
+                                 [this, fieldStart, generateSimulationKernels, performanceCounterBase, &fieldBase, &k, &kernelEventTableLocations, &ki]
                                  (auto processGroup, auto timeRegister, auto numTimesteps, auto &c,
                                   auto &scalarRegisterAllocator, auto &vectorRegisterAllocator)
                                  {
+                                    // Create performance counter scope
+                                    PerformanceCounterScope p(performanceCounterBase + getModel<Model>()->getPerformanceCounterArrayOffset(processGroup), 
+                                                              c, scalarRegisterAllocator, processGroup->getPerformanceCounters());
+
                                      // Create empty vector of merged fields associated with these processes
                                      auto mergedProcessGroupFields = m_MergedProcessFields.emplace(std::piecewise_construct,
                                                                                                    std::make_tuple(processGroup),

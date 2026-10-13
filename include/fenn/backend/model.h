@@ -63,7 +63,7 @@ public:
     // Public API
     //------------------------------------------------------------------------
     MemSpace getStateMemSpace(std::shared_ptr<const Frontend::State> state, bool useDRAMForWeights) const;
-    const auto &getPerformanceCounterArrayOffsets() const{ return m_PerformanceCounterArrayOffsets; }
+    size_t getPerformanceCounterArrayOffset(std::shared_ptr<const Frontend::ProcessGroup> processGroup) const;
     size_t getPerformanceCounterArraySize() const{ return m_PerformanceCounterArraySize; }
 
 private:
@@ -71,7 +71,7 @@ private:
     // Members
     //------------------------------------------------------------------------
     StateMemSpaceCompatibility m_StateCompatibleMemSpaces;
-    std::unordered_map<std::shared_ptr<const Frontend::ProcessGroup>, std::tuple<size_t, size_t>> m_PerformanceCounterArrayOffsets;
+    std::unordered_map<std::shared_ptr<const Frontend::ProcessGroup>, size_t> m_PerformanceCounterArrayOffsets;
     size_t m_PerformanceCounterArraySize;
 };
 }

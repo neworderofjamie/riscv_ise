@@ -240,6 +240,7 @@ private:
     std::unique_ptr<BRAMArrayBase> m_FieldArray;
     std::unique_ptr<URAMArrayBase> m_DMARowBufferA;
     std::unique_ptr<URAMArrayBase> m_DMARowBufferB;
+    std::unique_ptr<BRAMArrayBase> m_PerformanceCounters;
 
     std::unordered_map<std::shared_ptr<const Frontend::Kernel>, 
                        std::unique_ptr<BRAMArrayBase>> m_KernelEventSinkSourceTableArrays;

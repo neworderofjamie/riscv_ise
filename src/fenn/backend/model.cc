@@ -72,10 +72,9 @@ Model::Model(const KernelVector &kernels)
             throw std::runtime_error("Performance counters not supported by FeNN backend '" + unsupportedPerformanceCountersString.str() + "'");
         }
 
-        // Add offsets to array
-        const size_t perfCounterArrayStart = m_PerformanceCounterArraySize;
+        // Add offset to array
+        m_PerformanceCounterArrayOffsets.try_emplace(p.first, m_PerformanceCounterArraySize);
         m_PerformanceCounterArraySize += p.second.size();
-        m_PerformanceCounterArrayOffsets.try_emplace(p.first, perfCounterArrayStart, m_PerformanceCounterArraySize);
     }
 }
 //----------------------------------------------------------------------------
@@ -95,5 +94,10 @@ MemSpace Model::getStateMemSpace(std::shared_ptr<const Frontend::State> state, b
 
     // Obtain best memory space
     return static_cast<MemSpace>(1 << numTZ);
+}
+//----------------------------------------------------------------------------
+size_t Model::getPerformanceCounterArrayOffset(std::shared_ptr<const Frontend::ProcessGroup> processGroup) const
+{
+    return m_PerformanceCounterArrayOffsets.at(processGroup);
 }
 }
