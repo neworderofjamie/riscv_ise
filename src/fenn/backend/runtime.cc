@@ -312,7 +312,7 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
 
                 // Generate code for kernel
                 ki->generateCode(c, scalarRegisterAllocator, vectorRegisterAllocator,
-                                 [this, fieldStart, &fieldBase, &k, &kernelEventTableLocations, &ki]
+                                 [this, fieldStart, generateSimulationKernels, &fieldBase, &k, &kernelEventTableLocations, &ki]
                                  (auto processGroup, auto timeRegister, auto numTimesteps, auto &c,
                                   auto &scalarRegisterAllocator, auto &vectorRegisterAllocator)
                                  {
@@ -354,6 +354,11 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
 
                                          // Jump over event handlers
                                          auto endProcessGroupLabel = Assembler::createLabel();
+
+                                         // **HACK** add NOP to workaround issue with jumping to jump instructions
+                                         if(!generateSimulationKernels) {
+                                            c.nop();
+                                         }
                                          c.j_(endProcessGroupLabel);
 
                                          // Registers used to communicate presynaptic spike id, group index 
@@ -510,6 +515,13 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                              pi->generateCode(m, *this, *ki, mergedProcessGroupFields.first->second.back().second, 
                                                               timeRegister, SWeightBuffer, SStride, SGroupIndex, numTimesteps, 
                                                               fieldBase, c, scalarRegisterAllocator, vectorRegisterAllocator);
+                                             
+                                             // **HACK** add NOP to workaround issue with jumping to jump instructions
+                                             // **NOTE** this is not ALWAYS required but it's safer to do it here 
+                                             // than rely on each event propagation process correctly inserting it
+                                             if(!generateSimulationKernels) {
+                                                 c.nop();
+                                             }
 
                                              // Return
                                              c.jr(*SMergedGroupReturn);
