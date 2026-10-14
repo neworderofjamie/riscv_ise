@@ -50,8 +50,8 @@ class FENN_BACKEND_EXPORT EventSourceImplementation
 protected:
     using ProcessEventFn = std::function<void(Assembler::CodeGenerator&, Assembler::ScalarRegisterPtr, 
                                                Assembler::ScalarRegisterPtr)>;
-    using PrefetchRowFn = std::function<void(Assembler::CodeGenerator&, Assembler::ScalarRegisterPtr, 
-                                             Assembler::ScalarRegisterPtr)>;
+    using DMARowFn = std::function<void(Assembler::CodeGenerator&, Assembler::ScalarRegisterPtr, 
+                                        Assembler::ScalarRegisterPtr, Assembler::ScalarRegisterPtr)>;
 public:
     //----------------------------------------------------------------------------
     // Declared virtuals
@@ -67,7 +67,7 @@ public:
                                            const KernelImplementation &kernel, MergedFields &mergedFields, Assembler::ScalarRegisterPtr timeReg, 
                                            uint32_t eventSinkSourceTableAddress, uint32_t &fieldBase, Assembler::CodeGenerator &c, 
                                            Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
-                                           PrefetchRowFn prefetchRow, ProcessEventFn processEvent) const = 0;
+                                           DMARowFn dmaRow, ProcessEventFn processEvent) const = 0;
 };
 
 //----------------------------------------------------------------------------
@@ -171,7 +171,7 @@ public:
                                            const KernelImplementation &kernel, MergedFields &mergedFields, Assembler::ScalarRegisterPtr timeReg, 
                                            uint32_t eventSinkSourceTableAddress, uint32_t &fieldBase, Assembler::CodeGenerator &c, 
                                            Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
-                                           PrefetchRowFn prefetchRow, ProcessEventFn processEvent) const override final;
+                                           DMARowFn dmaRow, ProcessEventFn processEvent) const override final;
 
     //------------------------------------------------------------------------
     // Static API
@@ -311,7 +311,7 @@ public:
                                            const KernelImplementation &kernel, MergedFields &mergedFields, Assembler::ScalarRegisterPtr timeReg, 
                                            uint32_t eventSinkSourceTableAddress, uint32_t &fieldBase, Assembler::CodeGenerator &c, 
                                            Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
-                                           PrefetchRowFn prefetchRow, ProcessEventFn processEvent) const override final;
+                                           DMARowFn dmaRow, ProcessEventFn processEvent) const override final;
 };
 
 //----------------------------------------------------------------------------
