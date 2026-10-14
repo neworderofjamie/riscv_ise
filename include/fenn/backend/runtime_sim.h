@@ -64,6 +64,9 @@ public:
     const auto *getDMAController() const{ return m_DMAController.get(); }
     auto *getDMAController(){ return m_DMAController.get(); }
 
+    // **TEMP** read the number of slave buffer overflows which have occurred
+    uint32_t getSlaveBufferOverflow() const;
+
 private:
     //------------------------------------------------------------------------
     // Members
@@ -86,6 +89,12 @@ public:
                size_t dmaBufferSize = 512 * 1024, const std::vector<uint32_t> &spikeInjectData = {});
     virtual ~RuntimeSim();
 
+    //------------------------------------------------------------------------
+    // Public API
+    //------------------------------------------------------------------------
+    // **TEMP** read the number of slave buffer overflows which have occurred
+    std::vector<uint32_t> getSlaveBufferOverflow() const;
+    
 protected:
     //------------------------------------------------------------------------
     // RunCurrentKernelCommand

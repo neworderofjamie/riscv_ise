@@ -350,6 +350,11 @@ std::unique_ptr<DRAMArrayBase> DeviceFeNNSim::createDRAMArray(const Type::Resolv
 {
     return std::make_unique<::DRAMArray>(type, shape, strides, *this);
 }
+//----------------------------------------------------------------------------
+uint32_t DeviceFeNNSim::getSlaveBufferOverflow() const
+{
+    return m_Router->readReg(ISE::RouterSim::Register::SLAVE_BUFFER_OVERFLOW_COUNT);
+}
 
 //----------------------------------------------------------------------------
 // FeNN::Backend::RuntimeSim
@@ -369,6 +374,18 @@ RuntimeSim::~RuntimeSim()
     if(m_SpikeInjectThread.joinable()) {
         m_SpikeInjectThread.join();
     }
+}
+//------------------------------------------------------------------------
+std::vector<uint32_t> RuntimeSim::getSlaveBufferOverflow() const
+{
+    std::vector<uint32_t> values;
+    values.reserve(getNumDevices());
+
+    for(const auto &d : getDevices()) {
+        values.push_back(static_cast<const DeviceFeNNSim*>(d.get())->getSlaveBufferOverflow());
+    }
+
+    return values;
 }
 //------------------------------------------------------------------------
 std::unique_ptr<Frontend::DeviceBase> RuntimeSim::createDevice(size_t deviceIndex)

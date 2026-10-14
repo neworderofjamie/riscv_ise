@@ -252,5 +252,7 @@ PYBIND11_MODULE(_fenn_backend, m)
              pybind11::arg("keep_params_in_registers") = true,
              pybind11::arg("neuron_update_rounding_mode") = Compiler::RoundingMode::NEAREST,
              pybind11::arg("dma_buffer_size") = 512 * 1024,
-             pybind11::arg("spike_inject_data") = std::vector<uint32_t>{});
+             pybind11::arg("spike_inject_data") = std::vector<uint32_t>{})
+
+        .def_property_readonly("slave_buffer_overflow", &Backend::RuntimeSim::getSlaveBufferOverflow);
 }
