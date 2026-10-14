@@ -32,6 +32,29 @@ class LIF:
             V = ({alpha}h15 * V) + I;
             I = 0.0h{fixed_point};
             
+            // **HACK** neurons are firing at too high a rate for router
+            // Rather than sleeping at end of timestep to hit real-time,
+            // Pad each neuron update with NOP operations
+            I = I;
+            I = I;
+            I = I;
+            I = I;
+            I = I;
+            I = I;
+            I = I;
+            I = I;
+            I = I;
+            I = I;
+            I = I;
+            I = I;
+            I = I;
+            I = I;
+            I = I;
+            I = I;
+            I = I;
+            I = I;
+
+
             if(V >= {v_thresh}h{fixed_point}) {{
                Spike();
                V -= {v_thresh}h{fixed_point};
@@ -135,18 +158,37 @@ dataset = DVSGesture(save_to="./data", train=False,
 input_spikes = []
 input_labels = []
 
+max_spike_array_length = 0
 #for events, label in tqdm(dataset, "Preprocessing dataset"):
-for i in range(1):
+for i in range(10):
     events, label = dataset[i]
-    # Convert events into a spike array
-    spike_array = convert_tonic_spikes(events, dataset.ordering, sensor_size, max_time=num_timesteps)
-    #num_timesteps = max(num_timesteps, int(np.ceil(np.amax(events["t"] / 1000))))
-    input_spikes.append(spike_array)
+
+    # Convert times to 1ms timesteps and check they are sorted
+    timesteps = np.floor(events["t"] / 1000).astype(int)
+    assert np.all(timesteps[:-1] <= timesteps[1:])
+
+    # Split events into chunks
+    chunk_bins = np.arange(0, timesteps[-1] + chunk_timesteps, chunk_timesteps)
+    events_per_chunk = np.histogram(timesteps, chunk_bins)[0]
+    events_per_chunk = np.cumsum(events_per_chunk)
+    split_events = np.split(events, events_per_chunk)
+
+    # Loop through chunks of events
+    chunk_spikes = []
+    for i, e in enumerate(split_events):
+        # Make all chunks start at 0
+        shifted = e
+        shifted["t"] -= i * (chunk_timesteps * 1000)
+        assert np.all(shifted["t"] >= 0.0)
+        spike_array = convert_tonic_spikes(shifted, dataset.ordering, 
+                                           sensor_size, histogram_thresh=None)
+        max_spike_array_length = max(max_spike_array_length, len(spike_array))
+        chunk_spikes.append(spike_array)
+
+    input_spikes.append(chunk_spikes)
     input_labels.append(label)
 
-# Calculate maximum spike array length
-max_spike_array_length = max(len(s) for s in input_spikes)
-print(max_spike_array_length, num_timesteps)
+print(max_spike_array_length)
 log_appender = backend.ConsoleAppender()#PythonLogAppender()
 backend.init_logging(log_appender, backend.PlogSeverity.DEBUG)
 
@@ -158,10 +200,6 @@ populations = [LIF(backend, (np.prod(s),), 0.93, 1.0, f, name=f"hidden{i + 1}")
                for i, (s, f) in enumerate(zip(layer_shapes[1:-1], layer_fractional_bits))]
 populations.append(LIFOutput(backend, (np.prod(layer_shapes[-1]),), 0.93, 1.0, 
                    layer_fractional_bits[-1], name="output"))
-
-# Create memset processes to zero each population's V
-zero = [Memset(backend, p.v) for p in populations]
-zero.append(Memset(backend, populations[-1].num_spikes))
 
 # Connect input spikes to first layer
 input_hidden1 = SparseLinear(backend, input_spike_buffer, populations[0].i, 
@@ -186,16 +224,15 @@ hidden4_output = DenseLinear(backend, populations[3].out_spikes, populations[4].
 
 
 # Group processes
-neuron_update_processes = backend.ProcessGroup([p.process for p in populations])
+perf_counters = ["num_instructions", "num_clock_cycles"] if args.time else []
+neuron_update_processes = backend.ProcessGroup([p.process for p in populations], perf_counters)
 synapse_update_processes = backend.ProcessGroup([input_hidden1.process, hidden1_hidden2.process, 
                                                  hidden2_hidden3.process, hidden3_hidden4.process,
-                                                 hidden4_output.process])
-reset_processes = backend.ProcessGroup([z.process for z in zero])
-
+                                                 hidden4_output.process], perf_counters)
 # Create kernel
 kernel = backend.SimulationLoopKernel(
-    num_timesteps, [synapse_update_processes, neuron_update_processes],
-    [reset_processes], [])
+    chunk_timesteps, [synapse_update_processes, neuron_update_processes],
+    [], [])
     
 # Create runtime
 runtime_params = {"neuron_update_rounding_mode": backend.RoundingMode.NEAREST}
@@ -224,10 +261,7 @@ load_quantise_and_push("hidden4.npy", layer_fractional_bits[3],
 load_quantise_and_push("output.npy", layer_fractional_bits[4], 
                        hidden4_output.weight, runtime, percentile=100.0)
 
-if args.time:
-    zero_and_push(neuron_update_processes.performance_counter, runtime)
-    zero_and_push(synapse_update_processes.performance_counter, runtime)
-    zero_and_push(reset_processes.performance_counter, runtime)
+v_views = [get_views(runtime, p.v) for p in populations]
 
 # Loop through examples
 input_spike_views = get_views(runtime, input_spike_buffer)
@@ -236,15 +270,25 @@ assert len(input_spike_views) == 1
 output_num_spikes_views = get_views(runtime, populations[-1].num_spikes)
 assert len(output_num_spikes_views) == 1
 
+# Loop through input gestures
 num_correct = 0
-for spikes, label in tqdm(zip(input_spikes, input_labels),
-                          total=len(input_labels), desc="Simulating"):
-    # Copy data to array host pointe
-    input_spike_views[0][:len(spikes)] = spikes
-    runtime.push_state_to_device(input_spike_buffer)
+time_simulated = 0
+for spike_chunks, label in tqdm(zip(input_spikes, input_labels),
+                                 total=len(input_labels), desc="Simulating"):
+    # Manually zero voltages
+    for p, v in zip(populations, v_views):
+        v[0][:] = 0
+        runtime.push_state_to_device(p.v)
 
-    # Classify
-    runtime.run(kernel)
+    # Loop through spike chunks
+    for c in spike_chunks:
+        # Copy data to array host pointe
+        input_spike_views[0][:len(c)] = c
+        runtime.push_state_to_device(input_spike_buffer)
+
+        # Classify
+        runtime.run(kernel)
+        time_simulated += chunk_timesteps
 
     # Copy output V sum from device
     runtime.pull_state_from_device(populations[-1].num_spikes)
@@ -254,16 +298,16 @@ for spikes, label in tqdm(zip(input_spikes, input_labels),
     if classification == label:
         num_correct += 1
 
+print(f"Number of router buffer overflows {runtime.slave_buffer_overflow}")
+print(f"Simulated {time_simulated} timesteps")
 print(f"{num_correct} / {len(input_labels)} correct {100.0 * (num_correct / len(input_labels))}%")
 
 if args.time:
-    neuron_update_cycles, neuron_update_instructions = read_perf_counter(
-        neuron_update_processes.performance_counter, runtime)
-    synapse_update_cycles, synapse_update_instructions = read_perf_counter(
-        synapse_update_processes.performance_counter, runtime)
-    reset_cycles, reset_instructions = read_perf_counter(
-        reset_processes.performance_counter, runtime)
+    neuron_update_cycles = runtime.read_performance_counter(neuron_update_processes, 'num_clock_cycles')[0]
+    neuron_update_instructions = runtime.read_performance_counter(neuron_update_processes, 'num_instructions')[0]
+
+    synapse_update_cycles = runtime.read_performance_counter(synapse_update_processes, 'num_clock_cycles')[0]
+    synapse_update_instructions = runtime.read_performance_counter(synapse_update_processes, 'num_instructions')[0]
+
     print(f"Neuron update {neuron_update_cycles} cycles, {neuron_update_instructions} instruction ({neuron_update_instructions / neuron_update_cycles})")
     print(f"Synapse update {synapse_update_cycles} cycles, {synapse_update_instructions} instruction ({synapse_update_instructions / synapse_update_cycles})")
-    print(f"Reset {reset_cycles} cycles, {reset_instructions} instruction ({reset_instructions / reset_cycles})")
-
