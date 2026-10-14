@@ -85,7 +85,7 @@ std::pair<std::optional<uint32_t>, bool> SharedBusSim::synchronise(size_t router
 
     // If the event that got sent was ours, update next router
     // **NOTE** this is an arbitrary choice of thread to update this
-    if (readRouterIndex == routerIndex) {
+    if (m_NumRouters > 0 && readRouterIndex == routerIndex) {
         m_NextRouter = (readRouterIndex.value() + 1) % m_NumRouters;
     }
 
