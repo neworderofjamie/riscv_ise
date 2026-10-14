@@ -497,6 +497,7 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
 
                                          // Registers used to communicate presynaptic spike id, group index 
                                          // and return address from event loop to event propagation proces code
+                                         ALLOCATE_SCALAR(SPreIndReg);
                                          ALLOCATE_SCALAR(SWeightBuffer);
                                          ALLOCATE_SCALAR(SStride);
                                          ALLOCATE_SCALAR(SGroupIndex);
@@ -577,10 +578,10 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                              else {
                                                  eventLoopScalarRegisterMask |= m.template getArchetype<EventSourceImplementation>()->generateURAMEventLoop(
                                                      m, *this, *ki, mergedEventSourceFields.first->second.back().second,
-                                                     timeRegister, std::get<0>(eventTableLocations),
+                                                     timeRegister, SPreIndReg, std::get<0>(eventTableLocations),
                                                      fieldBase, eventLoopCodeGenerator, scalarRegisterAllocator,
-                                                     [SGroupIndex, SMergedGroupReturn, SStride, SWeightBuffer, &eventTableLocations, &scalarRegisterAllocator]
-                                                     (auto &c, auto eventSourceProcessOffsetReg, auto preIndReg)
+                                                     [SGroupIndex, SMergedGroupReturn, SPreIndReg, SStride, SWeightBuffer, &eventTableLocations, &scalarRegisterAllocator]
+                                                     (auto &c, auto eventSourceProcessOffsetReg)
                                                      {
                                                         // Load process address, group index and weight buffer from event source->process table
                                                         ALLOCATE_SCALAR(SProcessAddress);
@@ -591,7 +592,7 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
 
                                                         {
                                                             ALLOCATE_SCALAR(STemp);
-                                                            c.mul(*STemp, *preIndReg, *SStride);
+                                                            c.mul(*STemp, *SPreIndReg, *SStride);
                                                             c.add(*SWeightBuffer, *SWeightBuffer, *STemp);
                                                         }
                                                         // Jump to process address
@@ -626,7 +627,7 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
 
                                              // Generate code
                                              pi->generateCode(m, *this, *ki, mergedProcessGroupFields.first->second.back().second, 
-                                                              timeRegister, SWeightBuffer, SStride, SGroupIndex, numTimesteps, 
+                                                              timeRegister, SWeightBuffer, SStride, SGroupIndex, SPreIndReg, numTimesteps, 
                                                               fieldBase, c, scalarRegisterAllocator, vectorRegisterAllocator);
                                              
                                              // **HACK** add NOP to workaround issue with jumping to jump instructions

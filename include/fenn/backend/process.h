@@ -107,7 +107,8 @@ public:
                                        const KernelImplementation &kernel, MergedFields &mergedFields,
                                        Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg, 
                                        Assembler::ScalarRegisterPtr weightBufferReg, Assembler::ScalarRegisterPtr strideReg, 
-                                       std::optional<uint32_t> numTimesteps, Assembler::CodeGenerator &processCodeGenerator,
+                                       Assembler::ScalarRegisterPtr preIndReg, std::optional<uint32_t> numTimesteps, 
+                                       Assembler::CodeGenerator &processCodeGenerator,
                                        Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                        Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const = 0;
 
@@ -120,7 +121,8 @@ public:
                       const KernelImplementation &kernel, MergedFields &mergedFields, 
                       Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr weightBufferReg, 
                       Assembler::ScalarRegisterPtr strideReg, Assembler::ScalarRegisterPtr groupIndReg,
-                      std::optional<uint32_t> numTimesteps, uint32_t &fieldBase, Assembler::CodeGenerator &c, 
+                      Assembler::ScalarRegisterPtr preIndReg, std::optional<uint32_t> numTimesteps, 
+                      uint32_t &fieldBase, Assembler::CodeGenerator &c, 
                       Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                       Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const;
 
@@ -209,7 +211,8 @@ public:
                                        const KernelImplementation &kernel, MergedFields &mergedFields,
                                        Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg, 
                                        Assembler::ScalarRegisterPtr weightBufferReg, Assembler::ScalarRegisterPtr strideReg, 
-                                       std::optional<uint32_t> numTimesteps, Assembler::CodeGenerator &processCodeGenerator,
+                                       Assembler::ScalarRegisterPtr preIndReg, std::optional<uint32_t> numTimesteps, 
+                                       Assembler::CodeGenerator &processCodeGenerator,
                                        Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                        Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;
 
@@ -271,7 +274,8 @@ public:
                                        const KernelImplementation &kernel, MergedFields &mergedFields,
                                        Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg, 
                                        Assembler::ScalarRegisterPtr weightBufferReg, Assembler::ScalarRegisterPtr strideReg, 
-                                       std::optional<uint32_t> numTimesteps, Assembler::CodeGenerator &processCodeGenerator,
+                                       Assembler::ScalarRegisterPtr preIndReg, std::optional<uint32_t> numTimesteps, 
+                                       Assembler::CodeGenerator &processCodeGenerator,
                                        Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                        Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;
 
@@ -339,7 +343,8 @@ public:
                                        const KernelImplementation &kernel, MergedFields &mergedFields,
                                        Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg, 
                                        Assembler::ScalarRegisterPtr weightBufferReg, Assembler::ScalarRegisterPtr strideReg, 
-                                       std::optional<uint32_t> numTimesteps, Assembler::CodeGenerator &processCodeGenerator,
+                                       Assembler::ScalarRegisterPtr preIndReg, std::optional<uint32_t> numTimesteps, 
+                                       Assembler::CodeGenerator &processCodeGenerator,
                                        Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                        Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;
     virtual Frontend::VariablePtr getWeight() const override final{ return m_Weight; }
@@ -405,7 +410,8 @@ public:
                                        const KernelImplementation &kernel, MergedFields &mergedFields,
                                        Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg, 
                                        Assembler::ScalarRegisterPtr weightBufferReg, Assembler::ScalarRegisterPtr strideReg, 
-                                       std::optional<uint32_t> numTimesteps, Assembler::CodeGenerator &processCodeGenerator,
+                                       Assembler::ScalarRegisterPtr preIndReg, std::optional<uint32_t> numTimesteps, 
+                                       Assembler::CodeGenerator &processCodeGenerator,
                                        Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                        Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;
 
@@ -422,21 +428,10 @@ public:
                                                                      weight, target, name);
     }
 
-    //double getWeight() const{ return m_Weight; }
-
 private:
-    //------------------------------------------------------------------------
-    // Private methods
-    //------------------------------------------------------------------------
-    std::tuple<double, size_t> getScaleFactor() const;
-
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
-    size_t m_NumInputCoordBits;
-
-    size_t m_NumTargetCoordBits;
-
     double m_Weight;
 };
 

@@ -486,7 +486,8 @@ void EventDrivenProcessImplementation::generateCode(const Frontend::MergedProces
                                                     const KernelImplementation &kernel, MergedFields &mergedFields, 
                                                     Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr weightBufferReg, 
                                                     Assembler::ScalarRegisterPtr strideReg, Assembler::ScalarRegisterPtr groupIndReg, 
-                                                    std::optional<uint32_t> numTimesteps, uint32_t &fieldBase, Assembler::CodeGenerator &c, 
+                                                    Assembler::ScalarRegisterPtr preIndReg, std::optional<uint32_t> numTimesteps, 
+                                                    uint32_t &fieldBase, Assembler::CodeGenerator &c, 
                                                     Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
                                                     Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
@@ -496,7 +497,7 @@ void EventDrivenProcessImplementation::generateCode(const Frontend::MergedProces
     // Generate archetype code and populate merged fields
     Assembler::CodeGenerator archetypeCodeGenerator;
     generateArchetypeCode(mergedProcess, runtime, kernel, mergedFields, 
-                          SFieldBase, timeReg,  weightBufferReg, strideReg, numTimesteps, 
+                          SFieldBase, timeReg,  weightBufferReg, strideReg, preIndReg, numTimesteps, 
                           archetypeCodeGenerator, scalarRegisterAllocator, vectorRegisterAllocator);
 
     // If there is only one merged group so fieldbase is used  
@@ -534,7 +535,12 @@ void EventDrivenProcessImplementation::generateCode(const Frontend::MergedProces
 //----------------------------------------------------------------------------
 size_t EventDrivenProcessImplementation::getWeightStride(const Runtime &runtime, size_t deviceIndex) const
 {
-    return std::get<1>(runtime.getDeviceArrayShapeStrides(getWeight(), deviceIndex))[0];
+    if(getWeight()) {
+        return std::get<1>(runtime.getDeviceArrayShapeStrides(getWeight(), deviceIndex))[0];
+    }
+    else {
+        return 0;
+    }
 }
 
 //----------------------------------------------------------------------------
@@ -1098,7 +1104,8 @@ void DenseEventPropagationProcess::generateArchetypeCode(const Frontend::MergedP
                                                          const KernelImplementation &kernel, MergedFields &mergedFields,
                                                          Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg, 
                                                          Assembler::ScalarRegisterPtr weightBufferReg, Assembler::ScalarRegisterPtr strideReg, 
-                                                         std::optional<uint32_t> numTimesteps, Assembler::CodeGenerator &processCodeGenerator,
+                                                         Assembler::ScalarRegisterPtr, std::optional<uint32_t> numTimesteps, 
+                                                         Assembler::CodeGenerator &processCodeGenerator,
                                                          Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                                          Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
@@ -1306,7 +1313,8 @@ void SparseEventPropagationProcess::generateArchetypeCode(const Frontend::Merged
                                                           const KernelImplementation &kernel, MergedFields &mergedFields,
                                                           Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg, 
                                                           Assembler::ScalarRegisterPtr weightBufferReg, Assembler::ScalarRegisterPtr strideReg, 
-                                                          std::optional<uint32_t> numTimesteps, Assembler::CodeGenerator &processCodeGenerator,
+                                                          Assembler::ScalarRegisterPtr, std::optional<uint32_t> numTimesteps, 
+                                                          Assembler::CodeGenerator &processCodeGenerator,
                                                           Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                                           Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
@@ -1551,7 +1559,8 @@ void DelayEventPropagationProcess::generateArchetypeCode(const Frontend::MergedP
                                                          const KernelImplementation &kernel, MergedFields &mergedFields,
                                                          Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg, 
                                                          Assembler::ScalarRegisterPtr weightBufferReg, Assembler::ScalarRegisterPtr strideReg, 
-                                                         std::optional<uint32_t> numTimesteps, Assembler::CodeGenerator &processCodeGenerator,
+                                                         Assembler::ScalarRegisterPtr, std::optional<uint32_t> numTimesteps, 
+                                                         Assembler::CodeGenerator &processCodeGenerator,
                                                          Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                                          Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
@@ -1760,27 +1769,9 @@ Downsample2DEventPropagationProcess::Downsample2DEventPropagationProcess(Private
                                                                          double weight, Frontend::Sliced<Frontend::Variable> target, const std::string &name)
     :   EventPropagationProcess(Private(), inputEventSource, target, name), m_Weight(weight)
 {
-    if (getInputEventSource()->getShape().size() != 2) {
+    if (getInputEventSource()->getShape() != getTarget().getShape()) {
         throw std::runtime_error("Downsample 2D event propagation process requires source events with a 2D shape");
     }  
-
-    if (getInputEventSource()->getShape()[0] != getInputEventSource()->getShape()[1]) {
-        throw std::runtime_error("Downsample 2D event propagation process requires source events with a square shape");
-    }
-
-    // Count number of bits used to encode input coordinates
-    m_NumInputCoordBits = ::Common::Utils::getNumBits(getInputEventSource()->getShape()[0]);
-
-    // Validate target size and get scale factor
-    const auto [scaleFactor, targetSize] = getScaleFactor();
-
-    // If scale factor isn't an integer or that integer value isn't a power of two
-    if(scaleFactor != std::floor(scaleFactor) || !::Common::Utils::isPOT(static_cast<int>(scaleFactor))) {
-        throw std::runtime_error("Downsample 2D event propagation process can only downsample by a power of two");
-    }
-
-    // Count number of bits used to encode target coordinate
-    m_NumTargetCoordBits = ::Common::Utils::getNumBits(targetSize);
 
     // **TODO** 
     assert(!getTarget().hasTime());
@@ -1807,14 +1798,6 @@ void Downsample2DEventPropagationProcess::updateMergeHash(boost::uuids::detail::
     // Include hash of target memory space
     updateHash(static_cast<const Model&>(model).getStateMemSpace(getTarget().getUnderlying(), 
                                                                  true/*getRuntime().shouldUseDRAMForWeights()*/), hash);
-
-
-    // Include hashes of number of bits used to encode input and target coordinates
-    // **NOTE** if we can use immediate shifts, downsampling code can be more efficient
-    // and, as this is a tight loop, this is worth potential duplication, especially
-    // as, realistically, I can't really think of a reason models would have >1 downsampler!
-    updateHash(m_NumInputCoordBits, hash);
-    updateHash(m_NumTargetCoordBits, hash);
 }
 //----------------------------------------------------------------------------
 void Downsample2DEventPropagationProcess::updateCompatibleSplitDimensions(std::shared_ptr<const Frontend::State> state, 
@@ -1848,13 +1831,13 @@ void Downsample2DEventPropagationProcess::updateCompatibleMemSpace(std::shared_p
 //------------------------------------------------------------------------
 void Downsample2DEventPropagationProcess::generateArchetypeCode(const Frontend::MergedProcess &mergedProcess, const Runtime &runtime, 
                                                                 const KernelImplementation &kernel, MergedFields &mergedFields,
-                                                                Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg, 
-                                                                Assembler::ScalarRegisterPtr weightBufferReg, Assembler::ScalarRegisterPtr strideReg, 
-                                                                std::optional<uint32_t> numTimesteps, Assembler::CodeGenerator &processCodeGenerator,
+                                                                Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr, 
+                                                                Assembler::ScalarRegisterPtr, Assembler::ScalarRegisterPtr, 
+                                                                Assembler::ScalarRegisterPtr preIndReg, std::optional<uint32_t>, 
+                                                                Assembler::CodeGenerator &processCodeGenerator,
                                                                 Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                                                 Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
-    assert(false);
     // **TODO** handle splitting 
     assert(runtime.getNumDevices() == 1);
 
@@ -1878,45 +1861,6 @@ void Downsample2DEventPropagationProcess::generateArchetypeCode(const Frontend::
                                          p->m_Weight);
         });
 
-    // 
-    auto targetYStride = addScalarValue<Downsample2DEventPropagationProcess>(
-        0, mergedProcess, runtime.getNumDevices(), mergedFields,
-        fieldBaseReg, c, scalarRegisterAllocator, 
-        [&runtime](size_t d, auto p) -> uint32_t
-        { 
-            // Get stride and shape of target
-            auto [shape, strides] = runtime.getDeviceArrayShapeStrides(p->getTarget().getUnderlying(), d);
-
-            // We want to multiply by width of (potentially split) shape
-            return std::get<1>(p->getScaleFactor());
-        });
-    
-    // Spike ID expected to have | Polarity | X | Y |
-
-    // Calculate shift required to scale coordinates and mask 
-    const size_t coordScaleShift = m_NumInputCoordBits - m_NumTargetCoordBits;
-    const uint32_t outputCoordMask =  (1 << m_NumTargetCoordBits) - 1;
-    
-    ALLOCATE_SCALAR(SIndex);
-
-    {
-        /*ALLOCATE_SCALAR(SX);
-        ALLOCATE_SCALAR(SY);
-
-        // Extract X coordinate
-        assert(false);
-        c.srli(*SY, *preIndReg, coordScaleShift);
-        c.andi(*SY, *SY, outputCoordMask);
-   
-        // Extract X coordinate
-        c.srli(*SX, *preIndReg, m_NumInputCoordBits + coordScaleShift);
-        c.andi(*SX, *SX, outputCoordMask);
-
-        // Calculate index into post
-        c.mul(*SIndex, *std::get<Assembler::ScalarRegisterPtr>(targetYStride), *SY);
-        c.add(*SIndex, *SIndex, *SX);*/
-    }
-
     {
         ALLOCATE_SCALAR(STargetBuffer);
         ALLOCATE_SCALAR(STargetVectorAddress);
@@ -1928,13 +1872,13 @@ void Downsample2DEventPropagationProcess::generateArchetypeCode(const Frontend::
         c.lw(*STargetBuffer, *fieldBaseReg, targetFieldOffset);
 
         // Build vector address and load target
-        c.andi(*STargetVectorAddress, *SIndex, -32);
+        c.andi(*STargetVectorAddress, *preIndReg, -32);
         c.sh1add(*STargetBuffer, *STargetVectorAddress, *STargetBuffer);
         c.vloadv(*VTarget, *STargetBuffer);
 
         // Build mask
         c.li(*SMask, 1);
-        c.sll(*SMask, *SMask, *SIndex);
+        c.sll(*SMask, *SMask, *preIndReg);
 
         // VTargetNew = VTarget + VWeight
         c.vadd_s(*VTargetNew, *VTarget, *VWeight);
@@ -1944,33 +1888,6 @@ void Downsample2DEventPropagationProcess::generateArchetypeCode(const Frontend::
 
         // Store updated target current
         c.vstore(*VTarget, *STargetBuffer);
-    }
-}
-//----------------------------------------------------------------------------
-std::tuple<double, size_t> Downsample2DEventPropagationProcess::getScaleFactor() const
-{
-    // If target is flattened
-    if (getTarget().getShape().size() == 1) {
-        // Get side-length of target
-        const double side = std::sqrt(getTarget().getShape()[0]);
-        if(side != std::floor(side)) {
-            throw std::runtime_error("Downsample 2D event propagation process requires target variable with a square shape");
-        }
-
-        return std::make_tuple(getInputEventSource()->getShape()[0] / side, static_cast<size_t>(side));
-    }
-    // If target is 2D
-    else if (getTarget().getShape().size() == 2) {
-        // Check it's square and 
-        if (getTarget().getShape()[0] != getTarget().getShape()[1]) {
-            throw std::runtime_error("Downsample 2D event propagation process requires target variable with a square shape");
-        }
-
-        return std::make_tuple(getInputEventSource()->getShape()[0] / getTarget().getShape()[0],
-                               getTarget().getShape()[0]);
-    }
-    else {
-        throw std::runtime_error("Downsample 2D event propagation process requires target variable with a 2D or 1D flattened shape");
     }
 }
 

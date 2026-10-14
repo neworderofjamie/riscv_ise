@@ -157,8 +157,9 @@ Frontend::State::ShapeStride EventSourceBuffer::getArrayShapeStride(std::optiona
 //----------------------------------------------------------------------------
 uint32_t EventSourceBuffer::generateURAMEventLoop(const Frontend::Merged<Frontend::EventSource> &mergedEventSource, const Runtime &runtime, 
                                                   const KernelImplementation &kernel, MergedFields &mergedFields, Assembler::ScalarRegisterPtr timeReg, 
-                                                  uint32_t eventSinkSourceTableAddress, uint32_t &fieldBase, Assembler::CodeGenerator &c, 
-                                                  Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, ProcessEventFn processEvent) const
+                                                  Assembler::ScalarRegisterPtr preIndReg, uint32_t eventSinkSourceTableAddress, uint32_t &fieldBase, 
+                                                  Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
+                                                  ProcessEventFn processEvent) const
 {
     // Allocate base register
     uint32_t scalarRegisterMask = 0;
@@ -166,8 +167,9 @@ uint32_t EventSourceBuffer::generateURAMEventLoop(const Frontend::Merged<Fronten
 
     // Generate archetype code and populate merged fields
     Assembler::CodeGenerator archetypeCodeGenerator;
-    generateArchetypeEventLoop(kernel, mergedFields, SFieldBase, timeReg, eventSinkSourceTableAddress,
-                               archetypeCodeGenerator, scalarRegisterAllocator, scalarRegisterMask, processEvent);
+    generateArchetypeEventLoop(kernel, mergedFields, SFieldBase, timeReg, preIndReg,
+                               eventSinkSourceTableAddress, archetypeCodeGenerator, 
+                               scalarRegisterAllocator, scalarRegisterMask, processEvent);
 
     // Load fieldBase
     c.li(*SFieldBase, fieldBase);
@@ -212,8 +214,8 @@ uint32_t EventSourceBuffer::generateDRAMEventLoop(const Frontend::Merged<Fronten
 //----------------------------------------------------------------------------
 void EventSourceBuffer::generateArchetypeEventLoop(const KernelImplementation &kernel, MergedFields &mergedFields, 
                                                    Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg, 
-                                                   uint32_t eventSinkSourceTableAddress, Assembler::CodeGenerator &c, 
-                                                   Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
+                                                   Assembler::ScalarRegisterPtr preIndReg, uint32_t eventSinkSourceTableAddress, 
+                                                   Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                                    uint32_t &scalarRegisterMask, ProcessEventFn processEvent) const
 {
     // Add field to hold buffer
@@ -242,7 +244,6 @@ void EventSourceBuffer::generateArchetypeEventLoop(const KernelImplementation &k
     ALLOCATE_SCALAR_AND_MASK(SBuffer);
     ALLOCATE_SCALAR_AND_MASK(SEventSourceProcessStartOffset);
     ALLOCATE_SCALAR_AND_MASK(SEventSourceProcessEndOffset);
-    ALLOCATE_SCALAR_AND_MASK(SPreIndReg);
 
     // Load buffer start address and handler address
     c.lw(*SBufferStart, *fieldBaseReg, bufferFieldOffset);
@@ -264,19 +265,19 @@ void EventSourceBuffer::generateArchetypeEventLoop(const KernelImplementation &k
     if (m_LongEvents) {
         // Load first word from buffer
         // **NOTE** add 4 to skip 4 bytes holding offset
-        c.lw(*SPreIndReg, *SBuffer, 4);
+        c.lw(*preIndReg, *SBuffer, 4);
 
         // Extract time from lower 31 bits of event
         // **NOTE** we assume this is a time
         {
             ALLOCATE_SCALAR(STmp);
             c.li(*STmp, 0x7FFFFFFF);
-            c.and_(*SPreIndReg, *SPreIndReg, *STmp);
+            c.and_(*preIndReg, *preIndReg, *STmp);
         }
 
         // If word doesn't match current timestep, goto end
         auto noSpikes = Assembler::createLabel();
-        c.bne(*SPreIndReg, *timeReg, noSpikes);
+        c.bne(*preIndReg, *timeReg, noSpikes);
 
         {
             // Build time mask
@@ -291,13 +292,13 @@ void EventSourceBuffer::generateArchetypeEventLoop(const KernelImplementation &k
             {
                 // Load next word from buffer and increment pointer
                 // **NOTE** add 4 to skip 4 bytes holding offset
-                c.lw(*SPreIndReg, *SBuffer, 4);
+                c.lw(*preIndReg, *SBuffer, 4);
                 c.addi(*SBuffer, *SBuffer, 4);
 
                 // If we have hit the next timestamp, goto spikeLoopEnd
                 {
                     ALLOCATE_SCALAR(STmp);
-                    c.and_(*STmp, *SPreIndReg, *STimeMask);
+                    c.and_(*STmp, *preIndReg, *STimeMask);
                     c.bne(*STmp, Common::Reg::X0, spikeLoopEnd);
                 }
                 
@@ -306,7 +307,7 @@ void EventSourceBuffer::generateArchetypeEventLoop(const KernelImplementation &k
                     auto processLoop = c.L();
 
                     // Process event
-                    processEvent(c, SEventSourceProcessStartOffset, SPreIndReg);
+                    processEvent(c, SEventSourceProcessStartOffset);
 
                     // Advance pointer
                     c.addi(*SEventSourceProcessStartOffset, *SEventSourceProcessStartOffset, 16);
@@ -346,19 +347,19 @@ void EventSourceBuffer::generateArchetypeEventLoop(const KernelImplementation &k
     else {
         // Load first half-word from buffer
         // **NOTE** add 4 to skip 4 bytes holding offset
-        c.lhu(*SPreIndReg, *SBuffer, 4);
+        c.lhu(*preIndReg, *SBuffer, 4);
 
         // Extract time from lower 15 bits of event
         // **NOTE** we assume this is a time
         {
             ALLOCATE_SCALAR(STmp);
             c.li(*STmp, 0x7FFF);
-            c.and_(*SPreIndReg, *SPreIndReg, *STmp);
+            c.and_(*preIndReg, *preIndReg, *STmp);
         }
 
         // If word doesn't match current timestep, goto end
         auto noSpikes = Assembler::createLabel();
-        c.bne(*SPreIndReg, *timeReg, noSpikes);
+        c.bne(*preIndReg, *timeReg, noSpikes);
 
         {
             // Build time mask
@@ -373,13 +374,13 @@ void EventSourceBuffer::generateArchetypeEventLoop(const KernelImplementation &k
             {
                 // Load next word from buffer and increment pointer
                 // **NOTE** add 4 to skip 4 bytes holding offset
-                c.lhu(*SPreIndReg, *SBuffer, 4);
+                c.lhu(*preIndReg, *SBuffer, 4);
                 c.addi(*SBuffer, *SBuffer, 2);
 
                 // If we have hit the next timestamp, goto spikeLoopEnd
                 {
                     ALLOCATE_SCALAR(STmp);
-                    c.and_(*STmp, *SPreIndReg, *STimeMask);
+                    c.and_(*STmp, *preIndReg, *STimeMask);
                     c.bne(*STmp, Common::Reg::X0, spikeLoopEnd);
                 }
 
@@ -388,7 +389,7 @@ void EventSourceBuffer::generateArchetypeEventLoop(const KernelImplementation &k
                     auto processLoop = c.L();
 
                     // Process event
-                    processEvent(c, SEventSourceProcessStartOffset, SPreIndReg);
+                    processEvent(c, SEventSourceProcessStartOffset);
 
                     // Advance pointer
                     c.addi(*SEventSourceProcessStartOffset, *SEventSourceProcessStartOffset, 16);
@@ -598,14 +599,14 @@ Frontend::State::ShapeStride EventChannelSource::getArrayShapeStride(std::option
 //----------------------------------------------------------------------------
 uint32_t EventChannelSource::generateURAMEventLoop(const Frontend::Merged<Frontend::EventSource> &mergedEventSource, const Runtime &runtime, 
                                                    const KernelImplementation &kernel, MergedFields &mergedFields, Assembler::ScalarRegisterPtr timeReg, 
-                                                   uint32_t eventSinkSourceTableAddress, uint32_t &fieldBase, Assembler::CodeGenerator &c, 
-                                                   Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, ProcessEventFn processEvent) const
+                                                   Assembler::ScalarRegisterPtr preIndReg, uint32_t eventSinkSourceTableAddress, uint32_t &fieldBase, 
+                                                   Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
+                                                   ProcessEventFn processEvent) const
 {
     // Wait for all events from last timestep to be communicated
     Assembler::Utils::generateRouterBarrier(c, scalarRegisterAllocator, runtime.getNumDevices());
 
     uint32_t scalarRegisterMask = 0;
-    ALLOCATE_SCALAR_AND_MASK(SPreIndReg);
     ALLOCATE_SCALAR_AND_MASK(SSpikeBuffer);
     ALLOCATE_SCALAR_AND_MASK(SSpikeBufferEnd);
     ALLOCATE_SCALAR_AND_MASK(SEventSourceProcessStartOffset);
@@ -632,21 +633,21 @@ uint32_t EventChannelSource::generateURAMEventLoop(const Frontend::Merged<Fronte
     c.beq(*SSpikeBuffer, *SSpikeBufferEnd, spikeLoopEnd);
     {
         // Load spike from buffer and advance
-        c.lw(*SPreIndReg, *SSpikeBuffer);
+        c.lw(*preIndReg, *SSpikeBuffer);
         c.addi(*SSpikeBuffer, *SSpikeBuffer, 4);
 
         {
             // Extract event sink ID
             // **TODO** these were multiplied by 2 to obtain bytes in order to save an instruction
             ALLOCATE_SCALAR(SEventSinkID);
-            c.srli(*SEventSinkID, *SPreIndReg, kernel.getNumNeuronIDBits());
+            c.srli(*SEventSinkID, *preIndReg, kernel.getNumNeuronIDBits());
 
             // AND neuron ID with mask
             if(Common::inSBit(neuronIDMask, 12)) {
-                c.andi(*SPreIndReg, *SPreIndReg, neuronIDMask);
+                c.andi(*preIndReg, *preIndReg, neuronIDMask);
             }
             else {
-                c.and_(*SPreIndReg, *SPreIndReg, *neuronIDMaskReg);
+                c.and_(*preIndReg, *preIndReg, *neuronIDMaskReg);
             }
 
             // Load start and end offset of block of event propagation processes which should be passed this spike
@@ -658,7 +659,7 @@ uint32_t EventChannelSource::generateURAMEventLoop(const Frontend::Merged<Fronte
                 auto processLoop = c.L();
 
                 // Process event
-                processEvent(c, SEventSourceProcessStartOffset, SPreIndReg);
+                processEvent(c, SEventSourceProcessStartOffset);
 
                 // Advance pointer
                 c.addi(*SEventSourceProcessStartOffset, *SEventSourceProcessStartOffset, 16);
