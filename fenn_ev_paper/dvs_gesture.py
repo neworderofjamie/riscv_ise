@@ -11,7 +11,7 @@ from tonic.transforms import Compose, CropTime, Denoise, Downsample
 from pyfenn.utils import (build_sparse_connectivity, ceil_divide, 
                           copy_and_push, convert_tonic_spikes, get_views,
                           load_quantise_and_push, pull_spikes,
-                          read_perf_counter, quantise, zero_and_push)
+                          quantise, zero_and_push)
 from tqdm.auto import tqdm
 
 class LIF:
@@ -124,22 +124,23 @@ parser.add_argument("--time", action="store_true", help="Record detailed timings
 parser.add_argument("--disassemble", action="store_true", help="Disassemble generated code")
 args = parser.parse_args()
 
-# Load DVS gesture, cropping time and downsampling
+# Load DVS gesture, denoising and cropping time
+chunk_timesteps = 200
+sensor_size = (32, 32, 2)
 dataset = DVSGesture(save_to="./data", train=False, 
                      transform=Compose([Denoise(filter_time=10000),
                                         Downsample(spatial_factor=0.25)]))
-sensor_size = (32, 32, 2)
 
 # Loop through dataset
 input_spikes = []
 input_labels = []
-num_timesteps = 1000
+
 #for events, label in tqdm(dataset, "Preprocessing dataset"):
 for i in range(1):
     events, label = dataset[i]
     # Convert events into a spike array
-    spike_array = convert_tonic_spikes(events, dataset.ordering, sensor_size)
-    num_timesteps = max(num_timesteps, int(np.ceil(np.amax(events["t"] / 1000))))
+    spike_array = convert_tonic_spikes(events, dataset.ordering, sensor_size, max_time=num_timesteps)
+    #num_timesteps = max(num_timesteps, int(np.ceil(np.amax(events["t"] / 1000))))
     input_spikes.append(spike_array)
     input_labels.append(label)
 
