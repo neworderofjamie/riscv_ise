@@ -9,7 +9,7 @@ from pyfenn.utils import PythonLogAppender
 
 from pyfenn.utils import (build_sparse_connectivity, build_spike_array,
                           copy_and_push, get_views, pull_spikes,
-                          read_perf_counter, zero_and_push)
+                          zero_and_push)
 
 # Enumeration of the detectors in the output layer of model
 class Detector(IntEnum):
@@ -104,7 +104,7 @@ class CUBALIFIE:
 
 
 # Size of (square) camera input 
-INPUT_SIZE = 320
+INPUT_SIZE = 256
 
 # Size of (square) downsampling kernel
 KERNEL_SIZE = 8
@@ -214,8 +214,15 @@ else:
     lose_early_mask = (courtyard_data["t"] > 1000)
     courtyard_data = courtyard_data[lose_early_mask]
 
-    # Only keep on events
-    courtyard_data = courtyard_data[courtyard_data["p"]]
+    # Only keep on events and x and y < 256
+    courtyard_data = courtyard_data[courtyard_data["p"] & (courtyard_data["x"] < 256) & (courtyard_data["y"] < 256)]
+    
+    # Downsample
+    courtyard_data["x"] //= 8
+    courtyard_data["y"] //= 8
+
+    assert np.all(courtyard_data["x"] < 32)
+    assert np.all(courtyard_data["y"] < 32)
     
     # Determine which frame each event is destined for
     event_frame = courtyard_data["t"] // (33 * 1000)
@@ -237,14 +244,13 @@ else:
     # Turn each frame into a spike array
     # **NOTE** we use POT shape to build flat spike indices
     courtyard_frames = [build_spike_array((e["t"] // 1000) - (33 * i), 
-                                          np.ravel_multi_index((e["x"], e["y"]), (512, 512)))
+                                          np.ravel_multi_index((e["x"], e["y"]), (32, 32)))
                         for i, e in enumerate(timestep_events)]
     
-    print(courtyard_frames[0][:10])
     # Count maximum events per frame and build event source buffer
     max_events_per_frame = max(len(f) for f in courtyard_frames)
     print(f"Max events per frame: {max_events_per_frame}")
-    event_input = backend.EventSourceBuffer((320, 320), max_events_per_frame, name="input_events")
+    event_input = backend.EventSourceBuffer((MACRO_PIXEL_SIZE * MACRO_PIXEL_SIZE,), max_events_per_frame, name="input_events")
 
 
 # Neurons
@@ -347,12 +353,12 @@ for f in courtyard_frames:
 
     # Simulate
     runtime.run(sim_kernel)
-
+    #print(f"Number of router buffer overflows {runtime.slave_buffer_overflow}")
     # Get detector spikes
     # **TODO** asynchronous loop
     detector_spikes = pull_spikes(NUM_TIMESTEPS_PER_FRAME + 1, detector_pop.spike_sink, runtime)
     detector_spike_ids = detector_spikes[0][1]
-    print(len(detector_spike_ids))
+    #print(len(detector_spike_ids))
 
     # Unravel to get x, y and detector
     detector_spike_ids = np.unravel_index(detector_spike_ids, (DETECTOR_SIZE, DETECTOR_SIZE, len(Detector)))
@@ -360,7 +366,7 @@ for f in courtyard_frames:
     # Split detector channel into horizontal/vertical and polarity
     output_channel = (detector_spike_ids[2] & 0x2) >> 1
     output_polarity = (2 * (detector_spike_ids[2] & 0x1)) - 1
-    print(np.sum(output_polarity))
+    #print(np.sum(output_polarity))
     # Make vectorised update
     output[detector_spike_ids[0], detector_spike_ids[1], output_channel] += output_polarity
     output *= FLOW_PERSISTENCE
