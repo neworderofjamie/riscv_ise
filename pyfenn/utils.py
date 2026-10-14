@@ -228,7 +228,15 @@ def build_spike_array(timesteps, neuron_ids):
     # Use short format if neuron ids and timesteps can be encoded in 15 bit
     short_format = (np.all(neuron_ids < (1 << 15))
                     and np.all(timesteps < (1 << 15)))
-    
+
+    # If no spikes are passed
+    if len(timesteps) == 0 and len(neuron_ids) == 0:
+        # Return empty spike arrays in correct format
+        if short_format:
+            return np.asarray([0, 0, 0xFFFF, 0xFFFF], dtype=np.uint16)
+        else:
+            return np.asarray([0, 0xFFFFFFFF], dtype=np.uint32)
+
     # Order by time
     order = np.argsort(timesteps)
     timesteps = timesteps[order]
@@ -305,21 +313,28 @@ def convert_tonic_spikes(events: np.ndarray, ordering: Sequence[str],
             raise RuntimeError("Only 1D and 2D sensors supported")
     
     scaled_t = events["t"] * time_scale
-    
-    # Build ranges for neuron ids and timesteps
-    neuron_range = np.arange(num_neurons + 1)
-    max_time = max_time or np.amax(scaled_t) + dt
-    timestep_range = np.arange(0.0, max_time, dt)
 
-    # Compute histogram
-    spike_event_hist = np.histogram2d(spike_event_ids, scaled_t,
-                                      (neuron_range, timestep_range))[0]
+    # If a histogramming threshold is present
+    if histogram_thresh is not None:
+        # Build ranges for neuron ids and timesteps
+        neuron_range = np.arange(num_neurons + 1)
+        max_time = max_time or np.amax(scaled_t) + dt
+        timestep_range = np.arange(0.0, max_time, dt)
 
-    # Find indices of bins where there are enough events
-    thresh_id, thresh_t = np.where(spike_event_hist >= histogram_thresh)
+        # Compute histogram
+        spike_event_hist = np.histogram2d(spike_event_ids, scaled_t,
+                                          (neuron_range, timestep_range))[0]
+
+        # Find indices of bins where there are enough events
+        thresh_id, thresh_t = np.where(spike_event_hist >= histogram_thresh)
+
+        # Build spike arrays and return
+        return build_spike_array(thresh_t, thresh_id)
+    # Otherwise, convert scaled_t to integer and build spike array directly
+    else:
+        return build_spike_array(np.floor(scaled_t).astype(int),
+                                 spike_event_ids)
     
-    # Build spike arrays and return
-    return build_spike_array(thresh_t, thresh_id)
                      
 def get_latency_spikes(images, tau=20.0, num_timesteps=79, threshold=51):
     # Flatten images and convert intensity to time
