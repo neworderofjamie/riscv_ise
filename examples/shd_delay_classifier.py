@@ -7,9 +7,9 @@ from pyfenn.utils import PythonLogAppender
 
 from tonic.datasets import SHD
 
-from pyfenn.utils import (copy_and_push, convert_tonic_spikes,
-                          build_delay_weights, get_views, load_quantise_and_push, pull_spikes,
-                          read_perf_counter, quantise, zero_and_push)
+from pyfenn.utils import (copy_and_push, convert_tonic_spikes, 
+                          build_delay_weights, get_views, 
+                          load_quantise_and_push, quantise)
 from tqdm.auto import tqdm, trange
 
 class LIF:
@@ -133,14 +133,15 @@ output_v_zero = Memset(backend, output.v)
 output_v_avg_zero = Memset(backend, output.v_avg)
 
 # Group processes
+perf_counters = ["num_instructions", "num_clock_cycles"] if args.time else []
 synapse_update_processes = backend.ProcessGroup([input_hidden.process, hidden_hidden.process, 
-                                                 hidden_output.process], name="synapse update")
-den_delay_update_processes = backend.ProcessGroup([hidden.den_delay_update_process], name="den-delay update")
-neuron_update_processes = backend.ProcessGroup([hidden.process, output.process], name="neuron update")
+                                                 hidden_output.process], perf_counters, name="synapse update")
+den_delay_update_processes = backend.ProcessGroup([hidden.den_delay_update_process], perf_counters, name="den-delay update")
+neuron_update_processes = backend.ProcessGroup([hidden.process, output.process], perf_counters, name="neuron update")
 
 reset_processes = backend.ProcessGroup([hidden_i_zero.process, hidden_v_zero.process,
                                         hidden_den_delay_zero.process, output_i_zero.process, 
-                                        output_v_zero.process, output_v_avg_zero.process], name="reset")
+                                        output_v_zero.process, output_v_avg_zero.process], perf_counters, name="reset")
 
 # Create kernel
 kernel = backend.SimulationLoopKernel(
@@ -213,15 +214,21 @@ print(f"{num_correct} / {len(shd_labels)} correct {100.0 * (num_correct / len(sh
 
 
 if args.time:
-    for i, r in enumerate(runtimes):
-        print(f"Core {i}")
-        neuron_update_cycles, neuron_update_instructions = read_perf_counter(
-            neuron_update_processes.performance_counter, r)
-        synapse_update_cycles, synapse_update_instructions = read_perf_counter(
-            synapse_update_processes.performance_counter, r)
-        reset_cycles, reset_instructions = read_perf_counter(
-            reset_processes.performance_counter, r)
-        print(f"\tNeuron update {neuron_update_cycles} cycles, {neuron_update_instructions} instruction ({neuron_update_instructions / neuron_update_cycles})")
-        print(f"\tSynapse update {synapse_update_cycles} cycles, {synapse_update_instructions} instruction ({synapse_update_instructions / synapse_update_cycles})")
-        print(f"\tReset {reset_cycles} cycles, {reset_instructions} instruction ({reset_instructions / reset_cycles})")
+    neuron_update_cycles = runtime.read_performance_counter(neuron_update_processes, 'num_clock_cycles')[0]
+    neuron_update_instructions = runtime.read_performance_counter(neuron_update_processes, 'num_instructions')[0]
+
+    synapse_update_cycles = runtime.read_performance_counter(synapse_update_processes, 'num_clock_cycles')[0]
+    synapse_update_instructions = runtime.read_performance_counter(synapse_update_processes, 'num_instructions')[0]
+
+    den_delay_update_cycles = runtime.read_performance_counter(den_delay_update_processes, 'num_clock_cycles')[0]
+    den_delay_update_instructions = runtime.read_performance_counter(den_delay_update_processes, 'num_instructions')[0]
+
+    reset_cycles = runtime.read_performance_counter(reset_processes, 'num_clock_cycles')[0]
+    reset_instructions = runtime.read_performance_counter(reset_processes, 'num_instructions')[0]
+   
+    
+    print(f"Neuron update {neuron_update_cycles} cycles, {neuron_update_instructions} instruction ({neuron_update_instructions / neuron_update_cycles})")
+    print(f"Synapse update {synapse_update_cycles} cycles, {synapse_update_instructions} instruction ({synapse_update_instructions / synapse_update_cycles})")
+    print(f"Dendritic delay update {den_delay_update_cycles} cycles, {den_delay_update_instructions} instruction ({den_delay_update_instructions / den_delay_update_cycles})")
+    print(f"Reset {reset_cycles} cycles, {reset_instructions} instruction ({reset_instructions / reset_cycles})")
 

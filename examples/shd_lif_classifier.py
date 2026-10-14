@@ -7,9 +7,8 @@ from pyfenn.utils import PythonLogAppender
 
 from tonic.datasets import SHD
 
-from pyfenn.utils import (ceil_divide, copy_and_push, convert_tonic_spikes,
-                          get_views, load_quantise_and_push, pull_spikes,
-                          read_perf_counter, quantise, zero_and_push)
+from pyfenn.utils import (convert_tonic_spikes, get_views, 
+                          load_quantise_and_push)
 from tqdm.auto import tqdm
 
 class LIF:
@@ -123,18 +122,19 @@ output_v_zero = Memset(backend, output.v)
 output_v_avg_zero = Memset(backend, output.v_avg)
 
 # Group processes
-neuron_update_processes = backend.ProcessGroup([hidden.process, output.process])
+perf_counters = ["num_instructions", "num_clock_cycles"] if args.time else []
+neuron_update_processes = backend.ProcessGroup([hidden.process, output.process], perf_counters)
 synapse_update_processes = backend.ProcessGroup([input_hidden.process, hidden_hidden.process, 
-                                                 hidden_output.process])
+                                                 hidden_output.process], perf_counters)
 reset_processes = backend.ProcessGroup([hidden_i_zero.process, hidden_v_zero.process,
                                         output_i_zero.process, output_v_zero.process,
-                                        output_v_avg_zero.process])
+                                        output_v_avg_zero.process], perf_counters)
 
 # Create kernel
 kernel = backend.SimulationLoopKernel(
     num_timesteps, [synapse_update_processes, neuron_update_processes],
     [reset_processes], [])
-    
+
 # Create runtime
 runtime_params = {"neuron_update_rounding_mode": backend.RoundingMode.STOCHASTIC}
 runtime = (backend.RuntimeHW([kernel], 1, **runtime_params) if args.device 
@@ -158,11 +158,6 @@ load_quantise_and_push("0/108-Conn_Pop1_Pop1-g.npy",    #+- 1
                        8, hidden_hidden.weight, runtime, percentile=100.0)
 load_quantise_and_push("0/108-Conn_Pop1_Pop2-g.npy",    #+-3
                        8, hidden_output.weight, runtime, percentile=100.0)
-
-if args.time:
-    zero_and_push(neuron_update_processes.performance_counter, runtime)
-    zero_and_push(synapse_update_processes.performance_counter, runtime)
-    zero_and_push(reset_processes.performance_counter, runtime)
 
 # Loop through examples
 input_spike_views = get_views(runtime, input_spikes)
@@ -192,12 +187,15 @@ for spikes, label in tqdm(zip(shd_spikes, shd_labels),
 print(f"{num_correct} / {len(shd_labels)} correct {100.0 * (num_correct / len(shd_labels))}%")
 
 if args.time:
-    neuron_update_cycles, neuron_update_instructions = read_perf_counter(
-        neuron_update_processes.performance_counter, runtime)
-    synapse_update_cycles, synapse_update_instructions = read_perf_counter(
-        synapse_update_processes.performance_counter, runtime)
-    reset_cycles, reset_instructions = read_perf_counter(
-        reset_processes.performance_counter, runtime)
+    neuron_update_cycles = runtime.read_performance_counter(neuron_update_processes, 'num_clock_cycles')[0]
+    neuron_update_instructions = runtime.read_performance_counter(neuron_update_processes, 'num_instructions')[0]
+
+    synapse_update_cycles = runtime.read_performance_counter(synapse_update_processes, 'num_clock_cycles')[0]
+    synapse_update_instructions = runtime.read_performance_counter(synapse_update_processes, 'num_instructions')[0]
+
+    reset_cycles = runtime.read_performance_counter(reset_processes, 'num_clock_cycles')[0]
+    reset_instructions = runtime.read_performance_counter(reset_processes, 'num_instructions')[0]
+
     print(f"Neuron update {neuron_update_cycles} cycles, {neuron_update_instructions} instruction ({neuron_update_instructions / neuron_update_cycles})")
     print(f"Synapse update {synapse_update_cycles} cycles, {synapse_update_instructions} instruction ({synapse_update_instructions / synapse_update_cycles})")
     print(f"Reset {reset_cycles} cycles, {reset_instructions} instruction ({reset_instructions / reset_cycles})")
