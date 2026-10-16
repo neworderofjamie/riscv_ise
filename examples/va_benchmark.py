@@ -212,10 +212,10 @@ if args.disassemble:
 runtime.allocate()
 
 # Copy connectivity
-copy_and_push(ee_conn.flatten(), ee_pop.weight, runtime)
-copy_and_push(ei_conn.flatten(), ei_pop.weight, runtime)
-copy_and_push(ii_conn.flatten(), ii_pop.weight, runtime)
-copy_and_push(ie_conn.flatten(), ie_pop.weight, runtime)
+copy_and_push(np.concatenate(ee_conn, axis=1), ee_pop.weight, runtime)
+copy_and_push(np.concatenate(ei_conn, axis=1), ei_pop.weight, runtime)
+copy_and_push(np.concatenate(ii_conn, axis=1), ii_pop.weight, runtime)
+copy_and_push(np.concatenate(ie_conn, axis=1), ie_pop.weight, runtime)
 
 # Initialise membrane voltages
 # **TODO** use init kernel
