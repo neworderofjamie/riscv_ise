@@ -55,6 +55,7 @@ const std::unordered_map<std::string_view, Token::Type> keywords{
     {"uint64_t", Token::Type::TYPE_SPECIFIER},
     {"int32_t", Token::Type::TYPE_SPECIFIER},
     {"int64_t", Token::Type::TYPE_SPECIFIER},
+    {"int16_sat_t", Token::Type::TYPE_SPECIFIER},
     {"s0_15_t", Token::Type::TYPE_SPECIFIER},
     {"s0_15_sat_t", Token::Type::TYPE_SPECIFIER},
     {"s1_14_t", Token::Type::TYPE_SPECIFIER},

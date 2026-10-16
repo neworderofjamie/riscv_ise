@@ -28,7 +28,7 @@
 //----------------------------------------------------------------------------
 // Macros
 //----------------------------------------------------------------------------
-#define CREATE_NUMERIC(TYPE, RANK, FFI_TYPE, L_SUFFIX) ResolvedType::createNumeric<TYPE>(#TYPE, RANK, FFI_TYPE, L_SUFFIX)
+#define CREATE_NUMERIC(TYPE, RANK, SATURATING, FFI_TYPE, L_SUFFIX) ResolvedType::createNumeric<TYPE>(#TYPE, RANK, SATURATING, FFI_TYPE, L_SUFFIX)
 
 //----------------------------------------------------------------------------
 // CompilerFrontend::Type::FunctionFlags
@@ -337,13 +337,13 @@ struct COMPILER_FRONTEND_EXPORT ResolvedType
     // Static API
     //------------------------------------------------------------------------
     template<typename T>
-    static ResolvedType createNumeric(const std::string &name, int rank, ffi_type *ffiType, 
+    static ResolvedType createNumeric(const std::string &name, int rank, bool saturating, ffi_type *ffiType, 
                                       const std::string &literalSuffix = "", bool isConst = false, bool device = false)
     {
         return ResolvedType{Value{name, sizeof(T), ffiType, device, false, 
                                   Numeric{rank, std::numeric_limits<T>::min(), std::numeric_limits<T>::max(),
                                           std::numeric_limits<T>::lowest(), std::numeric_limits<T>::max_digits10,
-                                          std::is_signed<T>::value, std::is_integral<T>::value, false, std::nullopt,
+                                          std::is_signed<T>::value, std::is_integral<T>::value, saturating, std::nullopt,
                                           literalSuffix, PythonType::getPythonTypeString<T>()}},
                             isConst};
     }
@@ -427,16 +427,18 @@ struct COMPILER_FRONTEND_EXPORT UnresolvedType
 //----------------------------------------------------------------------------
 // Declare numeric types
 //----------------------------------------------------------------------------
-inline static const ResolvedType Bool = CREATE_NUMERIC(bool, 0, nullptr, "");
-inline static const ResolvedType Int8 = CREATE_NUMERIC(int8_t, 10, &ffi_type_sint8, "");
-inline static const ResolvedType Int16 = CREATE_NUMERIC(int16_t, 20, &ffi_type_sint16, "");
-inline static const ResolvedType Int32 = CREATE_NUMERIC(int32_t, 30, &ffi_type_sint32, "");
-inline static const ResolvedType Int64 = CREATE_NUMERIC(int64_t, 40, &ffi_type_sint32, "");
+inline static const ResolvedType Bool = CREATE_NUMERIC(bool, 0, false, nullptr, "");
+inline static const ResolvedType Int8 = CREATE_NUMERIC(int8_t, 10, false, &ffi_type_sint8, "");
+inline static const ResolvedType Int16 = CREATE_NUMERIC(int16_t, 20, false, &ffi_type_sint16, "");
+inline static const ResolvedType Int32 = CREATE_NUMERIC(int32_t, 30, false, &ffi_type_sint32, "");
+inline static const ResolvedType Int64 = CREATE_NUMERIC(int64_t, 40, false, &ffi_type_sint32, "");
 
-inline static const ResolvedType Uint8 = CREATE_NUMERIC(uint8_t, 10, &ffi_type_uint8, "u");
-inline static const ResolvedType Uint16 = CREATE_NUMERIC(uint16_t, 20, &ffi_type_uint16, "u");
-inline static const ResolvedType Uint32 = CREATE_NUMERIC(uint32_t, 30, &ffi_type_uint32, "u");
-inline static const ResolvedType Uint64 = CREATE_NUMERIC(uint64_t, 40, &ffi_type_uint64, "u");
+inline static const ResolvedType Uint8 = CREATE_NUMERIC(uint8_t, 10, false, &ffi_type_uint8, "u");
+inline static const ResolvedType Uint16 = CREATE_NUMERIC(uint16_t, 20, false, &ffi_type_uint16, "u");
+inline static const ResolvedType Uint32 = CREATE_NUMERIC(uint32_t, 30, false, &ffi_type_uint32, "u");
+inline static const ResolvedType Uint64 = CREATE_NUMERIC(uint64_t, 40, false, &ffi_type_uint64, "u");
+
+inline static const ResolvedType Int16Sat = CREATE_NUMERIC(int16_t, 20, true, &ffi_type_sint16, "");
 
 inline static const ResolvedType S0_15 = ResolvedType::createFixedPointNumeric<int16_t>("s0_15_t", 50, false, 15, &ffi_type_sint16, "");
 inline static const ResolvedType S0_15Sat = ResolvedType::createFixedPointNumeric<int16_t>("s0_15_sat_t", 50, true, 15, &ffi_type_sint16, "");
@@ -469,8 +471,8 @@ inline static const ResolvedType S13_2Sat = ResolvedType::createFixedPointNumeri
 inline static const ResolvedType S14_1 = ResolvedType::createFixedPointNumeric<int16_t>("s14_1_t", 64, false, 1, &ffi_type_sint16, "");
 inline static const ResolvedType S14_1Sat = ResolvedType::createFixedPointNumeric<int16_t>("s14_1_sat_t", 64, true, 1, &ffi_type_sint16, "");
 
-inline static const ResolvedType Float = CREATE_NUMERIC(float, 80, &ffi_type_float, "f");
-inline static const ResolvedType Double = CREATE_NUMERIC(double, 90, &ffi_type_double, "");
+inline static const ResolvedType Float = CREATE_NUMERIC(float, 80, false, &ffi_type_float, "f");
+inline static const ResolvedType Double = CREATE_NUMERIC(double, 90, false, &ffi_type_double, "");
 
 // Void
 inline static const ResolvedType Void = ResolvedType();
