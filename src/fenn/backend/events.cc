@@ -517,11 +517,20 @@ std::vector<Assembler::ScalarRegisterPtr> EventChannelSink::genPreamble(
             const uint32_t eventSinkID = kernel.getEventSinkIDBase(state);
             const size_t numSlicedDimensions = eventSink.getShape().size();
 
+            const auto &stateData = runtime.getModel()->getStateData(state);
+
             // Sum up size of this process across all previous devices
             uint32_t startID = 0;
             for(size_t i = 0; i < d; i++) {
-                // Get shape of array storing this state on device
-                const auto shape = std::get<0>(runtime.getDeviceArrayShapeStrides(state, d));
+                // Copy shape
+                std::vector<size_t> shape = state->getShape();
+
+                // If a split dimension is specified, split this dimension appropriately
+                if (stateData.splitDimension) {
+                    const size_t absSplitDim = shape.size() - 1 - stateData.splitDimension.value();
+                    shape[absSplitDim] = Utils::getSplitDimension(shape, i, absSplitDim,
+                                                                  runtime.getNumDevices(), 32);
+                }
 
                 // Multiply together last dimensions of shape (determined based on sliced shape)
                 startID += static_cast<uint32_t>(std::accumulate(shape.rbegin(), shape.rbegin() + numSlicedDimensions, 
