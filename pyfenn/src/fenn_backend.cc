@@ -26,6 +26,7 @@
 #include "fenn/backend/runtime.h"
 #include "fenn/backend/runtime_hw.h"
 #include "fenn/backend/runtime_sim.h"
+#include "fenn/backend/utils.h"
 #include "fenn/backend/variable.h"
 
 // Doc strings
@@ -83,6 +84,11 @@ PYBIND11_MODULE(_fenn_backend, m)
             }
         });
     
+    m.def("get_split_dimension", &Backend::Utils::getSplitDimension,
+          pybind11::arg("shape"), pybind11::arg("split"), 
+          pybind11::arg("split_dimension"), pybind11::arg("num_splits"), 
+          pybind11::arg("split_granularity"));
+
     //------------------------------------------------------------------------
     // fenn_backend.EventSourceBuffer
     //------------------------------------------------------------------------

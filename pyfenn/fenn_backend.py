@@ -7,7 +7,7 @@ from ._fenn_backend import (BroadcastProcess, DelayEventPropagationProcess,
                             RNGInitProcess, RoundingMode, RuntimeHW,
                             RuntimeSim, SimpleKernel, SimulationLoopKernel, 
                             SparseEventPropagationProcess, Variable, 
-                            disassemble)
+                            disassemble, get_split_dimension)
                             
 from ._frontend import (ConsoleAppender, NumericValue, PlogSeverity, ProcessGroup,
                         ResolvedType, SlicedEventSink, SlicedVariable, UnresolvedType)
