@@ -17,12 +17,14 @@ from tqdm.auto import tqdm
 class LIF:
     def __init__(self, backend, shape, alpha: float,
                  v_thresh: float, fixed_point: int = 5, 
-                 name: str = ""):
+                 tau_ref: int = 9, name: str = ""):
         self.shape = shape
         dtype = f"s{15 - fixed_point}_{fixed_point}_sat_t"
         
         self.v = backend.Variable(self.shape, dtype, name=f"{name}_v")
         self.i = backend.Variable(self.shape, dtype, name=f"{name}_i")
+        self.tau_ref = backend.Variable(self.shape, "int16_t", name=f"{name}_tau_ref")
+        self.refrac_counter = backend.Variable(self.shape, "int16_t", name=f"{name}_refrac_counter")
 
         channel = backend.EventChannel(self.shape, name=f"{name}_out_spikes")
         self.out_spikes = channel.source
@@ -32,61 +34,60 @@ class LIF:
             V = ({alpha}h15 * V) + I;
             I = 0.0h{fixed_point};
             
-            // **HACK** neurons are firing at too high a rate for router
-            // Rather than sleeping at end of timestep to hit real-time,
-            // Pad each neuron update with NOP operations
-            I = I;
-            I = I;
-            I = I;
-            I = I;
-            I = I;
-            I = I;
-            I = I;
-            I = I;
-            I = I;
-            I = I;
-            I = I;
-            I = I;
-            I = I;
-            I = I;
             I = I;
             I = I;
             I = I;
             I = I;
 
+            if (RefracCounter > 0) {{
+                RefracCounter--;
+            }}
 
-            if(V >= {v_thresh}h{fixed_point}) {{
+            if(V >= {v_thresh}h{fixed_point} && RefracCounter <= 0) {{
                Spike();
                V -= {v_thresh}h{fixed_point};
+               RefracCounter = {tau_ref};
             }}
             """,
-            {"V": self.v, "I": self.i},
+            {"V": self.v, "I": self.i, "RefracCounter": self.refrac_counter},
             {"Spike": channel.sink},
             name=name)
 
 class LIFOutput:
     def __init__(self, backend, shape, alpha: float,
                  v_thresh: float, fixed_point: int = 5, 
-                 name: str = ""):
+                 tau_ref: int = 9, name: str = ""):
         self.shape = shape
         dtype = f"s{15 - fixed_point}_{fixed_point}_sat_t"
         
         self.v = backend.Variable(self.shape, dtype, name=f"{name}_v")
         self.i = backend.Variable(self.shape, dtype, name=f"{name}_i")
-        self.num_spikes = backend.Variable(self.shape, "int16_t", name=f"{name}_spike_count")
+        self.refrac_counter = backend.Variable(self.shape, "int16_t", name=f"{name}_refrac_counter")
+        self.num_spikes = backend.Variable(self.shape, "int16_sat_t", name=f"{name}_spike_count")
 
         self.process = backend.NeuronUpdateProcess(
             f"""
             // Neuron
             V = ({alpha}h15 * V) + I;
             I = 0.0h{fixed_point};
-            
-            if(V >= {v_thresh}h{fixed_point}) {{
+
+            I = I;
+            I = I;
+            I = I;
+            I = I;
+
+            if (RefracCounter > 0) {{
+                RefracCounter--;
+            }}
+
+            if(V >= {v_thresh}h{fixed_point} && RefracCounter <= 0) {{
                NumSpikes++;
                V -= {v_thresh}h{fixed_point};
+               RefracCounter = {tau_ref};
             }}
             """,
-            {"V": self.v, "I": self.i, "NumSpikes": self.num_spikes},
+            {"V": self.v, "I": self.i, "NumSpikes": self.num_spikes, 
+             "RefracCounter": self.refrac_counter},
             {},
             name=name)
 
@@ -148,7 +149,8 @@ parser.add_argument("--disassemble", action="store_true", help="Disassemble gene
 args = parser.parse_args()
 
 # Load DVS gesture, denoising and cropping time
-chunk_timesteps = 200
+dt = 0.1
+chunk_timesteps = int(200 / dt)
 sensor_size = (32, 32, 2)
 dataset = DVSGesture(save_to="./data", train=False, 
                      transform=Compose([Denoise(filter_time=10000),
@@ -158,13 +160,15 @@ dataset = DVSGesture(save_to="./data", train=False,
 input_spikes = []
 input_labels = []
 
+
 max_spike_array_length = 0
 #for events, label in tqdm(dataset, "Preprocessing dataset"):
 for i in range(10):
     events, label = dataset[i]
 
     # Convert times to 1ms timesteps and check they are sorted
-    timesteps = np.floor(events["t"] / 1000).astype(int)
+    timestep_scale = int(1000 * dt)
+    timesteps = np.floor(events["t"] / timestep_scale).astype(int)
     assert np.all(timesteps[:-1] <= timesteps[1:])
 
     # Split events into chunks
@@ -178,7 +182,7 @@ for i in range(10):
     for i, e in enumerate(split_events):
         # Make all chunks start at 0
         shifted = e
-        shifted["t"] -= i * (chunk_timesteps * 1000)
+        shifted["t"] -= i * (chunk_timesteps * timestep_scale)
         assert np.all(shifted["t"] >= 0.0)
         spike_array = convert_tonic_spikes(shifted, dataset.ordering, 
                                            sensor_size, histogram_thresh=None)
@@ -196,9 +200,10 @@ backend.init_logging(log_appender, backend.PlogSeverity.DEBUG)
 input_spike_buffer = backend.EventSourceBuffer((np.prod(layer_shapes[0]),), max_spike_array_length)
 
 # Populations of LIF neurons
-populations = [LIF(backend, (np.prod(s),), 0.93, 1.0, f, name=f"hidden{i + 1}")
+beta = 0.93**(dt / 1.0)
+populations = [LIF(backend, (np.prod(s),), beta, 1.0, f, name=f"hidden{i + 1}")
                for i, (s, f) in enumerate(zip(layer_shapes[1:-1], layer_fractional_bits))]
-populations.append(LIFOutput(backend, (np.prod(layer_shapes[-1]),), 0.93, 1.0, 
+populations.append(LIFOutput(backend, (np.prod(layer_shapes[-1]),), beta, 1.0, 
                    layer_fractional_bits[-1], name="output"))
 
 # Connect input spikes to first layer
@@ -280,6 +285,10 @@ for spike_chunks, label in tqdm(zip(input_spikes, input_labels),
         v[0][:] = 0
         runtime.push_state_to_device(p.v)
 
+    # Zero num spikes
+    output_num_spikes_views[0][:] = 0
+    runtime.push_state_to_device(populations[-1].num_spikes)
+
     # Loop through spike chunks
     for c in spike_chunks:
         # Copy data to array host pointe
@@ -294,6 +303,7 @@ for spike_chunks, label in tqdm(zip(input_spikes, input_labels),
     runtime.pull_state_from_device(populations[-1].num_spikes)
 
     # Determine if output is correct
+    print(output_num_spikes_views[0])
     classification = np.argmax(output_num_spikes_views[0])
     if classification == label:
         num_correct += 1
