@@ -8,7 +8,7 @@ from pyfenn.utils import PythonLogAppender
 
 from pyfenn.utils import (build_sparse_connectivity, ceil_divide,
                           copy_and_push, generate_fixed_prob, pull_spikes,
-                          read_perf_counter, zero_and_push)
+                          split_sparse_connectivity, zero_and_push)
 
 from tqdm.auto import tqdm
 from time import perf_counter
@@ -73,12 +73,13 @@ parser.add_argument("--time", action="store_true", help="Record detailed timings
 parser.add_argument("--disassemble", action="store_true", help="Disassemble generated code")
 parser.add_argument("--uram", action="store_true", help="Use URAM to store weights (only for small models)")
 parser.add_argument("--num-excitatory", type=int, default=2048, help="Number of excitatory neurons to simulate")
+parser.add_argument("--num-cores", type=int, default=1, help="Number of cores to split ")
 parser.add_argument("--num-timesteps", type=int, default=1000, help="Number of timesteps to simulate")
 parser.add_argument("--probability-connection", type=float, default=0.1, help="Probability to connect neurons with")
 args = parser.parse_args()
 
 args.uram = True
-args.num_excitatory = 410
+args.num_excitatory = 820
 
 excitatory_inhibitory_ratio = 4
 num_inhibitory = args.num_excitatory // excitatory_inhibitory_ratio
@@ -86,6 +87,18 @@ num_neurons = args.num_excitatory + num_inhibitory
 scale = (4000.0 / num_neurons) * (0.02 / args.probability_connection)
 inh_weight = -51.0E-3 * scale
 exc_weight = 4.0E-3 * scale
+
+# Use backend helper to determine how connectivity will be split
+excitatory_splits = [backend.get_split_dimension((args.num_excitatory,), c, 0, args.num_cores, 32)
+                     for c in range(args.num_cores)]
+inhibitory_splits = [backend.get_split_dimension((num_inhibitory,), c, 0, args.num_cores, 32)
+                     for c in range(args.num_cores)]
+
+# Calculate edges
+# **TODO** this really could go in split
+excitatory_splits = np.cumsum(excitatory_splits)[:-1]
+inhibitory_splits = np.cumsum(inhibitory_splits)[:-1]
+
 num_exc_sparse_connectivity_bits = int(np.ceil(np.log2(ceil_divide(args.num_excitatory, 32)))) + 1
 num_inh_sparse_connectivity_bits = int(np.ceil(np.log2(ceil_divide(num_inhibitory, 32)))) + 1
 num_timestep_spike_bytes = ceil_divide(num_neurons, 32) * 4
@@ -96,7 +109,7 @@ num_timesteps_per_block = int(round(args.num_timesteps / num_blocks))
 print(f"{args.num_excitatory} excitatory neurons, {num_inhibitory} inhibitory neurons")
 
 log_appender = backend.ConsoleAppender()
-backend.init_logging(log_appender, backend.PlogSeverity.INFO)
+backend.init_logging(log_appender, backend.PlogSeverity.DEBUG)
 
 # Generate connectivity matrices
 np.random.seed(1234)
@@ -106,19 +119,26 @@ ee_conn = generate_fixed_prob(args.num_excitatory, args.num_excitatory, args.pro
 ei_conn = generate_fixed_prob(args.num_excitatory, num_inhibitory, args.probability_connection)
 
 print(f"Weight inhibitory: {int(round(inh_weight * 2**13))} ({inh_weight}), excitatory: {int(round(exc_weight * 2**13))} ({exc_weight})")
-# Pad
-ie_conn = build_sparse_connectivity([ie_conn], int(round(inh_weight * 2**13)), num_exc_sparse_connectivity_bits)
-ii_conn = build_sparse_connectivity([ii_conn], int(round(inh_weight * 2**13)), num_inh_sparse_connectivity_bits)
-ee_conn = build_sparse_connectivity([ee_conn], int(round(exc_weight * 2**13)), num_exc_sparse_connectivity_bits)
-ei_conn = build_sparse_connectivity([ei_conn], int(round(exc_weight * 2**13)), num_inh_sparse_connectivity_bits)
 
-ie_conn = ie_conn[0]
-ii_conn = ii_conn[0]
-ee_conn = ee_conn[0]
-ei_conn = ei_conn[0]
+# Split connectivity between cores
+ie_conn = split_sparse_connectivity(ie_conn, excitatory_splits)
+ii_conn = split_sparse_connectivity(ii_conn, inhibitory_splits)
+ee_conn = split_sparse_connectivity(ee_conn, excitatory_splits)
+ei_conn = split_sparse_connectivity(ei_conn, inhibitory_splits)
+
+# Pad
+ie_conn = build_sparse_connectivity(ie_conn, int(round(inh_weight * 2**13)), num_exc_sparse_connectivity_bits)
+ii_conn = build_sparse_connectivity(ii_conn, int(round(inh_weight * 2**13)), num_inh_sparse_connectivity_bits)
+ee_conn = build_sparse_connectivity(ee_conn, int(round(exc_weight * 2**13)), num_exc_sparse_connectivity_bits)
+ei_conn = build_sparse_connectivity(ei_conn, int(round(exc_weight * 2**13)), num_inh_sparse_connectivity_bits)
+
 print(f"Num sparse connectivity bits excitatory: {num_exc_sparse_connectivity_bits}, inhibitory: {num_inh_sparse_connectivity_bits}")
-print(f"Stride ee:{ee_conn.shape[1]} ei:{ei_conn.shape[1]} ii:{ii_conn.shape[1]} ie:{ie_conn.shape[1]}")
-print(f"Mean row length ee:{np.average(ee_conn[:,0]) * 32} ei:{np.average(ei_conn[:,0]) * 32} ii:{np.average(ii_conn[:,0]) * 32} ie:{np.average(ie_conn[:,0]) * 32}")
+
+for i in range(args.num_cores):
+    print(f"Core {i}")
+    print(f"\tStride ee:{ee_conn[i].shape[1]} ei:{ei_conn[i].shape[1]} ii:{ii_conn[i].shape[1]} ie:{ie_conn[i].shape[1]}")
+    print(f"\tMean row length ee:{np.average(ee_conn[i][:,0]) * 32} ei:{np.average(ei_conn[i][:,0]) * 32} ii:{np.average(ii_conn[i][:,0]) * 32} ie:{np.average(ie_conn[i][:,0]) * 32}")
+
 # Neurons
 e_pop = CUBALIF(backend, (args.num_excitatory,), tau_m=20.0, tau_syn_exc=5.0, tau_syn_inh=10.0,
                 tau_refrac=5, v_thresh=10, i_offset=0.55,
@@ -130,19 +150,23 @@ i_pop = CUBALIF(backend, (num_inhibitory,), tau_m=20.0, tau_syn_exc=5.0, tau_syn
 
 # Synapses
 ee_pop = SparseLinear(backend, e_pop.out_spikes, 
-                      e_pop.i_exc, weight_dtype="s2_13_sat_t", max_row_length=ee_conn.shape[1],
+                      e_pop.i_exc, weight_dtype="s2_13_sat_t", 
+                      max_row_length=sum(c.shape[1] for c in ee_conn),
                       num_sparse_connectivity_bits=num_exc_sparse_connectivity_bits, 
                       name="EE")
 ei_pop = SparseLinear(backend, e_pop.out_spikes, 
-                      i_pop.i_exc, weight_dtype="s2_13_sat_t", max_row_length=ei_conn.shape[1],
+                      i_pop.i_exc, weight_dtype="s2_13_sat_t", 
+                      max_row_length=sum(c.shape[1] for c in ei_conn),
                       num_sparse_connectivity_bits=num_inh_sparse_connectivity_bits, 
                       name="EI")
 ii_pop = SparseLinear(backend, i_pop.out_spikes, 
-                      i_pop.i_inh, weight_dtype="s2_13_sat_t", max_row_length=ii_conn.shape[1],
+                      i_pop.i_inh, weight_dtype="s2_13_sat_t", 
+                      max_row_length=sum(c.shape[1] for c in ii_conn),
                       num_sparse_connectivity_bits=num_inh_sparse_connectivity_bits, 
                       name="II")
 ie_pop = SparseLinear(backend, i_pop.out_spikes, 
-                      e_pop.i_inh, weight_dtype="s2_13_sat_t", max_row_length=ie_conn.shape[1],
+                      e_pop.i_inh, weight_dtype="s2_13_sat_t", 
+                      max_row_length=sum(c.shape[1] for c in ie_conn),
                       num_sparse_connectivity_bits=num_exc_sparse_connectivity_bits, 
                       name="IE")
 
@@ -169,8 +193,8 @@ sim_kernel = backend.SimulationLoopKernel(
     
 # Create runtime
 runtime_params = {"use_dram_for_weights": not args.uram, "dma_buffer_size": 64 * 1024 * 1024}
-runtime = (backend.RuntimeHW([init_kernel, sim_kernel], 1, **runtime_params) if args.device 
-           else backend.RuntimeSim([init_kernel, sim_kernel], 1, **runtime_params))
+runtime = (backend.RuntimeHW([init_kernel, sim_kernel], args.num_cores, **runtime_params) if args.device 
+           else backend.RuntimeSim([init_kernel, sim_kernel], args.num_cores, **runtime_params))
 
 # Disassemble if required
 if args.disassemble:
