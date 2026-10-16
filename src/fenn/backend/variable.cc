@@ -150,39 +150,6 @@ std::vector<Compiler::RegisterPtr> Variable::genPreamble(Assembler::CodeGenerato
 
         return {bufferReg};
     }
-    /*case MemSpace::URAM_LLM:
-    {
-        // Check number of buffer timesteps is P.O.T.
-        if(!::Common::Utils::isPOT(var.getShape().getFirst())) {
-            throw std::runtime_error("When used as delayed event propagation targets, variables "
-                                     "need to have a power-of-two number of buffer timesteps");
-        }
-
-        // Allocate scalar register to hold address of variable in URAM
-        m_URAMBufferReg = scalarRegisterAllocator.getRegister((varName + "Buffer X").c_str());
-
-        // Load URAM address from first word of field
-        c.lw(*m_URAMBufferReg, *fieldBaseReg, varFieldOffset);
-
-        // Allocate vector registers to hold address of variable in LLM and delay stride
-        m_LLMBufferReg = vectorRegisterAllocator.getRegister((varName + "Buffer V").c_str());
-
-        {
-            ALLOCATE_SCALAR(STmp);
-            ALLOCATE_SCALAR(STmp2);
-
-            // Calculate time modulo delay buffer size
-            c.andi(*STmp, *timeReg, var.getShape().getFirst() - 1);
-
-            // Double to get starting offset in bytes
-            c.slli(*STmp, *STmp, 1);
-
-            // Load LLM address from second word of field, add offset and broadcast
-            c.lw(*STmp2, *fieldBaseReg, varFieldOffset + 4);
-            c.add(*STmp2, *STmp2, *STmp);
-            c.vfill(*m_LLMBufferReg, *STmp2);
-        }
-    }*/
     default:
         assert(false);
     }
@@ -206,23 +173,6 @@ void Variable::genLoad(Compiler::EnvironmentBase &env, Assembler::VectorRegister
         env.getCodeGenerator().vloadl(*reg, *std::get<Assembler::VectorRegisterPtr>(state[0]), 2 * r);
         break;
     }
-    /*case MemSpace::URAM_LLM:
-    {
-        assert(state.size() == 2);
-        // Load from LLM buffer into temporary register
-        auto denDelayFrontReg = m_VectorRegisterAllocator.get().getRegister("DenDelayFront V");
-        env.getCodeGenerator().vloadl(*denDelayFrontReg, *m_LLMBufferReg, m_DelayStride * r);   
-
-        // Load from URAM buffer into state register
-        env.getCodeGenerator().vloadv(*reg, *m_URAMBufferReg, 64 * r);
-
-        // Write zero back to LLM
-        env.getCodeGenerator().vstorel(*env.getVectorRegister("_zero"), *m_LLMBufferReg, m_DelayStride * r);
-
-        // Add new input from LLM to state register
-        env.getCodeGenerator().vadd_s(*reg, *reg, *denDelayFrontReg);
-        break;
-    }*/
     default:
         assert(false);
     }
@@ -254,12 +204,6 @@ void Variable::genStore(Compiler::EnvironmentBase &env, Assembler::VectorRegiste
             env.getCodeGenerator().vstorel(*reg, *std::get<Assembler::VectorRegisterPtr>(state[0]), 2 * r);  
             break;
         }
-        /*case MemSpace::URAM_LLM:
-        {
-            assert(state.size() == 2);
-            env.getCodeGenerator().vstore(*reg, *std::get<Assembler::ScalarRegisterPtr>(state[0]), 64 * r);
-            break;
-        }*/
         default:
             assert(false);
         }
@@ -297,20 +241,6 @@ void Variable::genIncrement(Assembler::CodeGenerator &c, uint32_t numUnrolls,
                *numUnrollBytesReg);
         break;
     }
-    /*case MemSpace::URAM_LLM:
-    {
-        assert(state.size() == 2);
-
-        // Calculate how many bytes we need to advance LLM addresses
-        // **TODO** VADDI instruction would save an instruction in this type of situation
-        auto numUnrollBytesReg = m_VectorRegisterAllocator.get().getRegister("NumUnrollBytes V");
-        c.vlui(*numUnrollBytesReg, numUnrolls * m_DelayStride);
-
-        // Increment URAM and LLM pointers
-        c.addi(*m_URAMBufferReg, *m_URAMBufferReg, 64 * numUnrolls);
-        c.vadd(*m_LLMBufferReg, *m_LLMBufferReg, *numUnrollBytesReg);
-        break;
-    }*/
     default:
         assert(false);
     }
