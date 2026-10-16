@@ -38,6 +38,10 @@ class LIF:
             I = I;
             I = I;
             I = I;
+            I = I;
+            I = I;
+            I = I;
+            I = I;
 
             if (RefracCounter > 0) {{
                 RefracCounter--;
@@ -71,6 +75,10 @@ class LIFOutput:
             V = ({alpha}h15 * V) + I;
             I = 0.0h{fixed_point};
 
+            I = I;
+            I = I;
+            I = I;
+            I = I;
             I = I;
             I = I;
             I = I;
