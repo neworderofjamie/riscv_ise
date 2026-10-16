@@ -54,8 +54,9 @@ Frontend::State::ShapeStride EventSinkImplementation::getBitArrayShapeStride(con
 
     // If a split dimension is specified, split this dimension of word-aligned shape appropriately
     if (splitDimension.has_value()) {
-        wordAlignedShape[splitDimension.value()] = Utils::getSplitDimension(wordAlignedShape, deviceIndex,
-                                                                            splitDimension.value(), numDevices, 1);
+        const size_t absSplitDim = wordAlignedShape.size() - 1 - splitDimension.value();
+        wordAlignedShape[absSplitDim] = Utils::getSplitDimension(wordAlignedShape, deviceIndex,
+                                                                 absSplitDim, numDevices, 1);
     }
 
     // Calculate strides
@@ -440,7 +441,7 @@ std::unique_ptr<Frontend::ArrayBase> EventSinkBuffer::createArray(std::optional<
 Frontend::State::ShapeStride EventSinkBuffer::getArrayShapeStride(std::optional<size_t> splitDimension, uint32_t indexDimensions,
                                                                   size_t deviceIndex, size_t numDevices, const Frontend::Model&) const
 {
-    return getBitArrayShapeStride(getShape(), splitDimension, indexDimensions, numDevices, deviceIndex);
+    return getBitArrayShapeStride(getShape(), splitDimension, indexDimensions, deviceIndex, numDevices);
 }
 //----------------------------------------------------------------------------
 std::vector<Assembler::ScalarRegisterPtr> EventSinkBuffer::genPreamble(
@@ -492,7 +493,7 @@ Frontend::State::ShapeStride EventChannelSink::getArrayShapeStride(std::optional
                                                                    size_t deviceIndex, size_t numDevices, const Frontend::Model&) const
 {
     if(shouldRecord()) {
-        return getBitArrayShapeStride(getShape(), splitDimension, indexDimensions, numDevices, deviceIndex);
+        return getBitArrayShapeStride(getShape(), splitDimension, indexDimensions, deviceIndex, numDevices);
     }
     else {
         return std::make_tuple(std::vector<size_t>{}, std::vector<size_t>{});
