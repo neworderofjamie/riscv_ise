@@ -242,7 +242,10 @@ if args.time:
 print("Initialising")
 runtime.run(init_kernel)
 
-# Loop through simulation blocks
+excitatory_offsets = np.concatenate(([0], excitatory_splits))
+inhibitory_offsets = np.concatenate(([0], inhibitory_splits))
+
+# Loop through simulation blo
 print(f"Simulating {num_blocks} block of {num_timesteps_per_block} timesteps")
 sim_time = 0.0
 e_spike_times = []
@@ -258,15 +261,13 @@ for b in range(num_blocks):
 
     # Pull excitatory spikes and add to lists
     block_e_spikes = pull_spikes(num_timesteps_per_block + 1, e_pop.spike_sink, runtime)
-    assert len(block_e_spikes) == 1
-    e_spike_times.append(block_e_spikes[0][0] + block_start_timestep)
-    e_spike_ids.append(block_e_spikes[0][1])
+    e_spike_times.extend(s[0] + block_start_timestep for s in block_e_spikes)
+    e_spike_ids.extend(s[1] + o for s, o in zip(block_e_spikes, excitatory_offsets))
 
     # Pull inhibitory spikes and add to lists
     block_i_spikes = pull_spikes(num_timesteps_per_block + 1, i_pop.spike_sink, runtime)
-    assert len(block_i_spikes) == 1
-    i_spike_times.append(block_i_spikes[0][0] + block_start_timestep)
-    i_spike_ids.append(block_i_spikes[0][1])
+    i_spike_times.extend(s[0] + block_start_timestep for s in block_i_spikes)
+    i_spike_ids.extend(s[1] + o for s, o in zip(block_i_spikes, inhibitory_offsets))
     
     # Update start time of next timestep
     block_start_timestep += num_timesteps_per_block
