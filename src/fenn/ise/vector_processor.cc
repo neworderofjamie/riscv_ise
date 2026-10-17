@@ -2,6 +2,7 @@
 
 // Standard C++ includes
 #include <algorithm>
+#include <fstream>
 #include <iostream>
 #include <iomanip>
 #include <limits>
@@ -125,6 +126,20 @@ void VectorDataMemory::setData(const std::vector<int16_t> &data)
     // Copy data
     std::copy(data.cbegin(), data.cend(), m_Data.begin());
 }
+//----------------------------------------------------------------------------
+void VectorDataMemory::dump(const std::string &filename) const
+{
+    std::ofstream file(filename);
+    for(size_t i = 0; i < m_Data.size(); i++) {
+        file << std::hex << std::setw(4) << std::setfill('0') << m_Data[i];
+        if((i % 32) == 31) {
+            file << std::endl;
+        }
+        else {
+            file << ", ";
+        }
+    }
+}
 
 //----------------------------------------------------------------------------
 // FeNN::ISE::LaneLocalMemory
@@ -159,6 +174,14 @@ void LaneLocalMemory::write(uint32_t addr, int16_t data)
     }
 
     m_Data[halfWordAddr] = data;
+}
+//----------------------------------------------------------------------------
+void LaneLocalMemory::dump(const std::string &filename) const
+{
+    std::ofstream file(filename);
+    for(int16_t d : m_Data) {
+        file << std::hex << std::setw(4) << std::setfill('0') << d << std::endl;
+    }
 }
 
 //----------------------------------------------------------------------------
@@ -424,6 +447,15 @@ void VectorProcessor::dumpRegisters() const
             std::cout << std::hex << std::setw(4) << std::setfill('0') << m_VReg[i][j] << ", ";
         }
         std::cout << std::endl;
+    }
+}
+//------------------------------------------------------------------------
+void VectorProcessor::dumpMemories(size_t deviceIndex) const
+{
+    m_VectorDataMemory.dump("vector_data_" + std::to_string(deviceIndex) + ".csv");
+
+    for(size_t i = 0; i < m_LaneLocalMemories.size(); i++) {
+        m_LaneLocalMemories[i].dump("lane_local_data_" + std::to_string(deviceIndex) + "_" + std::to_string(i) + ".csv");
     }
 }
 //------------------------------------------------------------------------

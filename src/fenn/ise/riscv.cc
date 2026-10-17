@@ -1,6 +1,7 @@
 #include "fenn/ise/riscv.h"
 
 // Standard C++ includes
+#include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <numeric>
@@ -49,6 +50,14 @@ void InstructionMemory::setInstructions(const std::vector<uint32_t> &instruction
 
     // Copy instructions
     std::copy(instructions.cbegin(), instructions.cend(), m_Instructions.begin());
+}
+//----------------------------------------------------------------------------
+void InstructionMemory::dump(const std::string &filename) const
+{
+    std::ofstream file(filename);
+    for(uint32_t i : m_Instructions) {
+        file << std::hex << std::setw(8) << std::setfill('0') << i << std::endl;
+    }
 }
 
 //----------------------------------------------------------------------------
@@ -167,12 +176,26 @@ void ScalarDataMemory::setData(const std::vector<uint8_t> &data)
     // Copy instructions
     std::copy(data.cbegin(), data.cend(), m_Data.begin());
 }
+//----------------------------------------------------------------------------
+void ScalarDataMemory::dump(const std::string &filename) const
+{
+    std::ofstream file(filename);
+    for(size_t i = 0; i < m_Data.size(); i++) {
+        file << std::hex << std::setw(2) << std::setfill('0') << m_Data[i];
+        if((i % 4) == 3) {
+            file << std::endl;
+        }
+        else {
+            file << ", ";
+        }
+    }
+}
 
 //----------------------------------------------------------------------------
 // FeNN::ISE::RISCV
 //----------------------------------------------------------------------------
-RISCV::RISCV(size_t numInstructionWords, size_t numDataBytes, size_t numSpikeBytes)
-:   m_PC(0), m_NextPC(0), m_Reg{0}, m_InstructionMemory(numInstructionWords), 
+RISCV::RISCV(size_t deviceIndex,size_t numInstructionWords, size_t numDataBytes, size_t numSpikeBytes)
+:   m_DeviceIndex(deviceIndex), m_PC(0), m_NextPC(0), m_Reg{0}, m_InstructionMemory(numInstructionWords), 
     m_ScalarDataMemory(numDataBytes, 0, 0xDE), m_SpikeDataMemory(numSpikeBytes, numDataBytes, 0xAD), 
     m_DMAController(nullptr), m_Router(nullptr), m_CountInhibit(0b101)
 {
@@ -300,11 +323,13 @@ bool RISCV::run()
         }
 
         dumpRegisters();
+        dumpMemories();
         return false;
     }
     catch(const std::exception &exc) {
         LOGE_FENN_ISE << "Internal error: " << exc.what();
         dumpRegisters();
+        dumpMemories();
         return false;
     }
 
@@ -324,6 +349,21 @@ void RISCV::dumpRegisters() const
         // If co-processor present, dump it's registers
         if(m_Coprocessors[c]) {
             m_Coprocessors[c]->dumpRegisters();
+        }
+    }
+}
+//----------------------------------------------------------------------------
+void RISCV::dumpMemories() const
+{
+    m_ScalarDataMemory.dump("scalar_data_" + std::to_string(m_DeviceIndex) + ".csv");
+    m_SpikeDataMemory.dump("spike_data_" + std::to_string(m_DeviceIndex) + ".csv");
+    m_InstructionMemory.dump("instructions_" + std::to_string(m_DeviceIndex) + ".csv");
+
+    // Loop through co-processor quadrants
+    for(int c = 0; c < 3; c++) {
+        // If co-processor present, dump it's memories
+        if(m_Coprocessors[c]) {
+            m_Coprocessors[c]->dumpMemories(m_DeviceIndex);
         }
     }
 }

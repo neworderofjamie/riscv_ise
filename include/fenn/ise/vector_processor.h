@@ -29,6 +29,7 @@ public:
     const int16_t *getData() const{ return m_Data.data(); }
     int16_t *getData(){ return m_Data.data(); }
 
+    void dump(const std::string &filename) const;
 private:
     std::vector<int16_t> m_Data;
 };
@@ -47,6 +48,7 @@ public:
     const int16_t *getData() const{ return m_Data.data(); }
     int16_t *getData(){ return m_Data.data(); }
 
+    void dump(const std::string &filename) const;
 private:
     std::vector<int16_t> m_Data;
 };
@@ -66,6 +68,7 @@ public:
     virtual void executeInstruction(uint32_t inst, uint32_t (&reg)[32], 
                                     ScalarDataMemory &scalarDataMemory, uint32_t pc) override final;
     virtual void dumpRegisters() const override final;
+    virtual void dumpMemories(size_t deviceIndex) const override final;
 
     //------------------------------------------------------------------------
     // Public API

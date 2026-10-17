@@ -36,6 +36,8 @@ public:
 
     size_t getNumInstructions() const{ return m_Instructions.size(); }
 
+    void dump(const std::string &filename) const;
+
 private:
     std::vector<uint32_t> m_Instructions;
 };
@@ -64,6 +66,8 @@ public:
     
     size_t getSizeBytes() const{ return m_Data.size(); }
     size_t getStartAddressBytes() const{ return m_StartAddressBytes; }
+
+    void dump(const std::string &filename) const;
     
 private:
     uint32_t m_StartAddressBytes;
@@ -115,12 +119,14 @@ public:
         virtual void tick() = 0;
         virtual void executeInstruction(uint32_t inst, uint32_t (&reg)[32], ScalarDataMemory &scalarDataMemory, uint32_t pc) = 0;
         virtual void dumpRegisters() const = 0;
+        virtual void dumpMemories(size_t deviceIndex) const = 0;
     };
 
-    RISCV(size_t numInstructionWords = 1024, size_t numDataBytes = (4096 * 32), size_t numSpikeBytes = 4096);
+    RISCV(size_t deviceIndex, size_t numInstructionWords = 1024, size_t numDataBytes = (4096 * 32), size_t numSpikeBytes = 4096);
 
     bool run();
     void dumpRegisters() const;
+    void dumpMemories() const;
 
     template<typename T, typename... CoprocessorArgs>
     void addCoprocessor(uint32_t quadrant, CoprocessorArgs&&... coprocessorArg)
@@ -193,6 +199,9 @@ private:
     // -----------------------------------------------------------------------
     // Members
     // -----------------------------------------------------------------------
+    // What core is this?
+    size_t m_DeviceIndex;
+
     // CPU state
     uint32_t m_PC;
     uint32_t m_NextPC;

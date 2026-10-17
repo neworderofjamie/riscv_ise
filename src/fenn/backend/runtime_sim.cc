@@ -295,7 +295,7 @@ namespace FeNN::Backend
 {
 DeviceFeNNSim::DeviceFeNNSim(size_t deviceIndex, Runtime &runtime, 
                              ISE::SharedBusSim &sharedBus)
-:   DeviceFeNN(deviceIndex, runtime), m_DMABufferAllocator(runtime.getDMABufferSize())
+:   DeviceFeNN(deviceIndex, runtime), m_RISCV(deviceIndex), m_DMABufferAllocator(runtime.getDMABufferSize())
 {
     m_RISCV.addCoprocessor<ISE::VectorProcessor>(FeNN::Common::vectorQuadrant);
 
