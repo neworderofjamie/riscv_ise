@@ -1111,13 +1111,6 @@ void DenseEventPropagationProcess::generateArchetypeCode(const Frontend::MergedP
 {
     // Make some friendlier-named references
     auto &c = processCodeGenerator;
-
-    // Add fields for weight and target
-    const uint32_t weightFieldOffset = mergedFields.addField<DenseEventPropagationProcess>(
-        [](const Frontend::DeviceBase &d, auto p)
-        { 
-            return d.getArray(p->getWeight()); 
-        });
     
     const uint32_t targetFieldOffset = mergedFields.addField<DenseEventPropagationProcess>(
         [](const Frontend::DeviceBase &d, auto p)
@@ -1321,13 +1314,6 @@ void SparseEventPropagationProcess::generateArchetypeCode(const Frontend::Merged
     // Make some friendlier-named references
     auto &c = processCodeGenerator;
 
-    // Add fields for weight and target
-    const uint32_t weightFieldOffset = mergedFields.addField<SparseEventPropagationProcess>(
-        [](const Frontend::DeviceBase &d, auto p)
-        { 
-            return d.getArray(p->getWeight()); 
-        });
-
     const uint32_t targetFieldOffset = mergedFields.addField<SparseEventPropagationProcess>(
         [](const Frontend::DeviceBase &d, auto p)
         { 
@@ -1375,15 +1361,6 @@ void SparseEventPropagationProcess::generateArchetypeCode(const Frontend::Merged
     // Load target register from state fields
     ALLOCATE_SCALAR(STargetBuf);
     c.lw(*STargetBuf, *fieldBaseReg, targetFieldOffset);
-
-    // Calculate row start address
-    /*ALLOCATE_SCALAR(SWeightBuffer);
-    c.lw(*SWeightBuffer, *fieldBaseReg, weightFieldOffset);
-    {
-        ALLOCATE_SCALAR(STemp);
-        c.mul(*STemp, *preIndReg, *strideReg);
-        c.add(*SWeightBuffer, *SWeightBuffer, *STemp);
-    }*/
 
     // **TODO** this should be fine, just need to index target correctly
     assert(!getTarget().hasTime());
@@ -1567,13 +1544,6 @@ void DelayEventPropagationProcess::generateArchetypeCode(const Frontend::MergedP
     // Make some friendlier-named references
     auto &c = processCodeGenerator;
 
-    // Add fields for weight and target
-    const uint32_t weightFieldOffset = mergedFields.addField<DelayEventPropagationProcess>(
-        [](const Frontend::DeviceBase &d, auto p)
-        { 
-            return d.getArray(p->getWeight()); 
-        });
-
     const uint32_t targetFieldOffset = mergedFields.addField<DelayEventPropagationProcess>(
         [](const Frontend::DeviceBase &d, auto p)
         { 
@@ -1621,15 +1591,6 @@ void DelayEventPropagationProcess::generateArchetypeCode(const Frontend::MergedP
     // Load target register from state fields
     ALLOCATE_SCALAR(STargetBuf);
     c.lw(*STargetBuf, *fieldBaseReg, targetFieldOffset);
-
-    // Calculate row start address
-    /*ALLOCATE_SCALAR(SWeightBuffer);
-    c.lw(*SWeightBuffer, *fieldBaseReg, weightFieldOffset);
-    {
-        ALLOCATE_SCALAR(STemp);
-        c.mul(*STemp, *preIndReg, *strideReg);
-        c.add(*SWeightBuffer, *SWeightBuffer, *STemp);
-    }*/
 
     // Loop over postsynaptic neurons
     ALLOCATE_VECTOR(VAccum);
