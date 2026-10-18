@@ -388,6 +388,13 @@ std::vector<uint32_t> RuntimeSim::getSlaveBufferOverflow() const
     return values;
 }
 //------------------------------------------------------------------------
+void RuntimeSim::dumpMemories() const
+{
+    for(const auto &d : getDevices()) {
+        static_cast<const DeviceFeNNSim*>(d.get())->getRISCV().dumpMemories();
+    }
+}
+//------------------------------------------------------------------------
 std::unique_ptr<Frontend::DeviceBase> RuntimeSim::createDevice(size_t deviceIndex)
 {
     return std::make_unique<DeviceFeNNSim>(deviceIndex, *this, m_SharedBus);
