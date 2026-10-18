@@ -67,6 +67,8 @@ public:
     virtual void tick();
     virtual void executeInstruction(uint32_t inst, uint32_t (&reg)[32], 
                                     ScalarDataMemory &scalarDataMemory, uint32_t pc) override final;
+    virtual void setInstructions(const std::vector<uint32_t> &instructions) override final;
+    virtual void resetStats() override final;
     virtual void dumpRegisters() const override final;
     virtual void dumpMemories(size_t deviceIndex) const override final;
 
@@ -79,6 +81,8 @@ public:
     auto &getLaneLocalMemory(size_t lane) { return m_LaneLocalMemories.at(lane); }
     const auto &getLaneLocalMemory(size_t lane) const { return m_LaneLocalMemories.at(lane); }
     
+    const auto &getSaturationCount() const{ return m_SaturationCount; }
+
     size_t getNumInstructionsExecuted(const std::array<size_t, 32> &counts, FeNN::Common::VectorOpCode opCode) const;
     size_t getNumMemory(const std::array<size_t, 32> &counts) const;
     size_t getNumALU(const std::array<size_t, 32> &counts) const;
@@ -89,7 +93,7 @@ private:
     //------------------------------------------------------------------------
     std::array<uint16_t, 32> sampleRNG();
 
-    Vector calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs2, uint32_t rs1, uint32_t funct3);
+    Vector calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs2, uint32_t rs1, uint32_t funct3, size_t &saturateCount);
     Vector calcOpImmResult(uint32_t inst, int32_t imm, uint32_t rs1, uint32_t funct3);
     uint32_t calcTestResult(uint32_t inst, uint32_t rs2, uint32_t rs1, uint32_t funct3) const;
     void writeVReg(size_t reg, const Vector &vector, uint32_t delay = 1);
@@ -102,6 +106,8 @@ private:
     std::vector<LaneLocalMemory> m_LaneLocalMemories;
     Vector m_VReg[32];
     uint32_t m_VRegDelay[32];
+
+    std::vector<size_t> m_SaturationCount;
 
     // Xoroshiro32++ state
     Vector m_S0;

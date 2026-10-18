@@ -118,6 +118,8 @@ public:
     public:
         virtual void tick() = 0;
         virtual void executeInstruction(uint32_t inst, uint32_t (&reg)[32], ScalarDataMemory &scalarDataMemory, uint32_t pc) = 0;
+        virtual void setInstructions(const std::vector<uint32_t> &instructions) = 0;
+        virtual void resetStats() = 0;
         virtual void dumpRegisters() const = 0;
         virtual void dumpMemories(size_t deviceIndex) const = 0;
     };
@@ -163,7 +165,7 @@ public:
     void resetStats();
     const auto &getNumOpCodesExecuted() const{ return m_NumOpCodesExecuted; }
     std::array<size_t, 32> getNumCoprocessorInstructionsExecuted(uint32_t quadrant) const;
-    const std::vector<size_t> &getInstructionHeatmap() const{ return m_InstructionHeatmap; }
+    const auto &getInstructionHeatmap() const{ return m_InstructionHeatmap; }
     size_t getNumInstructionsExecuted(FeNN::Common::StandardOpCode opCode) const;
     size_t getTotalNumInstructionsExecuted() const;
     size_t getTotalNumCoprocessorInstructionsExecuted(uint32_t quadrant) const;

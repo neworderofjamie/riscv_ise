@@ -388,6 +388,20 @@ std::vector<uint32_t> RuntimeSim::getSlaveBufferOverflow() const
     return values;
 }
 //------------------------------------------------------------------------
+std::vector<std::vector<size_t>> RuntimeSim::getSaturationCount() const
+{
+    std::vector<std::vector<size_t>> values;
+    values.reserve(getNumDevices());
+
+    for(const auto &d : getDevices()) {
+        const auto &riscV = static_cast<const DeviceFeNNSim*>(d.get())->getRISCV();
+        const auto &saturationCount = riscV.getCoprocessor<ISE::VectorProcessor>(FeNN::Common::vectorQuadrant)->getSaturationCount();
+        values.emplace_back(saturationCount.cbegin(), saturationCount.cend());
+    }
+
+    return values;
+}
+//------------------------------------------------------------------------
 void RuntimeSim::dumpMemories() const
 {
     for(const auto &d : getDevices()) {

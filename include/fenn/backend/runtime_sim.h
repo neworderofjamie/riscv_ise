@@ -95,6 +95,8 @@ public:
     // **TEMP** read the number of slave buffer overflows which have occurred
     std::vector<uint32_t> getSlaveBufferOverflow() const;
 
+    std::vector<std::vector<size_t>> getSaturationCount() const;
+
     //! Dump the various memories on all devices to file
     void dumpMemories() const;
 

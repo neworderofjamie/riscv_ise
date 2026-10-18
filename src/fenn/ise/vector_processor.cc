@@ -18,10 +18,19 @@ using namespace FeNN::ISE;
 //----------------------------------------------------------------------------
 namespace
 {
-inline int16_t saturate(int val) 
+inline int16_t saturate(int val, size_t &saturateCount) 
 {
-    return std::clamp(val, (int)std::numeric_limits<int16_t>::min(),
-                      (int)std::numeric_limits<int16_t>::max()); 
+    if(val < (int)std::numeric_limits<int16_t>::min()) {
+        saturateCount++;
+        val = (int)std::numeric_limits<int16_t>::min();
+    }
+    else if(val > (int)std::numeric_limits<int16_t>::max()) {
+        saturateCount++;
+        val = (int)std::numeric_limits<int16_t>::max();
+    }
+    else {
+        return val;
+    }
 }
 
 static inline uint16_t rol(uint16_t x, uint16_t k)
@@ -30,12 +39,15 @@ static inline uint16_t rol(uint16_t x, uint16_t k)
 }
 
 template<typename F>
-Vector binaryOp(const Vector &val, const Vector &val2, bool saturateResult, F func)
+Vector binaryOp(const Vector &val, const Vector &val2, size_t *saturateCount, F func)
 {
     Vector result;
-    if(saturateResult) {
+    if(saturateCount) {
         std::transform(val.cbegin(), val.cend(), val2.cbegin(), result.begin(), 
-                       [func](int16_t a, int16_t b){ return saturate(func(a, b)); });
+                       [func, saturateCount](int16_t a, int16_t b)
+                       {
+                           return saturate(func(a, b), *saturateCount);
+                       });
     }
     else {
         std::transform(val.cbegin(), val.cend(), val2.cbegin(), result.begin(), 
@@ -45,12 +57,15 @@ Vector binaryOp(const Vector &val, const Vector &val2, bool saturateResult, F fu
 }
 
 template<typename F>
-Vector unaryOp(const Vector &val, bool saturateResult, F func)
+Vector unaryOp(const Vector &val, size_t *saturateCount, F func)
 {
     Vector result;
-    if(saturateResult) {
+    if(saturateCount) {
         std::transform(val.cbegin(), val.cend(), result.begin(), 
-                       [func](int16_t a){ return saturate(func(a)); });
+                       [func, saturateCount](int16_t a)
+                       {
+                           return saturate(func(a), *saturateCount); 
+                       });
     }
     else {
         std::transform(val.cbegin(), val.cend(), result.begin(), 
@@ -341,7 +356,7 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
             const auto &val = readVReg(rs1);
             const int16_t val2 = reg[rs2];
             writeVReg(rd, 
-                unaryOp(val, false,
+                unaryOp(val, nullptr,
                         [mask, val2](int16_t a)
                         { 
                             return (a & mask) + val2; 
@@ -356,7 +371,7 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
     case VectorOpCode::VSOP:
     {
         const auto [funct7, rs2, rs1, funct3, rd] = decodeRType(inst);
-        writeVReg(rd, calcOpResult(inst, funct7, rs2, rs1, funct3));
+        writeVReg(rd, calcOpResult(inst, funct7, rs2, rs1, funct3, m_SaturationCount.at(pc / 4)));
         LOGV_FENN_ISE << "\t" << rd;
         break;
     }
@@ -437,6 +452,18 @@ void VectorProcessor::executeInstruction(uint32_t inst, uint32_t (&reg)[32],
     }
 }
 //------------------------------------------------------------------------
+void VectorProcessor::setInstructions(const std::vector<uint32_t> &instructions)
+{
+    // Zero saturation count
+    m_SaturationCount.assign(instructions.size(), 0);
+}
+//------------------------------------------------------------------------
+void VectorProcessor::resetStats()
+{
+    // Zero saturation count
+    m_SaturationCount.assign(m_SaturationCount.size(), 0);
+}
+//------------------------------------------------------------------------
 void VectorProcessor::dumpRegisters() const
 {
     // Dump standard register file
@@ -502,7 +529,8 @@ std::array<uint16_t, 32> VectorProcessor::sampleRNG()
     return result;
 }
 //------------------------------------------------------------------------
-Vector VectorProcessor::calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs2, uint32_t rs1, uint32_t funct3)
+Vector VectorProcessor::calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs2, uint32_t rs1, 
+                                     uint32_t funct3, size_t &saturateCount)
 {
     using namespace Common;
 
@@ -511,47 +539,47 @@ Vector VectorProcessor::calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs
 
     // Split funct7 into mode and fixed point position
     const uint32_t fixedPoint = (funct7 & 0b1111);
-    const bool saturateResult = ((funct7 >> 4) & 0b100);
+    size_t *saturateCountPtr = ((funct7 >> 4) & 0b100) ? &saturateCount : nullptr;
     switch(getVOpType(funct7, funct3))
     {
     case VOpType::VADD:
     {
         LOGV_FENN_ISE << "VADD " << rs1 << " " << rs2;
-        return binaryOp(val, val2, saturateResult,
+        return binaryOp(val, val2, saturateCountPtr, 
                         [](int16_t a, int16_t b){ return a + b; });
     }
 
     case VOpType::VSUB:
     {
         LOGV_FENN_ISE << "VSUB " << rs1 << " " << rs2;
-        return binaryOp(val, val2, saturateResult,
+        return binaryOp(val, val2, saturateCountPtr,
                         [](int16_t a, int16_t b){ return a - b; });
     }
 
     case VOpType::VAND:
     {
         LOGV_FENN_ISE << "VAND " << rs1 << " " << rs2;
-        return binaryOp(val, val2, saturateResult,
+        return binaryOp(val, val2, saturateCountPtr,
                         [](int16_t a, int16_t b){ return a & b; });
     }
 
     case VOpType::VSLL:
     {
         LOGV_FENN_ISE << "VSLL " << rs1 << " " << rs2;
-        return binaryOp(val, val2, saturateResult,
+        return binaryOp(val, val2, saturateCountPtr,
                         [](int16_t a, int16_t b){ return a << b; });
     }
     case VOpType::VSRA:
     {
         LOGV_FENN_ISE << "VSRA " << rs1 << " " << rs2;
-        return binaryOp(val, val2, saturateResult,
+        return binaryOp(val, val2, saturateCountPtr,
                         [](int16_t a, int16_t b){ return a >> b; });
     }
     
     case VOpType::VMUL:
     {
         LOGV_FENN_ISE << "VMUL " << rs1 << " " << rs2;
-        return binaryOp(val, val2, saturateResult,
+        return binaryOp(val, val2, saturateCountPtr,
                         [fixedPoint](int16_t a, int16_t b)
                         {
                             return (a * b) >> fixedPoint; 
@@ -562,8 +590,8 @@ Vector VectorProcessor::calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs
     {
         LOGV_FENN_ISE << "VMUL_RN " << rs1 << " " << rs2;
         const int16_t half = 1 << (fixedPoint - 1);
-        return binaryOp(val, val2, saturateResult,
-                        [half,fixedPoint](int16_t a, int16_t b)
+        return binaryOp(val, val2, saturateCountPtr,
+                        [half, fixedPoint](int16_t a, int16_t b)
                         {
                             auto product = (a * b) + half;
                             return product >> fixedPoint; 
@@ -583,10 +611,10 @@ Vector VectorProcessor::calcOpResult(uint32_t inst, uint32_t funct7, uint32_t rs
                         [mask](uint16_t a){ return (int16_t)(a & mask); });
 
         Vector result;
-        if(saturateResult) {
+        if(saturateCountPtr) {
             for(size_t i = 0; i < 32; i++) {
                 auto product = (val[i] * val2[i]) + maskedStoch[i];
-                result[i] = saturate(product >> fixedPoint);
+                result[i] = saturate(product >> fixedPoint, *saturateCountPtr);
             }
         }
         else {
@@ -619,7 +647,7 @@ Vector VectorProcessor::calcOpImmResult(uint32_t inst, int32_t imm, uint32_t rs1
     case VOpImmType::VSLLI:
     {
         LOGV_FENN_ISE << "VSLLI " << rs1;
-        return unaryOp(val, false,
+        return unaryOp(val, nullptr,
                        [shamt](int16_t a)
                        {
                            return a << shamt; 
@@ -629,7 +657,7 @@ Vector VectorProcessor::calcOpImmResult(uint32_t inst, int32_t imm, uint32_t rs1
     case VOpImmType::VSRAI:
     {
         LOGV_FENN_ISE << "VSRAI " << rs1;
-        return unaryOp(val, false,
+        return unaryOp(val, nullptr,
                         [shamt](int16_t a)
                         {
                             return a >> shamt; 
@@ -640,7 +668,7 @@ Vector VectorProcessor::calcOpImmResult(uint32_t inst, int32_t imm, uint32_t rs1
     {
         LOGV_FENN_ISE << "VSRAI_RN " << rs1;
         const int16_t half = 1 << (shamt - 1);
-        return unaryOp(val, false,
+        return unaryOp(val, nullptr,
                        [half, shamt](int16_t a)
                        {
                            return (a + half) >> shamt; 
@@ -659,7 +687,7 @@ Vector VectorProcessor::calcOpImmResult(uint32_t inst, int32_t imm, uint32_t rs1
         std::transform(r.cbegin(), r.cend(), maskedStoch.begin(), 
                         [mask](uint16_t a){ return (int16_t)(a & mask); });
 
-        return binaryOp(val, maskedStoch, false,
+        return binaryOp(val, maskedStoch, nullptr,
                         [shamt](int16_t a, int16_t r)
                         {
                             return (a + r) >> shamt;

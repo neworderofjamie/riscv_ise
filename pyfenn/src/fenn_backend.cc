@@ -250,5 +250,6 @@ PYBIND11_MODULE(_fenn_backend, m)
              pybind11::arg("spike_inject_data") = std::vector<uint32_t>{})
 
         .def_property_readonly("slave_buffer_overflow", &Backend::RuntimeSim::getSlaveBufferOverflow)
+        .def_property_readonly("saturation_count", &Backend::RuntimeSim::getSaturationCount)
         .def("dump_memories", &Backend::RuntimeSim::dumpMemories);
 }

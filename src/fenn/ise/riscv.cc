@@ -374,6 +374,14 @@ void RISCV::setInstructions(const std::vector<uint32_t> &instructions)
     
     // Reset heatmap
     m_InstructionHeatmap.assign(instructions.size(), 0);
+
+    // Loop through co-processor quadrants
+    for(int c = 0; c < 3; c++) {
+        // If co-processor present, dump it's registers
+        if(m_Coprocessors[c]) {
+            m_Coprocessors[c]->setInstructions(instructions);
+        }
+    }
 }
 //----------------------------------------------------------------------------
 void RISCV::resetStats()
@@ -387,6 +395,14 @@ void RISCV::resetStats()
 
     // Reset heatmap
     m_InstructionHeatmap.assign(m_InstructionMemory.getNumInstructions(), 0);
+
+    // Loop through co-processor quadrants
+    for(int c = 0; c < 3; c++) {
+        // If co-processor present, dump it's registers
+        if(m_Coprocessors[c]) {
+            m_Coprocessors[c]->resetStats();
+        }
+    }
 }
 //----------------------------------------------------------------------------
 size_t RISCV::getTotalNumInstructionsExecuted() const
