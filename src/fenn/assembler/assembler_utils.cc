@@ -432,6 +432,9 @@ void unrollVectorLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegis
     if (!noTail) {
         ALLOCATE_SCALAR(SMask);
 
+        // If there are any elements left
+        auto tailEnd = Assembler::createLabel();
+        c.beq(numElementsReg, Common::Reg::X0, tailEnd);
         {
             ALLOCATE_SCALAR(SOne);
 
@@ -443,7 +446,9 @@ void unrollVectorLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegis
 
         // Generate body with mask
         genBodyFn(c, 0, SMask);
+        c.L(tailEnd);
     }
+
 }
 //----------------------------------------------------------------------------
 void unrollOddEvenLoopBody(CodeGenerator &c, ScalarRegisterAllocator &scalarRegisterAllocator, 
