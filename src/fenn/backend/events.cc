@@ -46,18 +46,22 @@ namespace FeNN::Backend
 Frontend::State::ShapeStride EventSinkImplementation::getBitArrayShapeStride(const std::vector<size_t> &shape, std::optional<size_t> splitDimension, 
                                                                              uint32_t, size_t deviceIndex, size_t numDevices) const
 {
-    // Event containers are implemented as word-aligned bitfields so divide and pad last axis
-    // **TODO** this is only true with 1D shape. With multi-dimensional shape, padding needs to be applied 
-    // **TODO** correct solution may be to treat bool datatype as 1 bit in a uint32 for vectorised code
+    // **TODO** current approach only works with 1D shape. With multi-dimensional shape, padding needs to be applied 
+    assert(shape.size() == 2);
+
+    // Copy shape
     auto wordAlignedShape = shape;
-    wordAlignedShape.back() = ::Common::Utils::ceilDivide(wordAlignedShape.back(), 32);
 
     // If a split dimension is specified, split this dimension of word-aligned shape appropriately
+    // **NOTE** we operate on bits here with a 32-bit granularity
     if (splitDimension.has_value()) {
         const size_t absSplitDim = wordAlignedShape.size() - 1 - splitDimension.value();
         wordAlignedShape[absSplitDim] = Utils::getSplitDimension(wordAlignedShape, deviceIndex,
-                                                                 absSplitDim, numDevices, 1);
+                                                                 absSplitDim, numDevices, 32);
     }
+
+    // Word align final dimension
+    wordAlignedShape.back() = ::Common::Utils::ceilDivide(wordAlignedShape.back(), 32);
 
     // Calculate strides
     std::vector<size_t> strides = Frontend::Shape::getStride(wordAlignedShape,
