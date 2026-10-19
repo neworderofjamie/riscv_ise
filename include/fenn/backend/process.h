@@ -107,8 +107,7 @@ public:
                                        const KernelImplementation &kernel, MergedFields &mergedFields,
                                        Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg, 
                                        Assembler::ScalarRegisterPtr weightBufferReg, Assembler::ScalarRegisterPtr strideReg, 
-                                       Assembler::ScalarRegisterPtr preIndReg, std::optional<uint32_t> numTimesteps, 
-                                       Assembler::CodeGenerator &processCodeGenerator,
+                                       std::optional<uint32_t> numTimesteps, Assembler::CodeGenerator &processCodeGenerator,
                                        Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                        Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const = 0;
 
@@ -121,8 +120,7 @@ public:
                       const KernelImplementation &kernel, MergedFields &mergedFields, 
                       Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr weightBufferReg, 
                       Assembler::ScalarRegisterPtr strideReg, Assembler::ScalarRegisterPtr groupIndReg,
-                      Assembler::ScalarRegisterPtr preIndReg, std::optional<uint32_t> numTimesteps, 
-                      uint32_t &fieldBase, Assembler::CodeGenerator &c, 
+                      std::optional<uint32_t> numTimesteps, uint32_t &fieldBase, Assembler::CodeGenerator &c, 
                       Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                       Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const;
 
@@ -211,8 +209,7 @@ public:
                                        const KernelImplementation &kernel, MergedFields &mergedFields,
                                        Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg, 
                                        Assembler::ScalarRegisterPtr weightBufferReg, Assembler::ScalarRegisterPtr strideReg, 
-                                       Assembler::ScalarRegisterPtr preIndReg, std::optional<uint32_t> numTimesteps, 
-                                       Assembler::CodeGenerator &processCodeGenerator,
+                                       std::optional<uint32_t> numTimesteps, Assembler::CodeGenerator &processCodeGenerator,
                                        Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                        Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;
 
@@ -274,8 +271,7 @@ public:
                                        const KernelImplementation &kernel, MergedFields &mergedFields,
                                        Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg, 
                                        Assembler::ScalarRegisterPtr weightBufferReg, Assembler::ScalarRegisterPtr strideReg, 
-                                       Assembler::ScalarRegisterPtr preIndReg, std::optional<uint32_t> numTimesteps, 
-                                       Assembler::CodeGenerator &processCodeGenerator,
+                                       std::optional<uint32_t> numTimesteps, Assembler::CodeGenerator &processCodeGenerator,
                                        Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                        Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;
 
@@ -343,8 +339,7 @@ public:
                                        const KernelImplementation &kernel, MergedFields &mergedFields,
                                        Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg, 
                                        Assembler::ScalarRegisterPtr weightBufferReg, Assembler::ScalarRegisterPtr strideReg, 
-                                       Assembler::ScalarRegisterPtr preIndReg, std::optional<uint32_t> numTimesteps, 
-                                       Assembler::CodeGenerator &processCodeGenerator,
+                                       std::optional<uint32_t> numTimesteps, Assembler::CodeGenerator &processCodeGenerator,
                                        Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                        Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;
     virtual Frontend::VariablePtr getWeight() const override final{ return m_Weight; }
@@ -371,70 +366,6 @@ private:
     Frontend::VariablePtr m_Weight;
     size_t m_NumDelayBits;
 };
-
-//----------------------------------------------------------------------------
-// FeNN::Backend::Downsample2DEventPropagationProcess
-//----------------------------------------------------------------------------
-class FENN_BACKEND_EXPORT Downsample2DEventPropagationProcess : public Frontend::EventPropagationProcess, public EventDrivenProcessImplementation
-{
-public:
-    Downsample2DEventPropagationProcess(Private, std::shared_ptr<const Frontend::EventSource> inputEventSource, 
-                                        double weight, Frontend::Sliced<Frontend::Variable> target, const std::string &name);
-
-    //------------------------------------------------------------------------
-    // Process virtuals
-    //------------------------------------------------------------------------
-    //! Get vector of state objects used by this process
-    virtual std::vector<std::shared_ptr<const Frontend::State>> getAllState() const override final;
-
-    //! Update the provided hash with the properties of this process which determine whether it can be merged
-    virtual void updateMergeHash(boost::uuids::detail::sha1 &hash, const Frontend::Model &model) const override final;
-
-    //! Update the compatible split dimensions of a state object (which should be
-    //! one used by this process) with any constraints imposed by this process)
-    virtual void updateCompatibleSplitDimensions(std::shared_ptr<const Frontend::State> state, 
-                                                 uint32_t &compatibleSplitDimensions,
-                                                 uint32_t &compatibleIndexDimensions) const override final;
-
-    //------------------------------------------------------------------------
-    // ProcessImplementation virtuals
-    //------------------------------------------------------------------------
-    //! Update the memory compatibility of a variable associated with this process
-    virtual void updateCompatibleMemSpace(std::shared_ptr<const Frontend::State> state, 
-                                          MemSpace &compatibleMemSpaces) const override final;
-
-    //------------------------------------------------------------------------
-    // EventDrivenProcessImplementation virtuals
-    //------------------------------------------------------------------------
-    virtual void generateArchetypeCode(const Frontend::MergedProcess &mergedProcess, const Runtime &runtime, 
-                                       const KernelImplementation &kernel, MergedFields &mergedFields,
-                                       Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg, 
-                                       Assembler::ScalarRegisterPtr weightBufferReg, Assembler::ScalarRegisterPtr strideReg, 
-                                       Assembler::ScalarRegisterPtr preIndReg, std::optional<uint32_t> numTimesteps, 
-                                       Assembler::CodeGenerator &processCodeGenerator,
-                                       Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
-                                       Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const override final;
-
-    virtual Frontend::VariablePtr getWeight() const override final{ return nullptr; }
-
-    //------------------------------------------------------------------------
-    // Static API
-    //------------------------------------------------------------------------
-    static std::shared_ptr<Downsample2DEventPropagationProcess> create(std::shared_ptr<const Frontend::EventSource> inputEventSource, 
-                                                                       double weight, Frontend::Sliced<Frontend::Variable> target, 
-                                                                       const std::string &name = "")
-    {
-        return std::make_shared<Downsample2DEventPropagationProcess>(Private(), inputEventSource, 
-                                                                     weight, target, name);
-    }
-
-private:
-    //------------------------------------------------------------------------
-    // Members
-    //------------------------------------------------------------------------
-    double m_Weight;
-};
-
 
 //----------------------------------------------------------------------------
 // FeNN::Backend::RNGInitProcess

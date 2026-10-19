@@ -486,8 +486,7 @@ void EventDrivenProcessImplementation::generateCode(const Frontend::MergedProces
                                                     const KernelImplementation &kernel, MergedFields &mergedFields, 
                                                     Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr weightBufferReg, 
                                                     Assembler::ScalarRegisterPtr strideReg, Assembler::ScalarRegisterPtr groupIndReg, 
-                                                    Assembler::ScalarRegisterPtr preIndReg, std::optional<uint32_t> numTimesteps, 
-                                                    uint32_t &fieldBase, Assembler::CodeGenerator &c, 
+                                                    std::optional<uint32_t> numTimesteps, uint32_t &fieldBase, Assembler::CodeGenerator &c, 
                                                     Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
                                                     Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
@@ -497,7 +496,7 @@ void EventDrivenProcessImplementation::generateCode(const Frontend::MergedProces
     // Generate archetype code and populate merged fields
     Assembler::CodeGenerator archetypeCodeGenerator;
     generateArchetypeCode(mergedProcess, runtime, kernel, mergedFields, 
-                          SFieldBase, timeReg,  weightBufferReg, strideReg, preIndReg, numTimesteps, 
+                          SFieldBase, timeReg,  weightBufferReg, strideReg, numTimesteps, 
                           archetypeCodeGenerator, scalarRegisterAllocator, vectorRegisterAllocator);
 
     // If there is only one merged group so fieldbase is used  
@@ -1104,8 +1103,7 @@ void DenseEventPropagationProcess::generateArchetypeCode(const Frontend::MergedP
                                                          const KernelImplementation &kernel, MergedFields &mergedFields,
                                                          Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg, 
                                                          Assembler::ScalarRegisterPtr weightBufferReg, Assembler::ScalarRegisterPtr strideReg, 
-                                                         Assembler::ScalarRegisterPtr, std::optional<uint32_t> numTimesteps, 
-                                                         Assembler::CodeGenerator &processCodeGenerator,
+                                                         std::optional<uint32_t> numTimesteps, Assembler::CodeGenerator &processCodeGenerator,
                                                          Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                                          Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
@@ -1306,8 +1304,7 @@ void SparseEventPropagationProcess::generateArchetypeCode(const Frontend::Merged
                                                           const KernelImplementation &kernel, MergedFields &mergedFields,
                                                           Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg, 
                                                           Assembler::ScalarRegisterPtr weightBufferReg, Assembler::ScalarRegisterPtr strideReg, 
-                                                          Assembler::ScalarRegisterPtr, std::optional<uint32_t> numTimesteps, 
-                                                          Assembler::CodeGenerator &processCodeGenerator,
+                                                          std::optional<uint32_t> numTimesteps, Assembler::CodeGenerator &processCodeGenerator,
                                                           Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                                           Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
@@ -1536,8 +1533,7 @@ void DelayEventPropagationProcess::generateArchetypeCode(const Frontend::MergedP
                                                          const KernelImplementation &kernel, MergedFields &mergedFields,
                                                          Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg, 
                                                          Assembler::ScalarRegisterPtr weightBufferReg, Assembler::ScalarRegisterPtr strideReg, 
-                                                         Assembler::ScalarRegisterPtr, std::optional<uint32_t> numTimesteps, 
-                                                         Assembler::CodeGenerator &processCodeGenerator,
+                                                         std::optional<uint32_t> numTimesteps, Assembler::CodeGenerator &processCodeGenerator,
                                                          Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                                          Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
@@ -1720,135 +1716,6 @@ void DelayEventPropagationProcess::updateCompatibleMemSpace(std::shared_ptr<cons
     }
     else {
         assert(state == getInputEventSource());
-    }
-}
-
-//----------------------------------------------------------------------------
-// FeNN::Backend::Downsample2DEventPropagationProcess
-//----------------------------------------------------------------------------
-Downsample2DEventPropagationProcess::Downsample2DEventPropagationProcess(Private, std::shared_ptr<const Frontend::EventSource> inputEventSource, 
-                                                                         double weight, Frontend::Sliced<Frontend::Variable> target, const std::string &name)
-    :   EventPropagationProcess(Private(), inputEventSource, target, name), m_Weight(weight)
-{
-    if (getInputEventSource()->getShape() != getTarget().getShape()) {
-        throw std::runtime_error("Downsample 2D event propagation process requires source events with a 2D shape");
-    }  
-
-    // **TODO** 
-    assert(!getTarget().hasTime());
-}
-//----------------------------------------------------------------------------
-std::vector<std::shared_ptr<const Frontend::State>> Downsample2DEventPropagationProcess::getAllState() const
-{
-    return {getInputEventSource(), getTarget().getUnderlying()};
-}
-//----------------------------------------------------------------------------
-void Downsample2DEventPropagationProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Frontend::Model &model) const
-{
-    using namespace ::Common::Utils;
-    UPDATE_HASH_CLASS_NAME(Downsample2DEventPropagationProcess);
-
-    // **NOTE** we do NOT call the superclass here because we want to set our 
-    // own name and do not want to include input event source in hash as 
-    // event sources are handled seperately in FeNN backend
-
-    // Targets
-    // **NOTE** generated code doesn't depend on underlying target type so do not include in hash
-    getTarget().updateMergeHash(hash, false);
-
-    // Include hash of target memory space
-    updateHash(static_cast<const Model&>(model).getStateMemSpace(getTarget().getUnderlying(), 
-                                                                 true/*getRuntime().shouldUseDRAMForWeights()*/), hash);
-}
-//----------------------------------------------------------------------------
-void Downsample2DEventPropagationProcess::updateCompatibleSplitDimensions(std::shared_ptr<const Frontend::State> state, 
-                                                                          uint32_t &compatibleSplitDimensions,
-                                                                          uint32_t &compatibleIndexDimensions) const 
-{
-    // If variable is target, should be splittable on 2nd (X) axis
-    // **NOTE** this is to match HW split of event-camera frame
-    if (state == getTarget().getUnderlying()) {
-        compatibleSplitDimensions &= (1 << 0);
-        compatibleIndexDimensions = 0;
-    }
-    // Otherwise, superclass
-    else {
-        Frontend::EventPropagationProcess::updateCompatibleSplitDimensions(state, compatibleSplitDimensions,
-                                                                           compatibleIndexDimensions);
-    }
-}
-//----------------------------------------------------------------------------
-void Downsample2DEventPropagationProcess::updateCompatibleMemSpace(std::shared_ptr<const Frontend::State> state, 
-                                                                   MemSpace &compatibleMemSpaces) const
-{
-    // If variable's target, it can only be in URAM 
-    if(state == getTarget().getUnderlying()) {
-        compatibleMemSpaces &= MemSpace::URAM;
-    }
-    else {
-        assert(state == getInputEventSource());
-    }
-}
-//------------------------------------------------------------------------
-void Downsample2DEventPropagationProcess::generateArchetypeCode(const Frontend::MergedProcess &mergedProcess, const Runtime &runtime, 
-                                                                const KernelImplementation &kernel, MergedFields &mergedFields,
-                                                                Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr, 
-                                                                Assembler::ScalarRegisterPtr, Assembler::ScalarRegisterPtr, 
-                                                                Assembler::ScalarRegisterPtr preIndReg, std::optional<uint32_t>, 
-                                                                Assembler::CodeGenerator &processCodeGenerator,
-                                                                Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
-                                                                Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
-{
-    // **TODO** handle splitting 
-    assert(runtime.getNumDevices() == 1);
-
-    // Make some friendlier-named references
-    auto &c = processCodeGenerator;
-
-    // Get offset of target
-    const uint32_t targetFieldOffset = mergedFields.addField<Downsample2DEventPropagationProcess>(
-        [](const Frontend::DeviceBase &d, auto p)
-        { 
-            return d.getArray(p->getTarget().getUnderlying()); 
-        });
-
-    // Load weight
-    const auto VWeight = addVectorConstant<Downsample2DEventPropagationProcess>(
-        mergedProcess, mergedFields, runtime.getNumDevices(), fieldBaseReg, c,
-        scalarRegisterAllocator, vectorRegisterAllocator,
-        [](size_t, auto p) -> int32_t
-        {
-            return getVectorLiteralValue(p->getTarget().getUnderlying()->getType(),
-                                         p->m_Weight);
-        });
-
-    {
-        ALLOCATE_SCALAR(STargetBuffer);
-        ALLOCATE_SCALAR(STargetVectorAddress);
-        ALLOCATE_SCALAR(SMask);
-        ALLOCATE_VECTOR(VTarget);
-        ALLOCATE_VECTOR(VTargetNew);
-
-        // Load target address
-        c.lw(*STargetBuffer, *fieldBaseReg, targetFieldOffset);
-
-        // Build vector address and load target
-        c.andi(*STargetVectorAddress, *preIndReg, -32);
-        c.sh1add(*STargetBuffer, *STargetVectorAddress, *STargetBuffer);
-        c.vloadv(*VTarget, *STargetBuffer);
-
-        // Build mask
-        c.li(*SMask, 1);
-        c.sll(*SMask, *SMask, *preIndReg);
-
-        // VTargetNew = VTarget + VWeight
-        c.vadd_s(*VTargetNew, *VTarget, *VWeight);
-
-        // VTarget = SMask ? VTargetNew : VTarget
-        c.vsel(*VTarget, *SMask, *VTargetNew);
-
-        // Store updated target current
-        c.vstore(*VTarget, *STargetBuffer);
     }
 }
 

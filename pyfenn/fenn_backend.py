@@ -1,12 +1,11 @@
 from ._fenn_backend import (BroadcastProcess, DelayEventPropagationProcess,
-                            DendriticDelayUpdateProcess, 
-                            DenseEventPropagationProcess, 
-                            Downsample2DEventPropagationProcess, EventChannel,
-                            EventSinkBuffer, EventSourceBuffer, GenX320, 
-                            MemsetProcess, NeuronUpdateProcess, 
+                            DendriticDelayUpdateProcess,
+                            DenseEventPropagationProcess, EventChannel,
+                            EventSinkBuffer, EventSourceBuffer, GenX320,
+                            MemsetProcess, NeuronUpdateProcess,
                             RNGInitProcess, RoundingMode, RuntimeHW,
-                            RuntimeSim, SimpleKernel, SimulationLoopKernel, 
-                            SparseEventPropagationProcess, Variable, 
+                            RuntimeSim, SimpleKernel, SimulationLoopKernel,
+                            SparseEventPropagationProcess, Variable,
                             disassemble, get_split_dimension)
                             
 from ._frontend import (ConsoleAppender, NumericValue, PlogSeverity, ProcessGroup,

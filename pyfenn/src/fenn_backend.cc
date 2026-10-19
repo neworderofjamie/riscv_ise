@@ -173,17 +173,6 @@ PYBIND11_MODULE(_fenn_backend, m)
              pybind11::arg("name") = "");
 
     //------------------------------------------------------------------------
-    // fenn_backend.Downsample2DEventPropagationProcess
-    //------------------------------------------------------------------------
-    pybind11::class_<Backend::Downsample2DEventPropagationProcess, Frontend::EventPropagationProcess, std::shared_ptr<Backend::Downsample2DEventPropagationProcess>>(m, "Downsample2DEventPropagationProcess", pybind11::multiple_inheritance())
-        .def(pybind11::init(&Backend::Downsample2DEventPropagationProcess::create),
-             pybind11::arg("input_event_source"), 
-             pybind11::arg("weight"), pybind11::arg("target"), 
-             pybind11::arg("name") = "")
-
-        WRAP_PROPERTY_RO("weight", Backend, Downsample2DEventPropagationProcess, Weight);
-
-    //------------------------------------------------------------------------
     // fenn_backend.RNGInitProcess
     //------------------------------------------------------------------------
     pybind11::class_<Backend::RNGInitProcess, Frontend::RNGInitProcess, std::shared_ptr<Backend::RNGInitProcess>>(m, "RNGInitProcess", pybind11::multiple_inheritance())
