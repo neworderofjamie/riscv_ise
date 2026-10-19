@@ -55,10 +55,12 @@ Model::Model(const KernelVector &kernels, bool useDRAMForWeights)
             pi->updateCompatibleMemSpace(s.first, compatibleMemSpaces);
         }
 
-        // Add compatible memory states to map
-        // **NOTE** cannot resolve best right now as e.g. whether
-        // we want to use DRAM for weights is not currently known
-        m_StateCompatibleMemSpaces.try_emplace(s.first, compatibleMemSpaces);
+        // Count number of trailing zeros in compatible memory spaces 
+        // i.e. how many are unsupported
+        const int numTZ = ::Common::Utils::ctz(static_cast<uint32_t>(compatibleMemSpaces));
+
+        // Add best memory states to map
+        m_StateCompatibleMemSpaces.try_emplace(s.first, static_cast<MemSpace>(1 << numTZ));
     }
 
     // Loop through groups with performance counters 
@@ -83,15 +85,7 @@ Model::Model(const KernelVector &kernels, bool useDRAMForWeights)
 //----------------------------------------------------------------------------
 MemSpace Model::getStateMemSpace(std::shared_ptr<const Frontend::State> state) const
 {
-    // Get compatible memory spaces
-    auto compatibleMemSpaces = static_cast<uint32_t>(m_StateCompatibleMemSpaces.at(state));
-
-    // Count number of trailing zeros in compatible memory spaces 
-    // i.e. how many are unsupported
-    const int numTZ = ::Common::Utils::ctz(compatibleMemSpaces);
-
-    // Obtain best memory space
-    return static_cast<MemSpace>(1 << numTZ);
+    return m_StateCompatibleMemSpaces.at(state);
 }
 //----------------------------------------------------------------------------
 size_t Model::getPerformanceCounterArrayOffset(std::shared_ptr<const Frontend::ProcessGroup> processGroup) const

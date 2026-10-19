@@ -60,9 +60,6 @@ inline MemSpace& operator |= (MemSpace& a, MemSpace b)
 class Model : public Frontend::Model
 {
 public:
-    using StateMemSpaceCompatibility = std::unordered_map<std::shared_ptr<const Frontend::State>, 
-                                                          MemSpace>;
-
     Model(const KernelVector &kernels, bool useDRAMForWeights);
 
     //------------------------------------------------------------------------
@@ -76,8 +73,10 @@ private:
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
-    StateMemSpaceCompatibility m_StateCompatibleMemSpaces;
-    std::unordered_map<std::shared_ptr<const Frontend::ProcessGroup>, size_t> m_PerformanceCounterArrayOffsets;
+    std::unordered_map<std::shared_ptr<const Frontend::State>, 
+                       MemSpace> m_StateCompatibleMemSpaces;
+    std::unordered_map<std::shared_ptr<const Frontend::ProcessGroup>, 
+                       size_t> m_PerformanceCounterArrayOffsets;
     size_t m_PerformanceCounterArraySize;
 };
 }
