@@ -587,14 +587,14 @@ void EventSourceBuffer::generateArchetypeDRAMEventLoop(const KernelImplementatio
         // Start DMA to fetch next row into buffer B while this one is being processed
         dmaRow(c, SNextEventSourceProcessOffset, SPreIndReg, rowBufferBReg);
 
-        // Go onto next process
-        c.addi(*SNextEventSourceProcessOffset, *SNextEventSourceProcessOffset, 16); 
-    
         // Process event
         processEvent(c, SPrevEventSourceProcessOffset /*rowBufferAReg*/);
         
         // Update previous event source process start offset
         c.mv(*SPrevEventSourceProcessOffset, *SNextEventSourceProcessOffset);
+
+        // Go onto next process
+        c.addi(*SNextEventSourceProcessOffset, *SNextEventSourceProcessOffset, 16);
 
         // Swap buffers
         {
@@ -999,14 +999,14 @@ uint32_t EventChannelSource::generateDRAMEventLoop(const Frontend::Merged<Fronte
             // Start DMA to fetch next row into buffer B while this one is being processed
             dmaRow(c, SNextEventSourceProcessOffset, SPreIndReg, rowBufferBReg);
 
-            // Go onto next process
-            c.addi(*SNextEventSourceProcessOffset, *SNextEventSourceProcessOffset, 16); 
-        
             // Process event
             processEvent(c, SPrevEventSourceProcessOffset /*rowBufferAReg*/);
             
             // Update previous event source process start offset
             c.mv(*SPrevEventSourceProcessOffset, *SNextEventSourceProcessOffset);
+
+            // Go onto next process
+            c.addi(*SNextEventSourceProcessOffset, *SNextEventSourceProcessOffset, 16);
 
             // Swap buffers
             {

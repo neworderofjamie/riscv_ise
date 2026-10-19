@@ -502,6 +502,7 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                          ALLOCATE_SCALAR(SMergedGroupReturn);
                                         
                                          // If we're using DRAM for weight
+                                         Assembler::CodeGenerator eventLoopCodeGenerator;
                                          Assembler::ScalarRegisterPtr SDMARowBufferA;
                                          Assembler::ScalarRegisterPtr SDMARowBufferB;
                                          Assembler::ScalarRegisterPtr SWeightBuffer;
@@ -517,15 +518,14 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
 
                                              // Load URAM addresses
                                              // **NOTE** it doesn't matter that these get swapped round
-                                             c.li(*SDMARowBufferA, 0);
-                                             c.li(*SDMARowBufferB, getDMARowBufferSize());
+                                             eventLoopCodeGenerator.li(*SDMARowBufferA, 0);
+                                             eventLoopCodeGenerator.li(*SDMARowBufferB, getDMARowBufferSize());
                                          }
                                          else {
                                             SWeightBuffer = scalarRegisterAllocator.getRegister("SWeightBuffer = X");
                                          }
 
                                          // Loop over merged event sources
-                                         Assembler::CodeGenerator eventLoopCodeGenerator;
                                          const auto &mergedEventSourcesGroup = ki->getMergedEventSources().at(processGroup);
                                          mergedEventSourceFields.first->second.reserve(mergedEventSourcesGroup.size());
                                          uint32_t eventLoopScalarRegisterMask = 0;
@@ -573,9 +573,9 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                                          ALLOCATE_SCALAR(SProcessAddress);
 
                                                          // Load stride, process address and group index
+                                                         c.lw(*SProcessAddress, *eventSourceProcessOffsetReg, std::get<1>(eventTableLocations));
+                                                         c.lw(*SGroupIndex, *eventSourceProcessOffsetReg, std::get<1>(eventTableLocations) + 4);
                                                          c.lw(*SStride, *eventSourceProcessOffsetReg, std::get<1>(eventTableLocations) + 8);
-                                                         c.lw(*SProcessAddress, *eventSourceProcessOffsetReg, std::get<1>(eventTableLocations) + 16);
-                                                         c.lw(*SGroupIndex, *eventSourceProcessOffsetReg, std::get<1>(eventTableLocations) + 20);
 
                                                          // **NOTE** SWeightBuffer is an alias for SDMABufferA
 
