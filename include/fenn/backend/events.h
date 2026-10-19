@@ -190,11 +190,11 @@ private:
     //------------------------------------------------------------------------
     // Private methods
     //------------------------------------------------------------------------
-    void generateArchetypeEventLoop(const KernelImplementation &kernel, MergedFields &mergedFields, 
-                                    Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg, 
-                                    uint32_t eventSinkSourceTableAddress, Assembler::CodeGenerator &c, 
-                                    Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
-                                    uint32_t &scalarRegisterMask, ProcessEventFn processEvent) const;
+    void generateArchetypeURAMEventLoop(const KernelImplementation &kernel, MergedFields &mergedFields, 
+                                        Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg, 
+                                        uint32_t eventSinkSourceTableAddress, Assembler::CodeGenerator &c, 
+                                        Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
+                                        uint32_t &scalarRegisterMask, ProcessEventFn processEvent) const;
 
     //------------------------------------------------------------------------
     // Members

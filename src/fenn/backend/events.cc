@@ -172,7 +172,7 @@ uint32_t EventSourceBuffer::generateURAMEventLoop(const Frontend::Merged<Fronten
 
     // Generate archetype code and populate merged fields
     Assembler::CodeGenerator archetypeCodeGenerator;
-    generateArchetypeEventLoop(kernel, mergedFields, SFieldBase, timeReg,
+    generateArchetypeURAMEventLoop(kernel, mergedFields, SFieldBase, timeReg,
                                eventSinkSourceTableAddress, archetypeCodeGenerator, 
                                scalarRegisterAllocator, scalarRegisterMask, processEvent);
 
@@ -218,11 +218,11 @@ uint32_t EventSourceBuffer::generateDRAMEventLoop(const Frontend::Merged<Fronten
     return 0;
 }
 //----------------------------------------------------------------------------
-void EventSourceBuffer::generateArchetypeEventLoop(const KernelImplementation &kernel, MergedFields &mergedFields, 
-                                                   Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg, 
-                                                   uint32_t eventSinkSourceTableAddress, Assembler::CodeGenerator &c,
-                                                   Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
-                                                   uint32_t &scalarRegisterMask, ProcessEventFn processEvent) const
+void EventSourceBuffer::generateArchetypeURAMEventLoop(const KernelImplementation &kernel, MergedFields &mergedFields, 
+                                                       Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg, 
+                                                       uint32_t eventSinkSourceTableAddress, Assembler::CodeGenerator &c,
+                                                       Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
+                                                       uint32_t &scalarRegisterMask, ProcessEventFn processEvent) const
 {
     // Add field to hold buffer
     const uint32_t bufferFieldOffset = mergedFields.addField<EventSourceBuffer>(
@@ -319,7 +319,7 @@ void EventSourceBuffer::generateArchetypeEventLoop(const KernelImplementation &k
                     // Advance pointer
                     c.addi(*SEventSourceProcessStartOffset, *SEventSourceProcessStartOffset, 16);
 
-                    // Loop if there are more events
+                    // Loop if there are more processes
                     c.bne(*SEventSourceProcessStartOffset, *SEventSourceProcessEndOffset, processLoop);
                 }
 
@@ -401,7 +401,7 @@ void EventSourceBuffer::generateArchetypeEventLoop(const KernelImplementation &k
                     // Advance pointer
                     c.addi(*SEventSourceProcessStartOffset, *SEventSourceProcessStartOffset, 16);
 
-                    // Loop if there are more events
+                    // Loop if there are more processes
                     c.bne(*SEventSourceProcessStartOffset, *SEventSourceProcessEndOffset, processLoop);
                 }
 
