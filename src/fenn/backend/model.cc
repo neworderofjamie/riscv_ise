@@ -31,14 +31,17 @@ const std::set<std::string> supportedPerformanceCounters{"num_instructions",
 //----------------------------------------------------------------------------
 namespace FeNN::Backend
 {
-Model::Model(const KernelVector &kernels)
+Model::Model(const KernelVector &kernels, bool useDRAMForWeights)
 :   Frontend::Model(kernels), m_PerformanceCounterArraySize(0)
 {
     // Loop through all model state
     // **YUCK** we really only want to do this for variables
     for (const auto &s : getStateData()) {
         // Start with all memory spaces being compatible
-        MemSpace compatibleMemSpaces = (MemSpace::LLM | MemSpace::URAM | MemSpace::BRAM | MemSpace::DRAM);
+        MemSpace compatibleMemSpaces = (MemSpace::LLM | MemSpace::URAM | MemSpace::BRAM);
+        if(useDRAMForWeights) {
+             compatibleMemSpaces |= MemSpace::DRAM;
+        }
 
         // Loop through all processes using this state
         for (const auto &p : s.second.processes) {
@@ -78,15 +81,10 @@ Model::Model(const KernelVector &kernels)
     }
 }
 //----------------------------------------------------------------------------
-MemSpace Model::getStateMemSpace(std::shared_ptr<const Frontend::State> state, bool useDRAMForWeights) const
+MemSpace Model::getStateMemSpace(std::shared_ptr<const Frontend::State> state) const
 {
     // Get compatible memory spaces
     auto compatibleMemSpaces = static_cast<uint32_t>(m_StateCompatibleMemSpaces.at(state));
-
-    // If we shouldn't use DRAM, clear that bit
-    if (!useDRAMForWeights) {
-        compatibleMemSpaces &= ~static_cast<uint32_t>(MemSpace::DRAM);
-    }
 
     // Count number of trailing zeros in compatible memory spaces 
     // i.e. how many are unsupported

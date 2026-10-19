@@ -89,6 +89,177 @@ Type::ResolvedType createFixedPointType(int numInt, bool saturating)
                                                                 numFrac, &ffi_type_sint16, "");
 }
 
+/*MemSpace getMemSpace(const Frontend::Model &model) const
+{
+    return static_cast<const Model&>(model).getStateMemSpace(std::static_pointer_cast<const Frontend::State>(shared_from_this()));
+}*/
+
+std::vector<Compiler::RegisterPtr> genVariablePreamble(std::shared_ptr<const Frontend::Variable> variable, Assembler::CodeGenerator &c,
+                                                       Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
+                                                       Assembler::VectorRegisterAllocator &vectorRegisterAllocator,
+                                                       uint32_t varFieldOffset, std::optional<uint32_t> numTimesteps,
+                                                       Assembler::ScalarRegisterPtr fieldBaseReg,
+                                                       Assembler::ScalarRegisterPtr timeReg,
+                                                       Assembler::ScalarRegisterPtr numVariableBytes,
+                                                       bool hasTime, const Model &model)
+{
+    // Create array in correct memory space depending on compatibility
+    switch(model.getStateMemSpace(variable))
+    {
+    case MemSpace::URAM:
+    {
+        // Allocate scalar register to hold address of variable
+        auto readBufferReg = scalarRegisterAllocator.getRegister((variable->getName() + "Buffer X").c_str());
+
+        // Generate code to load address
+        c.lw(*readBufferReg, *fieldBaseReg, varFieldOffset);
+
+        // **TODO** currently this just handles providing entire simulation kernel worth of variable data or
+        // recording variables for entire simulation - extend to support axonal delays and ring-buffer recording
+        if (hasTime) {
+            // Check there is a buffer entry for each timestep with one extra
+            // **NOTE** variables get read from timestep and written to timestep + 1 hence extra buf
+            if(variable->getShape().front() < (numTimesteps.value() + 1)) {
+                throw std::runtime_error("Variables need to be buffered for " + std::to_string(numTimesteps.value() + 1u) + " timesteps");
+            }
+
+            ALLOCATE_SCALAR(STmp);
+            c.mul(*STmp, *timeReg, *numVariableBytes);
+            c.add(*readBufferReg, *readBufferReg, *STmp);
+
+            // If variable is const, return read register
+            if (variable->getType().isConst) {
+                return {readBufferReg};
+            }
+            // Otherwise, allocate second write register
+            else {
+                auto writeBufferReg = scalarRegisterAllocator.getRegister((variable->getName() + "BufferWrite X").c_str());
+                c.add(*writeBufferReg, *readBufferReg, *numVariableBytes);
+                return {readBufferReg, writeBufferReg};
+            }
+        }
+        else {
+            return {readBufferReg};
+        }
+    }
+    case MemSpace::LLM:
+    {
+        assert(!hasTime);
+
+        // Allocate vector register to hold address of variable
+        auto bufferReg = vectorRegisterAllocator.getRegister((variable->getName() + "Buffer V").c_str());
+
+        // Generate code to load address
+        ALLOCATE_SCALAR(STmp);
+        c.lw(*STmp, *fieldBaseReg, varFieldOffset);
+        c.vfill(*bufferReg, *STmp);
+
+        return {bufferReg};
+    }
+    default:
+        assert(false);
+    }
+}
+
+void genVariableLoad(std::shared_ptr<const Frontend::Variable> variable, Compiler::EnvironmentBase &env, Assembler::VectorRegisterPtr reg, uint32_t r,
+                     const std::vector<Compiler::RegisterPtr> &state, const Model &model)
+{
+    // Create array in correct memory space depending on compatibility
+    switch(model.getStateMemSpace(variable))
+    {
+    case MemSpace::URAM:
+    {
+        assert(state.size() >= 1);
+        env.getCodeGenerator().vloadv(*reg, *std::get<Assembler::ScalarRegisterPtr>(state[0]), 64 * r);
+        break;
+    }
+    case MemSpace::LLM:
+    {
+        assert(state.size() == 1);
+        env.getCodeGenerator().vloadl(*reg, *std::get<Assembler::VectorRegisterPtr>(state[0]), 2 * r);
+        break;
+    }
+    default:
+        assert(false);
+    }
+}
+
+void genVariableStore(std::shared_ptr<const Frontend::Variable> variable, Compiler::EnvironmentBase &env, Assembler::VectorRegisterPtr reg, uint32_t r,
+                      const std::vector<Compiler::RegisterPtr> &state, const Model &model)
+{
+    if (!variable->getType().isConst) {
+        // Create array in correct memory space depending on compatibility
+        switch(model.getStateMemSpace(variable))
+        {
+        case MemSpace::URAM:
+        {
+            if (state.size() == 1) {
+                env.getCodeGenerator().vstore(*reg, *std::get<Assembler::ScalarRegisterPtr>(state[0]), 64 * r);
+            }
+            else  if (state.size() == 2) {
+                env.getCodeGenerator().vstore(*reg, *std::get<Assembler::ScalarRegisterPtr>(state[1]), 64 * r);
+            }
+            else {
+                assert(false);
+            }
+            break;
+        }
+        case MemSpace::LLM:
+        {
+            assert(state.size() == 1);
+            env.getCodeGenerator().vstorel(*reg, *std::get<Assembler::VectorRegisterPtr>(state[0]), 2 * r);  
+            break;
+        }
+        default:
+            assert(false);
+        }
+    }
+}
+
+void genVariableIncrement(std::shared_ptr<const Frontend::Variable> variable, Assembler::CodeGenerator &c, 
+                          uint32_t numUnrolls, Assembler::VectorRegisterPtr numUnrollBytesReg,
+                          const std::vector<Compiler::RegisterPtr> &state, const Model &model)
+{
+    // Create array in correct memory space depending on compatibility
+    switch(model.getStateMemSpace(variable))
+    {
+    case MemSpace::URAM:
+    {
+        c.addi(*std::get<Assembler::ScalarRegisterPtr>(state[0]),
+               *std::get<Assembler::ScalarRegisterPtr>(state[0]),
+               64 * numUnrolls);
+
+        if (state.size() == 2) {
+            c.addi(*std::get<Assembler::ScalarRegisterPtr>(state[1]),
+                   *std::get<Assembler::ScalarRegisterPtr>(state[1]),
+                   64 * numUnrolls);
+        }
+        else if(state.size() != 1) {
+            assert(false);
+        }
+        break;
+    }
+    case MemSpace::LLM:
+    {
+        assert(state.size() == 1);
+        c.vadd(*std::get<Assembler::VectorRegisterPtr>(state[0]), 
+               *std::get<Assembler::VectorRegisterPtr>(state[0]), 
+               *numUnrollBytesReg);
+        break;
+    }
+    default:
+        assert(false);
+    }
+}
+
+bool doesVariableNeedsNumUnrollBytesReg(std::shared_ptr<const Frontend::Variable> variable, 
+                                        const Model &model)
+{
+    return (model.getStateMemSpace(variable) == MemSpace::LLM);
+}
+
+
+
 void addStochMulFunctions(EnvironmentLibrary::Library &library) 
 {
     // Loop through possible number of integer bits for operand a
@@ -483,10 +654,9 @@ void TimeDrivenProcessImplementation::generateCode(const Frontend::MergedProcess
 // FeNN::Backend::EventDrivenProcessImplementation
 //----------------------------------------------------------------------------
 void EventDrivenProcessImplementation::generateCode(const Frontend::MergedProcess &mergedProcess, const Runtime &runtime, 
-                                                    const KernelImplementation &kernel, MergedFields &mergedFields, 
-                                                    Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr weightBufferReg, 
-                                                    Assembler::ScalarRegisterPtr strideReg, Assembler::ScalarRegisterPtr groupIndReg, 
-                                                    std::optional<uint32_t> numTimesteps, uint32_t &fieldBase, Assembler::CodeGenerator &c, 
+                                                    MergedFields &mergedFields, Assembler::ScalarRegisterPtr timeReg, 
+                                                    Assembler::ScalarRegisterPtr weightBufferReg, Assembler::ScalarRegisterPtr strideReg, 
+                                                    Assembler::ScalarRegisterPtr groupIndReg, uint32_t &fieldBase, Assembler::CodeGenerator &c, 
                                                     Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
                                                     Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
@@ -495,9 +665,9 @@ void EventDrivenProcessImplementation::generateCode(const Frontend::MergedProces
 
     // Generate archetype code and populate merged fields
     Assembler::CodeGenerator archetypeCodeGenerator;
-    generateArchetypeCode(mergedProcess, runtime, kernel, mergedFields, 
-                          SFieldBase, timeReg,  weightBufferReg, strideReg, numTimesteps, 
-                          archetypeCodeGenerator, scalarRegisterAllocator, vectorRegisterAllocator);
+    generateArchetypeCode(mergedProcess, runtime, mergedFields, SFieldBase, timeReg,  
+                          weightBufferReg, strideReg, archetypeCodeGenerator, 
+                          scalarRegisterAllocator, vectorRegisterAllocator);
 
     // If there is only one merged group so fieldbase is used  
     // directly or fieldBase can't fit in an immediate, load it
@@ -553,8 +723,7 @@ void NeuronUpdateProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, cons
     // Loop through neuron variables and include hash of their memory spaces
     for(const auto &v : getVariables()) {
         ::Common::Utils::updateHash(
-            static_cast<const Model&>(model).getStateMemSpace(v.second.getUnderlying(), 
-                                                              true/*getRuntime().shouldUseDRAMForWeights()*/), hash);
+            static_cast<const Model&>(model).getStateMemSpace(v.second.getUnderlying()), hash);
     }
 }
 //----------------------------------------------------------------------------
@@ -763,7 +932,7 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
 
             // Generate preamble and add state to map
             varState.try_emplace(v.second.getUnderlying(), 
-                                 fennVar->genPreamble(processCodeGenerator, scalarRegisterAllocator,
+                                 genVariablePreamble(fennVar, processCodeGenerator, scalarRegisterAllocator,
                                                       vectorRegisterAllocator, varFieldOffset, 
                                                       numTimesteps, fieldBaseReg, timeReg, numVariableBytes, 
                                                       v.second.hasTime(), *model));
@@ -969,8 +1138,8 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
                 unrollEnv.add(v.second.getUnderlying()->getType(), v.first, reg);
 
                 // Generate load
-                std::dynamic_pointer_cast<const Variable>(v.second.getUnderlying())->genLoad(
-                    unrollEnv, reg, r, varState.at(v.second.getUnderlying()), *model);
+                genVariableLoad(v.second.getUnderlying(), unrollEnv, reg, r, 
+                                varState.at(v.second.getUnderlying()), *model);
             }
 
             // Loop through neuron event outputsC
@@ -1018,8 +1187,8 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
                 const auto reg = unrollEnv.getVectorRegister(v.first);
                     
                 // Generate store
-                std::dynamic_pointer_cast<const Variable>(v.second.getUnderlying())->genStore(
-                    unrollEnv, reg, r, varState.at(v.second.getUnderlying()), *model);
+                genVariableStore(v.second.getUnderlying(), unrollEnv, reg, r, 
+                                 varState.at(v.second.getUnderlying()), *model);
             }
         },
         [this, &eventSinkState, &model, &varState, &vectorRegisterAllocator]
@@ -1030,7 +1199,7 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
             if(std::any_of(getVariables().cbegin(), getVariables().cend(),
                             [&model](const auto &v)
                             { 
-                                return std::dynamic_pointer_cast<const Variable>(v.second.getUnderlying())->needsNumUnrollBytesReg(*model); 
+                                return doesVariableNeedsNumUnrollBytesReg(v.second.getUnderlying(), *model);
                             }))
             {
                 numUnrollBytesReg = vectorRegisterAllocator.getRegister("NumUnrollBytes V");
@@ -1039,8 +1208,8 @@ std::vector<Compiler::RegisterPtr> NeuronUpdateProcess::generateArchetypeCode(
             
             // Loop through variables and increment buffers
             for(const auto &v : getVariables()) {
-                std::dynamic_pointer_cast<const Variable>(v.second.getUnderlying())->genIncrement(
-                    c, numUnrolls, numUnrollBytesReg, varState.at(v.second.getUnderlying()), *model);
+                genVariableIncrement(v.second.getUnderlying(), c, numUnrolls, numUnrollBytesReg,
+                                     varState.at(v.second.getUnderlying()), *model);
             }
 
             // Loop through output events and increment buffers
@@ -1100,10 +1269,9 @@ DenseEventPropagationProcess::DenseEventPropagationProcess(Private, std::shared_
 }
 //------------------------------------------------------------------------
 void DenseEventPropagationProcess::generateArchetypeCode(const Frontend::MergedProcess &mergedProcess, const Runtime &runtime, 
-                                                         const KernelImplementation &kernel, MergedFields &mergedFields,
-                                                         Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg, 
-                                                         Assembler::ScalarRegisterPtr weightBufferReg, Assembler::ScalarRegisterPtr strideReg, 
-                                                         std::optional<uint32_t> numTimesteps, Assembler::CodeGenerator &processCodeGenerator,
+                                                         MergedFields &mergedFields, Assembler::ScalarRegisterPtr fieldBaseReg, 
+                                                         Assembler::ScalarRegisterPtr, Assembler::ScalarRegisterPtr weightBufferReg, 
+                                                         Assembler::ScalarRegisterPtr strideReg, Assembler::CodeGenerator &processCodeGenerator,
                                                          Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                                          Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
@@ -1218,14 +1386,12 @@ void DenseEventPropagationProcess::updateMergeHash(boost::uuids::detail::sha1 &h
     getTarget().updateMergeHash(hash, false);
 
     // Include hash of target memory space
-    updateHash(static_cast<const Model&>(model).getStateMemSpace(getTarget().getUnderlying(), 
-                                                                 true/*getRuntime().shouldUseDRAMForWeights()*/), hash);
+    updateHash(static_cast<const Model&>(model).getStateMemSpace(getTarget().getUnderlying()), hash);
     
     // **NOTE** we don't need to hash the weights as the generated code doesn't depend on their type
 
     // Include hash of weight memory space
-    updateHash(static_cast<const Model&>(model).getStateMemSpace(getWeight(), 
-                                                                 true/*getRuntime().shouldUseDRAMForWeights()*/), hash);
+    updateHash(static_cast<const Model&>(model).getStateMemSpace(getWeight()), hash);
 }
 //----------------------------------------------------------------------------
 void DenseEventPropagationProcess::updateCompatibleSplitDimensions(std::shared_ptr<const Frontend::State> state, 
@@ -1301,10 +1467,9 @@ SparseEventPropagationProcess::SparseEventPropagationProcess(Private, std::share
 }
 //------------------------------------------------------------------------
 void SparseEventPropagationProcess::generateArchetypeCode(const Frontend::MergedProcess &mergedProcess, const Runtime &runtime, 
-                                                          const KernelImplementation &kernel, MergedFields &mergedFields,
-                                                          Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg, 
-                                                          Assembler::ScalarRegisterPtr weightBufferReg, Assembler::ScalarRegisterPtr strideReg, 
-                                                          std::optional<uint32_t> numTimesteps, Assembler::CodeGenerator &processCodeGenerator,
+                                                          MergedFields &mergedFields, Assembler::ScalarRegisterPtr fieldBaseReg, 
+                                                          Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr weightBufferReg, 
+                                                          Assembler::ScalarRegisterPtr strideReg, Assembler::CodeGenerator &processCodeGenerator,
                                                           Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                                           Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
@@ -1430,14 +1595,12 @@ void SparseEventPropagationProcess::updateMergeHash(boost::uuids::detail::sha1 &
     getTarget().updateMergeHash(hash, false);
 
     // Include hash of target memory space
-    updateHash(static_cast<const Model&>(model).getStateMemSpace(getTarget().getUnderlying(), 
-                                                                 true/*getRuntime().shouldUseDRAMForWeights()*/), hash);
+    updateHash(static_cast<const Model&>(model).getStateMemSpace(getTarget().getUnderlying()), hash);
 
     // **NOTE** we don't need to hash the weights as the generated code doesn't depend on their type
 
     // Include hash of weight memory space
-    updateHash(static_cast<const Model&>(model).getStateMemSpace(getWeight(), 
-                                                                 true/*getRuntime().shouldUseDRAMForWeights()*/), hash);
+    updateHash(static_cast<const Model&>(model).getStateMemSpace(getWeight()), hash);
 }
 //----------------------------------------------------------------------------
 void SparseEventPropagationProcess::updateCompatibleSplitDimensions(std::shared_ptr<const Frontend::State> state, 
@@ -1530,10 +1693,9 @@ DelayEventPropagationProcess::DelayEventPropagationProcess(Private, std::shared_
 }
 //------------------------------------------------------------------------
 void DelayEventPropagationProcess::generateArchetypeCode(const Frontend::MergedProcess &mergedProcess, const Runtime &runtime, 
-                                                         const KernelImplementation &kernel, MergedFields &mergedFields,
-                                                         Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg, 
-                                                         Assembler::ScalarRegisterPtr weightBufferReg, Assembler::ScalarRegisterPtr strideReg, 
-                                                         std::optional<uint32_t> numTimesteps, Assembler::CodeGenerator &processCodeGenerator,
+                                                         MergedFields &mergedFields, Assembler::ScalarRegisterPtr fieldBaseReg, 
+                                                         Assembler::ScalarRegisterPtr timeReg, Assembler::ScalarRegisterPtr weightBufferReg, 
+                                                         Assembler::ScalarRegisterPtr strideReg, Assembler::CodeGenerator &processCodeGenerator,
                                                          Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                                          Assembler::VectorRegisterAllocator &vectorRegisterAllocator) const
 {
@@ -1670,14 +1832,12 @@ void DelayEventPropagationProcess::updateMergeHash(boost::uuids::detail::sha1 &h
     updateHash(getTarget().getNumTimesteps(), hash);
 
     // Include hash of target memory space
-    updateHash(static_cast<const Model&>(model).getStateMemSpace(getTarget().getUnderlying(), 
-                                                                 true/*getRuntime().shouldUseDRAMForWeights()*/), hash);
+    updateHash(static_cast<const Model&>(model).getStateMemSpace(getTarget().getUnderlying()), hash);
 
     // **NOTE** we don't need to hash the weights as the generated code doesn't depend on their type
 
     // Include hash of weight memory space
-    updateHash(static_cast<const Model&>(model).getStateMemSpace(getWeight(), 
-                                                                 true/*getRuntime().shouldUseDRAMForWeights()*/), hash);
+    updateHash(static_cast<const Model&>(model).getStateMemSpace(getWeight()), hash);
 }
 //----------------------------------------------------------------------------
 void DelayEventPropagationProcess::updateCompatibleSplitDimensions(std::shared_ptr<const Frontend::State> state, 
@@ -1745,8 +1905,7 @@ void RNGInitProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Fro
 
     // Include hash of seed memory space
     ::Common::Utils::updateHash(
-        static_cast<const Model&>(model).getStateMemSpace(getSeed(), 
-                                                          true/*getRuntime().shouldUseDRAMForWeights()*/), hash);
+        static_cast<const Model&>(model).getStateMemSpace(getSeed()), hash);
 }
 //----------------------------------------------------------------------------
 void RNGInitProcess::updateCompatibleMemSpace(std::shared_ptr<const Frontend::State> state, 
@@ -1796,8 +1955,7 @@ void MemsetProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const Fron
 
     // Include hash of target memory space
     ::Common::Utils::updateHash(
-        static_cast<const Model&>(model).getStateMemSpace(getTarget().getUnderlying(), 
-                                                          true/*getRuntime().shouldUseDRAMForWeights()*/), hash);
+        static_cast<const Model&>(model).getStateMemSpace(getTarget().getUnderlying()), hash);
 }
 //----------------------------------------------------------------------------
 void MemsetProcess::updateCompatibleMemSpace(std::shared_ptr<const Frontend::State> state, 
@@ -1853,8 +2011,7 @@ std::vector<Compiler::RegisterPtr> MemsetProcess::generateArchetypeCode(
     // **TODO** add stride * current time
     assert(!getTarget().hasTime());
 
-    switch(runtime.getModel<Model>()->getStateMemSpace(getTarget().getUnderlying(), 
-                                                       runtime.shouldUseDRAMForWeights()))
+    switch(runtime.getModel<Model>()->getStateMemSpace(getTarget().getUnderlying()))
     {
     case MemSpace::URAM:
     {
@@ -1970,11 +2127,9 @@ void DendriticDelayUpdateProcess::updateMergeHash(boost::uuids::detail::sha1 &ha
 
     // Include hash of delay buffer and target memory space
     ::Common::Utils::updateHash(
-        static_cast<const Model&>(model).getStateMemSpace(getDelayBuffer(), 
-                                                          true/*getRuntime().shouldUseDRAMForWeights()*/), hash);
+        static_cast<const Model&>(model).getStateMemSpace(getDelayBuffer()), hash);
     ::Common::Utils::updateHash(
-        static_cast<const Model&>(model).getStateMemSpace(getTarget().getUnderlying(), 
-                                                          true/*getRuntime().shouldUseDRAMForWeights()*/), hash);
+        static_cast<const Model&>(model).getStateMemSpace(getTarget().getUnderlying()), hash);
 }
 //------------------------------------------------------------------------
 void DendriticDelayUpdateProcess::updateCompatibleMemSpace(std::shared_ptr<const Frontend::State> state,
@@ -2155,11 +2310,9 @@ void BroadcastProcess::updateMergeHash(boost::uuids::detail::sha1 &hash, const F
 
     // Include hash of source and target memory spaces
     ::Common::Utils::updateHash(
-        static_cast<const Model&>(model).getStateMemSpace(getSource(), 
-                                                          true/*getRuntime().shouldUseDRAMForWeights()*/), hash);
+        static_cast<const Model&>(model).getStateMemSpace(getSource()), hash);
     ::Common::Utils::updateHash(
-        static_cast<const Model&>(model).getStateMemSpace(getTarget(), 
-                                                          true/*getRuntime().shouldUseDRAMForWeights()*/), hash);
+        static_cast<const Model&>(model).getStateMemSpace(getTarget()), hash);
 }
 //----------------------------------------------------------------------------
 void BroadcastProcess::updateCompatibleSplitDimensions(std::shared_ptr<const Frontend::State> state, 

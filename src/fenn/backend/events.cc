@@ -894,7 +894,7 @@ uint32_t EventChannelSource::generateURAMEventLoop(const Frontend::Merged<Fronte
 uint32_t EventChannelSource::generateDRAMEventLoop(const Frontend::Merged<Frontend::EventSource>&, const Runtime &runtime, 
                                                    const KernelImplementation &kernel, MergedFields&, Assembler::ScalarRegisterPtr, 
                                                    Assembler::ScalarRegisterPtr rowBufferAReg, Assembler::ScalarRegisterPtr rowBufferBReg, 
-                                                   uint32_t eventSinkSourceTableAddress, uint32_t &fieldBase, Assembler::CodeGenerator &c, 
+                                                   uint32_t eventSinkSourceTableAddress, uint32_t&, Assembler::CodeGenerator &c, 
                                                    Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                                    DMARowFn dmaRow, DMAWaitFn dmaWait, ProcessDMAEventFn processEvent) const
 {

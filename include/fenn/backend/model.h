@@ -48,6 +48,12 @@ inline MemSpace operator | (MemSpace a, MemSpace b)
     return static_cast<MemSpace>(static_cast<uint32_t>(a) | static_cast<uint32_t>(b));
 }
 
+inline MemSpace& operator |= (MemSpace& a, MemSpace b)
+{
+    a = (a | b);
+    return a;
+}
+
 //----------------------------------------------------------------------------
 // FeNN::Backend::Model
 //----------------------------------------------------------------------------
@@ -57,12 +63,12 @@ public:
     using StateMemSpaceCompatibility = std::unordered_map<std::shared_ptr<const Frontend::State>, 
                                                           MemSpace>;
 
-    Model(const KernelVector &kernels);
+    Model(const KernelVector &kernels, bool useDRAMForWeights);
 
     //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
-    MemSpace getStateMemSpace(std::shared_ptr<const Frontend::State> state, bool useDRAMForWeights) const;
+    MemSpace getStateMemSpace(std::shared_ptr<const Frontend::State> state) const;
     size_t getPerformanceCounterArrayOffset(std::shared_ptr<const Frontend::ProcessGroup> processGroup) const;
     size_t getPerformanceCounterArraySize() const{ return m_PerformanceCounterArraySize; }
 

@@ -357,7 +357,7 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                  size_t numDevices, bool generateSimulationKernels, bool useDRAMForWeights, 
                  bool keepParamsInRegisters, Compiler::RoundingMode neuronUpdateRoundingMode, 
                  size_t dmaBufferSize)
-:   Frontend::Runtime(std::make_unique<Model>(kernels), numDevices), m_UseDRAMForWeights(useDRAMForWeights), 
+:   Frontend::Runtime(std::make_unique<Model>(kernels, useDRAMForWeights), numDevices), m_UseDRAMForWeights(useDRAMForWeights), 
     m_KeepParamsInRegisters(keepParamsInRegisters), m_NeuronUpdateRoundingMode(neuronUpdateRoundingMode), 
     m_DMABufferSize(dmaBufferSize), m_DMARowBufferSize(0)
 {
@@ -635,9 +635,9 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                                                                                  std::make_tuple());
 
                                              // Generate code
-                                             pi->generateCode(m, *this, *ki, mergedProcessGroupFields.first->second.back().second, 
-                                                              timeRegister, SWeightBuffer, SStride, SGroupIndex, numTimesteps, 
-                                                              fieldBase, c, scalarRegisterAllocator, vectorRegisterAllocator);
+                                             pi->generateCode(m, *this, mergedProcessGroupFields.first->second.back().second, 
+                                                              timeRegister, SWeightBuffer, SStride, SGroupIndex, fieldBase, 
+                                                              c, scalarRegisterAllocator, vectorRegisterAllocator);
                                              
                                              // **HACK** add NOP to workaround issue with jumping to jump instructions
                                              // **NOTE** this is not ALWAYS required but it's safer to do it here 
