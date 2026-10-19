@@ -160,7 +160,7 @@ Frontend::State::ShapeStride EventSourceBuffer::getArrayShapeStride(std::optiona
                            std::vector<size_t>{(m_LongEvents ? Uint32.getSize() : Uint16.getSize())});
 }
 //----------------------------------------------------------------------------
-uint32_t EventSourceBuffer::generateURAMEventLoop(const Frontend::Merged<Frontend::EventSource> &mergedEventSource, const Runtime &runtime, 
+uint32_t EventSourceBuffer::generateURAMEventLoop(const Frontend::Merged<Frontend::EventSource> &mergedEventSource, const Runtime&, 
                                                   const KernelImplementation &kernel, MergedFields &mergedFields, Assembler::ScalarRegisterPtr timeReg, 
                                                   uint32_t eventSinkSourceTableAddress, uint32_t &fieldBase, 
                                                   Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
@@ -181,7 +181,7 @@ uint32_t EventSourceBuffer::generateURAMEventLoop(const Frontend::Merged<Fronten
                              });
 }
 //----------------------------------------------------------------------------
-uint32_t EventSourceBuffer::generateDRAMEventLoop(const Frontend::Merged<Frontend::EventSource> &mergedEventSource, const Runtime &runtime, 
+uint32_t EventSourceBuffer::generateDRAMEventLoop(const Frontend::Merged<Frontend::EventSource> &mergedEventSource, const Runtime&, 
                                                   const KernelImplementation &kernel, MergedFields &mergedFields, Assembler::ScalarRegisterPtr timeReg, 
                                                   Assembler::ScalarRegisterPtr rowBufferAReg, Assembler::ScalarRegisterPtr rowBufferBReg, 
                                                   uint32_t eventSinkSourceTableAddress, uint32_t &fieldBase, Assembler::CodeGenerator &c, 
@@ -250,7 +250,7 @@ uint32_t EventSourceBuffer::generateEventLoop(const Frontend::Merged<Frontend::E
 //----------------------------------------------------------------------------
 void EventSourceBuffer::generateArchetypeURAMEventLoop(const KernelImplementation &kernel, MergedFields &mergedFields, 
                                                        Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg, 
-                                                       uint32_t eventSinkSourceTableAddress, Assembler::CodeGenerator &c,
+                                                       uint32_t, Assembler::CodeGenerator &c,
                                                        Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                                        uint32_t &scalarRegisterMask, ProcessEventFn processEvent) const
 {
@@ -466,7 +466,7 @@ void EventSourceBuffer::generateArchetypeURAMEventLoop(const KernelImplementatio
 void EventSourceBuffer::generateArchetypeDRAMEventLoop(const KernelImplementation &kernel, MergedFields &mergedFields, 
                                                        Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg,
                                                        Assembler::ScalarRegisterPtr rowBufferAReg, Assembler::ScalarRegisterPtr rowBufferBReg,  
-                                                       uint32_t eventSinkSourceTableAddress, Assembler::CodeGenerator &c, 
+                                                       uint32_t, Assembler::CodeGenerator &c, 
                                                        Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                                        uint32_t &scalarRegisterMask, DMARowFn dmaRow, 
                                                        DMAWaitFn dmaWait, ProcessDMAEventFn processEvent) const
@@ -653,9 +653,9 @@ Frontend::State::ShapeStride EventChannelSource::getArrayShapeStride(std::option
     return std::make_tuple(std::vector<size_t>{}, std::vector<size_t>{});
 }
 //----------------------------------------------------------------------------
-uint32_t EventChannelSource::generateURAMEventLoop(const Frontend::Merged<Frontend::EventSource> &mergedEventSource, const Runtime &runtime, 
-                                                   const KernelImplementation &kernel, MergedFields &mergedFields, Assembler::ScalarRegisterPtr timeReg, 
-                                                   uint32_t eventSinkSourceTableAddress, uint32_t &fieldBase, Assembler::CodeGenerator &c, 
+uint32_t EventChannelSource::generateURAMEventLoop(const Frontend::Merged<Frontend::EventSource>&, const Runtime &runtime, 
+                                                   const KernelImplementation &kernel, MergedFields&, Assembler::ScalarRegisterPtr, 
+                                                   uint32_t eventSinkSourceTableAddress, uint32_t&, Assembler::CodeGenerator &c, 
                                                    Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                                    ProcessEventFn processEvent) const
 {
@@ -734,8 +734,8 @@ uint32_t EventChannelSource::generateURAMEventLoop(const Frontend::Merged<Fronte
     return scalarRegisterMask;
 }
 //----------------------------------------------------------------------------
-uint32_t EventChannelSource::generateDRAMEventLoop(const Frontend::Merged<Frontend::EventSource> &mergedEventSource, const Runtime &runtime, 
-                                                   const KernelImplementation &kernel, MergedFields &mergedFields, Assembler::ScalarRegisterPtr timeReg, 
+uint32_t EventChannelSource::generateDRAMEventLoop(const Frontend::Merged<Frontend::EventSource>&, const Runtime &runtime, 
+                                                   const KernelImplementation &kernel, MergedFields&, Assembler::ScalarRegisterPtr, 
                                                    Assembler::ScalarRegisterPtr rowBufferAReg, Assembler::ScalarRegisterPtr rowBufferBReg, 
                                                    uint32_t eventSinkSourceTableAddress, uint32_t &fieldBase, Assembler::CodeGenerator &c, 
                                                    Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
@@ -973,14 +973,14 @@ uint32_t EventChannelSource::generateDRAMEventLoop(const Frontend::Merged<Fronte
 //----------------------------------------------------------------------------
 // FeNN::Backend::GenX320EventChannelSink
 //----------------------------------------------------------------------------
-std::unique_ptr<Frontend::ArrayBase> GenX320EventChannelSink::createArray(std::optional<size_t> splitDimension, uint32_t indexDimensions,
-                                                                          size_t numDevices, const Frontend::Model &model, Frontend::DeviceBase &device) const
+std::unique_ptr<Frontend::ArrayBase> GenX320EventChannelSink::createArray(std::optional<size_t>, uint32_t, size_t, 
+                                                                          const Frontend::Model&, Frontend::DeviceBase&) const
 {
     return nullptr;
 }
 //----------------------------------------------------------------------------
-Frontend::State::ShapeStride GenX320EventChannelSink::getArrayShapeStride(std::optional<size_t> splitDimension, uint32_t indexDimensions,
-                                                                          size_t deviceIndex, size_t numDevices, const Frontend::Model&) const
+Frontend::State::ShapeStride GenX320EventChannelSink::getArrayShapeStride(std::optional<size_t>, uint32_t, size_t,
+                                                                          size_t, const Frontend::Model&) const
 {
     return std::make_tuple(std::vector<size_t>{}, std::vector<size_t>{});
 }
