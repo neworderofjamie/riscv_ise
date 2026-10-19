@@ -471,6 +471,163 @@ void EventSourceBuffer::generateArchetypeDRAMEventLoop(const KernelImplementatio
                                                        uint32_t &scalarRegisterMask, DMARowFn dmaRow, 
                                                        DMAWaitFn dmaWait, ProcessDMAEventFn processEvent) const
 {
+    assert(!m_LongEvents);
+
+    // Add field to hold buffer
+    const uint32_t bufferFieldOffset = mergedFields.addField<EventSourceBuffer>(
+        [](const Frontend::DeviceBase &d, auto e)
+        { 
+            return d.getArray(e); 
+        });
+
+    // Add field containing start offsets (in bytes) into event source process table
+    const uint32_t eventSourceProcessStartOffset = mergedFields.addField<EventSourceBuffer>(
+        [&kernel](size_t, auto e) -> uint32_t
+        {
+            return (16 * std::get<0>(kernel.getEventSourceProcessTableOffsets().at(e)));
+        });
+
+    // Add field containing end offsets (in bytes) into event source process table
+    const uint32_t eventSourceProcessEndOffset = mergedFields.addField<EventSourceBuffer>(
+        [&kernel](size_t, auto e) -> uint32_t
+        {
+            return (16 * std::get<1>(kernel.getEventSourceProcessTableOffsets().at(e)));
+        });
+
+    // **NOTE** we don't REALLY need SBufferStart all the time, could reload at end
+    ALLOCATE_SCALAR_AND_MASK(SBufferStart);
+    ALLOCATE_SCALAR_AND_MASK(SBuffer);
+    ALLOCATE_SCALAR_AND_MASK(SPrevEventSourceProcessOffset);
+    ALLOCATE_SCALAR_AND_MASK(SNextEventSourceProcessOffset);
+    ALLOCATE_SCALAR_AND_MASK(SEventSourceProcessEndOffset);
+    ALLOCATE_SCALAR_AND_MASK(SPreIndReg);
+
+    // Load buffer start address and handler address
+    c.lw(*SBufferStart, *fieldBaseReg, bufferFieldOffset);
+    c.lw(*SPrevEventSourceProcessOffset, *fieldBaseReg, eventSourceProcessStartOffset);
+    c.lw(*SEventSourceProcessEndOffset, *fieldBaseReg, eventSourceProcessEndOffset);
+    
+    {
+        ALLOCATE_SCALAR(STmp);
+
+        // Load offset from start of buffer
+        c.lw(*STmp, *SBufferStart);
+
+        // Add offset to buffer start
+        c.add(*SBuffer, *SBufferStart, *STmp);
+    }
+
+    // Load first half-word from buffer
+    // **NOTE** add 4 to skip 4 bytes holding offset
+    c.lhu(*SPreIndReg, *SBuffer, 4);
+
+    // Extract time from lower 15 bits of event
+    // **NOTE** we assume this is a time
+    {
+        ALLOCATE_SCALAR(STmp);
+        c.li(*STmp, 0x7FFF);
+        c.and_(*SPreIndReg, *SPreIndReg, *STmp);
+    }
+
+    // If word doesn't match current timestep, goto end
+    auto noSpikes = Assembler::createLabel();
+    auto lastProcess = Assembler::createLabel();
+    auto nextProcess = Assembler::createLabel();
+    c.bne(*SPreIndReg, *timeReg, noSpikes);
+
+    // Build time mask
+    ALLOCATE_SCALAR_AND_MASK(STimeMask);
+    c.li(*STimeMask, 1 << 15);
+
+    // Advance buffer pointer
+    c.addi(*SBuffer, *SBuffer, 2);
+
+    
+    // Prefetch
+    {
+        ALLOCATE_SCALAR(SEventSinkID);
+
+        // Load next word from buffer and increment pointer
+        // **NOTE** add 4 to skip 4 bytes holding offset
+        c.lhu(*SPreIndReg, *SBuffer, 4);
+        c.addi(*SBuffer, *SBuffer, 2);
+
+        // Start DMA to prefetch first row into buffer A
+        dmaRow(c, SPrevEventSourceProcessOffset, SPreIndReg, rowBufferAReg);
+
+        // Get offset of next process to DMA
+        c.addi(*SNextEventSourceProcessOffset, *SPrevEventSourceProcessOffset, 16);
+    }
+
+    auto spikeLoop = c.L(); 
+    {
+        // If there are more processes associated with event source, jump to continue handling
+        c.bne(*SNextEventSourceProcessOffset, *SEventSourceProcessEndOffset, nextProcess);
+
+        // Load next word from buffer and increment pointer
+        // **NOTE** add 4 to skip 4 bytes holding offset
+        c.lhu(*SPreIndReg, *SBuffer, 4);
+        c.addi(*SBuffer, *SBuffer, 2);
+        
+        // If we have hit the next timestamp, handle final process
+        {
+            ALLOCATE_SCALAR(STmp);
+            c.and_(*STmp, *SPreIndReg, *STimeMask);
+            c.bne(*STmp, Common::Reg::X0, lastProcess);
+        }
+
+        // Reset loop start
+        c.lw(*SNextEventSourceProcessOffset, *fieldBaseReg, eventSourceProcessStartOffset);
+
+        c.L(nextProcess);
+
+        // Wait for previous DMA to complete
+        dmaWait(c);
+
+        // Start DMA to fetch next row into buffer B while this one is being processed
+        dmaRow(c, SNextEventSourceProcessOffset, SPreIndReg, rowBufferBReg);
+
+        // Go onto next process
+        c.addi(*SNextEventSourceProcessOffset, *SNextEventSourceProcessOffset, 16); 
+    
+        // Process event
+        processEvent(c, SPrevEventSourceProcessOffset /*rowBufferAReg*/);
+        
+        // Update previous event source process start offset
+        c.mv(*SPrevEventSourceProcessOffset, *SNextEventSourceProcessOffset);
+
+        // Swap buffers
+        {
+            ALLOCATE_SCALAR(STmp);
+            c.mv(*STmp, *rowBufferAReg);
+            c.mv(*rowBufferAReg, *rowBufferBReg);
+            c.mv(*rowBufferBReg, *STmp);
+        }
+        c.j_(spikeLoop);
+    }
+
+    {
+        ALLOCATE_SCALAR(STmp);
+
+        c.L(lastProcess);
+
+        // Wait for previous DMA to complete
+        dmaWait(c);
+
+        // Process event
+        processEvent(c, SPrevEventSourceProcessOffset/*, rowBufferAReg*/);
+    
+        // Subtract 2 from buffer to counteract
+        // **NOTE** this is better than adding 2 AFTER branch as it hides stall EVERY spike
+        c.addi(*SBuffer, *SBuffer, -2);
+
+        // Get updated offset
+        c.sub(*STmp, *SBuffer, *SBufferStart);
+
+        // Store it back to start of buffer
+        c.sw(*STmp, *SBufferStart);
+    }
+    c.L(noSpikes);
 }
 
 //----------------------------------------------------------------------------
@@ -768,7 +925,7 @@ uint32_t EventChannelSource::generateDRAMEventLoop(const Frontend::Merged<Fronte
 
     auto noSpikes = Assembler::createLabel();
     auto lastProcess = Assembler::createLabel();
-    auto moreProcesses = Assembler::createLabel();
+    auto nextProcess = Assembler::createLabel();
 
     // If there are no spikes, goto end
     c.beq(*SSpikeBuffer, *SSpikeBufferEnd, noSpikes);
@@ -804,12 +961,12 @@ uint32_t EventChannelSource::generateDRAMEventLoop(const Frontend::Merged<Fronte
             c.addi(*SNextEventSourceProcessOffset, *SPrevEventSourceProcessOffset, 16);
         }
 
-        auto nextProcess = c.L(); 
+        auto spikeLoop = c.L(); 
         {
             ALLOCATE_SCALAR(SEventSinkID);
 
             // If there are more processes associated with event source, jump to continue handling
-            c.bne(*SNextEventSourceProcessOffset, *SEventSourceProcessEndOffset, moreProcesses);
+            c.bne(*SNextEventSourceProcessOffset, *SEventSourceProcessEndOffset, nextProcess);
 
             // If last spike has been processed, handle final process
             c.beq(*SSpikeBuffer, *SSpikeBufferEnd, lastProcess);
@@ -834,7 +991,7 @@ uint32_t EventChannelSource::generateDRAMEventLoop(const Frontend::Merged<Fronte
             c.lhu(*SNextEventSourceProcessOffset, *SEventSinkID, eventSinkSourceTableAddress);
             c.lhu(*SEventSourceProcessEndOffset, *SEventSinkID, eventSinkSourceTableAddress + 2);
             
-            c.L(moreProcesses);
+            c.L(nextProcess);
 
             // Wait for previous DMA to complete
             dmaWait(c);
@@ -858,7 +1015,7 @@ uint32_t EventChannelSource::generateDRAMEventLoop(const Frontend::Merged<Fronte
                 c.mv(*rowBufferAReg, *rowBufferBReg);
                 c.mv(*rowBufferBReg, *STmp);
             }
-            c.j_(nextProcess);
+            c.j_(spikeLoop);
         }
     }
     c.L(lastProcess);
