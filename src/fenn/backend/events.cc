@@ -708,9 +708,9 @@ uint32_t EventChannelSource::generateDRAMEventLoop(const Frontend::Merged<Fronte
     ALLOCATE_SCALAR_AND_MASK(SPreIndReg);
     ALLOCATE_SCALAR_AND_MASK(SSpikeBuffer);
     ALLOCATE_SCALAR_AND_MASK(SSpikeBufferEnd);
-    ALLOCATE_SCALAR_AND_MASK(SEventSourceProcessStartOffset);
+    ALLOCATE_SCALAR_AND_MASK(SPrevEventSourceProcessOffset);
+    ALLOCATE_SCALAR_AND_MASK(SNextEventSourceProcessOffset);
     ALLOCATE_SCALAR_AND_MASK(SEventSourceProcessEndOffset);
-    ALLOCATE_SCALAR_AND_MASK(SPrevEventSourceProcess);
 
     // Load start and end of this timestep's spike buffer
     // **NOTE** because all event channels will be merged together, we ignore the merged event sources here
@@ -725,9 +725,10 @@ uint32_t EventChannelSource::generateDRAMEventLoop(const Frontend::Merged<Fronte
         c.li(*neuronIDMaskReg, neuronIDMask);
         Assembler::ScalarRegisterAllocator::updateMask(*neuronIDMaskReg, scalarRegisterMask);
     }
-    assert(false);
+
     auto noSpikes = Assembler::createLabel();
     auto lastProcess = Assembler::createLabel();
+    auto moreProcesses = Assembler::createLabel();
 
     // If there are no spikes, goto end
     c.beq(*SSpikeBuffer, *SSpikeBufferEnd, noSpikes);
@@ -753,29 +754,27 @@ uint32_t EventChannelSource::generateDRAMEventLoop(const Frontend::Merged<Fronte
             }
 
             // Load start and end offset of block of event propagation processes which should be passed this spike
-            c.lhu(*SEventSourceProcessStartOffset, *SEventSinkID, eventSinkSourceTableAddress);
+            c.lhu(*SPrevEventSourceProcessOffset, *SEventSinkID, eventSinkSourceTableAddress);
             c.lhu(*SEventSourceProcessEndOffset, *SEventSinkID, eventSinkSourceTableAddress + 2);
             
             // Start DMA to prefetch first row into buffer A
-            dmaRow(c, SEventSourceProcessStartOffset, SPreIndReg, rowBufferAReg);
+            dmaRow(c, SPrevEventSourceProcessOffset, SPreIndReg, rowBufferAReg);
 
-            // Go onto next process
-            c.addi(*SEventSourceProcessStartOffset, *SEventSourceProcessStartOffset, 16);
+            // Get offset of next process to DMA
+            c.addi(*SNextEventSourceProcessOffset, *SPrevEventSourceProcessOffset, 16);
         }
 
-        auto nextProcess = c.L();
+        auto nextProcess = c.L(); 
         {
             ALLOCATE_SCALAR(SEventSinkID);
 
-            auto L16 = Assembler::createLabel();
-            c.bne(*SEventSourceProcessStartOffset, *SEventSourceProcessEndOffset, L16);
-
-            auto L22 = c.L();
+            // If there are more processes associated with event source, jump to continue handling
+            c.bne(*SNextEventSourceProcessOffset, *SEventSourceProcessEndOffset, moreProcesses);
 
             // If last spike has been processed, handle final process
             c.beq(*SSpikeBuffer, *SSpikeBufferEnd, lastProcess);
 
-            // Load next spike and increment pointer
+            // Otherwise, load next spike and increment pointer
             c.lw(*SPreIndReg, *SSpikeBuffer);
             c.addi(*SSpikeBuffer, *SSpikeBuffer, 4);
 
@@ -792,24 +791,25 @@ uint32_t EventChannelSource::generateDRAMEventLoop(const Frontend::Merged<Fronte
             }
 
             // Load start and end offset of block of event propagation processes which should be passed this spike
-            c.lhu(*SEventSourceProcessStartOffset, *SEventSinkID, eventSinkSourceTableAddress);
+            c.lhu(*SNextEventSourceProcessOffset, *SEventSinkID, eventSinkSourceTableAddress);
             c.lhu(*SEventSourceProcessEndOffset, *SEventSinkID, eventSinkSourceTableAddress + 2);
             
-            c.L(L16);
+            c.L(moreProcesses);
 
             // Wait for previous DMA to complete
             dmaWait(c);
 
             // Start DMA to fetch next row into buffer B while this one is being processed
-            dmaRow(c, SEventSourceProcessStartOffset, SPreIndReg, rowBufferBReg);
+            dmaRow(c, SNextEventSourceProcessOffset, SPreIndReg, rowBufferBReg);
 
             // Go onto next process
-            c.addi(*SEventSourceProcessStartOffset, *SEventSourceProcessStartOffset, 16); 
+            c.addi(*SNextEventSourceProcessOffset, *SNextEventSourceProcessOffset, 16); 
         
             // Process event
-            processEvent(c, SEventSourceProcessStartOffset /*rowBufferAReg*/);
+            processEvent(c, SPrevEventSourceProcessOffset /*rowBufferAReg*/);
             
-            //mv      s3,s0               ; prevEventSource (s3) = nextEventSource (s0)
+            // Update previous event source process start offset
+            c.mv(*SPrevEventSourceProcessOffset, *SNextEventSourceProcessOffset);
 
             // Swap buffers
             {
@@ -827,7 +827,7 @@ uint32_t EventChannelSource::generateDRAMEventLoop(const Frontend::Merged<Fronte
     dmaWait(c);
 
     // Process event
-    processEvent(c, SEventSourceProcessStartOffset/*, rowBufferAReg*/);
+    processEvent(c, SPrevEventSourceProcessOffset/*, rowBufferAReg*/);
 
     
     c.L(noSpikes);
