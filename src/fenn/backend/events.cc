@@ -166,15 +166,56 @@ uint32_t EventSourceBuffer::generateURAMEventLoop(const Frontend::Merged<Fronten
                                                   Assembler::CodeGenerator &c, Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                                   ProcessEventFn processEvent) const
 {
+    // Call helper to generate generic merged structure with URAM event loop inside
+    return generateEventLoop(mergedEventSource, mergedFields, fieldBase, c, 
+                             scalarRegisterAllocator,
+                             [this, eventSinkSourceTableAddress, processEvent, timeReg,
+                              &kernel, &mergedFields, &scalarRegisterAllocator]
+                             (Assembler::CodeGenerator &archetypeCodeGenerator, Assembler::ScalarRegisterPtr fieldBaseReg, 
+                                                   uint32_t &scalarRegisterMask)
+                             {
+                                generateArchetypeURAMEventLoop(kernel, mergedFields, fieldBaseReg, timeReg,
+                                                               eventSinkSourceTableAddress, archetypeCodeGenerator, 
+                                                               scalarRegisterAllocator, scalarRegisterMask, processEvent);
+
+                             });
+}
+//----------------------------------------------------------------------------
+uint32_t EventSourceBuffer::generateDRAMEventLoop(const Frontend::Merged<Frontend::EventSource> &mergedEventSource, const Runtime &runtime, 
+                                                  const KernelImplementation &kernel, MergedFields &mergedFields, Assembler::ScalarRegisterPtr timeReg, 
+                                                  Assembler::ScalarRegisterPtr rowBufferAReg, Assembler::ScalarRegisterPtr rowBufferBReg, 
+                                                  uint32_t eventSinkSourceTableAddress, uint32_t &fieldBase, Assembler::CodeGenerator &c, 
+                                                  Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
+                                                  DMARowFn dmaRow, DMAWaitFn dmaWait, ProcessDMAEventFn processEvent) const
+{
+    // Call helper to generate generic merged structure with URAM event loop inside
+    return generateEventLoop(mergedEventSource, mergedFields, fieldBase, c, 
+                             scalarRegisterAllocator,
+                             [this, dmaRow, dmaWait, eventSinkSourceTableAddress, processEvent, rowBufferAReg, 
+                              rowBufferBReg, timeReg, &kernel, &mergedFields, &scalarRegisterAllocator]
+                             (Assembler::CodeGenerator &archetypeCodeGenerator, Assembler::ScalarRegisterPtr fieldBaseReg, 
+                                                   uint32_t &scalarRegisterMask)
+                             {
+                                generateArchetypeDRAMEventLoop(kernel, mergedFields, fieldBaseReg, timeReg,
+                                                               rowBufferAReg, rowBufferBReg, eventSinkSourceTableAddress, 
+                                                               archetypeCodeGenerator, scalarRegisterAllocator, 
+                                                               scalarRegisterMask, dmaRow, dmaWait, processEvent);
+
+                             });
+}
+//----------------------------------------------------------------------------
+uint32_t EventSourceBuffer::generateEventLoop(const Frontend::Merged<Frontend::EventSource> &mergedEventSource, MergedFields &mergedFields, 
+                                              uint32_t &fieldBase, Assembler::CodeGenerator &c, 
+                                              Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
+                                              GenerateArchetypeFn generateArchetype) const
+{
     // Allocate base register
     uint32_t scalarRegisterMask = 0;
     ALLOCATE_SCALAR_AND_MASK(SFieldBase);
 
     // Generate archetype code and populate merged fields
     Assembler::CodeGenerator archetypeCodeGenerator;
-    generateArchetypeURAMEventLoop(kernel, mergedFields, SFieldBase, timeReg,
-                               eventSinkSourceTableAddress, archetypeCodeGenerator, 
-                               scalarRegisterAllocator, scalarRegisterMask, processEvent);
+    generateArchetype(archetypeCodeGenerator, SFieldBase, scalarRegisterMask);
 
     // Load fieldBase
     c.li(*SFieldBase, fieldBase);
@@ -205,17 +246,6 @@ uint32_t EventSourceBuffer::generateURAMEventLoop(const Frontend::Merged<Fronten
     }
 
     return scalarRegisterMask;
-}
-//----------------------------------------------------------------------------
-uint32_t EventSourceBuffer::generateDRAMEventLoop(const Frontend::Merged<Frontend::EventSource> &mergedEventSource, const Runtime &runtime, 
-                                                  const KernelImplementation &kernel, MergedFields &mergedFields, Assembler::ScalarRegisterPtr timeReg, 
-                                                  Assembler::ScalarRegisterPtr rowBufferAReg, Assembler::ScalarRegisterPtr rowBufferBReg, 
-                                                  uint32_t eventSinkSourceTableAddress, uint32_t &fieldBase, Assembler::CodeGenerator &c, 
-                                                  Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
-                                                  DMARowFn dmaRow, DMAWaitFn dmaWait, ProcessDMAEventFn processEvent) const
-{
-    assert(false);
-    return 0;
 }
 //----------------------------------------------------------------------------
 void EventSourceBuffer::generateArchetypeURAMEventLoop(const KernelImplementation &kernel, MergedFields &mergedFields, 
@@ -431,6 +461,16 @@ void EventSourceBuffer::generateArchetypeURAMEventLoop(const KernelImplementatio
 
         c.L(noSpikes);
     }
+}
+//----------------------------------------------------------------------------
+void EventSourceBuffer::generateArchetypeDRAMEventLoop(const KernelImplementation &kernel, MergedFields &mergedFields, 
+                                                       Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg,
+                                                       Assembler::ScalarRegisterPtr rowBufferAReg, Assembler::ScalarRegisterPtr rowBufferBReg,  
+                                                       uint32_t eventSinkSourceTableAddress, Assembler::CodeGenerator &c, 
+                                                       Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
+                                                       uint32_t &scalarRegisterMask, DMARowFn dmaRow, 
+                                                       DMAWaitFn dmaWait, ProcessDMAEventFn processEvent) const
+{
 }
 
 //----------------------------------------------------------------------------

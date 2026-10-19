@@ -187,14 +187,29 @@ public:
     }
 
 private:
+    using GenerateArchetypeFn = std::function<void(Assembler::CodeGenerator&, Assembler::ScalarRegisterPtr, 
+                                                   uint32_t&)>;
     //------------------------------------------------------------------------
     // Private methods
     //------------------------------------------------------------------------
+    uint32_t generateEventLoop(const Frontend::Merged<Frontend::EventSource> &mergedEventSource, MergedFields &mergedFields, 
+                               uint32_t &fieldBase, Assembler::CodeGenerator &c, 
+                               Assembler::ScalarRegisterAllocator &scalarRegisterAllocator,
+                               GenerateArchetypeFn generateArchetype) const;
+
     void generateArchetypeURAMEventLoop(const KernelImplementation &kernel, MergedFields &mergedFields, 
                                         Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg, 
                                         uint32_t eventSinkSourceTableAddress, Assembler::CodeGenerator &c, 
                                         Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
                                         uint32_t &scalarRegisterMask, ProcessEventFn processEvent) const;
+    
+    void generateArchetypeDRAMEventLoop(const KernelImplementation &kernel, MergedFields &mergedFields, 
+                                        Assembler::ScalarRegisterPtr fieldBaseReg, Assembler::ScalarRegisterPtr timeReg,
+                                        Assembler::ScalarRegisterPtr rowBufferAReg, Assembler::ScalarRegisterPtr rowBufferBReg,  
+                                        uint32_t eventSinkSourceTableAddress, Assembler::CodeGenerator &c, 
+                                        Assembler::ScalarRegisterAllocator &scalarRegisterAllocator, 
+                                        uint32_t &scalarRegisterMask, DMARowFn dmaRow, 
+                                        DMAWaitFn dmaWait, ProcessDMAEventFn processEvent) const;
 
     //------------------------------------------------------------------------
     // Members
