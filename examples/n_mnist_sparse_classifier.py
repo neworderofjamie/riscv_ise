@@ -113,7 +113,8 @@ kernel = backend.SimulationLoopKernel(
     [zero_processes], [])
 
 # Create runtime
-runtime_params = {"neuron_update_rounding_mode": backend.RoundingMode.NEAREST}
+runtime_params = {"neuron_update_rounding_mode": backend.RoundingMode.NEAREST,
+                  "use_dram_for_weights": True, "dma_buffer_size": 64 * 1024 * 1024}
 runtime = (backend.RuntimeHW([init_kernel, kernel], 1, **runtime_params) if args.device 
            else backend.RuntimeSim([init_kernel, kernel], 1, **runtime_params))
 
