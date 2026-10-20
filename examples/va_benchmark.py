@@ -86,15 +86,15 @@ inh_weight = -51.0E-3 * scale
 exc_weight = 4.0E-3 * scale
 
 # Use backend helper to determine how connectivity will be split
-excitatory_splits = [backend.get_split_dimension((args.num_excitatory,), c, 0, args.num_cores, 32)
-                     for c in range(args.num_cores)]
-inhibitory_splits = [backend.get_split_dimension((num_inhibitory,), c, 0, args.num_cores, 32)
-                     for c in range(args.num_cores)]
+num_excitatory_per_core = [backend.get_split_dimension((args.num_excitatory,), c, 0, args.num_cores, 32)
+                           for c in range(args.num_cores)]
+num_inhibitory_per_core = [backend.get_split_dimension((num_inhibitory,), c, 0, args.num_cores, 32)
+                           for c in range(args.num_cores)]
 
 # Calculate edges
 # **TODO** this really could go in split
-excitatory_splits = np.cumsum(excitatory_splits)[:-1]
-inhibitory_splits = np.cumsum(inhibitory_splits)[:-1]
+excitatory_splits = np.cumsum(num_excitatory_per_core)[:-1]
+inhibitory_splits = np.cumsum(num_inhibitory_per_core)[:-1]
 
 num_exc_sparse_connectivity_bits = int(np.ceil(np.log2(ceil_divide(args.num_excitatory, 32)))) + 1
 num_inh_sparse_connectivity_bits = int(np.ceil(np.log2(ceil_divide(num_inhibitory, 32)))) + 1
@@ -133,6 +133,7 @@ print(f"Num sparse connectivity bits excitatory: {num_exc_sparse_connectivity_bi
 
 for i in range(args.num_cores):
     print(f"Core {i}")
+    print(f"\tNum excitatory:{num_excitatory_per_core[i]}, Num inhibitory: {num_inhibitory_per_core[i]}")
     print(f"\tStride ee:{ee_conn[i].shape[1]} ei:{ei_conn[i].shape[1]} ii:{ii_conn[i].shape[1]} ie:{ie_conn[i].shape[1]}")
     print(f"\tMean row length ee:{np.average(ee_conn[i][:,0]) * 32} ei:{np.average(ei_conn[i][:,0]) * 32} ii:{np.average(ii_conn[i][:,0]) * 32} ie:{np.average(ie_conn[i][:,0]) * 32}")
 
