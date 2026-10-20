@@ -130,18 +130,18 @@ def build_sparse_conn(name: str, num_pre: int,
 
 # Shapes of neurons at end of each layer
 layer_shapes = [(32, 32, 2),
-                (15, 15, 16),
-                (15, 15, 16),
-                (7, 7, 8),
-                (256,),
-                (11,)]
+                (15, 15, 16),   # Hidden 1
+                (15, 15, 16),   # Hidden 2
+                (7, 7, 8),      # Hidden 3
+                (256,),         # Hidden 4
+                (11,)]          # Output
 
 # Number of sparse connectivity bits each layer requires
 layer_sparse_connectivity_bits = [int(np.ceil(np.log2(ceil_divide(np.prod(s), 32)))) + 1
                                   for s in layer_shapes[1:4]]
 
 # Fractional bits neurons at end of each layer use for V and I 
-layer_fractional_bits = [7, 6, 9, 9, 9]
+layer_fractional_bits = [7, 6, 8, 8, 9]
 
 # Build sparse weights
 sparse_weights = [build_sparse_conn(f"hidden{i + 1}.npy", num_pre=np.prod(s),
@@ -316,6 +316,11 @@ for spike_chunks, label in tqdm(zip(input_spikes, input_labels),
     if classification == label:
         num_correct += 1
 
+saturation_count = np.asarray(runtime.saturation_count[0])
+non_zero_saturation_count = np.where(saturation_count > 0)
+for i in non_zero_saturation_count[0]:
+    print(f"{saturation_count[i]} saturations occur at {i}")
+    
 print(f"Number of router buffer overflows {runtime.slave_buffer_overflow}")
 print(f"Simulated {time_simulated} timesteps")
 print(f"{num_correct} / {len(input_labels)} correct {100.0 * (num_correct / len(input_labels))}%")
