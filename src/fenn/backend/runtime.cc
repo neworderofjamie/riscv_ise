@@ -500,29 +500,22 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                          ALLOCATE_SCALAR(SStride);
                                          ALLOCATE_SCALAR(SGroupIndex);
                                          ALLOCATE_SCALAR(SMergedGroupReturn);
+                                         ALLOCATE_SCALAR(SWeightBuffer);
                                         
                                          // If we're using DRAM for weight
                                          Assembler::CodeGenerator eventLoopCodeGenerator;
                                          Assembler::ScalarRegisterPtr SDMARowBufferA;
                                          Assembler::ScalarRegisterPtr SDMARowBufferB;
-                                         Assembler::ScalarRegisterPtr SWeightBuffer;
                                          if (shouldUseDRAMForWeights()) {
                                              // Allocate scalar 
                                              // Registers to hold DMA row buffer addresses
                                              SDMARowBufferA = scalarRegisterAllocator.getRegister("SDMARowBufferA = X");
                                              SDMARowBufferB = scalarRegisterAllocator.getRegister("SDMARowBufferB = X");
 
-                                             // **YUCK**
-                                             // We always process events from first DMA buffer
-                                             SWeightBuffer = SDMARowBufferA;
-
                                              // Load URAM addresses
                                              // **NOTE** it doesn't matter that these get swapped round
                                              eventLoopCodeGenerator.li(*SDMARowBufferA, 0);
                                              eventLoopCodeGenerator.li(*SDMARowBufferB, getDMARowBufferSize());
-                                         }
-                                         else {
-                                            SWeightBuffer = scalarRegisterAllocator.getRegister("SWeightBuffer = X");
                                          }
 
                                          // Loop over merged event sources
@@ -567,7 +560,8 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                                          Assembler::Utils::generateDMAWaitForWriteComplete(c, scalarRegisterAllocator);
                                                      },
                                                      // Process event
-                                                     [SGroupIndex, SMergedGroupReturn, SDMARowBufferA, SDMARowBufferB, SStride, &eventTableLocations, &scalarRegisterAllocator]
+                                                     [SGroupIndex, SMergedGroupReturn, SDMARowBufferA, SDMARowBufferB, SStride, 
+                                                      SWeightBuffer, &eventTableLocations, &scalarRegisterAllocator]
                                                      (auto &c, auto eventSourceProcessOffsetReg)
                                                      {
                                                          ALLOCATE_SCALAR(SProcessAddress);
@@ -577,7 +571,9 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
                                                          c.lw(*SGroupIndex, *eventSourceProcessOffsetReg, std::get<1>(eventTableLocations) + 4);
                                                          c.lw(*SStride, *eventSourceProcessOffsetReg, std::get<1>(eventTableLocations) + 8);
 
-                                                         // **NOTE** SWeightBuffer is an alias for SDMABufferA
+                                                         // Copy address of DMA buffer A into weight buffer
+                                                         // **OPTIMISE** could cunning coding of event propagation processes remove the need for this?
+                                                         c.mv(*SWeightBuffer, *SDMARowBufferA);
 
                                                          // Jump to process address
                                                          c.jalr(*SMergedGroupReturn, *SProcessAddress);
