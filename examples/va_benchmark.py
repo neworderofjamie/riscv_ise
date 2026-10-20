@@ -78,9 +78,6 @@ parser.add_argument("--num-timesteps", type=int, default=1000, help="Number of t
 parser.add_argument("--probability-connection", type=float, default=0.1, help="Probability to connect neurons with")
 args = parser.parse_args()
 
-args.uram = True
-args.num_excitatory = 820
-
 excitatory_inhibitory_ratio = 4
 num_inhibitory = args.num_excitatory // excitatory_inhibitory_ratio
 num_neurons = args.num_excitatory + num_inhibitory
@@ -177,11 +174,13 @@ ie_zero = Memset(backend, i_pop.i_exc, name="zero_i_exc")
 ii_zero = Memset(backend, i_pop.i_inh, name="zero_i_inh")
 
 # Group processes
+perf_counters = ["num_instructions", "num_clock_cycles"] if args.time else []
 i_zero_processes = backend.ProcessGroup([ee_zero.process, ei_zero.process,
                                          ie_zero.process, ii_zero.process])
-neuron_update_processes = backend.ProcessGroup([e_pop.process, i_pop.process])
+neuron_update_processes = backend.ProcessGroup([e_pop.process, i_pop.process], perf_counters)
 synapse_update_processes = backend.ProcessGroup([ee_pop.process, ei_pop.process,
-                                                 ii_pop.process, ie_pop.process])
+                                                 ii_pop.process, ie_pop.process],
+                                                perf_counters)
 
 # Create init kernel
 init_kernel = backend.SimpleKernel([i_zero_processes])
@@ -234,10 +233,6 @@ zero_and_push(i_pop.refrac_time, runtime)
 zero_and_push(e_pop.spike_sink, runtime)
 zero_and_push(i_pop.spike_sink, runtime)
 
-if args.time:
-    zero_and_push(neuron_update_processes.performance_counter, runtime)
-    zero_and_push(synapse_update_processes.performance_counter, runtime)
-
 # Initialise
 print("Initialising")
 runtime.run(init_kernel)
@@ -279,11 +274,13 @@ e_spike_ids = np.concatenate(e_spike_ids)
 
 print(f"Simulation time {sim_time}")
 if args.time:
-    neuron_update_cycles, neuron_update_instructions = read_perf_counter(
-        neuron_update_processes.performance_counter, runtime)
-    synapse_update_cycles, synapse_update_instructions = read_perf_counter(
-        synapse_update_processes.performance_counter, runtime)
-   
+    neuron_update_cycles = runtime.read_performance_counter(neuron_update_processes, 'num_clock_cycles')[0]
+    neuron_update_instructions = runtime.read_performance_counter(neuron_update_processes, 'num_instructions')[0]
+
+    synapse_update_cycles = runtime.read_performance_counter(synapse_update_processes, 'num_clock_cycles')[0]
+    synapse_update_instructions = runtime.read_performance_counter(synapse_update_processes, 'num_instructions')[0]
+
+
     print(f"Neuron update {neuron_update_cycles} cycles, {neuron_update_instructions} instruction ({neuron_update_instructions / neuron_update_cycles})")
     print(f"Synapse update {synapse_update_cycles} cycles, {synapse_update_instructions} instruction ({synapse_update_instructions / synapse_update_cycles})")
 
