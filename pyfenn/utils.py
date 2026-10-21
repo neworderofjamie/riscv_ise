@@ -143,9 +143,15 @@ def copy_and_push(data: np.ndarray, state, runtime: Runtime):
     for v in views:
         assert(v.dtype == data.dtype)
         if split_dimension is not None:
-            v[:] = data[explicit_inds_slice 
-                        + (slice(split_dim_start, 
-                                 split_dim_start + v.shape[split_dimension]),)]
+            # **HACK** assigning to the slice causes bus errors with DMA buffer
+            data_split = data[explicit_inds_slice 
+                              + (slice(split_dim_start, 
+                                       split_dim_start + v.shape[split_dimension]),)]
+            for c in product(*(range(n) for n in v.shape)):
+                v[c] = data_split[c]
+            #v[:] = data[explicit_inds_slice 
+            #            + (slice(split_dim_start, 
+            #                     split_dim_start + v.shape[split_dimension]),)]
             split_dim_start += v.shape[split_dimension]
         # Otherwise, copy all data into view
         else:
