@@ -141,7 +141,7 @@ layer_sparse_connectivity_bits = [int(np.ceil(np.log2(ceil_divide(np.prod(s), 32
                                   for s in layer_shapes[1:4]]
 
 # Fractional bits neurons at end of each layer use for V and I 
-layer_fractional_bits = [7, 6, 8, 8, 9]
+layer_fractional_bits = [7, 6, 7, 7, 12]
 
 # Build sparse weights
 sparse_weights = [build_sparse_conn(f"hidden{i + 1}.npy", num_pre=np.prod(s),
@@ -171,7 +171,7 @@ input_labels = []
 
 max_spike_array_length = 0
 #for events, label in tqdm(dataset, "Preprocessing dataset"):
-for i in range(10):
+for i in range(5):
     events, label = dataset[i]
 
     # Convert times to 1ms timesteps and check they are sorted
@@ -248,7 +248,8 @@ kernel = backend.SimulationLoopKernel(
     [], [])
     
 # Create runtime
-runtime_params = {"neuron_update_rounding_mode": backend.RoundingMode.NEAREST}
+runtime_params = {"neuron_update_rounding_mode": backend.RoundingMode.NEAREST,
+                  "use_dram_for_weights": True, "dma_buffer_size": 64 * 1024 * 1024}
 runtime = (backend.RuntimeHW([kernel], 1, **runtime_params) if args.device 
            else backend.RuntimeSim([kernel], 1, **runtime_params))
 
