@@ -12,7 +12,7 @@ from pyfenn.utils import (build_sparse_connectivity, ceil_divide,
                           copy_and_push, convert_tonic_spikes, get_views,
                           load_quantise_and_push, pull_spikes,
                           quantise, zero_and_push)
-from tqdm.auto import tqdm
+from tqdm.auto import tqdm, trange
 
 class LIF:
     def __init__(self, backend, shape, alpha: float,
@@ -171,7 +171,7 @@ input_labels = []
 
 max_spike_array_length = 0
 #for events, label in tqdm(dataset, "Preprocessing dataset"):
-for i in range(5):
+for i in trange(50):
     events, label = dataset[i]
 
     # Convert times to 1ms timesteps and check they are sorted
@@ -202,7 +202,7 @@ for i in range(5):
 
 print(max_spike_array_length)
 log_appender = backend.ConsoleAppender()#PythonLogAppender()
-backend.init_logging(log_appender, backend.PlogSeverity.DEBUG)
+backend.init_logging(log_appender, backend.PlogSeverity.INFO)
 
 # Input spikes
 input_spike_buffer = backend.EventSourceBuffer((np.prod(layer_shapes[0]),), max_spike_array_length)
@@ -275,8 +275,6 @@ load_quantise_and_push("hidden4.npy", layer_fractional_bits[3],
 load_quantise_and_push("output.npy", layer_fractional_bits[4], 
                        hidden4_output.weight, runtime, percentile=100.0)
 
-v_views = [get_views(runtime, p.v) for p in populations]
-
 # Loop through examples
 input_spike_views = get_views(runtime, input_spike_buffer)
 assert len(input_spike_views) == 1
@@ -290,13 +288,11 @@ time_simulated = 0
 for spike_chunks, label in tqdm(zip(input_spikes, input_labels),
                                  total=len(input_labels), desc="Simulating"):
     # Manually zero voltages
-    for p, v in zip(populations, v_views):
-        v[0][:] = 0
-        runtime.push_state_to_device(p.v)
+    for p in populations:
+        zero_and_push(p.v, runtime)
 
     # Zero num spikes
-    output_num_spikes_views[0][:] = 0
-    runtime.push_state_to_device(populations[-1].num_spikes)
+    zero_and_push(populations[-1].num_spikes, runtime)
 
     # Loop through spike chunks
     for c in spike_chunks:
@@ -312,17 +308,19 @@ for spike_chunks, label in tqdm(zip(input_spikes, input_labels),
     runtime.pull_state_from_device(populations[-1].num_spikes)
 
     # Determine if output is correct
-    print(output_num_spikes_views[0], label)
+    #print(output_num_spikes_views[0], label)
     classification = np.argmax(output_num_spikes_views[0])
     if classification == label:
         num_correct += 1
 
-saturation_count = np.asarray(runtime.saturation_count[0])
-non_zero_saturation_count = np.where(saturation_count > 0)
-for i in non_zero_saturation_count[0]:
-    print(f"{saturation_count[i]} saturations occur at {i * 4}")
-    
-print(f"Number of router buffer overflows {runtime.slave_buffer_overflow}")
+if not args.device:
+    saturation_count = np.asarray(runtime.saturation_count[0])
+    non_zero_saturation_count = np.where(saturation_count > 0)
+    for i in non_zero_saturation_count[0]:
+        print(f"{saturation_count[i]} saturations occur at {i * 4}")
+
+    print(f"Number of router buffer overflows {runtime.slave_buffer_overflow}")
+
 print(f"Simulated {time_simulated} timesteps")
 print(f"{num_correct} / {len(input_labels)} correct {100.0 * (num_correct / len(input_labels))}%")
 
