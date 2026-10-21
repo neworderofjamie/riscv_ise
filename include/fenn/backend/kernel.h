@@ -148,10 +148,11 @@ public:
     SimulationLoopKernel(Private, unsigned int numTimesteps, 
                          const Frontend::ProcessGroupVector &timestepProcessGroups, 
                          const Frontend::ProcessGroupVector &beginProcessGroups,
-                         const Frontend::ProcessGroupVector &endProcessGroups, const std::string &name)
+                         const Frontend::ProcessGroupVector &endProcessGroups,
+                         std::optional<uint32_t> targetClockCycles, const std::string &name)
     :   Frontend::SimulationLoopKernel(Private(), numTimesteps, timestepProcessGroups, 
                                        beginProcessGroups, endProcessGroups, name),
-        KernelImplementation(timestepProcessGroups)
+        KernelImplementation(timestepProcessGroups), m_TargetClockCycles(targetClockCycles)
     {}
 
     //------------------------------------------------------------------------
@@ -170,10 +171,17 @@ public:
     static std::shared_ptr<SimulationLoopKernel> create(uint32_t numTimesteps, const Frontend::ProcessGroupVector &timestepProcessGroups, 
                                                         const Frontend::ProcessGroupVector &beginProcessGroups = {},
                                                         const Frontend::ProcessGroupVector &endProcessGroups = {},
+                                                        std::optional<uint32_t> targetClockCycles = std::nullopt, 
                                                         const std::string &name = "")
     {
         return std::make_shared<SimulationLoopKernel>(Private(), numTimesteps, timestepProcessGroups,
-                                                      beginProcessGroups, endProcessGroups, name);
+                                                      beginProcessGroups, endProcessGroups, targetClockCycles, name);
     }
+
+private:
+    //------------------------------------------------------------------------
+    // Members
+    //------------------------------------------------------------------------
+    std::optional<uint32_t> m_TargetClockCycles;
 };
 }

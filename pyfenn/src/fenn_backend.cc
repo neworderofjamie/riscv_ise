@@ -215,7 +215,7 @@ PYBIND11_MODULE(_fenn_backend, m)
         .def(pybind11::init(&Backend::SimulationLoopKernel::create),
              pybind11::arg("num_timesteps"), pybind11::arg("timestep_process_groups"), 
              pybind11::arg("begin_process_groups"), pybind11::arg("end_process_groups"), 
-             pybind11::arg("name") = "");
+             pybind11::arg("target_clock_cycles") = std::nullopt, pybind11::arg("name") = "");
 
     //------------------------------------------------------------------------
     // fenn_backend.Runtime

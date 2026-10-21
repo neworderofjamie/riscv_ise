@@ -320,12 +320,28 @@ void SimulationLoopKernel::generateCode(Assembler::CodeGenerator &c,
     // Loop over time
     auto timeLoop = c.L();
     {
+        // If simulation loop is supposed to run at a 
+        // fixed interval, read cycle count at start of loop
+        Assembler::ScalarRegisterPtr SLoopStartCycleLow;
+        Assembler::ScalarRegisterPtr SLoopStartCycleHigh;
+        if (m_TargetClockCycles) {
+            c.csrr(*SLoopStartCycleLow, Common::CSR::MCYCLE);
+            c.csrr(*SLoopStartCycleHigh, Common::CSR::MCYCLEH);
+        }
+
         // Visit timestep process group
         for (const auto &p : getTimestepProcessGroups()) {
             generateProcessGroup(p, STime, getNumTimesteps(), c, 
                                  scalarRegisterAllocator, vectorRegisterAllocator);
         }
 
+        // If simulation loop is supposed to run at a 
+        // fixed interval, wait for this to have elapsed
+        if (m_TargetClockCycles) {
+            Assembler::Utils::generateWaitElapsedCycles(c, scalarRegisterAllocator, 
+                                                        *SLoopStartCycleLow, *SLoopStartCycleHigh, 
+                                                        m_TargetClockCycles.value());
+        }
         c.addi(*STime, *STime, 1);
         c.bne(*STime, *STimeEnd, timeLoop);
     }
@@ -339,9 +355,10 @@ void SimulationLoopKernel::generateCode(Assembler::CodeGenerator &c,
 //----------------------------------------------------------------------------
 bool SimulationLoopKernel::requiresPerformanceCounters() const
 {
-    // Performance counters are required if any of the process groups want to record performance
-    // **TODO** realtime!
-    return (std::any_of(getBeginProcessGroups().cbegin(), getBeginProcessGroups().cend(),
+    // Performance counters are required if we want simulation loop to run at a
+    // fixed interval or if any of the process groups want to record performance 
+    return (m_TargetClockCycles
+            || std::any_of(getBeginProcessGroups().cbegin(), getBeginProcessGroups().cend(),
                         [](const auto &g){ return !g->getPerformanceCounters().empty(); })
             || std::any_of(getTimestepProcessGroups().cbegin(), getTimestepProcessGroups().cend(),
                         [](const auto &g){ return !g->getPerformanceCounters().empty(); })
