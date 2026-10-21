@@ -36,7 +36,7 @@
 namespace
 {
 constexpr uint32_t spikeArrayPtr = 32 * 4096;
-constexpr size_t numCores = 1;
+constexpr size_t numCores = 2;
 
 using CoreData = std::vector<std::tuple<std::vector<uint32_t>, std::thread>>;
 
@@ -64,11 +64,11 @@ void simThread(const std::vector<uint32_t> &code, const std::vector<uint8_t> &sc
 
     // Add vector co-processor
     riscV.addCoprocessor<VectorProcessor>(vectorQuadrant);
-        
+
     // Create simulated DMA controller
     RouterSim router(sharedBus, riscV.getSpikeDataMemory(), coreID);
     riscV.setRouter(&router);
-     
+
     // Run!
     if(!riscV.run()) {
         assert(false);
@@ -238,7 +238,6 @@ int main(int argc, char** argv)
 
     CLI::App app{"Blank example"};
     app.add_flag("-d,--device", device, "Should be run on device rather than simulator");
-    app.add_flag("-s,--downsample-shift", downsampleShift, "How much should resolution be shifted down?");
     app.add_option("-c,--clock-speed", clockSpeedMhz, "What clock speed is the device running at [Mhz]?");
 
     CLI11_PARSE(app, argc, argv);
@@ -256,20 +255,8 @@ int main(int argc, char** argv)
     const uint32_t eventEndPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
     const uint32_t bufferOverflowCountPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
 
-    // If downsampling, allocate downsample buffer
-    std::optional<uint32_t> downsampleIBuffer;
-    if (downsampleShift > 0) {
-        downsampleIBuffer = AppUtils::allocateScalarAndZero(downsampleResolution * downsampleResolution, scalarInitData);
-    }
-
     // Allocate remaining scalar memory for event storage
-    const uint32_t eventMemoryPtr = AppUtils::allocateScalarAndZero((4096 * 32) - scalarInitData.size(), scalarInitData);
-
-    // If downsampling, allocate state variable for downsampling neurons
-    std::optional<uint32_t> downsampleVBuffer;
-    if (downsampleShift > 0) {
-        downsampleVBuffer = AppUtils::allocateVectorAndZero(downsampleResolution * downsampleResolution, vectorInitData);
-    }
+    const uint32_t eventMemoryPtr = AppUtils::allocateScalarAndZero((2048 * 32) - scalarInitData.size(), scalarInitData);
 
     // Generate code
     const auto code = AssemblerUtils::generateStandardKernel(
@@ -290,7 +277,7 @@ int main(int argc, char** argv)
             // Start time at 0
             c.li(*STime, 0);
             c.li(*STimeEnd, 87);
-            c.li(*SEventOutputBufferEnd, 4096 * 32);
+            c.li(*SEventOutputBufferEnd, 2048 * 32);
 
             // Bit to mark timestamps with
             c.li(*STimeMarker, 1 << 31);
@@ -325,17 +312,6 @@ int main(int argc, char** argv)
                     // If there aren't any events goto end
                     c.beq(*SRouterEventBuffer, *SRouterEventBufferEnd, eventLoopEnd);
 
-                    // If we're not downsampling, write time with top bit set to spike memory
-                    if(downsampleShift == 0) {
-                        ALLOCATE_SCALAR(STmp);
-                        c.or_(*STmp, *STime, *STimeMarker);
-                        c.sw(*STmp, *SEventOutputBuffer);
-
-                        // Advance spike memory pointer
-                        c.addi(*SEventOutputBuffer, *SEventOutputBuffer, 4);
-                        c.beq(*SEventOutputBuffer, *SEventOutputBufferEnd, timeLoopEnd);
-                    }
-
                     // While (spikeBuffer != spikeBufferEnd
                     auto eventLoop = c.L();
                     
@@ -343,16 +319,6 @@ int main(int argc, char** argv)
                         ScalarRegisterAllocator::RegisterPtr SPolarityMask;
                         ScalarRegisterAllocator::RegisterPtr SDownsampleResolution;
                         ScalarRegisterAllocator::RegisterPtr SDownsampleBuffer;
-                        if (downsampleShift > 0) {
-                            SPolarityMask = scalarRegisterAllocator.getRegister("SPolarityMask");
-                            SDownsampleResolution = scalarRegisterAllocator.getRegister("SDownsampleResolution");
-                            SDownsampleBuffer = scalarRegisterAllocator.getRegister("SDownsampleBuffer");
-
-                            // Bit mask to extract polarity with
-                            c.li(*SPolarityMask, 1 << 18);
-                            c.li(*SDownsampleResolution, downsampleResolution);
-                            c.li(*SDownsampleBuffer, downsampleIBuffer.value());
-                        }
 
                         c.beq(*SRouterEventBuffer, *SRouterEventBufferEnd, eventLoopEnd);
                         {
@@ -362,53 +328,12 @@ int main(int argc, char** argv)
                             c.lw(*SEvent, *SRouterEventBuffer);
                             c.addi(*SRouterEventBuffer, *SRouterEventBuffer, 4);
 
-                            // If we're downsampling
-                            if (downsampleShift > 0) {
-                                ALLOCATE_SCALAR(SX);
-                                ALLOCATE_SCALAR(SCoord);
-                                ALLOCATE_SCALAR(SP);
-                                ALLOCATE_SCALAR(SDownsampleIntegrator);
+                            // Write event directly to spike memory
+                            c.sw(*SEvent, *SEventOutputBuffer);
 
-                                // Extract downsampled y from bottom of event
-                                c.srli(*SCoord, *SEvent, downsampleShift);
-                                c.andi(*SCoord, *SCoord, downsampleMask);
-                            
-                                // Extract downsampled x from above
-                                c.srli(*SX, *SEvent, downsampleShift + 9);
-                                c.andi(*SX, *SX, downsampleMask);
-                            
-                                // Calculate (Y * downsampleResolution) + X
-                                c.mul(*SCoord, *SCoord, *SDownsampleResolution);
-                                c.add(*SCoord, *SCoord, *SX);
-                                c.add(*SCoord, *SCoord, *SDownsampleBuffer);
-
-                                // Extract polarity from above that
-                                c.and_(*SP, *SEvent, *SPolarityMask);
-
-                                // Load current downsampled value
-                                c.lb(*SDownsampleIntegrator, *SCoord);
-
-                                // Shift down by 17 so it's either 0 or 2
-                                c.srli(*SP, *SP, 17);
-
-                                // Subtract 1 so it's either -1  or 1
-                                c.addi(*SP, *SP, -1);
-
-                                // Add to integrator
-                                c.add(*SDownsampleIntegrator, *SDownsampleIntegrator, *SP);
-
-                                // Store
-                                c.sb(*SDownsampleIntegrator, *SCoord);
-                            }
-                            // Otherwise
-                            else {
-                                // Write event directly to spike memory
-                                c.sw(*SEvent, *SEventOutputBuffer);
-
-                                // Advance spike memory pointer and goto end if end of memory reached
-                                c.addi(*SEventOutputBuffer, *SEventOutputBuffer, 4);
-                                c.beq(*SEventOutputBuffer, *SEventOutputBufferEnd, timeLoopEnd);
-                            }
+                            // Advance spike memory pointer and goto end if end of memory reached
+                            c.addi(*SEventOutputBuffer, *SEventOutputBuffer, 4);
+                            c.beq(*SEventOutputBuffer, *SEventOutputBufferEnd, timeLoopEnd);
 
                             // Next event
                             c.j_(eventLoop);
@@ -416,98 +341,6 @@ int main(int argc, char** argv)
                         c.L(eventLoopEnd);
                     }
                 }
-
-                if (downsampleShift > 0) {
-                    ALLOCATE_SCALAR(SVBuffer);
-                    ALLOCATE_SCALAR(SIBuffer);
-                    ALLOCATE_SCALAR(SOne);
-                    ALLOCATE_VECTOR(VAlpha);
-                    ALLOCATE_VECTOR(VZero);
-                    
-                    c.li(*SVBuffer, downsampleVBuffer.value());
-                    c.li(*SIBuffer, downsampleIBuffer.value());
-                    c.li(*SOne, 1);
-                    c.vlui(*VAlpha, convertFixedPoint(std::exp(-1.0 / 20.0), 12));
-                    c.vlui(*VZero, 0);
-
-                    AssemblerUtils::unrollVectorLoopBody(
-                        c, scalarRegisterAllocator, downsampleResolution * downsampleResolution, 4, *SVBuffer,
-                        [&scalarRegisterAllocator, &vectorRegisterAllocator, 
-                         SOne, SIBuffer, SVBuffer, VAlpha]
-                        (CodeGenerator &c, uint32_t r, bool, ScalarRegisterAllocator::RegisterPtr maskReg)
-                        {
-                            // Register allocation
-                            ALLOCATE_VECTOR(VV);
-                            ALLOCATE_VECTOR(VISyn);
-                            ALLOCATE_SCALAR(SSpikeOut);
-                         
-                            // Zero ISyn
-                            // **OPTIMISE** process is very slow - 4 instructions per-neuron. If we had an instruction 
-                            // that filled all lanes with sign-extended bytes - would reduce by factor 4 without muxes
-                            c.vlui(*VISyn, 0);
-                            {
-                                // Loop through bytes of downsample buffer
-                                ALLOCATE_SCALAR(SI);
-                                ALLOCATE_SCALAR(SMask);
-                                ALLOCATE_VECTOR(VTmp);
-                                for (int i = 0; i < 32; i++) {
-                                    // Load I byte
-                                    c.lb(*SI, *SIBuffer, i);
-
-                                    // Build mask
-                                    c.slli(*SMask, *SOne, i);
-                                    
-                                    // Fill vector register
-                                    c.vfill(*VTmp, *SI);
-                                    
-                                    // Fill lane of ISyn with masked value
-                                    c.vsel(*VISyn, *SMask, *VTmp);
-                                }
-
-                                // Zero buffer
-                                for (int i = 0; i < 8; i++) {
-                                    c.sw(Reg::X0, *SIBuffer, i * 4);
-                                }
-                            }
-
-                            // Load voltage and isyn
-                            c.vloadv(*VV, *SVBuffer, 64 * r);
-                            
-                            // VV *= VAlpha
-                            c.vmul(12, *VV, *VV, *VAlpha);
-
-                            // VV += VISyn
-                            c.vadd_s(*VV, *VV, *VISyn);
-
-                            // VISyn = 0
-                            c.vlui(*VISyn, 0);
-
-                            // SSpikeOut = VV >= VThresh && !SRefractory
-                            /*c.vtge(*SSpikeOut, *VV, *VThresh);
-
-                            // *SSpikeBuffer = SSpikeOut
-                            c.sw(*SSpikeOut, *SSpikeBuffer, 4 * r);
-                            {
-                                // VTemp = V - VThresh
-                                ALLOCATE_VECTOR(VTemp);
-                                c.vadd(*VTemp, *VV, *VMinusThresh);
-
-                                // VV = SSpikeOut ? VReset : VV
-                                c.vsel(*VV, *SSpikeOut, *VTemp);
-                            }*/
-
-                            // Store V
-                            c.vstore(*VV, *SVBuffer, 64 * r);
-                        },
-                        [SIBuffer, /*SSpikeBuffer, */SVBuffer]
-                        (CodeGenerator &c, uint32_t numUnrolls)
-                        {
-                            c.addi(*SIBuffer, *SIBuffer, 32 * numUnrolls);
-                            c.addi(*SVBuffer, *SVBuffer, 64 * numUnrolls);
-                            //c.addi(*SSpikeBuffer, *SSpikeBuffer, 4 * numUnrolls); 
-                        });
-                }
-                
 
                 // Wait until 1ms of clock cycles has elapsed since start of loop
                 if(device) {
@@ -536,10 +369,6 @@ int main(int argc, char** argv)
                 ALLOCATE_SCALAR(STmp);
                 c.csrr(*STmp, CSR::SLAVE_BUFFER_OVERFLOW_COUNT);
                 c.sw(*STmp, Reg::X0, bufferOverflowCountPtr);
-            }
-            // Store event end pointer
-            if(downsampleShift == 0) {
-                c.sw(*SEventOutputBuffer, Reg::X0, eventEndPtr);
             }
         });
 
@@ -572,8 +401,12 @@ int main(int argc, char** argv)
         }
         
         {
-            std::ofstream output("recorded_spikes.bin", std::ios::binary);
+            std::ofstream output("recorded_spikes_0.bin", std::ios::binary);
             output.write(reinterpret_cast<const char*>(std::get<0>(coreData[0]).data()), std::get<0>(coreData[0]).size() * 4);
+        }
+        {
+            std::ofstream output("recorded_spikes_1.bin", std::ios::binary);
+            output.write(reinterpret_cast<const char*>(std::get<0>(coreData[1]).data()), std::get<0>(coreData[1]).size() * 4);
         }
     }
     else {
