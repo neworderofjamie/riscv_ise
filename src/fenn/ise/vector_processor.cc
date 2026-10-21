@@ -22,11 +22,11 @@ inline int16_t saturate(int val, size_t &saturateCount)
 {
     if(val < (int)std::numeric_limits<int16_t>::min()) {
         saturateCount++;
-        val = (int)std::numeric_limits<int16_t>::min();
+        return (int)std::numeric_limits<int16_t>::min();
     }
     else if(val > (int)std::numeric_limits<int16_t>::max()) {
         saturateCount++;
-        val = (int)std::numeric_limits<int16_t>::max();
+        return (int)std::numeric_limits<int16_t>::max();
     }
     else {
         return val;
