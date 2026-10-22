@@ -10,8 +10,7 @@ from tonic.transforms import Compose, CropTime, Denoise, Downsample
 
 from pyfenn.utils import (build_sparse_connectivity, ceil_divide, 
                           copy_and_push, convert_tonic_spikes, get_views,
-                          load_quantise_and_push, pull_spikes,
-                          quantise, zero_and_push)
+                          split_sparse_connectivity, quantise, zero_and_push)
 from tqdm.auto import tqdm, trange
 
 class LIF:
@@ -127,8 +126,8 @@ def shuffle_channel_height_width(weights, pre_width, pre_height, pre_channels, n
     return np.reshape(weights, (pre_height * pre_width * pre_channels, num_post))
 
 
-def build_sparse_conn(conn, num_pre: int,
-                      num_sparse_connectivity_bits: int,
+def build_sparse_conn(conn, backend, num_pre: int, num_post: int, 
+                      num_cores: int, num_sparse_connectivity_bits: int,
                       **quantise_kwargs):
     # Load pre and postsynaptic indices
     pre_ind, post_ind, weights = conn
@@ -151,7 +150,26 @@ def build_sparse_conn(conn, num_pre: int,
         row_weights.append(weights[mask])
         row_ind.append(post_ind[mask])
 
-    return build_sparse_connectivity([row_ind], [row_weights], num_sparse_connectivity_bits)
+    # Build connectivity
+    conn = build_sparse_connectivity([row_ind], [row_weights], num_sparse_connectivity_bits)
+    
+    # Use backend helper to determine how postsynaptic population will be split
+    post_neurons_per_core = [backend.get_split_dimension((num_post,), c, 0, num_cores, 32)
+                             for c in range(num_cores)]
+
+    # Calculate edges
+    # **TODO** this really could go in split
+    splits = np.cumsum(post_neurons_per_core)[:-1]
+    print(splits)
+
+    return split_sparse_connectivity(conn, splits)
+
+parser = ArgumentParser("DVS gesture classifier using LIF neurons")
+parser.add_argument("--device", action="store_true", help="Run model on FeNN hardware")
+parser.add_argument("--time", action="store_true", help="Record detailed timings using performance counters")
+parser.add_argument("--disassemble", action="store_true", help="Disassemble generated code")
+parser.add_argument("--num-cores", type=int, default=1, help="Number of cores to split ")
+args = parser.parse_args()
 
 # Shapes of neurons at end of each layer
 layer_shapes = [(32, 32, 2),
@@ -190,17 +208,13 @@ hidden4_conn = shuffle_channel_height_width(hidden4_conn, 7, 7, 8, 256)
 raw_sparse_conn = [hidden1_conn, hidden2_conn, hidden3_conn]
 
 # Build sparse weights
-sparse_weights = [build_sparse_conn(r, num_pre=np.prod(s),
+sparse_weights = [build_sparse_conn(r, backend, num_pre=np.prod(n_pre), 
+                                    num_post=np.prod(n_post), num_cores=args.num_cores,
                                     num_sparse_connectivity_bits=n, 
                                     fractional_bits=f, percentile=100.0)
-                  for i, (s, n, f, r) in enumerate(zip(layer_shapes[:3], layer_sparse_connectivity_bits, 
-                                                       layer_fractional_bits, raw_sparse_conn))]
-
-parser = ArgumentParser("DVS gesture classifier using LIF neurons")
-parser.add_argument("--device", action="store_true", help="Run model on FeNN hardware")
-parser.add_argument("--time", action="store_true", help="Record detailed timings using performance counters")
-parser.add_argument("--disassemble", action="store_true", help="Disassemble generated code")
-args = parser.parse_args()
+                  for i, (n_pre, n_post, n, f, r) in enumerate(zip(layer_shapes[:3], layer_shapes[1:4], 
+                                                                   layer_sparse_connectivity_bits, 
+                                                                   layer_fractional_bits, raw_sparse_conn))]
 
 # Load DVS gesture, denoising and cropping time
 dt = 0.1
@@ -217,7 +231,7 @@ input_labels = []
 
 max_spike_array_length = 0
 #for events, label in tqdm(dataset, "Preprocessing dataset"):
-for i in trange(50):
+for i in trange(5):
     events, label = dataset[i]
 
     # Convert times to 1ms timesteps and check they are sorted
