@@ -124,7 +124,7 @@ public:
         virtual void dumpMemories(size_t deviceIndex) const = 0;
     };
 
-    RISCV(size_t deviceIndex, size_t numInstructionWords = 1024, size_t numDataBytes = (4096 * 32), size_t numSpikeBytes = 4096);
+    RISCV(size_t deviceIndex, size_t numInstructionWords = 1024, size_t numDataBytes = (4096 * 16), size_t numSpikeBytes = 4096);
 
     bool run();
     void dumpRegisters() const;

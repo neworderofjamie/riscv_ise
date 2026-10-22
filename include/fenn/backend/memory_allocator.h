@@ -43,7 +43,7 @@ private:
 class BRAMAllocator : public MemoryAllocator
 {
 public:
-    BRAMAllocator() : MemoryAllocator(128 * 1024, 4, "BRAM")
+    BRAMAllocator() : MemoryAllocator(64 * 1024, 4, "BRAM")
     {}
 };
 
