@@ -102,11 +102,36 @@ class LIFOutput:
 def get_sat_type(num_fractional_bits):
     return f"s{15 - num_fractional_bits}_{num_fractional_bits}_sat_t"
 
-def build_sparse_conn(name: str, num_pre: int,
+def remap_width_height_channel(inds, width, height, num_channels):
+    # Unravel indices into their y, x, c components
+    ind_y, ind_x, ind_c = np.unravel_index(inds, (height, width, num_channels))
+    
+    # Ravel them back in x, y, c order
+    return np.ravel_multi_index((ind_x, ind_y, ind_c), (width, height, num_channels))
+
+def remap_channel_height_width(inds, width, height, num_channels):
+    # Unravel indices into their y, x, c components
+    ind_y, ind_x, ind_c = np.unravel_index(inds, (height, width, num_channels))
+    
+    # Ravel them back in c, y, x order
+    return np.ravel_multi_index((ind_c, ind_y, ind_x), (num_channels, height, width))
+
+def shuffle_channel_height_width(weights, pre_width, pre_height, pre_channels, num_post):
+    # Reshape weights into (pre_height, pre_width, pre_channels, num_post) shape
+    weights = np.reshape(weights, (pre_height, pre_width, pre_channels, num_post))
+    
+    # Re-order presynaptic axes
+    weights = np.moveaxis(weights, (0, 1, 2, 3), (1, 2, 0, 3))
+    
+    # Reshape back into (num_pre, num_post) shape
+    return np.reshape(weights, (pre_height * pre_width * pre_channels, num_post))
+
+
+def build_sparse_conn(conn, num_pre: int,
                       num_sparse_connectivity_bits: int,
                       **quantise_kwargs):
     # Load pre and postsynaptic indices
-    pre_ind, post_ind, weights = np.load(name)
+    pre_ind, post_ind, weights = conn
     pre_ind = pre_ind.astype(int)
     post_ind = post_ind.astype(int)
 
@@ -141,14 +166,35 @@ layer_sparse_connectivity_bits = [int(np.ceil(np.log2(ceil_divide(np.prod(s), 32
                                   for s in layer_shapes[1:4]]
 
 # Fractional bits neurons at end of each layer use for V and I 
-layer_fractional_bits = [6, 6, 6, 7, 9]
+layer_fractional_bits = [5, 6, 6, 7, 9]
+
+# Load weights
+hidden1_conn = np.load("hidden1.npy")
+hidden2_conn = np.load("hidden2.npy")
+hidden3_conn = np.load("hidden3.npy")
+hidden4_conn = np.load("hidden4.npy")
+output_conn = np.reshape(np.load("output.npy"), (256, 11))
+
+# Hidden 1 neurons need to be arranged in width, height, channel order
+hidden1_conn[1] = remap_width_height_channel(hidden1_conn[1].astype(int), 15, 15, 16)
+hidden2_conn[0] = remap_width_height_channel(hidden2_conn[0].astype(int), 15, 15, 16)
+
+# Hidden 2 neurons need to be arranged in channel, height, width order
+hidden2_conn[1] = remap_channel_height_width(hidden2_conn[1].astype(int), 15, 15, 16)
+hidden3_conn[0] = remap_channel_height_width(hidden3_conn[0].astype(int), 15, 15, 16)
+
+# Hidden 3 neurons need to be arranged in channel, height, width order
+hidden3_conn[1] = remap_channel_height_width(hidden3_conn[1].astype(int), 7, 7, 8)
+hidden4_conn = shuffle_channel_height_width(hidden4_conn, 7, 7, 8, 256)
+
+raw_sparse_conn = [hidden1_conn, hidden2_conn, hidden3_conn]
 
 # Build sparse weights
-sparse_weights = [build_sparse_conn(f"hidden{i + 1}.npy", num_pre=np.prod(s),
+sparse_weights = [build_sparse_conn(r, num_pre=np.prod(s),
                                     num_sparse_connectivity_bits=n, 
                                     fractional_bits=f, percentile=100.0)
-                  for i, (s, n, f) in enumerate(zip(layer_shapes[:3], layer_sparse_connectivity_bits, 
-                                                    layer_fractional_bits))]
+                  for i, (s, n, f, r) in enumerate(zip(layer_shapes[:3], layer_sparse_connectivity_bits, 
+                                                       layer_fractional_bits, raw_sparse_conn))]
 
 parser = ArgumentParser("DVS gesture classifier using LIF neurons")
 parser.add_argument("--device", action="store_true", help="Run model on FeNN hardware")
@@ -158,8 +204,8 @@ args = parser.parse_args()
 
 # Load DVS gesture, denoising and cropping time
 dt = 0.1
-chunk_timesteps = int(200 / dt)
 sensor_size = (32, 32, 2)
+chunk_timesteps = int(200 / dt)
 dataset = DVSGesture(save_to="./data", train=False, 
                      transform=Compose([Denoise(filter_time=10000),
                                         Downsample(spatial_factor=0.25)]))
@@ -270,10 +316,11 @@ copy_and_push(sparse_weights[1][0], hidden1_hidden2.weight, runtime)
 copy_and_push(sparse_weights[2][0], hidden2_hidden3.weight, runtime)
 
 # Load and quantise output weights
-load_quantise_and_push("hidden4.npy", layer_fractional_bits[3], 
-                       hidden3_hidden4.weight, runtime, percentile=100.0)
-load_quantise_and_push("output.npy", layer_fractional_bits[4], 
-                       hidden4_output.weight, runtime, percentile=100.0)
+copy_and_push(quantise(hidden4_conn, layer_fractional_bits[3], percentile=100.0),
+              hidden3_hidden4.weight, runtime)
+
+copy_and_push(quantise(output_conn, layer_fractional_bits[4], percentile=100.0),
+                       hidden4_output.weight, runtime)
 
 # Loop through examples
 input_spike_views = get_views(runtime, input_spike_buffer)
