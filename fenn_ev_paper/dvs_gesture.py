@@ -150,9 +150,6 @@ def build_sparse_conn(conn, backend, num_pre: int, num_post: int,
         row_weights.append(weights[mask])
         row_ind.append(post_ind[mask])
 
-    # Build connectivity
-    conn = build_sparse_connectivity([row_ind], [row_weights], num_sparse_connectivity_bits)
-    
     # Use backend helper to determine how postsynaptic population will be split
     post_neurons_per_core = [backend.get_split_dimension((num_post,), c, 0, num_cores, 32)
                              for c in range(num_cores)]
@@ -160,9 +157,12 @@ def build_sparse_conn(conn, backend, num_pre: int, num_post: int,
     # Calculate edges
     # **TODO** this really could go in split
     splits = np.cumsum(post_neurons_per_core)[:-1]
-    print(splits)
 
-    return split_sparse_connectivity(conn, splits)
+    # Split connectivity between cores
+    #row_ind, row_weights = split_sparse_connectivity(row_ind, splits, row_weights)
+
+    # Build connectivity
+    return build_sparse_connectivity([row_ind], [row_weights], num_sparse_connectivity_bits)
 
 parser = ArgumentParser("DVS gesture classifier using LIF neurons")
 parser.add_argument("--device", action="store_true", help="Run model on FeNN hardware")
@@ -179,9 +179,14 @@ layer_shapes = [(32, 32, 2),
                 (256,),         # Hidden 4
                 (11,)]          # Output
 
+# Use backend helper to determine how postsynaptic population will be split
+layer_neurons_per_core = [[backend.get_split_dimension((np.prod(l),), c, 0, args.num_cores, 32)
+                           for c in range(args.num_cores)]
+                          for l in layer_shapes]
+
 # Number of sparse connectivity bits each layer requires
-layer_sparse_connectivity_bits = [int(np.ceil(np.log2(ceil_divide(np.prod(s), 32)))) + 1
-                                  for s in layer_shapes[1:4]]
+layer_sparse_connectivity_bits = [int(np.ceil(np.log2(ceil_divide(max(n), 32)))) + 1
+                                  for n in layer_neurons_per_core[1:4]]
 
 # Fractional bits neurons at end of each layer use for V and I 
 layer_fractional_bits = [5, 6, 6, 7, 9]
@@ -219,7 +224,7 @@ sparse_weights = [build_sparse_conn(r, backend, num_pre=np.prod(n_pre),
 # Load DVS gesture, denoising and cropping time
 dt = 0.1
 sensor_size = (32, 32, 2)
-chunk_timesteps = int(200 / dt)
+chunk_timesteps = int(100 / dt)
 dataset = DVSGesture(save_to="./data", train=False, 
                      transform=Compose([Denoise(filter_time=10000),
                                         Downsample(spatial_factor=0.25)]))
@@ -276,16 +281,16 @@ populations.append(LIFOutput(backend, (np.prod(layer_shapes[-1]),), beta, 1.0,
 
 # Connect input spikes to first layer
 input_hidden1 = SparseLinear(backend, input_spike_buffer, populations[0].i, 
-                             get_sat_type(layer_fractional_bits[0]), max_row_length=sparse_weights[0][0].shape[1],
+                             get_sat_type(layer_fractional_bits[0]), max_row_length=sum(c.shape[1] for c in sparse_weights[0]),
                              num_sparse_connectivity_bits=layer_sparse_connectivity_bits[0], name="input_hidden1")
 
 # Add sparse connectivity
 hidden1_hidden2 = SparseLinear(backend, populations[0].out_spikes, populations[1].i, 
-                               get_sat_type(layer_fractional_bits[1]), max_row_length=sparse_weights[1][0].shape[1],
+                               get_sat_type(layer_fractional_bits[1]), max_row_length=sum(c.shape[1] for c in sparse_weights[1]),
                                num_sparse_connectivity_bits=layer_sparse_connectivity_bits[1], name="hidden1_hidden2")
 
 hidden2_hidden3 = SparseLinear(backend, populations[1].out_spikes, populations[2].i, 
-                               get_sat_type(layer_fractional_bits[2]), max_row_length=sparse_weights[2][0].shape[1],
+                               get_sat_type(layer_fractional_bits[2]), max_row_length=sum(c.shape[1] for c in sparse_weights[2]),
                                num_sparse_connectivity_bits=layer_sparse_connectivity_bits[2], name="hidden2_hidden3")
              
 hidden3_hidden4 = DenseLinear(backend, populations[2].out_spikes, populations[3].i, 
@@ -310,8 +315,8 @@ kernel = backend.SimulationLoopKernel(
 # Create runtime
 runtime_params = {"neuron_update_rounding_mode": backend.RoundingMode.NEAREST,
                   "use_dram_for_weights": True, "dma_buffer_size": 64 * 1024 * 1024}
-runtime = (backend.RuntimeHW([kernel], 1, **runtime_params) if args.device 
-           else backend.RuntimeSim([kernel], 1, **runtime_params))
+runtime = (backend.RuntimeHW([kernel], args.num_cores, **runtime_params) if args.device 
+           else backend.RuntimeSim([kernel], args.num_cores, **runtime_params))
 
 
 # Disassemble if required
@@ -325,9 +330,9 @@ if args.disassemble:
 runtime.allocate()
 
 # Copy connectivity
-copy_and_push(sparse_weights[0][0], input_hidden1.weight, runtime)
-copy_and_push(sparse_weights[1][0], hidden1_hidden2.weight, runtime)
-copy_and_push(sparse_weights[2][0], hidden2_hidden3.weight, runtime)
+copy_and_push(np.concatenate(sparse_weights[0], axis=1), input_hidden1.weight, runtime)
+copy_and_push(np.concatenate(sparse_weights[1], axis=1), hidden1_hidden2.weight, runtime)
+copy_and_push(np.concatenate(sparse_weights[2], axis=1), hidden2_hidden3.weight, runtime)
 
 # Load and quantise output weights
 copy_and_push(quantise(hidden4_conn, layer_fractional_bits[3], percentile=100.0),
