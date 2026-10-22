@@ -159,10 +159,10 @@ def build_sparse_conn(conn, backend, num_pre: int, num_post: int,
     splits = np.cumsum(post_neurons_per_core)[:-1]
 
     # Split connectivity between cores
-    #row_ind, row_weights = split_sparse_connectivity(row_ind, splits, row_weights)
+    row_ind, row_weights = split_sparse_connectivity(row_ind, splits, row_weights)
 
     # Build connectivity
-    return build_sparse_connectivity([row_ind], [row_weights], num_sparse_connectivity_bits)
+    return build_sparse_connectivity(row_ind, row_weights, num_sparse_connectivity_bits)
 
 parser = ArgumentParser("DVS gesture classifier using LIF neurons")
 parser.add_argument("--device", action="store_true", help="Run model on FeNN hardware")
@@ -185,9 +185,10 @@ layer_neurons_per_core = [[backend.get_split_dimension((np.prod(l),), c, 0, args
                           for l in layer_shapes]
 
 # Number of sparse connectivity bits each layer requires
+print(layer_neurons_per_core)
 layer_sparse_connectivity_bits = [int(np.ceil(np.log2(ceil_divide(max(n), 32)))) + 1
                                   for n in layer_neurons_per_core[1:4]]
-
+print(layer_sparse_connectivity_bits)
 # Fractional bits neurons at end of each layer use for V and I 
 layer_fractional_bits = [5, 6, 6, 7, 9]
 
@@ -224,7 +225,7 @@ sparse_weights = [build_sparse_conn(r, backend, num_pre=np.prod(n_pre),
 # Load DVS gesture, denoising and cropping time
 dt = 0.1
 sensor_size = (32, 32, 2)
-chunk_timesteps = int(100 / dt)
+chunk_timesteps = int(200 / dt)
 dataset = DVSGesture(save_to="./data", train=False, 
                      transform=Compose([Denoise(filter_time=10000),
                                         Downsample(spatial_factor=0.25)]))
@@ -236,7 +237,7 @@ input_labels = []
 
 max_spike_array_length = 0
 #for events, label in tqdm(dataset, "Preprocessing dataset"):
-for i in trange(5):
+for i in trange(1):
     events, label = dataset[i]
 
     # Convert times to 1ms timesteps and check they are sorted
@@ -257,10 +258,24 @@ for i in trange(5):
         shifted = e
         shifted["t"] -= i * (chunk_timesteps * timestep_scale)
         assert np.all(shifted["t"] >= 0.0)
-        spike_array = convert_tonic_spikes(shifted, dataset.ordering, 
-                                           sensor_size, histogram_thresh=None)
-        max_spike_array_length = max(max_spike_array_length, len(spike_array))
-        chunk_spikes.append(spike_array)
+
+        if args.num_cores == 1:
+            spike_array = convert_tonic_spikes(shifted, dataset.ordering, 
+                                               sensor_size, histogram_thresh=None)
+            max_spike_array_length = max(max_spike_array_length, len(spike_array))
+            chunk_spikes.append((spike_array,))
+        elif args.num_cores == 2:
+            left_mask = (shifted["x"] < 16)
+            left_spike_array = convert_tonic_spikes(shifted[left_mask], dataset.ordering,
+                                                    (16, 32, 2), histogram_thresh=None)
+            right = shifted[np.logical_not(left_mask)]
+            right["x"] -= 16
+            right_spike_array = convert_tonic_spikes(right, dataset.ordering,
+                                                     (16, 32, 2), histogram_thresh=None)
+            max_spike_array_length = max(max_spike_array_length, len(left_spike_array), len(right_spike_array))
+            chunk_spikes.append((left_spike_array, right_spike_array))
+        else:
+            assert False
 
     input_spikes.append(chunk_spikes)
     input_labels.append(label)
@@ -276,27 +291,27 @@ input_spike_buffer = backend.EventSourceBuffer((np.prod(layer_shapes[0]),), max_
 beta = 0.93**(dt / 1.0)
 populations = [LIF(backend, (np.prod(s),), beta, 1.0, f, name=f"hidden{i + 1}")
                for i, (s, f) in enumerate(zip(layer_shapes[1:-1], layer_fractional_bits))]
-populations.append(LIFOutput(backend, (np.prod(layer_shapes[-1]),), beta, 1.0, 
+populations.append(LIFOutput(backend, (np.prod(layer_shapes[-1]),), beta, 1.0,
                    layer_fractional_bits[-1], name="output"))
 
 # Connect input spikes to first layer
-input_hidden1 = SparseLinear(backend, input_spike_buffer, populations[0].i, 
+input_hidden1 = SparseLinear(backend, input_spike_buffer, populations[0].i,
                              get_sat_type(layer_fractional_bits[0]), max_row_length=sum(c.shape[1] for c in sparse_weights[0]),
                              num_sparse_connectivity_bits=layer_sparse_connectivity_bits[0], name="input_hidden1")
 
 # Add sparse connectivity
-hidden1_hidden2 = SparseLinear(backend, populations[0].out_spikes, populations[1].i, 
+hidden1_hidden2 = SparseLinear(backend, populations[0].out_spikes, populations[1].i,
                                get_sat_type(layer_fractional_bits[1]), max_row_length=sum(c.shape[1] for c in sparse_weights[1]),
                                num_sparse_connectivity_bits=layer_sparse_connectivity_bits[1], name="hidden1_hidden2")
 
-hidden2_hidden3 = SparseLinear(backend, populations[1].out_spikes, populations[2].i, 
+hidden2_hidden3 = SparseLinear(backend, populations[1].out_spikes, populations[2].i,
                                get_sat_type(layer_fractional_bits[2]), max_row_length=sum(c.shape[1] for c in sparse_weights[2]),
                                num_sparse_connectivity_bits=layer_sparse_connectivity_bits[2], name="hidden2_hidden3")
-             
-hidden3_hidden4 = DenseLinear(backend, populations[2].out_spikes, populations[3].i, 
+
+hidden3_hidden4 = DenseLinear(backend, populations[2].out_spikes, populations[3].i,
                               get_sat_type(layer_fractional_bits[3]), name="hidden3_hidden4")
 
-hidden4_output = DenseLinear(backend, populations[3].out_spikes, populations[4].i, 
+hidden4_output = DenseLinear(backend, populations[3].out_spikes, populations[4].i,
                              get_sat_type(layer_fractional_bits[4]), name="hidden4_hidden5")
 
 
@@ -311,7 +326,7 @@ synapse_update_processes = backend.ProcessGroup([input_hidden1.process, hidden1_
 kernel = backend.SimulationLoopKernel(
     chunk_timesteps, [synapse_update_processes, neuron_update_processes],
     [], [])
-    
+
 # Create runtime
 runtime_params = {"neuron_update_rounding_mode": backend.RoundingMode.NEAREST,
                   "use_dram_for_weights": True, "dma_buffer_size": 64 * 1024 * 1024}
@@ -343,10 +358,8 @@ copy_and_push(quantise(output_conn, layer_fractional_bits[4], percentile=100.0),
 
 # Loop through examples
 input_spike_views = get_views(runtime, input_spike_buffer)
-assert len(input_spike_views) == 1
 
 output_num_spikes_views = get_views(runtime, populations[-1].num_spikes)
-assert len(output_num_spikes_views) == 1
 
 # Loop through input gestures
 num_correct = 0
@@ -361,9 +374,10 @@ for spike_chunks, label in tqdm(zip(input_spikes, input_labels),
     zero_and_push(populations[-1].num_spikes, runtime)
 
     # Loop through spike chunks
-    for c in spike_chunks:
-        # Copy data to array host pointe
-        input_spike_views[0][:len(c)] = c
+    for arrays in spike_chunks:
+        assert len(arrays) == len(input_spike_views)
+        for a, v in zip(arays, input_spike_views):
+            v[:len(a)] = a
         runtime.push_state_to_device(input_spike_buffer)
 
         # Classify
