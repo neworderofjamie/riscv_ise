@@ -9,8 +9,8 @@ from tonic.datasets import DVSGesture
 from tonic.transforms import Compose, CropTime, Denoise, Downsample
 
 from pyfenn.utils import (build_sparse_connectivity, ceil_divide, 
-                          copy_and_push, convert_tonic_spikes, get_views,
-                          split_sparse_connectivity, quantise, zero_and_push)
+                          copy_and_push, copy_split_and_push, convert_tonic_spikes, 
+                          get_views, split_sparse_connectivity, quantise, zero_and_push)
 from tqdm.auto import tqdm, trange
 
 class LIF:
@@ -148,7 +148,7 @@ def build_sparse_conn(conn, backend, num_pre: int, num_post: int,
         mask = (pre_ind == i)
 
         row_weights.append(weights[mask])
-        row_ind.append(post_ind[mask])
+        row_ind.append(np.sort(post_ind[mask]))
 
     # Use backend helper to determine how postsynaptic population will be split
     post_neurons_per_core = [backend.get_split_dimension((num_post,), c, 0, num_cores, 32)
@@ -375,8 +375,8 @@ for spike_chunks, label in tqdm(zip(input_spikes, input_labels),
 
     # Loop through spike chunks
     for arrays in spike_chunks:
-        assert len(arrays) == len(input_spike_views)
-        for a, v in zip(arays, input_spike_views):
+        #copy_split_and_push(arrays, input_spike_buffer, runtime)
+        for a, v in zip(arrays, input_spike_views):
             v[:len(a)] = a
         runtime.push_state_to_device(input_spike_buffer)
 
