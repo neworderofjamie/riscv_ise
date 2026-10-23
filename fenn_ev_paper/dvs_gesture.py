@@ -177,7 +177,7 @@ layer_shapes = [(32, 32, 2),
                 (15, 15, 16),   # Hidden 2
                 (7, 7, 8),      # Hidden 3
                 (256,),         # Hidden 4
-                (11,)]          # Output
+                (64,)]          # Output **HACK** expand 
 
 # Use backend helper to determine how postsynaptic population will be split
 layer_neurons_per_core = [[backend.get_split_dimension((np.prod(l),), c, 0, args.num_cores, 32)
@@ -198,6 +198,8 @@ hidden2_conn = np.load("hidden2.npy")
 hidden3_conn = np.load("hidden3.npy")
 hidden4_conn = np.load("hidden4.npy")
 output_conn = np.reshape(np.load("output.npy"), (256, 11))
+output_conn = np.pad(output_conn, ((0, 0), (0, 64 - 11)))
+print(output_conn.shape)
 
 # Hidden 1 neurons need to be arranged in width, height, channel order
 hidden1_conn[1] = remap_width_height_channel(hidden1_conn[1].astype(int), 15, 15, 16)
@@ -389,7 +391,7 @@ for spike_chunks, label in tqdm(zip(input_spikes, input_labels),
 
     # Determine if output is correct
     #print(output_num_spikes_views[0], label)
-    classification = np.argmax(output_num_spikes_views[0])
+    classification = np.argmax(output_num_spikes_views[0][:11])
     if classification == label:
         num_correct += 1
 
