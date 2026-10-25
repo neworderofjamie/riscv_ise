@@ -255,7 +255,7 @@ else:
 # Load DVS gesture, denoising and cropping time
 dt = 0.1
 sensor_size = (32, 32, 2)
-chunk_timesteps = int(200 / dt)
+chunk_timesteps = int(120 / dt)
 dataset = DVSGesture(save_to="./data", train=False, 
                      transform=Compose([Denoise(filter_time=10000),
                                         Downsample(spatial_factor=0.25)]))
@@ -267,7 +267,7 @@ input_labels = []
 
 max_spike_array_length = 0
 #for events, label in tqdm(dataset, "Preprocessing dataset"):
-for i in range(1):
+for i in range(5):
     events, label = dataset[i]
 
     # Convert times to 1ms timesteps and check they are sorted
