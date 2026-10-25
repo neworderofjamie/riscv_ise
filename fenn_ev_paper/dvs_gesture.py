@@ -301,12 +301,12 @@ for i in range(5):
         elif args.num_cores == 2:
             # Build array from spike event IDs which need to be send to core 0
             core0_mask = (spike_event_ids <= last_pre_core_0)
-            core0_spike_array = build_spike_array(event_timesteps, spike_event_ids)
+            core0_spike_array = build_spike_array(event_timesteps[core0_mask], spike_event_ids[core0_mask])
             
             # Build array from spike event IDs which need to be send to core 1
             core1_mask = (spike_event_ids >= first_pre_core_1)
-            core1_spike_array = build_spike_array(event_timesteps, spike_event_ids - last_pre_core_0)
-            
+            core1_spike_array = build_spike_array(event_timesteps[core1_mask], 
+                                                  spike_event_ids[core1_mask] - first_pre_core_1)
             max_spike_array_length = max(max_spike_array_length, len(core0_spike_array), len(core1_spike_array))
             chunk_spikes.append((core0_spike_array, core1_spike_array))
         else:
