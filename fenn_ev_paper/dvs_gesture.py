@@ -167,10 +167,14 @@ def build_sparse_conn(conn, backend, num_pre: int, num_post: int,
 
 parser = ArgumentParser("DVS gesture classifier using LIF neurons")
 parser.add_argument("--device", action="store_true", help="Run model on FeNN hardware")
+parser.add_argument("--live", action="store_true", help="Run live on FeNN hardware")
 parser.add_argument("--time", action="store_true", help="Record detailed timings using performance counters")
 parser.add_argument("--disassemble", action="store_true", help="Disassemble generated code")
 parser.add_argument("--num-cores", type=int, default=1, help="Number of cores to split ")
 args = parser.parse_args()
+
+if args.live:
+    assert args.device
 
 # Shapes of neurons at end of each layer
 layer_shapes = [(32, 32, 2),
@@ -257,74 +261,81 @@ else:
 
 # Load DVS gesture, denoising and cropping time
 dt = 0.1
-sensor_size = (32, 32, 2)
-chunk_timesteps = int(120 / dt)
+
 dataset = DVSGesture(save_to="./data", train=False, 
                      transform=Compose([Denoise(filter_time=10000),
                                         Downsample(spatial_factor=0.25)]))
+                                        
+if not args.live:
+    sensor_size = (32, 32, 2)
+    chunk_timesteps = int(120 / dt)
 
-# Loop through dataset
-input_spikes = []
-input_labels = []
+    # Loop through dataset
+    input_spikes = []
+    input_labels = []
 
 
-max_spike_array_length = 0
-#for events, label in tqdm(dataset, "Preprocessing dataset"):
-for i in range(5):
-    events, label = dataset[i]
+    max_spike_array_length = 0
+    #for events, label in tqdm(dataset, "Preprocessing dataset"):
+    for i in range(5):
+        events, label = dataset[i]
 
-    # Convert times to 1ms timesteps and check they are sorted
-    timestep_scale = int(1000 * dt)
-    timesteps = np.floor(events["t"] / timestep_scale).astype(int)
-    assert np.all(timesteps[:-1] <= timesteps[1:])
+        # Convert times to 1ms timesteps and check they are sorted
+        timestep_scale = int(1000 * dt)
+        timesteps = np.floor(events["t"] / timestep_scale).astype(int)
+        assert np.all(timesteps[:-1] <= timesteps[1:])
 
-    # Split events into chunks
-    chunk_bins = np.arange(0, timesteps[-1] + chunk_timesteps, chunk_timesteps)
-    events_per_chunk = np.histogram(timesteps, chunk_bins)[0]
-    events_per_chunk = np.cumsum(events_per_chunk)
-    split_events = np.split(events, events_per_chunk)
+        # Split events into chunks
+        chunk_bins = np.arange(0, timesteps[-1] + chunk_timesteps, chunk_timesteps)
+        events_per_chunk = np.histogram(timesteps, chunk_bins)[0]
+        events_per_chunk = np.cumsum(events_per_chunk)
+        split_events = np.split(events, events_per_chunk)
 
-    # Loop through chunks of events
-    chunk_spikes = []
-    for i, e in enumerate(split_events):
-        # Make all chunks start at 0
-        shifted = e
-        shifted["t"] -= i * (chunk_timesteps * timestep_scale)
-        assert np.all(shifted["t"] >= 0.0)
+        # Loop through chunks of events
+        chunk_spikes = []
+        for i, e in enumerate(split_events):
+            # Make all chunks start at 0
+            shifted = e
+            shifted["t"] -= i * (chunk_timesteps * timestep_scale)
+            assert np.all(shifted["t"] >= 0.0)
 
-        # Flatten x, y and p into GenX320-ordered event IDs
-        spike_event_ids = (shifted["p"] +
-                           (shifted["y"] * sensor_size[2]) + 
-                           (shifted["x"] * sensor_size[1] * sensor_size[2]))
-        event_timesteps = np.floor(shifted["t"] / 1000.0).astype(int)
-        if args.num_cores == 1:
-            spike_array = build_spike_array(event_timesteps, spike_event_ids)
-            max_spike_array_length = max(max_spike_array_length, len(spike_array))
-            chunk_spikes.append((spike_array,))
-        elif args.num_cores == 2:
-            # Build array from spike event IDs which need to be send to core 0
-            core0_mask = (spike_event_ids <= last_pre_core_0)
-            core0_spike_array = build_spike_array(event_timesteps[core0_mask], spike_event_ids[core0_mask])
-            
-            # Build array from spike event IDs which need to be send to core 1
-            core1_mask = (spike_event_ids >= first_pre_core_1)
-            core1_spike_array = build_spike_array(event_timesteps[core1_mask], 
-                                                  spike_event_ids[core1_mask] - first_pre_core_1)
-            max_spike_array_length = max(max_spike_array_length, len(core0_spike_array), len(core1_spike_array))
-            chunk_spikes.append((core0_spike_array, core1_spike_array))
-        else:
-            assert False
+            # Flatten x, y and p into GenX320-ordered event IDs
+            spike_event_ids = (shifted["p"] +
+                               (shifted["y"] * sensor_size[2]) + 
+                               (shifted["x"] * sensor_size[1] * sensor_size[2]))
+            event_timesteps = np.floor(shifted["t"] / 1000.0).astype(int)
+            if args.num_cores == 1:
+                spike_array = build_spike_array(event_timesteps, spike_event_ids)
+                max_spike_array_length = max(max_spike_array_length, len(spike_array))
+                chunk_spikes.append((spike_array,))
+            elif args.num_cores == 2:
+                # Build array from spike event IDs which need to be send to core 0
+                core0_mask = (spike_event_ids <= last_pre_core_0)
+                core0_spike_array = build_spike_array(event_timesteps[core0_mask], spike_event_ids[core0_mask])
+                
+                # Build array from spike event IDs which need to be send to core 1
+                core1_mask = (spike_event_ids >= first_pre_core_1)
+                core1_spike_array = build_spike_array(event_timesteps[core1_mask], 
+                                                      spike_event_ids[core1_mask] - first_pre_core_1)
+                max_spike_array_length = max(max_spike_array_length, len(core0_spike_array), len(core1_spike_array))
+                chunk_spikes.append((core0_spike_array, core1_spike_array))
+            else:
+                assert False
 
-    print(f"{len(chunk_spikes)} chunks in example")
-    input_spikes.append(chunk_spikes)
-    input_labels.append(label)
+        print(f"{len(chunk_spikes)} chunks in example")
+        input_spikes.append(chunk_spikes)
+        input_labels.append(label)
 
 print(f"Max spike array length: {max_spike_array_length}")
 log_appender = backend.ConsoleAppender()#PythonLogAppender()
 backend.init_logging(log_appender, backend.PlogSeverity.INFO)
 
 # Input spikes
-input_spike_buffer = backend.EventSourceBuffer((input_size,), max_spike_array_length)
+if args.live:
+    genx_320 = backend.GenX320()
+    input_source = genx_320.source
+else:
+    input_source = backend.EventSourceBuffer((input_size,), max_spike_array_length)
 
 # Populations of LIF neurons
 beta = 0.93**(dt / 1.0)
@@ -364,9 +375,10 @@ synapse_update_processes = backend.ProcessGroup([input_hidden1.process, hidden1_
                                                  hidden2_hidden3.process, hidden3_hidden4.process,
                                                  hidden4_output.process], perf_counters)
 # Create kernel
+# **NOTE** we want to run this in real-time if we're on device
 kernel = backend.SimulationLoopKernel(
-    chunk_timesteps, [synapse_update_processes, neuron_update_processes],
-    [], [])
+    5000 if args.live else chunk_timesteps, [synapse_update_processes, neuron_update_processes],
+    [], [], target_clock_cycles = 14200 if args.live else None)
 
 # Create runtime
 runtime_params = {"neuron_update_rounding_mode": backend.RoundingMode.NEAREST,
@@ -398,41 +410,61 @@ copy_and_push(quantise(output_conn, layer_weight_fractional_bits[4], percentile=
                        hidden4_output.weight, runtime)
 
 # Loop through examples
-input_spike_views = get_views(runtime, input_spike_buffer)
+input_spike_views = get_views(runtime, input_source)
 
 output_num_spikes_views = get_views(runtime, populations[-1].num_spikes)
 
-# Loop through input gestures
-num_correct = 0
-time_simulated = 0
-for spike_chunks, label in zip(input_spikes, input_labels):
-    # Manually zero voltages
-    for p in populations:
-        zero_and_push(p.v, runtime)
+if args.live:
+    # Configure biases and ERC
+    runtime.genx320.set_bias_low()
+    runtime.genx320.enable_erc(500000.0)
+    
+    while True:
+        # Zero spike counts
+        zero_and_push(populations[-1].num_spikes, runtime)
 
-    # Zero num spikes
-    zero_and_push(populations[-1].num_spikes, runtime)
-
-    # Loop through spike chunks
-    for i, arrays in enumerate(spike_chunks):
-        print(f"chunk {i}/{len(spike_chunks)}")
-        #copy_split_and_push(arrays, input_spike_buffer, runtime)
-        for a, v in zip(arrays, input_spike_views):
-            v[:len(a)] = a
-        runtime.push_state_to_device(input_spike_buffer)
-
-        # Classify
+        # Start streaming and run kernel
+        runtime.genx320.start_streaming()
         runtime.run(kernel)
-        time_simulated += chunk_timesteps
+        runtime.genx320.stop_streaming()
+        
+        # Copy output V sum from device
+        runtime.pull_state_from_device(populations[-1].num_spikes)
 
-    # Copy output V sum from device
-    runtime.pull_state_from_device(populations[-1].num_spikes)
+        # Print classification
+        print(dataset.classes[np.argmax(output_num_spikes_views[0][:11])])
+else:
+    # Loop through input gestures
+    num_correct = 0
+    time_simulated = 0
+    for spike_chunks, label in zip(input_spikes, input_labels):
+        # Manually zero voltages
+        for p in populations:
+            zero_and_push(p.v, runtime)
 
-    # Determine if output is correct
-    print(output_num_spikes_views[0], label)
-    classification = np.argmax(output_num_spikes_views[0][:11])
-    if classification == label:
-        num_correct += 1
+        # Zero num spikes
+        zero_and_push(populations[-1].num_spikes, runtime)
+
+        # Loop through spike chunks
+        for i, arrays in enumerate(spike_chunks):
+            print(f"chunk {i}/{len(spike_chunks)}")
+            #copy_split_and_push(arrays, input_source, runtime)
+            for a, v in zip(arrays, input_spike_views):
+                v[:len(a)] = a
+            runtime.push_state_to_device(input_source)
+
+            # Classify
+            runtime.run(kernel)
+            time_simulated += chunk_timesteps
+
+        # Copy output V sum from device
+        runtime.pull_state_from_device(populations[-1].num_spikes)
+
+        # Determine if output is correct
+        print(output_num_spikes_views[0], label)
+        classification = np.argmax(output_num_spikes_views[0][:11])
+        if classification == label:
+            num_correct += 1
 
 if not args.device:
     saturation_count = np.asarray(runtime.saturation_count[0])
