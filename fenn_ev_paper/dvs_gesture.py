@@ -193,7 +193,7 @@ print(layer_sparse_connectivity_bits)
 # Fractional bits neurons at end of each layer use for V and I 
 layer_weight_fractional_bits = [6, 6, 6, 7, 9]
 
-layer_v_fractional_bits = [5, 6, 6, 7, 9]
+layer_v_fractional_bits = [4, 6, 6, 6, 9]
 
 # Load weights
 hidden1_conn = np.load("hidden1.npy")
@@ -251,6 +251,7 @@ elif args.num_cores == 2:
                                   ((0, input_size - sparse_weights[0][0].shape[0]), (0, 0)))
     sparse_weights[0][1] = np.pad(sparse_weights[0][1], 
                                   ((0, input_size - sparse_weights[0][1].shape[0]), (0, 0)))
+    print(f"Input size: {input_size}")
 else:
     assert False
 
