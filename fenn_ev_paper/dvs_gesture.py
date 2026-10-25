@@ -126,25 +126,6 @@ def shuffle_channel_height_width(weights, pre_width, pre_height, pre_channels, n
     # Reshape back into (num_pre, num_post) shape
     return np.reshape(weights, (pre_height * pre_width * pre_channels, num_post))
 
-# Modified version of convert_tonic_spikes which re-orders into x, y, p order
-def convert_tonic_spikes(events: np.ndarray, ordering,
-                         shape, time_scale=1.0 / 1000.0):
-    # Check dataset datatype includes time and polarity
-    if "t" not in ordering or "p" not in ordering or "x" not in ordering or "y" not in ordering:
-        raise RuntimeError("Only tonic datasets with time (t) and "
-                           "polarity (p) in ordering are supported")
-
-    # If sensor is 2D, flatten x, y and p into event IDs
-    print(shape)
-    spike_event_ids = (events["p"] +
-                       (events["y"] * shape[2]) + 
-                       (events["x"] * shape[1] * shape[2]))
-
-    scaled_t = events["t"] * time_scale
-
-    return build_spike_array(np.floor(scaled_t).astype(int),
-                             spike_event_ids)
-
 def build_sparse_conn(conn, backend, num_pre: int, num_post: int, 
                       num_cores: int, num_sparse_connectivity_bits: int,
                       **quantise_kwargs):
@@ -171,7 +152,7 @@ def build_sparse_conn(conn, backend, num_pre: int, num_post: int,
         row_ind.append(post_ind[mask][order])
 
     # Use backend helper to determine how postsynaptic population will be split
-    post_neurons_per_core = [backend.get_split_dimension((num_post,), c, 0, num_cores, 32)
+    post_neurons_per_core = [backend.get_split_dimension ((num_post,), c, 0, num_cores, 32)
                              for c in range(num_cores)]
 
     # Calculate edges
@@ -219,7 +200,6 @@ hidden3_conn = np.load("hidden3.npy")
 hidden4_conn = np.load("hidden4.npy")
 output_conn = np.reshape(np.load("output.npy"), (256, 11))
 output_conn = np.pad(output_conn, ((0, 0), (0, 64 - 11)))
-print(output_conn.shape)
 
 # Input neurons need to be arranged in width, height, channel order
 hidden1_conn[0] = remap_width_height_channel(hidden1_conn[0].astype(int), 32, 32, 2)
@@ -247,15 +227,30 @@ sparse_weights = [build_sparse_conn(r, backend, num_pre=np.prod(n_pre),
                                                                    layer_sparse_connectivity_bits, 
                                                                    layer_fractional_bits, raw_sparse_conn))]
 
-if args.num_cores == 2:
+if args.num_cores == 1:
+    input_size = np.prod(layer_shapes[0])
+elif args.num_cores == 2:
     # **YUCK** figure out where the INPUT should be split to match the postsynaptic split
     last_pre_core_0 = next((len(sparse_weights[0][0]) -1 - i) 
                            for i, r in enumerate(reversed(sparse_weights[0][0]))
                            if np.any(r != 0))
     first_pre_core_1 = next(i for i, r in enumerate(sparse_weights[0][1])
                             if np.any(r != 0))
-    
-    print(last_pre_core_0, first_pre_core_1)
+    print(f"Last input neuron on core 0 = {last_pre_core_0}")
+    print(f"First input neuron on core 1 = {first_pre_core_1}")
+    # Slice up sparse weights
+    sparse_weights[0][0] = sparse_weights[0][0][:last_pre_core_0 + 1]
+    sparse_weights[0][1] = sparse_weights[0][1][first_pre_core_1:]
+
+    # **YUCK** pad to maximum number of rows
+    input_size = max(sparse_weights[0][0].shape[0], 
+                     sparse_weights[0][1].shape[0])
+    sparse_weights[0][0] = np.pad(sparse_weights[0][0], 
+                                  ((0, input_size - sparse_weights[0][0].shape[0]), (0, 0)))
+    sparse_weights[0][1] = np.pad(sparse_weights[0][1], 
+                                  ((0, input_size - sparse_weights[0][1].shape[0]), (0, 0)))
+else:
+    assert False
 
 # Load DVS gesture, denoising and cropping time
 dt = 0.1
@@ -294,22 +289,26 @@ for i in range(1):
         shifted["t"] -= i * (chunk_timesteps * timestep_scale)
         assert np.all(shifted["t"] >= 0.0)
 
+        # Flatten x, y and p into GenX320-ordered event IDs
+        spike_event_ids = (shifted["p"] +
+                           (shifted["y"] * sensor_size[2]) + 
+                           (shifted["x"] * sensor_size[1] * sensor_size[2]))
+        event_timesteps = np.floor(shifted["t"] / 1000.0).astype(int)
         if args.num_cores == 1:
-            spike_array = convert_tonic_spikes(shifted, dataset.ordering, 
-                                               sensor_size)
+            spike_array = build_spike_array(event_timesteps, spike_event_ids)
             max_spike_array_length = max(max_spike_array_length, len(spike_array))
             chunk_spikes.append((spike_array,))
         elif args.num_cores == 2:
-            left_mask = (shifted["x"] < 18)
-            left_spike_array = convert_tonic_spikes(shifted[left_mask], dataset.ordering,
-                                                    (18, 32, 2))
-            right_mask = (shifted["x"] > 12)
-            right = shifted[right_mask]
-            right["x"] -= 12
-            right_spike_array = convert_tonic_spikes(right, dataset.ordering,
-                                                     (20, 32, 2))
-            max_spike_array_length = max(max_spike_array_length, len(left_spike_array), len(right_spike_array))
-            chunk_spikes.append((left_spike_array, right_spike_array))
+            # Build array from spike event IDs which need to be send to core 0
+            core0_mask = (spike_event_ids <= last_pre_core_0)
+            core0_spike_array = build_spike_array(event_timesteps, spike_event_ids)
+            
+            # Build array from spike event IDs which need to be send to core 1
+            core1_mask = (spike_event_ids >= first_pre_core_1)
+            core1_spike_array = build_spike_array(event_timesteps, spike_event_ids - last_pre_core_0)
+            
+            max_spike_array_length = max(max_spike_array_length, len(core0_spike_array), len(core1_spike_array))
+            chunk_spikes.append((core0_spike_array, core1_spike_array))
         else:
             assert False
 
@@ -322,7 +321,7 @@ log_appender = backend.ConsoleAppender()#PythonLogAppender()
 backend.init_logging(log_appender, backend.PlogSeverity.INFO)
 
 # Input spikes
-input_spike_buffer = backend.EventSourceBuffer((np.prod(layer_shapes[0]),), max_spike_array_length)
+input_spike_buffer = backend.EventSourceBuffer((input_size,), max_spike_array_length)
 
 # Populations of LIF neurons
 beta = 0.93**(dt / 1.0)
