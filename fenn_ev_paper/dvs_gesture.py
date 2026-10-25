@@ -8,9 +8,10 @@ from pyfenn.utils import PythonLogAppender
 from tonic.datasets import DVSGesture
 from tonic.transforms import Compose, CropTime, Denoise, Downsample
 
-from pyfenn.utils import (build_sparse_connectivity, ceil_divide, 
-                          copy_and_push, copy_split_and_push, convert_tonic_spikes, 
-                          get_views, split_sparse_connectivity, quantise, zero_and_push)
+from pyfenn.utils import (build_sparse_connectivity, build_spike_array,
+                          ceil_divide, copy_and_push, copy_split_and_push,
+                          get_views, split_sparse_connectivity, quantise,
+                          zero_and_push)
 from tqdm.auto import tqdm, trange
 
 class LIF:
@@ -125,6 +126,24 @@ def shuffle_channel_height_width(weights, pre_width, pre_height, pre_channels, n
     # Reshape back into (num_pre, num_post) shape
     return np.reshape(weights, (pre_height * pre_width * pre_channels, num_post))
 
+# Modified version of convert_tonic_spikes which re-orders into x, y, p order
+def convert_tonic_spikes(events: np.ndarray, ordering,
+                         shape, time_scale=1.0 / 1000.0):
+    # Check dataset datatype includes time and polarity
+    if "t" not in ordering or "p" not in ordering or "x" not in ordering or "y" not in ordering:
+        raise RuntimeError("Only tonic datasets with time (t) and "
+                           "polarity (p) in ordering are supported")
+
+    # If sensor is 2D, flatten x, y and p into event IDs
+    print(shape)
+    spike_event_ids = (events["p"] +
+                       (events["y"] * shape[2]) + 
+                       (events["x"] * shape[1] * shape[2]))
+
+    scaled_t = events["t"] * time_scale
+
+    return build_spike_array(np.floor(scaled_t).astype(int),
+                             spike_event_ids)
 
 def build_sparse_conn(conn, backend, num_pre: int, num_post: int, 
                       num_cores: int, num_sparse_connectivity_bits: int,
@@ -202,6 +221,9 @@ output_conn = np.reshape(np.load("output.npy"), (256, 11))
 output_conn = np.pad(output_conn, ((0, 0), (0, 64 - 11)))
 print(output_conn.shape)
 
+# Input neurons need to be arranged in width, height, channel order
+hidden1_conn[0] = remap_width_height_channel(hidden1_conn[0].astype(int), 32, 32, 2)
+
 # Hidden 1 neurons need to be arranged in width, height, channel order
 hidden1_conn[1] = remap_width_height_channel(hidden1_conn[1].astype(int), 15, 15, 16)
 hidden2_conn[0] = remap_width_height_channel(hidden2_conn[0].astype(int), 15, 15, 16)
@@ -225,6 +247,16 @@ sparse_weights = [build_sparse_conn(r, backend, num_pre=np.prod(n_pre),
                                                                    layer_sparse_connectivity_bits, 
                                                                    layer_fractional_bits, raw_sparse_conn))]
 
+if args.num_cores == 2:
+    # **YUCK** figure out where the INPUT should be split to match the postsynaptic split
+    last_pre_core_0 = next((len(sparse_weights[0][0]) -1 - i) 
+                           for i, r in enumerate(reversed(sparse_weights[0][0]))
+                           if np.any(r != 0))
+    first_pre_core_1 = next(i for i, r in enumerate(sparse_weights[0][1])
+                            if np.any(r != 0))
+    
+    print(last_pre_core_0, first_pre_core_1)
+
 # Load DVS gesture, denoising and cropping time
 dt = 0.1
 sensor_size = (32, 32, 2)
@@ -240,7 +272,7 @@ input_labels = []
 
 max_spike_array_length = 0
 #for events, label in tqdm(dataset, "Preprocessing dataset"):
-for i in trange(1):
+for i in range(1):
     events, label = dataset[i]
 
     # Convert times to 1ms timesteps and check they are sorted
@@ -264,26 +296,28 @@ for i in trange(1):
 
         if args.num_cores == 1:
             spike_array = convert_tonic_spikes(shifted, dataset.ordering, 
-                                               sensor_size, histogram_thresh=None)
+                                               sensor_size)
             max_spike_array_length = max(max_spike_array_length, len(spike_array))
             chunk_spikes.append((spike_array,))
         elif args.num_cores == 2:
-            left_mask = (shifted["x"] < 16)
+            left_mask = (shifted["x"] < 18)
             left_spike_array = convert_tonic_spikes(shifted[left_mask], dataset.ordering,
-                                                    (16, 32, 2), histogram_thresh=None)
-            right = shifted[np.logical_not(left_mask)]
-            right["x"] -= 16
+                                                    (18, 32, 2))
+            right_mask = (shifted["x"] > 12)
+            right = shifted[right_mask]
+            right["x"] -= 12
             right_spike_array = convert_tonic_spikes(right, dataset.ordering,
-                                                     (16, 32, 2), histogram_thresh=None)
+                                                     (20, 32, 2))
             max_spike_array_length = max(max_spike_array_length, len(left_spike_array), len(right_spike_array))
             chunk_spikes.append((left_spike_array, right_spike_array))
         else:
             assert False
 
+    print(f"{len(chunk_spikes)} chunks in example")
     input_spikes.append(chunk_spikes)
     input_labels.append(label)
 
-print(max_spike_array_length)
+print(f"Max spike array length: {max_spike_array_length}")
 log_appender = backend.ConsoleAppender()#PythonLogAppender()
 backend.init_logging(log_appender, backend.PlogSeverity.INFO)
 
@@ -367,8 +401,7 @@ output_num_spikes_views = get_views(runtime, populations[-1].num_spikes)
 # Loop through input gestures
 num_correct = 0
 time_simulated = 0
-for spike_chunks, label in tqdm(zip(input_spikes, input_labels),
-                                 total=len(input_labels), desc="Simulating"):
+for spike_chunks, label in zip(input_spikes, input_labels):
     # Manually zero voltages
     for p in populations:
         zero_and_push(p.v, runtime)
@@ -377,7 +410,8 @@ for spike_chunks, label in tqdm(zip(input_spikes, input_labels),
     zero_and_push(populations[-1].num_spikes, runtime)
 
     # Loop through spike chunks
-    for arrays in spike_chunks:
+    for i, arrays in enumerate(spike_chunks):
+        print(f"chunk {i}/{len(spike_chunks)}")
         #copy_split_and_push(arrays, input_spike_buffer, runtime)
         for a, v in zip(arrays, input_spike_views):
             v[:len(a)] = a
@@ -391,7 +425,7 @@ for spike_chunks, label in tqdm(zip(input_spikes, input_labels),
     runtime.pull_state_from_device(populations[-1].num_spikes)
 
     # Determine if output is correct
-    #print(output_num_spikes_views[0], label)
+    print(output_num_spikes_views[0], label)
     classification = np.argmax(output_num_spikes_views[0][:11])
     if classification == label:
         num_correct += 1
@@ -408,11 +442,11 @@ print(f"Simulated {time_simulated} timesteps")
 print(f"{num_correct} / {len(input_labels)} correct {100.0 * (num_correct / len(input_labels))}%")
 
 if args.time:
-    neuron_update_cycles = runtime.read_performance_counter(neuron_update_processes, 'num_clock_cycles')[0]
-    neuron_update_instructions = runtime.read_performance_counter(neuron_update_processes, 'num_instructions')[0]
+    neuron_update_cycles = runtime.read_performance_counter(neuron_update_processes, 'num_clock_cycles')
+    neuron_update_instructions = runtime.read_performance_counter(neuron_update_processes, 'num_instructions')
 
-    synapse_update_cycles = runtime.read_performance_counter(synapse_update_processes, 'num_clock_cycles')[0]
-    synapse_update_instructions = runtime.read_performance_counter(synapse_update_processes, 'num_instructions')[0]
+    synapse_update_cycles = runtime.read_performance_counter(synapse_update_processes, 'num_clock_cycles')
+    synapse_update_instructions = runtime.read_performance_counter(synapse_update_processes, 'num_instructions')
 
-    print(f"Neuron update {neuron_update_cycles} cycles, {neuron_update_instructions} instruction ({neuron_update_instructions / neuron_update_cycles})")
-    print(f"Synapse update {synapse_update_cycles} cycles, {synapse_update_instructions} instruction ({synapse_update_instructions / synapse_update_cycles})")
+    print(f"Neuron update {neuron_update_cycles} cycles, {neuron_update_instructions} instruction ({neuron_update_instructions[0] / neuron_update_cycles[0]})")
+    print(f"Synapse update {synapse_update_cycles} cycles, {synapse_update_instructions} instruction ({synapse_update_instructions[0] / synapse_update_cycles[0]})")
