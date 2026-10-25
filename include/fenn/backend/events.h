@@ -375,8 +375,11 @@ public:
 class FENN_BACKEND_EXPORT GenX320EventChannelSink : public Frontend::EventChannelSink, public EventSinkRouterKeyImplementation
 {
 public:
+    // **HACK** this is specific to 
+    // a) dual-core FeNN 
+    // b) correct overlap for 5x5 convolutions with stride 2 in the first layer!
     GenX320EventChannelSink(Private)
-    :   Frontend::EventChannelSink(Private(), {320, 320}, false, "genx320_sink")
+    :   Frontend::EventChannelSink(Private(), {1190}, false, "genx320_sink")
     {}
 
     //------------------------------------------------------------------------
@@ -391,7 +394,7 @@ public:
     // EventSinkRouterKeyImplementation virtuals
     //------------------------------------------------------------------------
     //! Get the number of bits this sink requires to encode its neuron IDs
-    virtual size_t getNumNeuronIDBits() const override final{ return 9 + 9 + 1; }
+    virtual size_t getNumNeuronIDBits() const override final{ return 5 + 5 + 1; }
 
     //! Get population ID this sink uses to encode its neuron IDs if this is fixed
     virtual std::optional<uint32_t> getPopulationID() const override final{ return 0; }
