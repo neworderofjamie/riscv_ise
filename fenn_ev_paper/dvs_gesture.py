@@ -15,14 +15,15 @@ from pyfenn.utils import (build_sparse_connectivity, build_spike_array,
 from tqdm.auto import tqdm, trange
 
 class LIF:
-    def __init__(self, backend, shape, alpha: float,
-                 v_thresh: float, fixed_point: int = 5, 
+    def __init__(self, backend, shape, alpha: float, v_thresh: float,
+                 v_fixed_point: int = 5, i_fixed_point: int = 5, 
                  tau_ref: int = 9, name: str = ""):
         self.shape = shape
-        dtype = f"s{15 - fixed_point}_{fixed_point}_sat_t"
+        v_dtype = f"s{15 - v_fixed_point}_{v_fixed_point}_sat_t"
+        i_dtype = f"s{15 - i_fixed_point}_{i_fixed_point}_sat_t"
         
-        self.v = backend.Variable(self.shape, dtype, name=f"{name}_v")
-        self.i = backend.Variable(self.shape, dtype, name=f"{name}_i")
+        self.v = backend.Variable(self.shape, v_dtype, name=f"{name}_v")
+        self.i = backend.Variable(self.shape, i_dtype, name=f"{name}_i")
         self.tau_ref = backend.Variable(self.shape, "int16_t", name=f"{name}_tau_ref")
         self.refrac_counter = backend.Variable(self.shape, "int16_t", name=f"{name}_refrac_counter")
 
@@ -31,10 +32,9 @@ class LIF:
         self.process = backend.NeuronUpdateProcess(
             f"""
             // Neuron
-            V = ({alpha}h15 * V) + I;
-            I = 0.0h{fixed_point};
-            
-            I = I;
+            V = ({alpha}h15 * V) + (I * 1.0h{v_fixed_point});
+            I = 0.0h{i_fixed_point};
+
             I = I;
             I = I;
             I = I;
@@ -47,9 +47,9 @@ class LIF:
                 RefracCounter--;
             }}
 
-            if(V >= {v_thresh}h{fixed_point} && RefracCounter <= 0) {{
+            if(V >= {v_thresh}h{v_fixed_point} && RefracCounter <= 0) {{
                Spike();
-               V -= {v_thresh}h{fixed_point};
+               V -= {v_thresh}h{v_fixed_point};
                RefracCounter = {tau_ref};
             }}
             """,
@@ -58,24 +58,24 @@ class LIF:
             name=name)
 
 class LIFOutput:
-    def __init__(self, backend, shape, alpha: float,
-                 v_thresh: float, fixed_point: int = 5, 
+    def __init__(self, backend, shape, alpha: float, v_thresh: float, 
+                 v_fixed_point: int = 5, i_fixed_point: int = 5, 
                  tau_ref: int = 9, name: str = ""):
         self.shape = shape
-        dtype = f"s{15 - fixed_point}_{fixed_point}_sat_t"
-        
-        self.v = backend.Variable(self.shape, dtype, name=f"{name}_v")
-        self.i = backend.Variable(self.shape, dtype, name=f"{name}_i")
+        v_dtype = f"s{15 - v_fixed_point}_{v_fixed_point}_sat_t"
+        i_dtype = f"s{15 - i_fixed_point}_{i_fixed_point}_sat_t"
+
+        self.v = backend.Variable(self.shape, v_dtype, name=f"{name}_v")
+        self.i = backend.Variable(self.shape, i_dtype, name=f"{name}_i")
         self.refrac_counter = backend.Variable(self.shape, "int16_t", name=f"{name}_refrac_counter")
         self.num_spikes = backend.Variable(self.shape, "int16_sat_t", name=f"{name}_spike_count")
 
         self.process = backend.NeuronUpdateProcess(
             f"""
             // Neuron
-            V = ({alpha}h15 * V) + I;
-            I = 0.0h{fixed_point};
+            V = ({alpha}h15 * V) + (I * 1.0h{v_fixed_point});
+            I = 0.0h{i_fixed_point};
 
-            I = I;
             I = I;
             I = I;
             I = I;
@@ -88,9 +88,9 @@ class LIFOutput:
                 RefracCounter--;
             }}
 
-            if(V >= {v_thresh}h{fixed_point} && RefracCounter <= 0) {{
+            if(V >= {v_thresh}h{v_fixed_point} && RefracCounter <= 0) {{
                NumSpikes++;
-               V -= {v_thresh}h{fixed_point};
+               V -= {v_thresh}h{v_fixed_point};
                RefracCounter = {tau_ref};
             }}
             """,
@@ -191,7 +191,9 @@ layer_sparse_connectivity_bits = [int(np.ceil(np.log2(ceil_divide(max(n), 32))))
                                   for n in layer_neurons_per_core[1:4]]
 print(layer_sparse_connectivity_bits)
 # Fractional bits neurons at end of each layer use for V and I 
-layer_fractional_bits = [5, 6, 6, 7, 9]
+layer_weight_fractional_bits = [6, 6, 6, 7, 9]
+
+layer_v_fractional_bits = [5, 6, 6, 7, 9]
 
 # Load weights
 hidden1_conn = np.load("hidden1.npy")
@@ -225,7 +227,7 @@ sparse_weights = [build_sparse_conn(r, backend, num_pre=np.prod(n_pre),
                                     fractional_bits=f, percentile=100.0)
                   for i, (n_pre, n_post, n, f, r) in enumerate(zip(layer_shapes[:3], layer_shapes[1:4], 
                                                                    layer_sparse_connectivity_bits, 
-                                                                   layer_fractional_bits, raw_sparse_conn))]
+                                                                   layer_weight_fractional_bits, raw_sparse_conn))]
 
 if args.num_cores == 1:
     input_size = np.prod(layer_shapes[0])
@@ -325,30 +327,32 @@ input_spike_buffer = backend.EventSourceBuffer((input_size,), max_spike_array_le
 
 # Populations of LIF neurons
 beta = 0.93**(dt / 1.0)
-populations = [LIF(backend, (np.prod(s),), beta, 1.0, f, name=f"hidden{i + 1}")
-               for i, (s, f) in enumerate(zip(layer_shapes[1:-1], layer_fractional_bits))]
+populations = [LIF(backend, (np.prod(s),), beta, 1.0, v_f, i_f, name=f"hidden{i + 1}")
+               for i, (s, v_f, i_f) in enumerate(zip(layer_shapes[1:-1], 
+                                                     layer_v_fractional_bits, 
+                                                     layer_weight_fractional_bits))]
 populations.append(LIFOutput(backend, (np.prod(layer_shapes[-1]),), beta, 1.0,
-                   layer_fractional_bits[-1], name="output"))
+                   layer_v_fractional_bits[-1], layer_weight_fractional_bits[-1], name="output"))
 
 # Connect input spikes to first layer
 input_hidden1 = SparseLinear(backend, input_spike_buffer, populations[0].i,
-                             get_sat_type(layer_fractional_bits[0]), max_row_length=sum(c.shape[1] for c in sparse_weights[0]),
+                             get_sat_type(layer_weight_fractional_bits[0]), max_row_length=sum(c.shape[1] for c in sparse_weights[0]),
                              num_sparse_connectivity_bits=layer_sparse_connectivity_bits[0], name="input_hidden1")
 
 # Add sparse connectivity
 hidden1_hidden2 = SparseLinear(backend, populations[0].out_spikes, populations[1].i,
-                               get_sat_type(layer_fractional_bits[1]), max_row_length=sum(c.shape[1] for c in sparse_weights[1]),
+                               get_sat_type(layer_weight_fractional_bits[1]), max_row_length=sum(c.shape[1] for c in sparse_weights[1]),
                                num_sparse_connectivity_bits=layer_sparse_connectivity_bits[1], name="hidden1_hidden2")
 
 hidden2_hidden3 = SparseLinear(backend, populations[1].out_spikes, populations[2].i,
-                               get_sat_type(layer_fractional_bits[2]), max_row_length=sum(c.shape[1] for c in sparse_weights[2]),
+                               get_sat_type(layer_weight_fractional_bits[2]), max_row_length=sum(c.shape[1] for c in sparse_weights[2]),
                                num_sparse_connectivity_bits=layer_sparse_connectivity_bits[2], name="hidden2_hidden3")
 
 hidden3_hidden4 = DenseLinear(backend, populations[2].out_spikes, populations[3].i,
-                              get_sat_type(layer_fractional_bits[3]), name="hidden3_hidden4")
+                              get_sat_type(layer_weight_fractional_bits[3]), name="hidden3_hidden4")
 
 hidden4_output = DenseLinear(backend, populations[3].out_spikes, populations[4].i,
-                             get_sat_type(layer_fractional_bits[4]), name="hidden4_hidden5")
+                             get_sat_type(layer_weight_fractional_bits[4]), name="hidden4_hidden5")
 
 
 
@@ -386,10 +390,10 @@ copy_and_push(np.concatenate(sparse_weights[1], axis=1), hidden1_hidden2.weight,
 copy_and_push(np.concatenate(sparse_weights[2], axis=1), hidden2_hidden3.weight, runtime)
 
 # Load and quantise output weights
-copy_and_push(quantise(hidden4_conn, layer_fractional_bits[3], percentile=100.0),
+copy_and_push(quantise(hidden4_conn, layer_weight_fractional_bits[3], percentile=100.0),
               hidden3_hidden4.weight, runtime)
 
-copy_and_push(quantise(output_conn, layer_fractional_bits[4], percentile=100.0),
+copy_and_push(quantise(output_conn, layer_weight_fractional_bits[4], percentile=100.0),
                        hidden4_output.weight, runtime)
 
 # Loop through examples
