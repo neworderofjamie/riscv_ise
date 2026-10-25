@@ -147,8 +147,9 @@ def build_sparse_conn(conn, backend, num_pre: int, num_post: int,
     for i in range(num_pre):
         mask = (pre_ind == i)
 
-        row_weights.append(weights[mask])
-        row_ind.append(np.sort(post_ind[mask]))
+        order = np.argsort(post_ind[mask])
+        row_weights.append(weights[mask][order])
+        row_ind.append(post_ind[mask][order])
 
     # Use backend helper to determine how postsynaptic population will be split
     post_neurons_per_core = [backend.get_split_dimension((num_post,), c, 0, num_cores, 32)
