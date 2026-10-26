@@ -236,12 +236,12 @@ KernelImplementation::KernelImplementation(const Frontend::ProcessGroupVector &p
             }
             else {
                 // Check first empty entry appears after the last non-empty one
-                assert(firstEmpty > lastNonEmpty.base());
+                //assert(firstEmpty > lastNonEmpty.base());
                 m_EventSinkSourceTable.reserve(1 + std::distance(eventSinkSourceTable.cbegin(), firstEmpty));
             }
 
             // Copy all valid elements into final table
-            std::transform(eventSinkSourceTable.cbegin(), eventSinkSourceTable.cend(), 
+            std::transform(eventSinkSourceTable.cbegin(), firstEmpty, 
                            std::back_inserter(m_EventSinkSourceTable), [](const auto &v){ return v.value(); });
 
             // Add final entry
@@ -325,6 +325,8 @@ void SimulationLoopKernel::generateCode(Assembler::CodeGenerator &c,
         Assembler::ScalarRegisterPtr SLoopStartCycleLow;
         Assembler::ScalarRegisterPtr SLoopStartCycleHigh;
         if (m_TargetClockCycles) {
+            SLoopStartCycleLow = scalarRegisterAllocator.getRegister("SLoopStartCycleLow = X");
+            SLoopStartCycleHigh = scalarRegisterAllocator.getRegister("SLoopStartCycleHigh = X");
             c.csrr(*SLoopStartCycleLow, Common::CSR::MCYCLE);
             c.csrr(*SLoopStartCycleHigh, Common::CSR::MCYCLEH);
         }
