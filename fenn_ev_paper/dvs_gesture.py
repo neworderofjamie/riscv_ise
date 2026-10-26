@@ -430,9 +430,6 @@ copy_and_push(quantise(hidden4_conn, layer_weight_fractional_bits[3], percentile
 copy_and_push(quantise(output_conn, layer_weight_fractional_bits[4], percentile=100.0),
                        hidden4_output.weight, runtime)
 
-# Loop through examples
-input_spike_views = get_views(runtime, input_source)
-
 output_num_spikes_views = get_views(runtime, populations[-1].num_spikes)
 
 if args.live:
@@ -455,6 +452,9 @@ if args.live:
         # Print classification
         print(dataset.classes[np.argmax(output_num_spikes_views[0][:11])])
 else:
+    # Loop through examples
+    input_spike_views = get_views(runtime, input_source)
+
     # Loop through input gestures
     num_correct = 0
     time_simulated = 0
