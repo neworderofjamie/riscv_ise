@@ -690,8 +690,8 @@ void generateWaitElapsedCycles(CodeGenerator &c, ScalarRegisterAllocator &scalar
     ALLOCATE_SCALAR(STarget);
     c.li(*STarget, targetCycles);
 
-    auto loopStart = createLabel();
-    Label loopEnd;
+    auto loopStart = c.L();
+    auto loopEnd = createLabel();
     {
         ALLOCATE_SCALAR(SLowCycle);
         ALLOCATE_SCALAR(SHighCycle);
