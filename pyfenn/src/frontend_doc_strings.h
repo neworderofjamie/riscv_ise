@@ -1136,8 +1136,6 @@ static const char *__doc_Frontend_DeviceBase_DeviceBase_3 = R"doc()doc";
 
 static const char *__doc_Frontend_DeviceBase_createArray = R"doc(Create array to provide storage for model state)doc";
 
-static const char *__doc_Frontend_DeviceBase_createPerformanceCounter = R"doc(Create suitable array for performance counter on this device)doc";
-
 static const char *__doc_Frontend_DeviceBase_getArray = R"doc(Get array associated with model state)doc";
 
 static const char *__doc_Frontend_DeviceBase_getDeviceIndex = R"doc()doc";
@@ -1147,6 +1145,8 @@ static const char *__doc_Frontend_DeviceBase_loadKernel = R"doc(Load kernel onto
 static const char *__doc_Frontend_DeviceBase_m_Arrays = R"doc()doc";
 
 static const char *__doc_Frontend_DeviceBase_m_DeviceIndex = R"doc()doc";
+
+static const char *__doc_Frontend_DeviceBase_readPerformanceCounter = R"doc(Read named performance counter on each device)doc";
 
 static const char *__doc_Frontend_DeviceBase_runCurrentKernel = R"doc(Run current kernel on device)doc";
 
@@ -1581,6 +1581,8 @@ static const char *__doc_Frontend_Runtime_m_WorkerThreads = R"doc()doc";
 static const char *__doc_Frontend_Runtime_pullStateFromDevice = R"doc(Pull state from all devices)doc";
 
 static const char *__doc_Frontend_Runtime_pushStateToDevice = R"doc(Push state to all devices)doc";
+
+static const char *__doc_Frontend_Runtime_readPerformanceCounter = R"doc(Read named performance counter on each device)doc";
 
 static const char *__doc_Frontend_Runtime_run = R"doc(Run kernel on device)doc";
 

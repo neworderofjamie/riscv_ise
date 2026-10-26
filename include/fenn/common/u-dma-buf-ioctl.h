@@ -30,6 +30,7 @@
  ********************************************************************************/
 #ifndef  U_DMA_BUF_IOCTL_H
 #define  U_DMA_BUF_IOCTL_H
+#include <cstdint>
 #include <linux/ioctl.h>
 
 #define DEFINE_U_DMA_BUF_IOCTL_FLAGS(name,type,lo,hi)                     \
