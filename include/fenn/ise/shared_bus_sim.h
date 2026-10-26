@@ -57,5 +57,7 @@ private:
 
     //! Mutex to protect m_RouterMap and m_NumRouters
     std::mutex m_RemovalMutex;
+
+    bool m_SingleCoreMode;
 };
 }   // namespace FeNN::ISE
