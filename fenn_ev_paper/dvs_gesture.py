@@ -8,20 +8,22 @@ from pyfenn.utils import PythonLogAppender
 from tonic.datasets import DVSGesture
 from tonic.transforms import Compose, CropTime, Denoise, Downsample
 
-from pyfenn.utils import (build_sparse_connectivity, ceil_divide, 
-                          copy_and_push, copy_split_and_push, convert_tonic_spikes, 
-                          get_views, split_sparse_connectivity, quantise, zero_and_push)
+from pyfenn.utils import (build_sparse_connectivity, build_spike_array,
+                          ceil_divide, copy_and_push, copy_split_and_push,
+                          get_views, split_sparse_connectivity, quantise,
+                          zero_and_push)
 from tqdm.auto import tqdm, trange
 
 class LIF:
-    def __init__(self, backend, shape, alpha: float,
-                 v_thresh: float, fixed_point: int = 5, 
+    def __init__(self, backend, shape, alpha: float, v_thresh: float,
+                 v_fixed_point: int = 5, i_fixed_point: int = 5, 
                  tau_ref: int = 9, name: str = ""):
         self.shape = shape
-        dtype = f"s{15 - fixed_point}_{fixed_point}_sat_t"
+        v_dtype = f"s{15 - v_fixed_point}_{v_fixed_point}_sat_t"
+        i_dtype = f"s{15 - i_fixed_point}_{i_fixed_point}_sat_t"
         
-        self.v = backend.Variable(self.shape, dtype, name=f"{name}_v")
-        self.i = backend.Variable(self.shape, dtype, name=f"{name}_i")
+        self.v = backend.Variable(self.shape, v_dtype, name=f"{name}_v")
+        self.i = backend.Variable(self.shape, i_dtype, name=f"{name}_i")
         self.tau_ref = backend.Variable(self.shape, "int16_t", name=f"{name}_tau_ref")
         self.refrac_counter = backend.Variable(self.shape, "int16_t", name=f"{name}_refrac_counter")
 
@@ -30,10 +32,9 @@ class LIF:
         self.process = backend.NeuronUpdateProcess(
             f"""
             // Neuron
-            V = ({alpha}h15 * V) + I;
-            I = 0.0h{fixed_point};
-            
-            I = I;
+            V = ({alpha}h15 * V) + (I * 1.0h{v_fixed_point});
+            I = 0.0h{i_fixed_point};
+
             I = I;
             I = I;
             I = I;
@@ -46,9 +47,9 @@ class LIF:
                 RefracCounter--;
             }}
 
-            if(V >= {v_thresh}h{fixed_point} && RefracCounter <= 0) {{
+            if(V >= {v_thresh}h{v_fixed_point} && RefracCounter <= 0) {{
                Spike();
-               V -= {v_thresh}h{fixed_point};
+               V -= {v_thresh}h{v_fixed_point};
                RefracCounter = {tau_ref};
             }}
             """,
@@ -57,24 +58,24 @@ class LIF:
             name=name)
 
 class LIFOutput:
-    def __init__(self, backend, shape, alpha: float,
-                 v_thresh: float, fixed_point: int = 5, 
+    def __init__(self, backend, shape, alpha: float, v_thresh: float, 
+                 v_fixed_point: int = 5, i_fixed_point: int = 5, 
                  tau_ref: int = 9, name: str = ""):
         self.shape = shape
-        dtype = f"s{15 - fixed_point}_{fixed_point}_sat_t"
-        
-        self.v = backend.Variable(self.shape, dtype, name=f"{name}_v")
-        self.i = backend.Variable(self.shape, dtype, name=f"{name}_i")
+        v_dtype = f"s{15 - v_fixed_point}_{v_fixed_point}_sat_t"
+        i_dtype = f"s{15 - i_fixed_point}_{i_fixed_point}_sat_t"
+
+        self.v = backend.Variable(self.shape, v_dtype, name=f"{name}_v")
+        self.i = backend.Variable(self.shape, i_dtype, name=f"{name}_i")
         self.refrac_counter = backend.Variable(self.shape, "int16_t", name=f"{name}_refrac_counter")
         self.num_spikes = backend.Variable(self.shape, "int16_sat_t", name=f"{name}_spike_count")
 
         self.process = backend.NeuronUpdateProcess(
             f"""
             // Neuron
-            V = ({alpha}h15 * V) + I;
-            I = 0.0h{fixed_point};
+            V = ({alpha}h15 * V) + (I * 1.0h{v_fixed_point});
+            I = 0.0h{i_fixed_point};
 
-            I = I;
             I = I;
             I = I;
             I = I;
@@ -87,9 +88,9 @@ class LIFOutput:
                 RefracCounter--;
             }}
 
-            if(V >= {v_thresh}h{fixed_point} && RefracCounter <= 0) {{
+            if(V >= {v_thresh}h{v_fixed_point} && RefracCounter <= 0) {{
                NumSpikes++;
-               V -= {v_thresh}h{fixed_point};
+               V -= {v_thresh}h{v_fixed_point};
                RefracCounter = {tau_ref};
             }}
             """,
@@ -125,7 +126,6 @@ def shuffle_channel_height_width(weights, pre_width, pre_height, pre_channels, n
     # Reshape back into (num_pre, num_post) shape
     return np.reshape(weights, (pre_height * pre_width * pre_channels, num_post))
 
-
 def build_sparse_conn(conn, backend, num_pre: int, num_post: int, 
                       num_cores: int, num_sparse_connectivity_bits: int,
                       **quantise_kwargs):
@@ -147,11 +147,12 @@ def build_sparse_conn(conn, backend, num_pre: int, num_post: int,
     for i in range(num_pre):
         mask = (pre_ind == i)
 
-        row_weights.append(weights[mask])
-        row_ind.append(np.sort(post_ind[mask]))
+        order = np.argsort(post_ind[mask])
+        row_weights.append(weights[mask][order])
+        row_ind.append(post_ind[mask][order])
 
     # Use backend helper to determine how postsynaptic population will be split
-    post_neurons_per_core = [backend.get_split_dimension((num_post,), c, 0, num_cores, 32)
+    post_neurons_per_core = [backend.get_split_dimension ((num_post,), c, 0, num_cores, 32)
                              for c in range(num_cores)]
 
     # Calculate edges
@@ -166,10 +167,14 @@ def build_sparse_conn(conn, backend, num_pre: int, num_post: int,
 
 parser = ArgumentParser("DVS gesture classifier using LIF neurons")
 parser.add_argument("--device", action="store_true", help="Run model on FeNN hardware")
+parser.add_argument("--live", action="store_true", help="Run live on FeNN hardware")
 parser.add_argument("--time", action="store_true", help="Record detailed timings using performance counters")
 parser.add_argument("--disassemble", action="store_true", help="Disassemble generated code")
 parser.add_argument("--num-cores", type=int, default=1, help="Number of cores to split ")
 args = parser.parse_args()
+
+if args.live:
+    assert args.device
 
 # Shapes of neurons at end of each layer
 layer_shapes = [(32, 32, 2),
@@ -190,7 +195,9 @@ layer_sparse_connectivity_bits = [int(np.ceil(np.log2(ceil_divide(max(n), 32))))
                                   for n in layer_neurons_per_core[1:4]]
 print(layer_sparse_connectivity_bits)
 # Fractional bits neurons at end of each layer use for V and I 
-layer_fractional_bits = [5, 6, 6, 7, 9]
+layer_weight_fractional_bits = [6, 6, 6, 7, 9]
+
+layer_v_fractional_bits = [4, 6, 6, 6, 9]
 
 # Load weights
 hidden1_conn = np.load("hidden1.npy")
@@ -199,7 +206,9 @@ hidden3_conn = np.load("hidden3.npy")
 hidden4_conn = np.load("hidden4.npy")
 output_conn = np.reshape(np.load("output.npy"), (256, 11))
 output_conn = np.pad(output_conn, ((0, 0), (0, 64 - 11)))
-print(output_conn.shape)
+
+# Input neurons need to be arranged in width, height, channel order
+hidden1_conn[0] = remap_width_height_channel(hidden1_conn[0].astype(int), 32, 32, 2)
 
 # Hidden 1 neurons need to be arranged in width, height, channel order
 hidden1_conn[1] = remap_width_height_channel(hidden1_conn[1].astype(int), 15, 15, 16)
@@ -222,99 +231,140 @@ sparse_weights = [build_sparse_conn(r, backend, num_pre=np.prod(n_pre),
                                     fractional_bits=f, percentile=100.0)
                   for i, (n_pre, n_post, n, f, r) in enumerate(zip(layer_shapes[:3], layer_shapes[1:4], 
                                                                    layer_sparse_connectivity_bits, 
-                                                                   layer_fractional_bits, raw_sparse_conn))]
+                                                                   layer_weight_fractional_bits, raw_sparse_conn))]
+
+if args.num_cores == 1:
+    input_size = np.prod(layer_shapes[0])
+elif args.num_cores == 2:
+    # **YUCK** figure out where the INPUT should be split to match the postsynaptic split
+    last_pre_core_0 = next((len(sparse_weights[0][0]) -1 - i) 
+                           for i, r in enumerate(reversed(sparse_weights[0][0]))
+                           if np.any(r != 0))
+    first_pre_core_1 = next(i for i, r in enumerate(sparse_weights[0][1])
+                            if np.any(r != 0))
+    print(f"Last input neuron on core 0 = {last_pre_core_0}")
+    print(f"First input neuron on core 1 = {first_pre_core_1}")
+    # Slice up sparse weights
+    sparse_weights[0][0] = sparse_weights[0][0][:last_pre_core_0 + 1]
+    sparse_weights[0][1] = sparse_weights[0][1][first_pre_core_1:]
+
+    # **YUCK** pad to maximum number of rows
+    input_size = max(sparse_weights[0][0].shape[0], 
+                     sparse_weights[0][1].shape[0])
+    sparse_weights[0][0] = np.pad(sparse_weights[0][0], 
+                                  ((0, input_size - sparse_weights[0][0].shape[0]), (0, 0)))
+    sparse_weights[0][1] = np.pad(sparse_weights[0][1], 
+                                  ((0, input_size - sparse_weights[0][1].shape[0]), (0, 0)))
+    print(f"Input size: {input_size}")
+else:
+    assert False
 
 # Load DVS gesture, denoising and cropping time
 dt = 0.1
-sensor_size = (32, 32, 2)
-chunk_timesteps = int(200 / dt)
+
 dataset = DVSGesture(save_to="./data", train=False, 
                      transform=Compose([Denoise(filter_time=10000),
                                         Downsample(spatial_factor=0.25)]))
+                                        
+if not args.live:
+    sensor_size = (32, 32, 2)
+    chunk_timesteps = int(120 / dt)
 
-# Loop through dataset
-input_spikes = []
-input_labels = []
+    # Loop through dataset
+    input_spikes = []
+    input_labels = []
 
 
-max_spike_array_length = 0
-#for events, label in tqdm(dataset, "Preprocessing dataset"):
-for i in trange(1):
-    events, label = dataset[i]
+    max_spike_array_length = 0
+    #for events, label in tqdm(dataset, "Preprocessing dataset"):
+    for i in range(5):
+        events, label = dataset[i]
 
-    # Convert times to 1ms timesteps and check they are sorted
-    timestep_scale = int(1000 * dt)
-    timesteps = np.floor(events["t"] / timestep_scale).astype(int)
-    assert np.all(timesteps[:-1] <= timesteps[1:])
+        # Convert times to 1ms timesteps and check they are sorted
+        timestep_scale = int(1000 * dt)
+        timesteps = np.floor(events["t"] / timestep_scale).astype(int)
+        assert np.all(timesteps[:-1] <= timesteps[1:])
 
-    # Split events into chunks
-    chunk_bins = np.arange(0, timesteps[-1] + chunk_timesteps, chunk_timesteps)
-    events_per_chunk = np.histogram(timesteps, chunk_bins)[0]
-    events_per_chunk = np.cumsum(events_per_chunk)
-    split_events = np.split(events, events_per_chunk)
+        # Split events into chunks
+        chunk_bins = np.arange(0, timesteps[-1] + chunk_timesteps, chunk_timesteps)
+        events_per_chunk = np.histogram(timesteps, chunk_bins)[0]
+        events_per_chunk = np.cumsum(events_per_chunk)
+        split_events = np.split(events, events_per_chunk)
 
-    # Loop through chunks of events
-    chunk_spikes = []
-    for i, e in enumerate(split_events):
-        # Make all chunks start at 0
-        shifted = e
-        shifted["t"] -= i * (chunk_timesteps * timestep_scale)
-        assert np.all(shifted["t"] >= 0.0)
+        # Loop through chunks of events
+        chunk_spikes = []
+        for i, e in enumerate(split_events):
+            # Make all chunks start at 0
+            shifted = e
+            shifted["t"] -= i * (chunk_timesteps * timestep_scale)
+            assert np.all(shifted["t"] >= 0.0)
 
-        if args.num_cores == 1:
-            spike_array = convert_tonic_spikes(shifted, dataset.ordering, 
-                                               sensor_size, histogram_thresh=None)
-            max_spike_array_length = max(max_spike_array_length, len(spike_array))
-            chunk_spikes.append((spike_array,))
-        elif args.num_cores == 2:
-            left_mask = (shifted["x"] < 16)
-            left_spike_array = convert_tonic_spikes(shifted[left_mask], dataset.ordering,
-                                                    (16, 32, 2), histogram_thresh=None)
-            right = shifted[np.logical_not(left_mask)]
-            right["x"] -= 16
-            right_spike_array = convert_tonic_spikes(right, dataset.ordering,
-                                                     (16, 32, 2), histogram_thresh=None)
-            max_spike_array_length = max(max_spike_array_length, len(left_spike_array), len(right_spike_array))
-            chunk_spikes.append((left_spike_array, right_spike_array))
-        else:
-            assert False
+            # Flatten x, y and p into GenX320-ordered event IDs
+            spike_event_ids = (shifted["p"] +
+                               (shifted["y"] * sensor_size[2]) + 
+                               (shifted["x"] * sensor_size[1] * sensor_size[2]))
+            event_timesteps = np.floor(shifted["t"] / 1000.0).astype(int)
+            if args.num_cores == 1:
+                spike_array = build_spike_array(event_timesteps, spike_event_ids)
+                max_spike_array_length = max(max_spike_array_length, len(spike_array))
+                chunk_spikes.append((spike_array,))
+            elif args.num_cores == 2:
+                # Build array from spike event IDs which need to be send to core 0
+                core0_mask = (spike_event_ids <= last_pre_core_0)
+                core0_spike_array = build_spike_array(event_timesteps[core0_mask], spike_event_ids[core0_mask])
+                
+                # Build array from spike event IDs which need to be send to core 1
+                core1_mask = (spike_event_ids >= first_pre_core_1)
+                core1_spike_array = build_spike_array(event_timesteps[core1_mask], 
+                                                      spike_event_ids[core1_mask] - first_pre_core_1)
+                max_spike_array_length = max(max_spike_array_length, len(core0_spike_array), len(core1_spike_array))
+                chunk_spikes.append((core0_spike_array, core1_spike_array))
+            else:
+                assert False
 
-    input_spikes.append(chunk_spikes)
-    input_labels.append(label)
+        print(f"{len(chunk_spikes)} chunks in example")
+        input_spikes.append(chunk_spikes)
+        input_labels.append(label)
 
-print(max_spike_array_length)
+print(f"Max spike array length: {max_spike_array_length}")
 log_appender = backend.ConsoleAppender()#PythonLogAppender()
 backend.init_logging(log_appender, backend.PlogSeverity.INFO)
 
 # Input spikes
-input_spike_buffer = backend.EventSourceBuffer((np.prod(layer_shapes[0]),), max_spike_array_length)
+if args.live:
+    genx_320 = backend.GenX320()
+    input_source = genx_320.source
+else:
+    input_source = backend.EventSourceBuffer((input_size,), max_spike_array_length)
 
 # Populations of LIF neurons
 beta = 0.93**(dt / 1.0)
-populations = [LIF(backend, (np.prod(s),), beta, 1.0, f, name=f"hidden{i + 1}")
-               for i, (s, f) in enumerate(zip(layer_shapes[1:-1], layer_fractional_bits))]
+populations = [LIF(backend, (np.prod(s),), beta, 1.0, v_f, i_f, name=f"hidden{i + 1}")
+               for i, (s, v_f, i_f) in enumerate(zip(layer_shapes[1:-1], 
+                                                     layer_v_fractional_bits, 
+                                                     layer_weight_fractional_bits))]
 populations.append(LIFOutput(backend, (np.prod(layer_shapes[-1]),), beta, 1.0,
-                   layer_fractional_bits[-1], name="output"))
+                   layer_v_fractional_bits[-1], layer_weight_fractional_bits[-1], name="output"))
 
 # Connect input spikes to first layer
 input_hidden1 = SparseLinear(backend, input_spike_buffer, populations[0].i,
-                             get_sat_type(layer_fractional_bits[0]), max_row_length=sum(c.shape[1] for c in sparse_weights[0]),
+                             get_sat_type(layer_weight_fractional_bits[0]), max_row_length=sum(c.shape[1] for c in sparse_weights[0]),
                              num_sparse_connectivity_bits=layer_sparse_connectivity_bits[0], name="input_hidden1")
 
 # Add sparse connectivity
 hidden1_hidden2 = SparseLinear(backend, populations[0].out_spikes, populations[1].i,
-                               get_sat_type(layer_fractional_bits[1]), max_row_length=sum(c.shape[1] for c in sparse_weights[1]),
+                               get_sat_type(layer_weight_fractional_bits[1]), max_row_length=sum(c.shape[1] for c in sparse_weights[1]),
                                num_sparse_connectivity_bits=layer_sparse_connectivity_bits[1], name="hidden1_hidden2")
 
 hidden2_hidden3 = SparseLinear(backend, populations[1].out_spikes, populations[2].i,
-                               get_sat_type(layer_fractional_bits[2]), max_row_length=sum(c.shape[1] for c in sparse_weights[2]),
+                               get_sat_type(layer_weight_fractional_bits[2]), max_row_length=sum(c.shape[1] for c in sparse_weights[2]),
                                num_sparse_connectivity_bits=layer_sparse_connectivity_bits[2], name="hidden2_hidden3")
 
 hidden3_hidden4 = DenseLinear(backend, populations[2].out_spikes, populations[3].i,
-                              get_sat_type(layer_fractional_bits[3]), name="hidden3_hidden4")
+                              get_sat_type(layer_weight_fractional_bits[3]), name="hidden3_hidden4")
 
 hidden4_output = DenseLinear(backend, populations[3].out_spikes, populations[4].i,
-                             get_sat_type(layer_fractional_bits[4]), name="hidden4_hidden5")
+                             get_sat_type(layer_weight_fractional_bits[4]), name="hidden4_hidden5")
 
 
 
@@ -325,9 +375,10 @@ synapse_update_processes = backend.ProcessGroup([input_hidden1.process, hidden1_
                                                  hidden2_hidden3.process, hidden3_hidden4.process,
                                                  hidden4_output.process], perf_counters)
 # Create kernel
+# **NOTE** we want to run this in real-time if we're on device
 kernel = backend.SimulationLoopKernel(
-    chunk_timesteps, [synapse_update_processes, neuron_update_processes],
-    [], [])
+    5000 if args.live else chunk_timesteps, [synapse_update_processes, neuron_update_processes],
+    [], [], target_clock_cycles = 14200 if args.live else None)
 
 # Create runtime
 runtime_params = {"neuron_update_rounding_mode": backend.RoundingMode.NEAREST,
@@ -352,48 +403,68 @@ copy_and_push(np.concatenate(sparse_weights[1], axis=1), hidden1_hidden2.weight,
 copy_and_push(np.concatenate(sparse_weights[2], axis=1), hidden2_hidden3.weight, runtime)
 
 # Load and quantise output weights
-copy_and_push(quantise(hidden4_conn, layer_fractional_bits[3], percentile=100.0),
+copy_and_push(quantise(hidden4_conn, layer_weight_fractional_bits[3], percentile=100.0),
               hidden3_hidden4.weight, runtime)
 
-copy_and_push(quantise(output_conn, layer_fractional_bits[4], percentile=100.0),
+copy_and_push(quantise(output_conn, layer_weight_fractional_bits[4], percentile=100.0),
                        hidden4_output.weight, runtime)
 
 # Loop through examples
-input_spike_views = get_views(runtime, input_spike_buffer)
+input_spike_views = get_views(runtime, input_source)
 
 output_num_spikes_views = get_views(runtime, populations[-1].num_spikes)
 
-# Loop through input gestures
-num_correct = 0
-time_simulated = 0
-for spike_chunks, label in tqdm(zip(input_spikes, input_labels),
-                                 total=len(input_labels), desc="Simulating"):
-    # Manually zero voltages
-    for p in populations:
-        zero_and_push(p.v, runtime)
+if args.live:
+    # Configure biases and ERC
+    runtime.genx320.set_bias_low()
+    runtime.genx320.enable_erc(500000.0)
+    
+    while True:
+        # Zero spike counts
+        zero_and_push(populations[-1].num_spikes, runtime)
 
-    # Zero num spikes
-    zero_and_push(populations[-1].num_spikes, runtime)
-
-    # Loop through spike chunks
-    for arrays in spike_chunks:
-        #copy_split_and_push(arrays, input_spike_buffer, runtime)
-        for a, v in zip(arrays, input_spike_views):
-            v[:len(a)] = a
-        runtime.push_state_to_device(input_spike_buffer)
-
-        # Classify
+        # Start streaming and run kernel
+        runtime.genx320.start_streaming()
         runtime.run(kernel)
-        time_simulated += chunk_timesteps
+        runtime.genx320.stop_streaming()
+        
+        # Copy output V sum from device
+        runtime.pull_state_from_device(populations[-1].num_spikes)
 
-    # Copy output V sum from device
-    runtime.pull_state_from_device(populations[-1].num_spikes)
+        # Print classification
+        print(dataset.classes[np.argmax(output_num_spikes_views[0][:11])])
+else:
+    # Loop through input gestures
+    num_correct = 0
+    time_simulated = 0
+    for spike_chunks, label in zip(input_spikes, input_labels):
+        # Manually zero voltages
+        for p in populations:
+            zero_and_push(p.v, runtime)
 
-    # Determine if output is correct
-    #print(output_num_spikes_views[0], label)
-    classification = np.argmax(output_num_spikes_views[0][:11])
-    if classification == label:
-        num_correct += 1
+        # Zero num spikes
+        zero_and_push(populations[-1].num_spikes, runtime)
+
+        # Loop through spike chunks
+        for i, arrays in enumerate(spike_chunks):
+            print(f"chunk {i}/{len(spike_chunks)}")
+            #copy_split_and_push(arrays, input_source, runtime)
+            for a, v in zip(arrays, input_spike_views):
+                v[:len(a)] = a
+            runtime.push_state_to_device(input_source)
+
+            # Classify
+            runtime.run(kernel)
+            time_simulated += chunk_timesteps
+
+        # Copy output V sum from device
+        runtime.pull_state_from_device(populations[-1].num_spikes)
+
+        # Determine if output is correct
+        print(output_num_spikes_views[0], label)
+        classification = np.argmax(output_num_spikes_views[0][:11])
+        if classification == label:
+            num_correct += 1
 
 if not args.device:
     saturation_count = np.asarray(runtime.saturation_count[0])
@@ -407,11 +478,11 @@ print(f"Simulated {time_simulated} timesteps")
 print(f"{num_correct} / {len(input_labels)} correct {100.0 * (num_correct / len(input_labels))}%")
 
 if args.time:
-    neuron_update_cycles = runtime.read_performance_counter(neuron_update_processes, 'num_clock_cycles')[0]
-    neuron_update_instructions = runtime.read_performance_counter(neuron_update_processes, 'num_instructions')[0]
+    neuron_update_cycles = runtime.read_performance_counter(neuron_update_processes, 'num_clock_cycles')
+    neuron_update_instructions = runtime.read_performance_counter(neuron_update_processes, 'num_instructions')
 
-    synapse_update_cycles = runtime.read_performance_counter(synapse_update_processes, 'num_clock_cycles')[0]
-    synapse_update_instructions = runtime.read_performance_counter(synapse_update_processes, 'num_instructions')[0]
+    synapse_update_cycles = runtime.read_performance_counter(synapse_update_processes, 'num_clock_cycles')
+    synapse_update_instructions = runtime.read_performance_counter(synapse_update_processes, 'num_instructions')
 
-    print(f"Neuron update {neuron_update_cycles} cycles, {neuron_update_instructions} instruction ({neuron_update_instructions / neuron_update_cycles})")
-    print(f"Synapse update {synapse_update_cycles} cycles, {synapse_update_instructions} instruction ({synapse_update_instructions / synapse_update_cycles})")
+    print(f"Neuron update {neuron_update_cycles} cycles, {neuron_update_instructions} instruction ({neuron_update_instructions[0] / neuron_update_cycles[0]})")
+    print(f"Synapse update {synapse_update_cycles} cycles, {synapse_update_instructions} instruction ({synapse_update_instructions[0] / synapse_update_cycles[0]})")

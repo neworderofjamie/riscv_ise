@@ -12,6 +12,8 @@
 
 // FeNN common includes
 #include "fenn/common/logging.h"
+#include "fenn/common/genx_320.h"
+#include "fenn/common/genx320_bias.h"
 
 // FeNN disassembler includes
 #include "fenn/disassembler/disassembler.h"
@@ -218,6 +220,27 @@ PYBIND11_MODULE(_fenn_backend, m)
              pybind11::arg("target_clock_cycles") = std::nullopt, pybind11::arg("name") = "");
 
     //------------------------------------------------------------------------
+    // fenn_backend.GenX320Interface
+    //------------------------------------------------------------------------
+    pybind11::class_<FeNN::Common::GenX320>(m, "GenX320Interface")
+        .def("start_streaming", &FeNN::Common::GenX320::startStreaming,
+             pybind11::arg("source") = FeNN::Common::StreamingSource::PIXEL_ARRAY)
+        .def("stop_streaming", &FeNN::Common::GenX320::stopStreaming)
+        .def("enable_erc", &FeNN::Common::GenX320::enableERC,
+            pybind11::arg("events_per_second"))
+        .def("disable_erc", &FeNN::Common::GenX320::disableERC)
+        .def("set_bias_low", 
+            [](FeNN::Common::GenX320 &genx320)
+            {
+                genx320.setBias<FeNN::Common::Bias::Diff>(41);
+                genx320.setBias<FeNN::Common::Bias::DiffOff>(19);
+                genx320.setBias<FeNN::Common::Bias::DiffOn>(24);
+                genx320.setBias<FeNN::Common::Bias::FO>(19);
+                genx320.setBias<FeNN::Common::Bias::HPF>(0);
+                genx320.setBias<FeNN::Common::Bias::Refr>(0);
+            });
+
+    //------------------------------------------------------------------------
     // fenn_backend.Runtime
     //------------------------------------------------------------------------
     pybind11::class_<Backend::Runtime, Frontend::Runtime>(m, "Runtime")
@@ -233,8 +256,12 @@ PYBIND11_MODULE(_fenn_backend, m)
              pybind11::arg("use_dram_for_weights") = false, 
              pybind11::arg("keep_params_in_registers") = true,
              pybind11::arg("neuron_update_rounding_mode") = Compiler::RoundingMode::NEAREST,
-             pybind11::arg("dma_buffer_size") = 512 * 1024);
-    
+             pybind11::arg("dma_buffer_size") = 512 * 1024)
+        .def_property_readonly("genx320", 
+            [](Backend::RuntimeHW &runtime)
+            {
+                return runtime.getDeviceControl().getGenX320();
+            });
 
     //------------------------------------------------------------------------
     // fenn_backend.RuntimeSim
