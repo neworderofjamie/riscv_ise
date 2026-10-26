@@ -197,7 +197,7 @@ print(layer_sparse_connectivity_bits)
 # Fractional bits neurons at end of each layer use for V and I 
 layer_weight_fractional_bits = [6, 6, 6, 7, 9]
 
-layer_v_fractional_bits = [4, 6, 6, 6, 9]
+layer_v_fractional_bits = [6, 6, 6, 6, 9]
 
 # Load weights
 hidden1_conn = np.load("hidden1.npy")
@@ -366,6 +366,14 @@ hidden3_hidden4 = DenseLinear(backend, populations[2].out_spikes, populations[3]
 hidden4_output = DenseLinear(backend, populations[3].out_spikes, populations[4].i,
                              get_sat_type(layer_weight_fractional_bits[4]), name="hidden4_hidden5")
 
+# Create processes to zero I, V and RefracCounter for all layers and num_spikes for output
+memset_processes = []
+for p in populations:
+    memset_processes.append(Memset(backend, p.i))
+    memset_processes.append(Memset(backend, p.v))
+    memset_processes.append(Memset(backend, p.refrac_counter))
+
+memset_processes.append(Memset(backend, populations[-1].num_spikes))
 
 
 # Group processes
@@ -374,24 +382,31 @@ neuron_update_processes = backend.ProcessGroup([p.process for p in populations],
 synapse_update_processes = backend.ProcessGroup([input_hidden1.process, hidden1_hidden2.process, 
                                                  hidden2_hidden3.process, hidden3_hidden4.process,
                                                  hidden4_output.process], perf_counters)
+zero_processes = backend.ProcessGroup([p.process for p in memset_processes], perf_counters)
+
 # Create kernel
 # **NOTE** we want to run this in real-time if we're on device
 kernel = backend.SimulationLoopKernel(
     5000 if args.live else chunk_timesteps, [synapse_update_processes, neuron_update_processes],
     [], [], target_clock_cycles = 14200 if args.live else None)
 
+zero_kernel = backend.SimpleKernel([zero_processes])
+
 # Create runtime
 runtime_params = {"neuron_update_rounding_mode": backend.RoundingMode.NEAREST,
                   "use_dram_for_weights": True, "dma_buffer_size": 64 * 1024 * 1024}
-runtime = (backend.RuntimeHW([kernel], args.num_cores, **runtime_params) if args.device 
-           else backend.RuntimeSim([kernel], args.num_cores, **runtime_params))
+runtime = (backend.RuntimeHW([kernel, zero_kernel], args.num_cores, **runtime_params) if args.device 
+           else backend.RuntimeSim([kernel, zero_kernel], args.num_cores, **runtime_params))
 
 
 # Disassemble if required
 if args.disassemble:
+    print("Zero:")
+    for i, c in enumerate(runtime.get_kernel_code(zero_kernel)):
+        print(f"{i * 4} : {backend.disassemble(c)}")
+        
     print("Simulation:")
-    code = runtime.get_kernel_code(kernel)
-    for i, c in enumerate(code):
+    for i, c in enumerate(runtime.get_kernel_code(kernel)):
         print(f"{i * 4} : {backend.disassemble(c)}")
 
 # Allocate memory for model
@@ -438,13 +453,9 @@ else:
     num_correct = 0
     time_simulated = 0
     for spike_chunks, label in zip(input_spikes, input_labels):
-        # Manually zero voltages
-        for p in populations:
-            zero_and_push(p.v, runtime)
-
-        # Zero num spikes
-        zero_and_push(populations[-1].num_spikes, runtime)
-
+        # Zero everything
+        runtime.run(zero_kernel)
+        
         # Loop through spike chunks
         for i, arrays in enumerate(spike_chunks):
             print(f"chunk {i}/{len(spike_chunks)}")
@@ -461,8 +472,10 @@ else:
         runtime.pull_state_from_device(populations[-1].num_spikes)
 
         # Determine if output is correct
-        print(output_num_spikes_views[0], label)
         classification = np.argmax(output_num_spikes_views[0][:11])
+        if not args.device:
+            print(output_num_spikes_views[0], label, classification)
+
         if classification == label:
             num_correct += 1
 
