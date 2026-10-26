@@ -347,7 +347,7 @@ populations.append(LIFOutput(backend, (np.prod(layer_shapes[-1]),), beta, 1.0,
                    layer_v_fractional_bits[-1], layer_weight_fractional_bits[-1], name="output"))
 
 # Connect input spikes to first layer
-input_hidden1 = SparseLinear(backend, input_spike_buffer, populations[0].i,
+input_hidden1 = SparseLinear(backend, input_source, populations[0].i,
                              get_sat_type(layer_weight_fractional_bits[0]), max_row_length=sum(c.shape[1] for c in sparse_weights[0]),
                              num_sparse_connectivity_bits=layer_sparse_connectivity_bits[0], name="input_hidden1")
 
