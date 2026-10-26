@@ -223,8 +223,11 @@ PYBIND11_MODULE(_fenn_backend, m)
     // fenn_backend.GenX320Interface
     //------------------------------------------------------------------------
     pybind11::class_<FeNN::Common::GenX320>(m, "GenX320Interface")
-        .def("start_streaming", &FeNN::Common::GenX320::startStreaming,
-             pybind11::arg("source") = FeNN::Common::StreamingSource::PIXEL_ARRAY)
+        .def("start_streaming", 
+             [](FeNN::Common::GenX320 &genx320)
+             {
+                 genx320.startStreaming(FeNN::Common::StreamingSource::PIXEL_ARRAY);
+             })
         .def("stop_streaming", &FeNN::Common::GenX320::stopStreaming)
         .def("enable_erc", &FeNN::Common::GenX320::enableERC,
             pybind11::arg("events_per_second"))
