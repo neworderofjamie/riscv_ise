@@ -35,8 +35,7 @@
 
 namespace
 {
-constexpr uint32_t spikeArrayPtr = 32 * 4096;
-constexpr size_t numCores = 1;
+constexpr size_t numCores = 2;
 
 using CoreData = std::vector<std::tuple<std::vector<uint32_t>, std::thread>>;
 
