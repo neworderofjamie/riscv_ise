@@ -11,13 +11,14 @@ from tonic.transforms import Compose, CropTime, Denoise, Downsample
 from pyfenn.utils import (build_sparse_connectivity, build_spike_array,
                           ceil_divide, copy_and_push, copy_split_and_push,
                           get_views, split_sparse_connectivity, quantise,
-                          zero_and_push)
+                          pull_spikes, zero_and_push)
 from tqdm.auto import tqdm, trange
 
 class LIF:
     def __init__(self, backend, shape, alpha: float, v_thresh: float,
                  v_fixed_point: int = 5, i_fixed_point: int = 5, 
-                 tau_ref: int = 9, name: str = ""):
+                 tau_ref: int = 9, num_record_timesteps = None,
+                 name: str = ""):
         self.shape = shape
         v_dtype = f"s{15 - v_fixed_point}_{v_fixed_point}_sat_t"
         i_dtype = f"s{15 - i_fixed_point}_{i_fixed_point}_sat_t"
@@ -27,7 +28,12 @@ class LIF:
         self.tau_ref = backend.Variable(self.shape, "int16_t", name=f"{name}_tau_ref")
         self.refrac_counter = backend.Variable(self.shape, "int16_t", name=f"{name}_refrac_counter")
 
-        channel = backend.EventChannel(self.shape, name=f"{name}_out_spikes")
+        if num_record_timesteps is not None:
+            channel = backend.EventChannel((num_record_timesteps + 1,) + self.shape, self.shape,
+                                           True, name=f"{name}_out_spikes")
+        else:
+            channel = backend.EventChannel(self.shape, name=f"{name}_out_spikes")
+        self.spike_sink = channel.sink
         self.out_spikes = channel.source
         self.process = backend.NeuronUpdateProcess(
             f"""
@@ -54,7 +60,7 @@ class LIF:
             }}
             """,
             {"V": self.v, "I": self.i, "RefracCounter": self.refrac_counter},
-            {"Spike": channel.sink},
+            {"Spike": backend.SlicedEventSink(self.spike_sink, num_record_timesteps is not None)},
             name=name)
 
 class LIFOutput:
@@ -303,7 +309,7 @@ if not args.live:
             spike_event_ids = (shifted["p"] +
                                (shifted["y"] * sensor_size[2]) + 
                                (shifted["x"] * sensor_size[1] * sensor_size[2]))
-            event_timesteps = np.floor(shifted["t"] / 1000.0).astype(int)
+            event_timesteps = np.floor(shifted["t"] / timestep_scale).astype(int)
             if args.num_cores == 1:
                 spike_array = build_spike_array(event_timesteps, spike_event_ids)
                 max_spike_array_length = max(max_spike_array_length, len(spike_array))
@@ -326,7 +332,7 @@ if not args.live:
         input_spikes.append(chunk_spikes)
         input_labels.append(label)
 
-print(f"Max spike array length: {max_spike_array_length}")
+    print(f"Max spike array length: {max_spike_array_length}")
 log_appender = backend.ConsoleAppender()#PythonLogAppender()
 backend.init_logging(log_appender, backend.PlogSeverity.INFO)
 
@@ -452,11 +458,15 @@ else:
     # Loop through input gestures
     num_correct = 0
     time_simulated = 0
-    for spike_chunks, label in zip(input_spikes, input_labels):
+
+    for spike_chunks, label in tqdm(zip(input_spikes, input_labels),
+                                    total=len(input_labels)):
         # Zero everything
         runtime.run(zero_kernel)
         
         # Loop through spike chunks
+        #pop_spike_times = [[] for _ in populations]
+        #pop_spike_ids = [[] for _ in populations]
         for i, arrays in enumerate(spike_chunks):
             print(f"chunk {i}/{len(spike_chunks)}")
             #copy_split_and_push(arrays, input_source, runtime)
@@ -467,6 +477,14 @@ else:
             # Classify
             runtime.run(kernel)
             time_simulated += chunk_timesteps
+            
+            #for i, p in enumerate(populations):
+            #    chunk_spikes = pull_spikes(chunk_timesteps + 1, p.spike_sink, runtime)
+            #    pop_spike_times[i].extend(s[0] + (i * chunk_timesteps) for s in chunk_spikes)
+            #    pop_spike_ids[i].extend(s[1] + o for s, o in zip(chunk_spikes, layer_neurons_per_core[1:]))
+
+        #pop_spike_times = np.concatenate(pop_spike_times)
+        #pop_spike_ids = np.concatenate(pop_spike_ids)
 
         # Copy output V sum from device
         runtime.pull_state_from_device(populations[-1].num_spikes)
