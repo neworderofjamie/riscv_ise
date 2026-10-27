@@ -16,15 +16,13 @@ from tqdm.auto import tqdm, trange
 
 class LIF:
     def __init__(self, backend, shape, alpha: float, v_thresh: float,
-                 v_fixed_point: int = 5, i_fixed_point: int = 5, 
-                 tau_ref: int = 9, num_record_timesteps = None,
+                 fixed_point: int = 5, tau_ref: int = 9, num_record_timesteps = None,
                  name: str = ""):
         self.shape = shape
-        v_dtype = f"s{15 - v_fixed_point}_{v_fixed_point}_sat_t"
-        i_dtype = f"s{15 - i_fixed_point}_{i_fixed_point}_sat_t"
-        
-        self.v = backend.Variable(self.shape, v_dtype, name=f"{name}_v")
-        self.i = backend.Variable(self.shape, i_dtype, name=f"{name}_i")
+        dtype = f"s{15 - fixed_point}_{fixed_point}_sat_t"
+
+        self.v = backend.Variable(self.shape, dtype, name=f"{name}_v")
+        self.i = backend.Variable(self.shape, dtype, name=f"{name}_i")
         self.tau_ref = backend.Variable(self.shape, "int16_t", name=f"{name}_tau_ref")
         self.refrac_counter = backend.Variable(self.shape, "int16_t", name=f"{name}_refrac_counter")
 
@@ -38,8 +36,8 @@ class LIF:
         self.process = backend.NeuronUpdateProcess(
             f"""
             // Neuron
-            V = ({alpha}h15 * V) + (I * 1.0h{v_fixed_point});
-            I = 0.0h{i_fixed_point};
+            V = ({alpha}h15 * V) + I;
+            I = 0.0h{fixed_point};
 
             I = I;
             I = I;
@@ -53,9 +51,9 @@ class LIF:
                 RefracCounter--;
             }}
 
-            if(V >= {v_thresh}h{v_fixed_point} && RefracCounter <= 0) {{
+            if(V >= {v_thresh}h{fixed_point} && RefracCounter <= 0) {{
                Spike();
-               V -= {v_thresh}h{v_fixed_point};
+               V -= {v_thresh}h{fixed_point};
                RefracCounter = {tau_ref};
             }}
             """,
@@ -65,22 +63,20 @@ class LIF:
 
 class LIFOutput:
     def __init__(self, backend, shape, alpha: float, v_thresh: float, 
-                 v_fixed_point: int = 5, i_fixed_point: int = 5, 
-                 tau_ref: int = 9, name: str = ""):
+                 fixed_point: int = 5, tau_ref: int = 9, name: str = ""):
         self.shape = shape
-        v_dtype = f"s{15 - v_fixed_point}_{v_fixed_point}_sat_t"
-        i_dtype = f"s{15 - i_fixed_point}_{i_fixed_point}_sat_t"
+        dtype = f"s{15 - fixed_point}_{fixed_point}_sat_t"
 
-        self.v = backend.Variable(self.shape, v_dtype, name=f"{name}_v")
-        self.i = backend.Variable(self.shape, i_dtype, name=f"{name}_i")
+        self.v = backend.Variable(self.shape, dtype, name=f"{name}_v")
+        self.i = backend.Variable(self.shape, dtype, name=f"{name}_i")
         self.refrac_counter = backend.Variable(self.shape, "int16_t", name=f"{name}_refrac_counter")
         self.num_spikes = backend.Variable(self.shape, "int16_sat_t", name=f"{name}_spike_count")
 
         self.process = backend.NeuronUpdateProcess(
             f"""
             // Neuron
-            V = ({alpha}h15 * V) + (I * 1.0h{v_fixed_point});
-            I = 0.0h{i_fixed_point};
+            V = ({alpha}h15 * V) + I;
+            I = 0.0h{fixed_point};
 
             I = I;
             I = I;
@@ -94,9 +90,9 @@ class LIFOutput:
                 RefracCounter--;
             }}
 
-            if(V >= {v_thresh}h{v_fixed_point} && RefracCounter <= 0) {{
+            if(V >= {v_thresh}h{fixed_point} && RefracCounter <= 0) {{
                NumSpikes++;
-               V -= {v_thresh}h{v_fixed_point};
+               V -= {v_thresh}h{fixed_point};
                RefracCounter = {tau_ref};
             }}
             """,
@@ -201,9 +197,7 @@ layer_sparse_connectivity_bits = [int(np.ceil(np.log2(ceil_divide(max(n), 32))))
                                   for n in layer_neurons_per_core[1:4]]
 print(layer_sparse_connectivity_bits)
 # Fractional bits neurons at end of each layer use for V and I 
-layer_weight_fractional_bits = [6, 6, 6, 7, 9]
-
-layer_v_fractional_bits = [6, 6, 6, 6, 9]
+layer_weight_fractional_bits = [6, 6, 6, 6, 9]
 
 # Load weights
 hidden1_conn = np.load("hidden1.npy")
@@ -334,7 +328,7 @@ if not args.live:
 
     print(f"Max spike array length: {max_spike_array_length}")
 log_appender = backend.ConsoleAppender()#PythonLogAppender()
-backend.init_logging(log_appender, backend.PlogSeverity.INFO)
+backend.init_logging(log_appender, backend.PlogSeverity.DEBUG)
 
 # Input spikes
 if args.live:
@@ -345,12 +339,11 @@ else:
 
 # Populations of LIF neurons
 beta = 0.93**(dt / 1.0)
-populations = [LIF(backend, (np.prod(s),), beta, 1.0, v_f, i_f, name=f"hidden{i + 1}")
-               for i, (s, v_f, i_f) in enumerate(zip(layer_shapes[1:-1], 
-                                                     layer_v_fractional_bits, 
+populations = [LIF(backend, (np.prod(s),), beta, 1.0, f, name=f"hidden{i + 1}")
+               for i, (s, f) in enumerate(zip(layer_shapes[1:-1], 
                                                      layer_weight_fractional_bits))]
 populations.append(LIFOutput(backend, (np.prod(layer_shapes[-1]),), beta, 1.0,
-                   layer_v_fractional_bits[-1], layer_weight_fractional_bits[-1], name="output"))
+                   layer_weight_fractional_bits[-1], name="output"))
 
 # Connect input spikes to first layer
 input_hidden1 = SparseLinear(backend, input_source, populations[0].i,
