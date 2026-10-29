@@ -288,8 +288,8 @@ int main(int argc, char** argv)
             c.li(*STime, 0);
             c.li(*STimeEnd, 10000);
             c.li(*SNumEvents, 0);
-            c.li(*SMinEventID, 0);
-            c.li(*SMaxEventID, 0xFFFFFFFF);
+            c.li(*SMinEventID, 0xFFFFFFFF);
+            c.li(*SMaxEventID, 0);
 
             auto timeLoop = c.L();
             {
