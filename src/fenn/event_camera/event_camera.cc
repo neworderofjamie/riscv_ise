@@ -315,8 +315,11 @@ int main(int argc, char** argv)
                     c.csrr(*SRouterEventBufferEnd, FeNN::Common::CSR::SLAVE_EVENT_END_ADDRESS);
                     
                     // Calculate number of events and add to total
-                    c.sub(*SRouterEventBuffer, *SRouterEventBufferEnd, *SRouterEventBuffer);
-                    c.add(*SNumEvents, *SNumEvents, *SRouterEventBuffer);
+                    {
+                        ALLOCATE_SCALAR(STmp);
+                        c.sub(*STmp, *SRouterEventBufferEnd, *SRouterEventBuffer);
+                        c.add(*SNumEvents, *SNumEvents, *STmp);
+                    }
 
                     auto eventLoopEnd = Assembler::createLabel();
                     auto eventLoopStart = c.L();
