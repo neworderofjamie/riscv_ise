@@ -98,7 +98,8 @@ void simEventInjectorThread(ISE::SharedBusSim &sharedBus, uint32_t coreID, const
 }
 
 void deviceThread(const std::vector<uint32_t> &code, const std::vector<uint8_t> &scalarInitData,
-                  uint32_t coreID, uint32_t eventCounterPtr, uint32_t bufferOverflowCountPtr, uint32_t readyFlagPtr,
+                  uint32_t coreID, uint32_t eventCounterPtr, uint32_t minIDPtr, 
+                  uint32_t maxIDPtr, uint32_t bufferOverflowCountPtr, uint32_t readyFlagPtr,
                   std::vector<uint32_t> &receivedEvents, ::Common::Barrier &barrier)
 {
     LOGI << "Creating device (" << coreID << " / " << numCores << ")";
@@ -160,9 +161,9 @@ void deviceThread(const std::vector<uint32_t> &code, const std::vector<uint8_t> 
     if(bufferOverflowCount > 0) {
         LOGW << bufferOverflowCount << " events overflowed buffer";
     }
-
-    const uint32_t eventCount = wordData[eventCounterPtr / 4];
-    LOGI << eventCount << " events received";
+    LOGI << wordData[eventCounterPtr / 4] << " events received";
+    LOGI << wordData[minIDPtr / 4] << " min event ID received";
+    LOGI << wordData[maxIDPtr / 4] << " max event ID received";
 }
 
 void checkOutput(const std::vector<uint32_t> &coreOutput, const std::vector<uint32_t> &inputEvents)
@@ -263,6 +264,8 @@ int main(int argc, char** argv)
     // Allocate scalar arrays
     const uint32_t readyFlagPtr = FeNN::Common::AppUtils::allocateScalarAndZero(4, scalarInitData);
     const uint32_t eventCounterPtr = FeNN::Common::AppUtils::allocateScalarAndZero(4, scalarInitData);
+    const uint32_t minIDPtr = FeNN::Common::AppUtils::allocateScalarAndZero(4, scalarInitData);
+    const uint32_t maxIDPtr = FeNN::Common::AppUtils::allocateScalarAndZero(4, scalarInitData);
     const uint32_t bufferOverflowCountPtr = FeNN::Common::AppUtils::allocateScalarAndZero(4, scalarInitData);
 
     // Generate code
@@ -274,6 +277,8 @@ int main(int argc, char** argv)
             ALLOCATE_SCALAR(STime);
             ALLOCATE_SCALAR(STimeEnd);
             ALLOCATE_SCALAR(SNumEvents);
+            ALLOCATE_SCALAR(SMinEventID);
+            ALLOCATE_SCALAR(SMaxEventID);
         
             // Enable performance counters
             // **NOTE** on device, this takes a few cycles to make it through the pipeline so we do it well before we try and access counters
@@ -283,6 +288,8 @@ int main(int argc, char** argv)
             c.li(*STime, 0);
             c.li(*STimeEnd, 10000);
             c.li(*SNumEvents, 0);
+            c.li(*SMinEventID, 0);
+            c.li(*SMaxEventID, 0xFFFFFFFF);
 
             auto timeLoop = c.L();
             {
@@ -299,7 +306,7 @@ int main(int argc, char** argv)
                 c.csrr(*SLoopStartCycleHigh, FeNN::Common::CSR::MCYCLEH);
 
                 {
-                    Assembler::Label eventLoopEnd;
+                    
 
                     // Get start and end of event buffer
                     ALLOCATE_SCALAR(SRouterEventBuffer);
@@ -307,9 +314,27 @@ int main(int argc, char** argv)
                     c.csrr(*SRouterEventBuffer, FeNN::Common::CSR::SLAVE_EVENT_START_ADDRESS);
                     c.csrr(*SRouterEventBufferEnd, FeNN::Common::CSR::SLAVE_EVENT_END_ADDRESS);
                     
+                    // Calculate number of events and add to total
                     c.sub(*SRouterEventBuffer, *SRouterEventBufferEnd, *SRouterEventBuffer);
                     c.add(*SNumEvents, *SNumEvents, *SRouterEventBuffer);
-                    
+
+                    auto eventLoopEnd = Assembler::createLabel();
+                    auto eventLoopStart = c.L();
+                    c.beq(*SRouterEventBuffer, *SRouterEventBufferEnd, eventLoopEnd);
+                    {
+                        ALLOCATE_SCALAR(SEvent);
+
+                        // Load event
+                        c.lw(*SEvent, *SRouterEventBuffer, 0);
+                        c.addi(*SRouterEventBuffer, *SRouterEventBuffer, 4);
+
+                        // Update min and max
+                        c.minu(*SMinEventID, *SMinEventID, *SEvent);
+                        c.maxu(*SMaxEventID, *SMaxEventID, *SEvent);
+
+                        c.j_(eventLoopStart);
+                    }
+                    c.L(eventLoopEnd);
                 }
                 
 
@@ -333,8 +358,10 @@ int main(int argc, char** argv)
                 c.csrr(*STmp, FeNN::Common::CSR::SLAVE_BUFFER_OVERFLOW_COUNT);
                 c.sw(*STmp, FeNN::Common::Reg::X0, bufferOverflowCountPtr);
             }
-            // Store event cout
+            // Store event count and; min and max IDs
             c.sw(*SNumEvents, FeNN::Common::Reg::X0, eventCounterPtr);
+            c.sw(*SMinEventID, FeNN::Common::Reg::X0, minIDPtr);
+            c.sw(*SMaxEventID, FeNN::Common::Reg::X0, maxIDPtr);
         });
 
     // Dump to coe file
@@ -353,7 +380,7 @@ int main(int argc, char** argv)
             // Create thread
             std::get<1>(coreData[i]) = std::thread(
                 deviceThread, std::cref(code), std::cref(scalarInitData),
-                i, eventCounterPtr, bufferOverflowCountPtr, readyFlagPtr, 
+                i, eventCounterPtr, minIDPtr, maxIDPtr, bufferOverflowCountPtr, readyFlagPtr, 
                 std::ref(std::get<0>(coreData[i])), std::ref(barrier));
             
             // Name thread
@@ -363,11 +390,6 @@ int main(int argc, char** argv)
         // Join all threads
         for(auto &c : coreData) {
             std::get<1>(c).join();
-        }
-        
-        {
-            std::ofstream output("recorded_spikes.bin", std::ios::binary);
-            output.write(reinterpret_cast<const char*>(std::get<0>(coreData[0]).data()), std::get<0>(coreData[0]).size() * 4);
         }
     }
     /*else {
