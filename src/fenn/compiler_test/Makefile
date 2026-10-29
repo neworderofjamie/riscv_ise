@@ -47,4 +47,4 @@ libfenn_ise:
 %.d: ;
 
 clean:
-	rm -f $(MNIST)
+	rm -f $(COMPILER_TEST)
