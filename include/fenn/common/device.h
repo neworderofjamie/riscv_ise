@@ -24,6 +24,17 @@ public:
     Device(int core = 0, int numCores = 1);
 
     //------------------------------------------------------------------------
+    // ExceptionData
+    //------------------------------------------------------------------------
+    struct ExceptionData
+    {
+        uint32_t registers[31];
+        uint32_t cause;
+        uint32_t pc;
+    };
+    static_assert(sizeof(ExceptionData) == 132);
+
+    //------------------------------------------------------------------------
     // Public API
     //------------------------------------------------------------------------
     const volatile uint32_t *getInstructionMemory() const{ return m_InstructionMemoryUIO->getData<uint32_t>(); }
@@ -34,7 +45,11 @@ public:
     DMAController *getDMAController(){ return m_DMAController.get(); }
     const DMAController *getDMAController() const{ return m_DMAController.get(); }
 
-    void waitOnNonZero(uint32_t address) const;
+    //! Wait for ready flag to be set - returns true if successful, else false
+    bool waitOnNonZero(uint32_t address) const;
+
+    //! If waitOnNonZero returns error, read exception data
+    ExceptionData getExceptionData(uint32_t address) const;
 
     void uploadCode(const std::vector<uint32_t> &code);
 

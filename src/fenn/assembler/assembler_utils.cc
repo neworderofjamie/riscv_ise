@@ -621,34 +621,64 @@ std::vector<uint32_t> generateStandardKernel(bool simulate, uint32_t readyFlagPt
     }
     // Otherwise
     else {
-        // Register allocation
-        ALLOCATE_SCALAR(SReadyFlagBuffer);
+        //--------------------------------------------------------------------
+        // Error handler
+        //--------------------------------------------------------------------
+        // Loop through non-hardwired registers
+        uint32_t dumpAddress = readyFlagPtr + 4;
+        for(uint32_t i = 1; i < 32; i++) {
+            // Store to addresses following readyFlag
+            c.sw(static_cast<Reg>(i), Reg::X0, dumpAddress);
+            
+            // Increment dump address
+            dumpAddress += 4;
+        }
 
-        // Labels
-        auto spinLoop = createLabel();
+        // Read cause and program counter associated with exception
+        c.csrr(Reg::X1, CSR::MCAUSE);
+        c.csrr(Reg::X2, CSR::MEPC);
 
-        // Load ready flag
-        c.li(*SReadyFlagBuffer, readyFlagPtr);
-        
+        // Write to next two words of memory
+        c.sw(Reg::X1, Reg::X0, dumpAddress);
+        c.sw(Reg::X2, Reg::X0, dumpAddress + 4);
+
+        // Set ready flag to 2 to signal error
+        c.li(Reg::X1, 2);
+        c.sw(Reg::X1, Reg::X0, readyFlagPtr);
+
+        // Infinite loop
+        auto errorSpinLoop = c.L();
+        {
+            // **HACK** 
+            //c.j_(spinLoop);
+            c.beq(Reg::X0, Reg::X0, errorSpinLoop);
+        }
+    
+        //--------------------------------------------------------------------
+        // Boot code
+        //--------------------------------------------------------------------
+        // Label which should correspond to boot address
+        auto bootAddress = c.L();
+
         // Clear ready flag
-        c.sw(Reg::X0, *SReadyFlagBuffer);
+        c.sw(Reg::X0, Reg::X0, readyFlagPtr);
 
         // Generate body
         genBodyFn(c, vectorRegisterAllocator, scalarRegisterAllocator);
 
-        // Set ready flag
+        // Set ready flag to 1
         {
             ALLOCATE_SCALAR(STmp);
             c.li(*STmp, 1);
-            c.sw(*STmp, *SReadyFlagBuffer);
+            c.sw(*STmp, Reg::X0, readyFlagPtr);
         }
 
         // Infinite loop
-        c.L(spinLoop);
+        auto successSpinLoop = c.L();
         {
             // **HACK** 
             //c.j_(spinLoop);
-            c.beq(Reg::X0, Reg::X0, spinLoop);
+            c.beq(Reg::X0, Reg::X0, successSpinLoop);
         }
     }
 

@@ -47,7 +47,7 @@ Device::Device(int core, int numCores)
 #endif  // __linux__
 }
 //----------------------------------------------------------------------------
-void Device::waitOnNonZero(uint32_t address) const
+bool Device::waitOnNonZero(uint32_t address) const
 {
     // Wait until address is non-zero
     assert((address % 4) == 0);
@@ -55,6 +55,18 @@ void Device::waitOnNonZero(uint32_t address) const
     while(*data == 0){
         //std::this_thread::sleep_for(std::chrono::microseconds{10});
     }
+
+    // Return true if success
+    return (*data == 1);
+}
+//----------------------------------------------------------------------------
+Device::ExceptionData Device::getExceptionData(uint32_t address) const
+{
+    // Copy exception data off device
+    ExceptionData exceptionData;
+    memcpyDataFromDevice(reinterpret_cast<uint8_t*>(&exceptionData), 
+                         address, sizeof(ExceptionData));
+    return exceptionData;
 }
 //----------------------------------------------------------------------------
 void Device::uploadCode(const std::vector<uint32_t> &code)

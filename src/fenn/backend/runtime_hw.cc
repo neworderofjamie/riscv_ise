@@ -295,8 +295,13 @@ void DeviceFeNNHW::runCurrentKernel()
 {
     // Wait until ready flag
     LOGD_FENN_BACKEND << "Running";
-    m_Device.waitOnNonZero(0);
-    LOGD_FENN_BACKEND << "Done";
+    if(m_Device.waitOnNonZero(0)) {
+        LOGD_FENN_BACKEND << "Done";
+    }
+    else {
+        const auto exceptionData = m_Device.getExceptionData(4);
+        LOGE_FENN_BACKEND << "Done";
+    }
 }
 //----------------------------------------------------------------------------
 std::unique_ptr<URAMArrayBase> DeviceFeNNHW::createURAMArray(const Type::ResolvedType &type, 
