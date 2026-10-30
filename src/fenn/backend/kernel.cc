@@ -344,6 +344,10 @@ void SimulationLoopKernel::generateCode(Assembler::CodeGenerator &c,
                                                         *SLoopStartCycleLow, *SLoopStartCycleHigh, 
                                                         m_TargetClockCycles.value());
         }
+
+        // Write time to memory
+        c.sw(*STime, Common::Reg::X0, 4);
+
         c.addi(*STime, *STime, 1);
         c.bne(*STime, *STimeEnd, timeLoop);
     }

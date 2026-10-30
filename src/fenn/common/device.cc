@@ -52,7 +52,9 @@ void Device::waitOnNonZero(uint32_t address) const
     // Wait until address is non-zero
     assert((address % 4) == 0);
     volatile const uint32_t *data = reinterpret_cast<volatile const uint32_t*>(getDataMemory() + address);
+    volatile const uint32_t *test = reinterpret_cast<volatile const uint32_t*>(getDataMemory() + 4);
     while(*data == 0){
+        LOGI << "Test: " << *test;
         //std::this_thread::sleep_for(std::chrono::microseconds{10});
     }
 }

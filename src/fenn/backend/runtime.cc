@@ -209,7 +209,7 @@ void DeviceFeNN::allocateDataStructures()
 {
     // **NOTE** this needs to happen here so they are correctly allocated at the start of BRAM
     // **YUCK** first 4 bytes used for ready flag pointer
-    getBRAMAllocator().allocate(4);
+    getBRAMAllocator().allocate(8);
 
     // Loop through kernels
     for (const auto &k : getRuntime().getModel()->getKernels()) {
@@ -363,7 +363,7 @@ Runtime::Runtime(const std::vector<std::shared_ptr<const Frontend::Kernel>> &ker
 {
     // Loop through kernels to figure out where data structures will 
     // be so immediate addresses can be written into kernels 
-    uint32_t fieldStart = 4;
+    uint32_t fieldStart = 8;
     std::unordered_map<std::shared_ptr<const Frontend::Kernel>, 
                        std::tuple<uint32_t, uint32_t>> kernelEventTableLocations;
     for (const auto &k : getModel()->getKernels()) {
