@@ -46,21 +46,26 @@ public:
         // Loop through performance counters
         m_PerformanceCounters.reserve(performanceCounters.size());
         for(const auto &p : performanceCounters) {
-            // Get low and high CSRs
-            auto [lowCSR, highCSR] = s_PerformanceCounterCSRs.at(p);
+            // Get CSRs representing perforamnc
+            auto csrs = s_PerformanceCounterCSRs.at(p);
 
-            // Allocate registers
-            auto startLowReg = m_ScalarRegisterAllocator.get().getRegister(("Start" + p + " X").c_str());
-            auto startHighReg = m_ScalarRegisterAllocator.get().getRegister(("Start" + p + "H X").c_str());
+            // Add a performance counter to vector
+            m_PerformanceCounters.emplace_back();
 
-            // Read performance counters into registers
-            c.csrr(*startLowReg, lowCSR);
-            c.csrr(*startHighReg, highCSR);
+            // Loop through required CSRs
+            m_PerformanceCounters.back().csrs.reserve(csrs.size());
+            for(auto r : csrs) {
+                // Allocate register
+                auto reg = m_ScalarRegisterAllocator.get().getRegister(("Start" + p + " X").c_str());
 
-            // Add registers to vector and update offset
-            m_PerformanceCounters.emplace_back(startLowReg, startHighReg, 
-                                               lowCSR, highCSR,
-                                               processGroupStartOffset);
+                // Read CSR into registers
+                c.csrr(*reg, r);
+            
+                m_PerformanceCounters.back().csrs.emplace_back(reg, r);
+            }
+            
+            // Store offset and update
+            m_PerformanceCounters.back().offset = processGroupStartOffset;
             processGroupStartOffset += sizeof(uint64_t);
         }
     }
@@ -72,44 +77,76 @@ public:
             
         // Loop through performance counters
         for(const auto &p : m_PerformanceCounters) {
-            auto [startLowReg, startHighReg, lowCSR, highCSR, offset] = p;
+            // Read end values of each CSR
+            std::vector<Assembler::ScalarRegisterPtr> endValues;
+            endValues.reserve(p.csrs.size());
+            for(auto r : p.csrs) {
+                // Allocate register
+                auto reg = m_ScalarRegisterAllocator.get().getRegister("End X");
 
-            // Read performance counters into registers
-            ALLOCATE_SCALAR(SEndLow);
-            ALLOCATE_SCALAR(SEndHigh);
-            c.csrr(*SEndLow, lowCSR);
-            c.csrr(*SEndHigh, highCSR);
-
-            // Subtract previous performance counter values 
-            // **NOTE** result goes into SEndLow and SEndHigh
-            Assembler::Utils::generateSubtractUint64(c, scalarRegisterAllocator,
-                                                     *SEndLow, *SEndHigh,
-                                                     *startLowReg, *startHighReg);
+                // Read CSR into registers
+                c.csrr(*reg, std::get<1>(r));
+                
+                endValues.push_back(reg);
+            }
             
-            // Load previous performance counter values
-            c.lw(*startLowReg, FeNN::Common::Reg::X0, offset);
-            c.lw(*startHighReg, FeNN::Common::Reg::X0, offset + 4);
+            // If this is a 64-bit performance counter
+            if(endValues.size() == 2) {
+                auto startLowReg = std::get<0>(p.csrs[0]);
+                auto startHighReg = std::get<0>(p.csrs[1]);
+                // Subtract previous performance counter values 
+                // **NOTE** result goes into SEndLow and SEndHigh
+                Assembler::Utils::generateSubtractUint64(c, scalarRegisterAllocator,
+                                                        *endValues[0], *endValues[1],
+                                                        *startLowReg, *startHighReg);
+                
+                // Load previous performance counter values
+                c.lw(*startLowReg, FeNN::Common::Reg::X0, p.offset);
+                c.lw(*startHighReg, FeNN::Common::Reg::X0, p.offset + 4);
 
-            // Add new performance counter values
-            // **NOTE** result goes into startLowReg and startHighReg
-            // **NOTE** first instruction access startLowReg so no stall
-            Assembler::Utils::generateAddUint64(c, scalarRegisterAllocator,
-                                                *startLowReg, *startHighReg,
-                                                *SEndLow, *SEndHigh);
-            // Store updated values
-            c.sw(*startLowReg, FeNN::Common::Reg::X0, offset);
-            c.sw(*startHighReg, FeNN::Common::Reg::X0, offset + 4);
+                // Add new performance counter values
+                // **NOTE** result goes into startLowReg and startHighReg
+                // **NOTE** first instruction access startLowReg so no stall
+                Assembler::Utils::generateAddUint64(c, scalarRegisterAllocator,
+                                                    *startLowReg, *startHighReg,
+                                                    *endValues[0], *endValues[1]);
+                // Store updated values
+                c.sw(*startLowReg, FeNN::Common::Reg::X0, p.offset);
+                c.sw(*startHighReg, FeNN::Common::Reg::X0, p.offset + 4);
+            }
+            else {
+                assert(endValues.size() == 1);
+
+                // Subtract previous performance counter value
+                auto startReg = std::get<0>(p.csrs[0]);
+                c.sub(*endValues[0], *endValues[0], *startReg);
+
+                // Load previous performance counter values
+                c.lw(*startReg, FeNN::Common::Reg::X0, p.offset);
+
+                // Add new performance counter values
+                c.add(*startReg, *startReg, *endValues[0]);
+
+                // Store updated values
+                c.sw(*startReg, FeNN::Common::Reg::X0, p.offset);
+            }
         }
     }
 private:
+    struct PerformanceCounter
+    {
+        std::vector<std::tuple<Assembler::ScalarRegisterPtr, FeNN::Common::CSR>> csrs;
+        size_t offset;
+    };
+    
     //------------------------------------------------------------------------
     // Static members
     //------------------------------------------------------------------------
     inline static const std::unordered_map<std::string,
-                                           std::tuple<FeNN::Common::CSR,
-                                                      FeNN::Common::CSR>>
+                                           std::vector<FeNN::Common::CSR>>
         s_PerformanceCounterCSRs = {{"num_instructions", {FeNN::Common::CSR::MCYCLE, FeNN::Common::CSR::MCYCLEH}},
-                                    {"num_clock_cycles", {FeNN::Common::CSR::MINSTRET, FeNN::Common::CSR::MINSTRETH}}};
+                                    {"num_clock_cycles", {FeNN::Common::CSR::MINSTRET, FeNN::Common::CSR::MINSTRETH}},
+                                    {"num_slave_buffer_overflows", {FeNN::Common::CSR::SLAVE_BUFFER_OVERFLOW_COUNT}}};
 
     //------------------------------------------------------------------------
     // Members
@@ -117,8 +154,7 @@ private:
     std::reference_wrapper<Assembler::CodeGenerator> m_CodeGenerator;
     std::reference_wrapper<Assembler::ScalarRegisterAllocator> m_ScalarRegisterAllocator;
 
-    std::vector<std::tuple<Assembler::ScalarRegisterPtr, Assembler::ScalarRegisterPtr, 
-                           FeNN::Common::CSR, FeNN::Common::CSR, size_t>> m_PerformanceCounters;
+    std::vector<PerformanceCounter> m_PerformanceCounters;
 };
 }
 //------------------------------------------------------------------------
@@ -198,7 +234,7 @@ uint64_t DeviceFeNN::readPerformanceCounter(std::shared_ptr<const Frontend::Proc
     auto p = group->getPerformanceCounters().cbegin();
     for (size_t i = 0; i < group->getPerformanceCounters().size(); i++, p++) {
         if (*p == counter) {
-            return m_PerformanceCounters->readDevice<uint64_t>(arrayOffset);
+            return m_PerformanceCounters->readDevice<uint64_t>(arrayOffset + (i * sizeof(uint64_t)));
         }
     }
 

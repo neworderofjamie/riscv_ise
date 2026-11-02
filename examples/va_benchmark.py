@@ -99,7 +99,8 @@ inhibitory_splits = np.cumsum(num_inhibitory_per_core)[:-1]
 num_exc_sparse_connectivity_bits = int(np.ceil(np.log2(ceil_divide(args.num_excitatory, 32)))) + 1
 num_inh_sparse_connectivity_bits = int(np.ceil(np.log2(ceil_divide(num_inhibitory, 32)))) + 1
 num_timestep_spike_bytes = ceil_divide(num_neurons, 32) * 4
-num_blocks = ceil_divide(args.num_timesteps, (110 * 1024) // num_timestep_spike_bytes)
+recording_memory = args.num_cores * 46
+num_blocks = ceil_divide(args.num_timesteps, (recording_memory * 1024) // num_timestep_spike_bytes)
 num_timesteps_per_block = int(round(args.num_timesteps / num_blocks))
 
 
@@ -175,7 +176,7 @@ ie_zero = Memset(backend, i_pop.i_exc, name="zero_i_exc")
 ii_zero = Memset(backend, i_pop.i_inh, name="zero_i_inh")
 
 # Group processes
-perf_counters = ["num_instructions", "num_clock_cycles"] if args.time else []
+perf_counters = ["num_instructions", "num_clock_cycles", "num_slave_buffer_overflows"] if args.time else []
 i_zero_processes = backend.ProcessGroup([ee_zero.process, ei_zero.process,
                                          ie_zero.process, ii_zero.process])
 neuron_update_processes = backend.ProcessGroup([e_pop.process, i_pop.process], perf_counters)
@@ -277,13 +278,16 @@ print(f"Simulation time {sim_time}")
 if args.time:
     neuron_update_cycles = runtime.read_performance_counter(neuron_update_processes, 'num_clock_cycles')[0]
     neuron_update_instructions = runtime.read_performance_counter(neuron_update_processes, 'num_instructions')[0]
-
+    neuron_num_slave_buffer_overflows = runtime.read_performance_counter(neuron_update_processes, 'num_slave_buffer_overflows')[0]
+    
     synapse_update_cycles = runtime.read_performance_counter(synapse_update_processes, 'num_clock_cycles')[0]
     synapse_update_instructions = runtime.read_performance_counter(synapse_update_processes, 'num_instructions')[0]
-
-
+    synapse_num_slave_buffer_overflows = runtime.read_performance_counter(synapse_update_processes, 'num_slave_buffer_overflows')[0]
+    
     print(f"Neuron update {neuron_update_cycles} cycles, {neuron_update_instructions} instruction ({neuron_update_instructions / neuron_update_cycles})")
     print(f"Synapse update {synapse_update_cycles} cycles, {synapse_update_instructions} instruction ({synapse_update_instructions / synapse_update_cycles})")
+    print(f"Slave buffer overflows: {neuron_num_slave_buffer_overflows + synapse_num_slave_buffer_overflows}")
+    
 
 # Plot
 fig, axis = plt.subplots()

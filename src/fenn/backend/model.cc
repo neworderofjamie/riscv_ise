@@ -23,7 +23,8 @@
 namespace
 {
 const std::set<std::string> supportedPerformanceCounters{"num_instructions",
-                                                         "num_clock_cycles"};
+                                                         "num_clock_cycles",
+                                                         "num_slave_buffer_overflows"};
 }
 
 //----------------------------------------------------------------------------
