@@ -300,7 +300,8 @@ void DeviceFeNNHW::runCurrentKernel()
     }
     else {
         const auto exceptionData = m_Device.getExceptionData(4);
-        LOGE_FENN_BACKEND << "Done";
+        LOGE_FENN_BACKEND << "Error running kernel cause:" << exceptionData.cause << ", PC:" << exceptionData.pc;        
+        //uint32_t registers[31];
     }
 }
 //----------------------------------------------------------------------------
