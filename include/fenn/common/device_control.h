@@ -30,7 +30,7 @@ public:
     volatile uint32_t *getGPIO(){ return m_GPIOUIO->getData<uint32_t>(); }
 
     void setEnabled(bool enabled);
-    void setILATrigger(bool enabled);
+    void setBootAddress(uint32_t bootAddress);
 
     MIPICSI2Receiver *getMIPICSI2Receiver(){ return m_MIPICSI2Receiver.get(); }
     const MIPICSI2Receiver *getMIPICSI2Receiver() const{ return m_MIPICSI2Receiver.get(); }

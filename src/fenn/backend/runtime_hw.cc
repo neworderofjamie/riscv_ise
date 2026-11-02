@@ -341,6 +341,9 @@ RuntimeHW::RuntimeHW(const std::vector<std::shared_ptr<const Frontend::Kernel>> 
 :   Runtime(kernels, numDevices, false, useDRAMForWeights, keepParamsInRegisters, neuronUpdateRoundingMode, dmaBufferSize),
     m_DeviceControl(numDevices)
 {
+    // Set the device's boot address to 152
+    // **YUCK** magic number
+    m_DeviceControl.setBootAddress(152);
 }
 //------------------------------------------------------------------------
 std::unique_ptr<Frontend::DeviceBase> RuntimeHW::createDevice(size_t deviceIndex)

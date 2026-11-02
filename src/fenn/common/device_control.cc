@@ -46,10 +46,10 @@ void DeviceControl::setEnabled(bool enabled)
     gpio[0] = enabled ? 0xFFFFFFFF : 0x0;
 }
 //----------------------------------------------------------------------------
-void DeviceControl::setILATrigger(bool enabled)
+void DeviceControl::setBootAddress(uint32_t bootAddress)
 {
     // Channel 2 AXI GPIO Data Register.
     volatile uint32_t *gpio = getGPIO();
-    gpio[2] = enabled ? 0xFFFFFFFF : 0x0;
+    gpio[2] = bootAddress;
 }
 }
