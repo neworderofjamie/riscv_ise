@@ -46,6 +46,8 @@ inline constexpr bool isValidImm(size_t imm, uint32_t maskBit)
 static constexpr uint32_t standardQuadrant = 0b11;
 static constexpr uint32_t vectorQuadrant = 0b10;
 
+// **YUCK** this really doesn't belong here - not ISA-related at all!
+static constexpr uint32_t bootAddress = 152;
 
 // Standard RISC-V opcode 
 enum class StandardOpCode : uint32_t

@@ -681,7 +681,7 @@ std::vector<uint32_t> generateStandardKernel(bool simulate, uint32_t readyFlagPt
             c.beq(Reg::X0, Reg::X0, successSpinLoop);
         }
 
-        LOGI_FENN_ASSEMBLER << "Boot address: " << c.getAddress(bootAddress).value();
+        assert(c.getAddress(bootAddress) == FeNN::Common::bootAddress);
     }
 
     LOGI_FENN_ASSEMBLER << "Max vector registers used: " << vectorRegisterAllocator.getMaxUsedRegisters();
