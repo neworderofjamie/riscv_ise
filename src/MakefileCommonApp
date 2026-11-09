@@ -1,0 +1,32 @@
+# Include common makefile
+SELF_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
+include $(SELF_DIR)MakefileCommon
+
+APP:=$(BIN_DIRECTORY)/$(APP_NAME)$(PREFIX)
+
+.PHONY: all clean libcommon libfenn_common libfenn_assembler libfenn_ise
+
+all: $(APP)
+
+-include event_camera.d
+
+$(APP): $(APP_NAME).cc $(APP_NAME).d $(APP_DEPENDENCIES)
+	mkdir -p $(@D)
+	$(CXX) $(CXXFLAGS) $(APP_NAME).cc -o $@ $(LDFLAGS)
+
+libcommon:
+	if [ -w $(LIBRARY_DIRECTORY) ]; then $(MAKE) -C $(RISCV_DIR)/src/common; fi;
+
+libfenn_common:
+	if [ -w $(LIBRARY_DIRECTORY) ]; then $(MAKE) -C $(RISCV_DIR)/src/fenn/common; fi;
+
+libfenn_assembler:
+	if [ -w $(LIBRARY_DIRECTORY) ]; then $(MAKE) -C $(RISCV_DIR)/src/fenn/assembler; fi;
+
+libfenn_ise:
+	if [ -w $(LIBRARY_DIRECTORY) ]; then $(MAKE) -C $(RISCV_DIR)/src/fenn/ise; fi;
+
+%.d: ;
+
+clean:
+	rm -f $(COMPILER_TEST)

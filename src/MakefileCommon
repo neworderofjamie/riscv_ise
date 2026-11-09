@@ -5,6 +5,11 @@ DARWIN				:=$(strip $(findstring DARWIN,$(OS_UPPER)))
 # Get directory of this makefile (means make can be invoked else where)
 RISCV_DIR:=$(abspath $(dir $(lastword $(MAKEFILE_LIST)))../)
 
+# Add prefix to object directory and library name
+OBJECT_DIRECTORY?=$(RISCV_DIR)/obj$(PREFIX)
+LIBRARY_DIRECTORY?=$(RISCV_DIR)/lib
+BIN_DIRECTORY?=$(RISCV_DIR)/bin
+
 # Set standard compiler and archiver flags
 CXXFLAGS+=-std=c++17 -march=native -Wall -Wpedantic -Wextra -MMD -MP -I$(RISCV_DIR)/include -I$(RISCV_DIR)/include/third_party
 LDFLAGS+=-L$(LIBRARY_DIRECTORY)
@@ -26,7 +31,3 @@ else
 endif 
 
 
-# Add prefix to object directory and library name
-OBJECT_DIRECTORY?=$(RISCV_DIR)/obj$(PREFIX)
-LIBRARY_DIRECTORY?=$(RISCV_DIR)/lib
-BIN_DIRECTORY?=$(RISCV_DIR)/bin
