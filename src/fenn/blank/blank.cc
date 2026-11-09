@@ -12,25 +12,32 @@
 #include <plog/Log.h>
 #include <plog/Severity.h>
 #include <plog/Appenders/ConsoleAppender.h>
+#include <plog/Formatters/TxtFormatter.h>
 
-// RISC-V common includes
-#include "common/CLI11.hpp"
-#include "common/app_utils.h"
+// Third-party includes
+#include "CLI11.hpp"
+
+// Common includes
 #include "common/barrier.h"
-#include "common/device.h"
-#include "common/device_control.h"
 #include "common/utils.h"
 
-// RISC-V assembler includes
-#include "assembler/assembler.h"
-#include "assembler/assembler_utils.h"
-#include "assembler/register_allocator.h"
+// FeNN common includes
+#include "fenn/common/app_utils.h"
+#include "fenn/common/device.h"
+#include "fenn/common/device_control.h"
 
-// RISC-V ISE includes
-#include "ise/riscv.h"
-#include "ise/router_sim.h"
-#include "ise/shared_bus_sim.h"
-#include "ise/vector_processor.h"
+// FeNN assembler includes
+#include "fenn/assembler/assembler.h"
+#include "fenn/assembler/assembler_utils.h"
+#include "fenn/assembler/register_allocator.h"
+
+// FeNN ISE includes
+#include "fenn/ise/riscv.h"
+#include "fenn/ise/router_sim.h"
+#include "fenn/ise/shared_bus_sim.h"
+#include "fenn/ise/vector_processor.h"
+
+using namespace FeNN;
 
 namespace
 {
@@ -39,12 +46,12 @@ constexpr size_t numCores = 2;
 using CoreData = std::vector<std::tuple<uint32_t, std::vector<uint32_t>, std::thread>>;
 
 void simThread(const std::vector<uint32_t> &code, const std::vector<uint8_t> &scalarInitData,
-               SharedBusSim &sharedBus, uint32_t coreID, uint32_t spikeBitfield,
+               ISE::SharedBusSim &sharedBus, uint32_t coreID, uint32_t spikeBitfield,
                uint32_t bitfieldPtr, uint32_t eventIDBasePtr, uint32_t outputSpikeArrayEnd, 
                uint32_t outputSpikeArrayPtr, std::vector<uint32_t> &receivedEvents)
 {
     // Create RISC-V core with instruction and scalar data
-    RISCV riscV;
+    ISE::RISCV riscV(coreID);
     riscV.setInstructions(code);
     riscV.getScalarDataMemory().setData(scalarInitData);
     
@@ -54,10 +61,10 @@ void simThread(const std::vector<uint32_t> &code, const std::vector<uint8_t> &sc
     wordData[eventIDBasePtr / 4] = (coreID << 14);
 
     // Add vector co-processor
-    riscV.addCoprocessor<VectorProcessor>(vectorQuadrant);
+    riscV.addCoprocessor<ISE::VectorProcessor>(FeNN::Common::vectorQuadrant);
         
     // Create simulated DMA controller
-    RouterSim router(sharedBus, riscV.getSpikeDataMemory(), coreID);
+    ISE::RouterSim router(sharedBus, riscV.getSpikeDataMemory(), coreID);
     riscV.setRouter(&router);
      
     // Run!
@@ -74,11 +81,11 @@ void deviceThread(const std::vector<uint32_t> &code, const std::vector<uint8_t> 
                   uint32_t coreID, uint32_t spikeBitfield,
                   uint32_t bitfieldPtr, uint32_t eventIDBasePtr, uint32_t outputSpikeArrayEnd, 
                   uint32_t outputSpikeArrayPtr, uint32_t readyFlagPtr, std::vector<uint32_t> &receivedEvents,
-                  Barrier &barrier)
+                  ::Common::Barrier &barrier)
 {
     LOGI << "Creating device (" << coreID << " / " << numCores << ")";
-    Device device(coreID, numCores);
-    DeviceControl deviceControl(numCores);
+    FeNN::Common::Device device(coreID, numCores);
+    FeNN::Common::DeviceControl deviceControl(numCores);
     LOGI << "Resetting";
     // Put core into reset state
     barrier.wait();
@@ -162,34 +169,42 @@ void checkOutput(const CoreData &coreData)
 }
 int main(int argc, char** argv)
 {
-    // Configure logging
-    plog::ConsoleAppender<plog::TxtFormatter> consoleAppender;
-    plog::init(plog::debug, &consoleAppender);
-    
     bool device = false;
 
+    plog::Severity logSeverity = plog::debug;
     CLI::App app{"Blank example"};
     app.add_flag("-d,--device", device, "Should be run on device rather than simulator");
 
     CLI11_PARSE(app, argc, argv);
     
+    // Configure logging
+    plog::ConsoleAppender<plog::TxtFormatter> consoleAppender;
+    ::Common::Logging::init(logSeverity, logSeverity, 
+                            &consoleAppender, &consoleAppender);
+    FeNN::Common::Logging::init(logSeverity, logSeverity, logSeverity, logSeverity, logSeverity,
+                                &consoleAppender, &consoleAppender, &consoleAppender, &consoleAppender, &consoleAppender);
+
+    
+
     // Create memory contents
     std::vector<uint8_t> scalarInitData;
     std::vector<int16_t> vectorInitData;
 
     // Allocate scalar arrays
-    const uint32_t readyFlagPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
-    const uint32_t bitfieldPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
-    const uint32_t eventIDBasePtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
-    const uint32_t outputSpikeArrayEnd = AppUtils::allocateScalarAndZero(4, scalarInitData);
-    const uint32_t outputSpikeArrayPtr = AppUtils::allocateScalarAndZero(64 * 4, scalarInitData);
+    const uint32_t readyFlagPtr = FeNN::Common::AppUtils::allocateScalarAndZero(4, scalarInitData);
+    const uint32_t bitfieldPtr = FeNN::Common::AppUtils::allocateScalarAndZero(4, scalarInitData);
+    const uint32_t eventIDBasePtr = FeNN::Common::AppUtils::allocateScalarAndZero(4, scalarInitData);
+    const uint32_t outputSpikeArrayEnd = FeNN::Common::AppUtils::allocateScalarAndZero(4, scalarInitData);
+    const uint32_t outputSpikeArrayPtr = FeNN::Common::AppUtils::allocateScalarAndZero(64 * 4, scalarInitData);
 
     // Generate code
-    const auto code = AssemblerUtils::generateStandardKernel(
+    const auto code = Assembler::Utils::generateStandardKernel(
         !device, readyFlagPtr,
-        [=](CodeGenerator &c, VectorRegisterAllocator&, ScalarRegisterAllocator &scalarRegisterAllocator)
+        [=](Assembler::CodeGenerator &c, Assembler::VectorRegisterAllocator&, 
+            Assembler::ScalarRegisterAllocator &scalarRegisterAllocator)
         {
-            
+            using namespace FeNN::Common;
+        
             // Write MASTER_EVENT_ID_BASE
             {
                 ALLOCATE_SCALAR(STmp);
@@ -199,7 +214,7 @@ int main(int argc, char** argv)
             }
             
             // Wait to give other cores time to start
-            AssemblerUtils::generateRouterBarrier(c, scalarRegisterAllocator, numCores);
+            Assembler::Utils::generateRouterBarrier(c, scalarRegisterAllocator, numCores);
             
             // Write MASTER_EVENT_BITFIELD
             {
@@ -209,7 +224,7 @@ int main(int argc, char** argv)
             }
 
             // Wait to give the spikes time to be processed
-            AssemblerUtils::generateRouterBarrier(c, scalarRegisterAllocator, numCores);
+            Assembler::Utils::generateRouterBarrier(c, scalarRegisterAllocator, numCores);
             
             {
                  // Get tart and end of event buffer
@@ -223,7 +238,7 @@ int main(int argc, char** argv)
                 c.li(*SSpikeOut, outputSpikeArrayPtr);
 
                 auto spikeLoop = c.L();
-                Label spikeLoopEnd;
+                auto spikeLoopEnd = Assembler::createLabel();
                 c.beq(*SRouterEventBuffer, *SRouterEventBufferEnd, spikeLoopEnd);
                 {
                     // Load word from spike memory and store in data memory
@@ -248,14 +263,14 @@ int main(int argc, char** argv)
         });
 
     // Dump to coe file
-    AppUtils::dumpCOE("blank.coe", code);
+    FeNN::Common::AppUtils::dumpCOE("blank.coe", code);
 
     
     if(device) {
         // Allocate vector with data for all cores
         CoreData coreData(numCores);
         
-        Barrier barrier(numCores);
+        ::Common::Barrier barrier(numCores);
         // Loop through cores
         std::random_device d;
         for(uint32_t i = 0; i < numCores; i++) {
@@ -270,7 +285,7 @@ int main(int argc, char** argv)
                 outputSpikeArrayPtr, readyFlagPtr, std::ref(std::get<1>(coreData[i])), std::ref(barrier));
             
             // Name thread
-            setThreadName(std::get<2>(coreData[i]), "Core " + std::to_string(i));
+            ::Common::Utils::setThreadName(std::get<2>(coreData[i]), "Core " + std::to_string(i));
         }
 
         // Join all threads
@@ -282,7 +297,7 @@ int main(int argc, char** argv)
     }
     else {
         // Create simulated shared bus to connect the cores
-        SharedBusSim sharedBus(numCores);
+        ISE::SharedBusSim sharedBus(numCores);
     
         // Allocate vector with data for all cores
         CoreData coreData(numCores);
@@ -302,7 +317,7 @@ int main(int argc, char** argv)
                 outputSpikeArrayPtr, std::ref(std::get<1>(coreData[i])));
             
             // Name thread
-            setThreadName(std::get<2>(coreData[i]), "Core " + std::to_string(i));
+            ::Common::Utils::setThreadName(std::get<2>(coreData[i]), "Core " + std::to_string(i));
         }
 
         // Join all threads
