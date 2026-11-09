@@ -8,20 +8,26 @@
 #include <plog/Severity.h>
 #include <plog/Appenders/ConsoleAppender.h>
 
-// RISC-V common includes
-#include "common/CLI11.hpp"
-#include "common/app_utils.h"
-#include "common/device.h"
+// Third party includes
+#include "CLI11.hpp"
 
-// RISC-V assembler includes
-#include "assembler/assembler.h"
-#include "assembler/assembler_utils.h"
-#include "assembler/register_allocator.h"
+// FeNN common includes
+#include "fenn/common/app_utils.h"
+#include "fenn/common/device.h"
 
-// RISC-V ISE includes
-#include "ise/riscv.h"
-#include "ise/vector_processor.h"
+// FeNN assembler includes
+#include "fenn/assembler/assembler.h"
+#include "fenn/assembler/assembler_utils.h"
+#include "fenn/assembler/register_allocator.h"
 
+// FeNN ISE includes
+#include "fenn/ise/riscv.h"
+#include "fenn/ise/vector_processor.h"
+
+using namespace FeNN;
+
+namespace
+{
 enum class RoundMode
 {
     ZERO,
@@ -34,13 +40,14 @@ std::vector<uint32_t> generateCode(bool simulate, size_t numTimesteps, bool satu
                                    uint32_t poissonPtr, uint32_t seedPtr, uint32_t poissonScalarPtr, uint32_t seedScalarPtr, 
                                    uint32_t vScalarPtr, uint32_t aScalarPtr, uint32_t readyFlagPtr)
 {
-    return AssemblerUtils::generateStandardKernel(
+    return Assembler::Utils::generateStandardKernel(
         simulate, readyFlagPtr,
-        [=](CodeGenerator &c, VectorRegisterAllocator &vectorRegisterAllocator, ScalarRegisterAllocator &scalarRegisterAllocator)
+        [=](Assembler::CodeGenerator &c, Assembler::VectorRegisterAllocator &vectorRegisterAllocator, 
+            Assembler::ScalarRegisterAllocator &scalarRegisterAllocator)
         {
             // Generate code to copy poisson input and seeds from scalar to vector memory
-            AssemblerUtils::generateScalarVectorMemcpy(c, vectorRegisterAllocator, scalarRegisterAllocator,
-                                                       poissonScalarPtr, poissonPtr, static_cast<uint32_t>(numTimesteps + 2));
+            Assembler::Utils::generateScalarVectorMemcpy(c, vectorRegisterAllocator, scalarRegisterAllocator,
+                                                         poissonScalarPtr, poissonPtr, static_cast<uint32_t>(numTimesteps + 2));
 
             // Register allocation
             ALLOCATE_SCALAR(SPoissonBuffer);
@@ -67,15 +74,15 @@ std::vector<uint32_t> generateCode(bool simulate, size_t numTimesteps, bool satu
             }
 
             // Calculate constants
-            c.vlui(*VAlpha, convertFixedPoint(std::exp(-1.0 / tauM), 14));
-            c.vlui(*VRho, convertFixedPoint(std::exp(-1.0 / tauA), 14));
-            c.vlui(*VWeight, convertFixedPoint(0.01, vFixedPoint));
-            c.vlui(*VBeta, convertFixedPoint(0.0174, vFixedPoint));
+            c.vlui(*VAlpha, ::Common::Utils::convertFixedPoint(std::exp(-1.0 / tauM), 14));
+            c.vlui(*VRho, ::Common::Utils::convertFixedPoint(std::exp(-1.0 / tauA), 14));
+            c.vlui(*VWeight, ::Common::Utils::convertFixedPoint(0.01, vFixedPoint));
+            c.vlui(*VBeta, ::Common::Utils::convertFixedPoint(0.0174, vFixedPoint));
             c.vlui(*VV, 0);
             c.vlui(*VA, 0);
-            c.vlui(*VVThresh, convertFixedPoint(0.6, vFixedPoint));
-            c.vlui(*VVMinusThresh, (uint16_t)convertFixedPoint(-0.6, vFixedPoint));
-            c.vlui(*VOne, convertFixedPoint(1.0, aFixedPoint));
+            c.vlui(*VVThresh, ::Common::Utils::convertFixedPoint(0.6, vFixedPoint));
+            c.vlui(*VVMinusThresh, (uint16_t)::Common::Utils::convertFixedPoint(-0.6, vFixedPoint));
+            c.vlui(*VOne, ::Common::Utils::convertFixedPoint(1.0, aFixedPoint));
 
             // Start reading at poisson pointer
             c.li(*SPoissonBuffer, poissonPtr);
@@ -90,14 +97,14 @@ std::vector<uint32_t> generateCode(bool simulate, size_t numTimesteps, bool satu
             c.li(*SVBufferEnd, vScalarPtr + (64 * numTimesteps));
     
             // Pick vadd, vsub and vmul operations to use based on saturation
-            const auto vaddFn = std::mem_fn(saturate ? &CodeGenerator::vadd_s : &CodeGenerator::vadd);
-            const auto vsubFn = std::mem_fn(saturate ? &CodeGenerator::vsub_s : &CodeGenerator::vsub);
-            const auto vmulFn = std::mem_fn((roundMode == RoundMode::NEAREST) ? &CodeGenerator::vmul_rn 
-                                            : (roundMode == RoundMode::STOCHASTIC ? &CodeGenerator::vmul_rs 
-                                               : &CodeGenerator::vmul));
+            const auto vaddFn = std::mem_fn(saturate ? &Assembler::CodeGenerator::vadd_s : &Assembler::CodeGenerator::vadd);
+            const auto vsubFn = std::mem_fn(saturate ? &Assembler::CodeGenerator::vsub_s : &Assembler::CodeGenerator::vsub);
+            const auto vmulFn = std::mem_fn((roundMode == RoundMode::NEAREST) ? &Assembler::CodeGenerator::vmul_rn 
+                                            : (roundMode == RoundMode::STOCHASTIC ? &Assembler::CodeGenerator::vmul_rs 
+                                               : &Assembler::CodeGenerator::vmul));
 
             // Loop over time
-            auto loop = createLabel();
+            auto loop = Assembler::createLabel();
             c.L(loop);
             {
                 // Register allocation
@@ -174,6 +181,7 @@ void saveData(const volatile int16_t *outputV, const volatile int16_t *outputA,
         out << std::endl;
     }
 }
+}
 
 int main(int argc, char** argv)
 {
@@ -208,18 +216,18 @@ int main(int argc, char** argv)
     std::vector<uint8_t> scalarInitData;
     std::vector<int16_t> vectorInitData;
 
-    auto poissonData = AppUtils::loadBinaryData<uint8_t>(inputFilename);
+    auto poissonData = FeNN::Common::AppUtils::loadBinaryData<uint8_t>(inputFilename);
 
     // Allocate vector memory
-    const uint32_t poissonPtr = AppUtils::allocateVectorAndZero(32 * numTimesteps, vectorInitData);
-    const uint32_t seedPtr = AppUtils::allocateVectorAndZero(32 * 2, vectorInitData);
+    const uint32_t poissonPtr = FeNN::Common::AppUtils::allocateVectorAndZero(32 * numTimesteps, vectorInitData);
+    const uint32_t seedPtr = FeNN::Common::AppUtils::allocateVectorAndZero(32 * 2, vectorInitData);
 
     // Allocate scalar memor
-    const uint32_t poissonScalarPtr = AppUtils::allocateScalarAndZero(64 * numTimesteps, scalarInitData);
-    const uint32_t seedScalarPtr = AppUtils::allocateScalarSeedAndInit(scalarInitData);
-    const uint32_t vScalarPtr = AppUtils::allocateScalarAndZero(64 * numTimesteps, scalarInitData);
-    const uint32_t aScalarPtr = AppUtils::allocateScalarAndZero(64 * numTimesteps, scalarInitData);
-    const uint32_t readyFlagPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
+    const uint32_t poissonScalarPtr = FeNN::Common::AppUtils::allocateScalarAndZero(64 * numTimesteps, scalarInitData);
+    const uint32_t seedScalarPtr = FeNN::Common::AppUtils::allocateScalarSeedAndInit(scalarInitData);
+    const uint32_t vScalarPtr = FeNN::Common::AppUtils::allocateScalarAndZero(64 * numTimesteps, scalarInitData);
+    const uint32_t aScalarPtr = FeNN::Common::AppUtils::allocateScalarAndZero(64 * numTimesteps, scalarInitData);
+    const uint32_t readyFlagPtr = FeNN::Common::AppUtils::allocateScalarAndZero(4, scalarInitData);
 
     // Copy timesteps worth of poisson data
     std::copy_n(poissonData.cbegin(), numTimesteps * 64, scalarInitData.data() + poissonScalarPtr);
@@ -248,16 +256,16 @@ int main(int argc, char** argv)
     }
 
     // Dump to coe file
-    AppUtils::dumpCOE("alif" + filenameSuffix + ".coe", code);
+    FeNN::Common::AppUtils::dumpCOE("alif" + filenameSuffix + ".coe", code);
 
     if(!device) {
         // Build ISE with vector co-processor
-        RISCV riscV;
-        riscV.addCoprocessor<VectorProcessor>(vectorQuadrant);
+        ISE::RISCV riscV(0);
+        riscV.addCoprocessor<ISE::VectorProcessor>(FeNN::Common::vectorQuadrant);
 
         // Set instructions and vector init data
         riscV.setInstructions(code);
-        riscV.getCoprocessor<VectorProcessor>(vectorQuadrant)->getVectorDataMemory().setData(vectorInitData);
+        riscV.getCoprocessor<ISE::VectorProcessor>(FeNN::Common::vectorQuadrant)->getVectorDataMemory().setData(vectorInitData);
 
         // Run!
         riscV.run();
@@ -271,7 +279,7 @@ int main(int argc, char** argv)
     else
     {
         LOGI << "Creating device";
-        Device device;
+        FeNN::Common::Device device;
         LOGI << "Resetting";
         // Put core into reset state
         device.setEnabled(false);
