@@ -76,7 +76,7 @@ int main(int argc, char** argv)
     LOGI << "Resetting";
     // Put core into reset state
     deviceControl.setEnabled(false);
-    deviceControl.setBootAddress(152);
+    deviceControl.setBootAddress(FeNN::Common::bootAddress);
     
     LOGI << "Copying instructions (" << code.size() * sizeof(uint32_t) << " bytes)";
     device.uploadCode(code);
@@ -92,7 +92,7 @@ int main(int argc, char** argv)
     // Wait until ready flag
     if(!device.waitOnNonZero(readyFlagPtr)) {
         const auto exceptionData = device.getExceptionData(4);
-        LOGE_FENN_BACKEND << "Error running kernel cause:" << exceptionData.cause << ", PC:" << exceptionData.pc;        
+        LOGE << "Error running kernel cause:" << exceptionData.cause << ", PC:" << exceptionData.pc;        
     
     }
     deviceControl.setEnabled(false);

@@ -91,6 +91,7 @@ void deviceThread(const std::vector<uint32_t> &code, const std::vector<uint8_t> 
     barrier.wait();
     if(coreID == 0) {
         deviceControl.setEnabled(false);
+        deviceControl.setBootAddress(FeNN::Common::bootAddress);
     }
     
     LOGI << "Copying instructions (" << code.size() * sizeof(uint32_t) << " bytes)";
@@ -112,7 +113,12 @@ void deviceThread(const std::vector<uint32_t> &code, const std::vector<uint8_t> 
     LOGI << "Running " << readyFlagPtr;
     
     // Wait until ready flag
-    device.waitOnNonZero(readyFlagPtr);
+    if(!device.waitOnNonZero(readyFlagPtr)) {
+        const auto exceptionData = device.getExceptionData(4);
+        LOGE << "Error running kernel cause:" << exceptionData.cause << ", PC:" << exceptionData.pc;        
+    
+    }
+
     LOGI << "Done";
     barrier.wait();
     if(coreID == 0) {
