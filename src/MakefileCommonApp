@@ -3,8 +3,9 @@ SELF_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
 include $(SELF_DIR)MakefileCommon
 
 APP:=$(BIN_DIRECTORY)/$(APP_NAME)$(PREFIX)
+LDFLAGS+=$(APP_DEPENDENCIES:%=-l%$(PREFIX))
 
-.PHONY: all clean libcommon libfenn_common libfenn_assembler libfenn_ise
+.PHONY: all clean common fenn_common fenn_assembler fenn_ise
 
 all: $(APP)
 
@@ -14,16 +15,16 @@ $(APP): $(APP_NAME).cc $(APP_NAME).d $(APP_DEPENDENCIES)
 	mkdir -p $(@D)
 	$(CXX) $(CXXFLAGS) $(APP_NAME).cc -o $@ $(LDFLAGS)
 
-libcommon:
+common:
 	if [ -w $(LIBRARY_DIRECTORY) ]; then $(MAKE) -C $(RISCV_DIR)/src/common; fi;
 
-libfenn_common:
+fenn_common:
 	if [ -w $(LIBRARY_DIRECTORY) ]; then $(MAKE) -C $(RISCV_DIR)/src/fenn/common; fi;
 
-libfenn_assembler:
+fenn_assembler:
 	if [ -w $(LIBRARY_DIRECTORY) ]; then $(MAKE) -C $(RISCV_DIR)/src/fenn/assembler; fi;
 
-libfenn_ise:
+fenn_ise:
 	if [ -w $(LIBRARY_DIRECTORY) ]; then $(MAKE) -C $(RISCV_DIR)/src/fenn/ise; fi;
 
 %.d: ;
