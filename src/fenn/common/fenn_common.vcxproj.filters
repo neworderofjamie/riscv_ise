@@ -44,6 +44,9 @@
     <ClCompile Include="device_control.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="downsampler.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\include\fenn\common\app_utils.h">
@@ -89,6 +92,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\include\fenn\common\device_control.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\fenn\common\downsampler.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

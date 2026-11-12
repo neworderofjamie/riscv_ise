@@ -20,6 +20,7 @@
 #include "fenn/common/app_utils.h"
 #include "fenn/common/device.h"
 #include "fenn/common/device_control.h"
+#include "fenn/common/downsampler.h"
 #include "fenn/common/genx320_bias.h"
 #include "fenn/common/logging.h"
 
@@ -28,79 +29,17 @@
 #include "fenn/assembler/assembler_utils.h"
 #include "fenn/assembler/register_allocator.h"
 
-// FeNN ISE includes
-#include "fenn/ise/event_injector_sim.h"
-#include "fenn/ise/riscv.h"
-#include "fenn/ise/router_sim.h"
-#include "fenn/ise/shared_bus_sim.h"
-#include "fenn/ise/vector_processor.h"
-
 using namespace FeNN;
 
 namespace
 {
 constexpr size_t numCores = 2;
 
-using CoreData = std::vector<std::tuple<std::vector<uint32_t>, std::thread>>;
-
-inline uint32_t buildTimestep(unsigned int t)
-{
-    assert(t < (1u << 31u));
-    return (t | (1u << 31u));
-}
-
-inline uint32_t buildFeNNEvent(unsigned int x, unsigned int y,  bool p)
-{
-    assert(x < (1 << 9));
-    assert(y < (1 << 9));
-    return  ((p ? 1 : 0) << 18) | (x << 9) | y;
-}
-
-void simThread(const std::vector<uint32_t> &code, const std::vector<uint8_t> &scalarInitData,
-               ISE::SharedBusSim &sharedBus, uint32_t coreID, uint32_t eventMemoryPtr, uint32_t eventEndPtr, uint32_t bufferOverflowCountPtr,
-               std::vector<uint32_t> &receivedEvents)
-{
-    // Create RISC-V core with instruction and scalar data
-    ISE::RISCV riscV(coreID);
-    riscV.setInstructions(code);
-    riscV.getScalarDataMemory().setData(scalarInitData);
-
-    // Add vector co-processor
-    riscV.addCoprocessor<ISE::VectorProcessor>(FeNN::Common::vectorQuadrant);
-        
-    // Create simulated DMA controller
-    ISE::RouterSim router(sharedBus, riscV.getSpikeDataMemory(), coreID);
-    riscV.setRouter(&router);
-     
-    // Run!
-    if(!riscV.run()) {
-        assert(false);
-    }
-
-    const auto *wordData = reinterpret_cast<uint32_t*>(riscV.getScalarDataMemory().getData());
-    const uint32_t bufferOverflowCount = wordData[bufferOverflowCountPtr / 4];
-    if(bufferOverflowCount > 0) {
-        LOGW << bufferOverflowCount << " events overflowed buffer";
-    }
-
-    // Copy spikes received into vector
-    const uint32_t eventEnd = wordData[eventEndPtr / 4];
-    std::copy(&wordData[eventMemoryPtr / 4], &wordData[eventEnd / 4], std::back_inserter(receivedEvents));
-}
-
-void simEventInjectorThread(ISE::SharedBusSim &sharedBus, uint32_t coreID, const std::vector<uint32_t> &data)
-{
-    // Create event injector
-    ISE::EventInjectorSim eventInjector(sharedBus, data, coreID);
-
-    // Keep ticking event injector until it runs out of data
-    while(eventInjector.tick());
-}
 
 void deviceThread(const std::vector<uint32_t> &code, const std::vector<uint8_t> &scalarInitData,
                   uint32_t coreID, uint32_t eventCounterPtr, uint32_t minIDPtr, 
                   uint32_t maxIDPtr, uint32_t bufferOverflowCountPtr, uint32_t readyFlagPtr,
-                  std::vector<uint32_t> &receivedEvents, ::Common::Barrier &barrier)
+                  ::Common::Barrier &barrier)
 {
     LOGI << "Creating device (" << coreID << " / " << numCores << ")";
     FeNN::Common::Device device(coreID, numCores);
@@ -119,6 +58,13 @@ void deviceThread(const std::vector<uint32_t> &code, const std::vector<uint8_t> 
 
         // Most we can handle is 500KEvents/sec
         deviceControl->getGenX320()->enableERC(500000);
+
+        // Configure downsampler to produce 32x32 events with 
+        // seperate polarity and split evenly between cores
+        deviceControl->getDownsampler()->setXScale(0.1);
+        deviceControl->getDownsampler()->setYScale(0.1);
+        deviceControl->getDownsampler()->setPolarityControl(true, true, false);
+        deviceControl->getDownsampler()->setCoreRange(1024, 1024);
     }
 
     LOGI << "Resetting";
@@ -165,77 +111,15 @@ void deviceThread(const std::vector<uint32_t> &code, const std::vector<uint8_t> 
     LOGI << wordData[minIDPtr / 4] << " min event ID received";
     LOGI << wordData[maxIDPtr / 4] << " max event ID received";
 }
-
-void checkOutput(const std::vector<uint32_t> &coreOutput, const std::vector<uint32_t> &inputEvents)
-{
-    constexpr uint32_t timestampBit = (1u << 31u);
-    auto coreOutputIter = coreOutput.cbegin();
-    auto correctIter = inputEvents.cbegin();
-
-    std::vector<uint32_t> correctTimestepEvents;
-    std::vector<uint32_t> outputTimestepEvents;
-    std::vector<uint32_t> missingCorrectEvents;
-    std::vector<uint32_t> missingOutputEvents;
-    while(coreOutputIter != coreOutput.cend() && correctIter != inputEvents.cend()) {
-        // Assert that both iterators point to timestamps
-        assert(*coreOutputIter & timestampBit);
-        assert(*correctIter & timestampBit);
-
-        // Assert they are the same
-        assert(*coreOutputIter == *correctIter);
-        const uint32_t timestep = (*correctIter & ~(1u << 31u));
-
-        // Advance
-        coreOutputIter++;
-        correctIter++;
-
-        // Find end of timestep in correct data, copy into vector and sort
-        correctTimestepEvents.clear();
-        const auto correctEndOfTimestep = std::find_if(correctIter, inputEvents.cend(),
-                                                       [](uint32_t e){ return (e & timestampBit); });
-        std::copy(correctIter, correctEndOfTimestep, std::back_inserter(correctTimestepEvents));
-        std::sort(correctTimestepEvents.begin(), correctTimestepEvents.end());
-        correctIter = correctEndOfTimestep;
-
-        // Find end of timestep in output data, copy into vector and sort
-        outputTimestepEvents.clear();
-        const auto outputEndOfTimestep = std::find_if(coreOutputIter, coreOutput.cend(),
-                                                      [](uint32_t e){ return (e & timestampBit); });
-        std::copy(coreOutputIter, outputEndOfTimestep, std::back_inserter(outputTimestepEvents));
-        std::sort(outputTimestepEvents.begin(), outputTimestepEvents.end());
-        coreOutputIter = outputEndOfTimestep;
-        
-        missingCorrectEvents.clear();
-        std::set_difference(correctTimestepEvents.cbegin(), correctTimestepEvents.cend(),
-                            outputTimestepEvents.cbegin(), outputTimestepEvents.cend(),
-                            std::back_inserter(missingCorrectEvents));
-
-        missingOutputEvents.clear();
-        std::set_difference(outputTimestepEvents.cbegin(), outputTimestepEvents.cend(),
-                            correctTimestepEvents.cbegin(), correctTimestepEvents.cend(),
-                            std::back_inserter(missingOutputEvents));
-        
-        if (!missingCorrectEvents.empty()) {
-            PLOGW << missingCorrectEvents.size() << "/" << correctTimestepEvents.size() << " events missing from core output at time " << timestep;
-        }
-
-        if (!missingOutputEvents.empty()) {
-            PLOGE << missingOutputEvents.size() << "/" << outputTimestepEvents.size() << " events in output which weren't in input at time " << timestep;
-        }
-
-    }
-}
 }
 
 int main(int argc, char** argv)
 {
-    bool device = false;
     int clockSpeedMhz = 166;
     unsigned int downsampleShift = 0;
     plog::Severity logSeverity = plog::debug;
     
     CLI::App app{"Event camera example"};
-    app.add_flag("-d,--device", device, "Should be run on device rather than simulator");
     app.add_option_function<std::string>("-l,--log-level", 
                                          [&logSeverity](const std::string &l)
                                          {
@@ -270,7 +154,7 @@ int main(int argc, char** argv)
 
     // Generate code
     const auto code = Assembler::Utils::generateStandardKernel(
-        !device, readyFlagPtr,
+        false, readyFlagPtr,
         [=](Assembler::CodeGenerator &c, Assembler::VectorRegisterAllocator &vectorRegisterAllocator, 
             Assembler::ScalarRegisterAllocator &scalarRegisterAllocator)
         {
@@ -297,9 +181,8 @@ int main(int argc, char** argv)
                 ALLOCATE_SCALAR(SLoopStartCycleHigh);
 
                 // Wait for all events to be communicated
-                // **NOTE** this is only necessary to swap buffers and, in simulation, to synchronise event injector
-                Assembler::Utils::generateRouterBarrier(c, scalarRegisterAllocator, 
-                                                        device ? numCores : (numCores + 1));
+                // **NOTE** this is only necessary to swap buffers
+                Assembler::Utils::generateRouterBarrier(c, scalarRegisterAllocator, numCores);
 
                 // Read cycle count at start of loop
                 c.csrr(*SLoopStartCycleLow, FeNN::Common::CSR::MCYCLE);
@@ -342,11 +225,9 @@ int main(int argc, char** argv)
                 
 
                 // Wait until 1ms of clock cycles has elapsed since start of loop
-                if(device) {
-                    Assembler::Utils::generateWaitElapsedCycles(c, scalarRegisterAllocator, 
-                                                                *SLoopStartCycleLow, *SLoopStartCycleHigh, 
-                                                                clockSpeedMhz * 1000);
-                }
+                Assembler::Utils::generateWaitElapsedCycles(c, scalarRegisterAllocator, 
+                                                            *SLoopStartCycleLow, *SLoopStartCycleHigh, 
+                                                            clockSpeedMhz * 1000);
 
                 // Increment time
                 c.addi(*STime, *STime, 1);
@@ -361,6 +242,7 @@ int main(int argc, char** argv)
                 c.csrr(*STmp, FeNN::Common::CSR::SLAVE_BUFFER_OVERFLOW_COUNT);
                 c.sw(*STmp, FeNN::Common::Reg::X0, bufferOverflowCountPtr);
             }
+
             // Store event count and; min and max IDs
             c.sw(*SNumEvents, FeNN::Common::Reg::X0, eventCounterPtr);
             c.sw(*SMinEventID, FeNN::Common::Reg::X0, minIDPtr);
@@ -369,67 +251,28 @@ int main(int argc, char** argv)
 
     // Dump to coe file
     FeNN::Common::AppUtils::dumpCOE("event_camera.coe", code);
-    
-    // Load input sequence
-    const auto spikeInjectData = FeNN::Common::AppUtils::loadBinaryData<uint32_t>("courtyard.bin");
 
-    if(device) {
-        // Allocate vector with data for all cores
-        CoreData coreData(numCores);
+    // Allocate vector with data for all cores
+    std::vector<std::thread> threads(numCores);
+    
+    ::Common::Barrier barrier(numCores);
+    // Loop through cores
+    for(uint32_t i = 0; i < numCores; i++) {
+        // Create thread
+        threads[i] = std::thread(
+            deviceThread, std::cref(code), std::cref(scalarInitData), i, 
+            eventCounterPtr, minIDPtr, maxIDPtr, bufferOverflowCountPtr, readyFlagPtr, 
+            std::ref(barrier));
         
-        ::Common::Barrier barrier(numCores);
-        // Loop through cores
-        for(uint32_t i = 0; i < numCores; i++) {
-            // Create thread
-            std::get<1>(coreData[i]) = std::thread(
-                deviceThread, std::cref(code), std::cref(scalarInitData),
-                i, eventCounterPtr, minIDPtr, maxIDPtr, bufferOverflowCountPtr, readyFlagPtr, 
-                std::ref(std::get<0>(coreData[i])), std::ref(barrier));
-            
-            // Name thread
-            ::Common::Utils::setThreadName(std::get<1>(coreData[i]), "Core " + std::to_string(i));
-        }
-
-        // Join all threads
-        for(auto &c : coreData) {
-            std::get<1>(c).join();
-        }
+        // Name thread
+        ::Common::Utils::setThreadName(threads[i], "Core " + std::to_string(i));
     }
-    /*else {
-        // Create simulated shared bus to connect the cores
-        SharedBusSim sharedBus(numCores + 1);
-    
-        // Allocate vector with data for all cores
-        CoreData coreData(numCores);
 
-        // Loop through cores
-        for(uint32_t i = 0; i < numCores; i++) {
-            // Create thread
-            std::get<1>(coreData[i]) = std::thread(
-                simThread, std::cref(code), std::cref(scalarInitData),
-                std::ref(sharedBus), i, eventMemoryPtr, eventEndPtr, bufferOverflowCountPtr,
-                std::ref(std::get<0>(coreData[i])));
-            
-            // Name thread
-            setThreadName(std::get<1>(coreData[i]), "Core " + std::to_string(i));
-        }
-
-        // Create another thread to inject spikes
-        std::thread injectorThread(simEventInjectorThread, std::ref(sharedBus), numCores, spikeInjectData);
-        setThreadName(injectorThread, "Spike injector");
-
-        // Join all threads
-        for(auto &c : coreData) {
-            std::get<1>(c).join();
-        }
-        injectorThread.join();
-
-        checkOutput(std::get<0>(coreData[0]), spikeInjectData);
-        {
-            std::ofstream output("recorded_spikes.bin", std::ios::binary);
-            output.write(reinterpret_cast<const char*>(std::get<0>(coreData[0]).data()), std::get<0>(coreData[0]).size() * 4);
-        }
-    }*/
+    // Join all threads
+    for(auto &t : threads) {
+        t.join();
+    }
+   
     return 0;
 
 }

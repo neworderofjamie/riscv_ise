@@ -4,7 +4,10 @@
 #include <stdexcept>
 
 // FeNN common includes
+#include "fenn/common/downsampler.h"
+#include "fenn/common/genx_320.h"
 #include "fenn/common/logging.h"
+#include "fenn/common/mipi_csi2_receiver.h"
 
 //----------------------------------------------------------------------------
 // FeNN::Common::DeviceControl
@@ -29,10 +32,11 @@ DeviceControl::DeviceControl(int numCores)
         LOGW_FENN_COMMON << "MIPI CSI 2 Receiver not found - GenX320 event camera not available";
     }
 
-    // IF MIPI CSI 2 receiver is successfully initialiser, create camera
+    // IF MIPI CSI 2 receiver is successfully initialiser, create camera and downsampler
     if (m_MIPICSI2Receiver) {
         m_GenX320 = std::make_unique<GenX320>(EventFormat::EVT2, "axi_gpio_cam", 
                                               m_MIPICSI2Receiver.get());
+        m_Downsampler = std::make_unique<Downsampler>("axi_downsampler");
     }
 #else
     throw std::runtime_error("Device control interface only supports Linux");

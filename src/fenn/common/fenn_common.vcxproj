@@ -24,6 +24,7 @@
     <ClCompile Include="device_control.cc" />
     <ClCompile Include="dma_buffer.cc" />
     <ClCompile Include="dma_controller.cc" />
+    <ClCompile Include="downsampler.cc" />
     <ClCompile Include="genx_320.cc" />
     <ClCompile Include="i2c_interface.cc" />
     <ClCompile Include="isa.cc" />
@@ -37,6 +38,7 @@
     <ClInclude Include="..\..\..\include\fenn\common\device_control.h" />
     <ClInclude Include="..\..\..\include\fenn\common\dma_buffer.h" />
     <ClInclude Include="..\..\..\include\fenn\common\dma_controller.h" />
+    <ClInclude Include="..\..\..\include\fenn\common\downsampler.h" />
     <ClInclude Include="..\..\..\include\fenn\common\fenn_common_export.h" />
     <ClInclude Include="..\..\..\include\fenn\common\genx320_bias.h" />
     <ClInclude Include="..\..\..\include\fenn\common\genx320_reg.h" />
