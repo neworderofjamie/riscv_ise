@@ -6,6 +6,7 @@
 
 // Standard C includes
 #include <cassert>
+#include <cmath>
 
 // FeNN common includes
 #include "fenn/common/logging.h"
