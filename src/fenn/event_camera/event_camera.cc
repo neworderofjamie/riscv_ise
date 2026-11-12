@@ -227,7 +227,7 @@ int main(int argc, char** argv)
                 // Wait until 1ms of clock cycles has elapsed since start of loop
                 Assembler::Utils::generateWaitElapsedCycles(c, scalarRegisterAllocator, 
                                                             *SLoopStartCycleLow, *SLoopStartCycleHigh, 
-                                                            clockSpeedMhz * 1000);
+                                                            clockSpeedMhz * 100);
 
                 // Increment time
                 c.addi(*STime, *STime, 1);
