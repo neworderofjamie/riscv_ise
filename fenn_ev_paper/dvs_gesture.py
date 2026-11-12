@@ -276,10 +276,7 @@ if not args.live:
 
 
     max_spike_array_length = 0
-    #for events, label in tqdm(dataset, "Preprocessing dataset"):
-    for i in range(5):
-        events, label = dataset[i]
-
+    for events, label in tqdm(dataset, "Preprocessing dataset"):
         # Convert times to 1ms timesteps and check they are sorted
         timestep_scale = int(1000 * dt)
         timesteps = np.floor(events["t"] / timestep_scale).astype(int)
@@ -322,13 +319,13 @@ if not args.live:
             else:
                 assert False
 
-        print(f"{len(chunk_spikes)} chunks in example")
+        #print(f"{len(chunk_spikes)} chunks in example")
         input_spikes.append(chunk_spikes)
         input_labels.append(label)
 
     print(f"Max spike array length: {max_spike_array_length}")
 log_appender = backend.ConsoleAppender()#PythonLogAppender()
-backend.init_logging(log_appender, backend.PlogSeverity.DEBUG)
+backend.init_logging(log_appender, backend.PlogSeverity.INFO)
 
 # Input spikes
 if args.live:
@@ -376,7 +373,7 @@ memset_processes.append(Memset(backend, populations[-1].num_spikes))
 
 
 # Group processes
-perf_counters = ["num_instructions", "num_clock_cycles"] if args.time else []
+perf_counters = ["num_instructions", "num_clock_cycles", "num_slave_buffer_overflows"] if args.time else []
 neuron_update_processes = backend.ProcessGroup([p.process for p in populations], perf_counters)
 synapse_update_processes = backend.ProcessGroup([input_hidden1.process, hidden1_hidden2.process, 
                                                  hidden2_hidden3.process, hidden3_hidden4.process,
@@ -428,22 +425,36 @@ output_num_spikes_views = get_views(runtime, populations[-1].num_spikes)
 if args.live:
     # Configure biases and ERC
     runtime.genx320.set_bias_low()
-    runtime.genx320.enable_erc(500000.0)
-    
+    runtime.genx320.enable_erc(20000.0)
+    runtime.genx320.start_streaming()
+
     while True:
         # Zero spike counts
         zero_and_push(populations[-1].num_spikes, runtime)
 
         # Start streaming and run kernel
-        runtime.genx320.start_streaming()
         runtime.run(kernel)
-        runtime.genx320.stop_streaming()
-        
+ 
         # Copy output V sum from device
         runtime.pull_state_from_device(populations[-1].num_spikes)
-
+        print("\033[2J\033[H")
+        for i in range(11):
+            print(f"{dataset.classes[i]} = {output_num_spikes_views[0][i]}")
         # Print classification
         print(dataset.classes[np.argmax(output_num_spikes_views[0][:11])])
+        if args.time:
+            neuron_update_cycles = runtime.read_performance_counter(neuron_update_processes, 'num_clock_cycles')
+            neuron_update_instructions = runtime.read_performance_counter(neuron_update_processes, 'num_instructions')
+            neuron_num_slave_buffer_overflows = runtime.read_performance_counter(neuron_update_processes, 'num_slave_buffer_overflows')[0]
+
+            synapse_update_cycles = runtime.read_performance_counter(synapse_update_processes, 'num_clock_cycles')
+            synapse_update_instructions = runtime.read_performance_counter(synapse_update_processes, 'num_instructions')
+            synapse_num_slave_buffer_overflows = runtime.read_performance_counter(synapse_update_processes, 'num_slave_buffer_overflows')[0]
+
+            print(f"Neuron update {neuron_update_cycles} cycles, {neuron_update_instructions} instruction ({neuron_update_instructions[0] / neuron_update_cycles[0]})")
+            print(f"Synapse update {synapse_update_cycles} cycles, {synapse_update_instructions} instruction ({synapse_update_instructions[0] / synapse_update_cycles[0]})")
+            print(f"Slave buffer overflows: {neuron_num_slave_buffer_overflows + synapse_num_slave_buffer_overflows}")
+    runtime.genx320.stop_streaming()
 else:
     # Loop through examples
     input_spike_views = get_views(runtime, input_source)
@@ -461,7 +472,7 @@ else:
         #pop_spike_times = [[] for _ in populations]
         #pop_spike_ids = [[] for _ in populations]
         for i, arrays in enumerate(spike_chunks):
-            print(f"chunk {i}/{len(spike_chunks)}")
+            #print(f"chunk {i}/{len(spike_chunks)}")
             #copy_split_and_push(arrays, input_source, runtime)
             for a, v in zip(arrays, input_spike_views):
                 v[:len(a)] = a
@@ -504,9 +515,12 @@ print(f"{num_correct} / {len(input_labels)} correct {100.0 * (num_correct / len(
 if args.time:
     neuron_update_cycles = runtime.read_performance_counter(neuron_update_processes, 'num_clock_cycles')
     neuron_update_instructions = runtime.read_performance_counter(neuron_update_processes, 'num_instructions')
+    neuron_num_slave_buffer_overflows = runtime.read_performance_counter(neuron_update_processes, 'num_slave_buffer_overflows')[0]
 
     synapse_update_cycles = runtime.read_performance_counter(synapse_update_processes, 'num_clock_cycles')
     synapse_update_instructions = runtime.read_performance_counter(synapse_update_processes, 'num_instructions')
+    synapse_num_slave_buffer_overflows = runtime.read_performance_counter(synapse_update_processes, 'num_slave_buffer_overflows')[0]
 
     print(f"Neuron update {neuron_update_cycles} cycles, {neuron_update_instructions} instruction ({neuron_update_instructions[0] / neuron_update_cycles[0]})")
     print(f"Synapse update {synapse_update_cycles} cycles, {synapse_update_instructions} instruction ({synapse_update_instructions[0] / synapse_update_cycles[0]})")
+    print(f"Slave buffer overflows: {neuron_num_slave_buffer_overflows + synapse_num_slave_buffer_overflows}")
