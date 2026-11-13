@@ -7,16 +7,11 @@
 #include <cstdint>
 
 // Common includes
+#include "fenn/common/downsampler.h"
 #include "fenn/common/fenn_common_export.h"
+#include "fenn/common/genx_320.h"
+#include "fenn/common/mipi_csi2_receiver.h"
 #include "fenn/common/uio.h"
-
-// Forward includes
-namespace FeNN::Common
-{
-class Downsampler;
-class GenX320;
-class MIPICSI2Receiver;
-}
 
 //----------------------------------------------------------------------------
 // FeNN::Common::DeviceControl

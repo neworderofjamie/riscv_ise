@@ -4,10 +4,7 @@
 #include <stdexcept>
 
 // FeNN common includes
-#include "fenn/common/downsampler.h"
-#include "fenn/common/genx_320.h"
 #include "fenn/common/logging.h"
-#include "fenn/common/mipi_csi2_receiver.h"
 
 //----------------------------------------------------------------------------
 // FeNN::Common::DeviceControl
