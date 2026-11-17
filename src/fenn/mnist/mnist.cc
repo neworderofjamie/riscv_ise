@@ -633,7 +633,8 @@ int main(int argc, char** argv)
         // Put core into reset state
         LOGI << "Resetting";
         deviceControl.setEnabled(false);
-        
+        deviceControl.setBootAddress(FeNN::Common::bootAddress);
+    
         {
             LOGI << "DMAing vector init data to device";
            
@@ -673,8 +674,7 @@ int main(int argc, char** argv)
                                           reinterpret_cast<const uint8_t*>(mnistSpikes.data() + (numInputSpikeArrayWords * i)),
                                           numInputSpikeArrayWords * 4);
 
-                // Put core into running state and trigger ILA
-                deviceControl.setILATrigger(true);
+                // Put core into running state
                 deviceControl.setEnabled(true);
                 const auto startTime = std::chrono::high_resolution_clock::now();
                 
@@ -684,7 +684,6 @@ int main(int argc, char** argv)
 
                 // Reset core
                 deviceControl.setEnabled(false);
-                deviceControl.setILATrigger(false);
 
                 // Determine if output is correct
                 const auto classification = std::distance(outputVSum, std::max_element(outputVSum, outputVSum + 10));
@@ -699,7 +698,7 @@ int main(int argc, char** argv)
     }
     else {
         // Build ISE with vector co-processor
-        RISCV riscV;
+        RISCV riscV(0);
         riscV.addCoprocessor<VectorProcessor>(vectorQuadrant);
 
         // Set instructions and vector init data
