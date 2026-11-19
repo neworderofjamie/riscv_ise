@@ -42,7 +42,7 @@ sparse_synapse_poly = fit_poly(sparse_df["Num SOPS"], sparse_df["Num event proce
 # How many SOPs does GABAN example represent
 gaban_num_neurons = 10000
 gaban_connectivity = generate_fixed_prob(gaban_num_neurons, gaban_num_neurons, 0.01)
-gaban_connectivity = build_sparse_connectivity(gaban_connectivity, 1, 10)
+gaban_connectivity = build_sparse_connectivity([gaban_connectivity], 1, 10)[0]
 gaban_stride = gaban_connectivity.shape[1]
 gaban_neuron_cycles = neurons_poly(gaban_num_neurons)
 gaban_num_sops = 24.7 * gaban_num_neurons * gaban_stride
