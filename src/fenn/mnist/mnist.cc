@@ -273,10 +273,10 @@ int main(int argc, char** argv)
     const uint32_t outputVSumPtr = AppUtils::allocateVectorAndZero(numOutput, vectorInitData);
    
     // Allocate scalar arrays
+    const uint32_t readyFlagPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
     const uint32_t inputSpikeArrayPtr = AppUtils::allocateScalarAndZero(numInputSpikeArrayWords * 4, scalarInitData);
     const uint32_t hiddenSpikePtr = AppUtils::allocateScalarAndZero(numHiddenSpikeWords * 4, scalarInitData);
     const uint32_t outputVSumScalarPtr = AppUtils::allocateScalarAndZero(numOutput * 2, scalarInitData);
-    const uint32_t readyFlagPtr = AppUtils::allocateScalarAndZero(4, scalarInitData);
 
 #ifdef RECORD_HIDDEN_SPIKES
     const uint32_t hiddenSpikeRecordingPtr = AppUtils::allocateScalarAndZero(numHiddenSpikeArrayWords * 4, scalarInitData);
@@ -624,6 +624,8 @@ int main(int argc, char** argv)
     LOGI << simCode.size() << " simulation instructions";
     LOGI << scalarInitData.size() << " bytes of scalar memory required";
     LOGI << vectorInitData.size() * 2 << " bytes of vector memory required (" << Common::Utils::ceilDivide(vectorInitData.size() / 32, 4096) << " URAM cascade)";
+
+    AppUtils::dumpCOE("mnist.coe", simCode);
 
     if(device) {
         LOGI << "Creating device";
