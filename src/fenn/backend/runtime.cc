@@ -144,8 +144,8 @@ private:
     //------------------------------------------------------------------------
     inline static const std::unordered_map<std::string,
                                            std::vector<FeNN::Common::CSR>>
-        s_PerformanceCounterCSRs = {{"num_instructions", {FeNN::Common::CSR::MCYCLE, FeNN::Common::CSR::MCYCLEH}},
-                                    {"num_clock_cycles", {FeNN::Common::CSR::MINSTRET, FeNN::Common::CSR::MINSTRETH}},
+        s_PerformanceCounterCSRs = {{"num_instructions", {FeNN::Common::CSR::MINSTRET, FeNN::Common::CSR::MINSTRETH}},
+                                    {"num_clock_cycles", {FeNN::Common::CSR::MCYCLE, FeNN::Common::CSR::MCYCLEH}},
                                     {"num_slave_buffer_overflows", {FeNN::Common::CSR::SLAVE_BUFFER_OVERFLOW_COUNT}}};
 
     //------------------------------------------------------------------------
