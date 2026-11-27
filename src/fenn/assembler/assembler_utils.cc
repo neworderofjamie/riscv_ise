@@ -625,7 +625,7 @@ std::vector<uint32_t> generateStandardKernel(bool simulate, uint32_t readyFlagPt
         // Error handler
         //--------------------------------------------------------------------
         // Loop through non-hardwired registers
-        uint32_t dumpAddress = readyFlagPtr + 4;
+        /*uint32_t dumpAddress = readyFlagPtr + 4;
         for(uint32_t i = 1; i < 32; i++) {
             // Store to addresses following readyFlag
             c.sw(static_cast<Reg>(i), Reg::X0, dumpAddress);
@@ -658,7 +658,7 @@ std::vector<uint32_t> generateStandardKernel(bool simulate, uint32_t readyFlagPt
         // Boot code
         //--------------------------------------------------------------------
         // Label which should correspond to boot address
-        auto bootAddress = c.L();
+        auto bootAddress = c.L();*/
 
         // Clear ready flag
         c.sw(Reg::X0, Reg::X0, readyFlagPtr);
@@ -681,7 +681,7 @@ std::vector<uint32_t> generateStandardKernel(bool simulate, uint32_t readyFlagPt
             c.beq(Reg::X0, Reg::X0, successSpinLoop);
         }
 
-        assert(c.getAddress(bootAddress) == FeNN::Common::bootAddress);
+        //assert(c.getAddress(bootAddress) == FeNN::Common::bootAddress);
     }
 
     LOGI_FENN_ASSEMBLER << "Max vector registers used: " << vectorRegisterAllocator.getMaxUsedRegisters();

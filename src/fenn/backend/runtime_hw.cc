@@ -343,7 +343,7 @@ RuntimeHW::RuntimeHW(const std::vector<std::shared_ptr<const Frontend::Kernel>> 
     m_DeviceControl(numDevices)
 {
     // Set the device's boot address
-    m_DeviceControl.setBootAddress(FeNN::Common::bootAddress);
+    //m_DeviceControl.setBootAddress(FeNN::Common::bootAddress);
 }
 //------------------------------------------------------------------------
 std::unique_ptr<Frontend::DeviceBase> RuntimeHW::createDevice(size_t deviceIndex)

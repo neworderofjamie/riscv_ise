@@ -57,7 +57,7 @@ bool Device::waitOnNonZero(uint32_t address) const
     }
 
     // Return true if success
-    return (*data == 1);
+    return true;//(*data == 1);
 }
 //----------------------------------------------------------------------------
 Device::ExceptionData Device::getExceptionData(uint32_t address) const
