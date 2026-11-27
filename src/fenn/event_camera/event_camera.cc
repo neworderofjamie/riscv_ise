@@ -65,6 +65,9 @@ void deviceThread(const std::vector<uint32_t> &code, const std::vector<uint8_t> 
         deviceControl->getDownsampler()->setYScale(0.1);
         deviceControl->getDownsampler()->setPolarityControl(true, true, false);
         deviceControl->getDownsampler()->setCoreRange(1024, 1024);
+        
+        LOGI << "Starting MIPI status: activate lanes = " << deviceControl->getMIPICSI2Receiver()->getActiveLanes() << " SLB full="<< deviceControl->getMIPICSI2Receiver()->isStreamLineBufferFull() << ", SPFNF=" << deviceControl->getMIPICSI2Receiver()->isShortPacketFIFONotempty() << ", SPFF=" << deviceControl->getMIPICSI2Receiver()->isShortPacketFIFOFull();
+        LOGI << "Starting MIPI packet count: " << deviceControl->getMIPICSI2Receiver()->getPacketCount();
     }
 
     LOGI << "Resetting";
@@ -91,14 +94,23 @@ void deviceThread(const std::vector<uint32_t> &code, const std::vector<uint8_t> 
     LOGI << "Running " << readyFlagPtr;
     
     // Wait until ready flag
-    device.waitOnNonZero(readyFlagPtr);
-    LOGI << "Done";
+    if(device.waitOnNonZero(0)) {
+        LOGD_FENN_BACKEND << "Done";
+    }
+    else {
+        const auto exceptionData = device.getExceptionData(4);
+        LOGE_FENN_BACKEND << "Error running kernel cause:" << exceptionData.cause << ", PC:" << exceptionData.pc;
+    }
+
     barrier.wait();
 
     // Stop streaming data from camera and put core in disabled state
     if(coreID == 0) {
         deviceControl->getGenX320()->stopStreaming();
         deviceControl->setEnabled(false);
+        
+        LOGI << "Ending MIPI status: activate lanes = " << deviceControl->getMIPICSI2Receiver()->getActiveLanes() << " SLB full="<< deviceControl->getMIPICSI2Receiver()->isStreamLineBufferFull() << ", SPFNF=" << deviceControl->getMIPICSI2Receiver()->isShortPacketFIFONotempty() << ", SPFF=" << deviceControl->getMIPICSI2Receiver()->isShortPacketFIFOFull();
+        LOGI << "Ending MIPI packet count: " << deviceControl->getMIPICSI2Receiver()->getPacketCount();
     }
     LOGI << "Cores disabled";
 

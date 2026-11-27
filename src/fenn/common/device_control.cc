@@ -33,7 +33,7 @@ DeviceControl::DeviceControl(int numCores)
     if (m_MIPICSI2Receiver) {
         m_GenX320 = std::make_unique<GenX320>(EventFormat::EVT2, "axi_gpio_cam", 
                                               m_MIPICSI2Receiver.get());
-        m_Downsampler = std::make_unique<Downsampler>("axi_downsampler");
+        m_Downsampler = std::make_unique<Downsampler>("downsampler_ip_0");
     }
 #else
     throw std::runtime_error("Device control interface only supports Linux");
