@@ -29,12 +29,9 @@ void Downsampler::setXScale(double xScale)
         throw std::runtime_error("Invalid downsampler scale " + std::to_string(xScale));
     }
 
-    // Obtain width by multiplying GenX320 width by scale
-    const uint32_t width = static_cast<uint32_t>(std::round(320 * xScale));
-
-    // Convert scale into S1.15 fixed point, pre-multiply by width and write to register
+    // Convert scale into S1.15 fixed point and write to register
     writeReg(Register::X_SCALE,
-             width * static_cast<uint32_t>(std::round(xScale * (1 << 15))));
+             static_cast<uint32_t>(std::round(xScale * (1 << 15))));
 }
 //----------------------------------------------------------------------------
 void Downsampler::setYScale(double yScale)
@@ -47,7 +44,10 @@ void Downsampler::setYScale(double yScale)
     // Convert scale into S1.15 fixed point and write to register
     writeReg(Register::Y_SCALE,
              static_cast<uint32_t>(std::round(yScale * (1 << 15))));
-    
+        
+    // Obtain height by multiplying GenX320 height by scale and write to register
+    writeReg(Register::OUTPUT_HEIGHT,
+             static_cast<uint32_t>(std::round(320 * yScale)));
 }
 //----------------------------------------------------------------------------
 void Downsampler::setPolarityControl(bool passOn, bool passOff, bool mergePolarities)

@@ -33,11 +33,12 @@ private:
     // DMA controller registers
     enum class Register : int
     {
-        P_CONTROL   = 0x0,  // Polarity Control
-        X_SCALE     = 0x4,  // Scale factor to apply to X coordinate
-        Y_SCALE     = 0x8,  // Scale factor to apply to Y coordinates
-        CORE_0_MAX  = 0xC,  // Maximum output ID to route to core 0
-        CORE_1_MIN  = 0x10, // Minimum output ID to route to core 1
+        P_CONTROL       = 0x0,  // Polarity Control
+        X_SCALE         = 0x4,  // Scale factor to apply to X coordinate
+        Y_SCALE         = 0x8,  // Scale factor to apply to Y coordinates
+        CORE_0_MAX      = 0xC,  // Maximum output ID to route to core 0
+        CORE_1_MIN      = 0x10, // Minimum output ID to route to core 1
+        OUTPUT_HEIGHT   = 0x14, // Height of output
     };
 
     // Status register bits
